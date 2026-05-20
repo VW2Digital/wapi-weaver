@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const credSchema = z.object({
   whatsapp_phone_number_id: z.string().trim().max(64).nullable().optional(),
@@ -65,3 +66,46 @@ export const pingMeta = createServerFn({ method: "POST" })
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar Meta" };
     return { ok: true, info: body };
   });
+
+export const sendTestMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      to: z.string().trim().min(8).max(20),
+      text: z.string().trim().min(1).max(1000).optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+    const digits = data.to.replace(/\D+/g, "");
+    if (digits.length < 8) return { ok: false, error: "Número inválido" };
+
+    const payload = buildWhatsAppPayload("text", digits, {
+      text: data.text ?? "Mensagem de teste ✅",
+    });
+
+    const r = await fetch(
+      `https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    const body = await r.json();
+    if (!r.ok) {
+      return { ok: false, error: body?.error?.message ?? "Falha ao enviar", details: body };
+    }
+    return { ok: true, wa_message_id: body?.messages?.[0]?.id, sent_to: digits };
+  });
+

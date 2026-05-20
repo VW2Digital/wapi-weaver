@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage } from "@/lib/profile.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,12 +29,16 @@ function SettingsPage() {
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
+  const sendTest = useServerFn(sendTestMessage);
   const qc = useQueryClient();
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const [form, setForm] = useState<any>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [pingResult, setPingResult] = useState<any>(null);
+  const [testTo, setTestTo] = useState("");
+  const [testText, setTestText] = useState("Mensagem de teste ✅");
+  const [testResult, setTestResult] = useState<any>(null);
 
   useEffect(() => { if (profile) setForm(profile); }, [profile]);
 
@@ -52,6 +56,16 @@ function SettingsPage() {
   const pingMut = useMutation({
     mutationFn: () => ping(),
     onSuccess: (r) => setPingResult(r),
+  });
+
+  const testMut = useMutation({
+    mutationFn: (d: { to: string; text: string }) => sendTest({ data: d }),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.ok) toast.success(`Teste enviado para ${r.sent_to}`);
+      else toast.error(r.error ?? "Falha ao enviar");
+    },
+    onError: (e: any) => { setTestResult({ ok: false, error: e.message }); toast.error(e.message); },
   });
 
   if (isLoading) return <div className="p-6 text-muted-foreground">Carregando…</div>;
@@ -126,6 +140,64 @@ function SettingsPage() {
             </div>
           )}
         </Card>
+
+        <Card className="p-6">
+          <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API. O destinatário precisa ter conversado com seu número nas últimas 24h (janela de atendimento) — fora disso, use um template aprovado.
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
+            <div className="space-y-1.5">
+              <Label>Destinatário (E.164 sem +)</Label>
+              <Input
+                value={testTo}
+                onChange={(e) => setTestTo(onlyDigits(e.target.value))}
+                placeholder="5511999990000"
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mensagem</Label>
+              <Input
+                value={testText}
+                onChange={(e) => setTestText(e.target.value)}
+                placeholder="Mensagem de teste"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Button
+              onClick={() => {
+                if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
+                if (!testText.trim()) { toast.error("Escreva a mensagem."); return; }
+                setTestResult(null);
+                testMut.mutate({ to: testTo, text: testText.trim() });
+              }}
+              disabled={testMut.isPending}
+            >
+              {testMut.isPending ? "Enviando…" : "Enviar teste"}
+            </Button>
+          </div>
+          {testResult && (
+            <div className={`mt-3 flex items-start gap-2 rounded-md border p-3 text-sm ${testResult.ok ? "border-success/30 bg-success/10" : "border-destructive/30 bg-destructive/10"}`}>
+              {testResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" /> : <AlertCircle className="mt-0.5 h-4 w-4 text-destructive" />}
+              <div className="min-w-0 flex-1">
+                {testResult.ok ? (
+                  <span>Enviado para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
+                ) : (
+                  <div className="space-y-1">
+                    <div>{testResult.error}</div>
+                    {testResult.details && (
+                      <pre className="overflow-auto rounded bg-background/50 p-2 text-[11px]">{JSON.stringify(testResult.details, null, 2)}</pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+
 
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Webhook da Meta</h2>
