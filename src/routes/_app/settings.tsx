@@ -55,10 +55,10 @@ function SettingsPage() {
   };
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader title="Configurações" subtitle="Cole aqui suas credenciais do WhatsApp Cloud API." />
 
-      <div className="space-y-6 p-6">
+      <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Credenciais Meta</h2>
           <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>.</p>
