@@ -31,6 +31,7 @@ function SettingsPage() {
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
   const sendTest = useServerFn(sendTestMessage);
+  const sendHello = useServerFn(sendHelloWorldTemplate);
   const fetchStatus = useServerFn(getTestMessageStatus);
   const qc = useQueryClient();
 
