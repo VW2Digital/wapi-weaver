@@ -49,8 +49,8 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     ] = await Promise.all([
       countBefore(supabase, "contacts", now.toISOString()),
       countBefore(supabase, "contacts", sevenAgo.toISOString()),
-      countBefore(supabase, "templates", now.toISOString()),
-      countBefore(supabase, "templates", sevenAgo.toISOString()),
+      countBefore(supabase, "templates", now.toISOString(), "synced_at"),
+      countBefore(supabase, "templates", sevenAgo.toISOString(), "synced_at"),
       countBefore(supabase, "campaigns", now.toISOString()),
       countBefore(supabase, "campaigns", sevenAgo.toISOString()),
       countDeliveredBetween(supabase, sevenAgo.toISOString(), now.toISOString()),
