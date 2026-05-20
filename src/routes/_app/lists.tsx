@@ -51,7 +51,7 @@ function ListsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader title="Listas & Tags" subtitle="Organize seus contatos para segmentar campanhas." />
 
-      <div className="grid gap-6 p-6 lg:grid-cols-3">
+      <div className="flex-1 overflow-y-auto grid gap-6 p-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           <Card className="p-4">
             <div className="flex items-center justify-between">
