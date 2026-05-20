@@ -133,7 +133,32 @@ function Dashboard() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader title="Dashboard" subtitle="Visão geral dos seus disparos via WhatsApp Cloud API." />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Visão geral dos seus disparos via WhatsApp Cloud API."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/contacts">
+                <Users className="h-4 w-4" />
+                Importar contatos
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/templates">
+                <FileText className="h-4 w-4" />
+                Criar template
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link to="/campaigns">
+                <Plus className="h-4 w-4" />
+                Nova campanha
+              </Link>
+            </Button>
+          </div>
+        }
+      />
       <div className="flex-1 overflow-y-auto">
         <div className="grid gap-4 p-6 md:grid-cols-4">
           {stats.map((s) => {
@@ -363,7 +388,7 @@ function Dashboard() {
                 </EmptyHeader>
                 <EmptyContent>
                   <Button asChild>
-                    <Link to="/campaigns/new">
+                    <Link to="/campaigns">
                       <Plus className="h-4 w-4" />
                       Criar primeira campanha
                     </Link>
