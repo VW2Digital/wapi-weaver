@@ -97,7 +97,7 @@ function SettingsPage() {
               const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "WABA ID");
               if (err2) nextErrors.whatsapp_waba_id = err2;
               setErrors(nextErrors);
-              if (Object.keys(nextErrors).length > 1) {
+              if (Object.keys(nextErrors).length > 0) {
                 toast.error("Corrija os erros antes de salvar.");
                 return;
               }
