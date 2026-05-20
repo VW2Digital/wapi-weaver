@@ -142,6 +142,64 @@ function SettingsPage() {
         </Card>
 
         <Card className="p-6">
+          <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API. O destinatário precisa ter conversado com seu número nas últimas 24h (janela de atendimento) — fora disso, use um template aprovado.
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
+            <div className="space-y-1.5">
+              <Label>Destinatário (E.164 sem +)</Label>
+              <Input
+                value={testTo}
+                onChange={(e) => setTestTo(onlyDigits(e.target.value))}
+                placeholder="5511999990000"
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mensagem</Label>
+              <Input
+                value={testText}
+                onChange={(e) => setTestText(e.target.value)}
+                placeholder="Mensagem de teste"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Button
+              onClick={() => {
+                if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
+                if (!testText.trim()) { toast.error("Escreva a mensagem."); return; }
+                setTestResult(null);
+                testMut.mutate({ to: testTo, text: testText.trim() });
+              }}
+              disabled={testMut.isPending}
+            >
+              {testMut.isPending ? "Enviando…" : "Enviar teste"}
+            </Button>
+          </div>
+          {testResult && (
+            <div className={`mt-3 flex items-start gap-2 rounded-md border p-3 text-sm ${testResult.ok ? "border-success/30 bg-success/10" : "border-destructive/30 bg-destructive/10"}`}>
+              {testResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" /> : <AlertCircle className="mt-0.5 h-4 w-4 text-destructive" />}
+              <div className="min-w-0 flex-1">
+                {testResult.ok ? (
+                  <span>Enviado para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
+                ) : (
+                  <div className="space-y-1">
+                    <div>{testResult.error}</div>
+                    {testResult.details && (
+                      <pre className="overflow-auto rounded bg-background/50 p-2 text-[11px]">{JSON.stringify(testResult.details, null, 2)}</pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+
+
+        <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Webhook da Meta</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             No painel da Meta (<em>App Dashboard → WhatsApp → Configuration</em>), use os valores abaixo. Selecione o campo <code>messages</code> ao se inscrever.
