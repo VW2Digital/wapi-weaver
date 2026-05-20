@@ -29,6 +29,7 @@ function AppLayout() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const loc = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
