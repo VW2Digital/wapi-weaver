@@ -287,8 +287,11 @@ export type Database = {
           id: string
           rate_limit_per_second: number
           updated_at: string
+          whatsapp_access_token: string | null
+          whatsapp_app_secret: string | null
           whatsapp_business_phone: string | null
           whatsapp_phone_number_id: string | null
+          whatsapp_verify_token: string | null
           whatsapp_waba_id: string | null
         }
         Insert: {
@@ -299,8 +302,11 @@ export type Database = {
           id: string
           rate_limit_per_second?: number
           updated_at?: string
+          whatsapp_access_token?: string | null
+          whatsapp_app_secret?: string | null
           whatsapp_business_phone?: string | null
           whatsapp_phone_number_id?: string | null
+          whatsapp_verify_token?: string | null
           whatsapp_waba_id?: string | null
         }
         Update: {
@@ -311,8 +317,11 @@ export type Database = {
           id?: string
           rate_limit_per_second?: number
           updated_at?: string
+          whatsapp_access_token?: string | null
+          whatsapp_app_secret?: string | null
           whatsapp_business_phone?: string | null
           whatsapp_phone_number_id?: string | null
+          whatsapp_verify_token?: string | null
           whatsapp_waba_id?: string | null
         }
         Relationships: []
