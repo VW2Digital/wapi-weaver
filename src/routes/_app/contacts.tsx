@@ -117,7 +117,7 @@ function ContactsPage() {
           </div>
           <div className="max-h-[70vh] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <thead className="sticky top-0 border-b bg-muted text-left text-xs uppercase text-foreground">
                 <tr><th className="p-3">Telefone</th><th className="p-3">Nome</th><th className="p-3">E-mail</th><th className="p-3">Origem</th><th className="p-3"></th></tr>
               </thead>
               <tbody>
