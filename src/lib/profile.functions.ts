@@ -111,6 +111,50 @@ export const sendTestMessage = createServerFn({ method: "POST" })
   });
 
 /**
+ * Envia o template pré-aprovado `hello_world` (en_US) que a Meta disponibiliza
+ * para todas as contas WhatsApp Business. Útil para validar entrega real
+ * sem depender da janela de 24h.
+ */
+export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ to: z.string().trim().min(8).max(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+    const digits = data.to.replace(/\D+/g, "");
+    if (digits.length < 8) return { ok: false, error: "Número inválido" };
+
+    const payload = buildWhatsAppPayload("template", digits, {
+      template_name: "hello_world",
+      language: "en_US",
+    });
+
+    const r = await fetch(
+      `https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    const body = await r.json();
+    if (!r.ok) {
+      return { ok: false, error: body?.error?.message ?? "Falha ao enviar", details: body };
+    }
+    return { ok: true, wa_message_id: body?.messages?.[0]?.id, sent_to: digits };
+  });
+
+
+/**
  * Procura nos webhook_events recentes status updates para o wamid fornecido.
  * Retorna o status mais avançado encontrado (sent < delivered < read; failed sempre prevalece).
  */
