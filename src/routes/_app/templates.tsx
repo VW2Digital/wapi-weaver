@@ -55,38 +55,30 @@ function TemplatesPage() {
         }
       />
       <div className="p-6">
-        <Card>
-          <div className="grid grid-cols-1 divide-y md:grid-cols-2 md:divide-x md:divide-y-0">
-            <div className="divide-y">
-              {isLoading && <p className="p-6 text-muted-foreground">Carregando…</p>}
-              {!isLoading && (data ?? []).length === 0 && (
-                <p className="p-6 text-sm text-muted-foreground">Nenhum template. Clique em <strong>Sincronizar</strong> para buscar os modelos aprovados na Meta.</p>
-              )}
-              {(data ?? []).map((t: any) => (
-                <div key={t.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{t.name}</p>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
-                  <div className="mt-2 space-y-1 text-xs">
-                    {(t.components ?? []).map((c: any, i: number) => (
-                      <div key={i} className="rounded bg-muted/50 p-2">
-                        <span className="font-mono text-[10px] uppercase text-muted-foreground">{c.type}</span>
-                        <p className="mt-0.5">{c.text ?? c.format ?? JSON.stringify(c).slice(0, 200)}</p>
-                      </div>
-                    ))}
-                  </div>
+        {isLoading && <p className="text-muted-foreground">Carregando…</p>}
+        {!isLoading && (data ?? []).length === 0 && (
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">
+              Nenhum template. Clique em <strong>Carregar exemplos</strong> ou <strong>Sincronizar com Meta</strong>.
+            </p>
+          </Card>
+        )}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {(data ?? []).map((t: any) => (
+            <Card key={t.id} className="overflow-hidden">
+              <div className="border-b p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">{t.name}</p>
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
                 </div>
-              ))}
-            </div>
-            <div className="hidden p-6 md:block">
-              <h3 className="font-display text-base font-semibold">Variáveis dinâmicas</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Templates podem ter placeholders <code>{`{{1}}`}</code>, <code>{`{{2}}`}</code> etc no corpo. Na criação de campanha, você define o valor de cada variável.</p>
-              <p className="mt-3 text-sm text-muted-foreground">Use <code>{`{{name}}`}</code> nos seus textos para usar o nome do contato, ou <code>{`{{empresa}}`}</code> para qualquer campo custom.</p>
-            </div>
-          </div>
-        </Card>
+                <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
+              </div>
+              <div className="p-4">
+                <WhatsAppPreview components={t.components ?? []} />
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );
