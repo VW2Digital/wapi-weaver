@@ -6,7 +6,7 @@ import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { Card } from "@/components/ui/card";
-import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   PieChart,
