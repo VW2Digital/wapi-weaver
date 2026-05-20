@@ -178,8 +178,22 @@ function SettingsPage() {
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API. O destinatário precisa ter conversado com seu número nas últimas 24h (janela de atendimento) — fora disso, use um template aprovado.
+            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
           </p>
+
+          <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="space-y-1">
+              <p className="font-medium text-amber-900 dark:text-amber-200">A API pode aceitar e mesmo assim a mensagem não chegar.</p>
+              <p className="text-amber-900/80 dark:text-amber-200/80">
+                Para mensagens de <strong>texto livre</strong> (como este teste), o destinatário precisa ter te enviado uma mensagem nas <strong>últimas 24h</strong>. Fora dessa janela, a Meta confirma o recebimento (retorna um <code className="text-xs">wamid</code>) mas <strong>não entrega</strong>.
+              </p>
+              <p className="text-amber-900/80 dark:text-amber-200/80">
+                Se sua conta WhatsApp Business ainda está em modo de teste/desenvolvimento, o número também precisa estar cadastrado em <em>WhatsApp Manager → Phone Numbers → Test recipients</em>. Para envios fora da janela, use um <strong>template aprovado</strong>.
+              </p>
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
             <div className="space-y-1.5">
               <Label>Destinatário (E.164 sem +)</Label>
@@ -207,6 +221,7 @@ function SettingsPage() {
                 if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
                 if (!testText.trim()) { toast.error("Escreva a mensagem."); return; }
                 setTestResult(null);
+                setDeliveryStatus(null);
                 testMut.mutate({ to: testTo, text: testText.trim() });
               }}
               disabled={testMut.isPending}
@@ -215,17 +230,25 @@ function SettingsPage() {
             </Button>
           </div>
           {testResult && (
-            <ResultAlert
-              ok={!!testResult.ok}
-              successContent={
-                <span>Enviado para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
-              }
-              error={testResult.error}
-              details={testResult.details}
-              fallback="Falha ao enviar a mensagem de teste."
-            />
+            <>
+              <ResultAlert
+                ok={!!testResult.ok}
+                successContent={
+                  <span>Aceito pela Meta para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
+                }
+                error={testResult.error}
+                details={testResult.details}
+                fallback="Falha ao enviar a mensagem de teste."
+              />
+              {testResult.ok && (
+                <DeliveryTimeline status={deliveryStatus} hasWebhook={!!form.whatsapp_app_secret && !!form.whatsapp_verify_token} />
+              )}
+            </>
           )}
         </Card>
+
+
+
 
 
         <Card className="p-6">
