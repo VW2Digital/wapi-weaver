@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
@@ -9,6 +9,22 @@ import { Send, Users, FileText, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
+
+const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
+const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
+  pending: "Pendente",
+  sent: "Enviada",
+  delivered: "Entregue",
+  read: "Lida",
+  failed: "Falhou",
+};
+const STATUS_COLOR: Record<(typeof STATUS_KEYS)[number], string> = {
+  pending: "bg-muted-foreground/40",
+  sent: "bg-primary/70",
+  delivered: "bg-primary",
+  read: "bg-success",
+  failed: "bg-destructive",
+};
 
 function Dashboard() {
   const fetchCampaigns = useServerFn(listCampaigns);
