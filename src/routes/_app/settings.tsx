@@ -185,11 +185,20 @@ function SettingsPage() {
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+function Field({ label, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <Input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <Input
+        type={type}
+        value={value ?? ""}
+        onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
+        placeholder={placeholder}
+        className={error ? "border-destructive focus-visible:ring-destructive" : ""}
+        inputMode={digitsOnly ? "numeric" : undefined}
+        pattern={digitsOnly ? "[0-9]*" : undefined}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
