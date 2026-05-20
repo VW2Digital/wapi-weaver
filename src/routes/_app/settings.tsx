@@ -29,12 +29,16 @@ function SettingsPage() {
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
+  const sendTest = useServerFn(sendTestMessage);
   const qc = useQueryClient();
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const [form, setForm] = useState<any>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [pingResult, setPingResult] = useState<any>(null);
+  const [testTo, setTestTo] = useState("");
+  const [testText, setTestText] = useState("Mensagem de teste ✅");
+  const [testResult, setTestResult] = useState<any>(null);
 
   useEffect(() => { if (profile) setForm(profile); }, [profile]);
 
