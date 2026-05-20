@@ -309,7 +309,73 @@ function SettingsPage() {
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
+function DeliveryTimeline({ status, hasWebhook }: { status: { status: string; timestamp?: string; error?: any } | null; hasWebhook: boolean }) {
+  if (!hasWebhook) {
+    return (
+      <div className="mt-2 flex items-start gap-2 rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+        <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          Para acompanhar <strong>entregue / lido</strong> em tempo real, configure abaixo o <strong>App Secret</strong> + <strong>Verify Token</strong> e cadastre a Callback URL no painel da Meta (campo <code>messages</code>).
+        </span>
+      </div>
+    );
+  }
+
+  const order = ["sent", "delivered", "read"] as const;
+  const current = status?.status;
+  const failed = current === "failed";
+  const reachedIdx = current ? order.indexOf(current as any) : -1;
+
+  return (
+    <div className="mt-2 rounded-md border bg-muted/20 p-3">
+      <div className="mb-2 text-xs font-medium text-muted-foreground">Status real (via webhook da Meta)</div>
+      {failed ? (
+        <div className="flex items-start gap-2 text-sm text-destructive">
+          <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <div className="font-medium">Falhou na entrega</div>
+            {status?.error && (
+              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-[11px] text-muted-foreground">
+                {JSON.stringify(status.error, null, 2)}
+              </pre>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-4 text-sm">
+          <Step label="Enviado" active={reachedIdx >= 0} icon={Check} />
+          <Divider active={reachedIdx >= 1} />
+          <Step label="Entregue" active={reachedIdx >= 1} icon={CheckCheck} />
+          <Divider active={reachedIdx >= 2} />
+          <Step label="Lido" active={reachedIdx >= 2} icon={CheckCheck} accent />
+          {reachedIdx < 1 && (
+            <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3 animate-pulse" /> aguardando confirmação da Meta…
+            </span>
+          )}
+        </div>
+      )}
+      {status?.timestamp && (
+        <div className="mt-2 text-[11px] text-muted-foreground">Última atualização: {new Date(status.timestamp).toLocaleString()}</div>
+      )}
+    </div>
+  );
+}
+
+function Step({ label, active, icon: Icon, accent }: { label: string; active: boolean; icon: any; accent?: boolean }) {
+  return (
+    <div className={`flex items-center gap-1.5 ${active ? (accent ? "text-primary" : "text-success") : "text-muted-foreground/50"}`}>
+      <Icon className="h-4 w-4" />
+      <span className={active ? "font-medium" : ""}>{label}</span>
+    </div>
+  );
+}
+
+function Divider({ active }: { active: boolean }) {
+  return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
+}
+
+
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
