@@ -41,7 +41,7 @@ function CampaignDetailPage() {
   if (!data?.campaign) return <p className="p-10 text-muted-foreground">Campanha não encontrada.</p>;
 
   const c = data.campaign;
-  const t = c.totals ?? {};
+  const t = (c.totals ?? {}) as Record<string, number>;
   const total = t.total ?? 0;
   const sent = (t.sent ?? 0) + (t.delivered ?? 0) + (t.read ?? 0);
   const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
