@@ -33,6 +33,7 @@ function SettingsPage() {
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const [form, setForm] = useState<any>({});
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [pingResult, setPingResult] = useState<any>(null);
 
   useEffect(() => { if (profile) setForm(profile); }, [profile]);
