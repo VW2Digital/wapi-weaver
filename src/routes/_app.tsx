@@ -1,7 +1,8 @@
 import { createFileRoute, Navigate, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp } from "lucide-react";
+import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ function AppLayout() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const loc = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
@@ -103,6 +105,11 @@ function AppLayout() {
                 <Link to="/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" /> Configurações
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={(e) => { e.preventDefault(); toggleTheme(); }} className="cursor-pointer">
+                {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+                {theme === "dark" ? "Tema claro" : "Tema escuro"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
