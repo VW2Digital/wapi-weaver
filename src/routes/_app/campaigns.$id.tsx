@@ -48,7 +48,7 @@ function CampaignDetailPage() {
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title={c.name}
         subtitle={`Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`}
@@ -62,7 +62,7 @@ function CampaignDetailPage() {
         }
       />
 
-      <div className="space-y-6 p-6">
+      <div className="flex-1 overflow-y-auto space-y-6 p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="p-4">
             <p className="text-xs text-muted-foreground">Status</p>

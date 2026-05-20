@@ -36,7 +36,7 @@ function CampaignsPage() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title="Campanhas"
         subtitle="Crie disparos em massa para suas listas de contatos."
@@ -52,7 +52,7 @@ function CampaignsPage() {
         }
       />
 
-      <div className="p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         <Card>
           {isLoading && <p className="p-6 text-muted-foreground">Carregando…</p>}
           {!isLoading && (data ?? []).length === 0 && (
