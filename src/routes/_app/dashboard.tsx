@@ -78,6 +78,26 @@ function Dashboard() {
     { label: "Entregas", value: totals.delivered, icon: CheckCircle2 },
   ];
 
+  const pieData = [
+    { key: "delivered", name: "Entregue", value: totals.delivered },
+    { key: "read", name: "Lida", value: totals.read },
+    { key: "sent", name: "Enviada", value: Math.max(totals.sent - totals.delivered, 0) },
+    { key: "failed", name: "Falhou", value: totals.failed },
+  ].filter((d) => d.value > 0);
+
+  const barData = (c.data ?? [])
+    .slice(0, 8)
+    .map((x: any) => {
+      const t = (x.totals ?? {}) as Record<string, number>;
+      const name = String(x.name ?? "—");
+      return {
+        name: name.length > 14 ? name.slice(0, 14) + "…" : name,
+        Entregue: t.delivered ?? 0,
+        Lida: t.read ?? 0,
+        Falhou: t.failed ?? 0,
+      };
+    });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader title="Dashboard" subtitle="Visão geral dos seus disparos via WhatsApp Cloud API." />
