@@ -41,8 +41,36 @@ function SettingsPage() {
   const [testTo, setTestTo] = useState("");
   const [testText, setTestText] = useState("Mensagem de teste ✅");
   const [testResult, setTestResult] = useState<any>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<{ status: string; timestamp?: string; error?: any } | null>(null);
+  const pollRef = useRef<number | null>(null);
 
-  useEffect(() => { if (profile) setForm(profile); }, [profile]);
+  // Polling do status do teste enquanto houver wamid e ainda não chegou em "read" ou "failed"
+  useEffect(() => {
+    if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+    const wamid = testResult?.wa_message_id;
+    if (!wamid) return;
+    const tick = async () => {
+      try {
+        const r = await fetchStatus({ data: { wamid } });
+        if (r.found) {
+          setDeliveryStatus({ status: r.status, timestamp: r.timestamp, error: r.error });
+          if (r.status === "read" || r.status === "failed") {
+            if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+          }
+        }
+      } catch {}
+    };
+    tick();
+    pollRef.current = window.setInterval(tick, 4000) as unknown as number;
+    // Para de tentar após 2 minutos
+    const stop = window.setTimeout(() => {
+      if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+    }, 120_000);
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      window.clearTimeout(stop);
+    };
+  }, [testResult?.wa_message_id, fetchStatus]);
 
   const saveMut = useMutation({
     mutationFn: (d: any) => save({ data: d }),
