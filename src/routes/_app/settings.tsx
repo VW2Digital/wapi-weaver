@@ -162,7 +162,7 @@ function SettingsPage() {
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder }: any) {
+function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
