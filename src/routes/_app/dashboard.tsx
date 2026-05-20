@@ -6,7 +6,7 @@ import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { Card } from "@/components/ui/card";
-import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   PieChart,
@@ -169,21 +169,52 @@ function Dashboard() {
         </div>
 
       <div className="grid gap-4 px-6 pb-6 md:grid-cols-3">
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Taxa de entrega</p>
-          <p className="mt-2 font-display text-3xl font-semibold">{deliverRate}%</p>
-          <p className="mt-1 text-xs text-muted-foreground">{totals.delivered} / {totals.sent} mensagens</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Taxa de leitura</p>
-          <p className="mt-2 font-display text-3xl font-semibold">{readRate}%</p>
-          <p className="mt-1 text-xs text-muted-foreground">{totals.read} leituras confirmadas</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Falhas</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-destructive">{totals.failed}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Verifique credenciais e templates</p>
-        </Card>
+        {[
+          {
+            label: "Taxa de entrega",
+            value: `${deliverRate}%`,
+            hint: `${totals.delivered.toLocaleString("pt-BR")} / ${totals.sent.toLocaleString("pt-BR")} mensagens`,
+            icon: Target,
+            tone: "default" as const,
+          },
+          {
+            label: "Taxa de leitura",
+            value: `${readRate}%`,
+            hint: `${totals.read.toLocaleString("pt-BR")} leituras confirmadas`,
+            icon: Eye,
+            tone: "default" as const,
+          },
+          {
+            label: "Falhas",
+            value: totals.failed.toLocaleString("pt-BR"),
+            hint: "Verifique credenciais e templates",
+            icon: AlertTriangle,
+            tone: totals.failed > 0 ? ("destructive" as const) : ("default" as const),
+          },
+        ].map((r) => (
+          <Card key={r.label} className="flex items-center justify-between p-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{r.label}</p>
+              <p
+                className={`mt-1 font-display text-2xl font-semibold leading-tight ${
+                  r.tone === "destructive" ? "text-destructive" : ""
+                }`}
+              >
+                {r.value}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{r.hint}</p>
+            </div>
+            <div
+              className={`rounded-lg p-2 ${
+                r.tone === "destructive"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-accent text-accent-foreground"
+              }`}
+            >
+              <r.icon className="h-4 w-4" />
+            </div>
+          </Card>
+        ))}
       </div>
 
       <div className="grid gap-4 px-6 pb-6 lg:grid-cols-5">
