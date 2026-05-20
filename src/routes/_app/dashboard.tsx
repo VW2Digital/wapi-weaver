@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
@@ -9,6 +9,22 @@ import { Send, Users, FileText, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
+
+const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
+const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
+  pending: "Pendente",
+  sent: "Enviada",
+  delivered: "Entregue",
+  read: "Lida",
+  failed: "Falhou",
+};
+const STATUS_COLOR: Record<(typeof STATUS_KEYS)[number], string> = {
+  pending: "bg-muted-foreground/40",
+  sent: "bg-primary/70",
+  delivered: "bg-primary",
+  read: "bg-success",
+  failed: "bg-destructive",
+};
 
 function Dashboard() {
   const fetchCampaigns = useServerFn(listCampaigns);
@@ -79,23 +95,71 @@ function Dashboard() {
       </div>
 
       <div className="px-6 pb-12">
-        <h2 className="mb-3 font-display text-lg font-semibold">Últimas campanhas</h2>
-        <Card className="divide-y">
-          {(c.data ?? []).slice(0, 6).map((x: any) => (
-            <div key={x.id} className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-medium">{x.name}</p>
-                <p className="text-xs text-muted-foreground">{new Date(x.created_at).toLocaleString("pt-BR")} · {x.message_type}</p>
+        <h2 className="mb-3 font-display text-lg font-semibold">Mensagens por status — por campanha</h2>
+        <Card className="overflow-hidden">
+          <div className="hidden grid-cols-12 gap-3 border-b bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+            <div className="col-span-3">Campanha</div>
+            <div className="col-span-4">Distribuição</div>
+            {STATUS_KEYS.map((k) => (
+              <div key={k} className="text-right">{STATUS_LABEL[k]}</div>
+            ))}
+          </div>
+          <div className="divide-y">
+            {(c.data ?? []).map((x: any) => {
+              const t = (x.totals ?? {}) as Record<string, number>;
+              const total = t.total ?? STATUS_KEYS.reduce((s, k) => s + (t[k] ?? 0), 0);
+              return (
+                <Link
+                  key={x.id}
+                  to="/campaigns/$id"
+                  params={{ id: x.id }}
+                  className="grid grid-cols-2 gap-3 px-4 py-3 text-sm hover:bg-muted/30 md:grid-cols-12 md:items-center"
+                >
+                  <div className="col-span-2 md:col-span-3">
+                    <p className="truncate font-medium">{x.name}</p>
+                    <p className="text-xs text-muted-foreground">{x.status} · {total} total</p>
+                  </div>
+                  <div className="col-span-2 md:col-span-4">
+                    <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
+                      {STATUS_KEYS.map((k) => {
+                        const v = t[k] ?? 0;
+                        const pct = total > 0 ? (v / total) * 100 : 0;
+                        if (pct === 0) return null;
+                        return (
+                          <div
+                            key={k}
+                            className={STATUS_COLOR[k]}
+                            style={{ width: `${pct}%` }}
+                            title={`${STATUS_LABEL[k]}: ${v}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {STATUS_KEYS.map((k) => (
+                    <div key={k} className="text-right text-sm tabular-nums md:col-span-1">
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">{STATUS_LABEL[k]}:</span>
+                      <span className={k === "failed" && (t[k] ?? 0) > 0 ? "text-destructive font-medium" : ""}>
+                        {t[k] ?? 0}
+                      </span>
+                    </div>
+                  ))}
+                </Link>
+              );
+            })}
+            {(c.data ?? []).length === 0 && (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Nenhuma campanha criada ainda. Vá em <strong>Campanhas → Nova</strong> para começar.
               </div>
-              <div className="text-right text-xs">
-                <span className="rounded-full bg-accent px-2 py-1 font-medium text-accent-foreground">{x.status}</span>
-                <p className="mt-1 text-muted-foreground">{x.totals?.sent ?? 0} / {x.totals?.total ?? 0} enviadas</p>
-              </div>
-            </div>
-          ))}
-          {(c.data ?? []).length === 0 && (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              Nenhuma campanha criada ainda. Vá em <strong>Campanhas → Nova</strong> para começar.
+            )}
+          </div>
+          {(c.data ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+              {STATUS_KEYS.map((k) => (
+                <span key={k} className="inline-flex items-center gap-1.5">
+                  <span className={`h-2 w-3 rounded ${STATUS_COLOR[k]}`} /> {STATUS_LABEL[k]}
+                </span>
+              ))}
             </div>
           )}
         </Card>
