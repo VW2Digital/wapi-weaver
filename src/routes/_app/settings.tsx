@@ -332,6 +332,25 @@ function SettingsPage() {
             </pre>
           </div>
         </Card>
+
+        <Card className="p-6">
+          <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Leia nossos termos e saiba como seus dados são tratados.</p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Link to="/privacy" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+              <Shield className="h-4 w-4 text-primary" />
+              Política de Privacidade
+            </Link>
+            <Link to="/terms" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+              <FileText className="h-4 w-4 text-primary" />
+              Termos de Serviço
+            </Link>
+            <Link to="/data-deletion" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+              <Trash2 className="h-4 w-4 text-primary" />
+              Exclusão de Dados
+            </Link>
+          </div>
+        </Card>
       </div>
     </div>
   );
