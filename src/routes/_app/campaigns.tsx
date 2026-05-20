@@ -52,7 +52,7 @@ function CampaignsPage() {
         }
       />
 
-      <div className="p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         <Card>
           {isLoading && <p className="p-6 text-muted-foreground">Carregando…</p>}
           {!isLoading && (data ?? []).length === 0 && (

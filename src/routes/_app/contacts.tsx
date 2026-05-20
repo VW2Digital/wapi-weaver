@@ -110,7 +110,7 @@ function ContactsPage() {
           </div>
         }
       />
-      <div className="p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         <Card>
           <div className="border-b p-3">
             <Input placeholder="Buscar por nome, telefone ou e-mail…" value={search} onChange={(e) => setSearch(e.target.value)} />
