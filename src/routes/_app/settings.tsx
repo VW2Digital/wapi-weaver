@@ -150,10 +150,11 @@ function SettingsPage() {
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
             <div className="space-y-1.5">
               <Label>Destinatário (E.164 sem +)</Label>
+              <p className="text-[11px] text-muted-foreground">Exemplo: 5511999999999</p>
               <Input
                 value={testTo}
                 onChange={(e) => setTestTo(onlyDigits(e.target.value))}
-                placeholder="5511999990000"
+                placeholder="5511999999999"
                 inputMode="numeric"
                 pattern="[0-9]*"
               />
