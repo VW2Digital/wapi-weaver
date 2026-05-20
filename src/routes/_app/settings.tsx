@@ -226,7 +226,7 @@ function SettingsPage() {
               />
             </div>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button
               onClick={() => {
                 if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
@@ -235,11 +235,28 @@ function SettingsPage() {
                 setDeliveryStatus(null);
                 testMut.mutate({ to: testTo, text: testText.trim() });
               }}
-              disabled={testMut.isPending}
+              disabled={testMut.isPending || helloMut.isPending}
             >
-              {testMut.isPending ? "Enviando…" : "Enviar teste"}
+              {testMut.isPending ? "Enviando…" : "Enviar texto livre"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
+                setTestResult(null);
+                setDeliveryStatus(null);
+                helloMut.mutate({ to: testTo });
+              }}
+              disabled={testMut.isPending || helloMut.isPending}
+              title="Template pré-aprovado pela Meta — funciona fora da janela de 24h"
+            >
+              {helloMut.isPending ? "Enviando…" : "Enviar template hello_world"}
             </Button>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            💡 <strong>Não chegou nada?</strong> Use o <strong>hello_world</strong> — é um template oficial da Meta que ignora a janela de 24h. Se esse chegar e o texto livre não, é confirmação de que o problema é a janela.
+          </p>
+
           {testResult && (
             <>
               <ResultAlert
