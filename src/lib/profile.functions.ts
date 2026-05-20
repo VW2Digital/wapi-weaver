@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const credSchema = z.object({
   whatsapp_phone_number_id: z.string().trim().max(64).nullable().optional(),
