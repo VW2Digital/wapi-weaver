@@ -14,6 +14,16 @@ import { Copy, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
 
+function onlyDigits(v: string) {
+  return v.replace(/\D/g, "");
+}
+
+function validateDigitsField(v: string, label: string): string | null {
+  if (!v) return `${label} é obrigatório.`;
+  if (/\D/.test(v)) return `${label} deve conter apenas dígitos (0-9).`;
+  return null;
+}
+
 function SettingsPage() {
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
