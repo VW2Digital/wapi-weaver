@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Copy, RefreshCw } from "lucide-react";
+import { ResultAlert } from "@/components/result-alert";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
 
