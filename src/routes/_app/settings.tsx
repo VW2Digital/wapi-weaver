@@ -130,16 +130,15 @@ function SettingsPage() {
             </Button>
           </div>
           {pingResult && (
-            <div className={`mt-3 flex items-start gap-2 rounded-md border p-3 text-sm ${pingResult.ok ? "border-success/30 bg-success/10" : "border-destructive/30 bg-destructive/10"}`}>
-              {pingResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" /> : <AlertCircle className="mt-0.5 h-4 w-4 text-destructive" />}
-              <div>
-                {pingResult.ok ? (
-                  <span>Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade: {pingResult.info?.quality_rating}</span>
-                ) : (
-                  <span>{pingResult.error}</span>
-                )}
-              </div>
-            </div>
+            <ResultAlert
+              ok={!!pingResult.ok}
+              successContent={
+                <span>Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade: {pingResult.info?.quality_rating}</span>
+              }
+              error={pingResult.error}
+              details={pingResult.details ?? pingResult.error}
+              fallback="Não foi possível conectar à WhatsApp Cloud API."
+            />
           )}
         </Card>
 
