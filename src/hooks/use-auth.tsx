@@ -19,14 +19,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      router.invalidate();
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
     });
     return () => sub.subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
   return (
     <Ctx.Provider value={{ user: session?.user ?? null, session, loading }}>
