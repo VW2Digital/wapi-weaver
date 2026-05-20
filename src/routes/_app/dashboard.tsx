@@ -8,6 +8,7 @@ import { getDashboardStats } from "@/lib/dashboard.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -90,24 +91,28 @@ function Dashboard() {
       value: ct.data?.length ?? s.data?.contacts.current ?? 0,
       icon: Users,
       trend: s.data ? trend(s.data.contacts.current, s.data.contacts.previous) : null,
+      loading: ct.isPending && s.isPending,
     },
     {
       label: "Templates",
       value: t.data?.length ?? s.data?.templates.current ?? 0,
       icon: FileText,
       trend: s.data ? trend(s.data.templates.current, s.data.templates.previous) : null,
+      loading: t.isPending && s.isPending,
     },
     {
       label: "Campanhas",
       value: c.data?.length ?? s.data?.campaigns.current ?? 0,
       icon: Send,
       trend: s.data ? trend(s.data.campaigns.current, s.data.campaigns.previous) : null,
+      loading: c.isPending && s.isPending,
     },
     {
       label: "Entregas (7d)",
       value: s.data?.delivered.current ?? totals.delivered,
       icon: CheckCircle2,
       trend: s.data ? trend(s.data.delivered.current, s.data.delivered.previous) : null,
+      loading: s.isPending,
     },
   ];
 
@@ -174,17 +179,26 @@ function Dashboard() {
                 : "text-muted-foreground";
             return (
               <Card key={s.label} className="flex items-center justify-between p-4">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
-                  <p className="mt-1 font-display text-2xl font-semibold leading-tight">{s.value.toLocaleString("pt-BR")}</p>
-                  {tr && (
-                    <div className={`mt-1 flex items-center gap-1 text-xs ${trendColor}`}>
-                      <TrendIcon className="h-3 w-3" />
-                      <span className="font-medium">
-                        {tr.isNew ? "novo" : flat ? "estável" : `${up ? "+" : ""}${tr.delta}%`}
-                      </span>
-                      <span className="text-muted-foreground">vs. 7d</span>
-                    </div>
+                  {s.loading ? (
+                    <>
+                      <Skeleton className="mt-2 h-7 w-20" />
+                      <Skeleton className="mt-2 h-3 w-24" />
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1 font-display text-2xl font-semibold leading-tight">{s.value.toLocaleString("pt-BR")}</p>
+                      {tr && (
+                        <div className={`mt-1 flex items-center gap-1 text-xs ${trendColor}`}>
+                          <TrendIcon className="h-3 w-3" />
+                          <span className="font-medium">
+                            {tr.isNew ? "novo" : flat ? "estável" : `${up ? "+" : ""}${tr.delta}%`}
+                          </span>
+                          <span className="text-muted-foreground">vs. 7d</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="rounded-lg bg-accent p-2 text-accent-foreground">
@@ -220,16 +234,25 @@ function Dashboard() {
           },
         ].map((r) => (
           <Card key={r.label} className="flex items-center justify-between p-4">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{r.label}</p>
-              <p
-                className={`mt-1 font-display text-2xl font-semibold leading-tight ${
-                  r.tone === "destructive" ? "text-destructive" : ""
-                }`}
-              >
-                {r.value}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{r.hint}</p>
+              {c.isPending ? (
+                <>
+                  <Skeleton className="mt-2 h-7 w-20" />
+                  <Skeleton className="mt-2 h-3 w-32" />
+                </>
+              ) : (
+                <>
+                  <p
+                    className={`mt-1 font-display text-2xl font-semibold leading-tight ${
+                      r.tone === "destructive" ? "text-destructive" : ""
+                    }`}
+                  >
+                    {r.value}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{r.hint}</p>
+                </>
+              )}
             </div>
             <div
               className={`rounded-lg p-2 ${
