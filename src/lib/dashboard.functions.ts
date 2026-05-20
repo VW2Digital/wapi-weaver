@@ -1,11 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function countBefore(supabase: any, table: string, cutoffIso: string) {
+async function countBefore(
+  supabase: any,
+  table: string,
+  cutoffIso: string,
+  column = "created_at",
+) {
   const { count, error } = await supabase
     .from(table)
     .select("*", { count: "exact", head: true })
-    .lte("created_at", cutoffIso);
+    .lte(column, cutoffIso);
   if (error) throw error;
   return count ?? 0;
 }
