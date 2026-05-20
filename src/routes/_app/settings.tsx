@@ -44,6 +44,10 @@ function SettingsPage() {
   const [deliveryStatus, setDeliveryStatus] = useState<{ status: string; timestamp?: string; error?: any } | null>(null);
   const pollRef = useRef<number | null>(null);
 
+  useEffect(() => { if (profile) setForm(profile); }, [profile]);
+
+
+
   // Polling do status do teste enquanto houver wamid e ainda não chegou em "read" ou "failed"
   useEffect(() => {
     if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
