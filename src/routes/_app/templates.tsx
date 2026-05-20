@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listTemplates, syncTemplatesFromMeta } from "@/lib/templates.functions";
+import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
@@ -21,6 +21,7 @@ const statusColors: Record<string, string> = {
 function TemplatesPage() {
   const fetch = useServerFn(listTemplates);
   const sync = useServerFn(syncTemplatesFromMeta);
+  const seed = useServerFn(seedSampleTemplates);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
 
@@ -30,12 +31,27 @@ function TemplatesPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const seedMut = useMutation({
+    mutationFn: () => seed(),
+    onSuccess: (r) => { toast.success(`${r.inserted} templates de exemplo adicionados`); qc.invalidateQueries({ queryKey: ["templates"] }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   return (
     <div>
       <PageHeader
         title="Templates"
         subtitle="Modelos aprovados pela Meta. São obrigatórios para iniciar uma conversa."
-        action={<Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}><RefreshCw className="mr-2 h-4 w-4" /> Sincronizar com Meta</Button>}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
+              <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
+            </Button>
+            <Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar com Meta
+            </Button>
+          </div>
+        }
       />
       <div className="p-6">
         <Card>

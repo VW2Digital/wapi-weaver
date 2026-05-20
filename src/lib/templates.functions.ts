@@ -50,3 +50,151 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
     }
     return { synced: all.length };
   });
+
+const SAMPLE_TEMPLATES = [
+  {
+    name: "boas_vindas",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Olá, {{1}} 👋" },
+      { type: "BODY", text: "Seja bem-vindo(a) à {{2}}! Estamos felizes em ter você por aqui. Se precisar de qualquer coisa, é só responder esta mensagem." },
+      { type: "FOOTER", text: "Equipe {{2}}" },
+    ],
+  },
+  {
+    name: "confirmacao_pedido",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Pedido #{{1}} confirmado ✅" },
+      { type: "BODY", text: "Oi {{2}}! Recebemos seu pedido no valor de R$ {{3}}. A previsão de entrega é {{4}}. Obrigado pela compra!" },
+      { type: "FOOTER", text: "Acompanhe pelo nosso site" },
+      { type: "BUTTONS", buttons: [{ type: "URL", text: "Acompanhar pedido", url: "https://example.com/pedidos/{{1}}" }] },
+    ],
+  },
+  {
+    name: "codigo_verificacao",
+    language: "pt_BR",
+    category: "AUTHENTICATION",
+    components: [
+      { type: "BODY", text: "Seu código de verificação é {{1}}. Ele expira em 10 minutos. Não compartilhe com ninguém." },
+      { type: "FOOTER", text: "Mensagem automática" },
+    ],
+  },
+  {
+    name: "lembrete_agendamento",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Lembrete de agendamento 📅" },
+      { type: "BODY", text: "Olá {{1}}, lembrando seu compromisso em {{2}} às {{3}}. Confirma sua presença?" },
+      { type: "BUTTONS", buttons: [
+        { type: "QUICK_REPLY", text: "Sim, confirmo" },
+        { type: "QUICK_REPLY", text: "Preciso remarcar" },
+      ] },
+    ],
+  },
+  {
+    name: "carrinho_abandonado",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "BODY", text: "Oi {{1}}! Notamos que você deixou itens no carrinho. Finalize agora e ganhe {{2}}% de desconto usando o cupom {{3}}." },
+      { type: "BUTTONS", buttons: [{ type: "URL", text: "Voltar ao carrinho", url: "https://example.com/carrinho" }] },
+    ],
+  },
+  {
+    name: "promocao_relampago",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Oferta relâmpago ⚡" },
+      { type: "BODY", text: "{{1}}, só hoje: {{2}} com {{3}}% OFF. Aproveite antes que acabe!" },
+      { type: "FOOTER", text: "Válido até 23h59" },
+      { type: "BUTTONS", buttons: [{ type: "URL", text: "Ver oferta", url: "https://example.com/oferta" }] },
+    ],
+  },
+  {
+    name: "pesquisa_satisfacao",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "BODY", text: "Olá {{1}}, como foi sua experiência com {{2}}? Sua opinião nos ajuda muito 💚" },
+      { type: "BUTTONS", buttons: [
+        { type: "QUICK_REPLY", text: "😍 Excelente" },
+        { type: "QUICK_REPLY", text: "🙂 Boa" },
+        { type: "QUICK_REPLY", text: "😕 Pode melhorar" },
+      ] },
+    ],
+  },
+  {
+    name: "pagamento_recebido",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Pagamento confirmado 💚" },
+      { type: "BODY", text: "Oi {{1}}, recebemos seu pagamento de R$ {{2}} referente ao pedido #{{3}}. Obrigado!" },
+      { type: "FOOTER", text: "Recibo enviado por e-mail" },
+    ],
+  },
+  {
+    name: "novidade_lancamento",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Novidade chegando 🚀" },
+      { type: "BODY", text: "{{1}}, acabamos de lançar {{2}}. Dá uma olhada e nos conta o que achou!" },
+      { type: "BUTTONS", buttons: [{ type: "URL", text: "Conhecer agora", url: "https://example.com/novidades" }] },
+    ],
+  },
+  {
+    name: "reativacao_cliente",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "BODY", text: "Sentimos sua falta, {{1}}! Que tal voltar com {{2}}% de desconto na próxima compra? Cupom: {{3}}" },
+      { type: "FOOTER", text: "Cupom válido por 7 dias" },
+    ],
+  },
+  {
+    name: "welcome_en",
+    language: "en_US",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Welcome, {{1}} 👋" },
+      { type: "BODY", text: "Thanks for joining {{2}}! Reply anytime if you need help." },
+      { type: "FOOTER", text: "{{2}} team" },
+    ],
+  },
+  {
+    name: "order_shipped_en",
+    language: "en_US",
+    category: "UTILITY",
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Your order is on the way 📦" },
+      { type: "BODY", text: "Hi {{1}}, order #{{2}} just shipped. Estimated delivery: {{3}}." },
+      { type: "BUTTONS", buttons: [{ type: "URL", text: "Track order", url: "https://example.com/track/{{2}}" }] },
+    ],
+  },
+];
+
+export const seedSampleTemplates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const rows = SAMPLE_TEMPLATES.map((t) => ({
+      user_id: context.userId,
+      name: t.name,
+      language: t.language,
+      category: t.category,
+      status: "APPROVED" as const,
+      components: t.components,
+      meta_template_id: `sample_${t.name}_${t.language}`,
+      synced_at: new Date().toISOString(),
+    }));
+    const { error } = await context.supabase
+      .from("templates")
+      .upsert(rows, { onConflict: "user_id,name,language" });
+    if (error) throw error;
+    return { inserted: rows.length };
+  });
