@@ -103,6 +103,16 @@ function SettingsPage() {
     onError: (e: any) => { setTestResult({ ok: false, error: e.message }); toast.error(e.message); },
   });
 
+  const helloMut = useMutation({
+    mutationFn: (d: { to: string }) => sendHello({ data: d }),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.ok) toast.success(`Template hello_world enviado para ${r.sent_to}`);
+      else toast.error(r.error ?? "Falha ao enviar template");
+    },
+    onError: (e: any) => { setTestResult({ ok: false, error: e.message }); toast.error(e.message); },
+  });
+
   if (isLoading) return <div className="p-6 text-muted-foreground">Carregando…</div>;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
