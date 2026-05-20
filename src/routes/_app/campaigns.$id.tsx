@@ -62,7 +62,7 @@ function CampaignDetailPage() {
         }
       />
 
-      <div className="space-y-6 p-6">
+      <div className="flex-1 overflow-y-auto space-y-6 p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="p-4">
             <p className="text-xs text-muted-foreground">Status</p>

@@ -54,7 +54,7 @@ function TemplatesPage() {
           </div>
         }
       />
-      <div className="p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         {isLoading && <p className="text-muted-foreground">Carregando…</p>}
         {!isLoading && (data ?? []).length === 0 && (
           <Card className="p-6">
