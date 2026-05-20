@@ -31,15 +31,16 @@ function AppLayout() {
   };
 
   return (
-    <div className="grid min-h-screen md:grid-cols-[260px_1fr]">
-      <aside className="flex flex-col border-r bg-sidebar text-sidebar-foreground">
-        <div className="flex items-center gap-2 border-b border-sidebar-border px-6 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+    <div className="grid min-h-screen bg-background md:grid-cols-[260px_1fr] gap-3 p-3">
+      <aside className="flex flex-col rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm">
+        <div className="flex items-center gap-2 px-6 py-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
             <MessageCircle className="h-4 w-4 text-primary-foreground" />
           </div>
           <span className="font-display text-base font-semibold">ZapDispatch</span>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Menu</div>
+        <nav className="flex-1 space-y-1 px-3">
           {NAV.map(({ to, label, icon: Icon }) => {
             const active = loc.pathname.startsWith(to);
             return (
@@ -47,29 +48,30 @@ function AppLayout() {
                 key={to}
                 to={to}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                  "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
                   active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
                 )}
               >
+                {active && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
                 <Icon className="h-4 w-4" />
                 {label}
               </Link>
             );
           })}
         </nav>
-        <div className="border-t border-sidebar-border p-3">
-          <div className="px-3 py-2 text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
+        <div className="m-3 mt-4 rounded-xl border-t p-3">
+          <div className="px-3 py-2 text-xs text-muted-foreground truncate">{user.email}</div>
           <button
             onClick={logout}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
           >
             <LogOut className="h-4 w-4" /> Sair
           </button>
         </div>
       </aside>
-      <main className="bg-background">
+      <main className="rounded-2xl border bg-card shadow-sm overflow-hidden">
         <Outlet />
       </main>
     </div>
