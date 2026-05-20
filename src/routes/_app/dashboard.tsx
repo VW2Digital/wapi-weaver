@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -165,6 +166,38 @@ function Dashboard() {
         }
       />
       <div className="flex-1 overflow-y-auto">
+        {(() => {
+          if (c.isPending) return null;
+          const failureRate = totals.sent ? Math.round((totals.failed / totals.sent) * 100) : 0;
+          const alerts: { title: string; description: string }[] = [];
+          if (totals.failed > 0) {
+            alerts.push({
+              title: `${totals.failed.toLocaleString("pt-BR")} ${totals.failed === 1 ? "mensagem falhou" : "mensagens falharam"}`,
+              description:
+                failureRate >= 5
+                  ? `Taxa de falha de ${failureRate}% — verifique credenciais do WhatsApp Cloud, número e status dos templates.`
+                  : "Confira as campanhas com falhas para detalhes do erro.",
+            });
+          }
+          if (totals.sent >= 20 && deliverRate < 70) {
+            alerts.push({
+              title: `Taxa de entrega baixa: ${deliverRate}%`,
+              description: "Abaixo de 70%. Revise a qualidade dos números e o template usado.",
+            });
+          }
+          if (alerts.length === 0) return null;
+          return (
+            <div className="space-y-2 px-6 pt-6">
+              {alerts.map((a) => (
+                <Alert key={a.title} variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>{a.title}</AlertTitle>
+                  <AlertDescription>{a.description}</AlertDescription>
+                </Alert>
+              ))}
+            </div>
+          );
+        })()}
         <div className="grid gap-4 p-6 md:grid-cols-4">
           {stats.map((s) => {
             const tr = s.trend;
