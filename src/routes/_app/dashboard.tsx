@@ -90,24 +90,28 @@ function Dashboard() {
       value: ct.data?.length ?? s.data?.contacts.current ?? 0,
       icon: Users,
       trend: s.data ? trend(s.data.contacts.current, s.data.contacts.previous) : null,
+      loading: ct.isPending && s.isPending,
     },
     {
       label: "Templates",
       value: t.data?.length ?? s.data?.templates.current ?? 0,
       icon: FileText,
       trend: s.data ? trend(s.data.templates.current, s.data.templates.previous) : null,
+      loading: t.isPending && s.isPending,
     },
     {
       label: "Campanhas",
       value: c.data?.length ?? s.data?.campaigns.current ?? 0,
       icon: Send,
       trend: s.data ? trend(s.data.campaigns.current, s.data.campaigns.previous) : null,
+      loading: c.isPending && s.isPending,
     },
     {
       label: "Entregas (7d)",
       value: s.data?.delivered.current ?? totals.delivered,
       icon: CheckCircle2,
       trend: s.data ? trend(s.data.delivered.current, s.data.delivered.previous) : null,
+      loading: s.isPending,
     },
   ];
 
