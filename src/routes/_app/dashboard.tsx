@@ -388,7 +388,7 @@ function Dashboard() {
                 </EmptyHeader>
                 <EmptyContent>
                   <Button asChild>
-                    <Link to="/campaigns/new">
+                    <Link to="/campaigns">
                       <Plus className="h-4 w-4" />
                       Criar primeira campanha
                     </Link>
