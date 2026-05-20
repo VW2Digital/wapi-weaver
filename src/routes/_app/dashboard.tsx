@@ -4,8 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
+import { getDashboardStats } from "@/lib/dashboard.functions";
 import { Card } from "@/components/ui/card";
-import { Send, Users, FileText, CheckCircle2 } from "lucide-react";
+import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   PieChart,
