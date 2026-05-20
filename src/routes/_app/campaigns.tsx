@@ -62,7 +62,7 @@ function CampaignsPage() {
           )}
           <div className="divide-y">
             {(data ?? []).map((c: any) => {
-              const t = c.totals ?? {};
+              const t = (c.totals ?? {}) as Record<string, number>;
               const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
               return (
                 <div key={c.id} className="flex items-center justify-between gap-4 p-4 hover:bg-muted/30">
