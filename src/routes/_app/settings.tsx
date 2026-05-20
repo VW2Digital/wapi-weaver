@@ -86,12 +86,13 @@ function SettingsPage() {
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Credenciais Meta</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>. Os campos numéricos aceitam apenas dígitos (0-9).</p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="Phone Number ID" digitsOnly value={form.whatsapp_phone_number_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }} placeholder="123456789012345" error={errors.whatsapp_phone_number_id} />
-            <Field label="WhatsApp Business Account ID (WABA)" digitsOnly value={form.whatsapp_waba_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }} placeholder="123456789012345" error={errors.whatsapp_waba_id} />
-            <Field label="Número do WhatsApp (apenas exibição)" value={form.whatsapp_business_phone} onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })} placeholder="+55 11 99999-0000" />
+            <Field label="Phone Number ID" digitsOnly value={form.whatsapp_phone_number_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }} placeholder="Ex: 1065xxxxxxxxx" error={errors.whatsapp_phone_number_id} />
+            <Field label="WhatsApp Business Account ID (WABA)" digitsOnly value={form.whatsapp_waba_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }} placeholder="Ex: 1123xxxxxxxxx" error={errors.whatsapp_waba_id} />
+            <Field label="Número do WhatsApp (apenas exibição)" value={form.whatsapp_business_phone} onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })} placeholder="5511999990000" />
             <Field label="Rate limit (msg/seg)" type="number" value={form.rate_limit_per_second?.toString() ?? "20"} onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })} />
+
             <div className="md:col-span-2 space-y-1.5">
               <Label>Access Token permanente (System User)</Label>
               <Textarea
@@ -149,10 +150,11 @@ function SettingsPage() {
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
             <div className="space-y-1.5">
               <Label>Destinatário (E.164 sem +)</Label>
+              <p className="text-[11px] text-muted-foreground">Exemplo: 5511999999999</p>
               <Input
                 value={testTo}
                 onChange={(e) => setTestTo(onlyDigits(e.target.value))}
-                placeholder="5511999990000"
+                placeholder="5511999999999"
                 inputMode="numeric"
                 pattern="[0-9]*"
               />
