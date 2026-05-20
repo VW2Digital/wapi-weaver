@@ -127,9 +127,13 @@ function LoginPage() {
               {mode === "signin" ? "Criar agora" : "Entrar"}
             </button>
           </p>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            <Link to="/">← Voltar</Link>
-          </p>
+          <footer className="mt-6 flex flex-wrap items-center justify-center gap-3 border-t pt-4 text-[11px] text-muted-foreground">
+            <Link to="/privacy" className="hover:text-foreground">Política de Privacidade</Link>
+            <span className="text-border">|</span>
+            <Link to="/terms" className="hover:text-foreground">Termos de Serviço</Link>
+            <span className="text-border">|</span>
+            <Link to="/data-deletion" className="hover:text-foreground">Exclusão de Dados</Link>
+          </footer>
         </Card>
       </div>
     </div>
