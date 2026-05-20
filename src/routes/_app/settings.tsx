@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage } from "@/lib/profile.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
