@@ -177,6 +177,99 @@ const SAMPLE_TEMPLATES = [
       { type: "BUTTONS", buttons: [{ type: "URL", text: "Track order", url: "https://example.com/track/{{2}}" }] },
     ],
   },
+  {
+    name: "promo_imagem_oferta",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200"] } },
+      { type: "BODY", text: "{{1}}, oferta exclusiva: {{2}} com {{3}}% OFF. Use o cupom {{4}} no checkout!" },
+      { type: "FOOTER", text: "Válido até o fim do estoque" },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Comprar agora", url: "https://example.com/oferta" },
+        { type: "QUICK_REPLY", text: "Quero saber mais" },
+        { type: "QUICK_REPLY", text: "Não tenho interesse" },
+      ] },
+    ],
+  },
+  {
+    name: "catalogo_novidades_imagem",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200"] } },
+      { type: "BODY", text: "Olá {{1}}! Acabou de chegar a coleção {{2}}. Confira no nosso catálogo." },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Ver catálogo", url: "https://example.com/catalogo" },
+        { type: "PHONE_NUMBER", text: "Falar com vendedor", phone_number: "+5511999999999" },
+      ] },
+    ],
+  },
+  {
+    name: "evento_convite_imagem",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200"] } },
+      { type: "BODY", text: "{{1}}, você está convidado(a) para {{2}} no dia {{3}} às {{4}}. Garanta sua vaga!" },
+      { type: "FOOTER", text: "Vagas limitadas" },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Confirmar presença", url: "https://example.com/evento" },
+        { type: "QUICK_REPLY", text: "Não poderei ir" },
+      ] },
+    ],
+  },
+  {
+    name: "boas_vindas_video",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "VIDEO", example: { header_handle: ["https://example.com/welcome.mp4"] } },
+      { type: "BODY", text: "Bem-vindo(a) à {{1}}, {{2}}! Veja esse vídeo rápido para começar." },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Acessar minha conta", url: "https://example.com/login" },
+      ] },
+    ],
+  },
+  {
+    name: "fatura_documento",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "HEADER", format: "DOCUMENT", example: { header_handle: ["https://example.com/fatura.pdf"] } },
+      { type: "BODY", text: "Olá {{1}}, sua fatura referente a {{2}} no valor de R$ {{3}} está disponível. Vencimento: {{4}}." },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Pagar agora", url: "https://example.com/pagar" },
+        { type: "QUICK_REPLY", text: "Falar com atendente" },
+      ] },
+    ],
+  },
+  {
+    name: "rastreio_pedido_imagem",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=1200"] } },
+      { type: "BODY", text: "Oi {{1}}, seu pedido #{{2}} saiu para entrega 🚚. Previsão: até {{3}}." },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Rastrear", url: "https://example.com/rastreio" },
+        { type: "PHONE_NUMBER", text: "Suporte", phone_number: "+5511999999999" },
+      ] },
+    ],
+  },
+  {
+    name: "cupom_aniversario_imagem",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [
+      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1513151233558-d860c5398176?w=1200"] } },
+      { type: "BODY", text: "Feliz aniversário, {{1}}! 🎉 Temos um presente: {{2}}% OFF com o cupom {{3}}." },
+      { type: "FOOTER", text: "Cupom válido por 7 dias" },
+      { type: "BUTTONS", buttons: [
+        { type: "URL", text: "Aproveitar agora", url: "https://example.com/cupom" },
+      ] },
+    ],
+  },
 ];
 
 export const seedSampleTemplates = createServerFn({ method: "POST" })
