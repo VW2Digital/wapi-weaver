@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const credSchema = z.object({
@@ -108,4 +109,47 @@ export const sendTestMessage = createServerFn({ method: "POST" })
     }
     return { ok: true, wa_message_id: body?.messages?.[0]?.id, sent_to: digits };
   });
+
+/**
+ * Procura nos webhook_events recentes status updates para o wamid fornecido.
+ * Retorna o status mais avançado encontrado (sent < delivered < read; failed sempre prevalece).
+ */
+export const getTestMessageStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ wamid: z.string().trim().min(5).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    // últimos 200 eventos é mais do que suficiente para um teste manual
+    const { data: events } = await supabaseAdmin
+      .from("webhook_events")
+      .select("raw, received_at")
+      .order("received_at", { ascending: false })
+      .limit(200);
+
+    const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+    let best: { status: string; timestamp?: string; error?: any } | null = null;
+
+    for (const ev of events ?? []) {
+      const raw: any = ev.raw;
+      const entries = raw?.entry ?? [];
+      for (const entry of entries) {
+        for (const change of entry?.changes ?? []) {
+          const statuses = change?.value?.statuses ?? [];
+          for (const s of statuses) {
+            if (s?.id !== data.wamid) continue;
+            const status = s.status as string;
+            const ts = s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : ev.received_at;
+            if (status === "failed") {
+              return { found: true, status: "failed", timestamp: ts, error: s.errors ?? null };
+            }
+            if (!best || (rank[status] ?? 0) > (rank[best.status] ?? 0)) {
+              best = { status, timestamp: ts };
+            }
+          }
+        }
+      }
+    }
+
+    return best ? { found: true, ...best } : { found: false };
+  });
+
 

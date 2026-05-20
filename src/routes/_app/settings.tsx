@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus } from "@/lib/profile.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
@@ -31,6 +31,7 @@ function SettingsPage() {
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
   const sendTest = useServerFn(sendTestMessage);
+  const fetchStatus = useServerFn(getTestMessageStatus);
   const qc = useQueryClient();
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
@@ -40,8 +41,40 @@ function SettingsPage() {
   const [testTo, setTestTo] = useState("");
   const [testText, setTestText] = useState("Mensagem de teste ✅");
   const [testResult, setTestResult] = useState<any>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<{ status: string; timestamp?: string; error?: any } | null>(null);
+  const pollRef = useRef<number | null>(null);
 
   useEffect(() => { if (profile) setForm(profile); }, [profile]);
+
+
+
+  // Polling do status do teste enquanto houver wamid e ainda não chegou em "read" ou "failed"
+  useEffect(() => {
+    if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+    const wamid = testResult?.wa_message_id;
+    if (!wamid) return;
+    const tick = async () => {
+      try {
+        const r = await fetchStatus({ data: { wamid } });
+        if (r.found) {
+          setDeliveryStatus({ status: r.status, timestamp: r.timestamp, error: r.error });
+          if (r.status === "read" || r.status === "failed") {
+            if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+          }
+        }
+      } catch {}
+    };
+    tick();
+    pollRef.current = window.setInterval(tick, 4000) as unknown as number;
+    // Para de tentar após 2 minutos
+    const stop = window.setTimeout(() => {
+      if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+    }, 120_000);
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      window.clearTimeout(stop);
+    };
+  }, [testResult?.wa_message_id, fetchStatus]);
 
   const saveMut = useMutation({
     mutationFn: (d: any) => save({ data: d }),
@@ -145,8 +178,22 @@ function SettingsPage() {
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API. O destinatário precisa ter conversado com seu número nas últimas 24h (janela de atendimento) — fora disso, use um template aprovado.
+            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
           </p>
+
+          <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="space-y-1">
+              <p className="font-medium text-amber-900 dark:text-amber-200">A API pode aceitar e mesmo assim a mensagem não chegar.</p>
+              <p className="text-amber-900/80 dark:text-amber-200/80">
+                Para mensagens de <strong>texto livre</strong> (como este teste), o destinatário precisa ter te enviado uma mensagem nas <strong>últimas 24h</strong>. Fora dessa janela, a Meta confirma o recebimento (retorna um <code className="text-xs">wamid</code>) mas <strong>não entrega</strong>.
+              </p>
+              <p className="text-amber-900/80 dark:text-amber-200/80">
+                Se sua conta WhatsApp Business ainda está em modo de teste/desenvolvimento, o número também precisa estar cadastrado em <em>WhatsApp Manager → Phone Numbers → Test recipients</em>. Para envios fora da janela, use um <strong>template aprovado</strong>.
+              </p>
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
             <div className="space-y-1.5">
               <Label>Destinatário (E.164 sem +)</Label>
@@ -174,6 +221,7 @@ function SettingsPage() {
                 if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
                 if (!testText.trim()) { toast.error("Escreva a mensagem."); return; }
                 setTestResult(null);
+                setDeliveryStatus(null);
                 testMut.mutate({ to: testTo, text: testText.trim() });
               }}
               disabled={testMut.isPending}
@@ -182,17 +230,25 @@ function SettingsPage() {
             </Button>
           </div>
           {testResult && (
-            <ResultAlert
-              ok={!!testResult.ok}
-              successContent={
-                <span>Enviado para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
-              }
-              error={testResult.error}
-              details={testResult.details}
-              fallback="Falha ao enviar a mensagem de teste."
-            />
+            <>
+              <ResultAlert
+                ok={!!testResult.ok}
+                successContent={
+                  <span>Aceito pela Meta para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
+                }
+                error={testResult.error}
+                details={testResult.details}
+                fallback="Falha ao enviar a mensagem de teste."
+              />
+              {testResult.ok && (
+                <DeliveryTimeline status={deliveryStatus} hasWebhook={!!form.whatsapp_app_secret && !!form.whatsapp_verify_token} />
+              )}
+            </>
           )}
         </Card>
+
+
+
 
 
         <Card className="p-6">
@@ -251,6 +307,72 @@ function SettingsPage() {
       </div>
     </div>
   );
+}
+
+function DeliveryTimeline({ status, hasWebhook }: { status: { status: string; timestamp?: string; error?: any } | null; hasWebhook: boolean }) {
+  if (!hasWebhook) {
+    return (
+      <div className="mt-2 flex items-start gap-2 rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+        <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          Para acompanhar <strong>entregue / lido</strong> em tempo real, configure abaixo o <strong>App Secret</strong> + <strong>Verify Token</strong> e cadastre a Callback URL no painel da Meta (campo <code>messages</code>).
+        </span>
+      </div>
+    );
+  }
+
+  const order = ["sent", "delivered", "read"] as const;
+  const current = status?.status;
+  const failed = current === "failed";
+  const reachedIdx = current ? order.indexOf(current as any) : -1;
+
+  return (
+    <div className="mt-2 rounded-md border bg-muted/20 p-3">
+      <div className="mb-2 text-xs font-medium text-muted-foreground">Status real (via webhook da Meta)</div>
+      {failed ? (
+        <div className="flex items-start gap-2 text-sm text-destructive">
+          <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <div className="font-medium">Falhou na entrega</div>
+            {status?.error && (
+              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-[11px] text-muted-foreground">
+                {JSON.stringify(status.error, null, 2)}
+              </pre>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-4 text-sm">
+          <Step label="Enviado" active={reachedIdx >= 0} icon={Check} />
+          <Divider active={reachedIdx >= 1} />
+          <Step label="Entregue" active={reachedIdx >= 1} icon={CheckCheck} />
+          <Divider active={reachedIdx >= 2} />
+          <Step label="Lido" active={reachedIdx >= 2} icon={CheckCheck} accent />
+          {reachedIdx < 1 && (
+            <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3 animate-pulse" /> aguardando confirmação da Meta…
+            </span>
+          )}
+        </div>
+      )}
+      {status?.timestamp && (
+        <div className="mt-2 text-[11px] text-muted-foreground">Última atualização: {new Date(status.timestamp).toLocaleString()}</div>
+      )}
+    </div>
+  );
+}
+
+function Step({ label, active, icon: Icon, accent }: { label: string; active: boolean; icon: any; accent?: boolean }) {
+  return (
+    <div className={`flex items-center gap-1.5 ${active ? (accent ? "text-primary" : "text-success") : "text-muted-foreground/50"}`}>
+      <Icon className="h-4 w-4" />
+      <span className={active ? "font-medium" : ""}>{label}</span>
+    </div>
+  );
+}
+
+function Divider({ active }: { active: boolean }) {
+  return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
 function Field({ label, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
