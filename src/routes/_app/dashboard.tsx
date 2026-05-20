@@ -7,8 +7,29 @@ import { listTemplates } from "@/lib/templates.functions";
 import { Card } from "@/components/ui/card";
 import { Send, Users, FileText, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
+
+const STATUS_HEX: Record<string, string> = {
+  pending: "oklch(0.556 0 0)",
+  sent: "oklch(0.70 0.15 305)",
+  delivered: "oklch(0.58 0.20 305)",
+  read: "oklch(0.65 0.18 155)",
+  failed: "oklch(0.62 0.22 25)",
+};
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
 const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
