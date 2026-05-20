@@ -234,16 +234,25 @@ function Dashboard() {
           },
         ].map((r) => (
           <Card key={r.label} className="flex items-center justify-between p-4">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{r.label}</p>
-              <p
-                className={`mt-1 font-display text-2xl font-semibold leading-tight ${
-                  r.tone === "destructive" ? "text-destructive" : ""
-                }`}
-              >
-                {r.value}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{r.hint}</p>
+              {c.isPending ? (
+                <>
+                  <Skeleton className="mt-2 h-7 w-20" />
+                  <Skeleton className="mt-2 h-3 w-32" />
+                </>
+              ) : (
+                <>
+                  <p
+                    className={`mt-1 font-display text-2xl font-semibold leading-tight ${
+                      r.tone === "destructive" ? "text-destructive" : ""
+                    }`}
+                  >
+                    {r.value}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{r.hint}</p>
+                </>
+              )}
             </div>
             <div
               className={`rounded-lg p-2 ${
