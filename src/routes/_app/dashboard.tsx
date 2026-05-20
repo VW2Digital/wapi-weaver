@@ -349,9 +349,25 @@ function Dashboard() {
               );
             })}
             {(c.data ?? []).length === 0 && (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                Nenhuma campanha criada ainda. Vá em <strong>Campanhas → Nova</strong> para começar.
-              </div>
+              <Empty className="border-0 py-12">
+                <EmptyMedia variant="icon">
+                  <Send className="h-6 w-6" />
+                </EmptyMedia>
+                <EmptyHeader>
+                  <EmptyTitle>Nenhuma campanha ainda</EmptyTitle>
+                  <EmptyDescription>
+                    Crie sua primeira campanha para começar a disparar mensagens via WhatsApp Cloud API.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button asChild>
+                    <Link to="/campaigns/new">
+                      <Plus className="h-4 w-4" />
+                      Criar primeira campanha
+                    </Link>
+                  </Button>
+                </EmptyContent>
+              </Empty>
             )}
           </div>
           {(c.data ?? []).length > 0 && (
