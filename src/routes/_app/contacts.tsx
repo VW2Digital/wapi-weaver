@@ -83,7 +83,7 @@ function ContactsPage() {
   );
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title="Contatos"
         subtitle={`${contacts?.length ?? 0} contato${(contacts?.length ?? 0) === 1 ? "" : "s"} cadastrado${(contacts?.length ?? 0) === 1 ? "" : "s"}.`}

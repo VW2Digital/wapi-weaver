@@ -48,7 +48,7 @@ function CampaignDetailPage() {
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title={c.name}
         subtitle={`Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`}

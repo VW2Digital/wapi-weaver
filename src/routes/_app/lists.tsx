@@ -48,7 +48,7 @@ function ListsPage() {
   });
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader title="Listas & Tags" subtitle="Organize seus contatos para segmentar campanhas." />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">

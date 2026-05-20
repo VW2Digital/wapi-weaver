@@ -58,7 +58,7 @@ function Dashboard() {
   ];
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader title="Dashboard" subtitle="Visão geral dos seus disparos via WhatsApp Cloud API." />
       <div className="grid gap-4 p-6 md:grid-cols-4">
         {stats.map((s) => (

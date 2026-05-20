@@ -36,7 +36,7 @@ function CampaignsPage() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title="Campanhas"
         subtitle="Crie disparos em massa para suas listas de contatos."

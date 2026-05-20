@@ -39,7 +39,7 @@ function TemplatesPage() {
   });
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title="Templates"
         subtitle="Modelos aprovados pela Meta. São obrigatórios para iniciar uma conversa."
