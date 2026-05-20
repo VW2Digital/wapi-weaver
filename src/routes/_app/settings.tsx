@@ -90,13 +90,25 @@ function SettingsPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button onClick={() => saveMut.mutate({
-              whatsapp_phone_number_id: form.whatsapp_phone_number_id,
-              whatsapp_waba_id: form.whatsapp_waba_id,
-              whatsapp_business_phone: form.whatsapp_business_phone,
-              whatsapp_access_token: form.whatsapp_access_token,
-              rate_limit_per_second: form.rate_limit_per_second,
-            })} disabled={saveMut.isPending}>Salvar credenciais</Button>
+            <Button onClick={() => {
+              const nextErrors: Record<string, string | null> = {};
+              const err1 = validateDigitsField(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID");
+              if (err1) nextErrors.whatsapp_phone_number_id = err1;
+              const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "WABA ID");
+              if (err2) nextErrors.whatsapp_waba_id = err2;
+              setErrors(nextErrors);
+              if (Object.keys(nextErrors).length > 1) {
+                toast.error("Corrija os erros antes de salvar.");
+                return;
+              }
+              saveMut.mutate({
+                whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+                whatsapp_waba_id: form.whatsapp_waba_id,
+                whatsapp_business_phone: form.whatsapp_business_phone,
+                whatsapp_access_token: form.whatsapp_access_token,
+                rate_limit_per_second: form.rate_limit_per_second,
+              });
+            }} disabled={saveMut.isPending}>Salvar credenciais</Button>
             <Button variant="outline" onClick={() => pingMut.mutate()} disabled={pingMut.isPending}>
               Testar conexão
             </Button>
