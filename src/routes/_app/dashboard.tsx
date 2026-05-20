@@ -7,8 +7,29 @@ import { listTemplates } from "@/lib/templates.functions";
 import { Card } from "@/components/ui/card";
 import { Send, Users, FileText, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
+
+const STATUS_HEX: Record<string, string> = {
+  pending: "oklch(0.556 0 0)",
+  sent: "oklch(0.70 0.15 305)",
+  delivered: "oklch(0.58 0.20 305)",
+  read: "oklch(0.65 0.18 155)",
+  failed: "oklch(0.62 0.22 25)",
+};
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
 const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
@@ -57,6 +78,26 @@ function Dashboard() {
     { label: "Entregas", value: totals.delivered, icon: CheckCircle2 },
   ];
 
+  const pieData = [
+    { key: "delivered", name: "Entregue", value: totals.delivered },
+    { key: "read", name: "Lida", value: totals.read },
+    { key: "sent", name: "Enviada", value: Math.max(totals.sent - totals.delivered, 0) },
+    { key: "failed", name: "Falhou", value: totals.failed },
+  ].filter((d) => d.value > 0);
+
+  const barData = (c.data ?? [])
+    .slice(0, 8)
+    .map((x: any) => {
+      const t = (x.totals ?? {}) as Record<string, number>;
+      const name = String(x.name ?? "—");
+      return {
+        name: name.length > 14 ? name.slice(0, 14) + "…" : name,
+        Entregue: t.delivered ?? 0,
+        Lida: t.read ?? 0,
+        Falhou: t.failed ?? 0,
+      };
+    });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader title="Dashboard" subtitle="Visão geral dos seus disparos via WhatsApp Cloud API." />
@@ -90,6 +131,84 @@ function Dashboard() {
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Falhas</p>
           <p className="mt-2 font-display text-3xl font-semibold text-destructive">{totals.failed}</p>
           <p className="mt-1 text-xs text-muted-foreground">Verifique credenciais e templates</p>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-5">
+        <Card className="p-5 lg:col-span-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Distribuição de mensagens</p>
+          <p className="mt-1 mb-2 text-xs text-muted-foreground">Status agregado de todas as campanhas</p>
+          <div className="h-64">
+            {pieData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Sem dados ainda
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    stroke="none"
+                  >
+                    {pieData.map((d) => (
+                      <Cell key={d.key} fill={STATUS_HEX[d.key]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--popover, 0 0% 100%))",
+                      border: "1px solid hsl(var(--border, 0 0% 90%))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-5 lg:col-span-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Volume por campanha</p>
+          <p className="mt-1 mb-2 text-xs text-muted-foreground">Top {barData.length} campanhas mais recentes</p>
+          <div className="h-64">
+            {barData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Sem campanhas ainda
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border, 0 0% 90%))" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--popover, 0 0% 100%))",
+                      border: "1px solid hsl(var(--border, 0 0% 90%))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    cursor={{ fill: "hsl(var(--muted, 0 0% 96%))", opacity: 0.4 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                  <Bar dataKey="Entregue" stackId="a" fill={STATUS_HEX.delivered} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Lida" stackId="a" fill={STATUS_HEX.read} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Falhou" stackId="a" fill={STATUS_HEX.failed} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </Card>
       </div>
 
