@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
@@ -330,6 +330,25 @@ function SettingsPage() {
     "tags": ["lead-quente"]
   }'`}
             </pre>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Leia nossos termos e saiba como seus dados são tratados.</p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Link to="/privacy" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+              <Shield className="h-4 w-4 text-primary" />
+              Política de Privacidade
+            </Link>
+            <Link to="/terms" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+              <FileText className="h-4 w-4 text-primary" />
+              Termos de Serviço
+            </Link>
+            <Link to="/data-deletion" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+              <Trash2 className="h-4 w-4 text-primary" />
+              Exclusão de Dados
+            </Link>
           </div>
         </Card>
       </div>
