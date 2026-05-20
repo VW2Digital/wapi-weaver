@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ function SettingsPage() {
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
   const sendTest = useServerFn(sendTestMessage);
+  const sendHello = useServerFn(sendHelloWorldTemplate);
   const fetchStatus = useServerFn(getTestMessageStatus);
   const qc = useQueryClient();
 
@@ -98,6 +99,16 @@ function SettingsPage() {
       setTestResult(r);
       if (r.ok) toast.success(`Teste enviado para ${r.sent_to}`);
       else toast.error(r.error ?? "Falha ao enviar");
+    },
+    onError: (e: any) => { setTestResult({ ok: false, error: e.message }); toast.error(e.message); },
+  });
+
+  const helloMut = useMutation({
+    mutationFn: (d: { to: string }) => sendHello({ data: d }),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.ok) toast.success(`Template hello_world enviado para ${r.sent_to}`);
+      else toast.error(r.error ?? "Falha ao enviar template");
     },
     onError: (e: any) => { setTestResult({ ok: false, error: e.message }); toast.error(e.message); },
   });
@@ -215,7 +226,7 @@ function SettingsPage() {
               />
             </div>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button
               onClick={() => {
                 if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
@@ -224,11 +235,28 @@ function SettingsPage() {
                 setDeliveryStatus(null);
                 testMut.mutate({ to: testTo, text: testText.trim() });
               }}
-              disabled={testMut.isPending}
+              disabled={testMut.isPending || helloMut.isPending}
             >
-              {testMut.isPending ? "Enviando…" : "Enviar teste"}
+              {testMut.isPending ? "Enviando…" : "Enviar texto livre"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (testTo.length < 8) { toast.error("Informe um número válido (apenas dígitos)."); return; }
+                setTestResult(null);
+                setDeliveryStatus(null);
+                helloMut.mutate({ to: testTo });
+              }}
+              disabled={testMut.isPending || helloMut.isPending}
+              title="Template pré-aprovado pela Meta — funciona fora da janela de 24h"
+            >
+              {helloMut.isPending ? "Enviando…" : "Enviar template hello_world"}
             </Button>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            💡 <strong>Não chegou nada?</strong> Use o <strong>hello_world</strong> — é um template oficial da Meta que ignora a janela de 24h. Se esse chegar e o texto livre não, é confirmação de que o problema é a janela.
+          </p>
+
           {testResult && (
             <>
               <ResultAlert
