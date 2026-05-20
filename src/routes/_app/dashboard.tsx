@@ -134,17 +134,38 @@ function Dashboard() {
       <PageHeader title="Dashboard" subtitle="Visão geral dos seus disparos via WhatsApp Cloud API." />
       <div className="flex-1 overflow-y-auto">
         <div className="grid gap-4 p-6 md:grid-cols-4">
-          {stats.map((s) => (
-            <Card key={s.label} className="flex items-center justify-between p-4">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
-                <p className="mt-1 font-display text-2xl font-semibold leading-tight">{s.value.toLocaleString("pt-BR")}</p>
-              </div>
-              <div className="rounded-lg bg-accent p-2 text-accent-foreground">
-                <s.icon className="h-4 w-4" />
-              </div>
-            </Card>
-          ))}
+          {stats.map((s) => {
+            const tr = s.trend;
+            const up = tr ? tr.delta > 0 : false;
+            const down = tr ? tr.delta < 0 : false;
+            const flat = tr ? tr.delta === 0 : true;
+            const TrendIcon = up ? TrendingUp : down ? TrendingDown : Minus;
+            const trendColor = up
+              ? "text-success"
+              : down
+                ? "text-destructive"
+                : "text-muted-foreground";
+            return (
+              <Card key={s.label} className="flex items-center justify-between p-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
+                  <p className="mt-1 font-display text-2xl font-semibold leading-tight">{s.value.toLocaleString("pt-BR")}</p>
+                  {tr && (
+                    <div className={`mt-1 flex items-center gap-1 text-xs ${trendColor}`}>
+                      <TrendIcon className="h-3 w-3" />
+                      <span className="font-medium">
+                        {tr.isNew ? "novo" : flat ? "estável" : `${up ? "+" : ""}${tr.delta}%`}
+                      </span>
+                      <span className="text-muted-foreground">vs. 7d</span>
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-lg bg-accent p-2 text-accent-foreground">
+                  <s.icon className="h-4 w-4" />
+                </div>
+              </Card>
+            );
+          })}
         </div>
 
       <div className="grid gap-4 px-6 pb-6 md:grid-cols-3">
