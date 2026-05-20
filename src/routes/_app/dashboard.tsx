@@ -6,7 +6,9 @@ import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { Card } from "@/components/ui/card";
-import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   PieChart,
@@ -349,9 +351,25 @@ function Dashboard() {
               );
             })}
             {(c.data ?? []).length === 0 && (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                Nenhuma campanha criada ainda. Vá em <strong>Campanhas → Nova</strong> para começar.
-              </div>
+              <Empty className="border-0 py-12">
+                <EmptyMedia variant="icon">
+                  <Send className="h-6 w-6" />
+                </EmptyMedia>
+                <EmptyHeader>
+                  <EmptyTitle>Nenhuma campanha ainda</EmptyTitle>
+                  <EmptyDescription>
+                    Crie sua primeira campanha para começar a disparar mensagens via WhatsApp Cloud API.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button asChild>
+                    <Link to="/campaigns/new">
+                      <Plus className="h-4 w-4" />
+                      Criar primeira campanha
+                    </Link>
+                  </Button>
+                </EmptyContent>
+              </Empty>
             )}
           </div>
           {(c.data ?? []).length > 0 && (
