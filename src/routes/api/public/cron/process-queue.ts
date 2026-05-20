@@ -5,6 +5,14 @@ import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 const BATCH = 60;
 
 async function processOnce() {
+  // Promote scheduled drafts whose time has come
+  await supabaseAdmin
+    .from("campaigns")
+    .update({ status: "queued" })
+    .eq("status", "draft")
+    .not("scheduled_at", "is", null)
+    .lte("scheduled_at", new Date().toISOString());
+
   // Pick up to BATCH pending messages whose campaign is queued or running
   const { data: messages, error } = await supabaseAdmin
     .from("campaign_messages")
