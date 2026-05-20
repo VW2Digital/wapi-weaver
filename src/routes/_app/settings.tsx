@@ -14,6 +14,16 @@ import { Copy, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
 
+function onlyDigits(v: string) {
+  return v.replace(/\D/g, "");
+}
+
+function validateDigitsField(v: string, label: string): string | null {
+  if (!v) return `${label} é obrigatório.`;
+  if (/\D/.test(v)) return `${label} deve conter apenas dígitos (0-9).`;
+  return null;
+}
+
 function SettingsPage() {
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
@@ -23,6 +33,7 @@ function SettingsPage() {
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const [form, setForm] = useState<any>({});
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [pingResult, setPingResult] = useState<any>(null);
 
   useEffect(() => { if (profile) setForm(profile); }, [profile]);
@@ -63,8 +74,8 @@ function SettingsPage() {
           <h2 className="font-display text-lg font-semibold">Credenciais Meta</h2>
           <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>.</p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="Phone Number ID" value={form.whatsapp_phone_number_id} onChange={(v) => setForm({ ...form, whatsapp_phone_number_id: v })} placeholder="123456789012345" />
-            <Field label="WhatsApp Business Account ID (WABA)" value={form.whatsapp_waba_id} onChange={(v) => setForm({ ...form, whatsapp_waba_id: v })} placeholder="123456789012345" />
+            <Field label="Phone Number ID" digitsOnly value={form.whatsapp_phone_number_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }} placeholder="123456789012345" error={errors.whatsapp_phone_number_id} />
+            <Field label="WhatsApp Business Account ID (WABA)" digitsOnly value={form.whatsapp_waba_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }} placeholder="123456789012345" error={errors.whatsapp_waba_id} />
             <Field label="Número do WhatsApp (apenas exibição)" value={form.whatsapp_business_phone} onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })} placeholder="+55 11 99999-0000" />
             <Field label="Rate limit (msg/seg)" type="number" value={form.rate_limit_per_second?.toString() ?? "20"} onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })} />
             <div className="md:col-span-2 space-y-1.5">
@@ -79,13 +90,25 @@ function SettingsPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button onClick={() => saveMut.mutate({
-              whatsapp_phone_number_id: form.whatsapp_phone_number_id,
-              whatsapp_waba_id: form.whatsapp_waba_id,
-              whatsapp_business_phone: form.whatsapp_business_phone,
-              whatsapp_access_token: form.whatsapp_access_token,
-              rate_limit_per_second: form.rate_limit_per_second,
-            })} disabled={saveMut.isPending}>Salvar credenciais</Button>
+            <Button onClick={() => {
+              const nextErrors: Record<string, string | null> = {};
+              const err1 = validateDigitsField(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID");
+              if (err1) nextErrors.whatsapp_phone_number_id = err1;
+              const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "WABA ID");
+              if (err2) nextErrors.whatsapp_waba_id = err2;
+              setErrors(nextErrors);
+              if (Object.keys(nextErrors).length > 0) {
+                toast.error("Corrija os erros antes de salvar.");
+                return;
+              }
+              saveMut.mutate({
+                whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+                whatsapp_waba_id: form.whatsapp_waba_id,
+                whatsapp_business_phone: form.whatsapp_business_phone,
+                whatsapp_access_token: form.whatsapp_access_token,
+                rate_limit_per_second: form.rate_limit_per_second,
+              });
+            }} disabled={saveMut.isPending}>Salvar credenciais</Button>
             <Button variant="outline" onClick={() => pingMut.mutate()} disabled={pingMut.isPending}>
               Testar conexão
             </Button>
@@ -162,11 +185,20 @@ function SettingsPage() {
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+function Field({ label, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <Input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <Input
+        type={type}
+        value={value ?? ""}
+        onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
+        placeholder={placeholder}
+        className={error ? "border-destructive focus-visible:ring-destructive" : ""}
+        inputMode={digitsOnly ? "numeric" : undefined}
+        pattern={digitsOnly ? "[0-9]*" : undefined}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
