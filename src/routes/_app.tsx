@@ -31,8 +31,8 @@ function AppLayout() {
   };
 
   return (
-    <div className="grid min-h-screen bg-background md:grid-cols-[260px_1fr] gap-3 p-3">
-      <aside className="flex flex-col rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm">
+    <div className="min-h-screen bg-background p-3 md:pl-[276px]">
+      <aside className="flex flex-col rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm md:fixed md:inset-y-3 md:left-3 md:w-[260px] md:z-30">
         <div className="flex items-center gap-2 px-6 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
             <MessageCircle className="h-4 w-4 text-primary-foreground" />
