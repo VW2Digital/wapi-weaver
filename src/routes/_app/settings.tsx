@@ -58,6 +58,16 @@ function SettingsPage() {
     onSuccess: (r) => setPingResult(r),
   });
 
+  const testMut = useMutation({
+    mutationFn: (d: { to: string; text: string }) => sendTest({ data: d }),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.ok) toast.success(`Teste enviado para ${r.sent_to}`);
+      else toast.error(r.error ?? "Falha ao enviar");
+    },
+    onError: (e: any) => { setTestResult({ ok: false, error: e.message }); toast.error(e.message); },
+  });
+
   if (isLoading) return <div className="p-6 text-muted-foreground">Carregando…</div>;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
