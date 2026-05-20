@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Copy, RefreshCw } from "lucide-react";
+import { ResultAlert } from "@/components/result-alert";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
 
@@ -129,16 +130,15 @@ function SettingsPage() {
             </Button>
           </div>
           {pingResult && (
-            <div className={`mt-3 flex items-start gap-2 rounded-md border p-3 text-sm ${pingResult.ok ? "border-success/30 bg-success/10" : "border-destructive/30 bg-destructive/10"}`}>
-              {pingResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" /> : <AlertCircle className="mt-0.5 h-4 w-4 text-destructive" />}
-              <div>
-                {pingResult.ok ? (
-                  <span>Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade: {pingResult.info?.quality_rating}</span>
-                ) : (
-                  <span>{pingResult.error}</span>
-                )}
-              </div>
-            </div>
+            <ResultAlert
+              ok={!!pingResult.ok}
+              successContent={
+                <span>Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade: {pingResult.info?.quality_rating}</span>
+              }
+              error={pingResult.error}
+              details={pingResult.details ?? pingResult.error}
+              fallback="Não foi possível conectar à WhatsApp Cloud API."
+            />
           )}
         </Card>
 
@@ -182,21 +182,15 @@ function SettingsPage() {
             </Button>
           </div>
           {testResult && (
-            <div className={`mt-3 flex items-start gap-2 rounded-md border p-3 text-sm ${testResult.ok ? "border-success/30 bg-success/10" : "border-destructive/30 bg-destructive/10"}`}>
-              {testResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" /> : <AlertCircle className="mt-0.5 h-4 w-4 text-destructive" />}
-              <div className="min-w-0 flex-1">
-                {testResult.ok ? (
-                  <span>Enviado para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
-                ) : (
-                  <div className="space-y-1">
-                    <div>{testResult.error}</div>
-                    {testResult.details && (
-                      <pre className="overflow-auto rounded bg-background/50 p-2 text-[11px]">{JSON.stringify(testResult.details, null, 2)}</pre>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+            <ResultAlert
+              ok={!!testResult.ok}
+              successContent={
+                <span>Enviado para <strong>{testResult.sent_to}</strong>{testResult.wa_message_id ? <> · id <code className="text-xs">{testResult.wa_message_id}</code></> : null}</span>
+              }
+              error={testResult.error}
+              details={testResult.details}
+              fallback="Falha ao enviar a mensagem de teste."
+            />
           )}
         </Card>
 
