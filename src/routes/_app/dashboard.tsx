@@ -52,10 +52,12 @@ function Dashboard() {
   const fetchCampaigns = useServerFn(listCampaigns);
   const fetchContacts = useServerFn(listContacts);
   const fetchTemplates = useServerFn(listTemplates);
+  const fetchStats = useServerFn(getDashboardStats);
 
   const c = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns() });
   const ct = useQuery({ queryKey: ["contacts"], queryFn: () => fetchContacts() });
   const t = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates() });
+  const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats() });
 
   const totals = (c.data ?? []).reduce(
     (acc, x: any) => {
@@ -72,11 +74,39 @@ function Dashboard() {
   const deliverRate = totals.sent ? Math.round((totals.delivered / totals.sent) * 100) : 0;
   const readRate = totals.delivered ? Math.round((totals.read / totals.delivered) * 100) : 0;
 
+  function trend(current: number, previous: number) {
+    if (previous === 0) {
+      return { delta: current > 0 ? 100 : 0, raw: current, isNew: current > 0 };
+    }
+    const delta = Math.round(((current - previous) / previous) * 100);
+    return { delta, raw: current - previous, isNew: false };
+  }
+
   const stats = [
-    { label: "Contatos", value: ct.data?.length ?? 0, icon: Users },
-    { label: "Templates", value: t.data?.length ?? 0, icon: FileText },
-    { label: "Campanhas", value: c.data?.length ?? 0, icon: Send },
-    { label: "Entregas", value: totals.delivered, icon: CheckCircle2 },
+    {
+      label: "Contatos",
+      value: ct.data?.length ?? s.data?.contacts.current ?? 0,
+      icon: Users,
+      trend: s.data ? trend(s.data.contacts.current, s.data.contacts.previous) : null,
+    },
+    {
+      label: "Templates",
+      value: t.data?.length ?? s.data?.templates.current ?? 0,
+      icon: FileText,
+      trend: s.data ? trend(s.data.templates.current, s.data.templates.previous) : null,
+    },
+    {
+      label: "Campanhas",
+      value: c.data?.length ?? s.data?.campaigns.current ?? 0,
+      icon: Send,
+      trend: s.data ? trend(s.data.campaigns.current, s.data.campaigns.previous) : null,
+    },
+    {
+      label: "Entregas (7d)",
+      value: s.data?.delivered.current ?? totals.delivered,
+      icon: CheckCircle2,
+      trend: s.data ? trend(s.data.delivered.current, s.data.delivered.previous) : null,
+    },
   ];
 
   const pieData = [
