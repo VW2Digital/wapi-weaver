@@ -134,6 +134,84 @@ function Dashboard() {
         </Card>
       </div>
 
+      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-5">
+        <Card className="p-5 lg:col-span-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Distribuição de mensagens</p>
+          <p className="mt-1 mb-2 text-xs text-muted-foreground">Status agregado de todas as campanhas</p>
+          <div className="h-64">
+            {pieData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Sem dados ainda
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    stroke="none"
+                  >
+                    {pieData.map((d) => (
+                      <Cell key={d.key} fill={STATUS_HEX[d.key]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--popover, 0 0% 100%))",
+                      border: "1px solid hsl(var(--border, 0 0% 90%))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-5 lg:col-span-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Volume por campanha</p>
+          <p className="mt-1 mb-2 text-xs text-muted-foreground">Top {barData.length} campanhas mais recentes</p>
+          <div className="h-64">
+            {barData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Sem campanhas ainda
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border, 0 0% 90%))" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--popover, 0 0% 100%))",
+                      border: "1px solid hsl(var(--border, 0 0% 90%))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    cursor={{ fill: "hsl(var(--muted, 0 0% 96%))", opacity: 0.4 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                  <Bar dataKey="Entregue" stackId="a" fill={STATUS_HEX.delivered} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Lida" stackId="a" fill={STATUS_HEX.read} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Falhou" stackId="a" fill={STATUS_HEX.failed} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+      </div>
+
       <div className="px-6 pb-12">
         <h2 className="mb-3 font-display text-lg font-semibold">Mensagens por status — por campanha</h2>
         <Card className="overflow-hidden">
