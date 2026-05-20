@@ -31,6 +31,7 @@ function SettingsPage() {
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
   const sendTest = useServerFn(sendTestMessage);
+  const fetchStatus = useServerFn(getTestMessageStatus);
   const qc = useQueryClient();
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
