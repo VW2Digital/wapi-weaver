@@ -132,13 +132,51 @@ function LoginPage() {
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Senha</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Senha</Label>
+                {mode === "signin" && (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                    onClick={() => { setForgotEmail(email); setForgotOpen(true); }}
+                  >
+                    Esqueci minha senha
+                  </button>
+                )}
+              </div>
               <Input id="password" type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {mode === "signin" ? "Entrar" : "Criar conta"}
             </Button>
           </form>
+
+          <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Recuperar acesso</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={sendReset} className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Informe o e-mail da conta. Enviaremos um link para você definir uma nova senha.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="forgot-email">E-mail</Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={forgotBusy}>
+                  Enviar link de recuperação
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {mode === "signin" ? "Não tem conta?" : "Já tem conta?"}{" "}
