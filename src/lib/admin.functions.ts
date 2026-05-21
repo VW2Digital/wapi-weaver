@@ -55,8 +55,9 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
 
     const { error } = await context.supabase
       .from("platform_settings")
-      .update(update)
+      .update(update as never)
       .eq("id", 1);
+
     if (error) throw error;
     return { ok: true };
   });
