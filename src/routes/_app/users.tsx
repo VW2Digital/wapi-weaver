@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ShieldCheck, UserPlus, Trash2, Users as UsersIcon, Loader2 } from "lucide-react";
-import { listUsers, createUser, setUserRole, deleteUser } from "@/lib/users-admin.functions";
+import { ShieldCheck, UserPlus, Trash2, Users as UsersIcon, Loader2, BarChart3, Mail, Send, CheckCheck, XCircle, Clock, FileText, Tag, List as ListIcon, Megaphone } from "lucide-react";
+import { listUsers, createUser, setUserRole, deleteUser, getUserActivity } from "@/lib/users-admin.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
