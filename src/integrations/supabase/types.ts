@@ -295,6 +295,8 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          body_tags: string | null
+          head_tags: string | null
           id: number
           meta_app_id: string | null
           meta_app_secret: string | null
@@ -304,6 +306,8 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          body_tags?: string | null
+          head_tags?: string | null
           id?: number
           meta_app_id?: string | null
           meta_app_secret?: string | null
@@ -313,6 +317,8 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          body_tags?: string | null
+          head_tags?: string | null
           id?: number
           meta_app_id?: string | null
           meta_app_secret?: string | null
@@ -481,6 +487,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_tracking_tags: {
+        Args: never
+        Returns: {
+          body_tags: string
+          head_tags: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
