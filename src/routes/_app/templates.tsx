@@ -11,6 +11,7 @@ import { RefreshCw, Sparkles, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { CardGridSkeleton } from "@/components/table-skeleton";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
 
@@ -59,7 +60,7 @@ function TemplatesPage() {
         }
       />
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {isLoading && <p className="text-muted-foreground">Carregando…</p>}
+        {isLoading && <CardGridSkeleton count={6} />}
         {!isLoading && (data ?? []).length === 0 && (
           <Card>
             <EmptyState

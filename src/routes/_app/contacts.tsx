@@ -26,6 +26,7 @@ import * as XLSX from "xlsx";
 import { EmptyState } from "@/components/empty-state";
 import { DataPagination } from "@/components/data-pagination";
 import { useConfirm } from "@/components/confirm-dialog";
+import { TableSkeleton } from "@/components/table-skeleton";
 
 export const Route = createFileRoute("/_app/contacts")({ component: ContactsPage });
 
@@ -259,7 +260,7 @@ function ContactsPage() {
           </div>
           <div className="overflow-auto">
             {isLoading ? (
-              <p className="p-8 text-center text-muted-foreground">Carregando…</p>
+              <TableSkeleton rows={8} cols={5} />
             ) : total === 0 ? (
               <EmptyState
                 icon={Users}

@@ -17,6 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { useConfirm } from "@/components/confirm-dialog";
+import { ListSkeleton } from "@/components/table-skeleton";
+import { WhatsAppPreview } from "@/components/whatsapp-preview";
 
 export const Route = createFileRoute("/_app/campaigns")({ component: CampaignsPage });
 
@@ -70,7 +72,7 @@ function CampaignsPage() {
           />
         )}
         <Card>
-          {isLoading && <p className="p-6 text-muted-foreground">Carregando…</p>}
+          {isLoading && <ListSkeleton rows={4} />}
           {!isLoading && (data ?? []).length === 0 && (
             <EmptyState
               icon={Megaphone}
@@ -256,6 +258,17 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                     Use <code>{`{{name}}`}</code> ou <code>{`{{campo_custom}}`}</code> para interpolar dados do contato.
                   </p>
                 </div>
+                {selectedTemplate && (
+                  <div>
+                    <Label className="mb-2 block">Pré-visualização</Label>
+                    <WhatsAppPreview
+                      components={(selectedTemplate.components ?? []) as any}
+                      variables={Object.fromEntries(
+                        variables.split(",").map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v)
+                      )}
+                    />
+                  </div>
+                )}
               </>
             )}
 
