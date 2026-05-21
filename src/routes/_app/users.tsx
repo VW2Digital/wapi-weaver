@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { ShieldCheck, UserPlus, Trash2, Users as UsersIcon, Loader2, BarChart3, Mail, Send, CheckCheck, XCircle, Clock, FileText, Tag, List as ListIcon, Megaphone } from "lucide-react";
 import { listUsers, createUser, setUserRole, deleteUser, getUserActivity } from "@/lib/users-admin.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
