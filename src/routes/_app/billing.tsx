@@ -177,3 +177,73 @@ function StatCard({
     </Card>
   );
 }
+
+const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTH_LONG = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [year, month] = value.split("-").map(Number);
+  const [viewYear, setViewYear] = useState(year);
+  const now = new Date();
+  const currentY = now.getUTCFullYear();
+  const currentM = now.getUTCMonth() + 1;
+
+  const label = `${MONTH_LONG[month - 1]} de ${year}`;
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setViewYear(year); }}>
+      <PopoverTrigger asChild>
+        <Button
+          id="month"
+          variant="outline"
+          className="w-full justify-start text-left font-normal capitalize"
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 opacity-60" />
+          {label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3 pointer-events-auto" align="start">
+        <div className="flex items-center justify-between mb-3">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewYear((y) => y - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-sm font-medium">{viewYear}</div>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewYear((y) => y + 1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {MONTH_NAMES.map((name, i) => {
+            const m = i + 1;
+            const selected = viewYear === year && m === month;
+            const isFuture = viewYear > currentY || (viewYear === currentY && m > currentM);
+            const isCurrent = viewYear === currentY && m === currentM;
+            return (
+              <button
+                key={name}
+                type="button"
+                disabled={isFuture}
+                onClick={() => {
+                  onChange(`${viewYear}-${String(m).padStart(2, "0")}`);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "rounded-md px-2 py-2 text-sm transition-colors",
+                  selected
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : isCurrent
+                    ? "border border-primary/40 text-foreground hover:bg-accent"
+                    : "text-foreground hover:bg-accent",
+                  isFuture && "opacity-40 cursor-not-allowed hover:bg-transparent",
+                )}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
