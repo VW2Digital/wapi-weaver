@@ -63,16 +63,16 @@ export function WhatsAppPreview({
         )}
         {header?.format === "TEXT" && header.text && (
           <p className="mb-1 text-sm font-semibold text-foreground">
-            {renderText(header.text)}
+            {renderText(header.text, variables)}
           </p>
         )}
         {body?.text && (
           <p className="whitespace-pre-wrap text-sm leading-snug text-foreground">
-            {renderText(body.text)}
+            {renderText(body.text, variables)}
           </p>
         )}
         {footer?.text && (
-          <p className="mt-1 text-[11px] text-muted-foreground">{renderText(footer.text)}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{renderText(footer.text, variables)}</p>
         )}
         <p className="mt-1 text-right text-[10px] text-muted-foreground">12:34</p>
       </div>
