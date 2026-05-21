@@ -331,12 +331,15 @@ function Dashboard() {
                       border: "1px solid var(--border)",
                       borderRadius: 8,
                       fontSize: 12,
+                      color: "var(--popover-foreground)",
                     }}
+                    itemStyle={{ color: "var(--popover-foreground)" }}
+                    labelStyle={{ color: "var(--popover-foreground)" }}
                   />
                   <Legend
                     verticalAlign="bottom"
                     iconType="circle"
-                    wrapperStyle={{ fontSize: 12 }}
+                    wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
