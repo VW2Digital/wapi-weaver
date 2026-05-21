@@ -257,6 +257,17 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                     Use <code>{`{{name}}`}</code> ou <code>{`{{campo_custom}}`}</code> para interpolar dados do contato.
                   </p>
                 </div>
+                {selectedTemplate && (
+                  <div>
+                    <Label className="mb-2 block">Pré-visualização</Label>
+                    <WhatsAppPreview
+                      components={selectedTemplate.components ?? []}
+                      variables={Object.fromEntries(
+                        variables.split(",").map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v)
+                      )}
+                    />
+                  </div>
+                )}
               </>
             )}
 
