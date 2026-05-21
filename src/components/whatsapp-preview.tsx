@@ -8,20 +8,30 @@ type Component = {
   buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>;
 };
 
-function renderText(s?: string) {
+function renderText(s?: string, vars?: Record<string, string>) {
   if (!s) return null;
-  // Highlight {{1}}, {{name}} placeholders
   const parts = s.split(/(\{\{[^}]+\}\})/g);
-  return parts.map((p, i) =>
-    /^\{\{[^}]+\}\}$/.test(p) ? (
-      <span key={i} className="rounded bg-primary/15 px-1 text-primary">{p}</span>
-    ) : (
-      <span key={i}>{p}</span>
-    ),
-  );
+  return parts.map((p, i) => {
+    const m = p.match(/^\{\{([^}]+)\}\}$/);
+    if (m) {
+      const key = m[1].trim();
+      const value = vars?.[key];
+      if (value) {
+        return <span key={i} className="font-medium">{value}</span>;
+      }
+      return <span key={i} className="rounded bg-primary/15 px-1 text-primary">{p}</span>;
+    }
+    return <span key={i}>{p}</span>;
+  });
 }
 
-export function WhatsAppPreview({ components }: { components: Component[] }) {
+export function WhatsAppPreview({
+  components,
+  variables,
+}: {
+  components: Component[];
+  variables?: Record<string, string>;
+}) {
   const header = components.find((c) => c.type === "HEADER");
   const body = components.find((c) => c.type === "BODY");
   const footer = components.find((c) => c.type === "FOOTER");
