@@ -52,6 +52,7 @@ function AppLayout() {
   const router = useRouter();
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const avatarUrl = useGravatarUrl(user?.email);
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
