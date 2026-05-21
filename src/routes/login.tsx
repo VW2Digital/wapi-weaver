@@ -61,6 +61,26 @@ function LoginPage() {
     setBusy(false);
   };
 
+  const sendReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Se este email existir, você receberá um link em instantes.");
+      setForgotOpen(false);
+      setForgotEmail("");
+    } catch (e: any) {
+      toast.error(e.message ?? "Falha ao enviar email");
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="hidden bg-sidebar p-12 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
