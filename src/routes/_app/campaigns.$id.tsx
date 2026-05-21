@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getCampaign } from "@/lib/campaigns.functions";
+import { getCampaign, exportCampaignReport } from "@/lib/campaigns.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, Download } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/campaigns/$id")({ component: CampaignDetailPage });
 
@@ -31,10 +32,24 @@ const MSG_STATUS: Record<string, string> = {
 function CampaignDetailPage() {
   const { id } = Route.useParams();
   const fetchOne = useServerFn(getCampaign);
+  const exportFn = useServerFn(exportCampaignReport);
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["campaign", id],
     queryFn: () => fetchOne({ data: { id } }),
     refetchInterval: 5000,
+  });
+
+  const exportMut = useMutation({
+    mutationFn: () => exportFn({ data: { id } }),
+    onSuccess: (r) => {
+      const blob = new Blob([r.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = r.filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exportado: ${r.rows} linha(s)`);
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao exportar"),
   });
 
   if (isLoading) return <p className="p-10 text-muted-foreground">Carregando…</p>;
@@ -57,6 +72,9 @@ function CampaignDetailPage() {
             <Link to="/campaigns"><Button variant="ghost"><ArrowLeft className="mr-1 h-4 w-4" /> Voltar</Button></Link>
             <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Atualizar
+            </Button>
+            <Button variant="outline" onClick={() => exportMut.mutate()} disabled={exportMut.isPending}>
+              <Download className="mr-1 h-4 w-4" /> {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
             </Button>
           </div>
         }

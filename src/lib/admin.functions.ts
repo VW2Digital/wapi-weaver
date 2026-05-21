@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { recordAudit } from "./audit.functions";
 
 export const getCurrentUserRoles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -66,6 +67,13 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
       .eq("id", 1);
 
     if (error) throw error;
+    await recordAudit({
+      userId: context.userId,
+      action: "platform_settings.update",
+      entityType: "platform_settings",
+      entityId: "1",
+      metadata: { changed: Object.keys(update).filter((k) => k !== "updated_at" && k !== "updated_by") },
+    });
     return { ok: true };
   });
 

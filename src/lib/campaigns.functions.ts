@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { recordAudit } from "./audit.functions";
 
 const payloadSchema = z.object({
   // For template messages
@@ -104,6 +105,14 @@ export const createCampaign = createServerFn({ method: "POST" })
       if (insErr) throw insErr;
     }
 
+    await recordAudit({
+      userId: context.userId,
+      action: "campaign.create",
+      entityType: "campaign",
+      entityId: campaign.id,
+      metadata: { name: data.name, total: contacts.length, message_type: data.message_type },
+    });
+
     return { campaign, queued: contacts.length };
   });
 
@@ -116,5 +125,93 @@ export const cancelCampaign = createServerFn({ method: "POST" })
       .update({ status: "cancelled" })
       .eq("id", data.id);
     if (error) throw error;
+    await recordAudit({
+      userId: context.userId,
+      action: "campaign.cancel",
+      entityType: "campaign",
+      entityId: data.id,
+    });
     return { ok: true };
+  });
+
+function csvEscape(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "string" ? v : typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+export const exportCampaignReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: campaign, error: cErr } = await context.supabase
+      .from("campaigns")
+      .select("id, name, created_at, status")
+      .eq("id", data.id)
+      .single();
+    if (cErr) throw cErr;
+
+    // Busca em páginas (Supabase limita a 1000)
+    const pageSize = 1000;
+    let from = 0;
+    const all: any[] = [];
+    while (true) {
+      const { data: rows, error } = await context.supabase
+        .from("campaign_messages")
+        .select("to_phone, status, attempts, wa_message_id, sent_at, delivered_at, read_at, failed_at, error, contact_id, contacts(name, email)")
+        .eq("campaign_id", data.id)
+        .order("created_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!rows || rows.length === 0) break;
+      all.push(...rows);
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const header = [
+      "telefone",
+      "nome",
+      "email",
+      "status",
+      "tentativas",
+      "wa_message_id",
+      "enviado_em",
+      "entregue_em",
+      "lido_em",
+      "falhou_em",
+      "erro",
+    ];
+    const lines = [header.join(",")];
+    for (const r of all) {
+      const contact = (r as any).contacts ?? {};
+      lines.push([
+        csvEscape(r.to_phone),
+        csvEscape(contact.name),
+        csvEscape(contact.email),
+        csvEscape(r.status),
+        csvEscape(r.attempts),
+        csvEscape(r.wa_message_id),
+        csvEscape(r.sent_at),
+        csvEscape(r.delivered_at),
+        csvEscape(r.read_at),
+        csvEscape(r.failed_at),
+        csvEscape(r.error),
+      ].join(","));
+    }
+
+    await recordAudit({
+      userId: context.userId,
+      action: "campaign.export",
+      entityType: "campaign",
+      entityId: data.id,
+      metadata: { rows: all.length },
+    });
+
+    return {
+      filename: `campanha-${campaign.name.replace(/[^\w-]+/g, "_")}-${campaign.id.slice(0, 8)}.csv`,
+      csv: lines.join("\n"),
+      rows: all.length,
+    };
   });

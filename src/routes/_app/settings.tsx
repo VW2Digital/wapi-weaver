@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
 import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings } from "@/lib/admin.functions";
+import { getWebhookHealth } from "@/lib/webhook-health.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, File
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
+import { cn } from "@/lib/utils";
 
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
@@ -312,6 +314,10 @@ function SettingsPage() {
             </div>
           </div>
         </Card>
+
+        <WebhookHealthCard />
+
+
 
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">API para integração externa (CRM)</h2>
@@ -763,3 +769,98 @@ function ChangePasswordCard() {
     </Card>
   );
 }
+
+function WebhookHealthCard() {
+  const fetchRoles = useServerFn(getCurrentUserRoles);
+  const fetchHealth = useServerFn(getWebhookHealth);
+
+  const { data: roleData } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
+  const isAdmin = roleData?.isAdmin === true;
+
+  const { data: health, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ["webhook-health"],
+    queryFn: () => fetchHealth(),
+    enabled: isAdmin,
+    refetchInterval: 30_000,
+  });
+
+  if (!isAdmin) return null;
+
+  const last = health?.last_received_at ? new Date(health.last_received_at) : null;
+  const ageMs = last ? Date.now() - last.getTime() : null;
+  const fresh = ageMs !== null && ageMs < 24 * 60 * 60 * 1000;
+  const stale = ageMs !== null && ageMs >= 24 * 60 * 60 * 1000;
+  const never = !last;
+
+  const statusColor = fresh
+    ? "bg-success/15 text-success border-success/30"
+    : stale
+    ? "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400"
+    : "bg-destructive/15 text-destructive border-destructive/30";
+
+  const statusLabel = fresh ? "Recebendo eventos" : stale ? "Sem eventos há +24h" : "Nunca recebeu eventos";
+
+  const formatAge = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s atrás`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} min atrás`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} h atrás`;
+    const d = Math.floor(h / 24);
+    return `${d} dia(s) atrás`;
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Saúde do webhook</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Monitora se a Meta está conseguindo entregar eventos no seu endpoint.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <p className="mt-4 text-sm text-muted-foreground">Carregando…</p>
+      ) : (
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Status</div>
+            <div className={cn("mt-2 inline-flex items-center gap-2 rounded-md border px-2 py-1 text-sm font-medium", statusColor)}>
+              <span className={cn("h-2 w-2 rounded-full", fresh ? "bg-success animate-pulse" : stale ? "bg-amber-500" : "bg-destructive")} />
+              {statusLabel}
+            </div>
+            {last && (
+              <div className="mt-2 text-xs text-muted-foreground">
+                Último em {last.toLocaleString()} ({formatAge(ageMs!)})
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg border p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Últimas 24h</div>
+            <div className="mt-2 text-2xl font-semibold">{health?.events_last_24h ?? 0}</div>
+            <div className="text-xs text-muted-foreground">eventos recebidos</div>
+          </div>
+          <div className="rounded-lg border p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Pendentes</div>
+            <div className="mt-2 text-2xl font-semibold">{health?.unprocessed_count ?? 0}</div>
+            <div className="text-xs text-muted-foreground">eventos não processados</div>
+          </div>
+        </div>
+      )}
+
+      {never && (
+        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          ⚠️ Nenhum evento foi recebido ainda. Verifique se a Callback URL e o Verify Token estão configurados na Meta e se o webhook foi inscrito no campo <code>messages</code>.
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
