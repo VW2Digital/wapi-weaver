@@ -121,3 +121,100 @@ export const deleteUser = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true };
   });
+
+const activitySchema = z.object({ user_id: z.string().uuid() });
+
+export const getUserActivity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => activitySchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const uid = data.user_id;
+
+    const { data: userInfo, error: uErr } = await supabaseAdmin.auth.admin.getUserById(uid);
+    if (uErr) throw uErr;
+    const user = userInfo.user;
+
+    const [campaignsRes, msgsRes, contactsRes, listsRes, tagsRes, templatesRes, recentCampaignsRes] =
+      await Promise.all([
+        supabaseAdmin
+          .from("campaigns")
+          .select("id, status", { count: "exact" })
+          .eq("user_id", uid),
+        supabaseAdmin
+          .from("campaign_messages")
+          .select("status", { count: "exact" })
+          .eq("user_id", uid),
+        supabaseAdmin
+          .from("contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", uid),
+        supabaseAdmin
+          .from("lists")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", uid),
+        supabaseAdmin
+          .from("tags")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", uid),
+        supabaseAdmin
+          .from("templates")
+          .select("id, status", { count: "exact" })
+          .eq("user_id", uid),
+        supabaseAdmin
+          .from("campaigns")
+          .select("id, name, status, created_at, started_at, finished_at, totals")
+          .eq("user_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+
+    const campaignsByStatus: Record<string, number> = {};
+    (campaignsRes.data ?? []).forEach((c: any) => {
+      campaignsByStatus[c.status] = (campaignsByStatus[c.status] ?? 0) + 1;
+    });
+
+    const messagesByStatus: Record<string, number> = {};
+    (msgsRes.data ?? []).forEach((m: any) => {
+      messagesByStatus[m.status] = (messagesByStatus[m.status] ?? 0) + 1;
+    });
+
+    const templatesByStatus: Record<string, number> = {};
+    (templatesRes.data ?? []).forEach((t: any) => {
+      templatesByStatus[t.status] = (templatesByStatus[t.status] ?? 0) + 1;
+    });
+
+    return {
+      profile: {
+        id: user?.id ?? uid,
+        email: user?.email ?? "",
+        created_at: user?.created_at ?? null,
+        last_sign_in_at: user?.last_sign_in_at ?? null,
+        confirmed_at: user?.email_confirmed_at ?? null,
+      },
+      campaigns: {
+        total: campaignsRes.count ?? 0,
+        byStatus: campaignsByStatus,
+        recent: (recentCampaignsRes.data ?? []) as Array<{
+          id: string;
+          name: string;
+          status: string;
+          created_at: string;
+          started_at: string | null;
+          finished_at: string | null;
+          totals: { read?: number; sent?: number; total?: number; failed?: number; pending?: number; delivered?: number };
+        }>,
+      },
+      messages: {
+        total: msgsRes.count ?? 0,
+        byStatus: messagesByStatus,
+      },
+      contacts: contactsRes.count ?? 0,
+      lists: listsRes.count ?? 0,
+      tags: tagsRes.count ?? 0,
+      templates: {
+        total: templatesRes.count ?? 0,
+        byStatus: templatesByStatus,
+      },
+    };
+  });
