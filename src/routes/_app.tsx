@@ -22,8 +22,10 @@ const NAV = [
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns", label: "Campanhas", icon: Send },
+  { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
+
 
 function AppLayout() {
   const { user, loading } = useAuth();
