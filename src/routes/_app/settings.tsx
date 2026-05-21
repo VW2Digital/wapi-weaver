@@ -746,7 +746,7 @@ function ChangePasswordCard() {
       <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="cur-pwd">Senha atual</Label>
-          <Input id="cur-pwd" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
+          <PasswordInput id="cur-pwd" value={current} onChange={(e) => setCurrent(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="new-pwd">Nova senha</Label>
