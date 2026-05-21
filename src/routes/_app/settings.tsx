@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -364,32 +364,53 @@ function SettingsPage() {
 }
 
 function AppearanceCard() {
-  const { theme, isSystem, resetTheme } = useTheme();
+  const { theme, isSystem, resetTheme, setTheme } = useTheme();
 
   return (
     <Card className="p-6">
       <h2 className="font-display text-lg font-semibold">Aparência</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel.</p>
-      <div className="mt-4 flex items-center justify-between gap-4">
+      <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel. A mudança é aplicada imediatamente.</p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className={`rounded-lg p-2 ${isSystem ? "bg-primary/10" : "bg-muted"}`}>
             <Monitor className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-medium">Tema do sistema</p>
+            <p className="text-sm font-medium">
+              Tema atual: <span className="capitalize">{theme === "dark" ? "Escuro" : "Claro"}</span>
+            </p>
             <p className="text-xs text-muted-foreground">
-              {isSystem ? "Seguindo a preferência do sistema" : `Definido manualmente como ${theme === "dark" ? "escuro" : "claro"}`}
+              {isSystem ? "Seguindo a preferência do sistema" : "Definido manualmente"}
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={resetTheme}
-          disabled={isSystem}
-        >
-          <Monitor className="mr-2 h-4 w-4" />
-          Usar tema do sistema
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={!isSystem && theme === "light" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTheme("light")}
+          >
+            <Sun className="mr-2 h-4 w-4" />
+            Claro
+          </Button>
+          <Button
+            variant={!isSystem && theme === "dark" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTheme("dark")}
+          >
+            <Moon className="mr-2 h-4 w-4" />
+            Escuro
+          </Button>
+          <Button
+            variant={isSystem ? "default" : "outline"}
+            size="sm"
+            onClick={resetTheme}
+            disabled={isSystem}
+          >
+            <Monitor className="mr-2 h-4 w-4" />
+            Sistema
+          </Button>
+        </div>
       </div>
     </Card>
   );
