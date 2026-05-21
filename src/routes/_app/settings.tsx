@@ -134,6 +134,7 @@ function SettingsPage() {
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <AppearanceCard />
+        <ChangePasswordCard />
         <AdminPlatformSection />
 
         <Card className="p-6">
