@@ -109,6 +109,7 @@ function AdminUsers() {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", display_name: "", role: "user" as "admin" | "user" });
+  const [activityUser, setActivityUser] = useState<{ id: string; email: string } | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
