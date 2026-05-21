@@ -12,9 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, ListChecks, Tags } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/empty-state";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/lists")({ component: ListsPage });
 
@@ -30,6 +32,7 @@ function ListsPage() {
   const getMembers = useServerFn(getListContacts);
   const rmMember = useServerFn(removeContactFromList);
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const tags = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags() });
@@ -77,12 +80,21 @@ function ListsPage() {
                     <p className="font-medium">{l.name}</p>
                     <p className="text-xs text-muted-foreground">{l.description ?? "—"} · {l.list_contacts?.[0]?.count ?? 0} contatos</p>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={async (e) => { e.stopPropagation(); await rmList({ data: { id: l.id } }); qc.invalidateQueries({ queryKey: ["lists"] }); }}>
+                  <Button size="icon" variant="ghost" onClick={async (e) => {
+                    e.stopPropagation();
+                    const ok = await confirm({ title: "Excluir lista?", description: <>A lista <strong>{l.name}</strong> será removida. Os contatos não serão excluídos.</>, destructive: true, confirmText: "Excluir" });
+                    if (!ok) return;
+                    await rmList({ data: { id: l.id } });
+                    if (selectedList?.id === l.id) setSelectedList(null);
+                    qc.invalidateQueries({ queryKey: ["lists"] });
+                  }}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </button>
               ))}
-              {(lists.data ?? []).length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma lista.</p>}
+              {(lists.data ?? []).length === 0 && (
+                <EmptyState icon={ListChecks} title="Nenhuma lista" description="Crie listas para segmentar campanhas e organizar contatos." />
+              )}
             </div>
           </Card>
 
@@ -145,10 +157,17 @@ function ListsPage() {
               {(tags.data ?? []).map((t: any) => (
                 <span key={t.id} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-white" style={{ background: t.color }}>
                   {t.name}
-                  <button onClick={async () => { await rmTag({ data: { id: t.id } }); qc.invalidateQueries({ queryKey: ["tags"] }); }}><X className="h-3 w-3" /></button>
+                  <button aria-label={`Remover tag ${t.name}`} onClick={async () => {
+                    const ok = await confirm({ title: "Remover tag?", description: <>A tag <strong>{t.name}</strong> será removida de todos os contatos.</>, destructive: true, confirmText: "Remover" });
+                    if (!ok) return;
+                    await rmTag({ data: { id: t.id } });
+                    qc.invalidateQueries({ queryKey: ["tags"] });
+                  }}><X className="h-3 w-3" /></button>
                 </span>
               ))}
-              {(tags.data ?? []).length === 0 && <p className="text-xs text-muted-foreground">Sem tags.</p>}
+              {(tags.data ?? []).length === 0 && (
+                <EmptyState icon={Tags} title="Sem tags" description="Tags ajudam a categorizar contatos rapidamente." className="w-full py-8" />
+              )}
             </div>
           </div>
         </Card>

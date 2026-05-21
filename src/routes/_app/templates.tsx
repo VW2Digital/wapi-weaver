@@ -5,9 +5,12 @@ import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates } from "@/lib
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { RefreshCw, Sparkles, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
+import { EmptyState } from "@/components/empty-state";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
 
@@ -25,6 +28,7 @@ function TemplatesPage() {
   const seed = useServerFn(seedSampleTemplates);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
+  const [search, setSearch] = useState("");
 
   const syncMut = useMutation({
     mutationFn: () => sync(),
@@ -54,30 +58,55 @@ function TemplatesPage() {
           </div>
         }
       />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {isLoading && <p className="text-muted-foreground">Carregando…</p>}
         {!isLoading && (data ?? []).length === 0 && (
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground">
-              Nenhum template. Clique em <strong>Carregar exemplos</strong> ou <strong>Sincronizar com Meta</strong>.
-            </p>
+          <Card>
+            <EmptyState
+              icon={FileText}
+              title="Nenhum template ainda"
+              description="Sincronize seus templates aprovados pela Meta ou carregue exemplos para começar."
+              action={
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
+                    <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
+                  </Button>
+                  <Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar
+                  </Button>
+                </div>
+              }
+            />
           </Card>
         )}
+        {!isLoading && (data ?? []).length > 0 && (
+          <Input
+            className="max-w-sm"
+            placeholder="Buscar template por nome, status ou categoria…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        )}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {(data ?? []).map((t: any) => (
-            <Card key={t.id} className="overflow-hidden">
-              <div className="border-b p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">{t.name}</p>
-                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+          {(data ?? [])
+            .filter((t: any) => {
+              const s = search.toLowerCase();
+              return !s || t.name.toLowerCase().includes(s) || t.status.toLowerCase().includes(s) || (t.category ?? "").toLowerCase().includes(s);
+            })
+            .map((t: any) => (
+              <Card key={t.id} className="overflow-hidden">
+                <div className="border-b p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">{t.name}</p>
+                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
-              </div>
-              <div className="p-4">
-                <WhatsAppPreview components={t.components ?? []} />
-              </div>
-            </Card>
-          ))}
+                <div className="p-4">
+                  <WhatsAppPreview components={t.components ?? []} />
+                </div>
+              </Card>
+            ))}
         </div>
       </div>
     </div>

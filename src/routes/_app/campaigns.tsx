@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Send, XCircle, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/campaigns")({ component: CampaignsPage });
 
@@ -31,9 +33,15 @@ function CampaignsPage() {
   const fetchAll = useServerFn(listCampaigns);
   const cancel = useServerFn(cancelCampaign);
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchAll() });
+  const [search, setSearch] = useState("");
 
   const [open, setOpen] = useState(false);
+
+  const filtered = (data ?? []).filter((c: any) =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.status.includes(search.toLowerCase())
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -52,16 +60,30 @@ function CampaignsPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        {(data ?? []).length > 0 && (
+          <Input
+            className="max-w-sm"
+            placeholder="Buscar campanha por nome ou status…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        )}
         <Card>
           {isLoading && <p className="p-6 text-muted-foreground">Carregando…</p>}
           {!isLoading && (data ?? []).length === 0 && (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              Nenhuma campanha ainda. Clique em <strong>Nova campanha</strong> para começar.
-            </p>
+            <EmptyState
+              icon={Megaphone}
+              title="Nenhuma campanha ainda"
+              description="Crie sua primeira campanha para disparar mensagens em massa para uma lista de contatos."
+              action={<Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" /> Nova campanha</Button>}
+            />
+          )}
+          {!isLoading && (data ?? []).length > 0 && filtered.length === 0 && (
+            <EmptyState icon={Megaphone} title="Nenhuma campanha encontrada" description="Tente uma busca diferente." />
           )}
           <div className="divide-y">
-            {(data ?? []).map((c: any) => {
+            {filtered.map((c: any) => {
               const t = (c.totals ?? {}) as Record<string, number>;
               const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
               return (
@@ -79,6 +101,12 @@ function CampaignsPage() {
                   <div className="flex items-center gap-2">
                     {(c.status === "queued" || c.status === "running") && (
                       <Button size="sm" variant="ghost" onClick={async () => {
+                        const ok = await confirm({
+                          title: "Cancelar campanha?",
+                          description: <>Mensagens pendentes da campanha <strong>{c.name}</strong> não serão enviadas.</>,
+                          destructive: true, confirmText: "Cancelar campanha", cancelText: "Voltar",
+                        });
+                        if (!ok) return;
                         await cancel({ data: { id: c.id } });
                         toast.success("Campanha cancelada");
                         qc.invalidateQueries({ queryKey: ["campaigns"] });
