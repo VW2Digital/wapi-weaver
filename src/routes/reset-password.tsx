@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { MessageCircle, Lock } from "lucide-react";
@@ -74,9 +75,8 @@ function ResetPasswordPage() {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="password">Nova senha</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
                 minLength={8}
                 required
@@ -86,9 +86,8 @@ function ResetPasswordPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="confirm">Confirmar nova senha</Label>
-              <Input
+              <PasswordInput
                 id="confirm"
-                type="password"
                 value={confirm}
                 minLength={8}
                 required
