@@ -47,8 +47,9 @@ function BillingPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Consumo & Faturamento"
-        description="Acompanhe quantas conversas e mensagens foram cobradas pela Meta neste período."
+        subtitle="Acompanhe quantas conversas e mensagens foram cobradas pela Meta neste período."
       />
+
       <div className="flex-1 overflow-auto p-6 space-y-6">
         <Card className="p-4 flex items-end gap-4">
           <div className="flex-1 max-w-xs">
