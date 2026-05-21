@@ -537,12 +537,16 @@ function AdminPlatformSection() {
   const [appSecret, setAppSecret] = useState("");
   const [configId, setConfigId] = useState("");
   const [graphVersion, setGraphVersion] = useState("v20.0");
+  const [headTags, setHeadTags] = useState("");
+  const [bodyTags, setBodyTags] = useState("");
 
   useEffect(() => {
     if (settings) {
       setAppId(settings.meta_app_id ?? "");
       setConfigId(settings.meta_config_id ?? "");
       setGraphVersion(settings.meta_graph_version ?? "v20.0");
+      setHeadTags((settings as any).head_tags ?? "");
+      setBodyTags((settings as any).body_tags ?? "");
       setAppSecret("");
     }
   }, [settings]);
@@ -639,6 +643,37 @@ function AdminPlatformSection() {
         </div>
       </div>
 
+      <div className="mt-6 border-t pt-5">
+        <h3 className="font-display text-base font-semibold">Tags personalizadas (Analytics, Pixel, etc.)</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cole snippets completos (com <code className="text-xs">&lt;script&gt;</code>, <code className="text-xs">&lt;meta&gt;</code>, <code className="text-xs">&lt;noscript&gt;</code>…). Eles serão injetados em <strong>todas as páginas</strong> da plataforma para todos os usuários.
+        </p>
+        <div className="mt-4 grid gap-4">
+          <div className="space-y-1.5">
+            <Label>Tags no &lt;head&gt;</Label>
+            <Textarea
+              rows={6}
+              value={headTags}
+              onChange={(e) => setHeadTags(e.target.value)}
+              placeholder={`<!-- Google Analytics -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXX');</script>`}
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">Ideal para Google Analytics, GTM, Meta Pixel, verificações de domínio, etc.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Tags no final do &lt;body&gt;</Label>
+            <Textarea
+              rows={6}
+              value={bodyTags}
+              onChange={(e) => setBodyTags(e.target.value)}
+              placeholder={`<!-- Chat / widgets -->\n<script src="https://widget.exemplo.com/loader.js"></script>`}
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">Ideal para widgets, scripts que dependem do DOM carregado, fallbacks &lt;noscript&gt;.</p>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-4 flex gap-2">
         <Button
           onClick={() =>
@@ -647,6 +682,8 @@ function AdminPlatformSection() {
               meta_app_secret: appSecret || undefined,
               meta_config_id: configId || undefined,
               meta_graph_version: graphVersion || undefined,
+              head_tags: headTags,
+              body_tags: bodyTags,
             })
           }
           disabled={mut.isPending}

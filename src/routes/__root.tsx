@@ -12,6 +12,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/confirm-dialog";
+import { TrackingTagsInjector } from "@/components/tracking-tags-injector";
 
 function NotFoundComponent() {
   return (
@@ -91,6 +92,7 @@ function RootComponent() {
           <ConfirmProvider>
             <Outlet />
             <Toaster richColors position="top-right" />
+            <TrackingTagsInjector />
           </ConfirmProvider>
         </AuthProvider>
       </ThemeProvider>

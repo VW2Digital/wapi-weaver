@@ -295,6 +295,8 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          body_tags: string | null
+          head_tags: string | null
           id: number
           meta_app_id: string | null
           meta_app_secret: string | null
@@ -304,6 +306,8 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          body_tags?: string | null
+          head_tags?: string | null
           id?: number
           meta_app_id?: string | null
           meta_app_secret?: string | null
@@ -313,6 +317,8 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          body_tags?: string | null
+          head_tags?: string | null
           id?: number
           meta_app_id?: string | null
           meta_app_secret?: string | null
