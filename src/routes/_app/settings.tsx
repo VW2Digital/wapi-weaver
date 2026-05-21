@@ -750,11 +750,11 @@ function ChangePasswordCard() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="new-pwd">Nova senha</Label>
-          <Input id="new-pwd" type="password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
+          <PasswordInput id="new-pwd" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cfm-pwd">Confirmar</Label>
-          <Input id="cfm-pwd" type="password" minLength={8} value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} required />
+          <PasswordInput id="cfm-pwd" minLength={8} value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} required />
         </div>
         <div className="md:col-span-3">
           <Button type="submit" disabled={busy}>Atualizar senha</Button>
