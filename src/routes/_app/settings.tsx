@@ -537,12 +537,16 @@ function AdminPlatformSection() {
   const [appSecret, setAppSecret] = useState("");
   const [configId, setConfigId] = useState("");
   const [graphVersion, setGraphVersion] = useState("v20.0");
+  const [headTags, setHeadTags] = useState("");
+  const [bodyTags, setBodyTags] = useState("");
 
   useEffect(() => {
     if (settings) {
       setAppId(settings.meta_app_id ?? "");
       setConfigId(settings.meta_config_id ?? "");
       setGraphVersion(settings.meta_graph_version ?? "v20.0");
+      setHeadTags((settings as any).head_tags ?? "");
+      setBodyTags((settings as any).body_tags ?? "");
       setAppSecret("");
     }
   }, [settings]);
