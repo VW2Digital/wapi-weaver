@@ -70,6 +70,7 @@ function AdminUsers() {
   const create = useServerFn(createUser);
   const setRole = useServerFn(setUserRole);
   const del = useServerFn(deleteUser);
+  const confirm = useConfirm();
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users"],
