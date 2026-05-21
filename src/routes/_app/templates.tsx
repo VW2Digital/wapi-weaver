@@ -59,7 +59,7 @@ function TemplatesPage() {
         }
       />
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {isLoading && <p className="text-muted-foreground">Carregando…</p>}
+        {isLoading && <CardGridSkeleton count={6} />}
         {!isLoading && (data ?? []).length === 0 && (
           <Card>
             <EmptyState
