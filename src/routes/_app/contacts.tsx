@@ -260,7 +260,7 @@ function ContactsPage() {
           </div>
           <div className="overflow-auto">
             {isLoading ? (
-              <p className="p-8 text-center text-muted-foreground">Carregando…</p>
+              <TableSkeleton rows={8} cols={5} />
             ) : total === 0 ? (
               <EmptyState
                 icon={Users}
