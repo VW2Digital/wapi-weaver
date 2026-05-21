@@ -17,6 +17,7 @@ import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, File
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
+import { cn } from "@/lib/utils";
 
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
