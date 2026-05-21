@@ -313,6 +313,10 @@ function SettingsPage() {
           </div>
         </Card>
 
+        <WebhookHealthCard />
+
+
+
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">API para integração externa (CRM)</h2>
           <p className="mt-1 text-sm text-muted-foreground">Use esta chave para enviar contatos de outros sistemas (HubSpot, RD, n8n, Zapier…).</p>
