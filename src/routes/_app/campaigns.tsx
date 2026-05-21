@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { useConfirm } from "@/components/confirm-dialog";
+import { ListSkeleton } from "@/components/table-skeleton";
 
 export const Route = createFileRoute("/_app/campaigns")({ component: CampaignsPage });
 
