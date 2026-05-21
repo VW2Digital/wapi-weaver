@@ -146,7 +146,7 @@ function LoginPage() {
                   </button>
                 )}
               </div>
-              <Input id="password" type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <PasswordInput id="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {mode === "signin" ? "Entrar" : "Criar conta"}
