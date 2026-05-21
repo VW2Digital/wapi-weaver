@@ -26,6 +26,7 @@ import * as XLSX from "xlsx";
 import { EmptyState } from "@/components/empty-state";
 import { DataPagination } from "@/components/data-pagination";
 import { useConfirm } from "@/components/confirm-dialog";
+import { TableSkeleton } from "@/components/table-skeleton";
 
 export const Route = createFileRoute("/_app/contacts")({ component: ContactsPage });
 
