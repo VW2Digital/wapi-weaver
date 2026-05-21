@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
@@ -55,6 +56,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppTemplatesRoute = AppTemplatesRouteImport.update({
   id: '/templates',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/lists': typeof AppListsRoute
   '/settings': typeof AppSettingsRoute
   '/templates': typeof AppTemplatesRoute
+  '/users': typeof AppUsersRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/lists': typeof AppListsRoute
   '/settings': typeof AppSettingsRoute
   '/templates': typeof AppTemplatesRoute
+  '/users': typeof AppUsersRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/_app/lists': typeof AppListsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/templates': typeof AppTemplatesRoute
+  '/_app/users': typeof AppUsersRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/lists'
     | '/settings'
     | '/templates'
+    | '/users'
     | '/campaigns/$id'
     | '/api/public/whatsapp-webhook'
     | '/api/public/contacts/ingest'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/lists'
     | '/settings'
     | '/templates'
+    | '/users'
     | '/campaigns/$id'
     | '/api/public/whatsapp-webhook'
     | '/api/public/contacts/ingest'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/_app/lists'
     | '/_app/settings'
     | '/_app/templates'
+    | '/_app/users'
     | '/_app/campaigns/$id'
     | '/api/public/whatsapp-webhook'
     | '/api/public/contacts/ingest'
@@ -283,6 +295,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/users': {
+      id: '/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/templates': {
       id: '/_app/templates'
@@ -384,6 +403,7 @@ interface AppRouteChildren {
   AppListsRoute: typeof AppListsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTemplatesRoute: typeof AppTemplatesRoute
+  AppUsersRoute: typeof AppUsersRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -394,6 +414,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppListsRoute: AppListsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTemplatesRoute: AppTemplatesRoute,
+  AppUsersRoute: AppUsersRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -412,3 +433,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
