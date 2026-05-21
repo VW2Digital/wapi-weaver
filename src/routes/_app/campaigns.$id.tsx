@@ -73,6 +73,9 @@ function CampaignDetailPage() {
             <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Atualizar
             </Button>
+            <Button variant="outline" onClick={() => exportMut.mutate()} disabled={exportMut.isPending}>
+              <Download className="mr-1 h-4 w-4" /> {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
+            </Button>
           </div>
         }
       />
