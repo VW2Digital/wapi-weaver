@@ -33,9 +33,15 @@ function CampaignsPage() {
   const fetchAll = useServerFn(listCampaigns);
   const cancel = useServerFn(cancelCampaign);
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchAll() });
+  const [search, setSearch] = useState("");
 
   const [open, setOpen] = useState(false);
+
+  const filtered = (data ?? []).filter((c: any) =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.status.includes(search.toLowerCase())
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
