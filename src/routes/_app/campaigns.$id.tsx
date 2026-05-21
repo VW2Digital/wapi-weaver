@@ -32,10 +32,24 @@ const MSG_STATUS: Record<string, string> = {
 function CampaignDetailPage() {
   const { id } = Route.useParams();
   const fetchOne = useServerFn(getCampaign);
+  const exportFn = useServerFn(exportCampaignReport);
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["campaign", id],
     queryFn: () => fetchOne({ data: { id } }),
     refetchInterval: 5000,
+  });
+
+  const exportMut = useMutation({
+    mutationFn: () => exportFn({ data: { id } }),
+    onSuccess: (r) => {
+      const blob = new Blob([r.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = r.filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exportado: ${r.rows} linha(s)`);
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao exportar"),
   });
 
   if (isLoading) return <p className="p-10 text-muted-foreground">Carregando…</p>;
