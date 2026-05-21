@@ -94,3 +94,70 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     }
     return { inserted, invalid };
   });
+
+const bulkIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(20000) });
+
+export const bulkDeleteContacts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => bulkIdsSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("contacts").delete().in("id", data.ids);
+    if (error) throw error;
+    return { deleted: data.ids.length };
+  });
+
+export const bulkSetOptOut = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({ ids: z.array(z.string().uuid()).min(1).max(20000), opted_out: z.boolean() }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("contacts")
+      .update({ opted_out: data.opted_out })
+      .in("id", data.ids);
+    if (error) throw error;
+    return { updated: data.ids.length };
+  });
+
+export const bulkAddContactsToList = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      list_id: z.string().uuid(),
+      contact_ids: z.array(z.string().uuid()).min(1).max(20000),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const rows = data.contact_ids.map((cid) => ({
+      list_id: data.list_id,
+      contact_id: cid,
+      user_id: context.userId,
+    }));
+    const { error } = await context.supabase
+      .from("list_contacts")
+      .upsert(rows, { onConflict: "list_id,contact_id" });
+    if (error) throw error;
+    return { added: rows.length };
+  });
+
+export const bulkAddTagToContacts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      tag_id: z.string().uuid(),
+      contact_ids: z.array(z.string().uuid()).min(1).max(20000),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const rows = data.contact_ids.map((cid) => ({
+      tag_id: data.tag_id,
+      contact_id: cid,
+      user_id: context.userId,
+    }));
+    const { error } = await context.supabase
+      .from("contact_tags")
+      .upsert(rows, { onConflict: "tag_id,contact_id" });
+    if (error) throw error;
+    return { added: rows.length };
+  });
