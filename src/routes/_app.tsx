@@ -12,7 +12,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useEffect, useState } from "react";
+
+function useGravatarUrl(email: string | null | undefined) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!email) { setUrl(null); return; }
+    const normalized = email.trim().toLowerCase();
+    crypto.subtle
+      .digest("SHA-256", new TextEncoder().encode(normalized))
+      .then((buf) => {
+        const hex = Array.from(new Uint8Array(buf))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        setUrl(`https://www.gravatar.com/avatar/${hex}?s=128&d=404`);
+      })
+      .catch(() => setUrl(null));
+  }, [email]);
+  return url;
+}
 
 export const Route = createFileRoute("/_app")({ component: AppLayout });
 
