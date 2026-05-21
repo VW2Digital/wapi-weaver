@@ -70,7 +70,7 @@ function CampaignsPage() {
           />
         )}
         <Card>
-          {isLoading && <p className="p-6 text-muted-foreground">Carregando…</p>}
+          {isLoading && <ListSkeleton rows={4} />}
           {!isLoading && (data ?? []).length === 0 && (
             <EmptyState
               icon={Megaphone}
