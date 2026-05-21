@@ -619,7 +619,16 @@ function AdminPlatformSection() {
 
         <div className="space-y-1.5">
           <Label>Graph API Version</Label>
-          <Input value={graphVersion} onChange={(e) => setGraphVersion(e.target.value)} placeholder="v20.0" />
+          <Select value={graphVersion || "v20.0"} onValueChange={setGraphVersion}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione a versão" />
+            </SelectTrigger>
+            <SelectContent>
+              {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
+                <SelectItem key={v} value={v}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-1.5 flex flex-col justify-end">
