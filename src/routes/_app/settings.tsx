@@ -132,6 +132,7 @@ function SettingsPage() {
       <PageHeader title="Configurações" subtitle="Cole aqui suas credenciais do WhatsApp Cloud API." />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <AppearanceCard />
         <AdminPlatformSection />
 
         <Card className="p-6">
