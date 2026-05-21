@@ -5,9 +5,12 @@ import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates } from "@/lib
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { RefreshCw, Sparkles, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
+import { EmptyState } from "@/components/empty-state";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
 
