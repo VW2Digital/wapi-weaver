@@ -281,10 +281,14 @@ function AdminUsers() {
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
                               disabled={delMut.isPending}
-                              onClick={() => {
-                                if (confirm(`Excluir o usuário ${u.email}? Esta ação é permanente.`)) {
-                                  delMut.mutate(u.id);
-                                }
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: "Excluir usuário?",
+                                  description: `${u.email} será removido permanentemente. Esta ação não pode ser desfeita.`,
+                                  confirmText: "Excluir",
+                                  destructive: true,
+                                });
+                                if (ok) delMut.mutate(u.id);
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
