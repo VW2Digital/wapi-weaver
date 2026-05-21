@@ -29,11 +29,11 @@ import {
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
 
 const STATUS_HEX: Record<string, string> = {
-  pending: "oklch(0.556 0 0)",
-  sent: "oklch(0.70 0.15 305)",
-  delivered: "oklch(0.58 0.20 305)",
-  read: "oklch(0.65 0.18 155)",
-  failed: "oklch(0.62 0.22 25)",
+  pending: "var(--chart-5)",
+  sent: "var(--chart-4)",
+  delivered: "var(--chart-3)",
+  read: "var(--chart-2)",
+  failed: "var(--chart-1)",
 };
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
@@ -45,11 +45,11 @@ const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
   failed: "Falhou",
 };
 const STATUS_COLOR: Record<(typeof STATUS_KEYS)[number], string> = {
-  pending: "bg-muted-foreground/40",
-  sent: "bg-primary/70",
-  delivered: "bg-primary",
-  read: "bg-success",
-  failed: "bg-destructive",
+  pending: "bg-chart-5",
+  sent: "bg-chart-4",
+  delivered: "bg-chart-3",
+  read: "bg-chart-2",
+  failed: "bg-chart-1",
 };
 
 function Dashboard() {
