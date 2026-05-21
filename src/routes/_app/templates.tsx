@@ -11,6 +11,7 @@ import { RefreshCw, Sparkles, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { CardGridSkeleton } from "@/components/table-skeleton";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
 
