@@ -327,8 +327,8 @@ function Dashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: "hsl(var(--popover, 0 0% 100%))",
-                      border: "1px solid hsl(var(--border, 0 0% 90%))",
+                      background: "var(--popover)",
+                      border: "1px solid var(--border)",
                       borderRadius: 8,
                       fontSize: 12,
                     }}
@@ -355,17 +355,17 @@ function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border, 0 0% 90%))" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" />
                   <YAxis tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
-                      background: "hsl(var(--popover, 0 0% 100%))",
-                      border: "1px solid hsl(var(--border, 0 0% 90%))",
+                      background: "var(--popover)",
+                      border: "1px solid var(--border)",
                       borderRadius: 8,
                       fontSize: 12,
                     }}
-                    cursor={{ fill: "hsl(var(--muted, 0 0% 96%))", opacity: 0.4 }}
+                    cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
                   <Bar dataKey="Entregue" stackId="a" fill={STATUS_HEX.delivered} radius={[0, 0, 0, 0]} />
