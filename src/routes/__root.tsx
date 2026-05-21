@@ -92,6 +92,7 @@ function RootComponent() {
           <ConfirmProvider>
             <Outlet />
             <Toaster richColors position="top-right" />
+            <TrackingTagsInjector />
           </ConfirmProvider>
         </AuthProvider>
       </ThemeProvider>
