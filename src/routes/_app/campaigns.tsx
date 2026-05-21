@@ -18,6 +18,7 @@ import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone } from "lucid
 import { EmptyState } from "@/components/empty-state";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ListSkeleton } from "@/components/table-skeleton";
+import { WhatsAppPreview } from "@/components/whatsapp-preview";
 
 export const Route = createFileRoute("/_app/campaigns")({ component: CampaignsPage });
 
