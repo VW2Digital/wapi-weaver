@@ -262,7 +262,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                   <div>
                     <Label className="mb-2 block">Pré-visualização</Label>
                     <WhatsAppPreview
-                      components={selectedTemplate.components ?? []}
+                      components={(selectedTemplate.components ?? []) as any}
                       variables={Object.fromEntries(
                         variables.split(",").map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v)
                       )}
