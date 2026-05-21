@@ -32,6 +32,7 @@ function ListsPage() {
   const getMembers = useServerFn(getListContacts);
   const rmMember = useServerFn(removeContactFromList);
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const tags = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags() });
