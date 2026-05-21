@@ -862,6 +862,4 @@ function WebhookHealthCard() {
   );
 }
 
-// cn é exportado pelo lib utils — já é importado indiretamente via componentes ui
-import { cn } from "@/lib/utils";
 
