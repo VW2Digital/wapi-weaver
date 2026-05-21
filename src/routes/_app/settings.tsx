@@ -546,6 +546,7 @@ function AdminPlatformSection() {
   const [graphVersion, setGraphVersion] = useState("v20.0");
   const [headTags, setHeadTags] = useState("");
   const [bodyTags, setBodyTags] = useState("");
+  const [cronSecret, setCronSecret] = useState("");
 
   useEffect(() => {
     if (settings) {
@@ -554,6 +555,7 @@ function AdminPlatformSection() {
       setGraphVersion(settings.meta_graph_version ?? "v20.0");
       setHeadTags((settings as any).head_tags ?? "");
       setBodyTags((settings as any).body_tags ?? "");
+      setCronSecret((settings as any).cron_secret ?? "");
       setAppSecret("");
     }
   }, [settings]);
