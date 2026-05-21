@@ -21,12 +21,11 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
     // RLS bloqueia não-admins automaticamente
     const { data, error } = await context.supabase
       .from("platform_settings")
-      .select("meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags")
+      .select("meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret")
       .eq("id", 1)
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
-    // Mascarar o secret na resposta (mostra só se está preenchido)
     return {
       meta_app_id: data.meta_app_id ?? "",
       meta_config_id: data.meta_config_id ?? "",
@@ -34,6 +33,7 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
       meta_app_secret_set: !!data.meta_app_secret,
       head_tags: (data as any).head_tags ?? "",
       body_tags: (data as any).body_tags ?? "",
+      cron_secret: (data as any).cron_secret ?? "", // admin pode ver para configurar no pg_cron
       updated_at: data.updated_at,
     };
   });
@@ -45,21 +45,21 @@ const settingsSchema = z.object({
   meta_graph_version: z.string().trim().max(10).regex(/^v\d+\.\d+$/, "Formato deve ser vXX.X").optional(),
   head_tags: z.string().max(20000).optional(),
   body_tags: z.string().max(20000).optional(),
+  cron_secret: z.string().trim().max(128).regex(/^[A-Za-z0-9_-]*$/, "Use apenas letras, dígitos, _ ou -").optional(),
 });
 
 export const updatePlatformSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => settingsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    // Só envia campos preenchidos — vazios mantém o valor atual no banco
     const update: Record<string, any> = { updated_at: new Date().toISOString(), updated_by: context.userId };
     if (data.meta_app_id !== undefined && data.meta_app_id !== "") update.meta_app_id = data.meta_app_id;
     if (data.meta_app_secret !== undefined && data.meta_app_secret !== "") update.meta_app_secret = data.meta_app_secret;
     if (data.meta_config_id !== undefined && data.meta_config_id !== "") update.meta_config_id = data.meta_config_id;
     if (data.meta_graph_version) update.meta_graph_version = data.meta_graph_version;
-    // head_tags / body_tags: permitir limpar (string vazia salva como null)
     if (data.head_tags !== undefined) update.head_tags = data.head_tags === "" ? null : data.head_tags;
     if (data.body_tags !== undefined) update.body_tags = data.body_tags === "" ? null : data.body_tags;
+    if (data.cron_secret !== undefined) update.cron_secret = data.cron_secret === "" ? null : data.cron_secret;
 
     const { error } = await context.supabase
       .from("platform_settings")

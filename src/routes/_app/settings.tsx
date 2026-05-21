@@ -546,6 +546,7 @@ function AdminPlatformSection() {
   const [graphVersion, setGraphVersion] = useState("v20.0");
   const [headTags, setHeadTags] = useState("");
   const [bodyTags, setBodyTags] = useState("");
+  const [cronSecret, setCronSecret] = useState("");
 
   useEffect(() => {
     if (settings) {
@@ -554,6 +555,7 @@ function AdminPlatformSection() {
       setGraphVersion(settings.meta_graph_version ?? "v20.0");
       setHeadTags((settings as any).head_tags ?? "");
       setBodyTags((settings as any).body_tags ?? "");
+      setCronSecret((settings as any).cron_secret ?? "");
       setAppSecret("");
     }
   }, [settings]);
@@ -681,6 +683,47 @@ function AdminPlatformSection() {
         </div>
       </div>
 
+      <div className="mt-6 border-t pt-5">
+        <h3 className="font-display text-base font-semibold">Segredo do Cron (CRON_SECRET)</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Token usado para autenticar o agendador (pg_cron) ao chamar{" "}
+          <code className="text-xs">/api/public/cron/process-queue</code>. Se vazio, o endpoint fica <strong>aberto</strong> (apenas para testes).
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={cronSecret}
+            onChange={(e) => setCronSecret(e.target.value.replace(/[^A-Za-z0-9_-]/g, ""))}
+            placeholder="Clique em Gerar ou cole um token"
+            className="font-mono text-xs"
+          />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const bytes = new Uint8Array(32);
+                crypto.getRandomValues(bytes);
+                const token = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+                setCronSecret(token);
+              }}
+            >
+              <RefreshCw className="h-4 w-4" /> Gerar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!cronSecret}
+              onClick={() => { navigator.clipboard.writeText(cronSecret); toast.success("Copiado!"); }}
+            >
+              <Copy className="h-4 w-4" /> Copiar
+            </Button>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Após salvar, envie este valor no header <code className="text-[10px]">x-cron-secret</code> em cada chamada do cron.
+        </p>
+      </div>
+
       <div className="mt-4 flex gap-2">
         <Button
           onClick={() =>
@@ -691,6 +734,7 @@ function AdminPlatformSection() {
               meta_graph_version: graphVersion || undefined,
               head_tags: headTags,
               body_tags: bodyTags,
+              cron_secret: cronSecret,
             })
           }
           disabled={mut.isPending}
