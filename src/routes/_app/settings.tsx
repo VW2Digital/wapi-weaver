@@ -197,8 +197,8 @@ function SettingsPage() {
             Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
           </p>
 
-          <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm dark:border-amber-400/30 dark:bg-amber-400/10">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="space-y-1">
               <p className="font-medium text-amber-900 dark:text-amber-200">A API pode aceitar e mesmo assim a mensagem não chegar.</p>
               <p className="text-amber-900/80 dark:text-amber-200/80">
