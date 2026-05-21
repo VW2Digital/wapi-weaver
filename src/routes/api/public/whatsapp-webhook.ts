@@ -27,6 +27,17 @@ async function processStatusUpdate(value: any) {
       update.failed_at = timestamp;
       update.error = s.errors ?? null;
     }
+    // Capturar dados de cobrança (Meta envia em sent/delivered)
+    if (s.pricing) {
+      update.pricing_billable = s.pricing.billable ?? null;
+      update.pricing_category = s.pricing.category ?? null;
+      update.pricing_model = s.pricing.pricing_model ?? null;
+    }
+    if (s.conversation) {
+      update.conversation_id = s.conversation.id ?? null;
+      update.conversation_origin = s.conversation.origin?.type ?? null;
+    }
+
     const { data: rows } = await supabaseAdmin
       .from("campaign_messages")
       .update(update)

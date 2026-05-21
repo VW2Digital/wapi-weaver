@@ -19,11 +19,16 @@ export type Database = {
           attempts: number
           campaign_id: string
           contact_id: string | null
+          conversation_id: string | null
+          conversation_origin: string | null
           created_at: string
           delivered_at: string | null
           error: Json | null
           failed_at: string | null
           id: string
+          pricing_billable: boolean | null
+          pricing_category: string | null
+          pricing_model: string | null
           read_at: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["message_status"]
@@ -35,11 +40,16 @@ export type Database = {
           attempts?: number
           campaign_id: string
           contact_id?: string | null
+          conversation_id?: string | null
+          conversation_origin?: string | null
           created_at?: string
           delivered_at?: string | null
           error?: Json | null
           failed_at?: string | null
           id?: string
+          pricing_billable?: boolean | null
+          pricing_category?: string | null
+          pricing_model?: string | null
           read_at?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["message_status"]
@@ -51,11 +61,16 @@ export type Database = {
           attempts?: number
           campaign_id?: string
           contact_id?: string | null
+          conversation_id?: string | null
+          conversation_origin?: string | null
           created_at?: string
           delivered_at?: string | null
           error?: Json | null
           failed_at?: string | null
           id?: string
+          pricing_billable?: boolean | null
+          pricing_category?: string | null
+          pricing_model?: string | null
           read_at?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["message_status"]
