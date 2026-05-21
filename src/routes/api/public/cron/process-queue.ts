@@ -121,10 +121,22 @@ async function processOnce() {
   return { processed };
 }
 
+function checkCronAuth(request: Request): Response | null {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return null; // sem segredo configurado = aberto (modo dev)
+  const header = request.headers.get("x-cron-secret") ?? request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (header !== secret) {
+    return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
+  return null;
+}
+
 export const Route = createFileRoute("/api/public/cron/process-queue")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauthorized = checkCronAuth(request);
+        if (unauthorized) return unauthorized;
         try {
           const result = await processOnce();
           return Response.json({ ok: true, ...result });
@@ -133,7 +145,9 @@ export const Route = createFileRoute("/api/public/cron/process-queue")({
           return Response.json({ ok: false, error: e.message }, { status: 500 });
         }
       },
-      GET: async () => {
+      GET: async ({ request }) => {
+        const unauthorized = checkCronAuth(request);
+        if (unauthorized) return unauthorized;
         try {
           const result = await processOnce();
           return Response.json({ ok: true, ...result });
