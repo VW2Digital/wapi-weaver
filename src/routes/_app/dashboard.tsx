@@ -367,10 +367,13 @@ function Dashboard() {
                       border: "1px solid var(--border)",
                       borderRadius: 8,
                       fontSize: 12,
+                      color: "var(--popover-foreground)",
                     }}
+                    itemStyle={{ color: "var(--popover-foreground)" }}
+                    labelStyle={{ color: "var(--popover-foreground)" }}
                     cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                  <Legend wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }} iconType="circle" />
                   <Bar dataKey="Entregue" stackId="a" fill={STATUS_HEX.delivered} radius={[0, 0, 0, 0]} />
                   <Bar dataKey="Lida" stackId="a" fill={STATUS_HEX.read} radius={[0, 0, 0, 0]} />
                   <Bar dataKey="Falhou" stackId="a" fill={STATUS_HEX.failed} radius={[4, 4, 0, 0]} />
