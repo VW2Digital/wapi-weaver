@@ -363,6 +363,38 @@ function SettingsPage() {
   );
 }
 
+function AppearanceCard() {
+  const { theme, isSystem, resetTheme } = useTheme();
+
+  return (
+    <Card className="p-6">
+      <h2 className="font-display text-lg font-semibold">Aparência</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel.</p>
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className={`rounded-lg p-2 ${isSystem ? "bg-primary/10" : "bg-muted"}`}>
+            <Monitor className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Tema do sistema</p>
+            <p className="text-xs text-muted-foreground">
+              {isSystem ? "Seguindo a preferência do sistema" : `Definido manualmente como ${theme === "dark" ? "escuro" : "claro"}`}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          onClick={resetTheme}
+          disabled={isSystem}
+        >
+          <Monitor className="mr-2 h-4 w-4" />
+          Usar tema do sistema
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function DeliveryTimeline({ status, hasWebhook }: { status: { status: string; timestamp?: string; error?: any } | null; hasWebhook: boolean }) {
   if (!hasWebhook) {
     return (
