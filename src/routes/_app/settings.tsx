@@ -366,6 +366,11 @@ function SettingsPage() {
 function AppearanceCard() {
   const { theme, isSystem, resetTheme, setTheme } = useTheme();
 
+  const handleReset = () => {
+    resetTheme();
+    toast.success("Tema sincronizado com a preferência do sistema");
+  };
+
   return (
     <Card className="p-6">
       <h2 className="font-display text-lg font-semibold">Aparência</h2>
@@ -404,8 +409,8 @@ function AppearanceCard() {
           <Button
             variant={isSystem ? "default" : "outline"}
             size="sm"
-            onClick={resetTheme}
-            disabled={isSystem}
+            onClick={handleReset}
+            title="Usar a preferência do sistema (claro/escuro)"
           >
             <Monitor className="mr-2 h-4 w-4" />
             Sistema
