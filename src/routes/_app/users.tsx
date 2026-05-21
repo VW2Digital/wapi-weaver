@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { ShieldCheck, UserPlus, Trash2, Users as UsersIcon, Loader2, BarChart3, Mail, Send, CheckCheck, XCircle, Clock, FileText, Tag, List as ListIcon, Megaphone } from "lucide-react";
 import { listUsers, createUser, setUserRole, deleteUser, getUserActivity } from "@/lib/users-admin.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
@@ -70,6 +71,7 @@ function AdminUsers() {
   const create = useServerFn(createUser);
   const setRole = useServerFn(setUserRole);
   const del = useServerFn(deleteUser);
+  const confirm = useConfirm();
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users"],
@@ -279,10 +281,14 @@ function AdminUsers() {
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
                               disabled={delMut.isPending}
-                              onClick={() => {
-                                if (confirm(`Excluir o usuário ${u.email}? Esta ação é permanente.`)) {
-                                  delMut.mutate(u.id);
-                                }
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: "Excluir usuário?",
+                                  description: `${u.email} será removido permanentemente. Esta ação não pode ser desfeita.`,
+                                  confirmText: "Excluir",
+                                  destructive: true,
+                                });
+                                if (ok) delMut.mutate(u.id);
                               }}
                             >
                               <Trash2 className="h-4 w-4" />

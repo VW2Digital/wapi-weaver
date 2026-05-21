@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DataDeletionRouteImport } from './routes/data-deletion'
@@ -31,6 +32,11 @@ import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/data-deletion': typeof DataDeletionRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/billing': typeof AppBillingRoute
   '/campaigns': typeof AppCampaignsRouteWithChildren
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/data-deletion': typeof DataDeletionRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/billing': typeof AppBillingRoute
   '/campaigns': typeof AppCampaignsRouteWithChildren
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/data-deletion': typeof DataDeletionRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/_app/billing': typeof AppBillingRoute
   '/_app/campaigns': typeof AppCampaignsRouteWithChildren
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/data-deletion'
     | '/login'
     | '/privacy'
+    | '/reset-password'
     | '/terms'
     | '/billing'
     | '/campaigns'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/data-deletion'
     | '/login'
     | '/privacy'
+    | '/reset-password'
     | '/terms'
     | '/billing'
     | '/campaigns'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/data-deletion'
     | '/login'
     | '/privacy'
+    | '/reset-password'
     | '/terms'
     | '/_app/billing'
     | '/_app/campaigns'
@@ -246,6 +258,7 @@ export interface RootRouteChildren {
   DataDeletionRoute: typeof DataDeletionRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   TermsRoute: typeof TermsRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
@@ -259,6 +272,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -425,6 +445,7 @@ const rootRouteChildren: RootRouteChildren = {
   DataDeletionRoute: DataDeletionRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   TermsRoute: TermsRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
