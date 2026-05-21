@@ -5,9 +5,11 @@ import { useState } from "react";
 import { getBillingReport } from "@/lib/billing.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Receipt, MessageSquare, CheckCheck, XCircle, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Receipt, MessageSquare, CheckCheck, XCircle, DollarSign, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/_app/billing")({ component: BillingPage });
 
