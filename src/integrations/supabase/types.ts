@@ -293,6 +293,36 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_settings: {
+        Row: {
+          id: number
+          meta_app_id: string | null
+          meta_app_secret: string | null
+          meta_config_id: string | null
+          meta_graph_version: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          meta_config_id?: string | null
+          meta_graph_version?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          meta_config_id?: string | null
+          meta_graph_version?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           api_key: string
@@ -401,6 +431,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       webhook_events: {
         Row: {
           id: string
@@ -430,9 +481,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "user"
       campaign_status:
         | "draft"
         | "queued"
@@ -581,6 +639,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "user"],
       campaign_status: [
         "draft",
         "queued",

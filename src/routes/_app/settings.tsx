@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
+import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings } from "@/lib/admin.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2 } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
+
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
 
@@ -129,7 +131,10 @@ function SettingsPage() {
       <PageHeader title="Configurações" subtitle="Cole aqui suas credenciais do WhatsApp Cloud API." />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <AdminPlatformSection />
+
         <Card className="p-6">
+
           <h2 className="font-display text-lg font-semibold">Credenciais Meta</h2>
           <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>. Os campos numéricos aceitam apenas dígitos (0-9).</p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -448,5 +453,146 @@ function ReadOnly({ label, value, onCopy }: { label: string; value: string; onCo
         <Button variant="outline" onClick={onCopy}><Copy className="h-4 w-4" /></Button>
       </div>
     </div>
+  );
+}
+
+function AdminPlatformSection() {
+  const fetchRoles = useServerFn(getCurrentUserRoles);
+  const fetchSettings = useServerFn(getPlatformSettings);
+  const saveSettings = useServerFn(updatePlatformSettings);
+  const qc = useQueryClient();
+
+  const { data: roleData } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
+  const isAdmin = roleData?.isAdmin === true;
+
+  const { data: settings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: () => fetchSettings(),
+    enabled: isAdmin,
+  });
+
+  const [appId, setAppId] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [configId, setConfigId] = useState("");
+  const [graphVersion, setGraphVersion] = useState("v20.0");
+
+  useEffect(() => {
+    if (settings) {
+      setAppId(settings.meta_app_id ?? "");
+      setConfigId(settings.meta_config_id ?? "");
+      setGraphVersion(settings.meta_graph_version ?? "v20.0");
+      setAppSecret("");
+    }
+  }, [settings]);
+
+  const mut = useMutation({
+    mutationFn: (data: any) => saveSettings({ data }),
+    onSuccess: () => {
+      toast.success("Configurações da plataforma salvas.");
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+      setAppSecret("");
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
+  });
+
+  if (!isAdmin) return null;
+
+  return (
+    <Card className="p-6 border-primary/30">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="font-display text-lg font-semibold">Plataforma Meta (Tech Provider / ISV)</h2>
+            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <Lock className="h-3 w-3" /> Admin Master
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Credenciais globais do <strong>seu</strong> App Meta. Compartilhadas por toda a plataforma — habilitam o botão "Conectar com o Facebook" (Embedded Signup) para todos os clientes.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Meta App ID</Label>
+          <Input
+            value={appId}
+            onChange={(e) => setAppId(onlyDigits(e.target.value))}
+            placeholder="Ex: 1234567890123456"
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+          <p className="text-[11px] text-muted-foreground">Painel do App → cabeçalho superior</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Embedded Signup Config ID</Label>
+          <Input
+            value={configId}
+            onChange={(e) => setConfigId(onlyDigits(e.target.value))}
+            placeholder="Ex: 9876543210987654"
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+          <p className="text-[11px] text-muted-foreground">WhatsApp → Configuração → Registro incorporado</p>
+        </div>
+
+        <div className="md:col-span-2 space-y-1.5">
+          <Label>App Secret</Label>
+          <Input
+            type="password"
+            value={appSecret}
+            onChange={(e) => setAppSecret(e.target.value)}
+            placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
+            className="font-mono text-xs"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Configurações → Básico → Chave Secreta do App.{" "}
+            {settings?.meta_app_secret_set && <span className="text-success font-medium">✓ Atualmente configurado</span>}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Graph API Version</Label>
+          <Input value={graphVersion} onChange={(e) => setGraphVersion(e.target.value)} placeholder="v20.0" />
+        </div>
+
+        <div className="space-y-1.5 flex flex-col justify-end">
+          <p className="text-[11px] text-muted-foreground">
+            {settings?.updated_at && <>Última atualização: {new Date(settings.updated_at).toLocaleString()}</>}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <Button
+          onClick={() =>
+            mut.mutate({
+              meta_app_id: appId || undefined,
+              meta_app_secret: appSecret || undefined,
+              meta_config_id: configId || undefined,
+              meta_graph_version: graphVersion || undefined,
+            })
+          }
+          disabled={mut.isPending}
+        >
+          {mut.isPending ? "Salvando…" : "Salvar configurações da plataforma"}
+        </Button>
+      </div>
+
+      <div className="mt-4 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">⚠️ Pré-requisitos na Meta:</p>
+        <p>• Empresa verificada no Business Manager (CNPJ)</p>
+        <p>• App em modo <strong>Live</strong> (não Development)</p>
+        <p>
+          • Permissões <code className="text-[10px]">whatsapp_business_management</code> +{" "}
+          <code className="text-[10px]">whatsapp_business_messaging</code> com acesso avançado
+        </p>
+      </div>
+    </Card>
   );
 }
