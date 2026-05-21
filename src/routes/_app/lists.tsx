@@ -157,10 +157,17 @@ function ListsPage() {
               {(tags.data ?? []).map((t: any) => (
                 <span key={t.id} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-white" style={{ background: t.color }}>
                   {t.name}
-                  <button onClick={async () => { await rmTag({ data: { id: t.id } }); qc.invalidateQueries({ queryKey: ["tags"] }); }}><X className="h-3 w-3" /></button>
+                  <button aria-label={`Remover tag ${t.name}`} onClick={async () => {
+                    const ok = await confirm({ title: "Remover tag?", description: <>A tag <strong>{t.name}</strong> será removida de todos os contatos.</>, destructive: true, confirmText: "Remover" });
+                    if (!ok) return;
+                    await rmTag({ data: { id: t.id } });
+                    qc.invalidateQueries({ queryKey: ["tags"] });
+                  }}><X className="h-3 w-3" /></button>
                 </span>
               ))}
-              {(tags.data ?? []).length === 0 && <p className="text-xs text-muted-foreground">Sem tags.</p>}
+              {(tags.data ?? []).length === 0 && (
+                <EmptyState icon={Tags} title="Sem tags" description="Tags ajudam a categorizar contatos rapidamente." className="w-full py-8" />
+              )}
             </div>
           </div>
         </Card>
