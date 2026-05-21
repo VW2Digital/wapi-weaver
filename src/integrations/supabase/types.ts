@@ -335,6 +335,7 @@ export type Database = {
       platform_settings: {
         Row: {
           body_tags: string | null
+          cron_secret: string | null
           head_tags: string | null
           id: number
           meta_app_id: string | null
@@ -346,6 +347,7 @@ export type Database = {
         }
         Insert: {
           body_tags?: string | null
+          cron_secret?: string | null
           head_tags?: string | null
           id?: number
           meta_app_id?: string | null
@@ -357,6 +359,7 @@ export type Database = {
         }
         Update: {
           body_tags?: string | null
+          cron_secret?: string | null
           head_tags?: string | null
           id?: number
           meta_app_id?: string | null
