@@ -28,6 +28,7 @@ function TemplatesPage() {
   const seed = useServerFn(seedSampleTemplates);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
+  const [search, setSearch] = useState("");
 
   const syncMut = useMutation({
     mutationFn: () => sync(),
