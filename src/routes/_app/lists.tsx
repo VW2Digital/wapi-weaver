@@ -80,12 +80,21 @@ function ListsPage() {
                     <p className="font-medium">{l.name}</p>
                     <p className="text-xs text-muted-foreground">{l.description ?? "—"} · {l.list_contacts?.[0]?.count ?? 0} contatos</p>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={async (e) => { e.stopPropagation(); await rmList({ data: { id: l.id } }); qc.invalidateQueries({ queryKey: ["lists"] }); }}>
+                  <Button size="icon" variant="ghost" onClick={async (e) => {
+                    e.stopPropagation();
+                    const ok = await confirm({ title: "Excluir lista?", description: <>A lista <strong>{l.name}</strong> será removida. Os contatos não serão excluídos.</>, destructive: true, confirmText: "Excluir" });
+                    if (!ok) return;
+                    await rmList({ data: { id: l.id } });
+                    if (selectedList?.id === l.id) setSelectedList(null);
+                    qc.invalidateQueries({ queryKey: ["lists"] });
+                  }}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </button>
               ))}
-              {(lists.data ?? []).length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma lista.</p>}
+              {(lists.data ?? []).length === 0 && (
+                <EmptyState icon={ListChecks} title="Nenhuma lista" description="Crie listas para segmentar campanhas e organizar contatos." />
+              )}
             </div>
           </Card>
 
