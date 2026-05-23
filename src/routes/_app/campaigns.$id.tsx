@@ -113,7 +113,7 @@ function CampaignDetailPage() {
           </div>
           <div className="max-h-[500px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted/50 text-xs uppercase text-muted-foreground">
+              <thead className="sticky top-0 bg-muted text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="p-3 text-left">Telefone</th>
                   <th className="p-3 text-left">Status</th>
