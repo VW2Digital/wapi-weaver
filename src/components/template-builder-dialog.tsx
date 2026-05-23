@@ -70,9 +70,13 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
   }, [bodyVarCount]);
 
   const previewComponents: any[] = [];
-  if (header.format === "TEXT") previewComponents.push({ type: "HEADER", format: "TEXT", text: header.text });
-  else if (header.format !== "NONE")
+  if (header.format === "TEXT") {
+    previewComponents.push({ type: "HEADER", format: "TEXT", text: header.text });
+  } else if (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT") {
     previewComponents.push({ type: "HEADER", format: header.format, example: { header_handle: [header.example_url] } });
+  } else if (header.format === "LOCATION") {
+    previewComponents.push({ type: "HEADER", format: "LOCATION" });
+  }
   if (body) previewComponents.push({ type: "BODY", text: body });
   if (footer) previewComponents.push({ type: "FOOTER", text: footer });
   if (buttons.length) previewComponents.push({ type: "BUTTONS", buttons });
@@ -88,11 +92,13 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
             ? { format: "NONE" }
             : header.format === "TEXT"
               ? { format: "TEXT", text: header.text }
-              : { format: header.format, example_url: header.example_url },
+              : header.format === "LOCATION"
+                ? { format: "LOCATION" }
+                : { format: header.format, example_url: header.example_url },
         body,
         body_examples: bodyExamples.filter((s) => s.length > 0),
         footer: footer || undefined,
-        buttons: buttons.length ? buttons : undefined,
+        buttons: buttons.length ? (buttons as any) : undefined,
       };
       return submit({ data: payload });
     },
@@ -113,9 +119,25 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
 
   function addButton(type: ButtonState["type"]) {
     if (buttons.length >= 10) return;
-    if (type === "QUICK_REPLY") setButtons([...buttons, { type, text: "" }]);
-    else if (type === "URL") setButtons([...buttons, { type, text: "", url: "https://" }]);
-    else setButtons([...buttons, { type, text: "", phone_number: "+55" }]);
+    let nb: ButtonState;
+    switch (type) {
+      case "QUICK_REPLY": nb = { type, text: "" }; break;
+      case "URL": nb = { type, text: "", url: "https://" }; break;
+      case "PHONE_NUMBER": nb = { type, text: "", phone_number: "+55" }; break;
+      case "COPY_CODE": nb = { type, example: [""] }; break;
+      case "CATALOG": nb = { type, text: "Ver catálogo" }; break;
+      case "MPM": nb = { type, text: "Ver produtos" }; break;
+      case "FLOW": nb = { type, text: "", flow_id: "", flow_action: "navigate" }; break;
+      case "OTP": nb = { type, otp_type: "COPY_CODE", text: "Copiar código" }; break;
+      case "VOICE_CALL": nb = { type, text: "Ligar" }; break;
+    }
+    setButtons([...buttons, nb!]);
+  }
+
+  function updateButton(i: number, patch: Partial<ButtonState>) {
+    const next = [...buttons];
+    next[i] = { ...(next[i] as any), ...(patch as any) };
+    setButtons(next);
   }
 
   return (
