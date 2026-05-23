@@ -152,9 +152,16 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           for (const change of entry.changes ?? []) {
             if (change.field === "messages") {
               await processStatusUpdate(change.value);
+            } else if (change.field === "message_template_status_update") {
+              await processTemplateStatusUpdate(change.value);
+            } else if (change.field === "message_template_quality_update") {
+              // quality changes don't affect approval status; ignore for now
+            } else if (change.field === "template_category_update") {
+              await processTemplateCategoryUpdate(change.value);
             }
           }
         }
+
 
         return new Response("ok", { status: 200 });
       },
