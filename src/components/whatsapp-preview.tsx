@@ -1,11 +1,20 @@
-import { ExternalLink, Phone, Reply, FileText, Video } from "lucide-react";
+import { ExternalLink, Phone, Reply, FileText, Video, Copy, ShoppingBag, LayoutGrid, Zap, KeyRound, PhoneCall, MapPin } from "lucide-react";
+
+type Button = {
+  type: string;
+  text?: string;
+  url?: string;
+  phone_number?: string;
+  example?: string[];
+  otp_type?: string;
+};
 
 type Component = {
   type: string;
   format?: string;
   text?: string;
-  example?: { header_handle?: string[] };
-  buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>;
+  example?: { header_handle?: string[]; header_text?: string[] };
+  buttons?: Button[];
 };
 
 function renderText(s?: string, vars?: Record<string, string>) {
