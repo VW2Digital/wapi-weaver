@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet } from "lucide-react";
+import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
@@ -258,12 +258,20 @@ function InfoSection() {
     { title: "Incentive o cliente a iniciar", desc: "QR codes, links wa.me e chatbots no site abrem janelas gratuitas de 24h." },
   ];
 
+  const [open, setOpen] = useState(false);
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-2 border-b bg-muted/40 p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 border-b bg-muted/40 p-4 text-left transition hover:bg-muted/60"
+      >
         <Info className="h-4 w-4 text-primary" />
         <h2 className="font-display text-base font-semibold">Informações sobre templates</h2>
-      </div>
+        <ChevronDown className={`ml-auto h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
       <div className="grid gap-6 p-5 lg:grid-cols-2">
         <div>
           <h3 className="mb-3 text-sm font-semibold">Categorias oferecidas pela Meta</h3>
@@ -301,6 +309,7 @@ function InfoSection() {
           </p>
         </div>
       </div>
+      )}
     </Card>
   );
 }
