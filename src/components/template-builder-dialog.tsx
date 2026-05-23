@@ -55,13 +55,12 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
   const [buttons, setButtons] = useState<ButtonState[]>([]);
 
   const bodyVarCount = extractVarCount(body);
-  // sync examples length with var count
-  if (bodyExamples.length !== bodyVarCount) {
-    const next = Array.from({ length: bodyVarCount }, (_, i) => bodyExamples[i] ?? "");
-    if (JSON.stringify(next) !== JSON.stringify(bodyExamples)) {
-      queueMicrotask(() => setBodyExamples(next));
-    }
-  }
+  useEffect(() => {
+    setBodyExamples((prev) => {
+      if (prev.length === bodyVarCount) return prev;
+      return Array.from({ length: bodyVarCount }, (_, i) => prev[i] ?? "");
+    });
+  }, [bodyVarCount]);
 
   const previewComponents: any[] = [];
   if (header.format === "TEXT") previewComponents.push({ type: "HEADER", format: "TEXT", text: header.text });
