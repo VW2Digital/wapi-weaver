@@ -134,6 +134,35 @@ export const cancelCampaign = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deleteCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: c } = await context.supabase
+      .from("campaigns")
+      .select("name")
+      .eq("id", data.id)
+      .maybeSingle();
+    const { error: mErr } = await context.supabase
+      .from("campaign_messages")
+      .delete()
+      .eq("campaign_id", data.id);
+    if (mErr) throw mErr;
+    const { error } = await context.supabase
+      .from("campaigns")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw error;
+    await recordAudit({
+      userId: context.userId,
+      action: "campaign.delete",
+      entityType: "campaign",
+      entityId: data.id,
+      metadata: { name: c?.name },
+    });
+    return { ok: true };
+  });
+
 function csvEscape(v: unknown): string {
   if (v === null || v === undefined) return "";
   const s = typeof v === "string" ? v : typeof v === "object" ? JSON.stringify(v) : String(v);
