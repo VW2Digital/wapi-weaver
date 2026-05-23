@@ -20,7 +20,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { ListSkeleton } from "@/components/table-skeleton";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
 
-export const Route = createFileRoute("/_app/campaigns")({ component: CampaignsPage });
+export const Route = createFileRoute("/_app/campaigns/")({ component: CampaignsPage });
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   draft: { label: "Rascunho", cls: "bg-muted text-muted-foreground" },
