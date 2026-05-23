@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
-import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql } from "@/lib/admin.functions";
+import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql, listSchemaBackups, getSchemaBackup, createSchemaBackupNow, deleteSchemaBackup } from "@/lib/admin.functions";
 import { getWebhookHealth } from "@/lib/webhook-health.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -726,15 +726,16 @@ function AdminPlatformSection() {
 
       <div className="mt-6 border-t pt-5">
         <h3 className="font-display text-base font-semibold flex items-center gap-2">
-          <Database className="h-4 w-4" /> Exportar schema do banco
+          <Database className="h-4 w-4" /> Backups do schema do banco
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Gera um arquivo <code className="text-xs">.sql</code> com toda a estrutura do schema <code className="text-xs">public</code>
-          {" "}(enums, tabelas, constraints, índices, RLS, policies, funções e triggers). Não inclui dados.
+          Um backup automático do schema <code className="text-xs">public</code> é gerado diariamente às 03:00 (UTC).
+          Você também pode gerar um backup manual a qualquer momento. As 30 versões mais recentes ficam disponíveis para download.
         </p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           <ExportSchemaButton />
         </div>
+        <SchemaBackupsHistory />
       </div>
 
       <div className="mt-4 flex gap-2">
@@ -953,6 +954,126 @@ function ExportSchemaButton() {
     </Button>
   );
 }
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function SchemaBackupsHistory() {
+  const list = useServerFn(listSchemaBackups);
+  const get = useServerFn(getSchemaBackup);
+  const createNow = useServerFn(createSchemaBackupNow);
+  const del = useServerFn(deleteSchemaBackup);
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["schema-backups"],
+    queryFn: () => list(),
+  });
+
+  const createMut = useMutation({
+    mutationFn: () => createNow(),
+    onSuccess: () => {
+      toast.success("Backup gerado");
+      qc.invalidateQueries({ queryKey: ["schema-backups"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao gerar backup"),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => del({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Backup excluído");
+      qc.invalidateQueries({ queryKey: ["schema-backups"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao excluir"),
+  });
+
+  async function downloadBackup(id: string, createdAt: string) {
+    try {
+      const row = await get({ data: { id } });
+      const blob = new Blob([row.sql], { type: "application/sql;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date(createdAt).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      a.href = url;
+      a.download = `schema-backup-${ts}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao baixar backup");
+    }
+  }
+
+  const backups = data?.backups ?? [];
+
+  return (
+    <div className="mt-4 rounded-md border bg-card">
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="text-sm font-medium">Histórico de versões</div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => createMut.mutate()}
+          disabled={createMut.isPending}
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", createMut.isPending && "animate-spin")} />
+          {createMut.isPending ? "Gerando…" : "Gerar backup agora"}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="p-3 text-xs text-muted-foreground">Carregando…</div>
+      ) : backups.length === 0 ? (
+        <div className="p-3 text-xs text-muted-foreground">
+          Nenhum backup ainda. O primeiro será gerado automaticamente às 03:00 (UTC), ou clique em "Gerar backup agora".
+        </div>
+      ) : (
+        <ul className="divide-y">
+          {backups.map((b: any) => (
+            <li key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
+              <div className="flex flex-col">
+                <span className="font-mono text-xs">
+                  {new Date(b.created_at).toLocaleString()}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {b.source === "manual" ? "Manual" : "Automático"} · {formatBytes(b.size_bytes)}
+                </span>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadBackup(b.id, b.created_at)}
+                >
+                  <Download className="h-3.5 w-3.5" /> Baixar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm("Excluir este backup?")) delMut.mutate(b.id);
+                  }}
+                  disabled={delMut.isPending}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 
 
 

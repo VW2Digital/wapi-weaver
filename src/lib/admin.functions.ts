@@ -121,3 +121,83 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
 
     return { sql: (data ?? "") as string, generated_at: new Date().toISOString() };
   });
+
+async function assertAdmin(ctx: { supabase: any; userId: string }) {
+  const { data: roles } = await ctx.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", ctx.userId);
+  const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+  if (!isAdmin) throw new Error("forbidden");
+}
+
+// Lista o histórico de backups do schema (somente metadados — sem o SQL).
+export const listSchemaBackups = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { data, error } = await context.supabase
+      .from("schema_backups")
+      .select("id, created_at, source, size_bytes, created_by")
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) throw error;
+    return { backups: data ?? [] };
+  });
+
+// Retorna o SQL completo de um backup específico para download.
+export const getSchemaBackup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { data: row, error } = await context.supabase
+      .from("schema_backups")
+      .select("id, created_at, source, size_bytes, sql")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!row) throw new Error("not_found");
+    return row;
+  });
+
+// Gera um backup manual sob demanda (apenas admins).
+export const createSchemaBackupNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await (supabaseAdmin as any).rpc("create_schema_backup", {
+      _source: "manual",
+      _user: context.userId,
+    });
+    if (error) throw error;
+    await recordAudit({
+      userId: context.userId,
+      action: "platform.schema_backup.manual",
+      entityType: "schema_backup",
+      entityId: String(data),
+    });
+    return { id: data as string };
+  });
+
+// Exclui um backup (apenas admins).
+export const deleteSchemaBackup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { error } = await context.supabase
+      .from("schema_backups")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw error;
+    await recordAudit({
+      userId: context.userId,
+      action: "platform.schema_backup.delete",
+      entityType: "schema_backup",
+      entityId: data.id,
+    });
+    return { ok: true };
+  });
+
