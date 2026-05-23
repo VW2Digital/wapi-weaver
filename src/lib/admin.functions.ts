@@ -108,7 +108,7 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
     if (!isAdmin) throw new Error("forbidden");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await (supabaseAdmin as any).rpc("export_schema_sql");
+    const { data, error } = await (supabaseAdmin as any).rpc("export_schema_sql_internal");
     if (error) throw error;
 
     await recordAudit({
