@@ -346,25 +346,39 @@ function SettingsPage() {
 
 
         <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold">Webhook da Meta</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            No painel da Meta (<em>App Dashboard → WhatsApp → Configuration</em>), use os valores abaixo. Selecione o campo <code>messages</code> ao se inscrever.
-          </p>
-          <div className="mt-4 space-y-3">
-            <ReadOnly label="Callback URL" value={webhookUrl} onCopy={() => copy(webhookUrl, "URL do webhook")} />
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">2</div>
+            <div className="flex-1">
+              <h2 className="font-display text-lg font-semibold">Receber confirmações da Meta (webhook)</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Isso permite saber quando suas mensagens foram <strong>entregues e lidas</strong>. No painel da Meta, vá em{" "}
+                <strong>App Dashboard → WhatsApp → Configuration</strong> e cole os dados abaixo. Marque a opção <code className="text-xs">messages</code>.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 space-y-4">
+            <ReadOnly label="1. Cole esta URL no campo 'Callback URL' da Meta" value={webhookUrl} onCopy={() => copy(webhookUrl, "URL do webhook")} />
             <div className="space-y-1.5">
-              <Label>Verify Token (defina o que quiser, depois cole o mesmo na Meta)</Label>
+              <Label className="flex items-baseline gap-2">
+                <span>2. Crie uma palavra secreta</span>
+                <span className="text-[11px] font-normal text-muted-foreground">(Verify Token)</span>
+              </Label>
               <div className="flex gap-2">
                 <Input value={form.whatsapp_verify_token ?? ""} onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })} placeholder="ex: meu_token_super_secreto_123" />
                 <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>Salvar</Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">Pode ser qualquer texto que só você sabe. Depois cole o <strong>mesmo valor</strong> no campo "Verify token" da Meta.</p>
             </div>
             <div className="space-y-1.5">
-              <Label>App Secret (para validar a assinatura dos webhooks)</Label>
+              <Label className="flex items-baseline gap-2">
+                <span>3. Cole a Chave Secreta do App</span>
+                <span className="text-[11px] font-normal text-muted-foreground">(App Secret)</span>
+              </Label>
               <div className="flex gap-2">
-                <Input type="password" value={form.whatsapp_app_secret ?? ""} onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })} placeholder="App secret do seu app na Meta" />
+                <Input type="password" value={form.whatsapp_app_secret ?? ""} onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })} placeholder="Cole aqui o App Secret" />
                 <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>Salvar</Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">No painel da Meta: <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado para confirmar que cada aviso veio mesmo da Meta.</p>
             </div>
           </div>
         </Card>
@@ -374,21 +388,27 @@ function SettingsPage() {
 
 
         <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold">API para integração externa (CRM)</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Use esta chave para enviar contatos de outros sistemas (HubSpot, RD, n8n, Zapier…).</p>
+          <h2 className="font-display text-lg font-semibold">Conectar com outros sistemas (CRM, automações)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Use a chave abaixo para receber contatos automaticamente do seu CRM (HubSpot, RD Station, n8n, Zapier, etc).
+            Se nunca usou isso, pode ignorar esta seção — não é obrigatório para enviar mensagens.
+          </p>
           <div className="mt-4 space-y-3">
-            <ReadOnly label="Endpoint POST" value={ingestUrl} onCopy={() => copy(ingestUrl, "Endpoint")} />
+            <ReadOnly label="Endereço para envio (POST)" value={ingestUrl} onCopy={() => copy(ingestUrl, "Endpoint")} />
             <div className="space-y-1.5">
-              <Label>Sua API key</Label>
+              <Label>Sua chave de acesso</Label>
               <div className="flex gap-2">
                 <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
-                <Button variant="outline" onClick={() => copy(form.api_key ?? "", "API key")}><Copy className="h-4 w-4" /></Button>
-                <Button variant="outline" onClick={() => rotateMut.mutate()} disabled={rotateMut.isPending}>
+                <Button variant="outline" onClick={() => copy(form.api_key ?? "", "API key")} title="Copiar"><Copy className="h-4 w-4" /></Button>
+                <Button variant="outline" onClick={() => rotateMut.mutate()} disabled={rotateMut.isPending} title="Gerar nova chave (a antiga deixa de funcionar)">
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para sua conta.</p>
             </div>
-            <pre className="overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
+            <details className="rounded-md border bg-muted/30 p-3 text-xs">
+              <summary className="cursor-pointer font-medium text-foreground">Exemplo técnico para desenvolvedores</summary>
+              <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
 {`curl -X POST ${ingestUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${form.api_key ?? "SUA_API_KEY"}" \\
@@ -399,9 +419,11 @@ function SettingsPage() {
     "custom_fields": {"empresa": "Acme"},
     "tags": ["lead-quente"]
   }'`}
-            </pre>
+              </pre>
+            </details>
           </div>
         </Card>
+
 
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
