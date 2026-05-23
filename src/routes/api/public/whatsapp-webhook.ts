@@ -13,12 +13,14 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
   }
 }
 
-async function processStatusUpdate(value: any) {
+const OPT_OUT_KEYWORDS = ["stop", "sair", "parar", "cancelar", "descadastrar", "unsubscribe", "remover"];
+
+async function processStatusUpdate(value: any, userId: string) {
   const statuses = value?.statuses ?? [];
   for (const s of statuses) {
     const waId: string | undefined = s.id;
     if (!waId) continue;
-    const status = s.status; // sent | delivered | read | failed
+    const status = s.status;
     const timestamp = s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : new Date().toISOString();
     const update: any = { status };
     if (status === "delivered") update.delivered_at = timestamp;
@@ -27,7 +29,6 @@ async function processStatusUpdate(value: any) {
       update.failed_at = timestamp;
       update.error = s.errors ?? null;
     }
-    // Capturar dados de cobrança (Meta envia em sent/delivered)
     if (s.pricing) {
       update.pricing_billable = s.pricing.billable ?? null;
       update.pricing_category = s.pricing.category ?? null;
@@ -38,34 +39,56 @@ async function processStatusUpdate(value: any) {
       update.conversation_origin = s.conversation.origin?.type ?? null;
     }
 
+    // SECURITY: scope mutation to the verified user
     const { data: rows } = await supabaseAdmin
       .from("campaign_messages")
       .update(update)
       .eq("wa_message_id", waId)
+      .eq("user_id", userId)
       .select("campaign_id");
 
-    // Update campaign totals
     const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id)));
     for (const cid of campaignIds) {
       const { data: agg } = await supabaseAdmin
         .from("campaign_messages")
         .select("status")
-        .eq("campaign_id", cid);
+        .eq("campaign_id", cid)
+        .eq("user_id", userId);
       if (!agg) continue;
       const totals: any = { total: agg.length, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
       for (const r of agg) totals[r.status] = (totals[r.status] ?? 0) + 1;
-      await supabaseAdmin.from("campaigns").update({ totals }).eq("id", cid);
+      await supabaseAdmin.from("campaigns").update({ totals }).eq("id", cid).eq("user_id", userId);
     }
   }
 }
 
-async function processTemplateStatusUpdate(value: any) {
-  // Meta sends: { message_template_id, message_template_name, message_template_language, event, reason, ... }
+async function processInboundMessages(value: any, userId: string) {
+  const messages = value?.messages ?? [];
+  for (const m of messages) {
+    const from: string | undefined = m.from;
+    if (!from) continue;
+    const text = (m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? "")
+      .toString()
+      .trim()
+      .toLowerCase();
+    if (!text) continue;
+    const isOptOut = OPT_OUT_KEYWORDS.some((k) => text === k || text.startsWith(`${k} `) || text.endsWith(` ${k}`));
+    if (!isOptOut) continue;
+    // E.164 normalization: Meta sends without "+", we store with "+"
+    const phoneE164 = from.startsWith("+") ? from : `+${from}`;
+    await supabaseAdmin
+      .from("contacts")
+      .update({ opted_out: true })
+      .eq("user_id", userId)
+      .eq("phone_e164", phoneE164);
+  }
+}
+
+async function processTemplateStatusUpdate(value: any, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const name = value?.message_template_name as string | undefined;
   const language = value?.message_template_language as string | undefined;
   const event = (value?.event as string | undefined)?.toUpperCase();
-  // Map Meta events to our enum
   const statusMap: Record<string, string> = {
     APPROVED: "APPROVED",
     REJECTED: "REJECTED",
@@ -80,41 +103,34 @@ async function processTemplateStatusUpdate(value: any) {
   };
   const status = event && statusMap[event];
   if (!status) return;
-
   const update: any = { status, synced_at: new Date().toISOString() };
-
-  // Try match by meta_template_id first, fall back to name+language
-  let query = supabaseAdmin.from("templates").update(update);
   if (metaId) {
-    await query.eq("meta_template_id", metaId);
+    await supabaseAdmin.from("templates").update(update).eq("meta_template_id", metaId).eq("user_id", userId);
   } else if (name && language) {
-    await supabaseAdmin.from("templates").update(update).eq("name", name).eq("language", language);
+    await supabaseAdmin.from("templates").update(update).eq("name", name).eq("language", language).eq("user_id", userId);
   }
 }
 
-async function processTemplateCategoryUpdate(value: any) {
+async function processTemplateCategoryUpdate(value: any, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const newCategory = value?.new_category as string | undefined;
   if (!metaId || !newCategory) return;
   await supabaseAdmin
     .from("templates")
     .update({ category: newCategory, synced_at: new Date().toISOString() })
-    .eq("meta_template_id", metaId);
+    .eq("meta_template_id", metaId)
+    .eq("user_id", userId);
 }
 
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
-
   server: {
     handlers: {
-      // Meta verification
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
         if (mode !== "subscribe" || !token) return new Response("Bad Request", { status: 400 });
-
-        // Match against any user's verify_token
         const { data: profiles } = await supabaseAdmin
           .from("profiles")
           .select("id")
@@ -127,21 +143,23 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
 
-        // Try to verify against each user's app_secret
-        let verified = false;
+        // SECURITY: signature must match exactly one user; bind events to that user_id.
         const { data: secrets } = await supabaseAdmin
           .from("profiles")
-          .select("whatsapp_app_secret")
+          .select("id, whatsapp_app_secret")
           .not("whatsapp_app_secret", "is", null);
+
+        let matchedUserId: string | null = null;
         for (const s of secrets ?? []) {
-          if (s.whatsapp_app_secret && await verifySignature(rawBody, sig, s.whatsapp_app_secret)) {
-            verified = true;
+          if (s.whatsapp_app_secret && (await verifySignature(rawBody, sig, s.whatsapp_app_secret))) {
+            matchedUserId = s.id as string;
             break;
           }
         }
-        if (!verified) {
-          // store anyway for audit but reject
-          await supabaseAdmin.from("webhook_events").insert({ raw: { rejected: true, body: rawBody.slice(0, 4000) } });
+        if (!matchedUserId) {
+          await supabaseAdmin
+            .from("webhook_events")
+            .insert({ raw: { rejected: true, body: rawBody.slice(0, 4000) } });
           return new Response("Invalid signature", { status: 401 });
         }
 
@@ -151,17 +169,15 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         for (const entry of payload.entry ?? []) {
           for (const change of entry.changes ?? []) {
             if (change.field === "messages") {
-              await processStatusUpdate(change.value);
+              await processStatusUpdate(change.value, matchedUserId);
+              await processInboundMessages(change.value, matchedUserId);
             } else if (change.field === "message_template_status_update") {
-              await processTemplateStatusUpdate(change.value);
-            } else if (change.field === "message_template_quality_update") {
-              // quality changes don't affect approval status; ignore for now
+              await processTemplateStatusUpdate(change.value, matchedUserId);
             } else if (change.field === "template_category_update") {
-              await processTemplateCategoryUpdate(change.value);
+              await processTemplateCategoryUpdate(change.value, matchedUserId);
             }
           }
         }
-
 
         return new Response("ok", { status: 200 });
       },
