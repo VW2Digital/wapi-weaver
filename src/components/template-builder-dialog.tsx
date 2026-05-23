@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Phone, Reply } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Phone, Reply, Copy, ShoppingBag, LayoutGrid, Zap, KeyRound, PhoneCall, MapPin } from "lucide-react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
