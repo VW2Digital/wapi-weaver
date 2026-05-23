@@ -6,8 +6,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, RefreshCw, Download } from "lucide-react";
+import { ArrowLeft, RefreshCw, Download, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
+import { WhatsAppPreview } from "@/components/whatsapp-preview";
 
 export const Route = createFileRoute("/_app/campaigns/$id")({ component: CampaignDetailPage });
 
@@ -106,6 +107,14 @@ function CampaignDetailPage() {
           <Progress value={pct} />
         </Card>
 
+        <Card className="p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-primary" />
+            <h3 className="font-display text-base font-semibold">Mensagem enviada</h3>
+          </div>
+          <CampaignMessagePreview campaign={c} template={data.template} />
+        </Card>
+
         <Card>
           <div className="border-b p-4">
             <h3 className="font-display text-base font-semibold">Mensagens ({data.messages.length})</h3>
@@ -154,4 +163,63 @@ function MetricCard({ label, value, hint, variant }: { label: string; value: num
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </Card>
   );
+}
+
+function CampaignMessagePreview({ campaign, template }: { campaign: any; template: any }) {
+  const p = (campaign.payload ?? {}) as any;
+
+  if (campaign.message_type === "template") {
+    if (template?.components) {
+      const vars = Array.isArray(p.variables) ? p.variables : [];
+      return (
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground">
+            Template: <span className="font-medium text-foreground">{template.name}</span>
+            {template.language && <> · {template.language}</>}
+          </div>
+          <WhatsAppPreview
+            components={template.components as any}
+            variables={Object.fromEntries(vars.map((v: string, i: number) => [String(i + 1), v]))}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="text-sm text-muted-foreground">
+        Template <span className="font-medium text-foreground">{p.template_name ?? "—"}</span> ({p.language ?? "—"})
+        {Array.isArray(p.variables) && p.variables.length > 0 && (
+          <div className="mt-2 text-xs">Variáveis: {p.variables.join(", ")}</div>
+        )}
+      </div>
+    );
+  }
+
+  if (campaign.message_type === "text") {
+    return (
+      <div className="rounded-lg bg-[#dcf8c6] p-3 text-sm text-[#111] shadow-sm whitespace-pre-wrap max-w-md">
+        {p.text || <span className="italic text-muted-foreground">Sem conteúdo.</span>}
+      </div>
+    );
+  }
+
+  if (campaign.message_type === "media") {
+    return (
+      <div className="space-y-2 max-w-md">
+        <div className="rounded-lg border bg-card p-3">
+          <div className="mb-2 text-xs uppercase text-muted-foreground">{p.media_type ?? "mídia"}</div>
+          {p.media_type === "image" && p.media_url && (
+            <img src={p.media_url} alt="" className="max-h-64 rounded object-contain" />
+          )}
+          {p.media_type !== "image" && (
+            <a href={p.media_url} target="_blank" rel="noreferrer" className="break-all text-xs text-primary underline">
+              {p.media_url}
+            </a>
+          )}
+          {p.caption && <p className="mt-2 text-sm whitespace-pre-wrap">{p.caption}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return <pre className="overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify(p, null, 2)}</pre>;
 }
