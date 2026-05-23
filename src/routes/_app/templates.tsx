@@ -29,7 +29,9 @@ function TemplatesPage() {
   const fetch = useServerFn(listTemplates);
   const sync = useServerFn(syncTemplatesFromMeta);
   const seed = useServerFn(seedSampleTemplates);
+  const remove = useServerFn(deleteTemplate);
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
   const [search, setSearch] = useState("");
 
