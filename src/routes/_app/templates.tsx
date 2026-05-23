@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
 import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
