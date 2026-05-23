@@ -108,9 +108,33 @@ function TemplatesPage() {
             .map((t: any) => (
               <Card key={t.id} className="overflow-hidden">
                 <div className="border-b p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{t.name}</p>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium truncate">{t.name}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Excluir template"
+                        onClick={async () => {
+                          const isRemote = t.meta_template_id && !t.meta_template_id.startsWith("sample_") && !t.meta_template_id.startsWith("local_");
+                          const ok = await confirm({
+                            title: "Excluir template?",
+                            description: <>O template <strong>{t.name}</strong> será removido aqui{isRemote ? " e na Meta" : ""}.</>,
+                            destructive: true,
+                            confirmText: "Excluir",
+                          });
+                          if (!ok) return;
+                          try {
+                            await remove({ data: { id: t.id } });
+                            toast.success("Template removido");
+                            qc.invalidateQueries({ queryKey: ["templates"] });
+                          } catch (e: any) { toast.error(e.message); }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
                 </div>
