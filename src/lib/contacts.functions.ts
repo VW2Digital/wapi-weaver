@@ -13,13 +13,20 @@ const contactInput = z.object({
 export const listContacts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("contacts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1000);
-    if (error) throw error;
-    return data ?? [];
+    const PAGE = 1000;
+    const all: any[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await context.supabase
+        .from("contacts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return all;
   });
 
 export const createContact = createServerFn({ method: "POST" })
