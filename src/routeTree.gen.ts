@@ -22,9 +22,9 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppContactsRouteImport } from './routes/_app/contacts'
-import { Route as AppCampaignsRouteImport } from './routes/_app/campaigns'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
+import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
@@ -95,11 +95,6 @@ const AppContactsRoute = AppContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => AppRoute,
 } as any)
-const AppCampaignsRoute = AppCampaignsRouteImport.update({
-  id: '/campaigns',
-  path: '/campaigns',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppBillingRoute = AppBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -108,6 +103,11 @@ const AppBillingRoute = AppBillingRouteImport.update({
 const AppAuditRoute = AppAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
+  id: '/campaigns/',
+  path: '/campaigns/',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiPublicWhatsappWebhookRoute =
@@ -122,9 +122,9 @@ const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppCampaignsIdRoute = AppCampaignsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppCampaignsRoute,
+  id: '/campaigns/$id',
+  path: '/campaigns/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiPublicCronProcessQueueRoute =
   ApiPublicCronProcessQueueRouteImport.update({
@@ -147,7 +147,6 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
-  '/campaigns': typeof AppCampaignsRouteWithChildren
   '/contacts': typeof AppContactsRoute
   '/dashboard': typeof AppDashboardRoute
   '/lists': typeof AppListsRoute
@@ -157,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
 }
@@ -169,7 +169,6 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
-  '/campaigns': typeof AppCampaignsRouteWithChildren
   '/contacts': typeof AppContactsRoute
   '/dashboard': typeof AppDashboardRoute
   '/lists': typeof AppListsRoute
@@ -179,6 +178,7 @@ export interface FileRoutesByTo {
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/campaigns': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
 }
@@ -193,7 +193,6 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/billing': typeof AppBillingRoute
-  '/_app/campaigns': typeof AppCampaignsRouteWithChildren
   '/_app/contacts': typeof AppContactsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/lists': typeof AppListsRoute
@@ -203,6 +202,7 @@ export interface FileRoutesById {
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
 }
@@ -217,7 +217,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/audit'
     | '/billing'
-    | '/campaigns'
     | '/contacts'
     | '/dashboard'
     | '/lists'
@@ -227,6 +226,7 @@ export interface FileRouteTypes {
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
     | '/api/public/whatsapp-webhook'
+    | '/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
   fileRoutesByTo: FileRoutesByTo
@@ -239,7 +239,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/audit'
     | '/billing'
-    | '/campaigns'
     | '/contacts'
     | '/dashboard'
     | '/lists'
@@ -249,6 +248,7 @@ export interface FileRouteTypes {
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
     | '/api/public/whatsapp-webhook'
+    | '/campaigns'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
   id:
@@ -262,7 +262,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_app/audit'
     | '/_app/billing'
-    | '/_app/campaigns'
     | '/_app/contacts'
     | '/_app/dashboard'
     | '/_app/lists'
@@ -272,6 +271,7 @@ export interface FileRouteTypes {
     | '/_app/campaigns/$id'
     | '/api/admin/schema-dump'
     | '/api/public/whatsapp-webhook'
+    | '/_app/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
   fileRoutesById: FileRoutesById
@@ -383,13 +383,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppContactsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/campaigns': {
-      id: '/_app/campaigns'
-      path: '/campaigns'
-      fullPath: '/campaigns'
-      preLoaderRoute: typeof AppCampaignsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/billing': {
       id: '/_app/billing'
       path: '/billing'
@@ -402,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/campaigns/': {
+      id: '/_app/campaigns/'
+      path: '/campaigns'
+      fullPath: '/campaigns/'
+      preLoaderRoute: typeof AppCampaignsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/api/public/whatsapp-webhook': {
@@ -420,10 +420,10 @@ declare module '@tanstack/react-router' {
     }
     '/_app/campaigns/$id': {
       id: '/_app/campaigns/$id'
-      path: '/$id'
+      path: '/campaigns/$id'
       fullPath: '/campaigns/$id'
       preLoaderRoute: typeof AppCampaignsIdRouteImport
-      parentRoute: typeof AppCampaignsRoute
+      parentRoute: typeof AppRoute
     }
     '/api/public/cron/process-queue': {
       id: '/api/public/cron/process-queue'
@@ -442,40 +442,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AppCampaignsRouteChildren {
-  AppCampaignsIdRoute: typeof AppCampaignsIdRoute
-}
-
-const AppCampaignsRouteChildren: AppCampaignsRouteChildren = {
-  AppCampaignsIdRoute: AppCampaignsIdRoute,
-}
-
-const AppCampaignsRouteWithChildren = AppCampaignsRoute._addFileChildren(
-  AppCampaignsRouteChildren,
-)
-
 interface AppRouteChildren {
   AppAuditRoute: typeof AppAuditRoute
   AppBillingRoute: typeof AppBillingRoute
-  AppCampaignsRoute: typeof AppCampaignsRouteWithChildren
   AppContactsRoute: typeof AppContactsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppListsRoute: typeof AppListsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTemplatesRoute: typeof AppTemplatesRoute
   AppUsersRoute: typeof AppUsersRoute
+  AppCampaignsIdRoute: typeof AppCampaignsIdRoute
+  AppCampaignsIndexRoute: typeof AppCampaignsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAuditRoute: AppAuditRoute,
   AppBillingRoute: AppBillingRoute,
-  AppCampaignsRoute: AppCampaignsRouteWithChildren,
   AppContactsRoute: AppContactsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppListsRoute: AppListsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTemplatesRoute: AppTemplatesRoute,
   AppUsersRoute: AppUsersRoute,
+  AppCampaignsIdRoute: AppCampaignsIdRoute,
+  AppCampaignsIndexRoute: AppCampaignsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -496,3 +486,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
