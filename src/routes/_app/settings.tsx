@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
-import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings } from "@/lib/admin.functions";
+import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql } from "@/lib/admin.functions";
 import { getWebhookHealth } from "@/lib/webhook-health.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
@@ -724,6 +724,19 @@ function AdminPlatformSection() {
         </p>
       </div>
 
+      <div className="mt-6 border-t pt-5">
+        <h3 className="font-display text-base font-semibold flex items-center gap-2">
+          <Database className="h-4 w-4" /> Exportar schema do banco
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Gera um arquivo <code className="text-xs">.sql</code> com toda a estrutura do schema <code className="text-xs">public</code>
+          {" "}(enums, tabelas, constraints, índices, RLS, policies, funções e triggers). Não inclui dados.
+        </p>
+        <div className="mt-3">
+          <ExportSchemaButton />
+        </div>
+      </div>
+
       <div className="mt-4 flex gap-2">
         <Button
           onClick={() =>
@@ -906,5 +919,40 @@ function WebhookHealthCard() {
     </Card>
   );
 }
+
+function ExportSchemaButton() {
+  const run = useServerFn(exportSchemaSql);
+  const [loading, setLoading] = useState(false);
+
+  async function handleExport() {
+    setLoading(true);
+    try {
+      const res = await run();
+      const blob = new Blob([res.sql], { type: "application/sql;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      a.href = url;
+      a.download = `schema-public-${ts}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Schema exportado com sucesso");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao exportar schema");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Button type="button" variant="outline" onClick={handleExport} disabled={loading}>
+      <Download className="h-4 w-4" />
+      {loading ? "Gerando…" : "Baixar schema.sql"}
+    </Button>
+  );
+}
+
 
 

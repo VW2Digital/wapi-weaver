@@ -93,3 +93,31 @@ export const getTrackingTags = createServerFn({ method: "GET" })
       body_tags: (data as any)?.body_tags ?? "",
     };
   });
+
+// Exporta o schema completo do banco (apenas admins). Usa supabaseAdmin (service_role)
+// para chamar a função SECURITY DEFINER `public.export_schema_sql()`.
+export const exportSchemaSql = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // Confirma admin via RLS antes de usar o admin client
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+    if (!isAdmin) throw new Error("forbidden");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await (supabaseAdmin as any).rpc("export_schema_sql");
+    if (error) throw error;
+
+    await recordAudit({
+      userId: context.userId,
+      action: "platform.export_schema",
+      entityType: "database",
+      entityId: "public",
+      metadata: { bytes: (data ?? "").length },
+    });
+
+    return { sql: (data ?? "") as string, generated_at: new Date().toISOString() };
+  });
