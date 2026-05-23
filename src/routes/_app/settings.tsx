@@ -726,15 +726,16 @@ function AdminPlatformSection() {
 
       <div className="mt-6 border-t pt-5">
         <h3 className="font-display text-base font-semibold flex items-center gap-2">
-          <Database className="h-4 w-4" /> Exportar schema do banco
+          <Database className="h-4 w-4" /> Backups do schema do banco
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Gera um arquivo <code className="text-xs">.sql</code> com toda a estrutura do schema <code className="text-xs">public</code>
-          {" "}(enums, tabelas, constraints, índices, RLS, policies, funções e triggers). Não inclui dados.
+          Um backup automático do schema <code className="text-xs">public</code> é gerado diariamente às 03:00 (UTC).
+          Você também pode gerar um backup manual a qualquer momento. As 30 versões mais recentes ficam disponíveis para download.
         </p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           <ExportSchemaButton />
         </div>
+        <SchemaBackupsHistory />
       </div>
 
       <div className="mt-4 flex gap-2">
