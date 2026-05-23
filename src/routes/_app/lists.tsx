@@ -150,7 +150,7 @@ function ListsPage() {
           <div className="mt-3 space-y-2">
             <div className="flex gap-2">
               <Input placeholder="nome" value={tagForm.name} onChange={(e) => setTagForm({ ...tagForm, name: e.target.value })} />
-              <input type="color" className="h-9 w-12 rounded border" value={tagForm.color} onChange={(e) => setTagForm({ ...tagForm, color: e.target.value })} />
+              <input type="color" className="h-9 w-12 rounded-full border-none p-0 overflow-hidden cursor-pointer" value={tagForm.color} onChange={(e) => setTagForm({ ...tagForm, color: e.target.value })} />
               <Button onClick={async () => { try { await newTag({ data: tagForm }); setTagForm({ name: "", color: "#25D366" }); qc.invalidateQueries({ queryKey: ["tags"] }); } catch (e: any) { toast.error(e.message); } }}>Add</Button>
             </div>
             <div className="flex flex-wrap gap-2">
