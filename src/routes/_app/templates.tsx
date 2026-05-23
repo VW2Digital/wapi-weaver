@@ -309,6 +309,7 @@ function InfoSection() {
           </p>
         </div>
       </div>
+      )}
     </Card>
   );
 }
