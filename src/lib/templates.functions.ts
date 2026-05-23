@@ -4,8 +4,35 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const buttonSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("QUICK_REPLY"), text: z.string().min(1).max(25) }),
-  z.object({ type: z.literal("URL"), text: z.string().min(1).max(25), url: z.string().url().max(2000) }),
+  z.object({
+    type: z.literal("URL"),
+    text: z.string().min(1).max(25),
+    url: z.string().url().max(2000),
+    example: z.array(z.string().max(2000)).max(1).optional(),
+  }),
   z.object({ type: z.literal("PHONE_NUMBER"), text: z.string().min(1).max(25), phone_number: z.string().min(5).max(20) }),
+  z.object({ type: z.literal("COPY_CODE"), example: z.array(z.string().min(1).max(15)).min(1).max(1) }),
+  z.object({ type: z.literal("CATALOG"), text: z.string().min(1).max(25).default("Ver catálogo") }),
+  z.object({ type: z.literal("MPM"), text: z.string().min(1).max(25).default("Ver produtos") }),
+  z.object({
+    type: z.literal("FLOW"),
+    text: z.string().min(1).max(25),
+    flow_id: z.string().min(1).max(64),
+    flow_action: z.enum(["navigate", "data_exchange"]).default("navigate"),
+    navigate_screen: z.string().max(64).optional(),
+  }),
+  z.object({
+    type: z.literal("OTP"),
+    otp_type: z.enum(["COPY_CODE", "ONE_TAP", "ZERO_TAP"]),
+    text: z.string().min(1).max(25).optional(),
+    autofill_text: z.string().max(25).optional(),
+    package_name: z.string().max(224).optional(),
+    signature_hash: z.string().max(64).optional(),
+  }),
+  z.object({
+    type: z.literal("VOICE_CALL"),
+    text: z.string().min(1).max(25),
+  }),
 ]);
 
 const createTemplateInput = z.object({
@@ -14,10 +41,11 @@ const createTemplateInput = z.object({
   category: z.enum(["MARKETING", "UTILITY", "AUTHENTICATION"]),
   header: z.discriminatedUnion("format", [
     z.object({ format: z.literal("NONE") }),
-    z.object({ format: z.literal("TEXT"), text: z.string().min(1).max(60) }),
+    z.object({ format: z.literal("TEXT"), text: z.string().min(1).max(60), examples: z.array(z.string().max(200)).max(10).optional() }),
     z.object({ format: z.literal("IMAGE"), example_url: z.string().url() }),
     z.object({ format: z.literal("VIDEO"), example_url: z.string().url() }),
     z.object({ format: z.literal("DOCUMENT"), example_url: z.string().url() }),
+    z.object({ format: z.literal("LOCATION") }),
   ]),
   body: z.string().min(1).max(1024),
   body_examples: z.array(z.string().max(200)).max(20).optional(),
@@ -31,7 +59,13 @@ function buildMetaComponents(input: CreateTemplateInput) {
   const components: any[] = [];
   if (input.header.format !== "NONE") {
     if (input.header.format === "TEXT") {
-      components.push({ type: "HEADER", format: "TEXT", text: input.header.text });
+      const h: any = { type: "HEADER", format: "TEXT", text: input.header.text };
+      if (input.header.examples && input.header.examples.length > 0) {
+        h.example = { header_text: input.header.examples };
+      }
+      components.push(h);
+    } else if (input.header.format === "LOCATION") {
+      components.push({ type: "HEADER", format: "LOCATION" });
     } else {
       components.push({
         type: "HEADER",
@@ -53,6 +87,7 @@ function buildMetaComponents(input: CreateTemplateInput) {
   }
   return components;
 }
+
 
 export const createTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
