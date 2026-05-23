@@ -920,4 +920,39 @@ function WebhookHealthCard() {
   );
 }
 
+function ExportSchemaButton() {
+  const run = useServerFn(exportSchemaSql);
+  const [loading, setLoading] = useState(false);
+
+  async function handleExport() {
+    setLoading(true);
+    try {
+      const res = await run();
+      const blob = new Blob([res.sql], { type: "application/sql;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      a.href = url;
+      a.download = `schema-public-${ts}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Schema exportado com sucesso");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao exportar schema");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Button type="button" variant="outline" onClick={handleExport} disabled={loading}>
+      <Download className="h-4 w-4" />
+      {loading ? "Gerando…" : "Baixar schema.sql"}
+    </Button>
+  );
+}
+
+
 
