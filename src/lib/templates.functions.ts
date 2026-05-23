@@ -1,5 +1,146 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const buttonSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("QUICK_REPLY"), text: z.string().min(1).max(25) }),
+  z.object({ type: z.literal("URL"), text: z.string().min(1).max(25), url: z.string().url().max(2000) }),
+  z.object({ type: z.literal("PHONE_NUMBER"), text: z.string().min(1).max(25), phone_number: z.string().min(5).max(20) }),
+]);
+
+const createTemplateInput = z.object({
+  name: z.string().trim().min(1).max(512).regex(/^[a-z0-9_]+$/, "Use apenas letras minúsculas, números e _"),
+  language: z.string().min(2).max(10),
+  category: z.enum(["MARKETING", "UTILITY", "AUTHENTICATION"]),
+  header: z.discriminatedUnion("format", [
+    z.object({ format: z.literal("NONE") }),
+    z.object({ format: z.literal("TEXT"), text: z.string().min(1).max(60) }),
+    z.object({ format: z.literal("IMAGE"), example_url: z.string().url() }),
+    z.object({ format: z.literal("VIDEO"), example_url: z.string().url() }),
+    z.object({ format: z.literal("DOCUMENT"), example_url: z.string().url() }),
+  ]),
+  body: z.string().min(1).max(1024),
+  body_examples: z.array(z.string().max(200)).max(20).optional(),
+  footer: z.string().max(60).optional(),
+  buttons: z.array(buttonSchema).max(10).optional(),
+});
+
+export type CreateTemplateInput = z.infer<typeof createTemplateInput>;
+
+function buildMetaComponents(input: CreateTemplateInput) {
+  const components: any[] = [];
+  if (input.header.format !== "NONE") {
+    if (input.header.format === "TEXT") {
+      components.push({ type: "HEADER", format: "TEXT", text: input.header.text });
+    } else {
+      components.push({
+        type: "HEADER",
+        format: input.header.format,
+        example: { header_handle: [input.header.example_url] },
+      });
+    }
+  }
+  const bodyComp: any = { type: "BODY", text: input.body };
+  if (input.body_examples && input.body_examples.length > 0) {
+    bodyComp.example = { body_text: [input.body_examples] };
+  }
+  components.push(bodyComp);
+  if (input.footer && input.footer.trim()) {
+    components.push({ type: "FOOTER", text: input.footer.trim() });
+  }
+  if (input.buttons && input.buttons.length > 0) {
+    components.push({ type: "BUTTONS", buttons: input.buttons });
+  }
+  return components;
+}
+
+export const createTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => createTemplateInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const components = buildMetaComponents(data);
+
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_waba_id, whatsapp_access_token")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    let status = "PENDING";
+    let meta_template_id: string | null = null;
+
+    if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${p.whatsapp_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: data.name,
+            language: data.language,
+            category: data.category,
+            components,
+          }),
+        },
+      );
+      const body: any = await res.json();
+      if (!res.ok) {
+        throw new Error(body?.error?.error_user_msg || body?.error?.message || "Falha ao enviar template à Meta");
+      }
+      status = body.status ?? "PENDING";
+      meta_template_id = body.id ?? null;
+    }
+
+    const { data: row, error } = await context.supabase
+      .from("templates")
+      .upsert({
+        user_id: context.userId,
+        name: data.name,
+        language: data.language,
+        category: data.category,
+        status: status as any,
+        components,
+        meta_template_id: meta_template_id ?? `local_${data.name}_${data.language}`,
+        synced_at: new Date().toISOString(),
+      }, { onConflict: "user_id,name,language" })
+      .select()
+      .single();
+    if (error) throw error;
+    return row;
+  });
+
+export const deleteTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: tpl } = await context.supabase
+      .from("templates")
+      .select("name, meta_template_id")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    if (tpl?.meta_template_id && !tpl.meta_template_id.startsWith("local_") && !tpl.meta_template_id.startsWith("sample_")) {
+      const { data: p } = await context.supabase
+        .from("profiles")
+        .select("whatsapp_waba_id, whatsapp_access_token")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if (p?.whatsapp_waba_id && p?.whatsapp_access_token && tpl?.name) {
+        await fetch(
+          `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(tpl.name)}`,
+          { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
+        ).catch(() => null);
+      }
+    }
+    const { error } = await context.supabase.from("templates").delete().eq("id", data.id);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+
 
 export const listTemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
