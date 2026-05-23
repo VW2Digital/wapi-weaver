@@ -192,6 +192,7 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
                 <Select value={header.format} onValueChange={(v: any) => {
                   if (v === "NONE") setHeader({ format: "NONE" });
                   else if (v === "TEXT") setHeader({ format: "TEXT", text: "" });
+                  else if (v === "LOCATION") setHeader({ format: "LOCATION" });
                   else setHeader({ format: v, example_url: "" });
                 }}>
                   <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
@@ -201,6 +202,7 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
                     <SelectItem value="IMAGE">Imagem</SelectItem>
                     <SelectItem value="VIDEO">Vídeo</SelectItem>
                     <SelectItem value="DOCUMENT">Documento</SelectItem>
+                    <SelectItem value="LOCATION">Localização</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
