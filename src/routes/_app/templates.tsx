@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles, FileText, Plus, Trash2, X } from "lucide-react";
+import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
@@ -117,6 +117,7 @@ function TemplatesPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <InfoSection />
         {isLoading && <CardGridSkeleton count={6} />}
         {!isLoading && (data ?? []).length === 0 && (
           <Card>
@@ -222,5 +223,84 @@ function TemplatesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function InfoSection() {
+  const categories = [
+    {
+      icon: Megaphone,
+      name: "Marketing",
+      desc: "Promoções, ofertas, novidades, convites e atualizações da marca.",
+      price: "~R$ 0,20 – 0,40",
+      tone: "bg-primary/10 text-primary",
+    },
+    {
+      icon: Bell,
+      name: "Utility",
+      desc: "Confirmações, atualizações de conta, lembretes e notificações transacionais.",
+      price: "~R$ 0,08 – 0,15",
+      tone: "bg-warning/15 text-warning-foreground",
+    },
+    {
+      icon: ShieldCheck,
+      name: "Authentication",
+      desc: "Códigos de verificação (OTP) para login, cadastro e recuperação de conta.",
+      price: "~R$ 0,03 – 0,06",
+      tone: "bg-success/15 text-success",
+    },
+  ];
+
+  const tips = [
+    { title: "Janela de 24h (grátis)", desc: "Mensagens dentro de 24h após o cliente iniciar o contato não são cobradas." },
+    { title: "Use Utility no lugar de Marketing", desc: "Economize até 70% reclassificando notificações transacionais corretamente." },
+    { title: "Prefira Authentication para OTP", desc: "É a categoria mais barata — apenas código + botão de copiar." },
+    { title: "Incentive o cliente a iniciar", desc: "QR codes, links wa.me e chatbots no site abrem janelas gratuitas de 24h." },
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-2 border-b bg-muted/40 p-4">
+        <Info className="h-4 w-4 text-primary" />
+        <h2 className="font-display text-base font-semibold">Informações sobre templates</h2>
+      </div>
+      <div className="grid gap-6 p-5 lg:grid-cols-2">
+        <div>
+          <h3 className="mb-3 text-sm font-semibold">Categorias oferecidas pela Meta</h3>
+          <div className="space-y-2">
+            {categories.map((c) => (
+              <div key={c.name} className="flex items-start gap-3 rounded-lg border bg-card/50 p-3">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${c.tone}`}>
+                  <c.icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{c.name}</p>
+                    <span className="text-xs font-medium tabular-nums text-muted-foreground">{c.price}</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{c.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Wallet className="h-4 w-4 text-success" /> Formas mais baratas de enviar
+          </h3>
+          <ul className="space-y-2">
+            {tips.map((t) => (
+              <li key={t.title} className="rounded-lg border bg-card/50 p-3">
+                <p className="text-sm font-medium">{t.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t.desc}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            * Valores aproximados para o Brasil. Podem variar conforme o BSP e atualizações da Meta.
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }
