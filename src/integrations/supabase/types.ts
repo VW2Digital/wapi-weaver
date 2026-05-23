@@ -419,6 +419,33 @@ export type Database = {
         }
         Relationships: []
       }
+      schema_backups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          size_bytes: number
+          source: string
+          sql: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          size_bytes?: number
+          source?: string
+          sql: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          size_bytes?: number
+          source?: string
+          sql?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           color: string
@@ -529,7 +556,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_schema_backup: {
+        Args: { _source?: string; _user?: string }
+        Returns: string
+      }
+      cron_create_schema_backup: { Args: never; Returns: undefined }
       export_schema_sql: { Args: never; Returns: string }
+      export_schema_sql_internal: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
