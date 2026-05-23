@@ -1,17 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates } from "@/lib/templates.functions";
+import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates, deleteTemplate } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles, FileText } from "lucide-react";
+import { RefreshCw, Sparkles, FileText, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { CardGridSkeleton } from "@/components/table-skeleton";
+import { TemplateBuilderDialog } from "@/components/template-builder-dialog";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
 
