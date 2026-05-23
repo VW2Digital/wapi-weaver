@@ -77,10 +77,13 @@ function TemplatesPage() {
               description="Sincronize seus templates aprovados pela Meta ou carregue exemplos para começar."
               action={
                 <div className="flex gap-2">
+                  <TemplateBuilderDialog
+                    trigger={<Button><Plus className="mr-2 h-4 w-4" /> Criar template</Button>}
+                  />
                   <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
-                    <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
+                    <Sparkles className="mr-2 h-4 w-4" /> Exemplos
                   </Button>
-                  <Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+                  <Button variant="outline" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
                     <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar
                   </Button>
                 </div>
