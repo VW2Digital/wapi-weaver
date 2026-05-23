@@ -37,6 +37,7 @@ function TemplatesPage() {
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const syncMut = useMutation({
     mutationFn: () => sync(),
