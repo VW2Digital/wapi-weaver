@@ -1,17 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates } from "@/lib/templates.functions";
+import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates, deleteTemplate } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles, FileText } from "lucide-react";
+import { RefreshCw, Sparkles, FileText, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { CardGridSkeleton } from "@/components/table-skeleton";
+import { TemplateBuilderDialog } from "@/components/template-builder-dialog";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
 
@@ -27,7 +29,9 @@ function TemplatesPage() {
   const fetch = useServerFn(listTemplates);
   const sync = useServerFn(syncTemplatesFromMeta);
   const seed = useServerFn(seedSampleTemplates);
+  const remove = useServerFn(deleteTemplate);
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
   const [search, setSearch] = useState("");
 
@@ -53,12 +57,16 @@ function TemplatesPage() {
             <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
               <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
             </Button>
-            <Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar com Meta
+            <Button variant="outline" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar
             </Button>
+            <TemplateBuilderDialog
+              trigger={<Button><Plus className="mr-2 h-4 w-4" /> Novo template</Button>}
+            />
           </div>
         }
       />
+
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {isLoading && <CardGridSkeleton count={6} />}
         {!isLoading && (data ?? []).length === 0 && (
@@ -69,10 +77,13 @@ function TemplatesPage() {
               description="Sincronize seus templates aprovados pela Meta ou carregue exemplos para começar."
               action={
                 <div className="flex gap-2">
+                  <TemplateBuilderDialog
+                    trigger={<Button><Plus className="mr-2 h-4 w-4" /> Criar template</Button>}
+                  />
                   <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
-                    <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
+                    <Sparkles className="mr-2 h-4 w-4" /> Exemplos
                   </Button>
-                  <Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+                  <Button variant="outline" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
                     <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar
                   </Button>
                 </div>
@@ -97,9 +108,33 @@ function TemplatesPage() {
             .map((t: any) => (
               <Card key={t.id} className="overflow-hidden">
                 <div className="border-b p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{t.name}</p>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium truncate">{t.name}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Excluir template"
+                        onClick={async () => {
+                          const isRemote = t.meta_template_id && !t.meta_template_id.startsWith("sample_") && !t.meta_template_id.startsWith("local_");
+                          const ok = await confirm({
+                            title: "Excluir template?",
+                            description: <>O template <strong>{t.name}</strong> será removido aqui{isRemote ? " e na Meta" : ""}.</>,
+                            destructive: true,
+                            confirmText: "Excluir",
+                          });
+                          if (!ok) return;
+                          try {
+                            await remove({ data: { id: t.id } });
+                            toast.success("Template removido");
+                            qc.invalidateQueries({ queryKey: ["templates"] });
+                          } catch (e: any) { toast.error(e.message); }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
                 </div>
