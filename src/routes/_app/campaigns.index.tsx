@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { listCampaigns, createCampaign, cancelCampaign } from "@/lib/campaigns.functions";
+import { listCampaigns, createCampaign, cancelCampaign, deleteCampaign } from "@/lib/campaigns.functions";
 import { listLists } from "@/lib/lists.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone } from "lucide-react";
+import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ListSkeleton } from "@/components/table-skeleton";
@@ -34,6 +34,7 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
 function CampaignsPage() {
   const fetchAll = useServerFn(listCampaigns);
   const cancel = useServerFn(cancelCampaign);
+  const remove = useServerFn(deleteCampaign);
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchAll() });
@@ -119,6 +120,24 @@ function CampaignsPage() {
                     <Link to="/campaigns/$id" params={{ id: c.id }}>
                       <Button size="sm" variant="outline">Detalhes <ChevronRight className="ml-1 h-4 w-4" /></Button>
                     </Link>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "Excluir campanha?",
+                          description: <>A campanha <strong>{c.name}</strong> e todas as mensagens associadas serão removidas permanentemente.</>,
+                          destructive: true, confirmText: "Excluir", cancelText: "Cancelar",
+                        });
+                        if (!ok) return;
+                        await remove({ data: { id: c.id } });
+                        toast.success("Campanha excluída");
+                        qc.invalidateQueries({ queryKey: ["campaigns"] });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               );
