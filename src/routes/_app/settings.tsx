@@ -496,10 +496,13 @@ function Divider({ active }: { active: boolean }) {
   return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
-function Field({ label, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
+function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="flex items-baseline gap-2">
+        <span>{label}</span>
+        {sublabel && <span className="text-[11px] font-normal text-muted-foreground">{sublabel}</span>}
+      </Label>
       <Input
         type={type}
         value={value ?? ""}
@@ -509,6 +512,7 @@ function Field({ label, value, onChange, type = "text", placeholder, digitsOnly,
         inputMode={digitsOnly ? "numeric" : undefined}
         pattern={digitsOnly ? "[0-9]*" : undefined}
       />
+      {hint && !error && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
