@@ -724,6 +724,19 @@ function AdminPlatformSection() {
         </p>
       </div>
 
+      <div className="mt-6 border-t pt-5">
+        <h3 className="font-display text-base font-semibold flex items-center gap-2">
+          <Database className="h-4 w-4" /> Exportar schema do banco
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Gera um arquivo <code className="text-xs">.sql</code> com toda a estrutura do schema <code className="text-xs">public</code>
+          {" "}(enums, tabelas, constraints, índices, RLS, policies, funções e triggers). Não inclui dados.
+        </p>
+        <div className="mt-3">
+          <ExportSchemaButton />
+        </div>
+      </div>
+
       <div className="mt-4 flex gap-2">
         <Button
           onClick={() =>
