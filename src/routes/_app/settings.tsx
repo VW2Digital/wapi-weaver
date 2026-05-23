@@ -133,7 +133,7 @@ function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader title="Configurações" subtitle="Cole aqui suas credenciais do WhatsApp Cloud API." />
+      <PageHeader title="Configurações" subtitle="Conecte sua conta do WhatsApp Business em poucos passos. Não se preocupe se nunca fez isso antes — explicamos cada campo." />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <AppearanceCard />
@@ -141,17 +141,62 @@ function SettingsPage() {
         <AdminPlatformSection />
 
         <Card className="p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">1</div>
+            <div className="flex-1">
+              <h2 className="font-display text-lg font-semibold">Conectar sua conta do WhatsApp</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Preencha os 3 dados abaixo. Você encontra todos no painel da Meta em{" "}
+                <strong>business.facebook.com</strong> → <strong>WhatsApp Manager</strong> → <strong>Configurações da API</strong>.
+                <br />
+                <span className="text-xs">Não tem ainda? Crie grátis em <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">business.facebook.com</a>.</span>
+              </p>
+            </div>
+          </div>
 
-          <h2 className="font-display text-lg font-semibold">Credenciais Meta</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>. Os campos numéricos aceitam apenas dígitos (0-9).</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="Phone Number ID" digitsOnly value={form.whatsapp_phone_number_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }} placeholder="Ex: 1065xxxxxxxxx" error={errors.whatsapp_phone_number_id} />
-            <Field label="WhatsApp Business Account ID (WABA)" digitsOnly value={form.whatsapp_waba_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }} placeholder="Ex: 1123xxxxxxxxx" error={errors.whatsapp_waba_id} />
-            <Field label="Número do WhatsApp (apenas exibição)" value={form.whatsapp_business_phone} onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })} placeholder="5511999990000" />
-            <Field label="Rate limit (msg/seg)" type="number" value={form.rate_limit_per_second?.toString() ?? "20"} onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })} />
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <Field
+              label="ID do número de telefone"
+              sublabel="(Phone Number ID)"
+              digitsOnly
+              value={form.whatsapp_phone_number_id}
+              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }}
+              placeholder="Ex: 106500000000000"
+              hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
+              error={errors.whatsapp_phone_number_id}
+            />
+            <Field
+              label="ID da conta WhatsApp Business"
+              sublabel="(WABA ID)"
+              digitsOnly
+              value={form.whatsapp_waba_id}
+              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }}
+              placeholder="Ex: 112300000000000"
+              hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
+              error={errors.whatsapp_waba_id}
+            />
+            <Field
+              label="Seu número de WhatsApp"
+              sublabel="(só para exibição)"
+              value={form.whatsapp_business_phone}
+              onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })}
+              placeholder="5511999990000"
+              hint="Com DDD e código do país. Ex.: 55 (Brasil) + 11 (DDD) + número."
+            />
+            <Field
+              label="Velocidade de envio"
+              sublabel="(mensagens por segundo)"
+              type="number"
+              value={form.rate_limit_per_second?.toString() ?? "20"}
+              onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })}
+              hint="Deixe 20 se não souber. Aumente só se a Meta liberou um limite maior para sua conta."
+            />
 
             <div className="md:col-span-2 space-y-1.5">
-              <Label>Access Token permanente (System User)</Label>
+              <Label className="flex items-baseline gap-2">
+                <span>Token de acesso permanente</span>
+                <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
+              </Label>
               <Textarea
                 rows={3}
                 value={form.whatsapp_access_token ?? ""}
@@ -159,14 +204,19 @@ function SettingsPage() {
                 placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
                 className="font-mono text-xs"
               />
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                É uma "senha" longa que começa com <code className="text-[10px]">EAA</code>. Gere em <strong>Meta Business → Configurações → Usuários do sistema</strong> — crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as permissões <code className="text-[10px]">whatsapp_business_messaging</code> e <code className="text-[10px]">whatsapp_business_management</code>.
+                <br />
+                <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
+              </p>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-5 flex flex-wrap gap-2">
             <Button onClick={() => {
               const nextErrors: Record<string, string | null> = {};
-              const err1 = validateDigitsField(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID");
+              const err1 = validateDigitsField(String(form.whatsapp_phone_number_id ?? ""), "ID do número de telefone");
               if (err1) nextErrors.whatsapp_phone_number_id = err1;
-              const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "WABA ID");
+              const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "ID da conta WhatsApp Business");
               if (err2) nextErrors.whatsapp_waba_id = err2;
               setErrors(nextErrors);
               if (Object.keys(nextErrors).length > 0) {
@@ -180,23 +230,27 @@ function SettingsPage() {
                 whatsapp_access_token: form.whatsapp_access_token,
                 rate_limit_per_second: form.rate_limit_per_second,
               });
-            }} disabled={saveMut.isPending}>Salvar credenciais</Button>
+            }} disabled={saveMut.isPending}>Salvar e conectar</Button>
             <Button variant="outline" onClick={() => pingMut.mutate()} disabled={pingMut.isPending}>
-              Testar conexão
+              Testar conexão agora
             </Button>
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            💡 Clique em <strong>"Testar conexão"</strong> depois de salvar — se aparecer ✅, está tudo certo.
+          </p>
           {pingResult && (
             <ResultAlert
               ok={!!pingResult.ok}
               successContent={
-                <span>Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade: {pingResult.info?.quality_rating}</span>
+                <span>Tudo certo! Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade do número: {pingResult.info?.quality_rating}</span>
               }
               error={pingResult.error}
               details={pingResult.details ?? pingResult.error}
-              fallback="Não foi possível conectar à WhatsApp Cloud API."
+              fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
             />
           )}
         </Card>
+
 
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
@@ -292,25 +346,39 @@ function SettingsPage() {
 
 
         <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold">Webhook da Meta</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            No painel da Meta (<em>App Dashboard → WhatsApp → Configuration</em>), use os valores abaixo. Selecione o campo <code>messages</code> ao se inscrever.
-          </p>
-          <div className="mt-4 space-y-3">
-            <ReadOnly label="Callback URL" value={webhookUrl} onCopy={() => copy(webhookUrl, "URL do webhook")} />
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">2</div>
+            <div className="flex-1">
+              <h2 className="font-display text-lg font-semibold">Receber confirmações da Meta (webhook)</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Isso permite saber quando suas mensagens foram <strong>entregues e lidas</strong>. No painel da Meta, vá em{" "}
+                <strong>App Dashboard → WhatsApp → Configuration</strong> e cole os dados abaixo. Marque a opção <code className="text-xs">messages</code>.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 space-y-4">
+            <ReadOnly label="1. Cole esta URL no campo 'Callback URL' da Meta" value={webhookUrl} onCopy={() => copy(webhookUrl, "URL do webhook")} />
             <div className="space-y-1.5">
-              <Label>Verify Token (defina o que quiser, depois cole o mesmo na Meta)</Label>
+              <Label className="flex items-baseline gap-2">
+                <span>2. Crie uma palavra secreta</span>
+                <span className="text-[11px] font-normal text-muted-foreground">(Verify Token)</span>
+              </Label>
               <div className="flex gap-2">
                 <Input value={form.whatsapp_verify_token ?? ""} onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })} placeholder="ex: meu_token_super_secreto_123" />
                 <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>Salvar</Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">Pode ser qualquer texto que só você sabe. Depois cole o <strong>mesmo valor</strong> no campo "Verify token" da Meta.</p>
             </div>
             <div className="space-y-1.5">
-              <Label>App Secret (para validar a assinatura dos webhooks)</Label>
+              <Label className="flex items-baseline gap-2">
+                <span>3. Cole a Chave Secreta do App</span>
+                <span className="text-[11px] font-normal text-muted-foreground">(App Secret)</span>
+              </Label>
               <div className="flex gap-2">
-                <Input type="password" value={form.whatsapp_app_secret ?? ""} onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })} placeholder="App secret do seu app na Meta" />
+                <Input type="password" value={form.whatsapp_app_secret ?? ""} onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })} placeholder="Cole aqui o App Secret" />
                 <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>Salvar</Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">No painel da Meta: <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado para confirmar que cada aviso veio mesmo da Meta.</p>
             </div>
           </div>
         </Card>
@@ -320,21 +388,27 @@ function SettingsPage() {
 
 
         <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold">API para integração externa (CRM)</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Use esta chave para enviar contatos de outros sistemas (HubSpot, RD, n8n, Zapier…).</p>
+          <h2 className="font-display text-lg font-semibold">Conectar com outros sistemas (CRM, automações)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Use a chave abaixo para receber contatos automaticamente do seu CRM (HubSpot, RD Station, n8n, Zapier, etc).
+            Se nunca usou isso, pode ignorar esta seção — não é obrigatório para enviar mensagens.
+          </p>
           <div className="mt-4 space-y-3">
-            <ReadOnly label="Endpoint POST" value={ingestUrl} onCopy={() => copy(ingestUrl, "Endpoint")} />
+            <ReadOnly label="Endereço para envio (POST)" value={ingestUrl} onCopy={() => copy(ingestUrl, "Endpoint")} />
             <div className="space-y-1.5">
-              <Label>Sua API key</Label>
+              <Label>Sua chave de acesso</Label>
               <div className="flex gap-2">
                 <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
-                <Button variant="outline" onClick={() => copy(form.api_key ?? "", "API key")}><Copy className="h-4 w-4" /></Button>
-                <Button variant="outline" onClick={() => rotateMut.mutate()} disabled={rotateMut.isPending}>
+                <Button variant="outline" onClick={() => copy(form.api_key ?? "", "API key")} title="Copiar"><Copy className="h-4 w-4" /></Button>
+                <Button variant="outline" onClick={() => rotateMut.mutate()} disabled={rotateMut.isPending} title="Gerar nova chave (a antiga deixa de funcionar)">
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para sua conta.</p>
             </div>
-            <pre className="overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
+            <details className="rounded-md border bg-muted/30 p-3 text-xs">
+              <summary className="cursor-pointer font-medium text-foreground">Exemplo técnico para desenvolvedores</summary>
+              <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
 {`curl -X POST ${ingestUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${form.api_key ?? "SUA_API_KEY"}" \\
@@ -345,9 +419,11 @@ function SettingsPage() {
     "custom_fields": {"empresa": "Acme"},
     "tags": ["lead-quente"]
   }'`}
-            </pre>
+              </pre>
+            </details>
           </div>
         </Card>
+
 
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
@@ -496,10 +572,13 @@ function Divider({ active }: { active: boolean }) {
   return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
-function Field({ label, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
+function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="flex items-baseline gap-2">
+        <span>{label}</span>
+        {sublabel && <span className="text-[11px] font-normal text-muted-foreground">{sublabel}</span>}
+      </Label>
       <Input
         type={type}
         value={value ?? ""}
@@ -509,6 +588,7 @@ function Field({ label, value, onChange, type = "text", placeholder, digitsOnly,
         inputMode={digitsOnly ? "numeric" : undefined}
         pattern={digitsOnly ? "[0-9]*" : undefined}
       />
+      {hint && !error && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
