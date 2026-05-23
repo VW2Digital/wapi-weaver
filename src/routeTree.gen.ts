@@ -26,6 +26,7 @@ import { Route as AppCampaignsRouteImport } from './routes/_app/campaigns'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
+import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
@@ -115,6 +116,11 @@ const ApiPublicWhatsappWebhookRoute =
     path: '/api/public/whatsapp-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
+  id: '/api/admin/schema-dump',
+  path: '/api/admin/schema-dump',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppCampaignsIdRoute = AppCampaignsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
+  '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -170,6 +177,7 @@ export interface FileRoutesByTo {
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
+  '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/_app/templates': typeof AppTemplatesRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
+  '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/campaigns/$id'
+    | '/api/admin/schema-dump'
     | '/api/public/whatsapp-webhook'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/campaigns/$id'
+    | '/api/admin/schema-dump'
     | '/api/public/whatsapp-webhook'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/_app/templates'
     | '/_app/users'
     | '/_app/campaigns/$id'
+    | '/api/admin/schema-dump'
     | '/api/public/whatsapp-webhook'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -272,6 +284,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   TermsRoute: typeof TermsRoute
+  ApiAdminSchemaDumpRoute: typeof ApiAdminSchemaDumpRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/schema-dump': {
+      id: '/api/admin/schema-dump'
+      path: '/api/admin/schema-dump'
+      fullPath: '/api/admin/schema-dump'
+      preLoaderRoute: typeof ApiAdminSchemaDumpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/campaigns/$id': {
       id: '/_app/campaigns/$id'
       path: '/$id'
@@ -468,6 +488,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   TermsRoute: TermsRoute,
+  ApiAdminSchemaDumpRoute: ApiAdminSchemaDumpRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
