@@ -141,17 +141,62 @@ function SettingsPage() {
         <AdminPlatformSection />
 
         <Card className="p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">1</div>
+            <div className="flex-1">
+              <h2 className="font-display text-lg font-semibold">Conectar sua conta do WhatsApp</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Preencha os 3 dados abaixo. Você encontra todos no painel da Meta em{" "}
+                <strong>business.facebook.com</strong> → <strong>WhatsApp Manager</strong> → <strong>Configurações da API</strong>.
+                <br />
+                <span className="text-xs">Não tem ainda? Crie grátis em <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">business.facebook.com</a>.</span>
+              </p>
+            </div>
+          </div>
 
-          <h2 className="font-display text-lg font-semibold">Credenciais Meta</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Encontre no <strong>Meta Business Manager → WhatsApp Manager → Configurações da API</strong>. Os campos numéricos aceitam apenas dígitos (0-9).</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="Phone Number ID" digitsOnly value={form.whatsapp_phone_number_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }} placeholder="Ex: 1065xxxxxxxxx" error={errors.whatsapp_phone_number_id} />
-            <Field label="WhatsApp Business Account ID (WABA)" digitsOnly value={form.whatsapp_waba_id} onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }} placeholder="Ex: 1123xxxxxxxxx" error={errors.whatsapp_waba_id} />
-            <Field label="Número do WhatsApp (apenas exibição)" value={form.whatsapp_business_phone} onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })} placeholder="5511999990000" />
-            <Field label="Rate limit (msg/seg)" type="number" value={form.rate_limit_per_second?.toString() ?? "20"} onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })} />
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <Field
+              label="ID do número de telefone"
+              sublabel="(Phone Number ID)"
+              digitsOnly
+              value={form.whatsapp_phone_number_id}
+              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }}
+              placeholder="Ex: 106500000000000"
+              hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
+              error={errors.whatsapp_phone_number_id}
+            />
+            <Field
+              label="ID da conta WhatsApp Business"
+              sublabel="(WABA ID)"
+              digitsOnly
+              value={form.whatsapp_waba_id}
+              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }}
+              placeholder="Ex: 112300000000000"
+              hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
+              error={errors.whatsapp_waba_id}
+            />
+            <Field
+              label="Seu número de WhatsApp"
+              sublabel="(só para exibição)"
+              value={form.whatsapp_business_phone}
+              onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })}
+              placeholder="5511999990000"
+              hint="Com DDD e código do país. Ex.: 55 (Brasil) + 11 (DDD) + número."
+            />
+            <Field
+              label="Velocidade de envio"
+              sublabel="(mensagens por segundo)"
+              type="number"
+              value={form.rate_limit_per_second?.toString() ?? "20"}
+              onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })}
+              hint="Deixe 20 se não souber. Aumente só se a Meta liberou um limite maior para sua conta."
+            />
 
             <div className="md:col-span-2 space-y-1.5">
-              <Label>Access Token permanente (System User)</Label>
+              <Label className="flex items-baseline gap-2">
+                <span>Token de acesso permanente</span>
+                <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
+              </Label>
               <Textarea
                 rows={3}
                 value={form.whatsapp_access_token ?? ""}
@@ -159,14 +204,19 @@ function SettingsPage() {
                 placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
                 className="font-mono text-xs"
               />
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                É uma "senha" longa que começa com <code className="text-[10px]">EAA</code>. Gere em <strong>Meta Business → Configurações → Usuários do sistema</strong> — crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as permissões <code className="text-[10px]">whatsapp_business_messaging</code> e <code className="text-[10px]">whatsapp_business_management</code>.
+                <br />
+                <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
+              </p>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-5 flex flex-wrap gap-2">
             <Button onClick={() => {
               const nextErrors: Record<string, string | null> = {};
-              const err1 = validateDigitsField(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID");
+              const err1 = validateDigitsField(String(form.whatsapp_phone_number_id ?? ""), "ID do número de telefone");
               if (err1) nextErrors.whatsapp_phone_number_id = err1;
-              const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "WABA ID");
+              const err2 = validateDigitsField(String(form.whatsapp_waba_id ?? ""), "ID da conta WhatsApp Business");
               if (err2) nextErrors.whatsapp_waba_id = err2;
               setErrors(nextErrors);
               if (Object.keys(nextErrors).length > 0) {
@@ -180,23 +230,27 @@ function SettingsPage() {
                 whatsapp_access_token: form.whatsapp_access_token,
                 rate_limit_per_second: form.rate_limit_per_second,
               });
-            }} disabled={saveMut.isPending}>Salvar credenciais</Button>
+            }} disabled={saveMut.isPending}>Salvar e conectar</Button>
             <Button variant="outline" onClick={() => pingMut.mutate()} disabled={pingMut.isPending}>
-              Testar conexão
+              Testar conexão agora
             </Button>
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            💡 Clique em <strong>"Testar conexão"</strong> depois de salvar — se aparecer ✅, está tudo certo.
+          </p>
           {pingResult && (
             <ResultAlert
               ok={!!pingResult.ok}
               successContent={
-                <span>Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade: {pingResult.info?.quality_rating}</span>
+                <span>Tudo certo! Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade do número: {pingResult.info?.quality_rating}</span>
               }
               error={pingResult.error}
               details={pingResult.details ?? pingResult.error}
-              fallback="Não foi possível conectar à WhatsApp Cloud API."
+              fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
             />
           )}
         </Card>
+
 
         <Card className="p-6">
           <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
