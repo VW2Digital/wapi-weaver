@@ -132,7 +132,7 @@ function SettingsPage() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden settings-light">
       <PageHeader title="Configurações" subtitle="Cole aqui suas credenciais do WhatsApp Cloud API." />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
