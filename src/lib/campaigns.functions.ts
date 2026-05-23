@@ -52,10 +52,11 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (!campaign) return { campaign: null, messages: [], template: null };
     const { data: messages } = await context.supabase
       .from("campaign_messages")
-      .select("*")
+      .select("*, contacts(name)")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: false })
       .limit(500);
+
     let template = null;
     if (campaign.template_id) {
       const { data: t } = await context.supabase
