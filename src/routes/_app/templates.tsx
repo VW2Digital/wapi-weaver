@@ -57,12 +57,16 @@ function TemplatesPage() {
             <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
               <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
             </Button>
-            <Button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar com Meta
+            <Button variant="outline" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar
             </Button>
+            <TemplateBuilderDialog
+              trigger={<Button><Plus className="mr-2 h-4 w-4" /> Novo template</Button>}
+            />
           </div>
         }
       />
+
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {isLoading && <CardGridSkeleton count={6} />}
         {!isLoading && (data ?? []).length === 0 && (
