@@ -17,12 +17,19 @@ import { createTemplate, type CreateTemplateInput } from "@/lib/templates.functi
 type HeaderState =
   | { format: "NONE" }
   | { format: "TEXT"; text: string }
-  | { format: "IMAGE" | "VIDEO" | "DOCUMENT"; example_url: string };
+  | { format: "IMAGE" | "VIDEO" | "DOCUMENT"; example_url: string }
+  | { format: "LOCATION" };
 
 type ButtonState =
   | { type: "QUICK_REPLY"; text: string }
-  | { type: "URL"; text: string; url: string }
-  | { type: "PHONE_NUMBER"; text: string; phone_number: string };
+  | { type: "URL"; text: string; url: string; example?: string[] }
+  | { type: "PHONE_NUMBER"; text: string; phone_number: string }
+  | { type: "COPY_CODE"; example: string[] }
+  | { type: "CATALOG"; text: string }
+  | { type: "MPM"; text: string }
+  | { type: "FLOW"; text: string; flow_id: string; flow_action: "navigate" | "data_exchange"; navigate_screen?: string }
+  | { type: "OTP"; otp_type: "COPY_CODE" | "ONE_TAP" | "ZERO_TAP"; text?: string; autofill_text?: string; package_name?: string; signature_hash?: string }
+  | { type: "VOICE_CALL"; text: string };
 
 const LANGS = [
   { v: "pt_BR", l: "Português (BR)" },
