@@ -147,55 +147,48 @@ function TemplatesPage() {
         )}
         {!isLoading && (data ?? []).length > 0 && (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <Input
-                className="max-w-sm"
-                placeholder="Buscar template por nome, status ou categoria…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                Selecionar todos ({filtered.length})
-              </label>
-              {someSelected && (
-                <div className="ml-auto flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm">
-                  <span className="font-medium">{selected.size} selecionado(s)</span>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={bulkDelete}
-                    disabled={bulkMut.isPending}
-                  >
-                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Filtrar por tipo:</span>
-              {["Marketing", "Utility", "Authentication"].map((cat) => {
-                const active = categoryFilter === cat;
-                return (
-                  <Button
-                    key={cat}
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    onClick={() => setCategoryFilter(active ? null : cat)}
-                  >
-                    {cat}
-                  </Button>
-                );
-              })}
-              {categoryFilter && (
-                <Button size="sm" variant="ghost" onClick={() => setCategoryFilter(null)}>
-                  <X className="mr-1 h-3 w-3" /> Limpar filtro
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              className="max-w-sm"
+              placeholder="Buscar template por nome, status ou categoria…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <Select
+              value={categoryFilter ?? "all"}
+              onValueChange={(v) => setCategoryFilter(v === "all" ? null : v)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="Marketing">Marketing</SelectItem>
+                <SelectItem value="Utility">Utility</SelectItem>
+                <SelectItem value="Authentication">Authentication</SelectItem>
+              </SelectContent>
+            </Select>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+              Selecionar todos ({filtered.length})
+            </label>
+            {someSelected && (
+              <div className="ml-auto flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm">
+                <span className="font-medium">{selected.size} selecionado(s)</span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={bulkDelete}
+                  disabled={bulkMut.isPending}
+                >
+                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
                 </Button>
-              )}
-            </div>
+                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
