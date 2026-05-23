@@ -37,6 +37,7 @@ function TemplatesPage() {
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const syncMut = useMutation({
     mutationFn: () => sync(),
@@ -62,10 +63,12 @@ function TemplatesPage() {
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return (data ?? []).filter((t: any) =>
-      !s || t.name.toLowerCase().includes(s) || t.status.toLowerCase().includes(s) || (t.category ?? "").toLowerCase().includes(s),
-    );
-  }, [data, search]);
+    return (data ?? []).filter((t: any) => {
+      const matchesSearch = !s || t.name.toLowerCase().includes(s) || t.status.toLowerCase().includes(s) || (t.category ?? "").toLowerCase().includes(s);
+      const matchesCategory = !categoryFilter || (t.category ?? "").toLowerCase() === categoryFilter.toLowerCase();
+      return matchesSearch && matchesCategory;
+    });
+  }, [data, search, categoryFilter]);
 
   const allSelected = filtered.length > 0 && filtered.every((t: any) => selected.has(t.id));
   const someSelected = selected.size > 0;
@@ -142,33 +145,56 @@ function TemplatesPage() {
           </Card>
         )}
         {!isLoading && (data ?? []).length > 0 && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              className="max-w-sm"
-              placeholder="Buscar template por nome, status ou categoria…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-              <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-              Selecionar todos ({filtered.length})
-            </label>
-            {someSelected && (
-              <div className="ml-auto flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm">
-                <span className="font-medium">{selected.size} selecionado(s)</span>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={bulkDelete}
-                  disabled={bulkMut.isPending}
-                >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                className="max-w-sm"
+                placeholder="Buscar template por nome, status ou categoria…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                Selecionar todos ({filtered.length})
+              </label>
+              {someSelected && (
+                <div className="ml-auto flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm">
+                  <span className="font-medium">{selected.size} selecionado(s)</span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={bulkDelete}
+                    disabled={bulkMut.isPending}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Filtrar por tipo:</span>
+              {["Marketing", "Utility", "Authentication"].map((cat) => {
+                const active = categoryFilter === cat;
+                return (
+                  <Button
+                    key={cat}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => setCategoryFilter(active ? null : cat)}
+                  >
+                    {cat}
+                  </Button>
+                );
+              })}
+              {categoryFilter && (
+                <Button size="sm" variant="ghost" onClick={() => setCategoryFilter(null)}>
+                  <X className="mr-1 h-3 w-3" /> Limpar filtro
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
