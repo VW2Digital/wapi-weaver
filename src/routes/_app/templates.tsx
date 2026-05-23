@@ -63,10 +63,12 @@ function TemplatesPage() {
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return (data ?? []).filter((t: any) =>
-      !s || t.name.toLowerCase().includes(s) || t.status.toLowerCase().includes(s) || (t.category ?? "").toLowerCase().includes(s),
-    );
-  }, [data, search]);
+    return (data ?? []).filter((t: any) => {
+      const matchesSearch = !s || t.name.toLowerCase().includes(s) || t.status.toLowerCase().includes(s) || (t.category ?? "").toLowerCase().includes(s);
+      const matchesCategory = !categoryFilter || (t.category ?? "").toLowerCase() === categoryFilter.toLowerCase();
+      return matchesSearch && matchesCategory;
+    });
+  }, [data, search, categoryFilter]);
 
   const allSelected = filtered.length > 0 && filtered.every((t: any) => selected.has(t.id));
   const someSelected = selected.size > 0;
