@@ -47,15 +47,25 @@ export const getCampaign = createServerFn({ method: "POST" })
       .from("campaigns")
       .select("*")
       .eq("id", data.id)
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!campaign) return { campaign: null, messages: [], template: null };
     const { data: messages } = await context.supabase
       .from("campaign_messages")
       .select("*")
       .eq("campaign_id", data.id)
       .order("created_at", { ascending: false })
       .limit(500);
-    return { campaign, messages: messages ?? [] };
+    let template = null;
+    if (campaign.template_id) {
+      const { data: t } = await context.supabase
+        .from("templates")
+        .select("id, name, language, components")
+        .eq("id", campaign.template_id)
+        .maybeSingle();
+      template = t;
+    }
+    return { campaign, messages: messages ?? [], template };
   });
 
 export const createCampaign = createServerFn({ method: "POST" })
