@@ -175,6 +175,42 @@ export const deleteTemplate = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deleteTemplatesBulk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ ids: z.array(z.string().uuid()).min(1).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: tpls } = await context.supabase
+      .from("templates")
+      .select("id, name, meta_template_id")
+      .in("id", data.ids);
+
+    const remote = (tpls ?? []).filter(
+      (t) => t.meta_template_id && !t.meta_template_id.startsWith("local_") && !t.meta_template_id.startsWith("sample_"),
+    );
+
+    if (remote.length > 0) {
+      const { data: p } = await context.supabase
+        .from("profiles")
+        .select("whatsapp_waba_id, whatsapp_access_token")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+        await Promise.all(
+          remote.map((t) =>
+            fetch(
+              `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
+              { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
+            ).catch(() => null),
+          ),
+        );
+      }
+    }
+
+    const { error } = await context.supabase.from("templates").delete().in("id", data.ids);
+    if (error) throw error;
+    return { ok: true, deleted: data.ids.length };
+  });
+
 
 
 export const listTemplates = createServerFn({ method: "GET" })
