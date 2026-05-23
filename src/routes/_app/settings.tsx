@@ -947,11 +947,54 @@ function ExportSchemaButton() {
     }
   }
 
+  async function handleEndpoint() {
+    setLoading(true);
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Sessão expirada — faça login novamente.");
+
+      const resp = await fetch("/api/admin/schema-dump", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) {
+        throw new Error(`Falha (${resp.status}) ao chamar o endpoint`);
+      }
+      const blob = await resp.blob();
+      const cd = resp.headers.get("content-disposition") ?? "";
+      const m = /filename="([^"]+)"/.exec(cd);
+      const filename =
+        m?.[1] ??
+        `schema-public-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.sql`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Download iniciado");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha no endpoint");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Button type="button" variant="outline" onClick={handleExport} disabled={loading}>
-      <Download className="h-4 w-4" />
-      {loading ? "Gerando…" : "Baixar schema.sql"}
-    </Button>
+    <>
+      <Button type="button" variant="outline" onClick={handleExport} disabled={loading}>
+        <Download className="h-4 w-4" />
+        {loading ? "Gerando…" : "Baixar schema.sql"}
+      </Button>
+      <Button type="button" variant="ghost" onClick={handleEndpoint} disabled={loading}>
+        <Download className="h-4 w-4" />
+        Via endpoint /api/admin/schema-dump
+      </Button>
+    </>
   );
 }
 
