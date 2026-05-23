@@ -59,7 +59,51 @@ async function processStatusUpdate(value: any) {
   }
 }
 
+async function processTemplateStatusUpdate(value: any) {
+  // Meta sends: { message_template_id, message_template_name, message_template_language, event, reason, ... }
+  const metaId = value?.message_template_id ? String(value.message_template_id) : null;
+  const name = value?.message_template_name as string | undefined;
+  const language = value?.message_template_language as string | undefined;
+  const event = (value?.event as string | undefined)?.toUpperCase();
+  // Map Meta events to our enum
+  const statusMap: Record<string, string> = {
+    APPROVED: "APPROVED",
+    REJECTED: "REJECTED",
+    PENDING: "PENDING",
+    IN_APPEAL: "PENDING",
+    PENDING_DELETION: "PENDING",
+    DELETED: "DISABLED",
+    DISABLED: "DISABLED",
+    PAUSED: "PAUSED",
+    FLAGGED: "PAUSED",
+    REINSTATED: "APPROVED",
+  };
+  const status = event && statusMap[event];
+  if (!status) return;
+
+  const update: any = { status, synced_at: new Date().toISOString() };
+
+  // Try match by meta_template_id first, fall back to name+language
+  let query = supabaseAdmin.from("templates").update(update);
+  if (metaId) {
+    await query.eq("meta_template_id", metaId);
+  } else if (name && language) {
+    await supabaseAdmin.from("templates").update(update).eq("name", name).eq("language", language);
+  }
+}
+
+async function processTemplateCategoryUpdate(value: any) {
+  const metaId = value?.message_template_id ? String(value.message_template_id) : null;
+  const newCategory = value?.new_category as string | undefined;
+  if (!metaId || !newCategory) return;
+  await supabaseAdmin
+    .from("templates")
+    .update({ category: newCategory, synced_at: new Date().toISOString() })
+    .eq("meta_template_id", metaId);
+}
+
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
+
   server: {
     handlers: {
       // Meta verification
