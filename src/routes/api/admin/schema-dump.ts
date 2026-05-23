@@ -1,0 +1,110 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+// GET /api/admin/schema-dump
+// Endpoint seguro que gera o dump (apenas schema, sem dados) do schema `public`
+// e devolve como arquivo .sql para download. Requer um usuário autenticado COM
+// papel `admin`. Equivale a `pg_dump --schema-only -n public`.
+//
+// Autenticação: header `Authorization: Bearer <access_token>` do usuário logado.
+// (No painel, basta usar o link/botão "Baixar via endpoint" — o token é anexado
+// automaticamente pelo client.)
+export const Route = createFileRoute("/api/admin/schema-dump")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        try {
+          // 1) Validar Bearer token
+          const authz = request.headers.get("authorization") ?? "";
+          const token = authz.toLowerCase().startsWith("bearer ")
+            ? authz.slice(7).trim()
+            : "";
+          if (!token) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+
+          // 2) Resolver usuário a partir do token (admin client valida o JWT)
+          const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+          if (userErr || !userData.user) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+          const userId = userData.user.id;
+
+          // 3) Verificar papel admin
+          const { data: roles, error: rolesErr } = await supabaseAdmin
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userId);
+          if (rolesErr) {
+            return new Response("Internal error", { status: 500 });
+          }
+          const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+          if (!isAdmin) {
+            return new Response("Forbidden", { status: 403 });
+          }
+
+          // 4) Gerar dump via função SECURITY DEFINER no Postgres
+          // (`export_schema_sql_internal` é restrita ao service_role; chamamos com
+          // o supabaseAdmin para evitar passar pelo gate do `has_role`).
+          const { data: sql, error: rpcErr } = await (supabaseAdmin as any).rpc(
+            "export_schema_sql_internal",
+          );
+          if (rpcErr) {
+            console.error("[schema-dump] rpc error", rpcErr);
+            return new Response("Failed to generate dump", { status: 500 });
+          }
+
+          const body = String(sql ?? "");
+          const ts = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-")
+            .slice(0, 19);
+          const filename = `schema-public-${ts}.sql`;
+
+          // 5) Registrar auditoria (best-effort)
+          try {
+            await supabaseAdmin.from("audit_logs").insert({
+              user_id: userId,
+              action: "platform.schema_dump.endpoint",
+              entity_type: "database",
+              entity_id: "public",
+              metadata: { bytes: body.length },
+            } as any);
+          } catch {
+            // ignore
+          }
+
+          return new Response(body, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/sql; charset=utf-8",
+              "Content-Disposition": `attachment; filename="${filename}"`,
+              "Cache-Control": "no-store",
+              "X-Content-Type-Options": "nosniff",
+            },
+          });
+        } catch (e: any) {
+          console.error("[schema-dump] unexpected", e);
+          return new Response("Internal error", { status: 500 });
+        }
+      },
+
+      // CORS preflight (caso seja chamado de outra origem com Authorization)
+      OPTIONS: async () => {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Max-Age": "86400",
+          },
+        });
+      },
+    },
+  },
+});
+
+// Suppress unused import in some bundlers — createClient is intentionally not
+// used here (we rely on supabaseAdmin for both auth.getUser and rpc).
+void createClient;
