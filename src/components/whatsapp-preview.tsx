@@ -1,11 +1,20 @@
-import { ExternalLink, Phone, Reply, FileText, Video } from "lucide-react";
+import { ExternalLink, Phone, Reply, FileText, Video, Copy, ShoppingBag, LayoutGrid, Zap, KeyRound, PhoneCall, MapPin } from "lucide-react";
+
+type Button = {
+  type: string;
+  text?: string;
+  url?: string;
+  phone_number?: string;
+  example?: string[];
+  otp_type?: string;
+};
 
 type Component = {
   type: string;
   format?: string;
   text?: string;
-  example?: { header_handle?: string[] };
-  buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>;
+  example?: { header_handle?: string[]; header_text?: string[] };
+  buttons?: Button[];
 };
 
 function renderText(s?: string, vars?: Record<string, string>) {
@@ -61,6 +70,11 @@ export function WhatsAppPreview({
             <FileText className="h-4 w-4" /> Documento anexado
           </div>
         )}
+        {header?.format === "LOCATION" && (
+          <div className="mb-2 flex h-24 w-full items-center justify-center rounded-md bg-neutral-200 text-neutral-600">
+            <MapPin className="h-6 w-6" />
+          </div>
+        )}
         {header?.format === "TEXT" && header.text && (
           <p className="mb-1 text-sm font-semibold text-neutral-900">
             {renderText(header.text, variables)}
@@ -79,17 +93,35 @@ export function WhatsAppPreview({
 
       {buttons.length > 0 && (
         <div className="ml-auto mt-1 max-w-[300px] space-y-1">
-          {buttons.map((b, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-center gap-2 rounded-lg bg-white py-2 text-sm font-medium text-[#00a5f4] shadow-sm"
-            >
-              {b.type === "URL" && <ExternalLink className="h-3.5 w-3.5" />}
-              {b.type === "PHONE_NUMBER" && <Phone className="h-3.5 w-3.5" />}
-              {b.type === "QUICK_REPLY" && <Reply className="h-3.5 w-3.5" />}
-              <span>{b.text}</span>
-            </div>
-          ))}
+          {buttons.map((b, i) => {
+            const label =
+              b.type === "OTP"
+                ? (b.text || (b.otp_type === "COPY_CODE" ? "Copiar código" : "Verificar"))
+                : b.type === "COPY_CODE"
+                  ? `Copiar código${b.example?.[0] ? ` (${b.example[0]})` : ""}`
+                  : b.type === "CATALOG"
+                    ? (b.text || "Ver catálogo")
+                    : b.type === "MPM"
+                      ? (b.text || "Ver produtos")
+                      : b.text;
+            return (
+              <div
+                key={i}
+                className="flex items-center justify-center gap-2 rounded-lg bg-white py-2 text-sm font-medium text-[#00a5f4] shadow-sm"
+              >
+                {b.type === "URL" && <ExternalLink className="h-3.5 w-3.5" />}
+                {b.type === "PHONE_NUMBER" && <Phone className="h-3.5 w-3.5" />}
+                {b.type === "QUICK_REPLY" && <Reply className="h-3.5 w-3.5" />}
+                {b.type === "COPY_CODE" && <Copy className="h-3.5 w-3.5" />}
+                {b.type === "CATALOG" && <ShoppingBag className="h-3.5 w-3.5" />}
+                {b.type === "MPM" && <LayoutGrid className="h-3.5 w-3.5" />}
+                {b.type === "FLOW" && <Zap className="h-3.5 w-3.5" />}
+                {b.type === "OTP" && <KeyRound className="h-3.5 w-3.5" />}
+                {b.type === "VOICE_CALL" && <PhoneCall className="h-3.5 w-3.5" />}
+                <span>{label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

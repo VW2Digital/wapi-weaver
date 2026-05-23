@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Phone, Reply } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Phone, Reply, Copy, ShoppingBag, LayoutGrid, Zap, KeyRound, PhoneCall } from "lucide-react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,19 @@ import { createTemplate, type CreateTemplateInput } from "@/lib/templates.functi
 type HeaderState =
   | { format: "NONE" }
   | { format: "TEXT"; text: string }
-  | { format: "IMAGE" | "VIDEO" | "DOCUMENT"; example_url: string };
+  | { format: "IMAGE" | "VIDEO" | "DOCUMENT"; example_url: string }
+  | { format: "LOCATION" };
 
 type ButtonState =
   | { type: "QUICK_REPLY"; text: string }
-  | { type: "URL"; text: string; url: string }
-  | { type: "PHONE_NUMBER"; text: string; phone_number: string };
+  | { type: "URL"; text: string; url: string; example?: string[] }
+  | { type: "PHONE_NUMBER"; text: string; phone_number: string }
+  | { type: "COPY_CODE"; example: string[] }
+  | { type: "CATALOG"; text: string }
+  | { type: "MPM"; text: string }
+  | { type: "FLOW"; text: string; flow_id: string; flow_action: "navigate" | "data_exchange"; navigate_screen?: string }
+  | { type: "OTP"; otp_type: "COPY_CODE" | "ONE_TAP" | "ZERO_TAP"; text?: string; autofill_text?: string; package_name?: string; signature_hash?: string }
+  | { type: "VOICE_CALL"; text: string };
 
 const LANGS = [
   { v: "pt_BR", l: "Português (BR)" },
@@ -63,9 +70,13 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
   }, [bodyVarCount]);
 
   const previewComponents: any[] = [];
-  if (header.format === "TEXT") previewComponents.push({ type: "HEADER", format: "TEXT", text: header.text });
-  else if (header.format !== "NONE")
+  if (header.format === "TEXT") {
+    previewComponents.push({ type: "HEADER", format: "TEXT", text: header.text });
+  } else if (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT") {
     previewComponents.push({ type: "HEADER", format: header.format, example: { header_handle: [header.example_url] } });
+  } else if (header.format === "LOCATION") {
+    previewComponents.push({ type: "HEADER", format: "LOCATION" });
+  }
   if (body) previewComponents.push({ type: "BODY", text: body });
   if (footer) previewComponents.push({ type: "FOOTER", text: footer });
   if (buttons.length) previewComponents.push({ type: "BUTTONS", buttons });
@@ -81,11 +92,13 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
             ? { format: "NONE" }
             : header.format === "TEXT"
               ? { format: "TEXT", text: header.text }
-              : { format: header.format, example_url: header.example_url },
+              : header.format === "LOCATION"
+                ? { format: "LOCATION" }
+                : { format: header.format, example_url: header.example_url },
         body,
         body_examples: bodyExamples.filter((s) => s.length > 0),
         footer: footer || undefined,
-        buttons: buttons.length ? buttons : undefined,
+        buttons: buttons.length ? (buttons as any) : undefined,
       };
       return submit({ data: payload });
     },
@@ -106,9 +119,25 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
 
   function addButton(type: ButtonState["type"]) {
     if (buttons.length >= 10) return;
-    if (type === "QUICK_REPLY") setButtons([...buttons, { type, text: "" }]);
-    else if (type === "URL") setButtons([...buttons, { type, text: "", url: "https://" }]);
-    else setButtons([...buttons, { type, text: "", phone_number: "+55" }]);
+    let nb: ButtonState;
+    switch (type) {
+      case "QUICK_REPLY": nb = { type, text: "" }; break;
+      case "URL": nb = { type, text: "", url: "https://" }; break;
+      case "PHONE_NUMBER": nb = { type, text: "", phone_number: "+55" }; break;
+      case "COPY_CODE": nb = { type, example: [""] }; break;
+      case "CATALOG": nb = { type, text: "Ver catálogo" }; break;
+      case "MPM": nb = { type, text: "Ver produtos" }; break;
+      case "FLOW": nb = { type, text: "", flow_id: "", flow_action: "navigate" }; break;
+      case "OTP": nb = { type, otp_type: "COPY_CODE", text: "Copiar código" }; break;
+      case "VOICE_CALL": nb = { type, text: "Ligar" }; break;
+    }
+    setButtons([...buttons, nb!]);
+  }
+
+  function updateButton(i: number, patch: Partial<ButtonState>) {
+    const next = [...buttons];
+    next[i] = { ...(next[i] as any), ...(patch as any) };
+    setButtons(next);
   }
 
   return (
@@ -163,6 +192,7 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
                 <Select value={header.format} onValueChange={(v: any) => {
                   if (v === "NONE") setHeader({ format: "NONE" });
                   else if (v === "TEXT") setHeader({ format: "TEXT", text: "" });
+                  else if (v === "LOCATION") setHeader({ format: "LOCATION" });
                   else setHeader({ format: v, example_url: "" });
                 }}>
                   <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
@@ -172,6 +202,7 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
                     <SelectItem value="IMAGE">Imagem</SelectItem>
                     <SelectItem value="VIDEO">Vídeo</SelectItem>
                     <SelectItem value="DOCUMENT">Documento</SelectItem>
+                    <SelectItem value="LOCATION">Localização</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -244,64 +275,130 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
 
             {/* Buttons */}
             <Card className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <h3 className="font-medium">Botões ({buttons.length}/10)</h3>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" onClick={() => addButton("QUICK_REPLY")} disabled={buttons.length >= 10}>
-                    <Reply className="mr-1 h-3.5 w-3.5" /> Resposta rápida
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => addButton("URL")} disabled={buttons.length >= 10}>
-                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> Link
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => addButton("PHONE_NUMBER")} disabled={buttons.length >= 10}>
-                    <Phone className="mr-1 h-3.5 w-3.5" /> Telefone
-                  </Button>
-                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Button size="sm" variant="outline" onClick={() => addButton("QUICK_REPLY")} disabled={buttons.length >= 10}>
+                  <Reply className="mr-1 h-3.5 w-3.5" /> Resposta rápida
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("URL")} disabled={buttons.length >= 10}>
+                  <ExternalLink className="mr-1 h-3.5 w-3.5" /> Link
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("PHONE_NUMBER")} disabled={buttons.length >= 10}>
+                  <Phone className="mr-1 h-3.5 w-3.5" /> Telefone
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("COPY_CODE")} disabled={buttons.length >= 10}>
+                  <Copy className="mr-1 h-3.5 w-3.5" /> Copiar código
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("CATALOG")} disabled={buttons.length >= 10}>
+                  <ShoppingBag className="mr-1 h-3.5 w-3.5" /> Catálogo
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("MPM")} disabled={buttons.length >= 10}>
+                  <LayoutGrid className="mr-1 h-3.5 w-3.5" /> Multi-produto
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("FLOW")} disabled={buttons.length >= 10}>
+                  <Zap className="mr-1 h-3.5 w-3.5" /> Flow
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("OTP")} disabled={buttons.length >= 10}>
+                  <KeyRound className="mr-1 h-3.5 w-3.5" /> OTP (auth)
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addButton("VOICE_CALL")} disabled={buttons.length >= 10}>
+                  <PhoneCall className="mr-1 h-3.5 w-3.5" /> Chamada
+                </Button>
               </div>
               {buttons.length === 0 && (
-                <p className="text-xs text-muted-foreground">Nenhum botão. Adicione até 10 (Meta exige tipos compatíveis).</p>
+                <p className="text-xs text-muted-foreground">Nenhum botão. A Meta exige tipos compatíveis (ex.: OTP só em templates de Autenticação; Catálogo/MPM exigem catálogo conectado).</p>
               )}
               <div className="space-y-2">
-                {buttons.map((b, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded border p-2">
-                    <span className="mt-2 text-xs font-medium text-muted-foreground w-16">
-                      {b.type === "QUICK_REPLY" ? "Resposta" : b.type === "URL" ? "Link" : "Telefone"}
-                    </span>
-                    <div className="flex-1 grid gap-2 md:grid-cols-2">
-                      <Input
-                        placeholder="Texto do botão (até 25)"
-                        maxLength={25}
-                        value={b.text}
-                        onChange={(e) => {
-                          const next = [...buttons]; next[i] = { ...b, text: e.target.value }; setButtons(next);
-                        }}
-                      />
-                      {b.type === "URL" && (
-                        <Input
-                          placeholder="https://…"
-                          value={b.url}
-                          onChange={(e) => {
-                            const next = [...buttons]; next[i] = { ...b, url: e.target.value }; setButtons(next);
-                          }}
-                        />
-                      )}
-                      {b.type === "PHONE_NUMBER" && (
-                        <Input
-                          placeholder="+5511999999999"
-                          value={b.phone_number}
-                          onChange={(e) => {
-                            const next = [...buttons]; next[i] = { ...b, phone_number: e.target.value }; setButtons(next);
-                          }}
-                        />
-                      )}
+                {buttons.map((b, i) => {
+                  const labels: Record<string, string> = {
+                    QUICK_REPLY: "Resposta", URL: "Link", PHONE_NUMBER: "Telefone",
+                    COPY_CODE: "Cód.", CATALOG: "Catálogo", MPM: "Produtos",
+                    FLOW: "Flow", OTP: "OTP", VOICE_CALL: "Voz",
+                  };
+                  return (
+                    <div key={i} className="flex items-start gap-2 rounded border p-2">
+                      <span className="mt-2 w-16 shrink-0 text-xs font-medium text-muted-foreground">{labels[b.type]}</span>
+                      <div className="flex-1 grid gap-2 md:grid-cols-2">
+                        {b.type === "QUICK_REPLY" && (
+                          <Input className="md:col-span-2" placeholder="Texto (até 25)" maxLength={25}
+                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                        )}
+                        {b.type === "URL" && (<>
+                          <Input placeholder="Texto do botão" maxLength={25}
+                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                          <Input placeholder="https://exemplo.com/{{1}}"
+                            value={b.url} onChange={(e) => updateButton(i, { url: e.target.value } as any)} />
+                          {b.url.includes("{{1}}") && (
+                            <Input className="md:col-span-2" placeholder="Exemplo do valor de {{1}} na URL"
+                              value={b.example?.[0] ?? ""}
+                              onChange={(e) => updateButton(i, { example: [e.target.value] } as any)} />
+                          )}
+                        </>)}
+                        {b.type === "PHONE_NUMBER" && (<>
+                          <Input placeholder="Texto do botão" maxLength={25}
+                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                          <Input placeholder="+5511999999999"
+                            value={b.phone_number} onChange={(e) => updateButton(i, { phone_number: e.target.value } as any)} />
+                        </>)}
+                        {b.type === "COPY_CODE" && (
+                          <Input className="md:col-span-2" placeholder="Código de exemplo (ex.: PROMO10)" maxLength={15}
+                            value={b.example[0] ?? ""}
+                            onChange={(e) => updateButton(i, { example: [e.target.value] } as any)} />
+                        )}
+                        {(b.type === "CATALOG" || b.type === "MPM" || b.type === "VOICE_CALL") && (
+                          <Input className="md:col-span-2" placeholder="Texto do botão" maxLength={25}
+                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                        )}
+                        {b.type === "FLOW" && (<>
+                          <Input placeholder="Texto do botão" maxLength={25}
+                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                          <Input placeholder="Flow ID"
+                            value={b.flow_id} onChange={(e) => updateButton(i, { flow_id: e.target.value } as any)} />
+                          <Select value={b.flow_action} onValueChange={(v: any) => updateButton(i, { flow_action: v } as any)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="navigate">navigate</SelectItem>
+                              <SelectItem value="data_exchange">data_exchange</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {b.flow_action === "navigate" && (
+                            <Input placeholder="Tela inicial (opcional)"
+                              value={b.navigate_screen ?? ""}
+                              onChange={(e) => updateButton(i, { navigate_screen: e.target.value } as any)} />
+                          )}
+                        </>)}
+                        {b.type === "OTP" && (<>
+                          <Select value={b.otp_type} onValueChange={(v: any) => updateButton(i, { otp_type: v } as any)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="COPY_CODE">Copy code</SelectItem>
+                              <SelectItem value="ONE_TAP">One-tap autofill</SelectItem>
+                              <SelectItem value="ZERO_TAP">Zero-tap</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input placeholder="Texto do botão (opcional)" maxLength={25}
+                            value={b.text ?? ""} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                          {(b.otp_type === "ONE_TAP" || b.otp_type === "ZERO_TAP") && (<>
+                            <Input placeholder="Autofill text" maxLength={25}
+                              value={b.autofill_text ?? ""} onChange={(e) => updateButton(i, { autofill_text: e.target.value } as any)} />
+                            <Input placeholder="Package name (Android)"
+                              value={b.package_name ?? ""} onChange={(e) => updateButton(i, { package_name: e.target.value } as any)} />
+                            <Input className="md:col-span-2" placeholder="Signature hash (Android)"
+                              value={b.signature_hash ?? ""} onChange={(e) => updateButton(i, { signature_hash: e.target.value } as any)} />
+                          </>)}
+                        </>)}
+                      </div>
+                      <Button size="icon" variant="ghost" onClick={() => setButtons(buttons.filter((_, j) => j !== i))}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
-                    <Button size="icon" variant="ghost" onClick={() => setButtons(buttons.filter((_, j) => j !== i))}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
+
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => { reset(); setOpen(false); }}>Cancelar</Button>
