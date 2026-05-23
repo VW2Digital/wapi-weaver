@@ -138,6 +138,7 @@ function CampaignDetailPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted text-xs uppercase text-muted-foreground">
                   <tr>
+                    <th className="p-3 text-left">Nome</th>
                     <th className="p-3 text-left">Telefone</th>
                     <th className="p-3 text-left">Status</th>
                     <th className="p-3 text-left">Enviada</th>
@@ -149,6 +150,7 @@ function CampaignDetailPage() {
                 <tbody>
                   {data.messages.map((m: any) => (
                     <tr key={m.id} className="border-t hover:bg-muted/30">
+                      <td className="p-3 text-xs">{m.contacts?.name || <span className="text-muted-foreground">—</span>}</td>
                       <td className="p-3 font-mono text-xs">+{m.to_phone}</td>
                       <td className="p-3">{MSG_STATUS[m.status] ?? m.status}</td>
                       <td className="p-3 text-xs text-muted-foreground">{m.sent_at ? new Date(m.sent_at).toLocaleString("pt-BR") : "—"}</td>
@@ -158,8 +160,9 @@ function CampaignDetailPage() {
                     </tr>
                   ))}
                   {data.messages.length === 0 && (
-                    <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">Sem mensagens ainda.</td></tr>
+                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Sem mensagens ainda.</td></tr>
                   )}
+
                 </tbody>
               </table>
             </div>
