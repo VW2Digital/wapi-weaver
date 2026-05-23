@@ -121,18 +121,37 @@ async function processOnce() {
   return { processed };
 }
 
+function timingSafeEqStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let res = 0;
+  for (let i = 0; i < a.length; i++) res |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return res === 0;
+}
+
 async function checkCronAuth(request: Request): Promise<Response | null> {
   const { data } = await supabaseAdmin
     .from("platform_settings")
     .select("cron_secret")
     .eq("id", 1)
     .maybeSingle();
-  const secret = (data as any)?.cron_secret as string | null | undefined;
-  if (!secret) return null; // sem segredo configurado em /settings → modo aberto (dev)
+  const dbSecret = (data as any)?.cron_secret as string | null | undefined;
+  const envSecret = process.env.CRON_SECRET;
+  const secret = (dbSecret && dbSecret.trim()) || (envSecret && envSecret.trim()) || null;
+
+  // Fail-closed: sem segredo configurado, o endpoint fica bloqueado.
+  if (!secret) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "cron_secret not configured" }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const header =
     request.headers.get("x-cron-secret") ??
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (header !== secret) {
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    "";
+
+  if (!timingSafeEqStr(header, secret)) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },

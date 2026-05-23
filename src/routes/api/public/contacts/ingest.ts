@@ -11,23 +11,41 @@ const schema = z.object({
   tags: z.array(z.string().max(40)).max(20).optional(),
 });
 
+// CORS: integrações server-to-server (CRM, n8n, Zapier) não precisam de wildcard.
+// Origens permitidas via env CORS_ALLOWED_ORIGINS (separadas por vírgula).
+function pickAllowedOrigin(request: Request): string | null {
+  const origin = request.headers.get("origin");
+  if (!origin) return null;
+  const list = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.includes(origin) ? origin : null;
+}
+
+function corsHeaders(request: Request, extra: Record<string, string> = {}) {
+  const allow = pickAllowedOrigin(request);
+  const h: Record<string, string> = { ...extra };
+  if (allow) {
+    h["Access-Control-Allow-Origin"] = allow;
+    h["Vary"] = "Origin";
+  }
+  return h;
+}
+
 export const Route = createFileRoute("/api/public/contacts/ingest")({
   server: {
     handlers: {
-      OPTIONS: async () =>
+      OPTIONS: async ({ request }) =>
         new Response(null, {
           status: 204,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
+          headers: corsHeaders(request, {
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
-          },
+          }),
         }),
       POST: async ({ request }) => {
-        const cors = {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json",
-        };
+        const cors = corsHeaders(request, { "Content-Type": "application/json" });
         const apiKey = request.headers.get("x-api-key");
         if (!apiKey) return new Response(JSON.stringify({ error: "Missing X-API-Key" }), { status: 401, headers: cors });
 
