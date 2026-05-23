@@ -161,8 +161,16 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
 export const getTestMessageStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ wamid: z.string().trim().min(5).max(200) }).parse(d))
-  .handler(async ({ data }) => {
-    // últimos 200 eventos é mais do que suficiente para um teste manual
+  .handler(async ({ data, context }) => {
+    // SECURITY: o wamid precisa pertencer ao usuário autenticado antes de varrermos webhook_events.
+    const { data: owned } = await supabaseAdmin
+      .from("campaign_messages")
+      .select("id")
+      .eq("user_id", context.userId)
+      .eq("wa_message_id", data.wamid)
+      .maybeSingle();
+    if (!owned) return { found: false as const };
+
     const { data: events } = await supabaseAdmin
       .from("webhook_events")
       .select("raw, received_at")
@@ -195,5 +203,6 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
 
     return best ? { found: true, ...best } : { found: false };
   });
+
 
 
