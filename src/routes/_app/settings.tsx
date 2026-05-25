@@ -242,10 +242,30 @@ function SettingsPage() {
             />
 
             <div className="md:col-span-2 space-y-1.5">
-              <Label className="flex items-baseline gap-2">
-                <span>Token de acesso permanente</span>
-                <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="flex items-baseline gap-2">
+                  <span>Token de acesso permanente</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(form.whatsapp_access_token ?? "");
+                      toast.success("Access Token copiado");
+                    }}
+                    title="Copiar Access Token"
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
+                  </Button>
+                  <Button variant="outline" size="sm" asChild title="Abrir na Meta">
+                    <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir na Meta
+                    </a>
+                  </Button>
+                </div>
+              </div>
               {(() => {
                 const tokenValue = form.whatsapp_access_token ?? "";
                 const v = validateAccessToken(tokenValue);
