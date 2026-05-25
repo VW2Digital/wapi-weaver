@@ -194,9 +194,14 @@ function SettingsPage() {
               sublabel="(Phone Number ID)"
               digitsOnly
               value={form.whatsapp_phone_number_id}
-              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }}
+              onChange={(v) => {
+                const { error } = validateMetaId(v, "Phone Number ID");
+                setErrors((e) => ({ ...e, whatsapp_phone_number_id: error }));
+                setForm({ ...form, whatsapp_phone_number_id: v });
+              }}
               placeholder="Ex: 106500000000000"
               hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
+              success={validateMetaId(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID").ok ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos` : null}
               error={errors.whatsapp_phone_number_id}
             />
             <Field
@@ -204,11 +209,17 @@ function SettingsPage() {
               sublabel="(WABA ID)"
               digitsOnly
               value={form.whatsapp_waba_id}
-              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }}
+              onChange={(v) => {
+                const { error } = validateMetaId(v, "WABA ID");
+                setErrors((e) => ({ ...e, whatsapp_waba_id: error }));
+                setForm({ ...form, whatsapp_waba_id: v });
+              }}
               placeholder="Ex: 112300000000000"
               hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
+              success={validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos` : null}
               error={errors.whatsapp_waba_id}
             />
+
             <Field
               label="Seu número de WhatsApp"
               sublabel="(só para exibição)"
