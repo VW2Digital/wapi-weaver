@@ -261,9 +261,11 @@ function SettingsPage() {
             />
           )}
         </Card>
+              )}
 
-
+              {step === 2 && (
         <Card className="p-6">
+
           <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
