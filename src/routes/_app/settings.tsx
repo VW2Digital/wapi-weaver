@@ -465,6 +465,95 @@ function SettingsPage() {
   );
 }
 
+function SetupWizard({
+  credentialsComplete,
+  webhookComplete,
+  testComplete,
+  children,
+}: {
+  credentialsComplete: boolean;
+  webhookComplete: boolean;
+  testComplete: boolean;
+  children: (step: number) => React.ReactNode;
+}) {
+  const steps = useMemo(
+    () => [
+      { label: "Credenciais", icon: KeyRound, done: credentialsComplete },
+      { label: "Webhook", icon: Webhook, done: webhookComplete },
+      { label: "Teste", icon: Send, done: testComplete },
+    ],
+    [credentialsComplete, webhookComplete, testComplete],
+  );
+  const [step, setStep] = useState(0);
+  const doneCount = steps.filter((s) => s.done).length;
+  const progress = Math.round((doneCount / steps.length) * 100);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b bg-muted/30 p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Assistente de configuração</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Etapa {step + 1} de {steps.length} · {doneCount} de {steps.length} concluída(s)
+            </p>
+          </div>
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{progress}%</span>
+        </div>
+        <Progress value={progress} className="mt-4" />
+
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          {steps.map((s, i) => {
+            const Icon = s.icon;
+            const active = i === step;
+            return (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => setStep(i)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                  active ? "border-primary bg-primary/5 text-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                    s.done ? "bg-success text-success-foreground" : active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {s.done ? <Check className="h-4 w-4" /> : i + 1}
+                </span>
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[10px] uppercase tracking-wide opacity-70">Etapa {i + 1}</span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <Icon className="h-3.5 w-3.5" />
+                    {s.label}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="p-2 md:p-4">{children(step)}</div>
+
+      <div className="flex items-center justify-between border-t bg-muted/20 px-6 py-4">
+        <Button variant="outline" size="sm" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+          <ChevronLeft className="h-4 w-4" /> Voltar
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {steps[step].done ? "Etapa concluída ✓" : "Preencha os campos desta etapa"}
+        </span>
+        <Button size="sm" onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))} disabled={step === steps.length - 1}>
+          Próxima <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function AppearanceCard() {
   const { theme, isSystem, resetTheme, setTheme } = useTheme();
 
