@@ -394,8 +394,13 @@ function SettingsPage() {
             </div>
           </div>
         </Card>
+              )}
+            </>
+          )}
+        </SetupWizard>
 
         <WebhookHealthCard />
+
 
 
 
