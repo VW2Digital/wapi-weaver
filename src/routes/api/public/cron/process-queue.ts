@@ -3,9 +3,36 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const BATCH = 60;
+const STUCK_SENDING_MINUTES = 5;
+const WEBHOOK_EVENTS_RETENTION_DAYS = 30;
 
 async function processOnce() {
-  // Promote scheduled drafts whose time has come
+  // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
+  const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
+  await supabaseAdmin
+    .from("campaign_messages")
+    .update({ status: "pending" })
+    .eq("status", "sending")
+    .lt("sent_at", stuckCutoff);
+  // sent_at é null enquanto está "sending"; usamos created_at como fallback
+  await supabaseAdmin
+    .from("campaign_messages")
+    .update({ status: "pending" })
+    .eq("status", "sending")
+    .is("sent_at", null)
+    .lt("created_at", stuckCutoff);
+
+  // 0b. Limpa webhook_events processados antigos (>30 dias)
+  if (Math.random() < 0.1) {
+    const retCutoff = new Date(Date.now() - WEBHOOK_EVENTS_RETENTION_DAYS * 86_400_000).toISOString();
+    await supabaseAdmin
+      .from("webhook_events")
+      .delete()
+      .eq("processed", true)
+      .lt("received_at", retCutoff);
+  }
+
+  // Promove drafts agendados que já chegaram à hora
   await supabaseAdmin
     .from("campaigns")
     .update({ status: "queued" })
