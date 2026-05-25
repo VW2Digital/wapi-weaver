@@ -331,12 +331,55 @@ function SettingsPage() {
                 rate_limit_per_second: form.rate_limit_per_second,
               });
             }} disabled={saveMut.isPending}>Salvar e conectar</Button>
-            <Button variant="outline" onClick={() => pingMut.mutate()} disabled={pingMut.isPending}>
-              Testar conexão agora
+            <Button variant="outline" onClick={() => {
+              // Pré-validação: identifica EXATAMENTE quais campos faltam ou estão inválidos
+              const checks: { key: string; label: string; problem: string | null }[] = [];
+              const phoneId = String(form.whatsapp_phone_number_id ?? "").trim();
+              const wabaId = String(form.whatsapp_waba_id ?? "").trim();
+              const token = String(form.whatsapp_access_token ?? "").trim();
+
+              checks.push({
+                key: "whatsapp_phone_number_id",
+                label: "ID do número de telefone",
+                problem: !phoneId ? "está vazio" : validateDigitsField(phoneId, "ID do número de telefone"),
+              });
+              checks.push({
+                key: "whatsapp_waba_id",
+                label: "ID da conta WhatsApp Business (WABA ID)",
+                problem: !wabaId ? "está vazio" : validateDigitsField(wabaId, "ID da conta WhatsApp Business"),
+              });
+              const tokenCheck = validateAccessToken(token);
+              checks.push({
+                key: "whatsapp_access_token",
+                label: "Token de acesso permanente",
+                problem: !token ? "está vazio" : (tokenCheck.error ?? null),
+              });
+
+              const missing = checks.filter((c) => c.problem);
+              if (missing.length > 0) {
+                const nextErrors: Record<string, string | null> = { ...errors };
+                missing.forEach((m) => { nextErrors[m.key] = m.problem!; });
+                setErrors(nextErrors);
+                setPingResult({
+                  ok: false,
+                  error: missing.length === 1
+                    ? `Falta preencher: ${missing[0].label}.`
+                    : `Faltam ${missing.length} campos para testar a conexão.`,
+                  missingFields: missing.map((m) => ({ label: m.label, problem: m.problem })),
+                });
+                toast.error(missing.length === 1
+                  ? `Preencha: ${missing[0].label}`
+                  : `${missing.length} campos pendentes`);
+                return;
+              }
+              setPingResult(null);
+              pingMut.mutate();
+            }} disabled={pingMut.isPending}>
+              {pingMut.isPending ? "Testando…" : "Testar agora"}
             </Button>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            💡 Clique em <strong>"Testar conexão"</strong> depois de salvar — se aparecer ✅, está tudo certo.
+            💡 Clique em <strong>"Testar agora"</strong> depois de salvar — vamos verificar a conexão e dizer exatamente o que está faltando, se faltar algo.
           </p>
           {pingResult && (
             <ResultAlert
@@ -345,7 +388,18 @@ function SettingsPage() {
                 <span>Tudo certo! Conectado a <strong>{pingResult.info?.verified_name}</strong> ({pingResult.info?.display_phone_number}) · qualidade do número: {pingResult.info?.quality_rating}</span>
               }
               error={pingResult.error}
-              details={pingResult.details ?? pingResult.error}
+              details={
+                pingResult.missingFields ? (
+                  <div className="space-y-1">
+                    <p className="font-medium">Campos com problema:</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      {pingResult.missingFields.map((f: any, i: number) => (
+                        <li key={i}><strong>{f.label}</strong> — {f.problem}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (pingResult.details ?? pingResult.error)
+              }
               fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
             />
           )}
