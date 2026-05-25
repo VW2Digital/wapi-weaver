@@ -193,14 +193,15 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
     if (remote.length > 0) {
       const { data: p } = await context.supabase
         .from("profiles")
-        .select("whatsapp_waba_id, whatsapp_access_token")
+        .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
         .eq("id", context.userId)
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+        const apiVersion = p.meta_graph_version || "v20.0";
         await Promise.all(
           remote.map((t) =>
             fetch(
-              `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
+              `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
               { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
             ).catch(() => null),
           ),
