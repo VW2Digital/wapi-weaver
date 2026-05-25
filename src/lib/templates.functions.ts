@@ -97,7 +97,7 @@ export const createTemplate = createServerFn({ method: "POST" })
 
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_waba_id, whatsapp_access_token")
+      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
 
@@ -105,8 +105,9 @@ export const createTemplate = createServerFn({ method: "POST" })
     let meta_template_id: string | null = null;
 
     if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+      const apiVersion = p.meta_graph_version || "v20.0";
       const res = await fetch(
-        `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates`,
+        `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
         {
           method: "POST",
           headers: {
