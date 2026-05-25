@@ -466,6 +466,9 @@ function SettingsPage() {
               </Label>
               <div className="flex gap-2">
                 <Input value={form.whatsapp_verify_token ?? ""} onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })} placeholder="ex: meu_token_super_secreto_123" />
+                <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(form.whatsapp_verify_token ?? ""); toast.success("Verify Token copiado"); }} title="Copiar Verify Token">
+                  <Copy className="h-4 w-4" />
+                </Button>
                 <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>Salvar</Button>
               </div>
               <p className="text-[11px] text-muted-foreground">Pode ser qualquer texto que só você sabe. Depois cole o <strong>mesmo valor</strong> no campo "Verify token" da Meta.</p>
