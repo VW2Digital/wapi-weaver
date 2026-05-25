@@ -33,6 +33,29 @@ function validateDigitsField(v: string, label: string): string | null {
   return null;
 }
 
+/** Validação em tempo real para IDs da Meta (Phone Number ID e WABA ID). */
+function validateMetaId(v: string, label: string): { error: string | null; ok: boolean } {
+  if (!v) return { error: null, ok: false }; // vazio: sem erro, sem sucesso
+  if (/\D/.test(v)) return { error: `Apenas números são aceitos. Remova letras, espaços ou símbolos.`, ok: false };
+  if (v.length < 10) return { error: `Muito curto (${v.length} dígitos). O ${label} geralmente tem entre 15 e 17 dígitos.`, ok: false };
+  if (v.length > 20) return { error: `Muito longo (${v.length} dígitos). Confira se copiou apenas o ID.`, ok: false };
+  if (v.length < 14) return { error: `Está com ${v.length} dígitos — geralmente são 15 ou mais. Confira se copiou o número inteiro.`, ok: false };
+  return { error: null, ok: true };
+}
+
+/** Validação em tempo real para o Access Token da Meta. */
+function validateAccessToken(v: string): { error: string | null; warning: string | null; ok: boolean } {
+  const t = (v ?? "").trim();
+  if (!t) return { error: null, warning: null, ok: false };
+  if (/\s/.test(t)) return { error: `O token não pode conter espaços ou quebras de linha. Copie de novo, todo de uma vez.`, warning: null, ok: false };
+  if (!/^[A-Za-z0-9_-]+$/.test(t)) return { error: `O token tem caracteres inválidos. Use apenas letras, números, "_" e "-".`, warning: null, ok: false };
+  if (!t.startsWith("EAA")) return { error: `Tokens válidos começam com "EAA". Confira se copiou o Access Token correto (não a App Secret nem outro código).`, warning: null, ok: false };
+  if (t.length < 100) return { error: `Token muito curto (${t.length} caracteres). Tokens permanentes da Meta têm cerca de 200 caracteres.`, warning: null, ok: false };
+  if (t.length < 150) return { error: null, warning: `Token com ${t.length} caracteres parece incompleto. Tokens permanentes costumam ter ~200. Copie tudo de novo se algo estiver faltando.`, ok: true };
+  return { error: null, warning: null, ok: true };
+}
+
+
 function SettingsPage() {
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
@@ -171,9 +194,14 @@ function SettingsPage() {
               sublabel="(Phone Number ID)"
               digitsOnly
               value={form.whatsapp_phone_number_id}
-              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_phone_number_id: null })); setForm({ ...form, whatsapp_phone_number_id: v }); }}
+              onChange={(v) => {
+                const { error } = validateMetaId(v, "Phone Number ID");
+                setErrors((e) => ({ ...e, whatsapp_phone_number_id: error }));
+                setForm({ ...form, whatsapp_phone_number_id: v });
+              }}
               placeholder="Ex: 106500000000000"
               hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
+              success={validateMetaId(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID").ok ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos` : null}
               error={errors.whatsapp_phone_number_id}
             />
             <Field
@@ -181,11 +209,17 @@ function SettingsPage() {
               sublabel="(WABA ID)"
               digitsOnly
               value={form.whatsapp_waba_id}
-              onChange={(v) => { setErrors((e) => ({ ...e, whatsapp_waba_id: null })); setForm({ ...form, whatsapp_waba_id: v }); }}
+              onChange={(v) => {
+                const { error } = validateMetaId(v, "WABA ID");
+                setErrors((e) => ({ ...e, whatsapp_waba_id: error }));
+                setForm({ ...form, whatsapp_waba_id: v });
+              }}
               placeholder="Ex: 112300000000000"
               hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
+              success={validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos` : null}
               error={errors.whatsapp_waba_id}
             />
+
             <Field
               label="Seu número de WhatsApp"
               sublabel="(só para exibição)"
@@ -208,19 +242,50 @@ function SettingsPage() {
                 <span>Token de acesso permanente</span>
                 <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
               </Label>
-              <Textarea
-                rows={3}
-                value={form.whatsapp_access_token ?? ""}
-                onChange={(e) => setForm({ ...form, whatsapp_access_token: e.target.value })}
-                placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
-                className="font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                É uma "senha" longa que começa com <code className="text-[10px]">EAA</code>. Gere em <strong>Meta Business → Configurações → Usuários do sistema</strong> — crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as permissões <code className="text-[10px]">whatsapp_business_messaging</code> e <code className="text-[10px]">whatsapp_business_management</code>.
-                <br />
-                <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
-              </p>
+              {(() => {
+                const tokenValue = form.whatsapp_access_token ?? "";
+                const v = validateAccessToken(tokenValue);
+                return (
+                  <>
+                    <Textarea
+                      rows={3}
+                      value={tokenValue}
+                      onChange={(e) => setForm({ ...form, whatsapp_access_token: e.target.value })}
+                      placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
+                      className={cn(
+                        "font-mono text-xs",
+                        v.error && "border-destructive focus-visible:ring-destructive",
+                        !v.error && v.ok && "border-success/60 focus-visible:ring-success",
+                      )}
+                    />
+                    {v.error && (
+                      <p className="flex items-start gap-1.5 text-xs text-destructive">
+                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{v.error}</span>
+                      </p>
+                    )}
+                    {!v.error && v.warning && (
+                      <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{v.warning}</span>
+                      </p>
+                    )}
+                    {!v.error && !v.warning && v.ok && (
+                      <p className="flex items-center gap-1.5 text-xs text-success">
+                        <Check className="h-3.5 w-3.5" />
+                        Formato OK · {tokenValue.trim().length} caracteres
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      É uma "senha" longa que começa com <code className="text-[10px]">EAA</code>. Gere em <strong>Meta Business → Configurações → Usuários do sistema</strong> — crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as permissões <code className="text-[10px]">whatsapp_business_messaging</code> e <code className="text-[10px]">whatsapp_business_management</code>.
+                      <br />
+                      <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
+                    </p>
+                  </>
+                );
+              })()}
             </div>
+
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button onClick={() => {
@@ -678,7 +743,7 @@ function Divider({ active }: { active: boolean }) {
   return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
-function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
+function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error, success }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null; success?: string | null }) {
   return (
     <div className="space-y-1.5">
       <Label className="flex items-baseline gap-2">
@@ -690,15 +755,30 @@ function Field({ label, sublabel, hint, value, onChange, type = "text", placehol
         value={value ?? ""}
         onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
         placeholder={placeholder}
-        className={error ? "border-destructive focus-visible:ring-destructive" : ""}
+        className={cn(
+          error && "border-destructive focus-visible:ring-destructive",
+          !error && success && "border-success/60 focus-visible:ring-success",
+        )}
         inputMode={digitsOnly ? "numeric" : undefined}
         pattern={digitsOnly ? "[0-9]*" : undefined}
       />
-      {hint && !error && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
+      {!error && success && (
+        <p className="flex items-center gap-1.5 text-xs text-success">
+          <Check className="h-3.5 w-3.5" />
+          {success}
+        </p>
+      )}
+      {hint && !error && !success && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
     </div>
   );
 }
+
 function ReadOnly({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
   return (
     <div className="space-y-1.5">
