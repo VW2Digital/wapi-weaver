@@ -164,7 +164,11 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         }
 
         const payload = JSON.parse(rawBody);
-        await supabaseAdmin.from("webhook_events").insert({ raw: payload });
+        const { data: evRow } = await supabaseAdmin
+          .from("webhook_events")
+          .insert({ raw: payload })
+          .select("id")
+          .single();
 
         for (const entry of payload.entry ?? []) {
           for (const change of entry.changes ?? []) {
@@ -177,6 +181,13 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               await processTemplateCategoryUpdate(change.value, matchedUserId);
             }
           }
+        }
+
+        if (evRow?.id) {
+          await supabaseAdmin
+            .from("webhook_events")
+            .update({ processed: true })
+            .eq("id", evRow.id);
         }
 
         return new Response("ok", { status: 200 });
