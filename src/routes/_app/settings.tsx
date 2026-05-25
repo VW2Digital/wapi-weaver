@@ -242,19 +242,50 @@ function SettingsPage() {
                 <span>Token de acesso permanente</span>
                 <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
               </Label>
-              <Textarea
-                rows={3}
-                value={form.whatsapp_access_token ?? ""}
-                onChange={(e) => setForm({ ...form, whatsapp_access_token: e.target.value })}
-                placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
-                className="font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                É uma "senha" longa que começa com <code className="text-[10px]">EAA</code>. Gere em <strong>Meta Business → Configurações → Usuários do sistema</strong> — crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as permissões <code className="text-[10px]">whatsapp_business_messaging</code> e <code className="text-[10px]">whatsapp_business_management</code>.
-                <br />
-                <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
-              </p>
+              {(() => {
+                const tokenValue = form.whatsapp_access_token ?? "";
+                const v = validateAccessToken(tokenValue);
+                return (
+                  <>
+                    <Textarea
+                      rows={3}
+                      value={tokenValue}
+                      onChange={(e) => setForm({ ...form, whatsapp_access_token: e.target.value })}
+                      placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
+                      className={cn(
+                        "font-mono text-xs",
+                        v.error && "border-destructive focus-visible:ring-destructive",
+                        !v.error && v.ok && "border-success/60 focus-visible:ring-success",
+                      )}
+                    />
+                    {v.error && (
+                      <p className="flex items-start gap-1.5 text-xs text-destructive">
+                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{v.error}</span>
+                      </p>
+                    )}
+                    {!v.error && v.warning && (
+                      <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{v.warning}</span>
+                      </p>
+                    )}
+                    {!v.error && !v.warning && v.ok && (
+                      <p className="flex items-center gap-1.5 text-xs text-success">
+                        <Check className="h-3.5 w-3.5" />
+                        Formato OK · {tokenValue.trim().length} caracteres
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      É uma "senha" longa que começa com <code className="text-[10px]">EAA</code>. Gere em <strong>Meta Business → Configurações → Usuários do sistema</strong> — crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as permissões <code className="text-[10px]">whatsapp_business_messaging</code> e <code className="text-[10px]">whatsapp_business_management</code>.
+                      <br />
+                      <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
+                    </p>
+                  </>
+                );
+              })()}
             </div>
+
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button onClick={() => {
