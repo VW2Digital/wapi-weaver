@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useRef, useState } from "react";
+import { Progress } from "@/components/ui/progress";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
@@ -140,6 +141,16 @@ function SettingsPage() {
         <ChangePasswordCard />
         <AdminPlatformSection />
 
+        <SetupWizard
+          credentialsComplete={!!(form.whatsapp_phone_number_id && form.whatsapp_waba_id && form.whatsapp_access_token)}
+          webhookComplete={!!(form.whatsapp_verify_token && form.whatsapp_app_secret)}
+          testComplete={!!testResult?.ok}
+        >
+          {(step) => (
+            <>
+              {step === 0 && (
+
+
         <Card className="p-6">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">1</div>
@@ -250,9 +261,11 @@ function SettingsPage() {
             />
           )}
         </Card>
+              )}
 
-
+              {step === 2 && (
         <Card className="p-6">
+
           <h2 className="font-display text-lg font-semibold">Enviar mensagem de teste</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
@@ -340,12 +353,11 @@ function SettingsPage() {
             </>
           )}
         </Card>
+              )}
 
-
-
-
-
+              {step === 1 && (
         <Card className="p-6">
+
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">2</div>
             <div className="flex-1">
@@ -382,8 +394,13 @@ function SettingsPage() {
             </div>
           </div>
         </Card>
+              )}
+            </>
+          )}
+        </SetupWizard>
 
         <WebhookHealthCard />
+
 
 
 
@@ -445,6 +462,95 @@ function SettingsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function SetupWizard({
+  credentialsComplete,
+  webhookComplete,
+  testComplete,
+  children,
+}: {
+  credentialsComplete: boolean;
+  webhookComplete: boolean;
+  testComplete: boolean;
+  children: (step: number) => React.ReactNode;
+}) {
+  const steps = useMemo(
+    () => [
+      { label: "Credenciais", icon: KeyRound, done: credentialsComplete },
+      { label: "Webhook", icon: Webhook, done: webhookComplete },
+      { label: "Teste", icon: Send, done: testComplete },
+    ],
+    [credentialsComplete, webhookComplete, testComplete],
+  );
+  const [step, setStep] = useState(0);
+  const doneCount = steps.filter((s) => s.done).length;
+  const progress = Math.round((doneCount / steps.length) * 100);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b bg-muted/30 p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Assistente de configuração</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Etapa {step + 1} de {steps.length} · {doneCount} de {steps.length} concluída(s)
+            </p>
+          </div>
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{progress}%</span>
+        </div>
+        <Progress value={progress} className="mt-4" />
+
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          {steps.map((s, i) => {
+            const Icon = s.icon;
+            const active = i === step;
+            return (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => setStep(i)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                  active ? "border-primary bg-primary/5 text-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                    s.done ? "bg-success text-success-foreground" : active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {s.done ? <Check className="h-4 w-4" /> : i + 1}
+                </span>
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[10px] uppercase tracking-wide opacity-70">Etapa {i + 1}</span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <Icon className="h-3.5 w-3.5" />
+                    {s.label}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="p-2 md:p-4">{children(step)}</div>
+
+      <div className="flex items-center justify-between border-t bg-muted/20 px-6 py-4">
+        <Button variant="outline" size="sm" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+          <ChevronLeft className="h-4 w-4" /> Voltar
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {steps[step].done ? "Etapa concluída ✓" : "Preencha os campos desta etapa"}
+        </span>
+        <Button size="sm" onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))} disabled={step === steps.length - 1}>
+          Próxima <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </Card>
   );
 }
 
