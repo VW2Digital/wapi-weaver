@@ -54,13 +54,14 @@ export const pingMeta = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const r = await fetch(`https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}?fields=display_phone_number,verified_name,quality_rating`, {
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}?fields=display_phone_number,verified_name,quality_rating`, {
       headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
     });
     const body = await r.json();
