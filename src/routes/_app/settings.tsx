@@ -743,25 +743,39 @@ function Divider({ active }: { active: boolean }) {
   return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
-function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error, success }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null; success?: string | null }) {
+function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error, success, metaUrl, copyLabel }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null; success?: string | null; metaUrl?: string; copyLabel?: string }) {
   return (
     <div className="space-y-1.5">
       <Label className="flex items-baseline gap-2">
         <span>{label}</span>
         {sublabel && <span className="text-[11px] font-normal text-muted-foreground">{sublabel}</span>}
       </Label>
-      <Input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
-        placeholder={placeholder}
-        className={cn(
-          error && "border-destructive focus-visible:ring-destructive",
-          !error && success && "border-success/60 focus-visible:ring-success",
+      <div className="flex gap-2">
+        <Input
+          type={type}
+          value={value ?? ""}
+          onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
+          placeholder={placeholder}
+          className={cn(
+            error && "border-destructive focus-visible:ring-destructive",
+            !error && success && "border-success/60 focus-visible:ring-success",
+          )}
+          inputMode={digitsOnly ? "numeric" : undefined}
+          pattern={digitsOnly ? "[0-9]*" : undefined}
+        />
+        {copyLabel && (
+          <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(String(value ?? "")); toast.success(`${copyLabel} copiado`); }} title={`Copiar ${copyLabel}`}>
+            <Copy className="h-4 w-4" />
+          </Button>
         )}
-        inputMode={digitsOnly ? "numeric" : undefined}
-        pattern={digitsOnly ? "[0-9]*" : undefined}
-      />
+        {metaUrl && (
+          <Button variant="outline" size="icon" asChild title="Abrir na Meta">
+            <a href={metaUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+        )}
+      </div>
       {error && (
         <p className="flex items-start gap-1.5 text-xs text-destructive">
           <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
