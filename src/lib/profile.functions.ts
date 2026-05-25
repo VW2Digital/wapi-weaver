@@ -80,7 +80,7 @@ export const sendTestMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
@@ -93,8 +93,9 @@ export const sendTestMessage = createServerFn({ method: "POST" })
       text: data.text ?? "Mensagem de teste ✅",
     });
 
+    const apiVersion = p.meta_graph_version || "v20.0";
     const r = await fetch(
-      `https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}/messages`,
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
       {
         method: "POST",
         headers: {
