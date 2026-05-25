@@ -480,6 +480,14 @@ function SettingsPage() {
               </Label>
               <div className="flex gap-2">
                 <Input type="password" value={form.whatsapp_app_secret ?? ""} onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })} placeholder="Cole aqui o App Secret" />
+                <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(form.whatsapp_app_secret ?? ""); toast.success("App Secret copiado"); }} title="Copiar App Secret">
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" asChild title="Abrir na Meta">
+                  <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
                 <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>Salvar</Button>
               </div>
               <p className="text-[11px] text-muted-foreground">No painel da Meta: <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado para confirmar que cada aviso veio mesmo da Meta.</p>
