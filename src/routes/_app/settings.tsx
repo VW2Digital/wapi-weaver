@@ -33,6 +33,29 @@ function validateDigitsField(v: string, label: string): string | null {
   return null;
 }
 
+/** Validação em tempo real para IDs da Meta (Phone Number ID e WABA ID). */
+function validateMetaId(v: string, label: string): { error: string | null; ok: boolean } {
+  if (!v) return { error: null, ok: false }; // vazio: sem erro, sem sucesso
+  if (/\D/.test(v)) return { error: `Apenas números são aceitos. Remova letras, espaços ou símbolos.`, ok: false };
+  if (v.length < 10) return { error: `Muito curto (${v.length} dígitos). O ${label} geralmente tem entre 15 e 17 dígitos.`, ok: false };
+  if (v.length > 20) return { error: `Muito longo (${v.length} dígitos). Confira se copiou apenas o ID.`, ok: false };
+  if (v.length < 14) return { error: `Está com ${v.length} dígitos — geralmente são 15 ou mais. Confira se copiou o número inteiro.`, ok: false };
+  return { error: null, ok: true };
+}
+
+/** Validação em tempo real para o Access Token da Meta. */
+function validateAccessToken(v: string): { error: string | null; warning: string | null; ok: boolean } {
+  const t = (v ?? "").trim();
+  if (!t) return { error: null, warning: null, ok: false };
+  if (/\s/.test(t)) return { error: `O token não pode conter espaços ou quebras de linha. Copie de novo, todo de uma vez.`, warning: null, ok: false };
+  if (!/^[A-Za-z0-9_-]+$/.test(t)) return { error: `O token tem caracteres inválidos. Use apenas letras, números, "_" e "-".`, warning: null, ok: false };
+  if (!t.startsWith("EAA")) return { error: `Tokens válidos começam com "EAA". Confira se copiou o Access Token correto (não a App Secret nem outro código).`, warning: null, ok: false };
+  if (t.length < 100) return { error: `Token muito curto (${t.length} caracteres). Tokens permanentes da Meta têm cerca de 200 caracteres.`, warning: null, ok: false };
+  if (t.length < 150) return { error: null, warning: `Token com ${t.length} caracteres parece incompleto. Tokens permanentes costumam ter ~200. Copie tudo de novo se algo estiver faltando.`, ok: true };
+  return { error: null, warning: null, ok: true };
+}
+
+
 function SettingsPage() {
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
