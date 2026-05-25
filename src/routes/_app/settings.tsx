@@ -743,7 +743,7 @@ function Divider({ active }: { active: boolean }) {
   return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
-function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null }) {
+function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error, success }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null; success?: string | null }) {
   return (
     <div className="space-y-1.5">
       <Label className="flex items-baseline gap-2">
@@ -755,15 +755,30 @@ function Field({ label, sublabel, hint, value, onChange, type = "text", placehol
         value={value ?? ""}
         onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
         placeholder={placeholder}
-        className={error ? "border-destructive focus-visible:ring-destructive" : ""}
+        className={cn(
+          error && "border-destructive focus-visible:ring-destructive",
+          !error && success && "border-success/60 focus-visible:ring-success",
+        )}
         inputMode={digitsOnly ? "numeric" : undefined}
         pattern={digitsOnly ? "[0-9]*" : undefined}
       />
-      {hint && !error && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
+      {!error && success && (
+        <p className="flex items-center gap-1.5 text-xs text-success">
+          <Check className="h-3.5 w-3.5" />
+          {success}
+        </p>
+      )}
+      {hint && !error && !success && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
     </div>
   );
 }
+
 function ReadOnly({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
   return (
     <div className="space-y-1.5">
