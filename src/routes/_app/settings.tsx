@@ -203,6 +203,8 @@ function SettingsPage() {
               hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
               success={validateMetaId(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID").ok ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos` : null}
               error={errors.whatsapp_phone_number_id}
+              copyLabel="Phone Number ID"
+              metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
             />
             <Field
               label="ID da conta WhatsApp Business"
