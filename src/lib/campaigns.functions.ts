@@ -131,9 +131,28 @@ export const cancelCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    // Cancela mensagens que ainda não foram enviadas
+    await context.supabase
+      .from("campaign_messages")
+      .update({
+        status: "failed",
+        failed_at: new Date().toISOString(),
+        error: { message: "Campanha cancelada pelo usuário" },
+      })
+      .eq("campaign_id", data.id)
+      .in("status", ["pending", "sending"]);
+
+    // Recalcula totais
+    const { data: agg } = await context.supabase
+      .from("campaign_messages")
+      .select("status")
+      .eq("campaign_id", data.id);
+    const totals: any = { total: agg?.length ?? 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
+    for (const r of agg ?? []) totals[r.status] = (totals[r.status] ?? 0) + 1;
+
     const { error } = await context.supabase
       .from("campaigns")
-      .update({ status: "cancelled" })
+      .update({ status: "cancelled", totals, finished_at: new Date().toISOString() })
       .eq("id", data.id);
     if (error) throw error;
     await recordAudit({

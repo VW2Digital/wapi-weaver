@@ -74,13 +74,13 @@ async function processInboundMessages(value: any, userId: string) {
     if (!text) continue;
     const isOptOut = OPT_OUT_KEYWORDS.some((k) => text === k || text.startsWith(`${k} `) || text.endsWith(` ${k}`));
     if (!isOptOut) continue;
-    // E.164 normalization: Meta sends without "+", we store with "+"
-    const phoneE164 = from.startsWith("+") ? from : `+${from}`;
+    // Contatos salvos sem "+" (apenas dígitos com DDI). Meta envia sem "+" também.
+    const phoneDigits = from.replace(/\D+/g, "");
     await supabaseAdmin
       .from("contacts")
       .update({ opted_out: true })
       .eq("user_id", userId)
-      .eq("phone_e164", phoneE164);
+      .eq("phone_e164", phoneDigits);
   }
 }
 
@@ -164,7 +164,11 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         }
 
         const payload = JSON.parse(rawBody);
-        await supabaseAdmin.from("webhook_events").insert({ raw: payload });
+        const { data: evRow } = await supabaseAdmin
+          .from("webhook_events")
+          .insert({ raw: payload })
+          .select("id")
+          .single();
 
         for (const entry of payload.entry ?? []) {
           for (const change of entry.changes ?? []) {
@@ -177,6 +181,13 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               await processTemplateCategoryUpdate(change.value, matchedUserId);
             }
           }
+        }
+
+        if (evRow?.id) {
+          await supabaseAdmin
+            .from("webhook_events")
+            .update({ processed: true })
+            .eq("id", evRow.id);
         }
 
         return new Response("ok", { status: 200 });

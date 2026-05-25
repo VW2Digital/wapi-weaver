@@ -3,9 +3,36 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const BATCH = 60;
+const STUCK_SENDING_MINUTES = 5;
+const WEBHOOK_EVENTS_RETENTION_DAYS = 30;
 
 async function processOnce() {
-  // Promote scheduled drafts whose time has come
+  // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
+  const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
+  await supabaseAdmin
+    .from("campaign_messages")
+    .update({ status: "pending" })
+    .eq("status", "sending")
+    .lt("sent_at", stuckCutoff);
+  // sent_at é null enquanto está "sending"; usamos created_at como fallback
+  await supabaseAdmin
+    .from("campaign_messages")
+    .update({ status: "pending" })
+    .eq("status", "sending")
+    .is("sent_at", null)
+    .lt("created_at", stuckCutoff);
+
+  // 0b. Limpa webhook_events processados antigos (>30 dias)
+  if (Math.random() < 0.1) {
+    const retCutoff = new Date(Date.now() - WEBHOOK_EVENTS_RETENTION_DAYS * 86_400_000).toISOString();
+    await supabaseAdmin
+      .from("webhook_events")
+      .delete()
+      .eq("processed", true)
+      .lt("received_at", retCutoff);
+  }
+
+  // Promove drafts agendados que já chegaram à hora
   await supabaseAdmin
     .from("campaigns")
     .update({ status: "queued" })
@@ -36,7 +63,7 @@ async function processOnce() {
   for (const [userId, msgs] of byUser) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version")
       .eq("id", userId)
       .maybeSingle();
 
@@ -57,7 +84,8 @@ async function processOnce() {
       .in("id", campIds)
       .eq("status", "queued");
 
-    const url = `https://graph.facebook.com/v20.0/${profile.whatsapp_phone_number_id}/messages`;
+    const apiVersion = profile.meta_graph_version || "v20.0";
+    const url = `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_phone_number_id}/messages`;
     const delayMs = Math.max(20, Math.floor(1000 / (profile.rate_limit_per_second || 20)));
 
     for (const m of msgs) {

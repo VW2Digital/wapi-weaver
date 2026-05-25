@@ -12,6 +12,7 @@ const credSchema = z.object({
   whatsapp_app_secret: z.string().trim().max(256).nullable().optional(),
   whatsapp_verify_token: z.string().trim().max(128).nullable().optional(),
   rate_limit_per_second: z.number().int().min(1).max(80).optional(),
+  meta_graph_version: z.string().trim().regex(/^v\d+\.\d+$/, "Formato v20.0").max(10).optional(),
   display_name: z.string().trim().max(100).optional(),
 });
 
@@ -54,13 +55,14 @@ export const pingMeta = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const r = await fetch(`https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}?fields=display_phone_number,verified_name,quality_rating`, {
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}?fields=display_phone_number,verified_name,quality_rating`, {
       headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
     });
     const body = await r.json();
@@ -79,7 +81,7 @@ export const sendTestMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
@@ -92,8 +94,9 @@ export const sendTestMessage = createServerFn({ method: "POST" })
       text: data.text ?? "Mensagem de teste ✅",
     });
 
+    const apiVersion = p.meta_graph_version || "v20.0";
     const r = await fetch(
-      `https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}/messages`,
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
       {
         method: "POST",
         headers: {
@@ -121,7 +124,7 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
@@ -135,8 +138,9 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
       language: "en_US",
     });
 
+    const apiVersion = p.meta_graph_version || "v20.0";
     const r = await fetch(
-      `https://graph.facebook.com/v20.0/${p.whatsapp_phone_number_id}/messages`,
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
       {
         method: "POST",
         headers: {

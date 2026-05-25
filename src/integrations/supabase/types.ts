@@ -378,6 +378,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          meta_graph_version: string
           rate_limit_per_second: number
           updated_at: string
           whatsapp_access_token: string | null
@@ -393,6 +394,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          meta_graph_version?: string
           rate_limit_per_second?: number
           updated_at?: string
           whatsapp_access_token?: string | null
@@ -408,6 +410,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          meta_graph_version?: string
           rate_limit_per_second?: number
           updated_at?: string
           whatsapp_access_token?: string | null

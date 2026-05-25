@@ -97,7 +97,7 @@ export const createTemplate = createServerFn({ method: "POST" })
 
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_waba_id, whatsapp_access_token")
+      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
 
@@ -105,8 +105,9 @@ export const createTemplate = createServerFn({ method: "POST" })
     let meta_template_id: string | null = null;
 
     if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+      const apiVersion = p.meta_graph_version || "v20.0";
       const res = await fetch(
-        `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates`,
+        `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
         {
           method: "POST",
           headers: {
@@ -160,12 +161,13 @@ export const deleteTemplate = createServerFn({ method: "POST" })
     if (tpl?.meta_template_id && !tpl.meta_template_id.startsWith("local_") && !tpl.meta_template_id.startsWith("sample_")) {
       const { data: p } = await context.supabase
         .from("profiles")
-        .select("whatsapp_waba_id, whatsapp_access_token")
+        .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
         .eq("id", context.userId)
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token && tpl?.name) {
+        const apiVersion = p.meta_graph_version || "v20.0";
         await fetch(
-          `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(tpl.name)}`,
+          `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(tpl.name)}`,
           { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
         ).catch(() => null);
       }
@@ -191,14 +193,15 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
     if (remote.length > 0) {
       const { data: p } = await context.supabase
         .from("profiles")
-        .select("whatsapp_waba_id, whatsapp_access_token")
+        .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
         .eq("id", context.userId)
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+        const apiVersion = p.meta_graph_version || "v20.0";
         await Promise.all(
           remote.map((t) =>
             fetch(
-              `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
+              `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
               { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
             ).catch(() => null),
           ),
@@ -229,14 +232,15 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { data: p } = await context.supabase
       .from("profiles")
-      .select("whatsapp_waba_id, whatsapp_access_token")
+      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
     if (!p?.whatsapp_waba_id || !p?.whatsapp_access_token) {
       throw new Error("Configure WABA ID e Access Token em Configurações");
     }
+    const apiVersion = p.meta_graph_version || "v20.0";
     const all: any[] = [];
-    let url: string | null = `https://graph.facebook.com/v20.0/${p.whatsapp_waba_id}/message_templates?fields=name,language,status,category,components,id&limit=200`;
+    let url: string | null = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=name,language,status,category,components,id&limit=200`;
     while (url) {
       const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } });
       const body: any = await r.json();
