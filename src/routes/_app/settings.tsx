@@ -220,6 +220,8 @@ function SettingsPage() {
               hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
               success={validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos` : null}
               error={errors.whatsapp_waba_id}
+              copyLabel="WABA ID"
+              metaUrl="https://business.facebook.com/wa/manage/account/"
             />
 
             <Field
