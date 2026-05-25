@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
@@ -203,6 +203,8 @@ function SettingsPage() {
               hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
               success={validateMetaId(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID").ok ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos` : null}
               error={errors.whatsapp_phone_number_id}
+              copyLabel="Phone Number ID"
+              metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
             />
             <Field
               label="ID da conta WhatsApp Business"
@@ -218,6 +220,8 @@ function SettingsPage() {
               hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
               success={validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos` : null}
               error={errors.whatsapp_waba_id}
+              copyLabel="WABA ID"
+              metaUrl="https://business.facebook.com/wa/manage/account/"
             />
 
             <Field
@@ -238,10 +242,30 @@ function SettingsPage() {
             />
 
             <div className="md:col-span-2 space-y-1.5">
-              <Label className="flex items-baseline gap-2">
-                <span>Token de acesso permanente</span>
-                <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="flex items-baseline gap-2">
+                  <span>Token de acesso permanente</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">(Access Token de System User)</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(form.whatsapp_access_token ?? "");
+                      toast.success("Access Token copiado");
+                    }}
+                    title="Copiar Access Token"
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
+                  </Button>
+                  <Button variant="outline" size="sm" asChild title="Abrir na Meta">
+                    <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir na Meta
+                    </a>
+                  </Button>
+                </div>
+              </div>
               {(() => {
                 const tokenValue = form.whatsapp_access_token ?? "";
                 const v = validateAccessToken(tokenValue);
@@ -442,6 +466,9 @@ function SettingsPage() {
               </Label>
               <div className="flex gap-2">
                 <Input value={form.whatsapp_verify_token ?? ""} onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })} placeholder="ex: meu_token_super_secreto_123" />
+                <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(form.whatsapp_verify_token ?? ""); toast.success("Verify Token copiado"); }} title="Copiar Verify Token">
+                  <Copy className="h-4 w-4" />
+                </Button>
                 <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>Salvar</Button>
               </div>
               <p className="text-[11px] text-muted-foreground">Pode ser qualquer texto que só você sabe. Depois cole o <strong>mesmo valor</strong> no campo "Verify token" da Meta.</p>
@@ -453,6 +480,14 @@ function SettingsPage() {
               </Label>
               <div className="flex gap-2">
                 <Input type="password" value={form.whatsapp_app_secret ?? ""} onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })} placeholder="Cole aqui o App Secret" />
+                <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(form.whatsapp_app_secret ?? ""); toast.success("App Secret copiado"); }} title="Copiar App Secret">
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" asChild title="Abrir na Meta">
+                  <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
                 <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>Salvar</Button>
               </div>
               <p className="text-[11px] text-muted-foreground">No painel da Meta: <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado para confirmar que cada aviso veio mesmo da Meta.</p>
@@ -743,25 +778,39 @@ function Divider({ active }: { active: boolean }) {
   return <div className={`h-px w-6 ${active ? "bg-success" : "bg-border"}`} />;
 }
 
-function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error, success }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null; success?: string | null }) {
+function Field({ label, sublabel, hint, value, onChange, type = "text", placeholder, digitsOnly, error, success, metaUrl, copyLabel }: { label: string; sublabel?: string; hint?: React.ReactNode; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; digitsOnly?: boolean; error?: string | null; success?: string | null; metaUrl?: string; copyLabel?: string }) {
   return (
     <div className="space-y-1.5">
       <Label className="flex items-baseline gap-2">
         <span>{label}</span>
         {sublabel && <span className="text-[11px] font-normal text-muted-foreground">{sublabel}</span>}
       </Label>
-      <Input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
-        placeholder={placeholder}
-        className={cn(
-          error && "border-destructive focus-visible:ring-destructive",
-          !error && success && "border-success/60 focus-visible:ring-success",
+      <div className="flex gap-2">
+        <Input
+          type={type}
+          value={value ?? ""}
+          onChange={(e) => onChange(digitsOnly ? onlyDigits(e.target.value) : e.target.value)}
+          placeholder={placeholder}
+          className={cn(
+            error && "border-destructive focus-visible:ring-destructive",
+            !error && success && "border-success/60 focus-visible:ring-success",
+          )}
+          inputMode={digitsOnly ? "numeric" : undefined}
+          pattern={digitsOnly ? "[0-9]*" : undefined}
+        />
+        {copyLabel && (
+          <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(String(value ?? "")); toast.success(`${copyLabel} copiado`); }} title={`Copiar ${copyLabel}`}>
+            <Copy className="h-4 w-4" />
+          </Button>
         )}
-        inputMode={digitsOnly ? "numeric" : undefined}
-        pattern={digitsOnly ? "[0-9]*" : undefined}
-      />
+        {metaUrl && (
+          <Button variant="outline" size="icon" asChild title="Abrir na Meta">
+            <a href={metaUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+        )}
+      </div>
       {error && (
         <p className="flex items-start gap-1.5 text-xs text-destructive">
           <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
