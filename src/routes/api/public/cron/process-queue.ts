@@ -63,7 +63,7 @@ async function processOnce() {
   for (const [userId, msgs] of byUser) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version")
       .eq("id", userId)
       .maybeSingle();
 
@@ -84,7 +84,8 @@ async function processOnce() {
       .in("id", campIds)
       .eq("status", "queued");
 
-    const url = `https://graph.facebook.com/v20.0/${profile.whatsapp_phone_number_id}/messages`;
+    const apiVersion = profile.meta_graph_version || "v20.0";
+    const url = `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_phone_number_id}/messages`;
     const delayMs = Math.max(20, Math.floor(1000 / (profile.rate_limit_per_second || 20)));
 
     for (const m of msgs) {
