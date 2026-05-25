@@ -141,6 +141,16 @@ function SettingsPage() {
         <ChangePasswordCard />
         <AdminPlatformSection />
 
+        <SetupWizard
+          credentialsComplete={!!(form.whatsapp_phone_number_id && form.whatsapp_waba_id && form.whatsapp_access_token)}
+          webhookComplete={!!(form.whatsapp_verify_token && form.whatsapp_app_secret)}
+          testComplete={!!testResult?.ok}
+        >
+          {(step) => (
+            <>
+              {step === 0 && (
+
+
         <Card className="p-6">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">1</div>
