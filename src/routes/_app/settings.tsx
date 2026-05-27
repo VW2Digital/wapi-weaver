@@ -987,13 +987,27 @@ function AdminPlatformSection() {
 
         <div className="md:col-span-2 space-y-1.5">
           <Label>App Secret</Label>
-          <Input
-            type="password"
-            value={appSecret}
-            onChange={(e) => setAppSecret(e.target.value)}
-            placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
-            className="font-mono text-xs"
-          />
+          <div className="flex gap-2">
+            <PasswordInput
+              value={appSecret}
+              onChange={(e) => setAppSecret(e.target.value)}
+              placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
+              className="font-mono text-xs"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={!appSecret}
+              onClick={() => {
+                navigator.clipboard.writeText(appSecret);
+                toast.success("App Secret copiado");
+              }}
+              title="Copiar App Secret"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
           <p className="text-[11px] text-muted-foreground">
             Configurações → Básico → Chave Secreta do App.{" "}
             {settings?.meta_app_secret_set && <span className="text-success font-medium">✓ Atualmente configurado</span>}
