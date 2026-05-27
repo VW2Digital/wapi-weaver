@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
+import { MfaChallenge } from "@/components/mfa/mfa-challenge";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
