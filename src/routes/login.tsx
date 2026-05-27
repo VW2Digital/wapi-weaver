@@ -120,11 +120,26 @@ function LoginPage() {
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-md p-8">
           <h2 className="font-display text-2xl font-semibold">
-            {mode === "signin" ? "Entrar" : "Criar conta"}
+            {mfaRequired ? "Verificação 2FA" : mode === "signin" ? "Entrar" : "Criar conta"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" ? "Acesse seu painel de disparo." : "Comece a configurar suas campanhas."}
+            {mfaRequired
+              ? "Informe o código gerado pelo seu app autenticador."
+              : mode === "signin"
+                ? "Acesse seu painel de disparo."
+                : "Comece a configurar suas campanhas."}
           </p>
+
+          {mfaRequired ? (
+            <div className="mt-6">
+              <MfaChallenge
+                onVerified={() => { setMfaRequired(false); navigate({ to: "/dashboard" }); }}
+                onCancel={() => setMfaRequired(false)}
+              />
+            </div>
+          ) : (
+          <>
+
 
           <Button type="button" variant="outline" className="mt-6 w-full" onClick={google} disabled={busy}>
             Continuar com Google
