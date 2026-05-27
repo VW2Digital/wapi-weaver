@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Phone, RefreshCw, ShoppingCart, X, KeyRound, CheckCircle2, ArrowLeft, CreditCard, ExternalLink, Wallet, Info } from "lucide-react";
+import { Loader2, Phone, RefreshCw, ShoppingCart, X, KeyRound, CheckCircle2, ArrowLeft, CreditCard, ExternalLink, Wallet, Info, Pencil, MessageSquare, Inbox } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { PasswordInput } from "@/components/password-input";
 
