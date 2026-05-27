@@ -200,7 +200,7 @@ function SettingsPage() {
                 setForm({ ...form, whatsapp_phone_number_id: v });
               }}
               placeholder="Ex: 106500000000000"
-              hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
+              hint={"⚠️ NÃO é o seu número de telefone. É um ID numérico longo (15+ dígitos) que identifica o número dentro da Meta.\n📍 Onde achar: business.facebook.com → WhatsApp Manager → Visão geral → clique no número → aparece 'ID do número de telefone'.\n👉 Use o botão de copiar ao lado do número no painel da Meta."}
               success={validateMetaId(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID").ok ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos` : null}
               error={errors.whatsapp_phone_number_id}
               copyLabel="Phone Number ID"
@@ -217,7 +217,7 @@ function SettingsPage() {
                 setForm({ ...form, whatsapp_waba_id: v });
               }}
               placeholder="Ex: 112300000000000"
-              hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
+              hint={"⚠️ É DIFERENTE do Phone Number ID acima. Esse identifica a CONTA inteira (WABA), não um número específico.\n📍 Onde achar: business.facebook.com → Configurações da empresa → Contas → Contas do WhatsApp → clique na sua conta → 'ID da conta WhatsApp Business' no topo.\n👉 Se você colocar esse valor no campo errado, vai aparecer o erro 'Object with ID does not exist'."}
               success={validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos` : null}
               error={errors.whatsapp_waba_id}
               copyLabel="WABA ID"
@@ -877,7 +877,7 @@ function Field({ label, sublabel, hint, value, onChange, type = "text", placehol
           {success}
         </p>
       )}
-      {hint && !error && !success && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
+      {hint && !error && !success && <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
     </div>
   );
 }
@@ -970,7 +970,7 @@ function AdminPlatformSection() {
             inputMode="numeric"
             pattern="[0-9]*"
           />
-          <p className="text-[11px] text-muted-foreground">Painel do App → cabeçalho superior</p>
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App (\"ID do aplicativo\").\n⚠️ Não confunda com o Business ID nem com o WABA ID."}</p>
         </div>
 
         <div className="space-y-1.5">
@@ -982,7 +982,7 @@ function AdminPlatformSection() {
             inputMode="numeric"
             pattern="[0-9]*"
           />
-          <p className="text-[11px] text-muted-foreground">WhatsApp → Configuração → Registro incorporado</p>
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."}</p>
         </div>
 
         <div className="md:col-span-2 space-y-1.5">
@@ -1017,9 +1017,9 @@ function AdminPlatformSection() {
               {mut.isPending ? "Salvando…" : "Salvar"}
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Configurações → Básico → Chave Secreta do App.{" "}
-            {settings?.meta_app_secret_set && <span className="text-success font-medium">✓ Atualmente configurado</span>}
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
+            {"📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."}
+            {settings?.meta_app_secret_set && <span className="block mt-1 text-success font-medium">✓ Atualmente configurado</span>}
           </p>
         </div>
 
