@@ -389,7 +389,7 @@ function NumbersList({ loading, items }: { loading: boolean; items: any[] }) {
   const qc = useQueryClient();
   const cancel = useServerFn(cancelSalvyNumber);
   const m = useMutation({
-    mutationFn: (salvy_id: string) => cancel({ data: { salvy_id } }),
+    mutationFn: (v: { salvy_id: string; reason: string }) => cancel({ data: v }),
     onSuccess: (r: any) => {
       if (r.ok) {
         toast.success("Número cancelado");
