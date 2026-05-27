@@ -12,6 +12,8 @@ import {
   syncSalvyNumbers,
   createSalvyNumber,
   cancelSalvyNumber,
+  updateSalvyNumber,
+  listSalvySms,
 } from "@/lib/salvy.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
