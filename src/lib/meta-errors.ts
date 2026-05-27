@@ -27,6 +27,31 @@ export function toFriendlyError(raw: unknown, fallback = "Falha ao executar a op
   const type = meta.type;
   const trace = meta.fbtrace_id;
   const message: string = meta.message || (typeof raw === "string" ? raw : fallback);
+  const lowerEarly = (message || "").toLowerCase();
+
+  // Heurística prioritária: "Object with ID ... does not exist" vem como code 100 da Meta,
+  // mas precisa de mensagem específica antes do mapeamento genérico de código.
+  if (lowerEarly.includes("does not exist") && lowerEarly.includes("missing permissions")) {
+    const idMatch = message.match(/ID ['"]?(\d+)['"]?/i);
+    const objectId = idMatch?.[1];
+    return {
+      title: "Objeto não encontrado na Meta",
+      message: objectId
+        ? `O ID "${objectId}" não foi encontrado, não pode ser acessado por falta de permissão, ou não suporta esta operação.`
+        : "O ID informado não foi encontrado, não pode ser acessado por falta de permissão, ou não suporta esta operação.",
+      hint: "Verifique 3 coisas: 1) O ID está no campo certo (Phone Number ID ≠ WABA ID — são diferentes). 2) O Access Token tem as permissões whatsapp_business_messaging e whatsapp_business_management. 3) O Usuário de Sistema que gerou o token foi adicionado à WABA como Administrador em Meta Business → Configurações → Contas do WhatsApp → Adicionar pessoas.",
+      code, type, trace,
+    };
+  }
+
+  if (lowerEarly.startsWith("unsupported get request") || lowerEarly.startsWith("unsupported post request")) {
+    return {
+      title: "Requisição não suportada pela Meta",
+      message: "A Meta rejeitou a chamada. Em geral, isso significa que o ID usado é de outro tipo de objeto (ex.: WABA ID no lugar de Phone Number ID) ou o token não tem permissão para esse recurso.",
+      hint: "Confira se Phone Number ID e WABA ID não estão trocados nas configurações, e se o Access Token tem permissão para o objeto que está sendo consultado.",
+      code, type, trace,
+    };
+  }
 
   // Mapas por código
   switch (code) {
