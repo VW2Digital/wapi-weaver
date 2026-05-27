@@ -970,7 +970,7 @@ function AdminPlatformSection() {
             inputMode="numeric"
             pattern="[0-9]*"
           />
-          <p className="text-[11px] text-muted-foreground">Painel do App → cabeçalho superior</p>
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App (\"ID do aplicativo\").\n⚠️ Não confunda com o Business ID nem com o WABA ID."}</p>
         </div>
 
         <div className="space-y-1.5">
