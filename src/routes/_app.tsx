@@ -58,10 +58,22 @@ function AppLayout() {
   const router = useRouter();
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const avatarUrl = useGravatarUrl(user?.email);
+  const gravatarUrl = useGravatarUrl(user?.email);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const { isAdmin, loading: rolesLoading } = useRoles();
+
+  useEffect(() => {
+    if (!user) { setProfileAvatar(null); return; }
+    let cancelled = false;
+    supabase.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle().then(({ data }) => {
+      if (!cancelled) setProfileAvatar(data?.avatar_url ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const avatarUrl = profileAvatar || gravatarUrl;
 
   // Close drawer on navigation
   useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
