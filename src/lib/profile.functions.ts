@@ -13,7 +13,14 @@ const credSchema = z.object({
   whatsapp_verify_token: z.string().trim().max(128).nullable().optional(),
   rate_limit_per_second: z.number().int().min(1).max(80).optional(),
   meta_graph_version: z.string().trim().regex(/^v\d+\.\d+$/, "Formato v20.0").max(10).optional(),
-  display_name: z.string().trim().max(100).optional(),
+  display_name: z.string().trim().max(100).nullable().optional(),
+  full_name: z.string().trim().max(150).nullable().optional(),
+  phone: z.string().trim().max(32).nullable().optional(),
+  avatar_url: z.string().trim().max(500).nullable().optional(),
+  company_name: z.string().trim().max(150).nullable().optional(),
+  company_document: z.string().trim().max(32).nullable().optional(),
+  company_website: z.string().trim().max(255).nullable().optional(),
+  company_address: z.string().trim().max(500).nullable().optional(),
 });
 
 export const getProfile = createServerFn({ method: "GET" })

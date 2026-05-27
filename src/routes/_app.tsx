@@ -1,7 +1,7 @@
 import { createFileRoute, Navigate, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon, Receipt, ShieldCheck, Menu, ScrollText } from "lucide-react";
+import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon, Receipt, ShieldCheck, Menu, ScrollText, UserCog } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import {
@@ -46,6 +46,7 @@ const NAV = [
   { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/users", label: "Usuários", icon: ShieldCheck },
   { to: "/audit", label: "Auditoria", icon: ScrollText },
+  { to: "/profile", label: "Perfil", icon: UserCog },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
@@ -127,7 +128,7 @@ function AppLayout() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/settings" className="cursor-pointer">
+              <Link to="/profile" className="cursor-pointer">
                 <UserIcon className="mr-2 h-4 w-4" /> Perfil
               </Link>
             </DropdownMenuItem>
