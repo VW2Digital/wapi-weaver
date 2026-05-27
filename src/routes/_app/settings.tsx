@@ -1009,6 +1009,13 @@ function AdminPlatformSection() {
             >
               <Copy className="h-4 w-4" />
             </Button>
+            <Button
+              type="button"
+              disabled={!appSecret || mut.isPending}
+              onClick={() => mut.mutate({ meta_app_secret: appSecret })}
+            >
+              {mut.isPending ? "Salvando…" : "Salvar"}
+            </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
             Configurações → Básico → Chave Secreta do App.{" "}
