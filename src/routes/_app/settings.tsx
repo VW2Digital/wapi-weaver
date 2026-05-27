@@ -161,7 +161,7 @@ function SettingsPage() {
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <AppearanceCard />
-        <ChangePasswordCard />
+        
         <AdminPlatformSection />
 
         <SetupWizard
@@ -1153,63 +1153,6 @@ function AdminPlatformSection() {
   );
 }
 
-function ChangePasswordCard() {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirmPwd, setConfirmPwd] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (next.length < 8) return toast.error("A nova senha precisa ter ao menos 8 caracteres.");
-    if (next !== confirmPwd) return toast.error("As senhas não coincidem.");
-    setBusy(true);
-    try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data: u } = await supabase.auth.getUser();
-      const email = u.user?.email;
-      if (!email) throw new Error("Sessão expirada");
-      const { error: signErr } = await supabase.auth.signInWithPassword({ email, password: current });
-      if (signErr) throw new Error("Senha atual incorreta");
-      const { error } = await supabase.auth.updateUser({ password: next });
-      if (error) throw error;
-      toast.success("Senha atualizada");
-      setCurrent(""); setNext(""); setConfirmPwd("");
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao atualizar senha");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Card className="p-6">
-      <h2 className="font-display text-lg font-semibold flex items-center gap-2">
-        <Lock className="h-5 w-5" /> Trocar senha
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Informe sua senha atual e escolha uma nova senha com no mínimo 8 caracteres.
-      </p>
-      <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="cur-pwd">Senha atual</Label>
-          <PasswordInput id="cur-pwd" value={current} onChange={(e) => setCurrent(e.target.value)} required />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="new-pwd">Nova senha</Label>
-          <PasswordInput id="new-pwd" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="cfm-pwd">Confirmar</Label>
-          <PasswordInput id="cfm-pwd" minLength={8} value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} required />
-        </div>
-        <div className="md:col-span-3">
-          <Button type="submit" disabled={busy}>Atualizar senha</Button>
-        </div>
-      </form>
-    </Card>
-  );
-}
 
 function WebhookHealthCard() {
   const fetchRoles = useServerFn(getCurrentUserRoles);
