@@ -168,10 +168,18 @@ export const cancelSalvyNumber = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!owned) return { ok: false as const, error: "Número não encontrado" };
 
-    const r = await salvyFetch(key, `/api/v2/virtual-phone-accounts/${encodeURIComponent(data.salvy_id)}/cancel`, {
-      method: "POST",
-      body: JSON.stringify(data.reason ? { reason: data.reason } : {}),
+    // Salvy v2: DELETE /api/v2/virtual-phone-accounts/{id} é o endpoint oficial de cancelamento.
+    // Mantemos fallback para a rota /cancel caso a conta ainda use o formato antigo.
+    const qs = data.reason ? `?reason=${encodeURIComponent(data.reason)}` : "";
+    let r = await salvyFetch(key, `/api/v2/virtual-phone-accounts/${encodeURIComponent(data.salvy_id)}${qs}`, {
+      method: "DELETE",
     });
+    if (r.status === 404 || r.status === 405) {
+      r = await salvyFetch(key, `/api/v2/virtual-phone-accounts/${encodeURIComponent(data.salvy_id)}/cancel`, {
+        method: "POST",
+        body: JSON.stringify(data.reason ? { reason: data.reason } : {}),
+      });
+    }
     if (!r.ok) {
       return { ok: false as const, error: (r.body as any)?.message ?? `Falha ao cancelar (HTTP ${r.status})` };
     }
