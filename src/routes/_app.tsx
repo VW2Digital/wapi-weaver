@@ -61,6 +61,7 @@ function AppLayout() {
   const avatarUrl = useGravatarUrl(user?.email);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
+  const { isAdmin, loading: rolesLoading } = useRoles();
 
   // Close drawer on navigation
   useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
@@ -81,7 +82,7 @@ function AppLayout() {
     return () => { cancelled = true; };
   }, [user, router]);
 
-  if (loading || (user && mfaOk === null)) {
+  if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
   }
   if (!user || mfaOk === false) return <Navigate to="/login" />;
@@ -90,6 +91,30 @@ function AppLayout() {
     await supabase.auth.signOut();
     router.navigate({ to: "/login" });
   };
+
+  // Bloqueia o painel para quem não é admin
+  if (!isAdmin) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <Card className="w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <ShieldAlert className="h-6 w-6 text-destructive" />
+          </div>
+          <h1 className="font-display text-xl font-semibold">Acesso restrito</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Este painel está disponível apenas para administradores. Sua conta
+            ({user.email}) não tem permissão para acessar esta área.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Se você acredita que isto é um engano, entre em contato com um administrador.
+          </p>
+          <Button variant="outline" className="mt-6 w-full" onClick={logout}>
+            <LogOut className="mr-2 h-4 w-4" /> Sair
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   const SidebarBody = (
     <div className="flex h-full flex-col">
