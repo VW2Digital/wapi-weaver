@@ -1215,9 +1215,12 @@ function WebhookHealthCard() {
             Monitora se a Meta está conseguindo entregar eventos no seu endpoint.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <EventsDialogButton />
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
