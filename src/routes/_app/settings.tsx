@@ -1017,9 +1017,9 @@ function AdminPlatformSection() {
               {mut.isPending ? "Salvando…" : "Salvar"}
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Configurações → Básico → Chave Secreta do App.{" "}
-            {settings?.meta_app_secret_set && <span className="text-success font-medium">✓ Atualmente configurado</span>}
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
+            {"📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."}
+            {settings?.meta_app_secret_set && <span className="block mt-1 text-success font-medium">✓ Atualmente configurado</span>}
           </p>
         </div>
 
