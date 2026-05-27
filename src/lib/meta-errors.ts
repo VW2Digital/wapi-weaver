@@ -94,19 +94,66 @@ export function toFriendlyError(raw: unknown, fallback = "Falha ao executar a op
 
   // Heurísticas por mensagem
   const lower = (message || "").toLowerCase();
+
+  // "Unsupported get/post request. Object with ID '...' does not exist, cannot be loaded due to missing permissions, or does not support this operation."
+  if (lower.includes("does not exist") && lower.includes("missing permissions")) {
+    const idMatch = message.match(/ID ['"]?(\d+)['"]?/i);
+    const objectId = idMatch?.[1];
+    return {
+      title: "Objeto não encontrado na Meta",
+      message: objectId
+        ? `O ID "${objectId}" não foi encontrado, não pode ser acessado por falta de permissão ou não suporta esta operação.`
+        : "O ID informado não foi encontrado, não pode ser acessado por falta de permissão ou não suporta esta operação.",
+      hint: "Verifique 3 coisas: 1) O ID está no campo certo (Phone Number ID ≠ WABA ID). 2) O Access Token tem as permissões whatsapp_business_messaging e whatsapp_business_management. 3) O Usuário de Sistema que gerou o token foi adicionado à WABA com perfil de Administrador em Meta Business → Configurações → Contas do WhatsApp → Adicionar pessoas.",
+      code, type, trace,
+    };
+  }
+
+  if (lower.startsWith("unsupported get request") || lower.startsWith("unsupported post request")) {
+    return {
+      title: "Requisição não suportada pela Meta",
+      message: "A Meta rejeitou a chamada. Geralmente isso significa que o ID usado é de outro tipo de objeto (ex.: WABA ID no lugar de Phone Number ID) ou o token não tem permissão para esse recurso.",
+      hint: "Confira nas configurações se o Phone Number ID e o WABA ID não estão trocados, e se o Access Token tem permissão para o objeto que está sendo consultado.",
+      code, type, trace,
+    };
+  }
+
   if (lower.includes("access token")) {
     return {
       title: "Problema com o Access Token",
-      message: message,
-      hint: "Confira se o token foi colado por completo, sem espaços.",
+      message: "A Meta recusou o Access Token. Ele pode estar incompleto, expirado, revogado ou pertencer a outro App.",
+      hint: "Gere um novo token em Meta Business → Configurações → Usuários do sistema → seu usuário → Gerar token, com as permissões whatsapp_business_messaging e whatsapp_business_management, e cole sem espaços.",
       code, type, trace,
     };
   }
   if (lower.includes("phone number")) {
     return {
       title: "Phone Number ID inválido",
-      message: message,
-      hint: "Copie novamente o Phone Number ID em WhatsApp → API Setup.",
+      message: "O ID do número de telefone informado não foi reconhecido pela Meta.",
+      hint: "Copie novamente o Phone Number ID em WhatsApp Manager → clique no número → 'ID do número de telefone'. Não use o número de telefone em si.",
+      code, type, trace,
+    };
+  }
+  if (lower.includes("permission") || lower.includes("permissões")) {
+    return {
+      title: "Permissão insuficiente",
+      message: "O Access Token não tem permissão para executar esta operação.",
+      hint: "Garanta as permissões whatsapp_business_messaging e whatsapp_business_management, e que o Usuário de Sistema tenha acesso de Administrador à WABA.",
+      code, type, trace,
+    };
+  }
+  if (lower.includes("rate") && lower.includes("limit")) {
+    return {
+      title: "Limite de requisições atingido",
+      message: "Muitas requisições em pouco tempo. Aguarde alguns segundos e tente novamente.",
+      code, type, trace,
+    };
+  }
+  if (lower.includes("invalid parameter") || lower.includes("invalid value")) {
+    return {
+      title: "Parâmetro inválido",
+      message: "A Meta rejeitou um dos valores enviados.",
+      hint: "Revise os campos preenchidos — especialmente IDs numéricos e números de telefone (formato internacional, só dígitos).",
       code, type, trace,
     };
   }
