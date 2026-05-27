@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
 import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql, listSchemaBackups, getSchemaBackup, createSchemaBackupNow, deleteSchemaBackup } from "@/lib/admin.functions";
-import { getWebhookHealth } from "@/lib/webhook-health.functions";
+import { getWebhookHealth, listWebhookEvents } from "@/lib/webhook-health.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1213,9 +1215,12 @@ function WebhookHealthCard() {
             Monitora se a Meta está conseguindo entregar eventos no seu endpoint.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <EventsDialogButton />
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -1255,6 +1260,117 @@ function WebhookHealthCard() {
     </Card>
   );
 }
+
+function EventsDialogButton() {
+  const [open, setOpen] = useState(false);
+  const [onlyUnprocessed, setOnlyUnprocessed] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const fetchEvents = useServerFn(listWebhookEvents);
+
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ["webhook-events", onlyUnprocessed],
+    queryFn: () => fetchEvents({ data: { limit: 50, onlyUnprocessed } }),
+    enabled: open,
+  });
+
+  const events = data?.events ?? [];
+
+  function summarize(raw: any): string {
+    try {
+      const entry = raw?.entry?.[0];
+      const change = entry?.changes?.[0];
+      const field = change?.field;
+      const value = change?.value;
+      if (value?.messages?.length) {
+        const m = value.messages[0];
+        const from = m.from ?? "?";
+        const type = m.type ?? "msg";
+        const text = m.text?.body ? `: "${String(m.text.body).slice(0, 60)}"` : "";
+        return `📩 mensagem (${type}) de ${from}${text}`;
+      }
+      if (value?.statuses?.length) {
+        const s = value.statuses[0];
+        return `✅ status "${s.status}" → ${s.recipient_id ?? "?"}`;
+      }
+      return field ? `evento: ${field}` : "evento";
+    } catch {
+      return "evento";
+    }
+  }
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <FileText className="h-4 w-4 mr-1" />
+        Ver eventos
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Eventos do webhook</DialogTitle>
+            <DialogDescription>
+              Últimos {events.length} eventos recebidos da Meta. Clique para ver o payload completo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2 border-b pb-3">
+            <Button
+              variant={onlyUnprocessed ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOnlyUnprocessed((v) => !v)}
+            >
+              {onlyUnprocessed ? "Mostrando pendentes" : "Apenas pendentes"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            </Button>
+            <span className="ml-auto text-xs text-muted-foreground">{events.length} eventos</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+            {isLoading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
+            ) : events.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Nenhum evento {onlyUnprocessed ? "pendente" : "encontrado"}.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {events.map((ev: any) => {
+                  const isOpen = expanded === ev.id;
+                  return (
+                    <li key={ev.id} className="py-3">
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : ev.id)}
+                        className="flex w-full items-start gap-3 text-left hover:bg-muted/50 rounded-md p-2 -m-2"
+                      >
+                        <Badge variant={ev.processed ? "secondary" : "outline"} className="mt-0.5 shrink-0">
+                          {ev.processed ? "processado" : "pendente"}
+                        </Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{summarize(ev.raw)}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {new Date(ev.received_at).toLocaleString()} • {ev.source}
+                          </div>
+                        </div>
+                      </button>
+                      {isOpen && (
+                        <pre className="mt-2 max-h-80 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
+                          {JSON.stringify(ev.raw, null, 2)}
+                        </pre>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 
 function ExportSchemaButton() {
   const run = useServerFn(exportSchemaSql);
