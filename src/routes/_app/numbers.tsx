@@ -54,7 +54,7 @@ function NumbersPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Números virtuais"
-        description="Compre e gerencie números virtuais via Salvy para usar no WhatsApp Business."
+        subtitle="Compre e gerencie números virtuais via Salvy para usar no WhatsApp Business."
       />
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
         <ApiKeyCard configured={configured} onChange={() => {
