@@ -128,7 +128,7 @@ function AppLayout() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/settings" className="cursor-pointer">
+              <Link to="/profile" className="cursor-pointer">
                 <UserIcon className="mr-2 h-4 w-4" /> Perfil
               </Link>
             </DropdownMenuItem>
