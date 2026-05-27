@@ -35,7 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Phone, RefreshCw, ShoppingCart, X, KeyRound, CheckCircle2 } from "lucide-react";
+import { Loader2, Phone, RefreshCw, ShoppingCart, X, KeyRound, CheckCircle2, ArrowLeft, CreditCard, ExternalLink, Wallet, Info } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { PasswordInput } from "@/components/password-input";
 
 export const Route = createFileRoute("/_app/numbers")({ component: NumbersPage });
@@ -190,11 +191,24 @@ function SyncButton() {
   );
 }
 
+// Tabela referencial de preços Salvy (Linha Virtual Móvel).
+// A Salvy não expõe preços via API — esses valores são exibidos como referência
+// e podem variar conforme o contrato do cliente. A cobrança real é feita pela Salvy.
+const PRICING = {
+  setup: 25.0,
+  monthly: 29.9,
+  currency: "BRL",
+};
+
+const fmtBRL = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
 function BuyDialog() {
   const qc = useQueryClient();
   const fetchAreas = useServerFn(listSalvyAreaCodes);
   const create = useServerFn(createSalvyNumber);
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"select" | "review">("select");
   const [areaCode, setAreaCode] = useState<string>("");
   const [name, setName] = useState("");
 
@@ -208,65 +222,164 @@ function BuyDialog() {
     mutationFn: () => create({ data: { areaCode: Number(areaCode), name: name || undefined } }),
     onSuccess: (r: any) => {
       if (r.ok) {
-        toast.success(`Número criado: ${r.number.phoneNumber}`);
+        toast.success(`Número provisionado: ${r.number.phoneNumber}`);
         qc.invalidateQueries({ queryKey: ["salvy-numbers"] });
-        setOpen(false);
-        setAreaCode(""); setName("");
+        resetAndClose();
       } else {
         toast.error(r.error ?? "Falha ao criar número");
       }
     },
   });
 
+  const resetAndClose = () => {
+    setOpen(false);
+    setTimeout(() => {
+      setStep("select");
+      setAreaCode("");
+      setName("");
+    }, 200);
+  };
+
+  const total = PRICING.setup + PRICING.monthly;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : resetAndClose())}>
       <DialogTrigger asChild>
         <Button><ShoppingCart className="mr-2 h-4 w-4" /> Comprar número</Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Comprar número virtual</DialogTitle>
-          <DialogDescription>
-            Escolha o DDD desejado. A cobrança é feita diretamente pela Salvy conforme seu contrato.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>DDD disponível</Label>
-            {areas.isLoading ? (
-              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carregando DDDs…
+      <DialogContent className="sm:max-w-lg">
+        {step === "select" ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Escolher número virtual</DialogTitle>
+              <DialogDescription>
+                Selecione o DDD desejado e dê um apelido para identificar a linha.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>DDD disponível</Label>
+                {areas.isLoading ? (
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando DDDs…
+                  </div>
+                ) : !areas.data?.ok ? (
+                  <div className="text-sm text-destructive">{(areas.data as any)?.error ?? "Falha ao listar DDDs"}</div>
+                ) : (
+                  <Select value={areaCode} onValueChange={setAreaCode}>
+                    <SelectTrigger><SelectValue placeholder="Selecione um DDD" /></SelectTrigger>
+                    <SelectContent>
+                      {areas.data.areaCodes.map((a) => (
+                        <SelectItem key={a.areaCode} value={String(a.areaCode)}>
+                          DDD {a.areaCode}
+                        </SelectItem>
+                      ))}
+                      {areas.data.areaCodes.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">Nenhum DDD em estoque agora.</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-            ) : !areas.data?.ok ? (
-              <div className="text-sm text-destructive">{(areas.data as any)?.error ?? "Falha ao listar DDDs"}</div>
-            ) : (
-              <Select value={areaCode} onValueChange={setAreaCode}>
-                <SelectTrigger><SelectValue placeholder="Selecione um DDD" /></SelectTrigger>
-                <SelectContent>
-                  {areas.data.areaCodes.map((a) => (
-                    <SelectItem key={a.areaCode} value={String(a.areaCode)}>
-                      DDD {a.areaCode}
-                    </SelectItem>
-                  ))}
-                  {areas.data.areaCodes.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">Nenhum DDD em estoque agora.</div>
-                  )}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="num-name">Apelido (opcional)</Label>
-            <Input id="num-name" placeholder="Ex: WhatsApp Vendas" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={() => m.mutate()} disabled={!areaCode || m.isPending}>
-            {m.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
-            Confirmar compra
-          </Button>
-        </DialogFooter>
+              <div className="space-y-1.5">
+                <Label htmlFor="num-name">Apelido (opcional)</Label>
+                <Input id="num-name" placeholder="Ex: WhatsApp Vendas" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={resetAndClose}>Cancelar</Button>
+              <Button onClick={() => setStep("review")} disabled={!areaCode}>
+                Revisar pedido <ShoppingCart className="ml-2 h-4 w-4" />
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" /> Resumo do pedido
+              </DialogTitle>
+              <DialogDescription>
+                Confirme os detalhes antes de provisionar a linha.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Item */}
+              <div className="rounded-lg border bg-card/50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Phone className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">Linha virtual móvel</div>
+                    <div className="text-xs text-muted-foreground">
+                      DDD {areaCode} {name ? `· ${name}` : ""}
+                    </div>
+                  </div>
+                  <Badge variant="secondary">1×</Badge>
+                </div>
+              </div>
+
+              {/* Itens financeiros */}
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Taxa de ativação (única)</span>
+                  <span className="font-medium">{fmtBRL(PRICING.setup)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Mensalidade</span>
+                  <span className="font-medium">{fmtBRL(PRICING.monthly)} <span className="text-muted-foreground font-normal">/mês</span></span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-base">
+                  <span className="font-semibold">Total na ativação</span>
+                  <span className="font-semibold">{fmtBRL(total)}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground flex items-start gap-1.5 pt-1">
+                  <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                  Valores de referência. O preço final é o do seu contrato com a Salvy.
+                </p>
+              </div>
+
+              {/* Método de pagamento */}
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <div className="flex items-start gap-2">
+                  <Wallet className="h-4 w-4 text-primary mt-0.5" />
+                  <div className="flex-1 text-sm">
+                    <div className="font-medium flex items-center gap-2">
+                      Cobrança via conta Salvy
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5">automático</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      O valor é debitado do saldo ou cartão cadastrado no seu painel Salvy. Nenhum cartão é processado aqui.
+                    </p>
+                    <a
+                      href="https://app.salvy.com.br/billing"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1.5"
+                    >
+                      <CreditCard className="h-3 w-3" />
+                      Gerenciar pagamento na Salvy
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button variant="ghost" onClick={() => setStep("select")} disabled={m.isPending}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+              </Button>
+              <Button onClick={() => m.mutate()} disabled={m.isPending}>
+                {m.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Confirmar e provisionar
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
