@@ -877,7 +877,7 @@ function Field({ label, sublabel, hint, value, onChange, type = "text", placehol
           {success}
         </p>
       )}
-      {hint && !error && !success && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
+      {hint && !error && !success && <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
     </div>
   );
 }
