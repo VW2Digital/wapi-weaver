@@ -45,3 +45,34 @@ export const getWebhookHealth = createServerFn({ method: "GET" })
       unprocessed_count: unprocessed ?? 0,
     };
   });
+
+/**
+ * Lista os últimos eventos do webhook (admin-only).
+ */
+export const listWebhookEvents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { limit?: number; onlyUnprocessed?: boolean }) => ({
+    limit: Math.min(Math.max(data?.limit ?? 50, 1), 200),
+    onlyUnprocessed: !!data?.onlyUnprocessed,
+  }))
+  .handler(async ({ context, data }) => {
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+    if (!isAdmin) throw new Error("Acesso negado");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let q = supabaseAdmin
+      .from("webhook_events")
+      .select("id, source, processed, received_at, raw")
+      .order("received_at", { ascending: false })
+      .limit(data.limit);
+    if (data.onlyUnprocessed) q = q.eq("processed", false);
+
+    const { data: events, error } = await q;
+    if (error) throw new Error(error.message);
+    return { events: events ?? [] };
+  });
