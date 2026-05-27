@@ -200,7 +200,7 @@ function SettingsPage() {
                 setForm({ ...form, whatsapp_phone_number_id: v });
               }}
               placeholder="Ex: 106500000000000"
-              hint="Aparece logo abaixo do número, no quadro 'De'. Só números, sem espaços."
+              hint={"⚠️ NÃO é o seu número de telefone. É um ID numérico longo (15+ dígitos) que identifica o número dentro da Meta.\n📍 Onde achar: business.facebook.com → WhatsApp Manager → Visão geral → clique no número → aparece 'ID do número de telefone'.\n👉 Use o botão de copiar ao lado do número no painel da Meta."}
               success={validateMetaId(String(form.whatsapp_phone_number_id ?? ""), "Phone Number ID").ok ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos` : null}
               error={errors.whatsapp_phone_number_id}
               copyLabel="Phone Number ID"
@@ -217,7 +217,7 @@ function SettingsPage() {
                 setForm({ ...form, whatsapp_waba_id: v });
               }}
               placeholder="Ex: 112300000000000"
-              hint="No painel da Meta, fica em 'Visão geral da conta'. Bem comprido, só números."
+              hint={"⚠️ É DIFERENTE do Phone Number ID acima. Esse identifica a CONTA inteira (WABA), não um número específico.\n📍 Onde achar: business.facebook.com → Configurações da empresa → Contas → Contas do WhatsApp → clique na sua conta → 'ID da conta WhatsApp Business' no topo.\n👉 Se você colocar esse valor no campo errado, vai aparecer o erro 'Object with ID does not exist'."}
               success={validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos` : null}
               error={errors.whatsapp_waba_id}
               copyLabel="WABA ID"
