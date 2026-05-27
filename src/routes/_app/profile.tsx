@@ -99,7 +99,7 @@ function ProfilePage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader title="Meu perfil" subtitle="Gerencie sua foto, dados pessoais, dados da empresa e senha." />
+      <PageHeader title="Meu perfil" subtitle="Gerencie sua foto, dados pessoais e dados da empresa." />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         {/* Foto + identificação */}
