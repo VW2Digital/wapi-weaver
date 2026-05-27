@@ -430,12 +430,15 @@ function NumbersList({ loading, items }: { loading: boolean; items: any[] }) {
             </div>
           </div>
           <Badge className={statusColor[n.status] ?? ""} variant="secondary">{n.status}</Badge>
+          <SmsDialog number={n} />
+          {n.status !== "canceled" && <EditNumberDialog number={n} />}
           {n.status !== "canceled" && (
             <Button
               size="sm"
               variant="ghost"
+              title="Cancelar número"
               onClick={() => {
-                const reason = window.prompt(`Motivo do cancelamento de ${n.phone_number}:`, "Cancelado pelo painel");
+                const reason = window.prompt(`Motivo do cancelamento de ${n.phone_number}:`, "unnecessary");
                 if (reason && reason.trim()) m.mutate({ salvy_id: n.salvy_id, reason: reason.trim() });
               }}
               disabled={m.isPending}
