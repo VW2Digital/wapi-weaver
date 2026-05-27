@@ -184,3 +184,69 @@ export const cancelSalvyNumber = createServerFn({ method: "POST" })
       .eq("user_id", context.userId);
     return { ok: true as const };
   });
+
+export const updateSalvyNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      salvy_id: z.string().trim().min(1).max(64),
+      name: z.string().trim().max(100).nullable().optional(),
+      costCenter: z.string().trim().max(100).nullable().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const key = await getKey(context.supabase, context.userId);
+    if (!key) return { ok: false as const, error: "Chave de API da Salvy não configurada" };
+
+    const { data: owned } = await context.supabase
+      .from("salvy_numbers").select("id")
+      .eq("salvy_id", data.salvy_id).eq("user_id", context.userId).maybeSingle();
+    if (!owned) return { ok: false as const, error: "Número não encontrado" };
+
+    const payload: any = {};
+    if (data.name !== undefined) payload.name = data.name;
+    if (data.costCenter !== undefined) payload.costCenter = data.costCenter;
+
+    const r = await salvyFetch(key, `/api/v2/virtual-phone-accounts/${encodeURIComponent(data.salvy_id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) return { ok: false as const, error: (r.body as any)?.message ?? `Falha ao atualizar (HTTP ${r.status})` };
+
+    const n = r.body as any;
+    const mapped = mapSalvy(n);
+    await context.supabase.from("salvy_numbers").upsert(
+      { ...mapped, user_id: context.userId, area_code: n.areaCode ?? null },
+      { onConflict: "user_id,salvy_id" },
+    );
+    return { ok: true as const, number: n };
+  });
+
+export const getSalvyNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ salvy_id: z.string().trim().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const key = await getKey(context.supabase, context.userId);
+    if (!key) return { ok: false as const, error: "Chave de API da Salvy não configurada" };
+    const r = await salvyFetch(key, `/api/v2/virtual-phone-accounts/${encodeURIComponent(data.salvy_id)}`);
+    if (!r.ok) return { ok: false as const, error: (r.body as any)?.message ?? `Falha (HTTP ${r.status})` };
+    return { ok: true as const, number: r.body };
+  });
+
+export const listSalvySms = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      salvy_id: z.string().trim().min(1).max(64),
+      limit: z.number().int().min(1).max(100).optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const key = await getKey(context.supabase, context.userId);
+    if (!key) return { ok: false as const, error: "Chave de API da Salvy não configurada", messages: [] };
+    const qs = `?limit=${data.limit ?? 50}`;
+    const r = await salvyFetch(key, `/api/v2/virtual-phone-accounts/${encodeURIComponent(data.salvy_id)}/sms-messages${qs}`);
+    if (!r.ok) return { ok: false as const, error: (r.body as any)?.message ?? `Falha (HTTP ${r.status})`, messages: [] };
+    const messages = ((r.body as any)?.smsMessages ?? (r.body as any)?.items ?? (r.body as any)?.data ?? []) as any[];
+    return { ok: true as const, messages };
+  });

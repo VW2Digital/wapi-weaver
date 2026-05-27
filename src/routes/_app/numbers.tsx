@@ -12,6 +12,8 @@ import {
   syncSalvyNumbers,
   createSalvyNumber,
   cancelSalvyNumber,
+  updateSalvyNumber,
+  listSalvySms,
 } from "@/lib/salvy.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -35,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Phone, RefreshCw, ShoppingCart, X, KeyRound, CheckCircle2, ArrowLeft, CreditCard, ExternalLink, Wallet, Info } from "lucide-react";
+import { Loader2, Phone, RefreshCw, ShoppingCart, X, KeyRound, CheckCircle2, ArrowLeft, CreditCard, ExternalLink, Wallet, Info, Pencil, MessageSquare, Inbox } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { PasswordInput } from "@/components/password-input";
 
@@ -428,12 +430,15 @@ function NumbersList({ loading, items }: { loading: boolean; items: any[] }) {
             </div>
           </div>
           <Badge className={statusColor[n.status] ?? ""} variant="secondary">{n.status}</Badge>
+          <SmsDialog number={n} />
+          {n.status !== "canceled" && <EditNumberDialog number={n} />}
           {n.status !== "canceled" && (
             <Button
               size="sm"
               variant="ghost"
+              title="Cancelar número"
               onClick={() => {
-                const reason = window.prompt(`Motivo do cancelamento de ${n.phone_number}:`, "Cancelado pelo painel");
+                const reason = window.prompt(`Motivo do cancelamento de ${n.phone_number}:`, "unnecessary");
                 if (reason && reason.trim()) m.mutate({ salvy_id: n.salvy_id, reason: reason.trim() });
               }}
               disabled={m.isPending}
@@ -444,5 +449,114 @@ function NumbersList({ loading, items }: { loading: boolean; items: any[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function EditNumberDialog({ number }: { number: any }) {
+  const qc = useQueryClient();
+  const update = useServerFn(updateSalvyNumber);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState<string>(number.name ?? "");
+  const [costCenter, setCostCenter] = useState<string>(number.cost_center ?? "");
+
+  const m = useMutation({
+    mutationFn: () =>
+      update({
+        data: {
+          salvy_id: number.salvy_id,
+          name: name.trim() || null,
+          costCenter: costCenter.trim() || null,
+        },
+      }),
+    onSuccess: (r: any) => {
+      if (r.ok) {
+        toast.success("Número atualizado");
+        qc.invalidateQueries({ queryKey: ["salvy-numbers"] });
+        setOpen(false);
+      } else toast.error(r.error ?? "Falha ao atualizar");
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" title="Editar">
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar {number.phone_number}</DialogTitle>
+          <DialogDescription>Atualize o apelido e o centro de custo do número.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-name">Apelido</Label>
+            <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: WhatsApp Vendas" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-cc">Centro de custo</Label>
+            <Input id="edit-cc" value={costCenter} onChange={(e) => setCostCenter(e.target.value)} placeholder="Ex: marketing" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={m.isPending}>Cancelar</Button>
+          <Button onClick={() => m.mutate()} disabled={m.isPending}>
+            {m.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SmsDialog({ number }: { number: any }) {
+  const fetchSms = useServerFn(listSalvySms);
+  const [open, setOpen] = useState(false);
+
+  const q = useQuery({
+    queryKey: ["salvy-sms", number.salvy_id],
+    queryFn: () => fetchSms({ data: { salvy_id: number.salvy_id, limit: 50 } }),
+    enabled: open,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" title="Ver SMS recebidos">
+          <MessageSquare className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Inbox className="h-5 w-5" /> SMS recebidos · {number.phone_number}
+          </DialogTitle>
+          <DialogDescription>Últimas mensagens SMS recebidas neste número virtual.</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto space-y-2">
+          {q.isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
+          ) : !q.data?.ok ? (
+            <div className="text-sm text-destructive">{(q.data as any)?.error ?? "Falha ao carregar"}</div>
+          ) : q.data.messages.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nenhum SMS recebido ainda.
+            </div>
+          ) : (
+            q.data.messages.map((sms: any, i: number) => (
+              <div key={sms.id ?? i} className="rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span className="font-mono">{sms.from ?? sms.sender ?? "desconhecido"}</span>
+                  <span>{sms.receivedAt ? new Date(sms.receivedAt).toLocaleString("pt-BR") : ""}</span>
+                </div>
+                <div className="mt-1 text-sm whitespace-pre-wrap break-words">{sms.text ?? sms.body ?? sms.message ?? "(sem conteúdo)"}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
