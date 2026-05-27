@@ -46,6 +46,7 @@ const NAV = [
   { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/users", label: "Usuários", icon: ShieldCheck },
   { to: "/audit", label: "Auditoria", icon: ScrollText },
+  { to: "/profile", label: "Perfil", icon: UserCog },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
