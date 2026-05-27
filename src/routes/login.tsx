@@ -224,6 +224,8 @@ function LoginPage() {
             <span className="text-border">|</span>
             <Link to="/data-deletion" className="hover:text-foreground">Exclusão de Dados</Link>
           </footer>
+          </>
+          )}
         </Card>
       </div>
     </div>
