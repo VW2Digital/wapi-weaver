@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/password-input";
 import { toast } from "sonner";
 import { Camera, Loader2, Trash2, User, Building2, Lock } from "lucide-react";
+import { TwoFactorSection } from "@/components/mfa/two-factor-section";
 
 export const Route = createFileRoute("/_app/profile")({ component: ProfilePage });
 
@@ -260,6 +261,9 @@ function ProfilePage() {
 
         {/* Senha */}
         <PasswordSection />
+
+        {/* 2FA */}
+        <TwoFactorSection />
       </div>
     </div>
   );

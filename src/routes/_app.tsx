@@ -58,14 +58,31 @@ function AppLayout() {
   const { theme, toggleTheme } = useTheme();
   const avatarUrl = useGravatarUrl(user?.email);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mfaOk, setMfaOk] = useState<boolean | null>(null);
 
   // Close drawer on navigation
   useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
 
-  if (loading) {
+  // Garante AAL2 quando o usuário tem 2FA habilitado
+  useEffect(() => {
+    if (!user) { setMfaOk(null); return; }
+    let cancelled = false;
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+      if (cancelled) return;
+      if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
+        setMfaOk(false);
+        router.navigate({ to: "/login" });
+      } else {
+        setMfaOk(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [user, router]);
+
+  if (loading || (user && mfaOk === null)) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
   }
-  if (!user) return <Navigate to="/login" />;
+  if (!user || mfaOk === false) return <Navigate to="/login" />;
 
   const logout = async () => {
     await supabase.auth.signOut();

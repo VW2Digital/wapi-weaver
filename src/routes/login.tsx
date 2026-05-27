@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
+import { MfaChallenge } from "@/components/mfa/mfa-challenge";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
@@ -25,10 +26,21 @@ function LoginPage() {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotBusy, setForgotBusy] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/dashboard" });
-  }, [user, navigate]);
+    if (mfaRequired) return;
+    if (user) {
+      // Verifica se o usuário precisa concluir 2FA antes de entrar
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+        if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
+          setMfaRequired(true);
+        } else {
+          navigate({ to: "/dashboard" });
+        }
+      });
+    }
+  }, [user, navigate, mfaRequired]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,11 +120,26 @@ function LoginPage() {
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-md p-8">
           <h2 className="font-display text-2xl font-semibold">
-            {mode === "signin" ? "Entrar" : "Criar conta"}
+            {mfaRequired ? "Verificação 2FA" : mode === "signin" ? "Entrar" : "Criar conta"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" ? "Acesse seu painel de disparo." : "Comece a configurar suas campanhas."}
+            {mfaRequired
+              ? "Informe o código gerado pelo seu app autenticador."
+              : mode === "signin"
+                ? "Acesse seu painel de disparo."
+                : "Comece a configurar suas campanhas."}
           </p>
+
+          {mfaRequired ? (
+            <div className="mt-6">
+              <MfaChallenge
+                onVerified={() => { setMfaRequired(false); navigate({ to: "/dashboard" }); }}
+                onCancel={() => setMfaRequired(false)}
+              />
+            </div>
+          ) : (
+          <>
+
 
           <Button type="button" variant="outline" className="mt-6 w-full" onClick={google} disabled={busy}>
             Continuar com Google
@@ -197,6 +224,8 @@ function LoginPage() {
             <span className="text-border">|</span>
             <Link to="/data-deletion" className="hover:text-foreground">Exclusão de Dados</Link>
           </footer>
+          </>
+          )}
         </Card>
       </div>
     </div>
