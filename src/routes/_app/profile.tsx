@@ -258,55 +258,9 @@ function ProfilePage() {
           </div>
         </Card>
 
-        {/* Senha */}
-        <PasswordSection />
-
         {/* 2FA */}
         <TwoFactorSection />
       </div>
     </div>
-  );
-}
-
-function PasswordSection() {
-  const [pwd, setPwd] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function submit() {
-    if (pwd.length < 8) return toast.error("A senha precisa ter pelo menos 8 caracteres");
-    if (pwd !== confirm) return toast.error("As senhas não coincidem");
-    setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: pwd });
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Senha atualizada");
-    setPwd("");
-    setConfirm("");
-  }
-
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <Lock className="h-4 w-4 text-primary" />
-        <h2 className="font-display text-lg font-semibold">Alterar senha</h2>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label>Nova senha</Label>
-          <PasswordInput value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Mínimo 8 caracteres" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Confirmar nova senha</Label>
-          <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repita a senha" />
-        </div>
-      </div>
-      <div className="mt-4 flex justify-end">
-        <Button onClick={submit} disabled={saving || !pwd || !confirm}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Atualizar senha
-        </Button>
-      </div>
-    </Card>
   );
 }
