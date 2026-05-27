@@ -12,9 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { PasswordInput } from "@/components/password-input";
 import { toast } from "sonner";
-import { Camera, Loader2, Trash2, User, Building2, Lock } from "lucide-react";
+import { Camera, Loader2, Trash2, User, Building2 } from "lucide-react";
 import { TwoFactorSection } from "@/components/mfa/two-factor-section";
 
 export const Route = createFileRoute("/_app/profile")({ component: ProfilePage });
