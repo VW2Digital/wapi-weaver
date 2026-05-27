@@ -982,7 +982,7 @@ function AdminPlatformSection() {
             inputMode="numeric"
             pattern="[0-9]*"
           />
-          <p className="text-[11px] text-muted-foreground">WhatsApp → Configuração → Registro incorporado</p>
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."}</p>
         </div>
 
         <div className="md:col-span-2 space-y-1.5">
