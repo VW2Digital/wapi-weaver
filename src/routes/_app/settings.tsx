@@ -988,12 +988,14 @@ function AdminPlatformSection() {
         <div className="md:col-span-2 space-y-1.5">
           <Label>App Secret</Label>
           <div className="flex gap-2">
-            <PasswordInput
-              value={appSecret}
-              onChange={(e) => setAppSecret(e.target.value)}
-              placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
-              className="font-mono text-xs"
-            />
+            <div className="flex-1">
+              <PasswordInput
+                value={appSecret}
+                onChange={(e) => setAppSecret(e.target.value)}
+                placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
+                className="font-mono text-xs"
+              />
+            </div>
             <Button
               type="button"
               variant="outline"
