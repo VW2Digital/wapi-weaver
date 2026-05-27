@@ -26,10 +26,21 @@ function LoginPage() {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotBusy, setForgotBusy] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/dashboard" });
-  }, [user, navigate]);
+    if (mfaRequired) return;
+    if (user) {
+      // Verifica se o usuário precisa concluir 2FA antes de entrar
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+        if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
+          setMfaRequired(true);
+        } else {
+          navigate({ to: "/dashboard" });
+        }
+      });
+    }
+  }, [user, navigate, mfaRequired]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
