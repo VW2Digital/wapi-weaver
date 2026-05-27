@@ -433,7 +433,8 @@ function NumbersList({ loading, items }: { loading: boolean; items: any[] }) {
               size="sm"
               variant="ghost"
               onClick={() => {
-                if (confirm(`Cancelar o número ${n.phone_number}?`)) m.mutate(n.salvy_id);
+                const reason = window.prompt(`Motivo do cancelamento de ${n.phone_number}:`, "Cancelado pelo painel");
+                if (reason && reason.trim()) m.mutate({ salvy_id: n.salvy_id, reason: reason.trim() });
               }}
               disabled={m.isPending}
             >
