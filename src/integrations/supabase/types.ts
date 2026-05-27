@@ -374,11 +374,18 @@ export type Database = {
       profiles: {
         Row: {
           api_key: string
+          avatar_url: string | null
+          company_address: string | null
+          company_document: string | null
+          company_name: string | null
+          company_website: string | null
           created_at: string
           display_name: string | null
           email: string | null
+          full_name: string | null
           id: string
           meta_graph_version: string
+          phone: string | null
           rate_limit_per_second: number
           updated_at: string
           whatsapp_access_token: string | null
@@ -390,11 +397,18 @@ export type Database = {
         }
         Insert: {
           api_key?: string
+          avatar_url?: string | null
+          company_address?: string | null
+          company_document?: string | null
+          company_name?: string | null
+          company_website?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
+          full_name?: string | null
           id: string
           meta_graph_version?: string
+          phone?: string | null
           rate_limit_per_second?: number
           updated_at?: string
           whatsapp_access_token?: string | null
@@ -406,11 +420,18 @@ export type Database = {
         }
         Update: {
           api_key?: string
+          avatar_url?: string | null
+          company_address?: string | null
+          company_document?: string | null
+          company_name?: string | null
+          company_website?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
+          full_name?: string | null
           id?: string
           meta_graph_version?: string
+          phone?: string | null
           rate_limit_per_second?: number
           updated_at?: string
           whatsapp_access_token?: string | null
