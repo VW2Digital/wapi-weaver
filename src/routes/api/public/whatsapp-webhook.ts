@@ -166,7 +166,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const payload = JSON.parse(rawBody);
         const { data: evRow } = await supabaseAdmin
           .from("webhook_events")
-          .insert({ raw: payload })
+          .insert({ raw: payload, user_id: matchedUserId })
           .select("id")
           .single();
 
