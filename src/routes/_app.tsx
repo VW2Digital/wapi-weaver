@@ -2,7 +2,7 @@ import { createFileRoute, Navigate, Outlet, Link, useRouter, useLocation } from 
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon, Receipt, ShieldCheck, Menu, ScrollText, UserCog, ShieldAlert } from "lucide-react";
+import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon, Receipt, ShieldCheck, Menu, ScrollText, UserCog, ShieldAlert, Activity } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import {
@@ -49,6 +49,7 @@ const NAV = [
   { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/users", label: "Usuários", icon: ShieldCheck },
   { to: "/audit", label: "Auditoria", icon: ScrollText },
+  { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
   { to: "/profile", label: "Perfil", icon: UserCog },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
