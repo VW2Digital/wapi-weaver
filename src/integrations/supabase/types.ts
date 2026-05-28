@@ -387,7 +387,6 @@ export type Database = {
           meta_graph_version: string
           phone: string | null
           rate_limit_per_second: number
-          salvy_api_key: string | null
           updated_at: string
           whatsapp_access_token: string | null
           whatsapp_app_secret: string | null
@@ -411,7 +410,6 @@ export type Database = {
           meta_graph_version?: string
           phone?: string | null
           rate_limit_per_second?: number
-          salvy_api_key?: string | null
           updated_at?: string
           whatsapp_access_token?: string | null
           whatsapp_app_secret?: string | null
@@ -435,7 +433,6 @@ export type Database = {
           meta_graph_version?: string
           phone?: string | null
           rate_limit_per_second?: number
-          salvy_api_key?: string | null
           updated_at?: string
           whatsapp_access_token?: string | null
           whatsapp_app_secret?: string | null
@@ -443,57 +440,6 @@ export type Database = {
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
           whatsapp_waba_id?: string | null
-        }
-        Relationships: []
-      }
-      salvy_numbers: {
-        Row: {
-          area_code: number | null
-          cancel_reason: string | null
-          canceled_at: string | null
-          cost_center: string | null
-          created_at: string
-          created_at_remote: string | null
-          id: string
-          name: string | null
-          phone_number: string
-          raw: Json
-          salvy_id: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          area_code?: number | null
-          cancel_reason?: string | null
-          canceled_at?: string | null
-          cost_center?: string | null
-          created_at?: string
-          created_at_remote?: string | null
-          id?: string
-          name?: string | null
-          phone_number: string
-          raw?: Json
-          salvy_id: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          area_code?: number | null
-          cancel_reason?: string | null
-          canceled_at?: string | null
-          cost_center?: string | null
-          created_at?: string
-          created_at_remote?: string | null
-          id?: string
-          name?: string | null
-          phone_number?: string
-          raw?: Json
-          salvy_id?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
