@@ -558,6 +558,7 @@ export type Database = {
           raw: Json
           received_at: string
           source: string
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -565,6 +566,7 @@ export type Database = {
           raw: Json
           received_at?: string
           source?: string
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -572,6 +574,7 @@ export type Database = {
           raw?: Json
           received_at?: string
           source?: string
+          user_id?: string | null
         }
         Relationships: []
       }
