@@ -185,6 +185,7 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
     const { data: events } = await supabaseAdmin
       .from("webhook_events")
       .select("raw, received_at")
+      .eq("user_id", context.userId)
       .order("received_at", { ascending: false })
       .limit(200);
 
