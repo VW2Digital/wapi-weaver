@@ -324,8 +324,9 @@ function Dashboard() {
         </section>
 
 
-      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-5">
-        <Card className="p-5 lg:col-span-2">
+      <div className="grid gap-3 px-4 pb-6 sm:gap-4 sm:px-6 lg:grid-cols-5">
+        <Card className="p-4 sm:p-5 lg:col-span-2">
+
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Distribuição de mensagens</p>
           <p className="mt-1 mb-2 text-xs text-muted-foreground">Status agregado de todas as campanhas</p>
           <div className="h-64">
