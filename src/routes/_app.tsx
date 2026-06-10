@@ -97,7 +97,7 @@ function AppLayout() {
   }, [user, router]);
 
   if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
-    return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
+    return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">Carregando…</div>;
   }
   if (!user || mfaOk === false) return <Navigate to="/login" />;
 
