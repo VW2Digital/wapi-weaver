@@ -409,8 +409,9 @@ function Dashboard() {
         </Card>
       </div>
 
-      <div className="px-6 pb-12">
-        <h2 className="mb-3 font-display text-lg font-semibold">Mensagens por status — por campanha</h2>
+      <div className="px-4 pb-12 sm:px-6">
+        <h2 className="mb-3 font-display text-base font-semibold sm:text-lg">Mensagens por status — por campanha</h2>
+
         <Card className="overflow-hidden">
           <div className="hidden grid-cols-12 gap-3 border-b bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
             <div className="col-span-3">Campanha</div>
