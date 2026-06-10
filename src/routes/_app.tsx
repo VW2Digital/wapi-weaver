@@ -211,10 +211,12 @@ function AppLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-background p-3 md:pl-[276px]">
+    <div className="min-h-dvh bg-background p-3 md:pl-[276px]">
       <aside className="hidden md:flex flex-col rounded-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm md:fixed md:inset-y-3 md:left-3 md:w-[260px] md:z-30">
         {SidebarBody}
       </aside>
+
+
 
       {/* Mobile top bar */}
       <header className="md:hidden mb-3 flex items-center gap-2 rounded-2xl border bg-card px-3 py-2 shadow-sm">
