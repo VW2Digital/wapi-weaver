@@ -97,7 +97,7 @@ function AppLayout() {
   }, [user, router]);
 
   if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
-    return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando…</div>;
+    return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">Carregando…</div>;
   }
   if (!user || mfaOk === false) return <Navigate to="/login" />;
 
@@ -109,7 +109,7 @@ function AppLayout() {
   // Bloqueia o painel para quem não é admin
   if (!isAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex min-h-dvh items-center justify-center bg-background p-6">
         <Card className="w-full max-w-md p-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
             <ShieldAlert className="h-6 w-6 text-destructive" />
@@ -163,7 +163,7 @@ function AppLayout() {
       <div className="m-3 mt-4 border-t border-sidebar-border pt-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 transition-colors">
+            <button aria-label="Abrir menu do usuário" className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors">
               <Avatar className="h-9 w-9">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
                 <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
@@ -211,10 +211,12 @@ function AppLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-background p-3 md:pl-[276px]">
+    <div className="min-h-dvh bg-background p-3 md:pl-[276px]">
       <aside className="hidden md:flex flex-col rounded-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm md:fixed md:inset-y-3 md:left-3 md:w-[260px] md:z-30">
         {SidebarBody}
       </aside>
+
+
 
       {/* Mobile top bar */}
       <header className="md:hidden mb-3 flex items-center gap-2 rounded-2xl border bg-card px-3 py-2 shadow-sm">
@@ -237,7 +239,7 @@ function AppLayout() {
         </div>
       </header>
 
-      <main className="rounded-2xl border bg-card shadow-sm overflow-hidden h-[calc(100vh-1.5rem)] md:h-[calc(100vh-1.5rem)] flex flex-col">
+      <main className="rounded-2xl border bg-card shadow-sm overflow-hidden h-[calc(100dvh-1.5rem)] flex flex-col">
         <Outlet />
       </main>
     </div>
