@@ -109,7 +109,7 @@ function AppLayout() {
   // Bloqueia o painel para quem não é admin
   if (!isAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex min-h-dvh items-center justify-center bg-background p-6">
         <Card className="w-full max-w-md p-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
             <ShieldAlert className="h-6 w-6 text-destructive" />
