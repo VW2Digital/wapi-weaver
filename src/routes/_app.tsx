@@ -239,7 +239,7 @@ function AppLayout() {
         </div>
       </header>
 
-      <main className="rounded-2xl border bg-card shadow-sm overflow-hidden h-[calc(100vh-1.5rem)] md:h-[calc(100vh-1.5rem)] flex flex-col">
+      <main className="rounded-2xl border bg-card shadow-sm overflow-hidden h-[calc(100dvh-1.5rem)] flex flex-col">
         <Outlet />
       </main>
     </div>
