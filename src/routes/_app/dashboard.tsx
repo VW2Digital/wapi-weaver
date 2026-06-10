@@ -372,7 +372,7 @@ function Dashboard() {
           </div>
         </Card>
 
-        <Card className="p-5 lg:col-span-3">
+        <Card className="p-4 sm:p-5 lg:col-span-3">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Volume por campanha</p>
           <p className="mt-1 mb-2 text-xs text-muted-foreground">Top {barData.length} campanhas mais recentes</p>
           <div className="h-64">
