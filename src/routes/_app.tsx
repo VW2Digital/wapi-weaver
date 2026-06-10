@@ -163,7 +163,7 @@ function AppLayout() {
       <div className="m-3 mt-4 border-t border-sidebar-border pt-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 transition-colors">
+            <button aria-label="Abrir menu do usuário" className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors">
               <Avatar className="h-9 w-9">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
                 <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
