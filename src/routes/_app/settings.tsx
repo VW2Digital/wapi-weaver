@@ -1174,6 +1174,8 @@ function AdminPlatformSection() {
           <code className="text-[10px]">whatsapp_business_messaging</code> com acesso avançado
         </p>
       </div>
+      </>
+      )}
     </Card>
   );
 }
