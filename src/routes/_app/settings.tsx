@@ -976,6 +976,7 @@ function AdminPlatformSection() {
       </div>
 
       {!collapsed && (
+      <>
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Meta App ID</Label>
