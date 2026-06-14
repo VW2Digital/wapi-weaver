@@ -641,6 +641,7 @@ function SetupWizard({
     [credentialsComplete, webhookComplete, testComplete],
   );
   const [step, setStep] = useState(0);
+  const [collapsed, setCollapsed] = useState(false);
   const doneCount = steps.filter((s) => s.done).length;
   const progress = Math.round((doneCount / steps.length) * 100);
 
