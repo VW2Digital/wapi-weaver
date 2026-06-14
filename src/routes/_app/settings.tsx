@@ -918,6 +918,7 @@ function AdminPlatformSection() {
   const [headTags, setHeadTags] = useState("");
   const [bodyTags, setBodyTags] = useState("");
   const [cronSecret, setCronSecret] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     if (settings) {
