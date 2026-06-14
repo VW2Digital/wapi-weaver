@@ -655,10 +655,25 @@ function SetupWizard({
               Etapa {step + 1} de {steps.length} · {doneCount} de {steps.length} concluída(s)
             </p>
           </div>
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{progress}%</span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{progress}%</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setCollapsed((v) => !v)}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+              className="shrink-0 gap-1"
+            >
+              {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+            </Button>
+          </div>
         </div>
         <Progress value={progress} className="mt-4" />
 
+        {!collapsed && (
         <div className="mt-5 grid grid-cols-3 gap-2">
           {steps.map((s, i) => {
             const Icon = s.icon;
@@ -692,8 +707,11 @@ function SetupWizard({
             );
           })}
         </div>
+        )}
       </div>
 
+      {!collapsed && (
+      <>
       <div className="p-2 md:p-4">{children(step)}</div>
 
       <div className="flex items-center justify-between border-t bg-muted/20 px-6 py-4">
@@ -707,6 +725,8 @@ function SetupWizard({
           Próxima <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+      </>
+      )}
     </Card>
   );
 }
