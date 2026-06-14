@@ -961,8 +961,21 @@ function AdminPlatformSection() {
             Credenciais globais do <strong>seu</strong> App Meta. Compartilhadas por toda a plataforma — habilitam o botão "Conectar com o Facebook" (Embedded Signup) para todos os clientes.
           </p>
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+          className="shrink-0 gap-1"
+        >
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+        </Button>
       </div>
 
+      {!collapsed && (
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Meta App ID</Label>
