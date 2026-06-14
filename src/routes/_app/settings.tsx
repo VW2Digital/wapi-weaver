@@ -641,6 +641,7 @@ function SetupWizard({
     [credentialsComplete, webhookComplete, testComplete],
   );
   const [step, setStep] = useState(0);
+  const [collapsed, setCollapsed] = useState(false);
   const doneCount = steps.filter((s) => s.done).length;
   const progress = Math.round((doneCount / steps.length) * 100);
 
@@ -654,10 +655,25 @@ function SetupWizard({
               Etapa {step + 1} de {steps.length} · {doneCount} de {steps.length} concluída(s)
             </p>
           </div>
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{progress}%</span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{progress}%</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setCollapsed((v) => !v)}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+              className="shrink-0 gap-1"
+            >
+              {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+            </Button>
+          </div>
         </div>
         <Progress value={progress} className="mt-4" />
 
+        {!collapsed && (
         <div className="mt-5 grid grid-cols-3 gap-2">
           {steps.map((s, i) => {
             const Icon = s.icon;
@@ -691,8 +707,11 @@ function SetupWizard({
             );
           })}
         </div>
+        )}
       </div>
 
+      {!collapsed && (
+      <>
       <div className="p-2 md:p-4">{children(step)}</div>
 
       <div className="flex items-center justify-between border-t bg-muted/20 px-6 py-4">
@@ -706,12 +725,15 @@ function SetupWizard({
           Próxima <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+      </>
+      )}
     </Card>
   );
 }
 
 function AppearanceCard() {
   const { theme, isSystem, resetTheme, setTheme } = useTheme();
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleReset = () => {
     resetTheme();
@@ -720,8 +742,25 @@ function AppearanceCard() {
 
   return (
     <Card className="p-6">
-      <h2 className="font-display text-lg font-semibold">Aparência</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel. A mudança é aplicada imediatamente.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Aparência</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel. A mudança é aplicada imediatamente.</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+          className="shrink-0 gap-1"
+        >
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+        </Button>
+      </div>
+      {!collapsed && (
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className={`rounded-lg p-2 ${isSystem ? "bg-primary/10" : "bg-muted"}`}>
@@ -764,6 +803,7 @@ function AppearanceCard() {
           </Button>
         </div>
       </div>
+      )}
     </Card>
   );
 }
@@ -1196,6 +1236,8 @@ function WebhookHealthCard() {
     refetchInterval: 30_000,
   });
 
+  const [collapsed, setCollapsed] = useState(false);
+
   if (!isAdmin) return null;
 
   const last = health?.last_received_at ? new Date(health.last_received_at) : null;
@@ -1237,9 +1279,23 @@ function WebhookHealthCard() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+            className="shrink-0 gap-1"
+          >
+            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+          </Button>
         </div>
       </div>
 
+      {!collapsed && (
+      <>
       {isLoading ? (
         <p className="mt-4 text-sm text-muted-foreground">Carregando…</p>
       ) : (
@@ -1273,6 +1329,8 @@ function WebhookHealthCard() {
         <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
           ⚠️ Nenhum evento foi recebido ainda. Verifique se a Callback URL e o Verify Token estão configurados na Meta e se o webhook foi inscrito no campo <code>messages</code>.
         </div>
+      )}
+      </>
       )}
     </Card>
   );
