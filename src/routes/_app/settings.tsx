@@ -712,6 +712,7 @@ function SetupWizard({
 
 function AppearanceCard() {
   const { theme, isSystem, resetTheme, setTheme } = useTheme();
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleReset = () => {
     resetTheme();
@@ -720,8 +721,25 @@ function AppearanceCard() {
 
   return (
     <Card className="p-6">
-      <h2 className="font-display text-lg font-semibold">Aparência</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel. A mudança é aplicada imediatamente.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Aparência</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Personalize o tema do painel. A mudança é aplicada imediatamente.</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+          className="shrink-0 gap-1"
+        >
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+        </Button>
+      </div>
+      {!collapsed && (
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className={`rounded-lg p-2 ${isSystem ? "bg-primary/10" : "bg-muted"}`}>
@@ -764,6 +782,7 @@ function AppearanceCard() {
           </Button>
         </div>
       </div>
+      )}
     </Card>
   );
 }
