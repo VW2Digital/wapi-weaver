@@ -1279,9 +1279,23 @@ function WebhookHealthCard() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
+            className="shrink-0 gap-1"
+          >
+            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+          </Button>
         </div>
       </div>
 
+      {!collapsed && (
+      <>
       {isLoading ? (
         <p className="mt-4 text-sm text-muted-foreground">Carregando…</p>
       ) : (
@@ -1315,6 +1329,8 @@ function WebhookHealthCard() {
         <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
           ⚠️ Nenhum evento foi recebido ainda. Verifique se a Callback URL e o Verify Token estão configurados na Meta e se o webhook foi inscrito no campo <code>messages</code>.
         </div>
+      )}
+      </>
       )}
     </Card>
   );
