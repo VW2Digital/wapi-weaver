@@ -1236,6 +1236,8 @@ function WebhookHealthCard() {
     refetchInterval: 30_000,
   });
 
+  const [collapsed, setCollapsed] = useState(false);
+
   if (!isAdmin) return null;
 
   const last = health?.last_received_at ? new Date(health.last_received_at) : null;
