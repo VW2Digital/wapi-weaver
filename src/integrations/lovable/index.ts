@@ -12,27 +12,31 @@ type SignInOptions = {
 export const lovable = {
   auth: {
     signInWithOAuth: async (provider: "google" | "apple" | "microsoft" | "lovable", opts?: SignInOptions) => {
-      const result = await lovableAuth.signInWithOAuth(provider, {
-        redirect_uri: opts?.redirect_uri,
-        extraParams: {
-          ...opts?.extraParams,
+      let targetProvider: any = provider;
+      if (provider === "lovable") {
+        targetProvider = "google";
+      } else if (provider === "microsoft") {
+        targetProvider = "azure";
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: targetProvider,
+        options: {
+          redirectTo: opts?.redirect_uri || (typeof window !== "undefined" ? window.location.origin : undefined),
+          queryParams: opts?.extraParams,
         },
       });
 
-      if (result.redirected) {
-        return result;
+      if (error) {
+        return { error, redirected: false };
       }
 
-      if (result.error) {
-        return result;
+      if (typeof window !== "undefined" && data?.url) {
+        window.location.assign(data.url);
+        return { redirected: true };
       }
 
-      try {
-        await supabase.auth.setSession(result.tokens);
-      } catch (e) {
-        return { error: e instanceof Error ? e : new Error(String(e)) };
-      }
-      return result;
+      return { redirected: false };
     },
   },
 };

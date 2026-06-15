@@ -79,14 +79,14 @@
   --chart-3: oklch(0.55 0.15 260);
   --chart-4: oklch(0.65 0.16 158);
   --chart-5: oklch(0.5 0.02 60);
-  --sidebar: oklch(0.205 0.008 60);
-  --sidebar-foreground: oklch(0.96 0.008 70);
-  --sidebar-primary: oklch(0.7 0.18 42);
-  --sidebar-primary-foreground: oklch(0.15 0.01 60);
-  --sidebar-accent: oklch(0.28 0.012 60);
-  --sidebar-accent-foreground: oklch(0.97 0.008 70);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.7 0.18 42);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.2 0.01 60);
+  --sidebar-primary: oklch(0.66 0.175 38);
+  --sidebar-primary-foreground: oklch(0.99 0.012 85);
+  --sidebar-accent: oklch(0.95 0.012 70);
+  --sidebar-accent-foreground: oklch(0.2 0.01 60);
+  --sidebar-border: oklch(0.91 0.01 70);
+  --sidebar-ring: oklch(0.66 0.175 38);
 }
 
 .dark {
@@ -137,10 +137,15 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
   }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
+  }
+  /* Smooth transitions for themeable elements */
+  .bg-card, .bg-sidebar, .bg-background, .border, .text-foreground, .text-muted-foreground, .text-sidebar-foreground {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
   }
 
   /* Branded scrollbars */

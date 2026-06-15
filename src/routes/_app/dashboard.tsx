@@ -5,6 +5,7 @@ import { listCampaigns } from "@/lib/campaigns.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -203,7 +204,7 @@ function Dashboard() {
           <h2 id="bento-heading" className="sr-only">Visão geral</h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4 lg:grid-cols-6 lg:auto-rows-[7rem]">
             {/* Hero tile — Taxa de entrega (bento highlight) */}
-            <Card className="col-span-2 sm:col-span-4 lg:col-span-3 lg:row-span-2 relative overflow-hidden p-5 sm:p-6">
+            <Card className="col-span-2 sm:col-span-4 lg:col-span-3 lg:row-span-2 relative overflow-hidden p-5 sm:p-6 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 opacity-90"
@@ -254,7 +255,7 @@ function Dashboard() {
               const TrendIcon = up ? TrendingUp : down ? TrendingDown : Minus;
               const trendColor = up ? "text-success" : down ? "text-destructive" : "text-muted-foreground";
               return (
-                <Card key={s.label} className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4">
+                <Card key={s.label} className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
                     {s.loading ? (
@@ -285,7 +286,7 @@ function Dashboard() {
             })}
 
             {/* Secondary tiles */}
-            <Card className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4">
+            <Card className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Taxa de leitura</p>
                 {c.isPending ? (
@@ -302,7 +303,7 @@ function Dashboard() {
               </div>
             </Card>
 
-            <Card className={`col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 ${totals.failed > 0 ? "border-destructive/40" : ""}`}>
+            <Card className={cn("col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5", totals.failed > 0 ? "border-destructive/40" : "")}>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Falhas</p>
                 {c.isPending ? (

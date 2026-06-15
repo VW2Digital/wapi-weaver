@@ -147,15 +147,15 @@ function AppLayout() {
               key={to}
               to={to}
               className={cn(
-                "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                 active
                   ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
               )}
             >
-              {active && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />}
-              <Icon className={cn("h-4 w-4", active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70")} />
-              <span>{label}</span>
+              {active && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200" />}
+              <Icon className={cn("h-4 w-4 transition-transform duration-200 group-hover:scale-110", active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70")} />
+              <span className="transition-transform duration-200 group-hover:translate-x-0.5">{label}</span>
             </Link>
           );
         })}

@@ -57,6 +57,26 @@ function validateAccessToken(v: string): { error: string | null; warning: string
   return { error: null, warning: null, ok: true };
 }
 
+function usePersistedCollapsedState(key: string, defaultValue = true) {
+  const [collapsed, setCollapsed] = useState(defaultValue);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(key);
+    if (stored !== null) {
+      setCollapsed(JSON.parse(stored));
+    }
+  }, [key]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  return [collapsed, toggleCollapsed] as const;
+}
 
 function SettingsPage() {
   const fetchProfile = useServerFn(getProfile);
@@ -77,6 +97,15 @@ function SettingsPage() {
   const [testResult, setTestResult] = useState<any>(null);
   const [deliveryStatus, setDeliveryStatus] = useState<{ status: string; timestamp?: string; error?: any } | null>(null);
   const pollRef = useRef<number | null>(null);
+
+  const [crmCollapsed, toggleCrmCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_crm_collapsed",
+    true
+  );
+  const [legalCollapsed, toggleLegalCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_legal_collapsed",
+    true
+  );
 
   useEffect(() => { if (profile) setForm(profile); }, [profile]);
 
@@ -561,27 +590,44 @@ function SettingsPage() {
 
 
         <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold">Conectar com outros sistemas (CRM, automações)</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Use a chave abaixo para receber contatos automaticamente do seu CRM (HubSpot, RD Station, n8n, Zapier, etc).
-            Se nunca usou isso, pode ignorar esta seção — não é obrigatório para enviar mensagens.
-          </p>
-          <div className="mt-4 space-y-3">
-            <ReadOnly label="Endereço para envio (POST)" value={ingestUrl} onCopy={() => copy(ingestUrl, "Endpoint")} />
-            <div className="space-y-1.5">
-              <Label>Sua chave de acesso</Label>
-              <div className="flex gap-2">
-                <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
-                <Button variant="outline" onClick={() => copy(form.api_key ?? "", "API key")} title="Copiar"><Copy className="h-4 w-4" /></Button>
-                <Button variant="outline" onClick={() => rotateMut.mutate()} disabled={rotateMut.isPending} title="Gerar nova chave (a antiga deixa de funcionar)">
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para sua conta.</p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h2 className="font-display text-lg font-semibold">Conectar com outros sistemas (CRM, automações)</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Use a chave abaixo para receber contatos automaticamente do seu CRM (HubSpot, RD Station, n8n, Zapier, etc).
+                Se nunca usou isso, pode ignorar esta seção — não é obrigatório para enviar mensagens.
+              </p>
             </div>
-            <details className="rounded-md border bg-muted/30 p-3 text-xs">
-              <summary className="cursor-pointer font-medium text-foreground">Exemplo técnico para desenvolvedores</summary>
-              <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={toggleCrmCollapsed}
+              aria-expanded={!crmCollapsed}
+              aria-label={crmCollapsed ? "Expandir seção" : "Recolher seção"}
+              className="shrink-0 gap-1"
+            >
+              {crmCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              <span className="hidden sm:inline text-xs">{crmCollapsed ? "Expandir" : "Recolher"}</span>
+            </Button>
+          </div>
+          {!crmCollapsed && (
+            <div className="mt-4 space-y-3">
+              <ReadOnly label="Endereço para envio (POST)" value={ingestUrl} onCopy={() => copy(ingestUrl, "Endpoint")} />
+              <div className="space-y-1.5">
+                <Label>Sua chave de acesso</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
+                  <Button variant="outline" onClick={() => copy(form.api_key ?? "", "API key")} title="Copiar"><Copy className="h-4 w-4" /></Button>
+                  <Button variant="outline" onClick={() => rotateMut.mutate()} disabled={rotateMut.isPending} title="Gerar nova chave (a antiga deixa de funcionar)">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para sua conta.</p>
+              </div>
+              <details className="rounded-md border bg-muted/30 p-3 text-xs">
+                <summary className="cursor-pointer font-medium text-foreground">Exemplo técnico para desenvolvedores</summary>
+                <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
 {`curl -X POST ${ingestUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${form.api_key ?? "SUA_API_KEY"}" \\
@@ -592,29 +638,47 @@ function SettingsPage() {
     "custom_fields": {"empresa": "Acme"},
     "tags": ["lead-quente"]
   }'`}
-              </pre>
-            </details>
-          </div>
+                </pre>
+              </details>
+            </div>
+          )}
         </Card>
 
-
         <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Leia nossos termos e saiba como seus dados são tratados.</p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Link to="/privacy" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
-              <Shield className="h-4 w-4 text-primary" />
-              Política de Privacidade
-            </Link>
-            <Link to="/terms" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
-              <FileText className="h-4 w-4 text-primary" />
-              Termos de Serviço
-            </Link>
-            <Link to="/data-deletion" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
-              <Trash2 className="h-4 w-4 text-primary" />
-              Exclusão de Dados
-            </Link>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Leia nossos termos e saiba como seus dados são tratados.</p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={toggleLegalCollapsed}
+              aria-expanded={!legalCollapsed}
+              aria-label={legalCollapsed ? "Expandir seção" : "Recolher seção"}
+              className="shrink-0 gap-1"
+            >
+              {legalCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              <span className="hidden sm:inline text-xs">{legalCollapsed ? "Expandir" : "Recolher"}</span>
+            </Button>
           </div>
+          {!legalCollapsed && (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Link to="/privacy" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+                <Shield className="h-4 w-4 text-primary" />
+                Política de Privacidade
+              </Link>
+              <Link to="/terms" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+                <FileText className="h-4 w-4 text-primary" />
+                Termos de Serviço
+              </Link>
+              <Link to="/data-deletion" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted">
+                <Trash2 className="h-4 w-4 text-primary" />
+                Exclusão de Dados
+              </Link>
+            </div>
+          )}
         </Card>
       </div>
     </div>
@@ -641,7 +705,11 @@ function SetupWizard({
     [credentialsComplete, webhookComplete, testComplete],
   );
   const [step, setStep] = useState(0);
-  const [collapsed, setCollapsed] = useState(false);
+  const isComplete = credentialsComplete && webhookComplete && testComplete;
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_setup_wizard_collapsed",
+    isComplete
+  );
   const doneCount = steps.filter((s) => s.done).length;
   const progress = Math.round((doneCount / steps.length) * 100);
 
@@ -661,7 +729,7 @@ function SetupWizard({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setCollapsed((v) => !v)}
+              onClick={toggleCollapsed}
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
               className="shrink-0 gap-1"
@@ -733,7 +801,10 @@ function SetupWizard({
 
 function AppearanceCard() {
   const { theme, isSystem, resetTheme, setTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_appearance_collapsed",
+    true
+  );
 
   const handleReset = () => {
     resetTheme();
@@ -751,7 +822,7 @@ function AppearanceCard() {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={toggleCollapsed}
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
           className="shrink-0 gap-1"
@@ -958,7 +1029,10 @@ function AdminPlatformSection() {
   const [headTags, setHeadTags] = useState("");
   const [bodyTags, setBodyTags] = useState("");
   const [cronSecret, setCronSecret] = useState("");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_admin_platform_collapsed",
+    true
+  );
 
   useEffect(() => {
     if (settings) {
@@ -1005,7 +1079,7 @@ function AdminPlatformSection() {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={toggleCollapsed}
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
           className="shrink-0 gap-1"
@@ -1236,7 +1310,10 @@ function WebhookHealthCard() {
     refetchInterval: 30_000,
   });
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_webhook_health_collapsed",
+    true
+  );
 
   if (!isAdmin) return null;
 
@@ -1283,7 +1360,7 @@ function WebhookHealthCard() {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => setCollapsed((v) => !v)}
+            onClick={toggleCollapsed}
             aria-expanded={!collapsed}
             aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
             className="shrink-0 gap-1"

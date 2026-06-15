@@ -12,6 +12,7 @@ import { WhatsAppPreview } from "@/components/whatsapp-preview";
 import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
 import { CardGridSkeleton } from "@/components/table-skeleton";
 import { TemplateBuilderDialog } from "@/components/template-builder-dialog";
@@ -195,7 +196,7 @@ function TemplatesPage() {
           {filtered.map((t: any) => {
             const isChecked = selected.has(t.id);
             return (
-              <Card key={t.id} className={`overflow-hidden transition ${isChecked ? "ring-2 ring-primary" : ""}`}>
+              <Card key={t.id} className={cn("overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5", isChecked ? "ring-2 ring-primary" : "")}>
                 <div className="border-b p-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
