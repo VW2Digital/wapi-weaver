@@ -313,6 +313,26 @@ const SAMPLE_TEMPLATES = [
     ],
   },
   {
+    name: "confirmacao_agendamento_simples",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "BODY", text: "Olá, {{1}}! Confirmamos o seu agendamento de {{2}} no dia {{3}} às {{4}}. Caso precise remarcar ou cancelar, pedimos que nos avise respondendo a esta mensagem. Aguardamos você!" }
+    ],
+  },
+  {
+    name: "confirmacao_agendamento_botoes",
+    language: "pt_BR",
+    category: "UTILITY",
+    components: [
+      { type: "BODY", text: "Olá, {{1}}! Passando para confirmar o seu agendamento de {{2}} com o(a) {{3}} para o dia {{4}} às {{5}}.\n\nPor favor, confirme a sua presença selecionando uma das opções abaixo:" },
+      { type: "BUTTONS", buttons: [
+        { type: "QUICK_REPLY", text: "Sim, confirmado!" },
+        { type: "QUICK_REPLY", text: "Preciso remarcar" }
+      ] }
+    ],
+  },
+  {
     name: "carrinho_abandonado",
     language: "pt_BR",
     category: "MARKETING",
