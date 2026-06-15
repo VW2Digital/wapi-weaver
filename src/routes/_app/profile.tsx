@@ -13,8 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Camera, Loader2, Trash2, User, Building2 } from "lucide-react";
+import { Camera, Loader2, Trash2, User, Building2, KeyRound } from "lucide-react";
 import { TwoFactorSection } from "@/components/mfa/two-factor-section";
+import { PasswordInput } from "@/components/password-input";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/profile")({ component: ProfilePage });
 
@@ -23,6 +25,7 @@ function ProfilePage() {
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile"],
@@ -32,6 +35,10 @@ function ProfilePage() {
   const [form, setForm] = useState<any>({});
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   useEffect(() => {
     if (profile) setForm(profile);
@@ -85,6 +92,57 @@ function ProfilePage() {
       toast.success("Foto removida");
     } catch (e: any) {
       toast.error(e.message);
+    }
+  }
+
+  async function handleUpdatePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("As senhas não coincidem.");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Senha de acesso configurada com sucesso!");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message ?? "Erro ao atualizar senha");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
+  async function handleDeletePassword() {
+    const ok = await confirm({
+      title: "Remover senha de acesso?",
+      description: "Tem certeza de que deseja remover a senha? Você perderá o acesso por email + senha e só poderá entrar usando o Google OAuth ou links mágicos enviados por e-mail.",
+      destructive: true,
+      confirmText: "Remover senha",
+      cancelText: "Cancelar"
+    });
+    if (!ok) return;
+    setPasswordBusy(true);
+    try {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const randomPassword = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("") + "A1!";
+      
+      const { error } = await supabase.auth.updateUser({ password: randomPassword });
+      if (error) throw error;
+      toast.success("Senha de acesso removida. A partir de agora você deve entrar via Google ou links mágicos.");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message ?? "Erro ao remover senha");
+    } finally {
+      setPasswordBusy(false);
     }
   }
 
@@ -256,6 +314,57 @@ function ProfilePage() {
               Salvar dados da empresa
             </Button>
           </div>
+        </Card>
+
+        {/* Senha de acesso */}
+        <Card className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-primary" />
+              <h2 className="font-display text-lg font-semibold">Senha de acesso</h2>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:bg-destructive/10"
+              onClick={handleDeletePassword}
+              disabled={passwordBusy}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Remover senha
+            </Button>
+          </div>
+          <p className="mb-4 text-xs text-muted-foreground leading-relaxed">
+            Configure uma senha para poder logar diretamente com seu e-mail e senha, sem depender exclusivamente de login social (Google) ou links mágicos.
+          </p>
+          <form onSubmit={handleUpdatePassword} className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">Nova senha</Label>
+              <PasswordInput
+                id="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo de 6 caracteres"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+              <PasswordInput
+                id="confirm-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repita a nova senha"
+                required
+              />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <Button type="submit" disabled={passwordBusy}>
+                {passwordBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar senha
+              </Button>
+            </div>
+          </form>
         </Card>
 
         {/* 2FA */}
