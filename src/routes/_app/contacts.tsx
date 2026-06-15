@@ -57,6 +57,12 @@ function ContactsPage() {
   const [form, setForm] = useState({ phone: "", name: "", email: "" });
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
+  // Import wizard states
+  const [importRows, setImportRows] = useState<any[]>([]);
+  const [importHeaders, setImportHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState({ phone: "", name: "", email: "" });
+  const [isMappingOpen, setIsMappingOpen] = useState(false);
+
   const createMut = useMutation({
     mutationFn: (d: typeof form) => create({ data: d as any }),
     onSuccess: () => { toast.success("Contato adicionado"); setOpen(false); setForm({ phone: "", name: "", email: "" }); qc.invalidateQueries({ queryKey: ["contacts"] }); },
@@ -79,24 +85,65 @@ function ContactsPage() {
         const wb = XLSX.read(buf, { type: "array" });
         rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
       }
-      const mapped = rows.map((r) => {
-        const get = (...keys: string[]) => keys.map((k) => r[k] ?? r[k.toLowerCase()] ?? r[k.toUpperCase()]).find((v) => v != null && v !== "");
-        const known = ["phone", "telefone", "celular", "name", "nome", "email", "e-mail"];
+      if (rows.length === 0) {
+        toast.error("Nenhum dado encontrado no arquivo.");
+        return;
+      }
+      
+      const headers = Object.keys(rows[0]);
+      setImportHeaders(headers);
+      setImportRows(rows);
+
+      // Auto-detect columns
+      const phoneMatch = headers.find(h => /phone|telefone|celular|contato|numero/i.test(h)) || headers[0] || "";
+      const nameMatch = headers.find(h => /name|nome|contato|cliente/i.test(h)) || "";
+      const emailMatch = headers.find(h => /email|e-mail/i.test(h)) || "";
+
+      setMapping({
+        phone: phoneMatch,
+        name: nameMatch,
+        email: emailMatch
+      });
+      setIsMappingOpen(true);
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao ler o arquivo");
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!mapping.phone) {
+      toast.error("A coluna de telefone é obrigatória.");
+      return;
+    }
+    try {
+      const mapped = importRows.map((r) => {
+        const known = [mapping.phone, mapping.name, mapping.email].filter(Boolean);
         const custom: Record<string, any> = {};
         for (const k of Object.keys(r)) {
-          if (!known.includes(k.toLowerCase()) && r[k] != null && r[k] !== "") custom[k] = r[k];
+          if (!known.includes(k) && r[k] != null && r[k] !== "") {
+            custom[k] = r[k];
+          }
         }
         return {
-          phone: String(get("phone", "telefone", "celular") ?? ""),
-          name: get("name", "nome") ?? null,
-          email: get("email", "e-mail") ?? null,
+          phone: String(r[mapping.phone] ?? ""),
+          name: mapping.name ? String(r[mapping.name] ?? "") : null,
+          email: mapping.email ? String(r[mapping.email] ?? "") : null,
           custom_fields: custom,
         };
       }).filter((r) => r.phone);
-      if (mapped.length === 0) { toast.error("Nenhum telefone encontrado"); return; }
+
+      if (mapped.length === 0) {
+        toast.error("Nenhum telefone válido encontrado nos contatos.");
+        return;
+      }
+
       const res = await bulk({ data: { rows: mapped } });
       toast.success(`${res.inserted} contatos importados${res.invalid ? `, ${res.invalid} inválidos` : ""}`);
       invalidate();
+      setIsMappingOpen(false);
+      setImportRows([]);
+      setImportHeaders([]);
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao importar");
     } finally {
@@ -308,6 +355,69 @@ function ContactsPage() {
           )}
         </Card>
       </div>
+
+      <Dialog open={isMappingOpen} onOpenChange={(o) => { if (!o) { setIsMappingOpen(false); if (fileRef.current) fileRef.current.value = ""; } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mapear colunas do arquivo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Detectamos <strong>{importRows.length}</strong> contatos. Mapeie abaixo quais colunas contêm as informações correspondentes. Colunas não mapeadas serão adicionadas automaticamente como campos personalizados.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
+                <span>Coluna de Telefone</span>
+                <span className="text-destructive">*</span>
+              </Label>
+              <select
+                value={mapping.phone}
+                onChange={(e) => setMapping({ ...mapping, phone: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Selecione a coluna...</option>
+                {importHeaders.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Coluna de Nome</Label>
+              <select
+                value={mapping.name}
+                onChange={(e) => setMapping({ ...mapping, name: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">(Nenhuma / Não importar)</option>
+                {importHeaders.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Coluna de E-mail</Label>
+              <select
+                value={mapping.email}
+                onChange={(e) => setMapping({ ...mapping, email: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">(Nenhuma / Não importar)</option>
+                {importHeaders.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setIsMappingOpen(false); if (fileRef.current) fileRef.current.value = ""; }}>Cancelar</Button>
+              <Button onClick={confirmImport}>Confirmar e Importar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
