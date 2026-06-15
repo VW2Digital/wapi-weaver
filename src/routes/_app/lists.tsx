@@ -75,7 +75,20 @@ function ListsPage() {
             </div>
             <div className="mt-3 divide-y">
               {(lists.data ?? []).map((l: any) => (
-                <button key={l.id} className={`flex w-full items-center justify-between py-3 text-left hover:bg-muted/30 ${selectedList?.id === l.id ? "bg-muted/50" : ""}`} onClick={() => { setSelectedList(l); setPicked(new Set()); }}>
+                <div
+                  key={l.id}
+                  role="button"
+                  tabIndex={0}
+                  className={`flex w-full items-center justify-between py-3 text-left hover:bg-muted/30 cursor-pointer ${selectedList?.id === l.id ? "bg-muted/50" : ""}`}
+                  onClick={() => { setSelectedList(l); setPicked(new Set()); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedList(l);
+                      setPicked(new Set());
+                    }
+                  }}
+                >
                   <div className="px-2">
                     <p className="font-medium">{l.name}</p>
                     <p className="text-xs text-muted-foreground">{l.description ?? "—"} · {l.list_contacts?.[0]?.count ?? 0} contatos</p>
@@ -90,7 +103,7 @@ function ListsPage() {
                   }}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
-                </button>
+                </div>
               ))}
               {(lists.data ?? []).length === 0 && (
                 <EmptyState icon={ListChecks} title="Nenhuma lista" description="Crie listas para segmentar campanhas e organizar contatos." />

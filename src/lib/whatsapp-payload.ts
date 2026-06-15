@@ -8,9 +8,28 @@ export function buildWhatsAppPayload(messageType: string, toPhone: string, paylo
   const base: any = { messaging_product: "whatsapp", to: toE164NoPlus(toPhone) };
 
   const interpolate = (s: string) =>
-    s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key) => {
-      if (key === "name") return contact?.name ?? "";
-      if (contact?.custom_fields && key in contact.custom_fields) return String(contact.custom_fields[key] ?? "");
+    s.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_m, rawKey) => {
+      const key = rawKey.trim();
+      const lowerKey = key.toLowerCase();
+
+      // Suporte para {{name}}, {{Name}}, {{nome}}, {{Nome}}
+      if (lowerKey === "name" || lowerKey === "nome") {
+        return contact?.name ?? "";
+      }
+
+      if (contact?.custom_fields) {
+        // Busca exata primeiro (respeitando maiúsculas/minúsculas e acentos)
+        if (key in contact.custom_fields) {
+          return String(contact.custom_fields[key] ?? "");
+        }
+
+        // Busca insensível a maiúsculas/minúsculas (ex: {{Cidade}} ou {{cidade}})
+        for (const [k, val] of Object.entries(contact.custom_fields)) {
+          if (k.toLowerCase().trim() === lowerKey) {
+            return String(val ?? "");
+          }
+        }
+      }
       return "";
     });
 

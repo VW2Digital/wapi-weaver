@@ -107,12 +107,14 @@ function TemplatesPage() {
         title="Templates"
         subtitle="Modelos aprovados pela Meta. São obrigatórios para iniciar uma conversa."
         action={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => seedMut.mutate()} disabled={seedMut.isPending}>
-              <Sparkles className="mr-2 h-4 w-4" /> Carregar exemplos
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="sm:w-auto sm:px-4" onClick={() => seedMut.mutate()} disabled={seedMut.isPending} title="Carregar exemplos">
+              <Sparkles className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Carregar exemplos</span>
             </Button>
-            <Button variant="outline" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Sincronizar
+            <Button variant="outline" size="icon" className="sm:w-auto sm:px-4" onClick={() => syncMut.mutate()} disabled={syncMut.isPending} title="Sincronizar">
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Sincronizar</span>
             </Button>
             <TemplateBuilderDialog
               trigger={<Button><Plus className="mr-2 h-4 w-4" /> Novo template</Button>}

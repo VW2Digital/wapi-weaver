@@ -69,6 +69,7 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
     if (error) throw error;
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "platform_settings.update",
       entityType: "platform_settings",
       entityId: "1",
@@ -113,6 +114,7 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
 
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "platform.export_schema",
       entityType: "database",
       entityId: "public",
@@ -174,6 +176,7 @@ export const createSchemaBackupNow = createServerFn({ method: "POST" })
     if (error) throw error;
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "platform.schema_backup.manual",
       entityType: "schema_backup",
       entityId: String(data),
@@ -194,6 +197,7 @@ export const deleteSchemaBackup = createServerFn({ method: "POST" })
     if (error) throw error;
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "platform.schema_backup.delete",
       entityType: "schema_backup",
       entityId: data.id,

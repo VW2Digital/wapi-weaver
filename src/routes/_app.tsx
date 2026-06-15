@@ -50,8 +50,6 @@ const NAV = [
   { to: "/users", label: "Usuários", icon: ShieldCheck },
   { to: "/audit", label: "Auditoria", icon: ScrollText },
   { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
-  { to: "/profile", label: "Perfil", icon: UserCog },
-  { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
 

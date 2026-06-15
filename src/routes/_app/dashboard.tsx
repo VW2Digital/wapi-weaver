@@ -144,23 +144,23 @@ function Dashboard() {
         title="Dashboard"
         subtitle="Visão geral dos seus disparos via WhatsApp Cloud API."
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/contacts">
-                <Users className="h-4 w-4" />
-                Importar contatos
+          <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
+            <Button variant="outline" size="sm" asChild className="w-full justify-center">
+              <Link to="/contacts" className="flex items-center justify-center gap-2">
+                <Users className="h-4 w-4 shrink-0" />
+                <span className="truncate">Importar contatos</span>
               </Link>
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/templates">
-                <FileText className="h-4 w-4" />
-                Criar template
+            <Button variant="outline" size="sm" asChild className="w-full justify-center">
+              <Link to="/templates" className="flex items-center justify-center gap-2">
+                <FileText className="h-4 w-4 shrink-0" />
+                <span className="truncate">Criar template</span>
               </Link>
             </Button>
-            <Button size="sm" asChild>
-              <Link to="/campaigns">
-                <Plus className="h-4 w-4" />
-                Nova campanha
+            <Button size="sm" asChild className="w-full justify-center">
+              <Link to="/campaigns" className="flex items-center justify-center gap-2">
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Nova campanha</span>
               </Link>
             </Button>
           </div>

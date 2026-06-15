@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { listCampaigns, createCampaign, cancelCampaign, deleteCampaign } from "@/lib/campaigns.functions";
-import { listLists } from "@/lib/lists.functions";
+import { listLists, getListContacts } from "@/lib/lists.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone, Trash2 } from "lucide-react";
+import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone, Trash2, MoreVertical, Eye } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/empty-state";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ListSkeleton } from "@/components/table-skeleton";
@@ -102,42 +108,60 @@ function CampaignsPage() {
                     </p>
                   </Link>
                   <div className="flex items-center gap-2">
-                    {(c.status === "queued" || c.status === "running") && (
-                      <Button size="sm" variant="ghost" onClick={async () => {
-                        const ok = await confirm({
-                          title: "Cancelar campanha?",
-                          description: <>Mensagens pendentes da campanha <strong>{c.name}</strong> não serão enviadas.</>,
-                          destructive: true, confirmText: "Cancelar campanha", cancelText: "Voltar",
-                        });
-                        if (!ok) return;
-                        await cancel({ data: { id: c.id } });
-                        toast.success("Campanha cancelada");
-                        qc.invalidateQueries({ queryKey: ["campaigns"] });
-                      }}>
-                        <XCircle className="mr-1 h-4 w-4" /> Cancelar
-                      </Button>
-                    )}
-                    <Link to="/campaigns/$id" params={{ id: c.id }}>
-                      <Button size="sm" variant="outline">Detalhes <ChevronRight className="ml-1 h-4 w-4" /></Button>
-                    </Link>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={async () => {
-                        const ok = await confirm({
-                          title: "Excluir campanha?",
-                          description: <>A campanha <strong>{c.name}</strong> e todas as mensagens associadas serão removidas permanentemente.</>,
-                          destructive: true, confirmText: "Excluir", cancelText: "Cancelar",
-                        });
-                        if (!ok) return;
-                        await remove({ data: { id: c.id } });
-                        toast.success("Campanha excluída");
-                        qc.invalidateQueries({ queryKey: ["campaigns"] });
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Ações</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem asChild>
+                          <Link to="/campaigns/$id" params={{ id: c.id }} className="flex w-full items-center cursor-pointer">
+                            <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Detalhes
+                          </Link>
+                        </DropdownMenuItem>
+
+                        {(c.status === "queued" || c.status === "running") && (
+                          <DropdownMenuItem
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Cancelar campanha?",
+                                description: <>Mensagens pendentes da campanha <strong>{c.name}</strong> não serão enviadas.</>,
+                                destructive: true, confirmText: "Cancelar campanha", cancelText: "Voltar",
+                              });
+                              if (!ok) return;
+                              await cancel({ data: { id: c.id } });
+                              toast.success("Campanha cancelada");
+                              qc.invalidateQueries({ queryKey: ["campaigns"] });
+                            }}
+                            className="text-warning focus:text-warning cursor-pointer"
+                          >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Cancelar
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: "Excluir campanha?",
+                              description: <>A campanha <strong>{c.name}</strong> e todas as mensagens associadas serão removidas permanentemente.</>,
+                              destructive: true, confirmText: "Excluir", cancelText: "Cancelar",
+                            });
+                            if (!ok) return;
+                            await remove({ data: { id: c.id } });
+                            toast.success("Campanha excluída");
+                            qc.invalidateQueries({ queryKey: ["campaigns"] });
+                          }}
+                          className="text-destructive focus:text-destructive cursor-pointer"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               );
@@ -153,6 +177,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
   const create = useServerFn(createCampaign);
   const fetchLists = useServerFn(listLists);
   const fetchTemplates = useServerFn(listTemplates);
+  const fetchListContacts = useServerFn(getListContacts);
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const templates = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates() });
 
@@ -161,7 +186,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
   const [listId, setListId] = useState<string>("");
   const [messageType, setMessageType] = useState<"template" | "text" | "media">("template");
   const [templateId, setTemplateId] = useState<string>("");
-  const [variables, setVariables] = useState<string>(""); // comma-separated
+  const [paramValues, setParamValues] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [mediaType, setMediaType] = useState<"image" | "document" | "video">("image");
   const [mediaUrl, setMediaUrl] = useState("");
@@ -173,6 +198,68 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
   const selectedList = (lists.data ?? []).find((l: any) => l.id === listId);
   const listCount = selectedList?.list_contacts?.[0]?.count ?? 0;
 
+  // Carrega contatos da lista selecionada para extrair os campos personalizados
+  const { data: listContactsData } = useQuery({
+    queryKey: ["list-contacts", listId],
+    queryFn: () => fetchListContacts({ data: { list_id: listId } }),
+    enabled: !!listId,
+  });
+
+  const availableFields = useMemo(() => {
+    const fields = new Set<string>(["nome", "email", "telefone"]);
+    if (listContactsData) {
+      listContactsData.forEach((row: any) => {
+        const custom = row.contacts?.custom_fields;
+        if (custom && typeof custom === "object") {
+          Object.keys(custom).forEach((k) => {
+            const trimmed = k.trim();
+            if (trimmed) fields.add(trimmed);
+          });
+        }
+      });
+    }
+    return Array.from(fields);
+  }, [listContactsData]);
+
+  const templateParamsCount = useMemo(() => {
+    if (!selectedTemplate) return 0;
+    const params = new Set<number>();
+
+    selectedTemplate.components?.forEach((c: any) => {
+      // Procura variáveis {{1}}, {{2}} etc. em campos de texto
+      if (c.text) {
+        const matches = c.text.match(/\{\{(\d+)\}\}/g);
+        if (matches) {
+          matches.forEach((m: string) => {
+            const num = parseInt(m.replace(/\D+/g, ""), 10);
+            if (!isNaN(num)) params.add(num);
+          });
+        }
+      }
+      // Procura variáveis em botões com URLs dinâmicas
+      if (c.type === "BUTTONS" && Array.isArray(c.buttons)) {
+        c.buttons.forEach((b: any) => {
+          if (b.url) {
+            const matches = b.url.match(/\{\{(\d+)\}\}/g);
+            if (matches) {
+              matches.forEach((m: string) => {
+                const num = parseInt(m.replace(/\D+/g, ""), 10);
+                if (!isNaN(num)) params.add(num);
+              });
+            }
+          }
+        });
+      }
+    });
+
+    return params.size > 0 ? Math.max(...Array.from(params)) : 0;
+  }, [selectedTemplate]);
+
+  // Sincroniza a quantidade de inputs com o template selecionado
+  useEffect(() => {
+    setParamValues(Array(templateParamsCount).fill(""));
+  }, [templateParamsCount]);
+
   const mut = useMutation({
     mutationFn: async () => {
       const payload: any = {};
@@ -180,7 +267,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
         if (!selectedTemplate) throw new Error("Selecione um template");
         payload.template_name = selectedTemplate.name;
         payload.language = selectedTemplate.language;
-        const vars = variables.split(",").map((v) => v.trim()).filter(Boolean);
+        const vars = paramValues.map((v) => v.trim());
         if (vars.length) payload.variables = vars;
       } else if (messageType === "text") {
         if (!text.trim()) throw new Error("Texto obrigatório");
@@ -266,24 +353,53 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Variáveis do corpo (separadas por vírgula)</Label>
-                  <Input
-                    value={variables}
-                    onChange={(e) => setVariables(e.target.value)}
-                    placeholder="ex: {{name}}, R$ 99,90"
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Use <code>{`{{name}}`}</code> ou <code>{`{{campo_custom}}`}</code> para interpolar dados do contato.
-                  </p>
-                </div>
+
+                {templateParamsCount > 0 && (
+                  <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Variáveis do Template</p>
+                    {Array.from({ length: templateParamsCount }).map((_, i) => (
+                      <div key={i} className="space-y-1.5">
+                        <Label className="text-xs font-medium">Parâmetro {`{{${i + 1}}}`}</Label>
+                        <Input
+                          value={paramValues[i] ?? ""}
+                          onChange={(e) => {
+                            const next = [...paramValues];
+                            next[i] = e.target.value;
+                            setParamValues(next);
+                          }}
+                          placeholder={`Digite o texto ou insira variáveis da lista`}
+                          className="text-xs"
+                        />
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {availableFields.map((field) => (
+                            <Button
+                              key={field}
+                              type="button"
+                              variant="outline"
+                              className="h-6 px-2 py-0 text-[10px] rounded bg-background hover:bg-muted text-muted-foreground border-dashed"
+                              onClick={() => {
+                                const next = [...paramValues];
+                                const current = next[i] ?? "";
+                                next[i] = current ? `${current} {{${field}}}` : `{{${field}}}`;
+                                setParamValues(next);
+                              }}
+                            >
+                              +{field}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {selectedTemplate && (
                   <div>
                     <Label className="mb-2 block">Pré-visualização</Label>
                     <WhatsAppPreview
                       components={(selectedTemplate.components ?? []) as any}
                       variables={Object.fromEntries(
-                        variables.split(",").map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v)
+                        paramValues.map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v)
                       )}
                     />
                   </div>
@@ -292,9 +408,28 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
             )}
 
             {messageType === "text" && (
-              <div>
+              <div className="space-y-1.5">
                 <Label>Texto</Label>
-                <Textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder="Olá {{name}}, ..." />
+                <Textarea 
+                  rows={5} 
+                  value={text} 
+                  onChange={(e) => setText(e.target.value)} 
+                  placeholder="Olá {{nome}}, ..." 
+                />
+                <p className="text-xs text-muted-foreground">Clique nas tags abaixo para inseri-las no texto:</p>
+                <div className="flex flex-wrap gap-1">
+                  {availableFields.map((field) => (
+                    <Button
+                      key={field}
+                      type="button"
+                      variant="outline"
+                      className="h-6 px-2 py-0 text-[10px] rounded bg-background hover:bg-muted text-muted-foreground border-dashed"
+                      onClick={() => setText((t) => t ? `${t} {{${field}}}` : `{{${field}}}`)}
+                    >
+                      +{field}
+                    </Button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -315,9 +450,23 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                   <Label>URL da mídia (pública, HTTPS)</Label>
                   <Input value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} placeholder="https://..." />
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <Label>Legenda (opcional)</Label>
                   <Input value={caption} onChange={(e) => setCaption(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Clique nas tags abaixo para inseri-las na legenda:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {availableFields.map((field) => (
+                      <Button
+                        key={field}
+                        type="button"
+                        variant="outline"
+                        className="h-6 px-2 py-0 text-[10px] rounded bg-background hover:bg-muted text-muted-foreground border-dashed"
+                        onClick={() => setCaption((c) => c ? `${c} {{${field}}}` : `{{${field}}}`)}
+                      >
+                        +{field}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </>
             )}

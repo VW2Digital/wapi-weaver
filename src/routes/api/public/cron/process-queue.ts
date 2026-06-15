@@ -166,8 +166,11 @@ async function checkCronAuth(request: Request): Promise<Response | null> {
   const envSecret = process.env.CRON_SECRET;
   const secret = (dbSecret && dbSecret.trim()) || (envSecret && envSecret.trim()) || null;
 
-  // Fail-closed: sem segredo configurado, o endpoint fica bloqueado.
+  // Fail-closed in production: sem segredo configurado, o endpoint fica bloqueado.
   if (!secret) {
+    if (process.env.NODE_ENV === "development") {
+      return null; // Permite executar localmente para testes
+    }
     return new Response(
       JSON.stringify({ ok: false, error: "cron_secret not configured" }),
       { status: 503, headers: { "Content-Type": "application/json" } },

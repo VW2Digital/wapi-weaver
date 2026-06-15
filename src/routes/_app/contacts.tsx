@@ -227,14 +227,18 @@ function ContactsPage() {
         title="Contatos"
         subtitle={`${contacts?.length ?? 0} contato${(contacts?.length ?? 0) === 1 ? "" : "s"} cadastrado${(contacts?.length ?? 0) === 1 ? "" : "s"}.`}
         action={
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 w-full lg:w-auto">
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" hidden onChange={handleFile} />
-            <Button variant="outline" onClick={() => fileRef.current?.click()}>
-              <Upload className="mr-2 h-4 w-4" /> Importar CSV/XLSX
+            <Button variant="outline" onClick={() => fileRef.current?.click()} className="w-full justify-center">
+              <Upload className="mr-2 h-4 w-4 shrink-0" />
+              <span className="truncate">Importar CSV/XLSX</span>
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button><Plus className="mr-2 h-4 w-4" /> Novo contato</Button>
+                <Button className="w-full justify-center">
+                  <Plus className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="truncate">Novo contato</span>
+                </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Novo contato</DialogTitle></DialogHeader>

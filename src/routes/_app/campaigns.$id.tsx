@@ -69,13 +69,15 @@ function CampaignDetailPage() {
         title={c.name}
         subtitle={`Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`}
         action={
-          <div className="flex gap-2">
-            <Link to="/campaigns"><Button variant="ghost"><ArrowLeft className="mr-1 h-4 w-4" /> Voltar</Button></Link>
-            <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Atualizar
+          <div className="flex items-center gap-2">
+            <Link to="/campaigns" className="hidden sm:block"><Button variant="ghost"><ArrowLeft className="mr-1 h-4 w-4" /> Voltar</Button></Link>
+            <Button variant="outline" size="icon" className="sm:w-auto sm:px-4" onClick={() => refetch()} disabled={isFetching} title="Atualizar">
+              <RefreshCw className={`h-4 w-4 sm:mr-1 ${isFetching ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
-            <Button variant="outline" onClick={() => exportMut.mutate()} disabled={exportMut.isPending}>
-              <Download className="mr-1 h-4 w-4" /> {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
+            <Button variant="outline" size="icon" className="sm:w-auto sm:px-4" onClick={() => exportMut.mutate()} disabled={exportMut.isPending} title="Exportar CSV">
+              <Download className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{exportMut.isPending ? "Exportando…" : "Exportar CSV"}</span>
             </Button>
           </div>
         }

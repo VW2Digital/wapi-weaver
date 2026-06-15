@@ -118,6 +118,7 @@ export const createCampaign = createServerFn({ method: "POST" })
 
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "campaign.create",
       entityType: "campaign",
       entityId: campaign.id,
@@ -157,6 +158,7 @@ export const cancelCampaign = createServerFn({ method: "POST" })
     if (error) throw error;
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "campaign.cancel",
       entityType: "campaign",
       entityId: data.id,
@@ -185,6 +187,7 @@ export const deleteCampaign = createServerFn({ method: "POST" })
     if (error) throw error;
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "campaign.delete",
       entityType: "campaign",
       entityId: data.id,
@@ -262,6 +265,7 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
 
     await recordAudit({
       userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
       action: "campaign.export",
       entityType: "campaign",
       entityId: data.id,

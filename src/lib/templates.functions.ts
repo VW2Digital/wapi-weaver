@@ -222,6 +222,7 @@ export const listTemplates = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("templates")
       .select("*")
+      .eq("status", "APPROVED")
       .order("name");
     if (error) throw error;
     return data ?? [];

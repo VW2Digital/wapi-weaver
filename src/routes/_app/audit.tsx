@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/empty-state";
 import { ScrollText } from "lucide-react";
 import { listAuditLogs } from "@/lib/audit.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/audit")({ component: AuditPage });
 
@@ -32,14 +34,25 @@ function AuditPage() {
   const fetchRoles = useServerFn(getCurrentUserRoles);
   const fetchLogs = useServerFn(listAuditLogs);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
   const isAdmin = roles?.isAdmin === true;
 
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ["audit-logs"],
-    queryFn: () => fetchLogs({ data: { limit: 200 } }),
+  const { data, isLoading } = useQuery({
+    queryKey: ["audit-logs", page],
+    queryFn: () => fetchLogs({ data: { limit: 20, page } }),
   });
+
+  const logs = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / 20);
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
 
   const filtered = (logs ?? []).filter((l) => {
     if (!search) return true;
@@ -63,7 +76,7 @@ function AuditPage() {
           <Input
             placeholder="Buscar por ação, e-mail, entidade…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="max-w-md"
           />
         </Card>
@@ -78,54 +91,142 @@ function AuditPage() {
               description="Ações relevantes (criar/cancelar campanha, alterar configurações, exportar relatório, operações em massa) aparecerão aqui."
             />
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[180px]">Quando</TableHead>
-                    <TableHead>Ação</TableHead>
-                    {isAdmin && <TableHead>Usuário</TableHead>}
-                    <TableHead>Entidade</TableHead>
-                    <TableHead>Detalhes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(l.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="font-medium">{actionLabel(l.action)}</span>
-                          <code className="text-[10px] text-muted-foreground">{l.action}</code>
-                        </div>
-                      </TableCell>
-                      {isAdmin && (
-                        <TableCell className="text-sm">{l.actor_email ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                      )}
-                      <TableCell className="text-xs">
-                        {l.entity_type ? (
-                          <Badge variant="outline" className="font-mono">
-                            {l.entity_type}{l.entity_id ? `:${String(l.entity_id).slice(0, 8)}` : ""}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-[400px]">
-                        <pre className="overflow-x-auto rounded bg-muted/40 p-2 text-[11px] text-muted-foreground">
-                          {JSON.stringify(l.metadata ?? {}, null, 0)}
-                        </pre>
-                      </TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[180px]">Quando</TableHead>
+                      <TableHead>Ação</TableHead>
+                      {isAdmin && <TableHead>Usuário</TableHead>}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((l) => (
+                      <TableRow
+                        key={l.id}
+                        className="cursor-pointer hover:bg-muted/40 transition-colors"
+                        onClick={() => setSelectedLog(l)}
+                      >
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(l.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium">{actionLabel(l.action)}</span>
+                            <code className="text-[10px] text-muted-foreground">{l.action}</code>
+                          </div>
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-sm">
+                            {l.actor_email ?? <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {total > 0 && (
+                <div className="flex items-center justify-between border-t p-4 text-xs md:text-sm text-muted-foreground bg-muted/10">
+                  <div>
+                    Mostrando {Math.min(total, (page - 1) * 20 + 1)} a {Math.min(total, page * 20)} de {total} registros
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="h-8 px-2"
+                    >
+                      Anterior
+                    </Button>
+                    <span className="text-xs md:text-sm font-medium text-foreground px-2">
+                      Página {page} de {Math.max(1, totalPages)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className="h-8 px-2"
+                    >
+                      Próximo
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </Card>
       </div>
+
+      <Dialog open={selectedLog !== null} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-semibold">Detalhes do Evento de Auditoria</DialogTitle>
+            <DialogDescription>
+              Informações completas registradas para esta ação.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="mt-4 space-y-6">
+              <div className="grid grid-cols-2 gap-4 border-b pb-4">
+                <div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Quando</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {new Date(selectedLog.created_at).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Ação</div>
+                  <div className="mt-1 flex flex-col">
+                    <span className="text-sm font-medium">{actionLabel(selectedLog.action)}</span>
+                    <code className="text-[10px] text-muted-foreground mt-0.5">{selectedLog.action}</code>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <div>
+                    <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Usuário</div>
+                    <div className="mt-1 text-sm font-medium">
+                      {selectedLog.actor_email ?? "—"}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                      ID: {selectedLog.user_id ?? "—"}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Entidade</div>
+                  <div className="mt-1">
+                    {selectedLog.entity_type ? (
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="font-mono w-fit">
+                          {selectedLog.entity_type}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          ID: {selectedLog.entity_id ?? "—"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Metadados / Dados Relacionados</div>
+                <pre className="overflow-x-auto rounded-xl bg-muted p-4 text-xs text-muted-foreground font-mono max-h-[300px]">
+                  {JSON.stringify(selectedLog.metadata ?? {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
