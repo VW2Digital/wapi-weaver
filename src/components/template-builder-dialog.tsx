@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { createTemplate, type CreateTemplateInput } from "@/lib/templates.functions";
+import { createTemplate, updateTemplate, type CreateTemplateInput } from "@/lib/templates.functions";
 
 type HeaderState =
   | { format: "NONE" }
@@ -47,9 +47,10 @@ function extractVarCount(text: string) {
   return nums.length ? Math.max(...nums) : 0;
 }
 
-export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
+export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNode; template?: any }) {
   const [open, setOpen] = useState(false);
-  const submit = useServerFn(createTemplate);
+  const submitCreate = useServerFn(createTemplate);
+  const submitUpdate = useServerFn(updateTemplate);
   const qc = useQueryClient();
 
   const [name, setName] = useState("");
@@ -60,6 +61,55 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
   const [bodyExamples, setBodyExamples] = useState<string[]>([]);
   const [footer, setFooter] = useState("");
   const [buttons, setButtons] = useState<ButtonState[]>([]);
+
+  useEffect(() => {
+    if (template && open) {
+      setName(template.name || "");
+      setLanguage(template.language || "pt_BR");
+      setCategory(template.category || "MARKETING");
+      
+      const comps = template.components || [];
+      const headerComp = comps.find((c: any) => c.type === "HEADER");
+      if (headerComp) {
+        if (headerComp.format === "TEXT") {
+          setHeader({ format: "TEXT", text: headerComp.text || "" });
+        } else if (headerComp.format === "LOCATION") {
+          setHeader({ format: "LOCATION" });
+        } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComp.format)) {
+          setHeader({ format: headerComp.format, example_url: headerComp.example?.header_handle?.[0] || "" });
+        } else {
+          setHeader({ format: "NONE" });
+        }
+      } else {
+        setHeader({ format: "NONE" });
+      }
+
+      const bodyComp = comps.find((c: any) => c.type === "BODY");
+      if (bodyComp) {
+        setBody(bodyComp.text || "");
+        setBodyExamples(bodyComp.example?.body_text?.[0] || []);
+      } else {
+        setBody("");
+        setBodyExamples([]);
+      }
+
+      const footerComp = comps.find((c: any) => c.type === "FOOTER");
+      if (footerComp) {
+        setFooter(footerComp.text || "");
+      } else {
+        setFooter("");
+      }
+
+      const buttonsComp = comps.find((c: any) => c.type === "BUTTONS");
+      if (buttonsComp && buttonsComp.buttons) {
+        setButtons(buttonsComp.buttons);
+      } else {
+        setButtons([]);
+      }
+    } else if (!template && open) {
+      reset();
+    }
+  }, [template, open]);
 
   const bodyVarCount = extractVarCount(body);
   useEffect(() => {
@@ -83,7 +133,7 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const payload: CreateTemplateInput = {
+      const payload: any = {
         name: name.trim(),
         language,
         category,
@@ -100,15 +150,20 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
         footer: footer || undefined,
         buttons: buttons.length ? (buttons as any) : undefined,
       };
-      return submit({ data: payload });
+      if (template?.id) {
+        payload.id = template.id;
+        return submitUpdate({ data: payload });
+      } else {
+        return submitCreate({ data: payload });
+      }
     },
     onSuccess: () => {
-      toast.success("Template criado. Aguarde a análise da Meta.");
+      toast.success(template ? "Template atualizado com sucesso." : "Template criado. Aguarde a análise da Meta.");
       qc.invalidateQueries({ queryKey: ["templates"] });
       reset();
       setOpen(false);
     },
-    onError: (e: any) => toast.error(e.message ?? "Falha ao criar template"),
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar template"),
   });
 
   function reset() {
@@ -145,7 +200,7 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo template</DialogTitle>
+          <DialogTitle>{template ? "Editar template" : "Novo template"}</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -158,13 +213,14 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
                   <Input
                     placeholder="ex: boas_vindas_clientes"
                     value={name}
+                    disabled={!!template}
                     onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">minúsculas, números e _</p>
                 </div>
                 <div>
                   <Label>Idioma</Label>
-                  <Select value={language} onValueChange={setLanguage}>
+                  <Select value={language} onValueChange={setLanguage} disabled={!!template}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {LANGS.map((l) => <SelectItem key={l.v} value={l.v}>{l.l}</SelectItem>)}
@@ -406,8 +462,8 @@ export function TemplateBuilderDialog({ trigger }: { trigger: ReactNode }) {
                 onClick={() => mutation.mutate()}
                 disabled={mutation.isPending || !name || !body}
               >
-                <Plus className="mr-1 h-4 w-4" />
-                {mutation.isPending ? "Enviando…" : "Criar template"}
+                {!template && <Plus className="mr-1 h-4 w-4" />}
+                {mutation.isPending ? "Salvando…" : template ? "Salvar alterações" : "Criar template"}
               </Button>
             </div>
           </div>

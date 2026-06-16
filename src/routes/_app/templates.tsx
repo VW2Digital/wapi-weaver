@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates, deleteTemplate, deleteTemplatesBulk } from "@/lib/templates.functions";
+import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates, deleteTemplate, deleteTemplatesBulk, submitTemplateToMeta } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown } from "lucide-react";
+import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown, Send, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ function TemplatesPage() {
   const seed = useServerFn(seedSampleTemplates);
   const remove = useServerFn(deleteTemplate);
   const removeBulk = useServerFn(deleteTemplatesBulk);
+  const submitMeta = useServerFn(submitTemplateToMeta);
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
@@ -58,6 +59,15 @@ function TemplatesPage() {
     onSuccess: (r) => {
       toast.success(`${r.deleted} templates excluídos`);
       setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["templates"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const submitMut = useMutation({
+    mutationFn: (id: string) => submitMeta({ data: { id } }),
+    onSuccess: (r) => {
+      toast.success(`Template "${r.name}" enviado com sucesso! Status na Meta: ${r.status}`);
       qc.invalidateQueries({ queryKey: ["templates"] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -198,7 +208,7 @@ function TemplatesPage() {
           {filtered.map((t: any) => {
             const isChecked = selected.has(t.id);
             return (
-              <Card key={t.id} className={cn("overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5", isChecked ? "ring-2 ring-primary" : "")}>
+              <Card key={t.id} className={cn("flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-0.5", isChecked ? "ring-2 ring-primary" : "")}>
                 <div className="border-b p-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -211,6 +221,14 @@ function TemplatesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
+                      <TemplateBuilderDialog
+                        template={t}
+                        trigger={
+                          <Button size="icon" variant="ghost" aria-label="Editar template">
+                            <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                          </Button>
+                        }
+                      />
                       <Button
                         size="icon"
                         variant="ghost"
@@ -237,9 +255,23 @@ function TemplatesPage() {
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
                 </div>
-                <div className="p-4">
+                <div className="p-4 flex-1">
                   <WhatsAppPreview components={t.components ?? []} />
                 </div>
+                {t.meta_template_id && (t.meta_template_id.startsWith("sample_") || t.meta_template_id.startsWith("local_")) && (
+                  <div className="border-t bg-muted/20 px-4 py-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors duration-200"
+                      onClick={() => submitMut.mutate(t.id)}
+                      disabled={submitMut.isPending}
+                    >
+                      <Send className="h-3 w-3" />
+                      Enviar para aprovação na Meta
+                    </Button>
+                  </div>
+                )}
               </Card>
             );
           })}

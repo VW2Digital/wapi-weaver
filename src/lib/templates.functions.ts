@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { toFriendlyError } from "@/lib/meta-errors";
 
 const buttonSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("QUICK_REPLY"), text: z.string().min(1).max(25) }),
@@ -124,7 +125,8 @@ export const createTemplate = createServerFn({ method: "POST" })
       );
       const body: any = await res.json();
       if (!res.ok) {
-        throw new Error(body?.error?.error_user_msg || body?.error?.message || "Falha ao enviar template à Meta");
+        const friendly = toFriendlyError(body, "Falha ao enviar template à Meta");
+        throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
       }
       status = body.status ?? "PENDING";
       meta_template_id = body.id ?? null;
@@ -147,6 +149,85 @@ export const createTemplate = createServerFn({ method: "POST" })
     if (error) throw error;
     return row;
   });
+
+const updateTemplateInput = createTemplateInput.extend({
+  id: z.string().uuid(),
+});
+
+export type UpdateTemplateInput = z.infer<typeof updateTemplateInput>;
+
+export const updateTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => updateTemplateInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const components = buildMetaComponents(data);
+
+    // 1. Fetch current template
+    const { data: tpl } = await context.supabase
+      .from("templates")
+      .select("*")
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (!tpl) throw new Error("Template não encontrado.");
+
+    let status = "PENDING";
+    let meta_template_id = tpl.meta_template_id;
+
+    // 2. Fetch Meta credentials from profile
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    const isRemote = meta_template_id && !meta_template_id.startsWith("local_") && !meta_template_id.startsWith("sample_");
+
+    if (isRemote && p?.whatsapp_waba_id && p?.whatsapp_access_token) {
+      const apiVersion = p.meta_graph_version || "v20.0";
+      // Meta editing WABA template endpoint is POST /v20.0/{template-id}
+      const res = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${meta_template_id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${p.whatsapp_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            components,
+            category: data.category,
+          }),
+        },
+      );
+      const body: any = await res.json();
+      if (!res.ok) {
+        const friendly = toFriendlyError(body, "Falha ao editar template na Meta");
+        throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+      }
+      status = body.status ?? "PENDING";
+    }
+
+    const { data: row, error } = await context.supabase
+      .from("templates")
+      .update({
+        name: data.name,
+        language: data.language,
+        category: data.category,
+        status: status as any,
+        components,
+        meta_template_id,
+        synced_at: new Date().toISOString(),
+      })
+      .eq("id", data.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return row;
+  });
+
 
 export const deleteTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -245,7 +326,10 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
     while (url) {
       const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } });
       const body: any = await r.json();
-      if (!r.ok) throw new Error(body?.error?.message ?? "Falha ao consultar templates");
+      if (!r.ok) {
+        const friendly = toFriendlyError(body, "Falha ao consultar templates");
+        throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+      }
       all.push(...(body.data ?? []));
       url = body.paging?.next ?? null;
     }
@@ -528,3 +612,75 @@ export const seedSampleTemplates = createServerFn({ method: "POST" })
     if (error) throw error;
     return { inserted: rows.length };
   });
+
+export const submitTemplateToMeta = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    // 1. Fetch template details from DB
+    const { data: tpl, error: fetchErr } = await context.supabase
+      .from("templates")
+      .select("*")
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (fetchErr || !tpl) {
+      throw new Error("Template não encontrado.");
+    }
+
+    // 2. Fetch Meta credentials from profile
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_waba_id || !p?.whatsapp_access_token) {
+      throw new Error("Configure WABA ID e Access Token nas Configurações antes de enviar para a Meta.");
+    }
+
+    // 3. Post to Meta API
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const res = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: tpl.name,
+          language: tpl.language,
+          category: tpl.category,
+          components: tpl.components,
+        }),
+      },
+    );
+
+    const body: any = await res.json();
+    if (!res.ok) {
+      const friendly = toFriendlyError(body, "Falha ao enviar template à Meta");
+      throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+    }
+
+    const status = body.status ?? "PENDING";
+    const meta_template_id = body.id ?? null;
+
+    // 4. Update template in DB with remote ID and status
+    const { data: updated, error: updateErr } = await context.supabase
+      .from("templates")
+      .update({
+        status: status,
+        meta_template_id: meta_template_id ?? tpl.meta_template_id,
+        synced_at: new Date().toISOString(),
+      })
+      .eq("id", tpl.id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+    return updated;
+  });
+
