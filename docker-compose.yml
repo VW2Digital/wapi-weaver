@@ -1,0 +1,45 @@
+services:
+  banco-mysql:
+    image: mysql:8.0
+    container_name: wapi_weaver_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: wapi_weaver
+      MYSQL_ROOT_PASSWORD: 4dgjvikyycAYkRvHHx1ouky62Sgx
+      MYSQL_USER: wapi_user
+      MYSQL_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Automatically initialize database schema on first container startup
+      - ./schema_mysql.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p4dgjvikyycAYkRvHHx1ouky62Sgx"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wapi_weaver_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=banco-mysql
+      - DB_PORT=3306
+      - DB_USER=wapi_user
+      - DB_PASSWORD=S0xbxPfKazBVT8JFy1UEOjIsrjox
+      - DB_NAME=wapi_weaver
+      - JWT_SECRET=super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash
+      # Add other environment variables as needed (e.g. WhatsApp / Meta credentials)
+    depends_on:
+      banco-mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

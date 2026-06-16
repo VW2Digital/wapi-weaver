@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiQueryRouteImport } from './routes/api/query'
 import { Route as AppWebhookEventsRouteImport } from './routes/_app/webhook-events'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
@@ -27,7 +28,12 @@ import { Route as AppContactsRouteImport } from './routes/_app/contacts'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
+import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
+import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
+import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
@@ -65,6 +71,11 @@ const AppRoute = AppRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiQueryRoute = ApiQueryRouteImport.update({
+  id: '/api/query',
+  path: '/api/query',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppWebhookEventsRoute = AppWebhookEventsRouteImport.update({
@@ -122,12 +133,37 @@ const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
   path: '/campaigns/',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
+  id: '/api/storage/upload',
+  path: '/api/storage/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStorageRemoveRoute = ApiStorageRemoveRouteImport.update({
+  id: '/api/storage/remove',
+  path: '/api/storage/remove',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
     id: '/api/public/whatsapp-webhook',
     path: '/api/public/whatsapp-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAuthUpdateRoute = ApiAuthUpdateRouteImport.update({
+  id: '/api/auth/update',
+  path: '/api/auth/update',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
   id: '/api/admin/schema-dump',
   path: '/api/admin/schema-dump',
@@ -167,9 +203,15 @@ export interface FileRoutesByFullPath {
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/webhook-events': typeof AppWebhookEventsRoute
+  '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/api/storage/remove': typeof ApiStorageRemoveRoute
+  '/api/storage/upload': typeof ApiStorageUploadRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -191,9 +233,15 @@ export interface FileRoutesByTo {
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/webhook-events': typeof AppWebhookEventsRoute
+  '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/api/storage/remove': typeof ApiStorageRemoveRoute
+  '/api/storage/upload': typeof ApiStorageUploadRoute
   '/campaigns': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -217,9 +265,15 @@ export interface FileRoutesById {
   '/_app/templates': typeof AppTemplatesRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/webhook-events': typeof AppWebhookEventsRoute
+  '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/api/storage/remove': typeof ApiStorageRemoveRoute
+  '/api/storage/upload': typeof ApiStorageUploadRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -243,9 +297,15 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/webhook-events'
+    | '/api/query'
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
+    | '/api/auth/login'
+    | '/api/auth/register'
+    | '/api/auth/update'
     | '/api/public/whatsapp-webhook'
+    | '/api/storage/remove'
+    | '/api/storage/upload'
     | '/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -267,9 +327,15 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/webhook-events'
+    | '/api/query'
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
+    | '/api/auth/login'
+    | '/api/auth/register'
+    | '/api/auth/update'
     | '/api/public/whatsapp-webhook'
+    | '/api/storage/remove'
+    | '/api/storage/upload'
     | '/campaigns'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -292,9 +358,15 @@ export interface FileRouteTypes {
     | '/_app/templates'
     | '/_app/users'
     | '/_app/webhook-events'
+    | '/api/query'
     | '/_app/campaigns/$id'
     | '/api/admin/schema-dump'
+    | '/api/auth/login'
+    | '/api/auth/register'
+    | '/api/auth/update'
     | '/api/public/whatsapp-webhook'
+    | '/api/storage/remove'
+    | '/api/storage/upload'
     | '/_app/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -308,8 +380,14 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   TermsRoute: typeof TermsRoute
+  ApiQueryRoute: typeof ApiQueryRoute
   ApiAdminSchemaDumpRoute: typeof ApiAdminSchemaDumpRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
+  ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
+  ApiStorageUploadRoute: typeof ApiStorageUploadRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
 }
@@ -363,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/query': {
+      id: '/api/query'
+      path: '/api/query'
+      fullPath: '/api/query'
+      preLoaderRoute: typeof ApiQueryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/webhook-events': {
@@ -442,11 +527,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCampaignsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/storage/upload': {
+      id: '/api/storage/upload'
+      path: '/api/storage/upload'
+      fullPath: '/api/storage/upload'
+      preLoaderRoute: typeof ApiStorageUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/storage/remove': {
+      id: '/api/storage/remove'
+      path: '/api/storage/remove'
+      fullPath: '/api/storage/remove'
+      preLoaderRoute: typeof ApiStorageRemoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp-webhook': {
       id: '/api/public/whatsapp-webhook'
       path: '/api/public/whatsapp-webhook'
       fullPath: '/api/public/whatsapp-webhook'
       preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/update': {
+      id: '/api/auth/update'
+      path: '/api/auth/update'
+      fullPath: '/api/auth/update'
+      preLoaderRoute: typeof ApiAuthUpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/schema-dump': {
@@ -520,8 +640,14 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   TermsRoute: TermsRoute,
+  ApiQueryRoute: ApiQueryRoute,
   ApiAdminSchemaDumpRoute: ApiAdminSchemaDumpRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
+  ApiStorageRemoveRoute: ApiStorageRemoveRoute,
+  ApiStorageUploadRoute: ApiStorageUploadRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
 }

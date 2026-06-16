@@ -66,7 +66,7 @@ export function toFriendlyError(raw: unknown, fallback = "Falha ao executar a op
       return {
         title: "Parâmetro inválido",
         message: message || "A Meta não aceitou um dos parâmetros enviados.",
-        hint: "Confira Phone Number ID, WABA ID e o formato do destinatário (E.164 sem o sinal +).",
+        hint: "Se estiver enviando mensagens, confira o Phone Number ID e o formato do destinatário. Se estiver criando um template, verifique se preencheu os exemplos das variáveis, se o nome do template tem apenas letras minúsculas/números/underlines, ou se o WABA ID não está trocado com o Phone Number ID nas Configurações.",
         code, type, trace,
       };
     case 131030:
@@ -178,7 +178,7 @@ export function toFriendlyError(raw: unknown, fallback = "Falha ao executar a op
     return {
       title: "Parâmetro inválido",
       message: "A Meta rejeitou um dos valores enviados.",
-      hint: "Revise os campos preenchidos — especialmente IDs numéricos e números de telefone (formato internacional, só dígitos).",
+      hint: "Revise os campos preenchidos — verifique se os IDs nas configurações estão corretos, se preencheu exemplos de variáveis (caso existam) e se os números de telefone estão no formato internacional (só dígitos).",
       code, type, trace,
     };
   }
