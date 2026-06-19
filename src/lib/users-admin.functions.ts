@@ -34,7 +34,7 @@ export const listUsers = createServerFn({ method: "GET" })
       rolesMap.set(r.user_id, arr);
     });
     return {
-      users: usersData.users.map((u) => ({
+      users: usersData.users.map((u: any) => ({
         id: u.id,
         email: u.email ?? "",
         created_at: u.created_at,
