@@ -67,7 +67,7 @@ function AppLayout() {
   useEffect(() => {
     if (!user) { setProfileAvatar(null); return; }
     let cancelled = false;
-    supabase.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle().then(({ data }) => {
+    supabase.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle().then(({ data }: any) => {
       if (!cancelled) setProfileAvatar(data?.avatar_url ?? null);
     });
     return () => { cancelled = true; };
@@ -88,7 +88,7 @@ function AppLayout() {
   useEffect(() => {
     if (!user) { setMfaOk(null); return; }
     let cancelled = false;
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
       if (cancelled) return;
       if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
         setMfaOk(false);

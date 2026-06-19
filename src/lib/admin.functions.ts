@@ -11,7 +11,7 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
       .select("role")
       .eq("user_id", context.userId);
     if (error) throw error;
-    const roles = (data ?? []).map((r) => r.role);
+    const roles = (data ?? []).map((r: any) => r.role);
     return { roles, isAdmin: roles.includes("admin") };
   });
 
