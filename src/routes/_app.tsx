@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,6 +78,12 @@ function AppLayout() {
   // Close drawer on navigation
   useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.navigate({ to: "/login", replace: true });
+    }
+  }, [loading, user?.id, router]);
+
   // Garante AAL2 quando o usuário tem 2FA habilitado
   useEffect(() => {
     if (!user) { setMfaOk(null); return; }
@@ -86,22 +92,29 @@ function AppLayout() {
       if (cancelled) return;
       if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
         setMfaOk(false);
-        router.navigate({ to: "/login" });
       } else {
         setMfaOk(true);
       }
     });
     return () => { cancelled = true; };
-  }, [user, router]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (mfaOk === false) {
+      router.navigate({ to: "/login", replace: true });
+    }
+  }, [mfaOk, router]);
 
   if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
     return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">Carregando…</div>;
   }
-  if (!user || mfaOk === false) return <Navigate to="/login" />;
+  if (!user || mfaOk === false) {
+    return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">Carregando…</div>;
+  }
 
   const logout = async () => {
     await supabase.auth.signOut();
-    router.navigate({ to: "/login" });
+    router.navigate({ to: "/login", replace: true });
   };
 
   // Bloqueia o painel para quem não é admin
