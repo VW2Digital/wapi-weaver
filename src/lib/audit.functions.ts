@@ -56,12 +56,13 @@ export const listAuditLogs = createServerFn({ method: "POST" })
 
     let q = context.supabase
       .from("audit_logs")
-      .select("id, user_id, actor_email, action, entity_type, entity_id, metadata, created_at", { count: "exact" })
+      .select("id, user_id, actor_email, action, entity_type, entity_id, metadata, created_at")
       .order("created_at", { ascending: false })
-      .range(from, to);
+      .limit(data.limit)
+      .offset(from);
 
     if (data.action) q = q.eq("action", data.action);
-    const { data: rows, error, count } = await q;
+    const { data: rows, error } = await q;
     if (error) throw error;
 
     let mappedRows = rows ?? [];
@@ -69,8 +70,8 @@ export const listAuditLogs = createServerFn({ method: "POST" })
       const missingUserIds = Array.from(
         new Set(
           rows
-            .filter((r) => !r.actor_email && r.user_id)
-            .map((r) => r.user_id as string)
+            .filter((r: any) => !r.actor_email && r.user_id)
+            .map((r: any) => r.user_id as string)
         )
       );
       if (missingUserIds.length > 0) {
@@ -80,8 +81,8 @@ export const listAuditLogs = createServerFn({ method: "POST" })
           .in("id", missingUserIds);
         
         if (profiles && profiles.length > 0) {
-          const emailMap = new Map(profiles.map((p) => [p.id, p.email]));
-          mappedRows = rows.map((r) => {
+          const emailMap = new Map(profiles.map((p: any) => [p.id, p.email]));
+          mappedRows = rows.map((r: any) => {
             if (!r.actor_email && r.user_id && emailMap.has(r.user_id)) {
               return {
                 ...r,
@@ -96,6 +97,6 @@ export const listAuditLogs = createServerFn({ method: "POST" })
 
     return {
       rows: mappedRows,
-      total: count ?? 0,
+      total: rows?.length ?? 0,
     };
   });

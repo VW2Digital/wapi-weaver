@@ -224,7 +224,8 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
         .select("to_phone, status, attempts, wa_message_id, sent_at, delivered_at, read_at, failed_at, error, contact_id, contacts(name, email)")
         .eq("campaign_id", data.id)
         .order("created_at", { ascending: true })
-        .range(from, from + pageSize - 1);
+        .limit(pageSize)
+        .offset(from);
       if (error) throw error;
       if (!rows || rows.length === 0) break;
       all.push(...rows);

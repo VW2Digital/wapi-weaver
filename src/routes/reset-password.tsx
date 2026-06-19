@@ -21,10 +21,10 @@ function ResetPasswordPage() {
   useEffect(() => {
     // O Supabase coloca os tokens no hash da URL após o redirect; o detectSessionInUrl: true
     // do client cria a sessão automaticamente. Aguardamos a sessão estar pronta.
-    const sub = supabase.auth.onAuthStateChange((event) => {
+    const sub = supabase.auth.onAuthStateChange((event: string) => {
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
     });
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: any) => {
       if (data.session) setReady(true);
     });
     return () => sub.data.subscription.unsubscribe();

@@ -268,7 +268,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
       .in("id", data.ids);
 
     const remote = (tpls ?? []).filter(
-      (t) => t.meta_template_id && !t.meta_template_id.startsWith("local_") && !t.meta_template_id.startsWith("sample_"),
+      (t: any) => t.meta_template_id && !t.meta_template_id.startsWith("local_") && !t.meta_template_id.startsWith("sample_"),
     );
 
     if (remote.length > 0) {
@@ -280,7 +280,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
         const apiVersion = p.meta_graph_version || "v20.0";
         await Promise.all(
-          remote.map((t) =>
+          remote.map((t: any) =>
             fetch(
               `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
               { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },

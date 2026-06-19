@@ -54,7 +54,7 @@ function AuditPage() {
     setPage(1);
   };
 
-  const filtered = (logs ?? []).filter((l) => {
+  const filtered = (logs ?? []).filter((l: any) => {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -102,7 +102,7 @@ function AuditPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((l) => (
+                    {filtered.map((l: any) => (
                       <TableRow
                         key={l.id}
                         className="cursor-pointer hover:bg-muted/40 transition-colors"

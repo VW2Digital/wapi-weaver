@@ -233,7 +233,7 @@ function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data?.users.map((u) => {
+                  {data?.users.map((u: any) => {
                     const isAdmin = u.roles.includes("admin");
                     return (
                       <TableRow key={u.id}>

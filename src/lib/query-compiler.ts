@@ -313,7 +313,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           }
         }
 
-        const [res]: any = await conn.execute(sqlQuery, values);
+        const [res]: any = await (conn as any).execute(sqlQuery, values);
         totalAffectedRows += res.affectedRows;
         insertedIds.push(insertData.id || res.insertId);
       }

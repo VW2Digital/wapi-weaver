@@ -32,7 +32,7 @@ function LoginPage() {
     if (mfaRequired) return;
     if (user) {
       // Verifica se o usuário precisa concluir 2FA antes de entrar
-      supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
         if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
           setMfaRequired(true);
         } else {
