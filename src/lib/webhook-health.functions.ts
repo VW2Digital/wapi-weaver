@@ -13,7 +13,7 @@ export const getWebhookHealth = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
     if (!isAdmin) throw new Error("Acesso negado");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -60,7 +60,7 @@ export const listWebhookEvents = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
     if (!isAdmin) throw new Error("Acesso negado");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
