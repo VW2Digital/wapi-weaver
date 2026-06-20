@@ -7,6 +7,7 @@ import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 const credSchema = z.object({
   whatsapp_phone_number_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_waba_id: z.string().trim().max(64).nullable().optional(),
+  whatsapp_business_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_business_phone: z.string().trim().max(32).nullable().optional(),
   whatsapp_access_token: z.string().trim().max(1024).nullable().optional(),
   whatsapp_app_secret: z.string().trim().max(256).nullable().optional(),
@@ -232,7 +233,7 @@ export const getQRCode = createServerFn({ method: "POST" })
     }
     const apiVersion = p.meta_graph_version || "v20.0";
     const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls/${data.code}`,
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=prefilled_message,deep_link_url,qr_image_url.format(PNG)&code=${encodeURIComponent(data.code)}`,
       {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
       }
@@ -241,3 +242,212 @@ export const getQRCode = createServerFn({ method: "POST" })
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar QR Code" };
     return { ok: true, data: body.data?.[0] ?? body };
   });
+
+export const listQRCodes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=code,prefilled_message,qr_image_url.format(PNG)`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar QR Codes" };
+    return { ok: true, data: body.data || [] };
+  });
+
+export const createQRCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      prefilled_message: z.string().trim(),
+      generate_qr_image: z.enum(["PNG", "SVG"]),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prefilled_message: data.prefilled_message,
+          generate_qr_image: data.generate_qr_image,
+        }),
+      }
+    );
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao criar QR Code" };
+    return { ok: true, data: body };
+  });
+
+export const updateQRCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      code: z.string().trim().min(1),
+      prefilled_message: z.string().trim(),
+      generate_qr_image: z.enum(["PNG", "SVG"]).optional(),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const bodyPayload: any = {
+      prefilled_message: data.prefilled_message,
+      code: data.code,
+    };
+    if (data.generate_qr_image) {
+      bodyPayload.generate_qr_image = data.generate_qr_image;
+    }
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+      }
+    );
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao editar QR Code" };
+    return { ok: true, data: body };
+  });
+
+export const deleteQRCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls/${data.code}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao excluir QR Code" };
+    return { ok: true, data: body };
+  });
+
+export const listOwnedWABAs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.businessId}/owned_whatsapp_business_accounts`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar WABAs próprias" };
+    return { ok: true, data: body.data || [] };
+  });
+
+export const listClientWABAs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.businessId}/client_whatsapp_business_accounts`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar WABAs de clientes" };
+    return { ok: true, data: body.data || [] };
+  });
+
+export const getWABAInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.wabaId}`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar WABA" };
+    return { ok: true, data: body };
+  });
+

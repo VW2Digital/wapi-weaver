@@ -47,6 +47,13 @@ async function processStatusUpdate(value: any, userId: string) {
       .eq("user_id", userId)
       .select("campaign_id");
 
+    // Update status in direct_messages table too
+    await supabaseAdmin
+      .from("direct_messages")
+      .update({ status })
+      .eq("wa_message_id", waId)
+      .eq("user_id", userId);
+
     const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id)));
     for (const cid of campaignIds) {
       const { data: agg } = await supabaseAdmin
@@ -81,6 +88,48 @@ async function processInboundMessages(value: any, userId: string) {
       .update({ opted_out: true })
       .eq("user_id", userId)
       .eq("phone_e164", phoneDigits);
+  }
+}
+
+async function processInboundDirectMessages(value: any, userId: string) {
+  const messages = value?.messages ?? [];
+  for (const m of messages) {
+    const from: string | undefined = m.from;
+    if (!from) continue;
+    const phoneDigits = from.replace(/\D+/g, "");
+
+    let type = m.type ?? "text";
+    if (type !== "text" && type !== "reaction" && type !== "image") {
+      type = "text";
+    }
+
+    let body = "";
+    if (m.type === "text") {
+      body = m.text?.body ?? "";
+    } else if (m.type === "reaction") {
+      body = m.reaction?.emoji ?? "";
+    } else if (m.type === "image") {
+      body = m.image?.id ?? "";
+    } else {
+      body = `[Mensagem de tipo ${m.type} recebida]`;
+    }
+
+    const reply_to_message_id = m.context?.message_id ?? null;
+
+    // Salva na tabela direct_messages
+    await supabaseAdmin
+      .from("direct_messages")
+      .insert({
+        user_id: userId,
+        contact_phone: phoneDigits,
+        direction: "incoming",
+        type,
+        body,
+        wa_message_id: m.id,
+        status: "read",
+        reply_to_message_id,
+        metadata: m,
+      });
   }
 }
 
@@ -175,6 +224,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
             if (change.field === "messages") {
               await processStatusUpdate(change.value, matchedUserId);
               await processInboundMessages(change.value, matchedUserId);
+              await processInboundDirectMessages(change.value, matchedUserId);
             } else if (change.field === "message_template_status_update") {
               await processTemplateStatusUpdate(change.value, matchedUserId);
             } else if (change.field === "template_category_update") {

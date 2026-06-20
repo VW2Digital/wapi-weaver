@@ -25,6 +25,7 @@ import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppContactsRouteImport } from './routes/_app/contacts'
+import { Route as AppChatRouteImport } from './routes/_app/chat'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
@@ -120,6 +121,11 @@ const AppContactsRoute = AppContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => AppRoute,
 } as any)
+const AppChatRoute = AppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBillingRoute = AppBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
+  '/chat': typeof AppChatRoute
   '/contacts': typeof AppContactsRoute
   '/dashboard': typeof AppDashboardRoute
   '/lists': typeof AppListsRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
+  '/chat': typeof AppChatRoute
   '/contacts': typeof AppContactsRoute
   '/dashboard': typeof AppDashboardRoute
   '/lists': typeof AppListsRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/billing': typeof AppBillingRoute
+  '/_app/chat': typeof AppChatRoute
   '/_app/contacts': typeof AppContactsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/lists': typeof AppListsRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/audit'
     | '/billing'
+    | '/chat'
     | '/contacts'
     | '/dashboard'
     | '/lists'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/audit'
     | '/billing'
+    | '/chat'
     | '/contacts'
     | '/dashboard'
     | '/lists'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_app/audit'
     | '/_app/billing'
+    | '/_app/chat'
     | '/_app/contacts'
     | '/_app/dashboard'
     | '/_app/lists'
@@ -532,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppContactsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/chat': {
+      id: '/_app/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AppChatRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/billing': {
       id: '/_app/billing'
       path: '/billing'
@@ -643,6 +662,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAuditRoute: typeof AppAuditRoute
   AppBillingRoute: typeof AppBillingRoute
+  AppChatRoute: typeof AppChatRoute
   AppContactsRoute: typeof AppContactsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppListsRoute: typeof AppListsRoute
@@ -658,6 +678,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAuditRoute: AppAuditRoute,
   AppBillingRoute: AppBillingRoute,
+  AppChatRoute: AppChatRoute,
   AppContactsRoute: AppContactsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppListsRoute: AppListsRoute,

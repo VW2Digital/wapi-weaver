@@ -198,7 +198,12 @@ export const updateTemplate = createServerFn({ method: "POST" })
             Authorization: `Bearer ${p.whatsapp_access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ components, category: data.category }),
+          body: JSON.stringify({
+            name: data.name,
+            components,
+            language: data.language,
+            category: data.category,
+          }),
         },
       );
       const body: any = await res.json();

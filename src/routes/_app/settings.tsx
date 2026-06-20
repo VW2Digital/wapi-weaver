@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate, getQRCode } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate, getQRCode, listQRCodes, createQRCode, updateQRCode, deleteQRCode, listOwnedWABAs, listClientWABAs, getWABAInfo } from "@/lib/profile.functions";
 import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql, listSchemaBackups, getSchemaBackup, createSchemaBackupNow, deleteSchemaBackup } from "@/lib/admin.functions";
 import { getWebhookHealth, listWebhookEvents } from "@/lib/webhook-health.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, QrCode } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, QrCode, Plus, Pencil, Loader2 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
@@ -254,6 +254,23 @@ function SettingsPage() {
               copyLabel="WABA ID"
               metaUrl="https://business.facebook.com/wa/manage/account/"
             />
+            <Field
+              label="ID da conta de negócios (Meta Business ID)"
+              sublabel="(Business ID)"
+              digitsOnly
+              value={form.whatsapp_business_id}
+              onChange={(v) => {
+                const { error } = validateMetaId(v, "Business ID");
+                setErrors((e) => ({ ...e, whatsapp_business_id: error }));
+                setForm({ ...form, whatsapp_business_id: v });
+              }}
+              placeholder="Ex: 104500000000000"
+              hint={"⚠️ Identifica a sua conta de negócios inteira na Meta.\n📍 Onde achar: business.facebook.com → Configurações da empresa → Informações da empresa → 'ID do Gerenciador de Negócios' no topo."}
+              success={validateMetaId(String(form.whatsapp_business_id ?? ""), "Business ID").ok ? `Formato OK · ${String(form.whatsapp_business_id).length} dígitos` : null}
+              error={errors.whatsapp_business_id}
+              copyLabel="Business ID"
+              metaUrl="https://business.facebook.com/settings/info"
+            />
 
             <Field
               label="Seu número de WhatsApp"
@@ -357,6 +374,7 @@ function SettingsPage() {
               saveMut.mutate({
                 whatsapp_phone_number_id: form.whatsapp_phone_number_id,
                 whatsapp_waba_id: form.whatsapp_waba_id,
+                whatsapp_business_id: form.whatsapp_business_id,
                 whatsapp_business_phone: form.whatsapp_business_phone,
                 whatsapp_access_token: form.whatsapp_access_token,
                 rate_limit_per_second: form.rate_limit_per_second,
@@ -645,6 +663,8 @@ function SettingsPage() {
         </Card>
 
         <QRCodeSection />
+
+        <WABASection />
 
         <Card className="p-6">
           <div className="flex items-start justify-between gap-3">
@@ -1875,33 +1895,390 @@ function SchemaBackupsHistory() {
 }
 
 function QRCodeSection() {
-  const fetchQR = useServerFn(getQRCode);
-  const [code, setCode] = useState("ANED2T5QRU7HG1");
-  const [qrData, setQrData] = useState<any>(null);
-  
+  const fetchQRList = useServerFn(listQRCodes);
+  const createQR = useServerFn(createQRCode);
+  const updateQR = useServerFn(updateQRCode);
+  const deleteQR = useServerFn(deleteQRCode);
+
+  const [qrList, setQrList] = useState<any[] | null>(null);
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_qr_collapsed",
+    true
+  );
+
+  // Dialog and Form states
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingQr, setEditingQr] = useState<any | null>(null);
+  const [prefilledMessage, setPrefilledMessage] = useState("");
+  const [qrFormat, setQrFormat] = useState<"PNG" | "SVG">("PNG");
+
   const qrMut = useMutation({
-    mutationFn: () => fetchQR({ data: { code } }),
-    onSuccess: (r) => {
-      if (r.ok) setQrData(r.data);
+    mutationFn: () => fetchQRList(),
+    onSuccess: (r: any) => {
+      if (r.ok) setQrList(r.data);
       else toast.error(r.error);
     },
     onError: (e: any) => toast.error(e.message),
   });
 
+  const createMut = useMutation({
+    mutationFn: (variables: { prefilled_message: string; generate_qr_image: "PNG" | "SVG" }) =>
+      createQR({ data: variables }),
+    onSuccess: (r: any) => {
+      if (r.ok) {
+        toast.success("QR Code criado com sucesso!");
+        setDialogOpen(false);
+        setPrefilledMessage("");
+        qrMut.mutate();
+      } else {
+        toast.error(r.error || "Erro ao criar QR Code");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (variables: { code: string; prefilled_message: string; generate_qr_image: "PNG" | "SVG" }) =>
+      updateQR({ data: variables }),
+    onSuccess: (r: any) => {
+      if (r.ok) {
+        toast.success("QR Code atualizado com sucesso!");
+        setDialogOpen(false);
+        setEditingQr(null);
+        setPrefilledMessage("");
+        qrMut.mutate();
+      } else {
+        toast.error(r.error || "Erro ao atualizar QR Code");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (code: string) => deleteQR({ data: { code } }),
+    onSuccess: (r: any) => {
+      if (r.ok) {
+        toast.success("QR Code excluído com sucesso!");
+        qrMut.mutate();
+      } else {
+        toast.error(r.error || "Erro ao excluir QR Code");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // Load items when expanding
+  useEffect(() => {
+    if (!collapsed && qrList === null && !qrMut.isPending) {
+      qrMut.mutate();
+    }
+  }, [collapsed]);
+
+  const openCreateDialog = () => {
+    setEditingQr(null);
+    setPrefilledMessage("");
+    setQrFormat("PNG");
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (qr: any) => {
+    setEditingQr(qr);
+    setPrefilledMessage(qr.prefilled_message || "");
+    setQrFormat("PNG"); // default to PNG as fallback
+    setDialogOpen(true);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingQr) {
+      updateMut.mutate({
+        code: editingQr.code,
+        prefilled_message: prefilledMessage,
+        generate_qr_image: qrFormat,
+      });
+    } else {
+      createMut.mutate({
+        prefilled_message: prefilledMessage,
+        generate_qr_image: qrFormat,
+      });
+    }
+  };
+
+  const handleDelete = (code: string) => {
+    if (confirm("Tem certeza que deseja excluir este QR Code?")) {
+      deleteMut.mutate(code);
+    }
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex-1">
+          <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+            <QrCode className="h-5 w-5 text-primary" /> QR Codes do WhatsApp
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Gerencie e crie novos QR Codes para os clientes iniciarem conversas rapidamente.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {!collapsed && (
+            <>
+              <Button onClick={openCreateDialog} size="sm" className="gap-1">
+                <Plus className="h-4 w-4" /> Novo QR Code
+              </Button>
+              <Button 
+                onClick={() => qrMut.mutate()} 
+                disabled={qrMut.isPending}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className={`h-4 w-4 ${qrMut.isPending ? "animate-spin" : ""}`} />
+              </Button>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+            className="shrink-0 gap-1"
+          >
+            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+          </Button>
+        </div>
+      </div>
+
+      {!collapsed && (
+        <div className="mt-6">
+          {!qrList && !qrMut.isPending && (
+            <div className="text-center py-8 border border-dashed rounded-lg bg-muted/10">
+              <QrCode className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+              <p className="text-muted-foreground text-sm">Nenhum QR Code carregado ainda.</p>
+              <Button onClick={() => qrMut.mutate()} className="mt-4" variant="secondary">
+                Carregar QR Codes
+              </Button>
+            </div>
+          )}
+
+          {qrMut.isPending && !qrList && (
+            <div className="text-center py-8">
+              <RefreshCw className="h-8 w-8 mx-auto animate-spin text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">Buscando QR Codes...</p>
+            </div>
+          )}
+
+          {qrList && qrList.length === 0 && (
+            <div className="text-center py-8 border border-dashed rounded-lg bg-muted/10">
+              <p className="text-muted-foreground text-sm">Nenhum QR Code encontrado nesta conta do WhatsApp.</p>
+              <Button onClick={openCreateDialog} className="mt-4 gap-1" variant="outline">
+                <Plus className="h-4 w-4" /> Criar o Primeiro
+              </Button>
+            </div>
+          )}
+
+          {qrList && qrList.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {qrList.map((qr: any) => (
+                <Card key={qr.code} className="overflow-hidden flex flex-col group hover:border-primary/50 transition-all duration-300">
+                  <div className="p-4 bg-muted/20 flex justify-center relative min-h-[160px] items-center">
+                    {qr.qr_image_url ? (
+                      <div className="rounded-xl overflow-hidden shadow-sm bg-white p-2 border hover:scale-105 transition-transform duration-300">
+                        <img src={qr.qr_image_url} alt="QR Code" className="w-32 h-32 object-contain" />
+                      </div>
+                    ) : (
+                      <div className="w-32 h-32 flex items-center justify-center bg-muted rounded-xl border">
+                        <QrCode className="h-8 w-8 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="secondary"
+                        className="h-8 w-8 rounded-full shadow"
+                        onClick={() => openEditDialog(qr)}
+                        title="Editar mensagem"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="h-8 w-8 rounded-full shadow"
+                        onClick={() => handleDelete(qr.code)}
+                        title="Excluir QR Code"
+                        disabled={deleteMut.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col gap-3">
+                    <div>
+                      <p className="font-medium text-sm text-foreground">
+                        Código: <span className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{qr.code}</span>
+                      </p>
+                    </div>
+                    
+                    {qr.prefilled_message && (
+                      <div className="bg-muted/50 p-2.5 rounded text-xs text-muted-foreground line-clamp-3 italic">
+                        "{qr.prefilled_message}"
+                      </div>
+                    )}
+                    
+                    <div className="mt-auto pt-2 flex items-center justify-between border-t gap-2">
+                      <a 
+                        href={qr.deep_link_url} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-xs text-primary hover:underline font-mono truncate max-w-[150px]"
+                        title={qr.deep_link_url}
+                      >
+                        wa.me/...
+                      </a>
+                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => {
+                        navigator.clipboard.writeText(qr.deep_link_url);
+                        toast.success("Link copiado!");
+                      }}>
+                        <Copy className="h-3 w-3 mr-1" /> Copiar
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dialog for Create/Edit */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingQr ? "Editar QR Code" : "Criar Novo QR Code"}</DialogTitle>
+            <DialogDescription>
+              {editingQr 
+                ? "Atualize a mensagem pré-preenchida que os clientes enviarão."
+                : "Defina uma mensagem que os clientes enviarão automaticamente ao escanear o código."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="message">Mensagem pré-preenchida</Label>
+              <Textarea
+                id="message"
+                value={prefilledMessage}
+                onChange={(e) => setPrefilledMessage(e.target.value)}
+                placeholder="Ex: Olá! Gostaria de saber mais sobre a plataforma."
+                className="min-h-[80px]"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="format">Formato da Imagem</Label>
+              <Select value={qrFormat} onValueChange={(val: any) => setQrFormat(val)}>
+                <SelectTrigger id="format">
+                  <SelectValue placeholder="Selecione o formato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PNG">PNG (Recomendado para visualização rápida)</SelectItem>
+                  <SelectItem value="SVG">SVG (Vetorizado - Alta qualidade)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                {createMut.isPending || updateMut.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function WABASection() {
+  const fetchOwned = useServerFn(listOwnedWABAs);
+  const fetchClient = useServerFn(listClientWABAs);
+  const fetchInfo = useServerFn(getWABAInfo);
+  const saveProfile = useServerFn(updateProfile);
+  const qc = useQueryClient();
+
+  const profileQuery = useQuery({ queryKey: ["profile"] });
+  const profileData = profileQuery.data as any;
+
   const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
-    "zapdispatch_settings_qr_collapsed",
+    "zapdispatch_settings_waba_collapsed",
     true
   );
+
+  const [searchId, setSearchId] = useState("");
+  const [details, setDetails] = useState<any>(null);
+  const [list, setList] = useState<any[]>([]);
+  const [listType, setListType] = useState<"owned" | "client" | null>(null);
+
+  const searchMut = useMutation({
+    mutationFn: (id: string) => fetchInfo({ data: { wabaId: id } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setDetails(res.data || res);
+        toast.success("Detalhes da WABA carregados!");
+      } else {
+        toast.error(res.error || "Não foi possível carregar os detalhes.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const listMut = useMutation({
+    mutationFn: async (type: "owned" | "client") => {
+      const busId = profileData?.whatsapp_business_id;
+      if (!busId) throw new Error("ID da conta de negócios (Business ID) não configurado nas Configurações.");
+      
+      const fn = type === "owned" ? fetchOwned : fetchClient;
+      const res = await fn({ data: { businessId: busId } });
+      if (!res.ok) throw new Error(res.error || "Erro ao consultar API da Meta.");
+      return { data: res.data || [], type };
+    },
+    onSuccess: (res) => {
+      setList(res.data);
+      setListType(res.type);
+      toast.success(`Carregadas ${res.data.length} contas WABA (${res.type === "owned" ? "próprias" : "de clientes"})`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const defineActiveMut = useMutation({
+    mutationFn: (wabaId: string) => saveProfile({ data: { whatsapp_waba_id: wabaId } }),
+    onSuccess: (_, wabaId) => {
+      toast.success(`WABA ${wabaId} salva como ativa com sucesso!`);
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (e: any) => toast.error("Erro ao salvar WABA ativa: " + e.message),
+  });
 
   return (
     <Card className="p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <h2 className="font-display text-lg font-semibold flex items-center gap-2">
-            <QrCode className="h-5 w-5 text-primary" /> QR Code
+            <Database className="h-5 w-5 text-primary" />
+            Contas WhatsApp Business (WABAs)
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Busque o QR Code da sua conta do WhatsApp Business para facilitar o contato dos clientes.
+            Visualize e gerencie as contas comerciais do WhatsApp (WABAs) associadas ao seu Business ID da Meta.
           </p>
         </div>
         <Button
@@ -1918,61 +2295,137 @@ function QRCodeSection() {
       </div>
 
       {!collapsed && (
-        <div className="mt-4 space-y-4">
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end max-w-md">
-            <div className="flex-1 space-y-1.5">
-              <Label>Código do QR Code</Label>
-              <Input 
-                value={code} 
-                onChange={(e) => setCode(e.target.value)} 
-                placeholder="Ex: ANED2T5QRU7HG1" 
-              />
-            </div>
-            <Button 
-              onClick={() => qrMut.mutate()} 
-              disabled={qrMut.isPending || !code.trim()}
-              className="w-full sm:w-auto"
-            >
-              {qrMut.isPending ? "Buscando..." : "Buscar QR Code"}
-            </Button>
-          </div>
+        <div className="mt-6 space-y-6 pt-6 border-t">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Coluna 1: Consultar WABA Individual */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium text-sm text-foreground">Consultar WABA Individual</h3>
+                <p className="text-xs text-muted-foreground">Insira qualquer WABA ID para consultar os detalhes diretamente na Meta.</p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="ID da WABA (ex: 1123...)"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                />
+                <Button
+                  onClick={() => searchId.trim() && searchMut.mutate(searchId.trim())}
+                  disabled={searchMut.isPending || !searchId.trim()}
+                >
+                  {searchMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Consultar"}
+                </Button>
+              </div>
 
-          {qrData && (
-            <div className="mt-4 rounded-md border p-6 bg-muted/20 flex flex-col items-center justify-center text-center">
-              {qrData.qr_image_url ? (
-                <div className="rounded-xl overflow-hidden shadow-sm bg-white p-2 border">
-                  <img src={qrData.qr_image_url} alt="WhatsApp QR Code" className="w-48 h-48 object-contain" />
-                </div>
-              ) : (
-                <div className="w-48 h-48 flex items-center justify-center bg-muted rounded-xl border">
-                  <QrCode className="h-12 w-12 text-muted-foreground/30" />
-                </div>
-              )}
-              
-              <div className="mt-6 space-y-2">
-                <div className="inline-flex items-center gap-2 bg-background border px-3 py-1.5 rounded-full text-sm">
-                  <span className="font-medium">Link direto:</span>
-                  <a href={qrData.deep_link_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono text-xs truncate max-w-[200px] sm:max-w-[300px]">
-                    {qrData.deep_link_url}
-                  </a>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 ml-1 shrink-0" onClick={() => {
-                    navigator.clipboard.writeText(qrData.deep_link_url);
-                    toast.success("Link copiado!");
-                  }}>
-                    <Copy className="h-3 w-3" />
+              {details && (
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <span className="font-semibold text-sm">{details.name || "Conta sem Nome"}</span>
+                    <Badge variant="secondary" className={cn(details.status === "APPROVED" ? "bg-success/15 text-success hover:bg-success/20 border-none" : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none")}>
+                      {details.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs space-y-1 font-mono">
+                    <p className="text-muted-foreground"><span className="font-sans font-medium">ID:</span> {details.id}</p>
+                    {details.timezone_id && <p className="text-muted-foreground"><span className="font-sans font-medium">Fuso Horário:</span> {details.timezone_id}</p>}
+                    {details.currency && <p className="text-muted-foreground"><span className="font-sans font-medium">Moeda:</span> {details.currency}</p>}
+                    {details.message_limit && <p className="text-muted-foreground"><span className="font-sans font-medium">Limite:</span> {details.message_limit}</p>}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full mt-2"
+                    variant="outline"
+                    onClick={() => defineActiveMut.mutate(details.id)}
+                    disabled={defineActiveMut.isPending}
+                  >
+                    Definir como WABA Ativa
                   </Button>
                 </div>
-                
-                {qrData.prefilled_message && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    <span className="font-medium text-foreground">Mensagem inicial:</span> "{qrData.prefilled_message}"
-                  </p>
-                )}
-              </div>
+              )}
             </div>
-          )}
+
+            {/* Coluna 2: Listagem por Business ID */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium text-sm text-foreground">Listar WABAs por Business ID</h3>
+                <p className="text-xs text-muted-foreground">Listar todas as contas WABAs associadas ao seu Meta Business ID.</p>
+              </div>
+
+              {profileData?.whatsapp_business_id ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={listType === "owned" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => listMut.mutate("owned")}
+                      disabled={listMut.isPending}
+                    >
+                      {listMut.isPending && listType === "owned" ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      Próprias (Owned)
+                    </Button>
+                    <Button
+                      variant={listType === "client" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => listMut.mutate("client")}
+                      disabled={listMut.isPending}
+                    >
+                      {listMut.isPending && listType === "client" ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      Clientes (Client)
+                    </Button>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto border rounded-lg divide-y bg-background">
+                    {list.length === 0 ? (
+                      <p className="p-4 text-xs text-muted-foreground text-center">
+                        Nenhuma conta carregada. Clique em um dos botões acima para buscar.
+                      </p>
+                    ) : (
+                      list.map((w: any) => (
+                        <div key={w.id} className="p-3 flex items-center justify-between gap-4 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground truncate">{w.name}</p>
+                            <p className="font-mono text-[10px] text-muted-foreground">ID: {w.id}</p>
+                            <p className="text-muted-foreground text-[10px] mt-0.5">
+                              Fuso: {w.timezone_id} · Limite: {w.message_limit ?? "N/A"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className={cn(w.status === "APPROVED" ? "bg-success/15 text-success hover:bg-success/20 border-none" : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none")}>
+                              {w.status}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => defineActiveMut.mutate(w.id)}
+                              disabled={defineActiveMut.isPending}
+                            >
+                              Ativar
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-600 dark:text-amber-400 space-y-2">
+                  <p className="font-medium flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Business ID não configurado
+                  </p>
+                  <p className="leading-relaxed">
+                    Você precisa salvar o <strong>ID da conta de negócios (Meta Business ID)</strong> no passo 1 do assistente acima para poder listar suas contas WABA.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </Card>
-  )
+  );
 }
