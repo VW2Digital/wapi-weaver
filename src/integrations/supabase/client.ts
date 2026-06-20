@@ -459,10 +459,10 @@ class FakeSupabaseClient {
           }
         },
         getPublicUrl: (filePath: string) => {
-          return { data: { publicUrl: `/uploads/${filePath}` } };
+          return { data: { publicUrl: `/api/storage/file?path=${filePath}` } };
         },
         createSignedUrl: async (filePath: string, expiresIn: number) => {
-          return { data: { signedUrl: `/uploads/${filePath}` }, error: null };
+          return { data: { signedUrl: `/api/storage/file?path=${filePath}` }, error: null };
         }
       })
     };
