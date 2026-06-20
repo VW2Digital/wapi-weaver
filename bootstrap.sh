@@ -41,7 +41,7 @@ TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
 TOTAL_SWAP=$(free -m | awk '/^Swap:/{print $2}')
 echo "  RAM: ${TOTAL_RAM}MB | Swap atual: ${TOTAL_SWAP}MB"
 
-if [ "$TOTAL_SWAP" -lt 3000 ]; then
+if [ "$TOTAL_RAM" -lt 2500 ] && [ "$TOTAL_SWAP" -lt 2000 ]; then
   echo "  Swap insuficiente para o build. Criando swap de 4GB..."
   swapoff /swapfile 2>/dev/null || true
   rm -f /swapfile
