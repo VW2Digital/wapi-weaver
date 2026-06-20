@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate, getQRCode } from "@/lib/profile.functions";
 import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql, listSchemaBackups, getSchemaBackup, createSchemaBackupNow, deleteSchemaBackup } from "@/lib/admin.functions";
 import { getWebhookHealth, listWebhookEvents } from "@/lib/webhook-health.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Copy, RefreshCw, AlertTriangle, Check, CheckCheck, Clock, XCircle, FileText, Shield, Trash2, ShieldCheck, Lock, Monitor, Sun, Moon, Database, Download, KeyRound, Webhook, Send, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, QrCode } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
@@ -643,6 +643,8 @@ function SettingsPage() {
             </div>
           )}
         </Card>
+
+        <QRCodeSection />
 
         <Card className="p-6">
           <div className="flex items-start justify-between gap-3">
@@ -1872,6 +1874,105 @@ function SchemaBackupsHistory() {
   );
 }
 
+function QRCodeSection() {
+  const fetchQR = useServerFn(getQRCode);
+  const [code, setCode] = useState("ANED2T5QRU7HG1");
+  const [qrData, setQrData] = useState<any>(null);
+  
+  const qrMut = useMutation({
+    mutationFn: () => fetchQR({ data: { code } }),
+    onSuccess: (r) => {
+      if (r.ok) setQrData(r.data);
+      else toast.error(r.error);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_qr_collapsed",
+    true
+  );
 
+  return (
+    <Card className="p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+            <QrCode className="h-5 w-5 text-primary" /> QR Code
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Busque o QR Code da sua conta do WhatsApp Business para facilitar o contato dos clientes.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          className="shrink-0 gap-1"
+        >
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+        </Button>
+      </div>
 
+      {!collapsed && (
+        <div className="mt-4 space-y-4">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end max-w-md">
+            <div className="flex-1 space-y-1.5">
+              <Label>Código do QR Code</Label>
+              <Input 
+                value={code} 
+                onChange={(e) => setCode(e.target.value)} 
+                placeholder="Ex: ANED2T5QRU7HG1" 
+              />
+            </div>
+            <Button 
+              onClick={() => qrMut.mutate()} 
+              disabled={qrMut.isPending || !code.trim()}
+              className="w-full sm:w-auto"
+            >
+              {qrMut.isPending ? "Buscando..." : "Buscar QR Code"}
+            </Button>
+          </div>
+
+          {qrData && (
+            <div className="mt-4 rounded-md border p-6 bg-muted/20 flex flex-col items-center justify-center text-center">
+              {qrData.qr_image_url ? (
+                <div className="rounded-xl overflow-hidden shadow-sm bg-white p-2 border">
+                  <img src={qrData.qr_image_url} alt="WhatsApp QR Code" className="w-48 h-48 object-contain" />
+                </div>
+              ) : (
+                <div className="w-48 h-48 flex items-center justify-center bg-muted rounded-xl border">
+                  <QrCode className="h-12 w-12 text-muted-foreground/30" />
+                </div>
+              )}
+              
+              <div className="mt-6 space-y-2">
+                <div className="inline-flex items-center gap-2 bg-background border px-3 py-1.5 rounded-full text-sm">
+                  <span className="font-medium">Link direto:</span>
+                  <a href={qrData.deep_link_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono text-xs truncate max-w-[200px] sm:max-w-[300px]">
+                    {qrData.deep_link_url}
+                  </a>
+                  <Button variant="ghost" size="icon" className="h-5 w-5 ml-1 shrink-0" onClick={() => {
+                    navigator.clipboard.writeText(qrData.deep_link_url);
+                    toast.success("Link copiado!");
+                  }}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                
+                {qrData.prefilled_message && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    <span className="font-medium text-foreground">Mensagem inicial:</span> "{qrData.prefilled_message}"
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
