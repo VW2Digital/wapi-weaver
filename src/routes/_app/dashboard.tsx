@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle, Plus } from "lucide-react";
+import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle, Plus, X } from "lucide-react";
+import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   PieChart,
@@ -54,6 +55,7 @@ const STATUS_COLOR: Record<(typeof STATUS_KEYS)[number], string> = {
 };
 
 function Dashboard() {
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
   const fetchCampaigns = useServerFn(listCampaigns);
   const fetchContacts = useServerFn(listContacts);
   const fetchTemplates = useServerFn(listTemplates);
@@ -189,11 +191,20 @@ function Dashboard() {
           if (alerts.length === 0) return null;
           return (
             <div className="space-y-2 px-4 pt-4 sm:px-6 sm:pt-6">
-              {alerts.map((a) => (
-                <Alert key={a.title} variant="destructive">
+              {alerts.filter(a => !dismissedAlerts.includes(a.title)).map((a) => (
+                <Alert key={a.title} variant="destructive" className="relative pr-10">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>{a.title}</AlertTitle>
                   <AlertDescription>{a.description}</AlertDescription>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-4 right-4 h-6 w-6 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setDismissedAlerts(prev => [...prev, a.title])}
+                    aria-label="Fechar aviso"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </Alert>
               ))}
             </div>
