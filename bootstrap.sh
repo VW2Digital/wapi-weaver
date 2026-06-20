@@ -1,81 +1,141 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# BOOTSTRAP DE DEPLOY — DISPARADOR WAPI WEAVER
-# Clona do GitHub e aplica todas as configurações de produção automaticamente
-# Uso: bash <(curl -fsSL URL_DESTE_SCRIPT)
-#   ou copiar e colar diretamente no terminal da VPS
+# INSTALADOR AUTOMATIZADO - WAPI WEAVER (VPS + DOCKER COMPOSE)
+# ==============================================================================
+# Alvo: Ubuntu 20.04 / 22.04 / 24.04 LTS
 # ==============================================================================
 
-set -euo pipefail
+set -e
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
-print_ok()    { echo -e "${GREEN}✔ $1${NC}"; }
-print_step()  { echo -e "${YELLOW}▶ $1${NC}"; }
-print_error() { echo -e "${RED}✘ $1${NC}"; exit 1; }
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
 echo -e "${GREEN}"
-echo "════════════════════════════════════════════════════════════════"
-echo "   BOOTSTRAP DE DEPLOY — DISPARADOR WAPI WEAVER (VW2 Digital)   "
-echo "════════════════════════════════════════════════════════════════"
+echo "========================================================================"
+echo "    INSTALADOR OFICIAL - WAPI WEAVER (VPS + DOCKER + MYSQL)             "
+echo "========================================================================"
 echo -e "${NC}"
 
-[ "$EUID" -ne 0 ] && print_error "Execute como root: sudo bash bootstrap.sh"
-
-# ── Configurações de produção ─────────────────────────────────────────────────
-REPO_URL="https://github.com/VW2Digital/wapi-weaver.git"
-APP_DIR="/var/www/wapi-weaver"
-DOMAIN="apioficial.vw2digital.com.br"
-CORS_ORIGIN="https://apioficial.vw2digital.com.br"
-INSTALL_SSL="s"
-SSL_EMAIL="adm@vw2digital.com.br"
-
-# Secrets definidos conforme solicitado
-JWT_SECRET=$(openssl rand -hex 64)
-DB_PASSWORD="#VW2Digital2025"
-DB_ROOT_PASSWORD="#VW2Digital2025"
-# ─────────────────────────────────────────────────────────────────────────────
-
-# 1. Memória / Swap
-print_step "[1/8] Verificando memória..."
-TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-TOTAL_SWAP=$(free -m | awk '/^Swap:/{print $2}')
-echo "  RAM: ${TOTAL_RAM}MB | Swap atual: ${TOTAL_SWAP}MB"
-
-if [ "$TOTAL_RAM" -lt 2500 ] && [ "$TOTAL_SWAP" -lt 2000 ]; then
-  echo "  Swap insuficiente para o build. Criando swap de 4GB..."
-  swapoff /swapfile 2>/dev/null || true
-  rm -f /swapfile
-  fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
-  chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-  grep -q "/swapfile" /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-  print_ok "Swap de 4GB configurado (total agora: $(free -m | awk '/^Swap:/{print $2}')MB)."
-else
-  print_ok "Swap OK (${TOTAL_SWAP}MB disponíveis)."
+# Verificar se roda como root
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}Erro: Por favor, execute este script como root (sudo bash)${NC}"
+  exit 1
 fi
 
-# 2. Dependências do sistema
-print_step "[2/8] Instalando dependências (Docker, Nginx, Certbot, Git)..."
+# 1. Carregar variáveis de ambiente ou solicitar interativamente
+echo -e "${YELLOW}[1/8] Validando parâmetros de entrada...${NC}"
+
+if [ -z "${DOMAIN:-}" ]; then
+  read -p "Digite o domínio da aplicação (ex: apioficial.vw2digital.com.br): " DOMAIN
+  if [ -z "$DOMAIN" ]; then
+    echo -e "${RED}Erro: O domínio é obrigatório.${NC}"
+    exit 1
+  fi
+fi
+
+if [ -z "${INSTALL_SSL:-}" ]; then
+  read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
+fi
+
+if [ -z "${SSL_EMAIL:-}" ] && { [ "$INSTALL_SSL" = "s" ] || [ "$INSTALL_SSL" = "S" ]; }; then
+  read -p "Digite o e-mail para o SSL (ex: adm@vw2digital.com.br): " SSL_EMAIL
+fi
+
+if [ -z "${DB_PASSWORD:-}" ]; then
+  read -p "Digite a senha desejada para o banco de dados (ex: #VW2Digital2025): " DB_PASSWORD
+  if [ -z "$DB_PASSWORD" ]; then
+    echo -e "${RED}Erro: A senha do banco de dados é obrigatória.${NC}"
+    exit 1
+  fi
+fi
+
+echo -e "${GREEN}Parâmetros carregados!${NC}"
+echo "- Domínio: $DOMAIN"
+echo "- Senha do BD: $DB_PASSWORD"
+echo ""
+
+# Verificar e configurar swap se necessário (essencial para VPS com pouca memória)
+echo -e "${YELLOW}Verificando swap e memória física...${NC}"
+TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+TOTAL_SWAP=$(free -m | awk '/^Swap:/{print $2}')
+
+if [ "$TOTAL_RAM" -lt 2500 ] && [ "$TOTAL_SWAP" -lt 2000 ]; then
+  echo -e "${YELLOW}Detectada memória física baixa ($TOTAL_RAM MB) e pouco/nenhum swap ($TOTAL_SWAP MB).${NC}"
+  echo -e "${YELLOW}Criando arquivo de swap temporário de 4GB para garantir estabilidade da VPS...${NC}"
+  
+  if [ -f /swapfile ]; then
+    swapoff /swapfile || true
+    rm -f /swapfile
+  fi
+  
+  fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  
+  # Adicionar no /etc/fstab se não estiver lá
+  if ! grep -q "/swapfile" /etc/fstab; then
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
+  echo -e "${GREEN}Swap de 4GB configurado com sucesso!${NC}"
+else
+  echo -e "${GREEN}Memória RAM ($TOTAL_RAM MB) e Swap ($TOTAL_SWAP MB) suficientes para o build.${NC}"
+fi
+
+# 2. Instalação de Dependências do Sistema
+echo -e "${YELLOW}[2/8] Instalando dependências do sistema (Git, Nginx, Docker, Certbot)...${NC}"
 apt-get update -y -qq
 apt-get install -y -qq curl git nginx certbot python3-certbot-nginx rsync
 
 if ! command -v docker &>/dev/null; then
+  echo "Instalando Docker Engine..."
   curl -fsSL https://get.docker.com | bash
-  systemctl enable docker && systemctl start docker
+  systemctl enable docker
+  systemctl start docker
 fi
 
 if ! docker compose version &>/dev/null 2>&1; then
+  echo "Instalando Docker Compose Plugin..."
   apt-get install -y -qq docker-compose-plugin
 fi
-print_ok "Dependências instaladas."
 
-# 3. Clonar repositório do GitHub
-print_step "[3/8] Clonando repositório do GitHub..."
+echo -e "${GREEN}Dependências instaladas!${NC}"
+
+# 3. Preparando o Código da Aplicação
+echo -e "${YELLOW}[3/8] Clonando e preparando o código da aplicação...${NC}"
+APP_DIR="/var/www/wapi-weaver"
+mkdir -p /var/www
+
+echo "Clonando repositório para ${APP_DIR}..."
 rm -rf "${APP_DIR}"
-git clone "${REPO_URL}" "${APP_DIR}"
-print_ok "Repositório clonado em ${APP_DIR}."
+git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
 
-# 4. Aplicar docker-compose.yml de produção com secrets seguros
-print_step "[4/8] Aplicando configurações de produção no docker-compose.yml..."
+cd "${APP_DIR}"
+echo -e "${GREEN}Código clonado com sucesso!${NC}"
+
+# 4. Criando Segredos e Configurações
+echo -e "${YELLOW}[4/8] Gerando chaves de segurança e arquivo .env...${NC}"
+
+JWT_SECRET=$(openssl rand -hex 64)
+DB_ROOT_PASSWORD="$DB_PASSWORD"
+
+cat > "${APP_DIR}/.env" <<EOF
+DB_HOST=banco-mysql
+DB_PORT=3306
+DB_USER=wapi_user
+DB_PASSWORD=${DB_PASSWORD}
+DB_NAME=wapi_weaver
+JWT_SECRET=${JWT_SECRET}
+EOF
+
+echo -e "${GREEN}Configurações locais aplicadas!${NC}"
+
+# 5. Aplicar docker-compose de produção
+echo -e "${YELLOW}[5/8] Configurando o docker-compose.yml...${NC}"
+
 cat > "${APP_DIR}/docker-compose.yml" <<COMPOSEFILE
 services:
   banco-mysql:
@@ -85,9 +145,9 @@ services:
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=256M --innodb-log-file-size=64M
     environment:
       MYSQL_DATABASE: wapi_weaver
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
       MYSQL_USER: wapi_user
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: '${DB_PASSWORD}'
     volumes:
       - mysql_data:/var/lib/mysql
       - ./schema_mysql.sql:/docker-entrypoint-initdb.d/1-schema.sql
@@ -120,37 +180,23 @@ services:
 volumes:
   mysql_data:
 COMPOSEFILE
-print_ok "docker-compose.yml de produção gerado."
+echo -e "${GREEN}Docker-compose gerado!${NC}"
 
-# 5. Criar arquivo .env correspondente para uso local/scripts
-print_step "[5/8] Criando arquivo .env de produção..."
-cat > "${APP_DIR}/.env" <<ENVFILE
-DB_HOST=banco-mysql
-DB_PORT=3306
-DB_USER=wapi_user
-DB_PASSWORD=${DB_PASSWORD}
-DB_NAME=wapi_weaver
-JWT_SECRET=${JWT_SECRET}
-ENVFILE
-print_ok ".env configurado."
-
-# 6. Build e inicialização via Docker Compose
-print_step "[6/8] Fazendo build e subindo os containers..."
-cd "${APP_DIR}"
+# 6. Build e Execução dos Containers
+echo -e "${YELLOW}[6/8] Fazendo build da aplicação e subindo os serviços (pode demorar alguns minutos)...${NC}"
 export DOCKER_BUILDKIT=1
 docker compose down --remove-orphans || true
 docker compose build --no-cache
 docker compose up -d
 
-echo "  Aguardando healthcheck do MySQL (~35s)..."
+echo -e "${YELLOW}Aguardando a aplicação inicializar (healthcheck do MySQL)...${NC}"
 sleep 35
+echo -e "${GREEN}Containers rodando com sucesso!${NC}"
 
-docker compose check_running_app=$(docker compose ps | grep -q "wapi_weaver_app.*Up\|wapi_weaver_app.*running" && print_ok "App rodando!" || echo "⚠ Verifique: docker compose logs app")
-docker compose check_running_db=$(docker compose ps | grep -q "wapi_weaver_mysql.*Up\|wapi_weaver_mysql.*running" && print_ok "MySQL rodando!" || echo "⚠ Verifique: docker compose logs banco-mysql")
+# 7. Configurando o Servidor Nginx
+echo -e "${YELLOW}[7/8] Configurando Nginx como Reverse Proxy...${NC}"
 
-# 7. Configurar Nginx
-print_step "[7/8] Configurando Nginx como reverse proxy..."
-cat > /etc/nginx/sites-available/wapi-weaver <<NGINXEOF
+cat << EOF > /etc/nginx/sites-available/wapi-weaver
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -173,21 +219,24 @@ server {
         proxy_cache_bypass \$http_upgrade;
     }
 }
-NGINXEOF
+EOF
 
 ln -sf /etc/nginx/sites-available/wapi-weaver /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl restart nginx
-print_ok "Nginx configurado."
+nginx -t
+systemctl restart nginx
+
+echo -e "${GREEN}Nginx configurado!${NC}"
 
 # 8. SSL com Let's Encrypt
-print_step "[8/8] Instalando certificado SSL..."
-if [ "${INSTALL_SSL}" = "s" ]; then
-  certbot --nginx -d "${DOMAIN}" \
-    --non-interactive --agree-tos \
-    --email "${SSL_EMAIL}" --redirect && \
-    print_ok "SSL instalado! HTTPS habilitado." || \
-    echo -e "${YELLOW}⚠ SSL falhou — confirme que o DNS ${DOMAIN} aponta para este servidor e tente: certbot --nginx -d ${DOMAIN}${NC}"
+echo -e "${YELLOW}[8/8] Solicitando certificado SSL (se aplicável)...${NC}"
+if [ "$INSTALL_SSL" = "s" ] || [ "$INSTALL_SSL" = "S" ]; then
+  if [ -n "$SSL_EMAIL" ]; then
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
+  else
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect
+  fi
+  echo -e "${GREEN}SSL configurado com sucesso! Acesso HTTPS habilitado.${NC}"
 fi
 
 # Firewall
@@ -198,20 +247,26 @@ if command -v ufw &>/dev/null; then
   ufw --force enable >/dev/null 2>&1 || true
 fi
 
-# Conclusão
-echo ""
+# Finalizando
 echo -e "${GREEN}"
-echo "════════════════════════════════════════════════════════════════"
-echo "   INSTALAÇÃO CONCLUÍDA COM SUCESSO!                          "
-echo "════════════════════════════════════════════════════════════════"
+echo "========================================================================"
+echo "    INSTALAÇÃO CONCLUÍDA COM SUCESSO!                                   "
+echo "========================================================================"
 echo -e "${NC}"
-echo "  🌐  https://${DOMAIN}"
+echo "Acesse a aplicação pelo navegador em:"
+if [ "$INSTALL_SSL" = "s" ] || [ "$INSTALL_SSL" = "S" ]; then
+  echo -e "${GREEN}https://$DOMAIN${NC}"
+else
+  echo -e "${GREEN}http://$DOMAIN${NC}"
+fi
 echo ""
-echo "  🔑  Crie seu usuário administrador no painel."
-echo ""
-echo "  📋  Comandos úteis:"
-echo "      Logs app:   cd ${APP_DIR} && docker compose logs -f app"
-echo "      Logs MySQL: cd ${APP_DIR} && docker compose logs -f banco-mysql"
-echo "      Status:     cd ${APP_DIR} && docker compose ps"
-echo "      Reiniciar:  cd ${APP_DIR} && docker compose restart"
-echo "════════════════════════════════════════════════════════════════"
+echo "------------------------------------------------------------------------"
+echo "Credenciais do Banco de Dados Interno:"
+echo "- Usuário: wapi_user"
+echo "- Senha:   ${DB_PASSWORD}"
+echo "------------------------------------------------------------------------"
+echo "Comandos úteis:"
+echo "Ver logs do App: cd /var/www/wapi-weaver && docker compose logs -f app"
+echo "Reiniciar App:   cd /var/www/wapi-weaver && docker compose restart"
+echo "========================================================================"
+
