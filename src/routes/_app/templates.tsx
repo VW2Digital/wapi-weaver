@@ -9,8 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown, Send, Pencil } from "lucide-react";
+import { RefreshCw, Sparkles, FileText, Plus, Trash2, X, Info, Megaphone, Bell, ShieldCheck, Wallet, ChevronDown, Send, Pencil, MoreVertical, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
@@ -26,6 +32,14 @@ const statusColors: Record<string, string> = {
   REJECTED: "bg-destructive/15 text-destructive",
   PAUSED: "bg-muted text-muted-foreground",
   DISABLED: "bg-muted text-muted-foreground",
+};
+
+const statusLabels: Record<string, string> = {
+  APPROVED: "APROVADO",
+  PENDING: "PENDENTE",
+  REJECTED: "REJEITADO",
+  PAUSED: "PAUSADO",
+  DISABLED: "DESATIVADO",
 };
 
 function TemplatesPage() {
@@ -246,31 +260,41 @@ function TemplatesPage() {
                 <div className="border-b p-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Checkbox
-                        checked={isChecked}
-                        onCheckedChange={() => toggle(t.id)}
-                        aria-label={`Selecionar ${t.name}`}
-                      />
+                      {isChecked && (
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => toggle(t.id)}
+                          aria-label={`Selecionar ${t.name}`}
+                        />
+                      )}
                       <p className="font-medium truncate">{t.name}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{t.status}</span>
-                      <TemplateBuilderDialog
-                        template={t}
-                        trigger={
-                          <Button size="icon" variant="ghost" aria-label="Editar template">
-                            <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}>{statusLabels[t.status] ?? t.status}</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 ml-1">
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                        }
-                      />
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Excluir template"
-                        onClick={() => singleDelete(t)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => toggle(t.id)}>
+                            <CheckSquare className="mr-2 h-4 w-4" /> 
+                            {isChecked ? "Desmarcar template" : "Marcar template"}
+                          </DropdownMenuItem>
+                          <TemplateBuilderDialog
+                            template={t}
+                            trigger={
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <Pencil className="mr-2 h-4 w-4" /> Editar
+                              </DropdownMenuItem>
+                            }
+                          />
+                          <DropdownMenuItem onClick={() => singleDelete(t)} className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{t.language} · {t.category ?? "—"}</p>
