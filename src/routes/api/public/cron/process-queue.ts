@@ -6,7 +6,7 @@ const BATCH = 60;
 const STUCK_SENDING_MINUTES = 5;
 const WEBHOOK_EVENTS_RETENTION_DAYS = 30;
 
-async function processOnce() {
+export async function processOnce() {
   // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
   const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
   await supabaseAdmin

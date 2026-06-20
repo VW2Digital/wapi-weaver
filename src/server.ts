@@ -78,3 +78,29 @@ export default {
     }
   },
 };
+
+// --- Background Queue Processor ---
+import { processOnce } from "./routes/api/public/cron/process-queue";
+
+let queueIntervalStarted = false;
+function startQueueProcessor() {
+  if (queueIntervalStarted) return;
+  queueIntervalStarted = true;
+  console.log("[Queue] Starting background queue processor (every 60s)...");
+  
+  // Call once immediately on startup, then every 60s
+  setTimeout(() => {
+    processOnce().catch(e => console.error("[Queue Init Error]", e));
+  }, 5000);
+
+  setInterval(async () => {
+    try {
+      await processOnce();
+    } catch (e) {
+      console.error("[Queue] Error processing queue:", e);
+    }
+  }, 60000);
+}
+
+startQueueProcessor();
+// ----------------------------------
