@@ -451,3 +451,117 @@ export const getWABAInfo = createServerFn({ method: "POST" })
     return { ok: true, data: body };
   });
 
+export const subscribeAppToWABA = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.wabaId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao inscrever app na WABA" };
+    return { ok: true, data: body };
+  });
+
+export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.wabaId}/phone_numbers`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar telefones da WABA" };
+    return { ok: true, data: body.data || [] };
+  });
+
+export const registerPhoneNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d) =>
+      z.object({
+        phoneId: z.string().trim().min(5),
+        pin: z.string().trim().length(6, "O PIN deve ter exatamente 6 dígitos"),
+      }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.supabase
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.phoneId}/register`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          pin: data.pin,
+        }),
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao registrar número" };
+    return { ok: true, data: body };
+  });
+
+export const debugAccessToken = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ token: z.string().trim().min(10) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const apiVersion = "v20.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/debug_token?input_token=${encodeURIComponent(data.token)}`,
+      {
+        headers: { Authorization: `Bearer ${data.token}` },
+      }
+    );
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao depurar token" };
+    return { ok: true, data: body.data };
+  });
+
+

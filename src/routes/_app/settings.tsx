@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate, getQRCode, listQRCodes, createQRCode, updateQRCode, deleteQRCode, listOwnedWABAs, listClientWABAs, getWABAInfo } from "@/lib/profile.functions";
+import { getProfile, updateProfile, rotateApiKey, pingMeta, sendTestMessage, getTestMessageStatus, sendHelloWorldTemplate, getQRCode, listQRCodes, createQRCode, updateQRCode, deleteQRCode, listOwnedWABAs, listClientWABAs, getWABAInfo, subscribeAppToWABA, listWABAPhoneNumbers, registerPhoneNumber, debugAccessToken } from "@/lib/profile.functions";
 import { getCurrentUserRoles, getPlatformSettings, updatePlatformSettings, exportSchemaSql, listSchemaBackups, getSchemaBackup, createSchemaBackupNow, deleteSchemaBackup } from "@/lib/admin.functions";
 import { getWebhookHealth, listWebhookEvents } from "@/lib/webhook-health.functions";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -87,6 +87,30 @@ function SettingsPage() {
   const sendHello = useServerFn(sendHelloWorldTemplate);
   const fetchStatus = useServerFn(getTestMessageStatus);
   const qc = useQueryClient();
+  const fetchDebugToken = useServerFn(debugAccessToken);
+  const [debugResult, setDebugResult] = useState<any>(null);
+
+  const debugTokenMut = useMutation({
+    mutationFn: (token: string) => fetchDebugToken({ data: { token } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setDebugResult(res.data);
+        toast.success("Diagnóstico do token carregado!");
+      } else {
+        toast.error(res.error || "Não foi possível depurar o token.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const handleDebugToken = () => {
+    const token = String(form.whatsapp_access_token ?? "").trim();
+    if (!token) {
+      toast.error("Insira o Access Token antes de depurar.");
+      return;
+    }
+    debugTokenMut.mutate(token);
+  };
 
   const { data: profile, isLoading } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const [form, setForm] = useState<any>({});
@@ -312,6 +336,16 @@ function SettingsPage() {
                       <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir na Meta
                     </a>
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDebugToken()}
+                    disabled={debugTokenMut.isPending || !(form.whatsapp_access_token ?? "").trim()}
+                    title="Verificar escopos e validade do token na Meta"
+                  >
+                    {debugTokenMut.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <KeyRound className="mr-1.5 h-3.5 w-3.5" />}
+                    Depurar Token
+                  </Button>
                 </div>
               </div>
               {(() => {
@@ -353,6 +387,39 @@ function SettingsPage() {
                       <br />
                       <strong className="text-foreground">Importante:</strong> escolha "nunca expira" para não ter que refazer.
                     </p>
+
+                    {debugResult && (
+                      <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
+                        <div className="flex justify-between items-center border-b pb-2">
+                          <span className="font-semibold text-foreground">Diagnóstico do Token (Meta API)</span>
+                          <Badge variant="secondary" className={cn(debugResult.is_valid ? "bg-success/15 text-success hover:bg-success/20 border-none" : "bg-destructive/15 text-destructive hover:bg-destructive/20 border-none")}>
+                            {debugResult.is_valid ? "Válido" : "Inválido"}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+                          <p className="text-muted-foreground">ID do App: <span className="font-mono text-foreground font-medium">{debugResult.app_id}</span></p>
+                          <p className="text-muted-foreground">Aplicação: <span className="text-foreground font-medium">{debugResult.application}</span></p>
+                          <p className="text-muted-foreground">Expira em: <span className="text-foreground font-medium">{debugResult.expires_at === 0 ? "Nunca" : new Date(debugResult.expires_at * 1000).toLocaleString()}</span></p>
+                          <p className="text-muted-foreground">Tipo de Usuário: <span className="text-foreground font-medium">{debugResult.type}</span></p>
+                        </div>
+                        {debugResult.scopes && (
+                          <div className="pt-2 border-t space-y-1">
+                            <p className="font-medium text-foreground">Permissões (Scopes):</p>
+                            <div className="flex flex-wrap gap-1">
+                              {debugResult.scopes.map((s: string) => (
+                                <Badge key={s} variant="outline" className={cn(
+                                  ["whatsapp_business_messaging", "whatsapp_business_management"].includes(s)
+                                    ? "bg-success/10 text-success border-success/20"
+                                    : "bg-muted text-muted-foreground"
+                                )}>
+                                  {s}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 );
               })()}
@@ -2214,6 +2281,9 @@ function WABASection() {
   const fetchClient = useServerFn(listClientWABAs);
   const fetchInfo = useServerFn(getWABAInfo);
   const saveProfile = useServerFn(updateProfile);
+  const subscribeApp = useServerFn(subscribeAppToWABA);
+  const getPhoneNumbers = useServerFn(listWABAPhoneNumbers);
+  const registerPhone = useServerFn(registerPhoneNumber);
   const qc = useQueryClient();
 
   const profileQuery = useQuery({ queryKey: ["profile"] });
@@ -2228,6 +2298,16 @@ function WABASection() {
   const [details, setDetails] = useState<any>(null);
   const [list, setList] = useState<any[]>([]);
   const [listType, setListType] = useState<"owned" | "client" | null>(null);
+
+  // Estados para Telefones e Webhooks
+  const [phonesMap, setPhonesMap] = useState<Record<string, any[]>>({});
+  const [loadingPhones, setLoadingPhones] = useState<Record<string, boolean>>({});
+  const [subscribing, setSubscribing] = useState<Record<string, boolean>>({});
+
+  // Estados para Modal de Registro PIN 2FA
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinPhoneId, setPinPhoneId] = useState("");
+  const [pinCode, setPinCode] = useState("");
 
   const searchMut = useMutation({
     mutationFn: (id: string) => fetchInfo({ data: { wabaId: id } }),
@@ -2269,6 +2349,146 @@ function WABASection() {
     onError: (e: any) => toast.error("Erro ao salvar WABA ativa: " + e.message),
   });
 
+  const loadPhonesMut = useMutation({
+    mutationFn: async (wabaId: string) => {
+      setLoadingPhones(p => ({ ...p, [wabaId]: true }));
+      const res = await getPhoneNumbers({ data: { wabaId } });
+      if (!res.ok) throw new Error(res.error || "Erro ao obter números.");
+      return { wabaId, data: res.data || [] };
+    },
+    onSuccess: (res) => {
+      setPhonesMap(p => ({ ...p, [res.wabaId]: res.data }));
+      toast.success(`Carregados ${res.data.length} números de telefone!`);
+    },
+    onError: (e: any) => toast.error(e.message),
+    onSettled: (_, __, wabaId) => {
+      setLoadingPhones(p => ({ ...p, [wabaId]: false }));
+    }
+  });
+
+  const subscribeAppMut = useMutation({
+    mutationFn: async (wabaId: string) => {
+      setSubscribing(s => ({ ...s, [wabaId]: true }));
+      const res = await subscribeApp({ data: { wabaId } });
+      if (!res.ok) throw new Error(res.error || "Erro ao inscrever app.");
+      return res;
+    },
+    onSuccess: () => {
+      toast.success("Webhook / App inscrito com sucesso nesta WABA!");
+    },
+    onError: (e: any) => toast.error(e.message),
+    onSettled: (_, __, wabaId) => {
+      setSubscribing(s => ({ ...s, [wabaId]: false }));
+    }
+  });
+
+  const defineActivePhoneMut = useMutation({
+    mutationFn: (payload: { phoneId: string; displayPhone: string }) =>
+      saveProfile({
+        data: {
+          whatsapp_phone_number_id: payload.phoneId,
+          whatsapp_business_phone: payload.displayPhone,
+        },
+      }),
+    onSuccess: (_, payload) => {
+      toast.success(`Telefone ${payload.displayPhone} ativado nas Configurações!`);
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (e: any) => toast.error("Erro ao salvar telefone ativo: " + e.message),
+  });
+
+  const registerPhoneMut = useMutation({
+    mutationFn: (payload: { phoneId: string; pin: string }) =>
+      registerPhone({ data: { phoneId: payload.phoneId, pin: payload.pin } }),
+    onSuccess: () => {
+      toast.success("Número de telefone registrado com sucesso na Meta Cloud API!");
+      setPinModalOpen(false);
+      setPinCode("");
+    },
+    onError: (e: any) => toast.error("Erro ao registrar número: " + e.message),
+  });
+
+  const handleOpenPinModal = (phoneId: string) => {
+    setPinPhoneId(phoneId);
+    setPinCode("");
+    setPinModalOpen(true);
+  };
+
+  const handleRegisterPhone = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinCode.length !== 6 || /\D/.test(pinCode)) {
+      toast.error("O PIN deve conter exatamente 6 dígitos.");
+      return;
+    }
+    registerPhoneMut.mutate({ phoneId: pinPhoneId, pin: pinCode });
+  };
+
+  const renderPhoneList = (wabaId: string) => {
+    const listPhones = phonesMap[wabaId] ?? [];
+    const loading = loadingPhones[wabaId];
+
+    if (loading) {
+      return (
+        <div className="p-3 text-center text-xs text-muted-foreground flex items-center justify-center gap-2 bg-muted/10 rounded border border-dashed mt-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          <span>Carregando números da WABA...</span>
+        </div>
+      );
+    }
+
+    if (!phonesMap[wabaId]) return null;
+
+    if (listPhones.length === 0) {
+      return (
+        <p className="p-3 text-xs text-muted-foreground text-center bg-muted/10 rounded border border-dashed mt-2">
+          Nenhum número de telefone encontrado nesta conta.
+        </p>
+      );
+    }
+
+    return (
+      <div className="mt-2 border rounded-md divide-y bg-card text-xs overflow-hidden">
+        {listPhones.map((ph: any) => (
+          <div key={ph.id} className="p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-muted/10">
+            <div>
+              <p className="font-semibold text-foreground">{ph.verified_name || "Sem Nome de Exibição"}</p>
+              <p className="font-mono text-[10px] text-muted-foreground">+{ph.display_phone_number} (ID: {ph.id})</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Qualidade: <span className={cn(
+                  "font-medium",
+                  ph.quality_rating === "GREEN" && "text-success",
+                  ph.quality_rating === "YELLOW" && "text-amber-500",
+                  ph.quality_rating === "RED" && "text-destructive"
+                )}>{ph.quality_rating}</span>
+                {ph.code_verification_status && ` · Status: ${ph.code_verification_status}`}
+              </p>
+            </div>
+            <div className="flex gap-1.5 self-end sm:self-center shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px]"
+                onClick={() => defineActivePhoneMut.mutate({ phoneId: ph.id, displayPhone: ph.display_phone_number.replace(/\D/g, "") })}
+                disabled={defineActivePhoneMut.isPending}
+              >
+                Usar Número
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px]"
+                onClick={() => handleOpenPinModal(ph.id)}
+                disabled={registerPhoneMut.isPending}
+              >
+                Registrar (2FA)
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <Card className="p-6">
       <div className="flex items-start justify-between gap-3">
@@ -2278,7 +2498,7 @@ function WABASection() {
             Contas WhatsApp Business (WABAs)
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Visualize e gerencie as contas comerciais do WhatsApp (WABAs) associadas ao seu Business ID da Meta.
+            Inscreva webhooks, liste números de telefone, gerencie e registre chaves 2FA das suas contas comerciais WABA da Meta.
           </p>
         </div>
         <Button
@@ -2318,7 +2538,7 @@ function WABASection() {
               </div>
 
               {details && (
-                <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
                   <div className="flex justify-between items-start">
                     <span className="font-semibold text-sm">{details.name || "Conta sem Nome"}</span>
                     <Badge variant="secondary" className={cn(details.status === "APPROVED" ? "bg-success/15 text-success hover:bg-success/20 border-none" : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none")}>
@@ -2331,15 +2551,40 @@ function WABASection() {
                     {details.currency && <p className="text-muted-foreground"><span className="font-sans font-medium">Moeda:</span> {details.currency}</p>}
                     {details.message_limit && <p className="text-muted-foreground"><span className="font-sans font-medium">Limite:</span> {details.message_limit}</p>}
                   </div>
-                  <Button
-                    size="sm"
-                    className="w-full mt-2"
-                    variant="outline"
-                    onClick={() => defineActiveMut.mutate(details.id)}
-                    disabled={defineActiveMut.isPending}
-                  >
-                    Definir como WABA Ativa
-                  </Button>
+                  
+                  <div className="flex flex-col gap-2 pt-2 border-t">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        variant="default"
+                        onClick={() => defineActiveMut.mutate(details.id)}
+                        disabled={defineActiveMut.isPending}
+                      >
+                        Definir como WABA Ativa
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => subscribeAppMut.mutate(details.id)}
+                        disabled={subscribing[details.id]}
+                      >
+                        {subscribing[details.id] && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                        Inscrever Webhook
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => loadPhonesMut.mutate(details.id)}
+                        disabled={loadingPhones[details.id]}
+                      >
+                        {loadingPhones[details.id] && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                        Ver Telefones
+                      </Button>
+                    </div>
+
+                    {renderPhoneList(details.id)}
+                  </div>
                 </div>
               )}
             </div>
@@ -2378,34 +2623,61 @@ function WABASection() {
                     </Button>
                   </div>
 
-                  <div className="max-h-72 overflow-y-auto border rounded-lg divide-y bg-background">
+                  <div className="max-h-[400px] overflow-y-auto border rounded-lg divide-y bg-background">
                     {list.length === 0 ? (
                       <p className="p-4 text-xs text-muted-foreground text-center">
                         Nenhuma conta carregada. Clique em um dos botões acima para buscar.
                       </p>
                     ) : (
                       list.map((w: any) => (
-                        <div key={w.id} className="p-3 flex items-center justify-between gap-4 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground truncate">{w.name}</p>
-                            <p className="font-mono text-[10px] text-muted-foreground">ID: {w.id}</p>
-                            <p className="text-muted-foreground text-[10px] mt-0.5">
-                              Fuso: {w.timezone_id} · Limite: {w.message_limit ?? "N/A"}
-                            </p>
+                        <div key={w.id} className="p-3 flex flex-col gap-3 text-xs">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-foreground truncate">{w.name}</p>
+                              <p className="font-mono text-[10px] text-muted-foreground">ID: {w.id}</p>
+                              <p className="text-muted-foreground text-[10px] mt-0.5">
+                                Fuso: {w.timezone_id} · Limite: {w.message_limit ?? "N/A"}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Badge variant="secondary" className={cn(w.status === "APPROVED" ? "bg-success/15 text-success hover:bg-success/20 border-none" : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none")}>
+                                {w.status}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => defineActiveMut.mutate(w.id)}
+                                disabled={defineActiveMut.isPending}
+                              >
+                                Ativar
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="secondary" className={cn(w.status === "APPROVED" ? "bg-success/15 text-success hover:bg-success/20 border-none" : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none")}>
-                              {w.status}
-                            </Badge>
+
+                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-dashed">
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => defineActiveMut.mutate(w.id)}
-                              disabled={defineActiveMut.isPending}
+                              variant="ghost"
+                              className="h-7 text-[10px] px-2"
+                              onClick={() => subscribeAppMut.mutate(w.id)}
+                              disabled={subscribing[w.id]}
                             >
-                              Ativar
+                              {subscribing[w.id] && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                              Inscrever Webhook
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-[10px] px-2 ml-auto"
+                              onClick={() => loadPhonesMut.mutate(w.id)}
+                              disabled={loadingPhones[w.id]}
+                            >
+                              {loadingPhones[w.id] && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                              {phonesMap[w.id] ? "Ocultar Números" : "Ver Números"}
                             </Button>
                           </div>
+
+                          {renderPhoneList(w.id)}
                         </div>
                       ))
                     )}
@@ -2426,6 +2698,44 @@ function WABASection() {
           </div>
         </div>
       )}
+
+      {/* Modal para Registro PIN 2FA */}
+      <Dialog open={pinModalOpen} onOpenChange={setPinModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Registrar Número na API Cloud (2FA)</DialogTitle>
+            <DialogDescription>
+              Insira o PIN de 2 fatores (2FA) de 6 dígitos que você definiu para este número de telefone no painel do WhatsApp Manager.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRegisterPhone} className="space-y-4 py-3">
+            <div className="space-y-2">
+              <Label htmlFor="pin-code">PIN de 6 dígitos</Label>
+              <Input
+                id="pin-code"
+                placeholder="Ex: 123456"
+                type="password"
+                maxLength={6}
+                value={pinCode}
+                onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
+                className="text-center font-mono text-lg tracking-widest"
+                required
+              />
+              <p className="text-[11px] text-muted-foreground">
+                📍 Onde achar/definir: WhatsApp Manager → Ferramentas → Configurações do número de telefone → Confirmação em duas etapas.
+              </p>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setPinModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={registerPhoneMut.isPending || pinCode.length !== 6}>
+                {registerPhoneMut.isPending ? "Registrando..." : "Registrar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
