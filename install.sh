@@ -54,17 +54,29 @@ fi
 # ---------------------------------------------------------------------------
 print_step "[1/7] Coletando parâmetros de configuração..."
 
-# ── Domínio e e-mail pré-configurados ──────────────────────────────────────
-DOMAIN="wapi.vw2digital.com.br"
-CORS_ORIGIN="https://wapi.vw2digital.com.br"
-INSTALL_SSL="s"
-SSL_EMAIL="adm@vw2digital.com.br"
-# ────────────────────────────────────────────────────────────────────────────
+# ── Variáveis interativas ───────────────────────────────────────────────────
 
-# Ainda permite sobrescrever via variáveis de ambiente externas
-[ -n "${DOMAIN_OVERRIDE:-}" ]     && DOMAIN="$DOMAIN_OVERRIDE"
-[ -n "${CORS_ORIGIN_OVERRIDE:-}" ] && CORS_ORIGIN="$CORS_ORIGIN_OVERRIDE"
-[ -n "${SSL_EMAIL_OVERRIDE:-}" ]   && SSL_EMAIL="$SSL_EMAIL_OVERRIDE"
+if [ -z "${DOMAIN:-}" ]; then
+  read -p "Digite o domínio da aplicação (ex: wapi.vw2digital.com.br): " DOMAIN
+  if [ -z "$DOMAIN" ]; then
+    echo -e "${RED}Erro: O domínio é obrigatório.${NC}"
+    exit 1
+  fi
+fi
+
+if [ -z "${INSTALL_SSL:-}" ]; then
+  read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
+fi
+
+if [ -z "${SSL_EMAIL:-}" ] && { [ "$INSTALL_SSL" = "s" ] || [ "$INSTALL_SSL" = "S" ]; }; then
+  read -p "Digite o e-mail para o SSL (ex: adm@vw2digital.com.br): " SSL_EMAIL
+fi
+
+# Define CORS dinamicamente com base no domínio
+CORS_ORIGIN="https://${DOMAIN}"
+if [ "${INSTALL_SSL}" != "s" ] && [ "${INSTALL_SSL}" != "S" ]; then
+  CORS_ORIGIN="http://${DOMAIN}"
+fi
 
 echo ""
 echo "  Domínio: $DOMAIN"

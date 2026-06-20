@@ -24,15 +24,15 @@ echo -e "${NC}"
 # ── Configurações de produção ─────────────────────────────────────────────────
 REPO_URL="https://github.com/VW2Digital/wapi-weaver.git"
 APP_DIR="/var/www/wapi-weaver"
-DOMAIN="wapi.vw2digital.com.br"
-CORS_ORIGIN="https://wapi.vw2digital.com.br"
+DOMAIN="apioficial.vw2digital.com.br"
+CORS_ORIGIN="https://apioficial.vw2digital.com.br"
 INSTALL_SSL="s"
 SSL_EMAIL="adm@vw2digital.com.br"
 
-# Secrets gerados criptograficamente (únicos para esta instalação)
+# Secrets definidos conforme solicitado
 JWT_SECRET=$(openssl rand -hex 64)
-DB_PASSWORD=$(openssl rand -hex 16)
-DB_ROOT_PASSWORD=$(openssl rand -hex 16)
+DB_PASSWORD="#VW2Digital2025"
+DB_ROOT_PASSWORD="#VW2Digital2025"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # 1. Memória / Swap
