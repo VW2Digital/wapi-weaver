@@ -1033,6 +1033,18 @@ function AdminPlatformSection() {
     "zapdispatch_settings_admin_platform_collapsed",
     true
   );
+  const [tagsCollapsed, toggleTagsCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_custom_tags_collapsed",
+    true
+  );
+  const [cronCollapsed, toggleCronCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_cron_secret_collapsed",
+    true
+  );
+  const [credsCollapsed, toggleCredsCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_meta_creds_collapsed",
+    true
+  );
 
   useEffect(() => {
     if (settings) {
@@ -1091,160 +1103,225 @@ function AdminPlatformSection() {
 
       {!collapsed && (
       <>
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label>Meta App ID</Label>
-          <Input
-            value={appId}
-            onChange={(e) => setAppId(onlyDigits(e.target.value))}
-            placeholder="Ex: 1234567890123456"
-            inputMode="numeric"
-            pattern="[0-9]*"
-          />
-          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App (\"ID do aplicativo\").\n⚠️ Não confunda com o Business ID nem com o WABA ID."}</p>
+      <div className="mt-5 border-t pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="font-display text-base font-semibold">Credenciais de API</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Configurações de chaves e identificadores da sua conta de desenvolvedor Meta.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggleCredsCollapsed}
+            aria-expanded={!credsCollapsed}
+            aria-label={credsCollapsed ? "Expandir credenciais" : "Recolher credenciais"}
+            className="shrink-0 gap-1 mt-0.5"
+          >
+            {credsCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{credsCollapsed ? "Expandir" : "Recolher"}</span>
+          </Button>
         </div>
 
-        <div className="space-y-1.5">
-          <Label>Embedded Signup Config ID</Label>
-          <Input
-            value={configId}
-            onChange={(e) => setConfigId(onlyDigits(e.target.value))}
-            placeholder="Ex: 9876543210987654"
-            inputMode="numeric"
-            pattern="[0-9]*"
-          />
-          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."}</p>
+        {!credsCollapsed && (
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Meta App ID</Label>
+              <Input
+                value={appId}
+                onChange={(e) => setAppId(onlyDigits(e.target.value))}
+                placeholder="Ex: 1234567890123456"
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App (\"ID do aplicativo\").\n⚠️ Não confunda com o Business ID nem com o WABA ID."}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Embedded Signup Config ID</Label>
+              <Input
+                value={configId}
+                onChange={(e) => setConfigId(onlyDigits(e.target.value))}
+                placeholder="Ex: 9876543210987654"
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">{"📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."}</p>
+            </div>
+
+            <div className="md:col-span-2 space-y-1.5">
+              <Label>App Secret</Label>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <PasswordInput
+                    value={appSecret}
+                    onChange={(e) => setAppSecret(e.target.value)}
+                    placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
+                    className="font-mono text-xs"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={!appSecret}
+                  onClick={() => {
+                    navigator.clipboard.writeText(appSecret);
+                    toast.success("App Secret copiado");
+                  }}
+                  title="Copiar App Secret"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!appSecret || mut.isPending}
+                  onClick={() => mut.mutate({ meta_app_secret: appSecret })}
+                >
+                  {mut.isPending ? "Salvando…" : "Salvar"}
+                </Button>
+              </div>
+              <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
+                {"📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."}
+                {settings?.meta_app_secret_set && <span className="block mt-1 text-success font-medium">✓ Atualmente configurado</span>}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Graph API Version</Label>
+              <Select value={graphVersion || "v20.0"} onValueChange={setGraphVersion}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a versão" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 flex flex-col justify-end">
+              <p className="text-[11px] text-muted-foreground">
+                {settings?.updated_at && <>Última atualização: {new Date(settings.updated_at).toLocaleString()}</>}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 border-t pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="font-display text-base font-semibold">Tags personalizadas (Analytics, Pixel, etc.)</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cole snippets completos (com <code className="text-xs">&lt;script&gt;</code>, <code className="text-xs">&lt;meta&gt;</code>, <code className="text-xs">&lt;noscript&gt;</code>…). Eles serão injetados em <strong>todas as páginas</strong> da plataforma para todos os usuários.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggleTagsCollapsed}
+            aria-expanded={!tagsCollapsed}
+            aria-label={tagsCollapsed ? "Expandir tags" : "Recolher tags"}
+            className="shrink-0 gap-1 mt-0.5"
+          >
+            {tagsCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{tagsCollapsed ? "Expandir" : "Recolher"}</span>
+          </Button>
         </div>
 
-        <div className="md:col-span-2 space-y-1.5">
-          <Label>App Secret</Label>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <PasswordInput
-                value={appSecret}
-                onChange={(e) => setAppSecret(e.target.value)}
-                placeholder={settings?.meta_app_secret_set ? "•••••••••••••••• (já configurado — deixe vazio para manter)" : "Cole aqui o App Secret"}
+        {!tagsCollapsed && (
+          <div className="mt-4 grid gap-4">
+            <div className="space-y-1.5">
+              <Label>Tags no &lt;head&gt;</Label>
+              <Textarea
+                rows={6}
+                value={headTags}
+                onChange={(e) => setHeadTags(e.target.value)}
+                placeholder={`<!-- Google Analytics -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXX');</script>`}
                 className="font-mono text-xs"
               />
+              <p className="text-[11px] text-muted-foreground">Ideal para Google Analytics, GTM, Meta Pixel, verificações de domínio, etc.</p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!appSecret}
-              onClick={() => {
-                navigator.clipboard.writeText(appSecret);
-                toast.success("App Secret copiado");
-              }}
-              title="Copiar App Secret"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              disabled={!appSecret || mut.isPending}
-              onClick={() => mut.mutate({ meta_app_secret: appSecret })}
-            >
-              {mut.isPending ? "Salvando…" : "Salvar"}
-            </Button>
+            <div className="space-y-1.5">
+              <Label>Tags no final do &lt;body&gt;</Label>
+              <Textarea
+                rows={6}
+                value={bodyTags}
+                onChange={(e) => setBodyTags(e.target.value)}
+                placeholder={`<!-- Chat / widgets -->\n<script src="https://widget.exemplo.com/loader.js"></script>`}
+                className="font-mono text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">Ideal para widgets, scripts que dependem do DOM carregado, fallbacks &lt;noscript&gt;.</p>
+            </div>
           </div>
-          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
-            {"📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."}
-            {settings?.meta_app_secret_set && <span className="block mt-1 text-success font-medium">✓ Atualmente configurado</span>}
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Graph API Version</Label>
-          <Select value={graphVersion || "v20.0"} onValueChange={setGraphVersion}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione a versão" />
-            </SelectTrigger>
-            <SelectContent>
-              {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
-                <SelectItem key={v} value={v}>{v}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5 flex flex-col justify-end">
-          <p className="text-[11px] text-muted-foreground">
-            {settings?.updated_at && <>Última atualização: {new Date(settings.updated_at).toLocaleString()}</>}
-          </p>
-        </div>
+        )}
       </div>
 
       <div className="mt-6 border-t pt-5">
-        <h3 className="font-display text-base font-semibold">Tags personalizadas (Analytics, Pixel, etc.)</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Cole snippets completos (com <code className="text-xs">&lt;script&gt;</code>, <code className="text-xs">&lt;meta&gt;</code>, <code className="text-xs">&lt;noscript&gt;</code>…). Eles serão injetados em <strong>todas as páginas</strong> da plataforma para todos os usuários.
-        </p>
-        <div className="mt-4 grid gap-4">
-          <div className="space-y-1.5">
-            <Label>Tags no &lt;head&gt;</Label>
-            <Textarea
-              rows={6}
-              value={headTags}
-              onChange={(e) => setHeadTags(e.target.value)}
-              placeholder={`<!-- Google Analytics -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXX');</script>`}
-              className="font-mono text-xs"
-            />
-            <p className="text-[11px] text-muted-foreground">Ideal para Google Analytics, GTM, Meta Pixel, verificações de domínio, etc.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="font-display text-base font-semibold">Segredo do Cron (CRON_SECRET)</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Token usado para autenticar o agendador (pg_cron) ao chamar{" "}
+              <code className="text-xs">/api/public/cron/process-queue</code>. Se vazio, o endpoint fica <strong>aberto</strong> (apenas para testes).
+            </p>
           </div>
-          <div className="space-y-1.5">
-            <Label>Tags no final do &lt;body&gt;</Label>
-            <Textarea
-              rows={6}
-              value={bodyTags}
-              onChange={(e) => setBodyTags(e.target.value)}
-              placeholder={`<!-- Chat / widgets -->\n<script src="https://widget.exemplo.com/loader.js"></script>`}
-              className="font-mono text-xs"
-            />
-            <p className="text-[11px] text-muted-foreground">Ideal para widgets, scripts que dependem do DOM carregado, fallbacks &lt;noscript&gt;.</p>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggleCronCollapsed}
+            aria-expanded={!cronCollapsed}
+            aria-label={cronCollapsed ? "Expandir cron" : "Recolher cron"}
+            className="shrink-0 gap-1 mt-0.5"
+          >
+            {cronCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{cronCollapsed ? "Expandir" : "Recolher"}</span>
+          </Button>
         </div>
-      </div>
 
-      <div className="mt-6 border-t pt-5">
-        <h3 className="font-display text-base font-semibold">Segredo do Cron (CRON_SECRET)</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Token usado para autenticar o agendador (pg_cron) ao chamar{" "}
-          <code className="text-xs">/api/public/cron/process-queue</code>. Se vazio, o endpoint fica <strong>aberto</strong> (apenas para testes).
-        </p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Input
-            value={cronSecret}
-            onChange={(e) => setCronSecret(e.target.value.replace(/[^A-Za-z0-9_-]/g, ""))}
-            placeholder="Clique em Gerar ou cole um token"
-            className="font-mono text-xs"
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                const bytes = new Uint8Array(32);
-                crypto.getRandomValues(bytes);
-                const token = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-                setCronSecret(token);
-              }}
-            >
-              <RefreshCw className="h-4 w-4" /> Gerar
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!cronSecret}
-              onClick={() => { navigator.clipboard.writeText(cronSecret); toast.success("Copiado!"); }}
-            >
-              <Copy className="h-4 w-4" /> Copiar
-            </Button>
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          Após salvar, envie este valor no header <code className="text-[10px]">x-cron-secret</code> em cada chamada do cron.
-        </p>
+        {!cronCollapsed && (
+          <>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={cronSecret}
+                onChange={(e) => setCronSecret(e.target.value.replace(/[^A-Za-z0-9_-]/g, ""))}
+                placeholder="Clique em Gerar ou cole um token"
+                className="font-mono text-xs"
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const bytes = new Uint8Array(32);
+                    crypto.getRandomValues(bytes);
+                    const token = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+                    setCronSecret(token);
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4" /> Gerar
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!cronSecret}
+                  onClick={() => { navigator.clipboard.writeText(cronSecret); toast.success("Copiado!"); }}
+                >
+                  <Copy className="h-4 w-4" /> Copiar
+                </Button>
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Após salvar, envie este valor no header <code className="text-[10px]">x-cron-secret</code> em cada chamada do cron.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="mt-6 border-t pt-5">
@@ -1614,6 +1691,13 @@ function SchemaBackupsHistory() {
   const del = useServerFn(deleteSchemaBackup);
   const qc = useQueryClient();
 
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_schema_backups_collapsed",
+    false
+  );
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const { data, isLoading } = useQuery({
     queryKey: ["schema-backups"],
     queryFn: () => list(),
@@ -1656,65 +1740,133 @@ function SchemaBackupsHistory() {
   }
 
   const backups = data?.backups ?? [];
+  const totalPages = Math.ceil(backups.length / itemsPerPage);
+
+  useEffect(() => {
+    if (currentPage > 1 && currentPage > totalPages) {
+      setCurrentPage(totalPages || 1);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedBackups = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return backups.slice(start, start + itemsPerPage);
+  }, [backups, currentPage]);
 
   return (
     <div className="mt-4 rounded-md border bg-card">
       <div className="flex items-center justify-between border-b px-3 py-2">
-        <div className="text-sm font-medium">Histórico de versões</div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => createMut.mutate()}
-          disabled={createMut.isPending}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", createMut.isPending && "animate-spin")} />
-          {createMut.isPending ? "Gerando…" : "Gerar backup agora"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-medium">Histórico de versões</div>
+          {backups.length > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {backups.length}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => createMut.mutate()}
+            disabled={createMut.isPending}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", createMut.isPending && "animate-spin")} />
+            {createMut.isPending ? "Gerando…" : "Gerar backup agora"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expandir histórico" : "Recolher histórico"}
+            className="shrink-0 h-8 w-8 p-0"
+          >
+            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
-      {isLoading ? (
-        <div className="p-3 text-xs text-muted-foreground">Carregando…</div>
-      ) : backups.length === 0 ? (
-        <div className="p-3 text-xs text-muted-foreground">
-          Nenhum backup ainda. O primeiro será gerado automaticamente às 03:00 (UTC), ou clique em "Gerar backup agora".
-        </div>
-      ) : (
-        <ul className="divide-y">
-          {backups.map((b: any) => (
-            <li key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <div className="flex flex-col">
-                <span className="font-mono text-xs">
-                  {new Date(b.created_at).toLocaleString()}
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  {b.source === "manual" ? "Manual" : "Automático"} · {formatBytes(b.size_bytes)}
-                </span>
-              </div>
-              <div className="flex gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => downloadBackup(b.id, b.created_at)}
-                >
-                  <Download className="h-3.5 w-3.5" /> Baixar
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    if (confirm("Excluir este backup?")) delMut.mutate(b.id);
-                  }}
-                  disabled={delMut.isPending}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+      {!collapsed && (
+        <>
+          {isLoading ? (
+            <div className="p-3 text-xs text-muted-foreground">Carregando…</div>
+          ) : backups.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground">
+              Nenhum backup ainda. O primeiro será gerado automaticamente às 03:00 (UTC), ou clique em "Gerar backup agora".
+            </div>
+          ) : (
+            <>
+              <ul className="divide-y">
+                {paginatedBackups.map((b: any) => (
+                  <li key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                    <div className="flex flex-col">
+                      <span className="font-mono text-xs">
+                        {new Date(b.created_at).toLocaleString()}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {b.source === "manual" ? "Manual" : "Automático"} · {formatBytes(b.size_bytes)}
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadBackup(b.id, b.created_at)}
+                      >
+                        <Download className="h-3.5 w-3.5" /> Baixar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm("Excluir este backup?")) delMut.mutate(b.id);
+                        }}
+                        disabled={delMut.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t px-3 py-2 bg-muted/20">
+                  <span className="text-xs text-muted-foreground">
+                    Página {currentPage} de {totalPages} ({backups.length} itens)
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      className="h-8 px-2"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> Anterior
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      className="h-8 px-2"
+                    >
+                      Próxima <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
     </div>
   );

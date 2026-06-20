@@ -3,6 +3,7 @@ services:
     image: mysql:8.0
     container_name: wapi_weaver_mysql
     restart: always
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=256M --innodb-log-file-size=64M
     environment:
       MYSQL_DATABASE: wapi_weaver
       MYSQL_ROOT_PASSWORD: 4dgjvikyycAYkRvHHx1ouky62Sgx

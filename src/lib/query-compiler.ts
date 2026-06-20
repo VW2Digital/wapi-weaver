@@ -27,7 +27,7 @@ const ALLOWED_TABLES = new Set([
   'templates',
   'campaigns',
   'campaign_messages',
-  'webhook_events'
+  'webhook_events',
 ]);
 
 // Helper to determine if a table has a user_id column
@@ -87,7 +87,7 @@ function preprocessData(table: string, data: any): any {
 }
 
 export async function executeQuery(reqQuery: any, userId: string, userRole: string): Promise<any> {
-  const { table, action, select, data, filters = [], order = [], limit, offset, upsertConflict } = reqQuery;
+  const { table, action, select, data, filters = [], order = [], limit, offset, upsertConflict, head, countMode } = reqQuery;
 
   if (!table || !ALLOWED_TABLES.has(table)) {
     throw new Error(`Table '${table}' is not allowed or does not exist`);
@@ -206,6 +206,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
   const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
+  let isListContactsWithContacts = false;
+  let isCampaignMessagesWithContacts = false;
+  let isContactTagsWithTags = false;
+
   if (action === 'select') {
     let colSelection = '*';
     if (select && select !== '*') {
@@ -216,15 +220,96 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    sql = `SELECT ${colSelection} FROM \`${table}\`${whereString}`;
+    // HEAD mode: just return a COUNT — no data rows
+    if (head === true) {
+      sql = `SELECT COUNT(*) AS \`_count\` FROM \`${table}\`${whereString}`;
+      const countResult = await db.query(sql, params);
+      const totalCount = countResult?.[0]?._count ?? 0;
+      return { _headCount: Number(totalCount) };
+    }
+
+    // Translate PostgreSQL relation counts into MySQL subqueries
+    if (colSelection.includes('list_contacts(count)')) {
+      colSelection = colSelection.replace(
+        'list_contacts(count)',
+        '(SELECT COUNT(*) FROM `list_contacts` WHERE `list_contacts`.`list_id` = `lists`.`id`) AS `list_contacts_count`'
+      );
+    }
+
+    if (table === 'list_contacts' && colSelection.includes('contacts(*)')) {
+      isListContactsWithContacts = true;
+      sql = `SELECT 
+        \`list_contacts\`.\`list_id\`, 
+        \`list_contacts\`.\`contact_id\`, 
+        \`list_contacts\`.\`user_id\`, 
+        \`list_contacts\`.\`added_at\`,
+        \`contacts\`.\`id\` AS \`c_id\`,
+        \`contacts\`.\`user_id\` AS \`c_user_id\`,
+        \`contacts\`.\`phone_e164\` AS \`c_phone_e164\`,
+        \`contacts\`.\`name\` AS \`c_name\`,
+        \`contacts\`.\`email\` AS \`c_email\`,
+        \`contacts\`.\`source\` AS \`c_source\`,
+        \`contacts\`.\`opted_out\` AS \`c_opted_out\`,
+        \`contacts\`.\`custom_fields\` AS \`c_custom_fields\`,
+        \`contacts\`.\`created_at\` AS \`c_created_at\`,
+        \`contacts\`.\`updated_at\` AS \`c_updated_at\`
+      FROM \`list_contacts\`
+      LEFT JOIN \`contacts\` ON \`list_contacts\`.\`contact_id\` = \`contacts\`.\`id\`
+      ${whereString}`;
+    } else if (table === 'campaign_messages' && (colSelection.includes('contacts(') || colSelection.includes('contacts(*)'))) {
+      isCampaignMessagesWithContacts = true;
+      // Strip contacts(...) from colSelection and build explicit JOIN columns
+      const baseCol = colSelection
+        .replace(/,?\s*contacts\([^)]*\)/g, '')
+        .trim()
+        .replace(/^,|,$/, '')
+        .trim();
+      const base = baseCol && baseCol !== '*' ? `\`campaign_messages\`.${baseCol.split(',').map((c: string) => c.trim().startsWith('`') ? c.trim() : `\`${c.trim()}\``).join(', `campaign_messages`.')}` : '`campaign_messages`.*';
+      sql = `SELECT 
+        ${base},
+        \`contacts\`.\`name\` AS \`c_contact_name\`,
+        \`contacts\`.\`email\` AS \`c_contact_email\`
+      FROM \`campaign_messages\`
+      LEFT JOIN \`contacts\` ON \`campaign_messages\`.\`contact_id\` = \`contacts\`.\`id\`
+      ${whereString}`;
+    } else if (table === 'contact_tags' && (colSelection.includes('tags(') || colSelection.includes('tags(*)'))) {
+      isContactTagsWithTags = true;
+      sql = `SELECT 
+        \`contact_tags\`.\`contact_id\`,
+        \`contact_tags\`.\`tag_id\`,
+        \`contact_tags\`.\`user_id\`,
+        \`tags\`.\`id\` AS \`t_id\`,
+        \`tags\`.\`name\` AS \`t_name\`,
+        \`tags\`.\`color\` AS \`t_color\`,
+        \`tags\`.\`created_at\` AS \`t_created_at\`
+      FROM \`contact_tags\`
+      LEFT JOIN \`tags\` ON \`contact_tags\`.\`tag_id\` = \`tags\`.\`id\`
+      ${whereString}`;
+    } else {
+      sql = `SELECT ${colSelection} FROM \`${table}\`${whereString}`;
+    }
 
     // Add ORDER BY
     if (order && order.length > 0) {
       const orderClauses = order.map((o: any) => {
         const dir = o.ascending ? 'ASC' : 'DESC';
+        if (isListContactsWithContacts) {
+          return `\`list_contacts\`.\`${o.column}\` ${dir}`;
+        }
+        if (isCampaignMessagesWithContacts) {
+          return `\`campaign_messages\`.\`${o.column}\` ${dir}`;
+        }
         return `\`${o.column}\` ${dir}`;
       });
       sql += ` ORDER BY ${orderClauses.join(', ')}`;
+    }
+
+    // When count:'exact' is requested, run a parallel COUNT query
+    let totalCount: number | null = null;
+    if (countMode === 'exact') {
+      const countSql = `SELECT COUNT(*) AS \`_count\` FROM \`${table}\`${whereString}`;
+      const countRes = await db.query(countSql, params);
+      totalCount = Number(countRes?.[0]?._count ?? 0);
     }
 
     // Add LIMIT and OFFSET
@@ -246,22 +331,89 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
     const results = await db.query(sql, params);
     
+    // Post-process custom count subqueries back to Supabase-like nested arrays
+    if (table === 'lists' && Array.isArray(results)) {
+      for (const row of results) {
+        if ('list_contacts_count' in row) {
+          row.list_contacts = [{ count: row.list_contacts_count || 0 }];
+          delete row.list_contacts_count;
+        }
+      }
+    }
+
+    if (isListContactsWithContacts && Array.isArray(results)) {
+      for (const row of results) {
+        if (row.c_id) {
+          row.contacts = {
+            id: row.c_id,
+            user_id: row.c_user_id,
+            phone_e164: row.c_phone_e164,
+            name: row.c_name,
+            email: row.c_email,
+            source: row.c_source,
+            opted_out: row.c_opted_out === 1 || row.c_opted_out === true,
+            custom_fields: row.c_custom_fields,
+            created_at: row.c_created_at,
+            updated_at: row.c_updated_at
+          };
+          if (typeof row.contacts.custom_fields === 'string' && (row.contacts.custom_fields.startsWith('{') || row.contacts.custom_fields.startsWith('['))) {
+            try { row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields); } catch (e) {}
+          }
+        } else {
+          row.contacts = null;
+        }
+        delete row.c_id; delete row.c_user_id; delete row.c_phone_e164;
+        delete row.c_name; delete row.c_email; delete row.c_source;
+        delete row.c_opted_out; delete row.c_custom_fields;
+        delete row.c_created_at; delete row.c_updated_at;
+      }
+    }
+
+    // Post-process campaign_messages JOIN contacts
+    if (isCampaignMessagesWithContacts && Array.isArray(results)) {
+      for (const row of results) {
+        row.contacts = row.c_contact_name !== null || row.c_contact_email !== null
+          ? { name: row.c_contact_name ?? null, email: row.c_contact_email ?? null }
+          : null;
+        delete row.c_contact_name;
+        delete row.c_contact_email;
+      }
+    }
+
+    // Post-process contact_tags JOIN tags
+    if (isContactTagsWithTags && Array.isArray(results)) {
+      for (const row of results) {
+        if (row.t_id) {
+          row.tags = {
+            id: row.t_id,
+            name: row.t_name,
+            color: row.t_color,
+            created_at: row.t_created_at,
+          };
+        } else {
+          row.tags = null;
+        }
+        delete row.t_id; delete row.t_name; delete row.t_color; delete row.t_created_at;
+      }
+    }
+
     // Parse JSON columns back to objects/arrays for consistency with Supabase response
     if (Array.isArray(results)) {
       for (const row of results) {
         for (const key in row) {
           const val = row[key];
           if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
-            try {
-              row[key] = JSON.parse(val);
-            } catch (e) {
-              // Ignore invalid JSON string parsing
-            }
+            try { row[key] = JSON.parse(val); } catch (e) {}
           }
         }
       }
     }
-    
+
+    // Return with totalCount if countMode was requested
+    if (totalCount !== null) {
+      return { _rows: results, _totalCount: totalCount };
+    }
+
     return results;
 
   } else if (action === 'insert') {
@@ -285,7 +437,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
 
         // Generate UUID if not provided
-        if (!insertData.id && table !== 'platform_settings') {
+        if (!insertData.id && table !== 'platform_settings' && table !== 'list_contacts' && table !== 'contact_tags') {
           insertData.id = generateUUID();
         }
 
@@ -313,7 +465,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           }
         }
 
-        const [res]: any = await conn.execute(sqlQuery, values);
+        const [res]: any = await (conn as any).execute(sqlQuery, values);
         totalAffectedRows += res.affectedRows;
         insertedIds.push(insertData.id || res.insertId);
       }
@@ -322,31 +474,57 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
     if (!isArray) {
       const singleData = dataList[0] || {};
-      let pkCol = 'id';
-      let pkVal = results.insertedIds[0];
-      if (table === 'platform_settings') {
-        pkCol = 'id';
-        pkVal = singleData.id || 1;
-      }
+      let rows: any[] = [];
+      
+      if (table === 'list_contacts' && singleData.list_id && singleData.contact_id) {
+        rows = await db.query(`SELECT * FROM \`list_contacts\` WHERE \`list_id\` = ? AND \`contact_id\` = ?`, [singleData.list_id, singleData.contact_id]);
+      } else if (table === 'contact_tags' && singleData.contact_id && singleData.tag_id) {
+        rows = await db.query(`SELECT * FROM \`contact_tags\` WHERE \`contact_id\` = ? AND \`tag_id\` = ?`, [singleData.contact_id, singleData.tag_id]);
+      } else {
+        let pkCol = 'id';
+        let pkVal = results.insertedIds[0];
+        if (table === 'platform_settings') {
+          pkCol = 'id';
+          pkVal = singleData.id || 1;
+        }
 
-      if (pkVal) {
-        const rows = await db.query(`SELECT * FROM \`${table}\` WHERE \`${pkCol}\` = ?`, [pkVal]);
-        if (rows.length > 0) {
-          const row = rows[0];
-          // Parse JSON columns back
-          for (const key in row) {
-            const val = row[key];
-            if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
-              try {
-                row[key] = JSON.parse(val);
-              } catch (e) {
-                // Ignore
-              }
+        if (pkVal) {
+          rows = await db.query(`SELECT * FROM \`${table}\` WHERE \`${pkCol}\` = ?`, [pkVal]);
+          
+          // Fallback: If no rows found, we might have hit a duplicate key during upsert
+          if (rows.length === 0) {
+            if (table === 'contacts' && singleData.phone_e164) {
+              rows = await db.query(`SELECT * FROM \`contacts\` WHERE \`user_id\` = ? AND \`phone_e164\` = ?`, [singleData.user_id || userId, singleData.phone_e164]);
+            } else if (table === 'tags' && singleData.name) {
+              rows = await db.query(`SELECT * FROM \`tags\` WHERE \`user_id\` = ? AND \`name\` = ?`, [singleData.user_id || userId, singleData.name]);
+            } else if (table === 'user_roles' && singleData.role) {
+              rows = await db.query(`SELECT * FROM \`user_roles\` WHERE \`user_id\` = ? AND \`role\` = ?`, [singleData.user_id || userId, singleData.role]);
+            } else if (table === 'salvy_numbers' && singleData.salvy_id) {
+              rows = await db.query(`SELECT * FROM \`salvy_numbers\` WHERE \`user_id\` = ? AND \`salvy_id\` = ?`, [singleData.user_id || userId, singleData.salvy_id]);
+            } else if (table === 'templates' && singleData.name && singleData.language) {
+              rows = await db.query(`SELECT * FROM \`templates\` WHERE \`user_id\` = ? AND \`name\` = ? AND \`language\` = ?`, [singleData.user_id || userId, singleData.name, singleData.language]);
             }
           }
-          return row;
         }
       }
+
+      if (rows.length > 0) {
+        const row = rows[0];
+        // Parse JSON columns back
+        for (const key in row) {
+          const val = row[key];
+          if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+            try {
+              row[key] = JSON.parse(val);
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+        return row;
+      }
+      
+      const pkVal = results.insertedIds[0];
       return { id: pkVal, affectedRows: results.totalAffectedRows };
     }
 

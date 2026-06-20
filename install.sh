@@ -1,192 +1,308 @@
 #!/usr/bin/env bash
-# =============================================================================
-#  Instalador para VPS — Disparador WhatsApp (TanStack Start + Lovable Cloud)
-# =============================================================================
-#  Uso:
-#    curl -fsSL "https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh?v=$(date +%s)" -o /tmp/install.sh \
-#      && sudo DOMAIN="painel.seudominio.com.br" \
-#              PORT="3000" \
-#              SUPABASE_URL="https://xxxx.supabase.co" \
-#              SUPABASE_PUBLISHABLE_KEY="eyJ..." \
-#              SUPABASE_PROJECT_REF="xxxx" \
-#              REPO_URL="https://github.com/<owner>/<repo>.git" \
-#              REPO_BRANCH="main" \
-#              INSTALL_SSL="s" \
-#              SSL_EMAIL="voce@dominio.com" \
-#              bash /tmp/install.sh
-# =============================================================================
+# ==============================================================================
+# INSTALADOR AUTOMATIZADO - DISPARADOR WAPI WEAVER (DOCKER COMPOSE)
+# ==============================================================================
+# Alvo: Ubuntu 20.04 / 22.04 / 24.04 LTS
+# Uso:  sudo bash install.sh
+# ==============================================================================
+
 set -euo pipefail
 
-# ---------- helpers ----------
-log()  { printf "\n\033[1;36m==>\033[0m %s\n" "$*"; }
-ok()   { printf "\033[1;32m✓\033[0m %s\n" "$*"; }
-warn() { printf "\033[1;33m!\033[0m %s\n" "$*"; }
-err()  { printf "\033[1;31m✗\033[0m %s\n" "$*" >&2; }
-die()  { err "$*"; exit 1; }
+# ---------------------------------------------------------------------------
+# Cores para output
+# ---------------------------------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-[ "$(id -u)" -eq 0 ] || die "Execute como root (use sudo)."
+APP_DIR="/var/www/wapi-weaver"
 
-# ---------- params ----------
-: "${DOMAIN:?Defina DOMAIN=seu.dominio.com}"
-: "${PORT:=3000}"
-: "${REPO_URL:?Defina REPO_URL=https://github.com/usuario/repo.git}"
-: "${REPO_BRANCH:=main}"
-: "${SUPABASE_URL:?Defina SUPABASE_URL}"
-: "${SUPABASE_PUBLISHABLE_KEY:?Defina SUPABASE_PUBLISHABLE_KEY}"
-: "${SUPABASE_PROJECT_REF:?Defina SUPABASE_PROJECT_REF}"
-: "${INSTALL_SSL:=n}"
-: "${SSL_EMAIL:=}"
+print_header() {
+  echo -e "${GREEN}"
+  echo "========================================================================"
+  echo "    INSTALADOR OFICIAL - DISPARADOR WAPI WEAVER (DOCKER + NGINX + SSL)  "
+  echo "========================================================================"
+  echo -e "${NC}"
+}
 
-APP_NAME="wapi-disparador"
-APP_DIR="/opt/${APP_NAME}"
-APP_USER="${APP_NAME}"
-SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
-NGINX_CONF="/etc/nginx/sites-available/${APP_NAME}"
+print_step() {
+  echo -e "${YELLOW}$1${NC}"
+}
 
-log "Domínio: $DOMAIN | Porta interna: $PORT | Branch: $REPO_BRANCH"
+print_ok() {
+  echo -e "${GREEN}✓ $1${NC}"
+}
 
-# ---------- 1. Dependências do sistema ----------
-log "Atualizando sistema e instalando dependências..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get install -y curl ca-certificates gnupg git ufw nginx unzip build-essential
+print_error() {
+  echo -e "${RED}✗ $1${NC}"
+}
 
-# Node 20 (LTS)
-if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]; then
-  log "Instalando Node.js 20..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-  apt-get install -y nodejs
+# ---------------------------------------------------------------------------
+# 0. Verificações iniciais
+# ---------------------------------------------------------------------------
+print_header
+
+if [ "$EUID" -ne 0 ]; then
+  print_error "Execute como root: sudo bash install.sh"
+  exit 1
 fi
-ok "Node $(node -v)"
 
-# Bun
-if ! command -v bun >/dev/null 2>&1; then
-  log "Instalando Bun..."
-  curl -fsSL https://bun.sh/install | bash
-  ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun
-fi
-ok "Bun $(bun -v)"
+# ---------------------------------------------------------------------------
+# 1. Coletar parâmetros
+# ---------------------------------------------------------------------------
+print_step "[1/7] Coletando parâmetros de configuração..."
 
-# ---------- 2. Usuário e diretório ----------
-log "Preparando usuário e diretório..."
-id -u "$APP_USER" >/dev/null 2>&1 || useradd --system --create-home --shell /bin/bash "$APP_USER"
+# ── Domínio e e-mail pré-configurados ──────────────────────────────────────
+DOMAIN="wapi.vw2digital.com.br"
+CORS_ORIGIN="https://wapi.vw2digital.com.br"
+INSTALL_SSL="s"
+SSL_EMAIL="adm@vw2digital.com.br"
+# ────────────────────────────────────────────────────────────────────────────
 
-if [ -d "$APP_DIR/.git" ]; then
-  log "Atualizando repositório existente em $APP_DIR..."
-  sudo -u "$APP_USER" git -C "$APP_DIR" fetch --all --prune
-  sudo -u "$APP_USER" git -C "$APP_DIR" reset --hard "origin/$REPO_BRANCH"
+# Ainda permite sobrescrever via variáveis de ambiente externas
+[ -n "${DOMAIN_OVERRIDE:-}" ]     && DOMAIN="$DOMAIN_OVERRIDE"
+[ -n "${CORS_ORIGIN_OVERRIDE:-}" ] && CORS_ORIGIN="$CORS_ORIGIN_OVERRIDE"
+[ -n "${SSL_EMAIL_OVERRIDE:-}" ]   && SSL_EMAIL="$SSL_EMAIL_OVERRIDE"
+
+echo ""
+echo "  Domínio: $DOMAIN"
+echo "  CORS:    $CORS_ORIGIN"
+echo "  SSL:     ${INSTALL_SSL:-n}"
+echo ""
+print_ok "Parâmetros carregados."
+
+# ---------------------------------------------------------------------------
+# 2. Verificar/configurar swap (essencial para VPS com pouca RAM no build)
+# ---------------------------------------------------------------------------
+print_step "[2/7] Verificando memória e swap..."
+
+TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+TOTAL_SWAP=$(free -m | awk '/^Swap:/{print $2}')
+echo "  RAM: ${TOTAL_RAM}MB | Swap atual: ${TOTAL_SWAP}MB"
+
+if [ "$TOTAL_SWAP" -lt 3000 ]; then
+  echo "  Swap insuficiente para o build (mínimo de 3GB recomendado). Criando swap de 4GB..."
+  swapoff /swapfile 2>/dev/null || true
+  rm -f /swapfile
+  fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+  chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  grep -q "/swapfile" /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  print_ok "Swap de 4GB configurado (total agora: $(free -m | awk '/^Swap:/{print $2}')MB)."
 else
-  log "Clonando repositório em $APP_DIR..."
-  rm -rf "$APP_DIR"
-  mkdir -p "$APP_DIR"
-  chown "$APP_USER:$APP_USER" "$APP_DIR"
-  sudo -u "$APP_USER" git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
+  print_ok "Memória suficiente (RAM: ${TOTAL_RAM}MB, Swap: ${TOTAL_SWAP}MB)."
 fi
 
-# ---------- 3. Arquivo .env ----------
-log "Gravando .env..."
-cat > "$APP_DIR/.env" <<EOF
-VITE_SUPABASE_URL="${SUPABASE_URL}"
-VITE_SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}"
-VITE_SUPABASE_PROJECT_ID="${SUPABASE_PROJECT_REF}"
-SUPABASE_URL="${SUPABASE_URL}"
-SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}"
+# ---------------------------------------------------------------------------
+# 3. Instalar dependências do sistema
+# ---------------------------------------------------------------------------
+print_step "[3/7] Instalando dependências do sistema (Docker, Nginx, Certbot)..."
+
+apt-get update -y -qq
+
+# Nginx e Certbot
+apt-get install -y -qq curl git nginx certbot python3-certbot-nginx rsync
+
+# Docker Engine (método oficial)
+if ! command -v docker &>/dev/null; then
+  echo "  Instalando Docker Engine..."
+  curl -fsSL https://get.docker.com | bash
+  systemctl enable docker
+  systemctl start docker
+  print_ok "Docker instalado."
+else
+  print_ok "Docker já instalado: $(docker --version)"
+fi
+
+# Docker Compose Plugin v2
+if ! docker compose version &>/dev/null 2>&1; then
+  echo "  Instalando Docker Compose Plugin..."
+  apt-get install -y -qq docker-compose-plugin
+  print_ok "Docker Compose instalado."
+else
+  print_ok "Docker Compose já instalado: $(docker compose version)"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Preparar código da aplicação
+# ---------------------------------------------------------------------------
+print_step "[4/7] Preparando código da aplicação em ${APP_DIR}..."
+
+mkdir -p /var/www
+
+# Se estamos rodando de dentro do diretório do projeto, copiar. Senão, clonar.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
+  echo "  Copiando arquivos locais para ${APP_DIR}..."
+  rsync -a --delete \
+    --exclude='.git' \
+    --exclude='node_modules' \
+    --exclude='dist' \
+    "${SCRIPT_DIR}/" "${APP_DIR}/"
+else
+  echo "  Clonando repositório para ${APP_DIR}..."
+  rm -rf "${APP_DIR}"
+  git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
+fi
+
+print_ok "Código da aplicação pronto."
+
+# ---------------------------------------------------------------------------
+# 5. Configurar variáveis de ambiente e secrets
+# ---------------------------------------------------------------------------
+print_step "[5/7] Configurando variáveis de ambiente de produção..."
+
+# Criar .env se não existir
+if [ ! -f "${APP_DIR}/.env" ]; then
+  echo "  Gerando .env com segredos seguros..."
+  JWT_SEC=$(openssl rand -hex 32)
+  DB_PASS=$(openssl rand -hex 16)
+  DB_ROOT_PASS=$(openssl rand -hex 16)
+  
+  cat > "${APP_DIR}/.env" <<EOF
+DB_HOST=banco-mysql
+DB_PORT=3306
+DB_USER=wapi_user
+DB_PASSWORD=${DB_PASS}
+DB_NAME=wapi_weaver
+JWT_SECRET=${JWT_SEC}
 EOF
-chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
-chmod 600 "$APP_DIR/.env"
+  
+  # Atualiza também no docker-compose.yml as senhas do container MySQL
+  sed -i "s/MYSQL_ROOT_PASSWORD: .*/MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}/" "${APP_DIR}/docker-compose.yml"
+  sed -i "s/MYSQL_PASSWORD: .*/MYSQL_PASSWORD: ${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
+  sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
+  sed -i "s/JWT_SECRET=.*/JWT_SECRET=${JWT_SEC}/" "${APP_DIR}/docker-compose.yml"
+else
+  echo "  Arquivo .env já existe, mantendo configurações."
+fi
 
-# Avisa sobre secrets de runtime que NÃO vão no .env público
-warn "Configure SUPABASE_SERVICE_ROLE_KEY, WHATSAPP_ACCESS_TOKEN, WHATSAPP_APP_SECRET,"
-warn "WHATSAPP_VERIFY_TOKEN e CRON_SECRET no arquivo $APP_DIR/.env antes de iniciar."
+print_ok "Configurações aplicadas."
 
-# ---------- 4. Instalar deps + build ----------
-log "Instalando dependências (bun install)..."
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && bun install --frozen-lockfile || bun install"
+# ---------------------------------------------------------------------------
+# 6. Build e inicialização via Docker Compose
+# ---------------------------------------------------------------------------
+print_step "[6/7] Fazendo build da aplicação e subindo os containers..."
 
-log "Compilando aplicação (bun run build)..."
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && bun run build"
+cd "${APP_DIR}"
 
-# ---------- 5. Systemd service (wrangler dev como runtime) ----------
-log "Criando serviço systemd..."
-cat > "$SERVICE_FILE" <<EOF
-[Unit]
-Description=${APP_NAME} (TanStack Start)
-After=network.target
+docker compose down --remove-orphans || true
 
-[Service]
-Type=simple
-User=${APP_USER}
-WorkingDirectory=${APP_DIR}
-EnvironmentFile=${APP_DIR}/.env
-Environment=NODE_ENV=production
-Environment=PORT=${PORT}
-ExecStart=/usr/local/bin/bun x wrangler dev --ip 127.0.0.1 --port ${PORT} --local --persist-to ${APP_DIR}/.wrangler
-Restart=always
-RestartSec=5
-LimitNOFILE=65535
+# Build da imagem da aplicação
+export DOCKER_BUILDKIT=1
+docker compose build --no-cache
 
-[Install]
-WantedBy=multi-user.target
-EOF
+# Subir todos os serviços em background
+docker compose up -d
 
-systemctl daemon-reload
-systemctl enable "${APP_NAME}.service"
-systemctl restart "${APP_NAME}.service"
-ok "Serviço ${APP_NAME} ativo"
+echo ""
+echo "  Aguardando a aplicação inicializar (healthcheck do MySQL pode levar ~30s)..."
+sleep 35
 
-# ---------- 6. Nginx reverse proxy ----------
-log "Configurando Nginx para ${DOMAIN}..."
-cat > "$NGINX_CONF" <<EOF
+# Verificar se os containers estão rodando
+if docker compose ps | grep -q "wapi_weaver_app.*Up\|wapi_weaver_app.*running"; then
+  print_ok "Container da aplicação está rodando!"
+else
+  print_error "Container da aplicação pode não ter iniciado corretamente."
+  echo "  Verifique os logs com: docker compose logs app"
+fi
+
+if docker compose ps | grep -q "wapi_weaver_mysql.*Up\|wapi_weaver_mysql.*running"; then
+  print_ok "Container do MySQL está rodando!"
+else
+  print_error "Container do MySQL pode não ter iniciado corretamente."
+  echo "  Verifique os logs com: docker compose logs banco-mysql"
+fi
+
+# ---------------------------------------------------------------------------
+# 7. Configurar Nginx como reverse proxy
+# ---------------------------------------------------------------------------
+print_step "[7/7] Configurando Nginx como reverse proxy..."
+
+cat > /etc/nginx/sites-available/wapi-weaver <<NGINXEOF
 server {
     listen 80;
-    listen [::]:80;
     server_name ${DOMAIN};
 
-    client_max_body_size 25m;
+    # Segurança básica
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+    add_header X-XSS-Protection "1; mode=block";
 
+    # Aumentar timeout para uploads/APIs lentas
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 120s;
+
+    # Todo o tráfego vai para o container Node/Vite na porta 3000
     location / {
-        proxy_pass http://127.0.0.1:${PORT};
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 300s;
+        proxy_cache_bypass \$http_upgrade;
     }
 }
-EOF
-ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/${APP_NAME}"
+NGINXEOF
+
+ln -sf /etc/nginx/sites-available/wapi-weaver /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
-nginx -t
-systemctl reload nginx
-ok "Nginx configurado"
 
-# ---------- 7. Firewall ----------
-if command -v ufw >/dev/null 2>&1; then
-  log "Liberando portas no firewall (22, 80, 443)..."
-  ufw allow OpenSSH || true
-  ufw allow 'Nginx Full' || true
-  yes | ufw enable || true
+nginx -t && systemctl restart nginx
+print_ok "Nginx configurado e reiniciado."
+
+# SSL com Let's Encrypt
+if [ "${INSTALL_SSL:-n}" = "s" ] || [ "${INSTALL_SSL:-n}" = "S" ]; then
+  echo ""
+  print_step "  Instalando certificado SSL com Let's Encrypt..."
+  if [ -n "${SSL_EMAIL:-}" ]; then
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
+  else
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect
+  fi
+  print_ok "SSL instalado! HTTPS habilitado para ${DOMAIN}."
+
+  # Renovação automática já é configurada pelo certbot, mas garantir o timer
+  systemctl enable certbot.timer || true
 fi
 
-# ---------- 8. SSL (Certbot) ----------
-if [ "${INSTALL_SSL,,}" = "s" ] || [ "${INSTALL_SSL,,}" = "y" ] || [ "${INSTALL_SSL,,}" = "yes" ]; then
-  [ -n "$SSL_EMAIL" ] || die "INSTALL_SSL=s exige SSL_EMAIL=voce@dominio.com"
-  log "Instalando Certbot e emitindo certificado para ${DOMAIN}..."
-  apt-get install -y certbot python3-certbot-nginx
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$SSL_EMAIL" --redirect
-  ok "SSL ativo em https://${DOMAIN}"
+# Firewall
+if command -v ufw &>/dev/null; then
+  ufw allow 22/tcp  >/dev/null 2>&1 || true
+  ufw allow 80/tcp  >/dev/null 2>&1 || true
+  ufw allow 443/tcp >/dev/null 2>&1 || true
+  ufw --force enable >/dev/null 2>&1 || true
 fi
 
-# ---------- Final ----------
-echo
-ok "Instalação concluída!"
-echo "  • App:       http://${DOMAIN}  (porta interna ${PORT})"
-echo "  • Logs:      journalctl -u ${APP_NAME} -f"
-echo "  • Restart:   systemctl restart ${APP_NAME}"
-echo "  • Diretório: ${APP_DIR}"
-echo
-warn "Lembre de editar ${APP_DIR}/.env e adicionar os secrets do WhatsApp/Supabase Service Role,"
-warn "depois rode: systemctl restart ${APP_NAME}"
+# ---------------------------------------------------------------------------
+# Finalização
+# ---------------------------------------------------------------------------
+echo ""
+echo -e "${GREEN}"
+echo "========================================================================"
+echo "    INSTALAÇÃO CONCLUÍDA COM SUCESSO!                                   "
+echo "========================================================================"
+echo -e "${NC}"
+
+PROTOCOL="http"
+[ "${INSTALL_SSL:-n}" = "s" ] || [ "${INSTALL_SSL:-n}" = "S" ] && PROTOCOL="https"
+
+echo ""
+echo "  🌐 URL da aplicação: ${PROTOCOL}://${DOMAIN}"
+echo ""
+echo "  🔑 Credenciais de acesso padrão:"
+echo "     Acesse o domínio e crie sua conta de administrador local."
+echo ""
+echo "  📋 Comandos úteis:"
+echo "     Ver logs da aplicação:  cd ${APP_DIR} && docker compose logs -f app"
+echo "     Ver logs do MySQL:      cd ${APP_DIR} && docker compose logs -f banco-mysql"
+echo "     Reiniciar tudo:         cd ${APP_DIR} && docker compose restart"
+echo "     Parar tudo:             cd ${APP_DIR} && docker compose down"
+echo "     Atualizar aplicação:    cd ${APP_DIR} && git pull && docker compose up -d --build"
+echo ""
+echo "========================================================================"

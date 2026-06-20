@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listTemplates, syncTemplatesFromMeta, seedSampleTemplates, deleteTemplate, deleteTemplatesBulk, submitTemplateToMeta } from "@/lib/templates.functions";
+import { listAllTemplates, syncTemplatesFromMeta, seedSampleTemplates, deleteTemplate, deleteTemplatesBulk, submitTemplateToMeta } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ const statusColors: Record<string, string> = {
 };
 
 function TemplatesPage() {
-  const fetch = useServerFn(listTemplates);
+  const fetch = useServerFn(listAllTemplates);
   const sync = useServerFn(syncTemplatesFromMeta);
   const seed = useServerFn(seedSampleTemplates);
   const remove = useServerFn(deleteTemplate);
@@ -37,20 +37,21 @@ function TemplatesPage() {
   const submitMeta = useServerFn(submitTemplateToMeta);
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => fetch() });
+  const { data, isLoading } = useQuery({ queryKey: ["templates", "all"], queryFn: () => fetch() });
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const syncMut = useMutation({
     mutationFn: () => sync(),
-    onSuccess: (r) => { toast.success(`${r.synced} templates sincronizados`); qc.invalidateQueries({ queryKey: ["templates"] }); },
+    onSuccess: (r) => { toast.success(`${r.synced} templates sincronizados`); qc.invalidateQueries({ queryKey: ["templates", "all"] }); },
     onError: (e: any) => toast.error(e.message),
   });
 
   const seedMut = useMutation({
     mutationFn: () => seed(),
-    onSuccess: (r) => { toast.success(`${r.inserted} templates de exemplo adicionados`); qc.invalidateQueries({ queryKey: ["templates"] }); },
+    onSuccess: (r) => { toast.success(`${r.inserted} templates de exemplo adicionados`); qc.invalidateQueries({ queryKey: ["templates", "all"] }); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -59,7 +60,7 @@ function TemplatesPage() {
     onSuccess: (r) => {
       toast.success(`${r.deleted} templates excluídos`);
       setSelected(new Set());
-      qc.invalidateQueries({ queryKey: ["templates"] });
+      qc.invalidateQueries({ queryKey: ["templates", "all"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -68,7 +69,7 @@ function TemplatesPage() {
     mutationFn: (id: string) => submitMeta({ data: { id } }),
     onSuccess: (r) => {
       toast.success(`Template "${r.name}" enviado com sucesso! Status na Meta: ${r.status}`);
-      qc.invalidateQueries({ queryKey: ["templates"] });
+      qc.invalidateQueries({ queryKey: ["templates", "all"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -78,9 +79,10 @@ function TemplatesPage() {
     return (data ?? []).filter((t: any) => {
       const matchesSearch = !s || t.name.toLowerCase().includes(s) || t.status.toLowerCase().includes(s) || (t.category ?? "").toLowerCase().includes(s);
       const matchesCategory = !categoryFilter || (t.category ?? "").toLowerCase() === categoryFilter.toLowerCase();
-      return matchesSearch && matchesCategory;
+      const matchesStatus = !statusFilter || t.status === statusFilter;
+      return matchesSearch && matchesCategory && matchesStatus;
     });
-  }, [data, search, categoryFilter]);
+  }, [data, search, categoryFilter, statusFilter]);
 
   const allSelected = filtered.length > 0 && filtered.every((t: any) => selected.has(t.id));
   const someSelected = selected.size > 0;
@@ -109,6 +111,22 @@ function TemplatesPage() {
     });
     if (!ok) return;
     bulkMut.mutate(ids);
+  }
+
+  async function singleDelete(t: any) {
+    const isRemote = t.meta_template_id && !t.meta_template_id.startsWith("sample_") && !t.meta_template_id.startsWith("local_");
+    const ok = await confirm({
+      title: "Excluir template?",
+      description: <>O template <strong>{t.name}</strong> será removido aqui{isRemote ? " e na Meta" : ""}.</>,
+      destructive: true,
+      confirmText: "Excluir",
+    });
+    if (!ok) return;
+    try {
+      await remove({ data: { id: t.id } });
+      toast.success("Template removido");
+      qc.invalidateQueries({ queryKey: ["templates", "all"] });
+    } catch (e: any) { toast.error(e.message); }
   }
 
   return (
@@ -181,6 +199,22 @@ function TemplatesPage() {
                 <SelectItem value="Authentication">Authentication</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={statusFilter ?? "all"}
+              onValueChange={(v) => setStatusFilter(v === "all" ? null : v)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="APPROVED">Aprovado</SelectItem>
+                <SelectItem value="PENDING">Pendente</SelectItem>
+                <SelectItem value="REJECTED">Rejeitado</SelectItem>
+                <SelectItem value="PAUSED">Pausado</SelectItem>
+                <SelectItem value="DISABLED">Desativado</SelectItem>
+              </SelectContent>
+            </Select>
             <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
               Selecionar todos ({filtered.length})
@@ -233,21 +267,7 @@ function TemplatesPage() {
                         size="icon"
                         variant="ghost"
                         aria-label="Excluir template"
-                        onClick={async () => {
-                          const isRemote = t.meta_template_id && !t.meta_template_id.startsWith("sample_") && !t.meta_template_id.startsWith("local_");
-                          const ok = await confirm({
-                            title: "Excluir template?",
-                            description: <>O template <strong>{t.name}</strong> será removido aqui{isRemote ? " e na Meta" : ""}.</>,
-                            destructive: true,
-                            confirmText: "Excluir",
-                          });
-                          if (!ok) return;
-                          try {
-                            await remove({ data: { id: t.id } });
-                            toast.success("Template removido");
-                            qc.invalidateQueries({ queryKey: ["templates"] });
-                          } catch (e: any) { toast.error(e.message); }
-                        }}
+                        onClick={() => singleDelete(t)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>

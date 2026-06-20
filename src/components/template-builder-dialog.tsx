@@ -160,6 +160,7 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
     onSuccess: () => {
       toast.success(template ? "Template atualizado com sucesso." : "Template criado. Aguarde a análise da Meta.");
       qc.invalidateQueries({ queryKey: ["templates"] });
+      qc.invalidateQueries({ queryKey: ["templates", "all"] });
       reset();
       setOpen(false);
     },

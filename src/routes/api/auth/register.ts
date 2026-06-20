@@ -45,7 +45,7 @@ export const Route = createFileRoute('/api/auth/register')({
             const roleId = randomUUID();
             await conn.execute(
               'INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)',
-              [roleId, userId, 'user']
+              [roleId, userId, 'admin']
             );
 
             // 3. Insert into profiles
@@ -57,7 +57,7 @@ export const Route = createFileRoute('/api/auth/register')({
 
           // Sign local JWT
           const token = jwt.sign(
-            { sub: userId, email, role: 'user' },
+            { sub: userId, email, role: 'admin' },
             JWT_SECRET,
             { expiresIn: '30d' }
           );
@@ -67,7 +67,7 @@ export const Route = createFileRoute('/api/auth/register')({
             user: {
               id: userId,
               email,
-              role: 'user',
+              role: 'admin',
               app_metadata: {},
               user_metadata: { display_name: displayName },
               aud: 'authenticated',

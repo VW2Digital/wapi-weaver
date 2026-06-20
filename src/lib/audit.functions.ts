@@ -69,8 +69,8 @@ export const listAuditLogs = createServerFn({ method: "POST" })
       const missingUserIds = Array.from(
         new Set(
           rows
-            .filter((r) => !r.actor_email && r.user_id)
-            .map((r) => r.user_id as string)
+            .filter((r: any) => !r.actor_email && r.user_id)
+            .map((r: any) => r.user_id as string)
         )
       );
       if (missingUserIds.length > 0) {
@@ -80,8 +80,8 @@ export const listAuditLogs = createServerFn({ method: "POST" })
           .in("id", missingUserIds);
         
         if (profiles && profiles.length > 0) {
-          const emailMap = new Map(profiles.map((p) => [p.id, p.email]));
-          mappedRows = rows.map((r) => {
+          const emailMap = new Map((profiles as any[]).map((p: any) => [p.id, p.email]));
+          mappedRows = rows.map((r: any) => {
             if (!r.actor_email && r.user_id && emailMap.has(r.user_id)) {
               return {
                 ...r,

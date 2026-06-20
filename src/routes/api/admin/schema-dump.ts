@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { promises as fs } from "fs";
+import path from "path";
 
 // GET /api/admin/schema-dump
 // Endpoint seguro que gera o dump (apenas schema, sem dados) do schema `public`
@@ -44,14 +45,13 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
             return new Response("Forbidden", { status: 403 });
           }
 
-          // 4) Gerar dump via função SECURITY DEFINER no Postgres
-          // (`export_schema_sql_internal` é restrita ao service_role; chamamos com
-          // o supabaseAdmin para evitar passar pelo gate do `has_role`).
-          const { data: sql, error: rpcErr } = await (supabaseAdmin as any).rpc(
-            "export_schema_sql_internal",
-          );
-          if (rpcErr) {
-            console.error("[schema-dump] rpc error", rpcErr);
+          // 4) Gerar dump via leitura do arquivo local schema_mysql.sql
+          let sql = "";
+          try {
+            const schemaPath = path.join(process.cwd(), "schema_mysql.sql");
+            sql = await fs.readFile(schemaPath, "utf-8");
+          } catch (err) {
+            console.error("[schema-dump] file read error", err);
             return new Response("Failed to generate dump", { status: 500 });
           }
 
@@ -105,6 +105,4 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
   },
 });
 
-// Suppress unused import in some bundlers — createClient is intentionally not
-// used here (we rely on supabaseAdmin for both auth.getUser and rpc).
-void createClient;
+

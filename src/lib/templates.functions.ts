@@ -162,31 +162,34 @@ export const updateTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const components = buildMetaComponents(data);
 
-    // 1. Fetch current template
+    // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
     const { data: tpl } = await context.supabase
       .from("templates")
       .select("*")
       .eq("id", data.id)
-      .eq("user_id", context.userId)
       .maybeSingle();
+
+    console.log("[updateTemplate] Input ID:", data.id, "User ID:", context.userId, "Found Tpl:", tpl);
 
     if (!tpl) throw new Error("Template não encontrado.");
 
-    let status = "PENDING";
-    let meta_template_id = tpl.meta_template_id;
+    // Mantém o status atual — só atualiza se for remoto e a Meta retornar novo status
+    let status: string = tpl.status ?? "PENDING";
+    const meta_template_id: string | null = tpl.meta_template_id;
 
-    // 2. Fetch Meta credentials from profile
+    // 2. Busca credenciais Meta do perfil
     const { data: p } = await context.supabase
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
       .maybeSingle();
 
-    const isRemote = meta_template_id && !meta_template_id.startsWith("local_") && !meta_template_id.startsWith("sample_");
+    const isRemote = meta_template_id
+      && !meta_template_id.startsWith("local_")
+      && !meta_template_id.startsWith("sample_");
 
     if (isRemote && p?.whatsapp_waba_id && p?.whatsapp_access_token) {
       const apiVersion = p.meta_graph_version || "v20.0";
-      // Meta editing WABA template endpoint is POST /v20.0/{template-id}
       const res = await fetch(
         `https://graph.facebook.com/${apiVersion}/${meta_template_id}`,
         {
@@ -195,10 +198,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
             Authorization: `Bearer ${p.whatsapp_access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            components,
-            category: data.category,
-          }),
+          body: JSON.stringify({ components, category: data.category }),
         },
       );
       const body: any = await res.json();
@@ -206,9 +206,10 @@ export const updateTemplate = createServerFn({ method: "POST" })
         const friendly = toFriendlyError(body, "Falha ao editar template na Meta");
         throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
       }
-      status = body.status ?? "PENDING";
+      status = body.status ?? status;
     }
 
+    // 3. Atualiza no banco (query-compiler usa WHERE id=? AND user_id=? automaticamente)
     const { data: row, error } = await context.supabase
       .from("templates")
       .update({
@@ -268,7 +269,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
       .in("id", data.ids);
 
     const remote = (tpls ?? []).filter(
-      (t) => t.meta_template_id && !t.meta_template_id.startsWith("local_") && !t.meta_template_id.startsWith("sample_"),
+      (t: any) => t.meta_template_id && !t.meta_template_id.startsWith("local_") && !t.meta_template_id.startsWith("sample_"),
     );
 
     if (remote.length > 0) {
@@ -280,7 +281,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
         const apiVersion = p.meta_graph_version || "v20.0";
         await Promise.all(
-          remote.map((t) =>
+          remote.map((t: any) =>
             fetch(
               `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
               { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
@@ -304,6 +305,18 @@ export const listTemplates = createServerFn({ method: "GET" })
       .from("templates")
       .select("*")
       .eq("status", "APPROVED")
+      .order("name");
+    if (error) throw error;
+    return data ?? [];
+  });
+
+// Returns all templates regardless of status — used by the Templates management page
+export const listAllTemplates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from("templates")
+      .select("*")
       .order("name");
     if (error) throw error;
     return data ?? [];
@@ -617,19 +630,18 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    // 1. Fetch template details from DB
+    // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
     const { data: tpl, error: fetchErr } = await context.supabase
       .from("templates")
       .select("*")
       .eq("id", data.id)
-      .eq("user_id", context.userId)
       .maybeSingle();
 
     if (fetchErr || !tpl) {
       throw new Error("Template não encontrado.");
     }
 
-    // 2. Fetch Meta credentials from profile
+    // 2. Busca credenciais Meta
     const { data: p } = await context.supabase
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
@@ -640,7 +652,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       throw new Error("Configure WABA ID e Access Token nas Configurações antes de enviar para a Meta.");
     }
 
-    // 3. Post to Meta API
+    // 3. Envia para a Meta API
     const apiVersion = p.meta_graph_version || "v20.0";
     const res = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
@@ -668,11 +680,11 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     const status = body.status ?? "PENDING";
     const meta_template_id = body.id ?? null;
 
-    // 4. Update template in DB with remote ID and status
+    // 4. Atualiza no banco com o ID e status da Meta
     const { data: updated, error: updateErr } = await context.supabase
       .from("templates")
       .update({
-        status: status,
+        status,
         meta_template_id: meta_template_id ?? tpl.meta_template_id,
         synced_at: new Date().toISOString(),
       })
@@ -683,4 +695,3 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     if (updateErr) throw updateErr;
     return updated;
   });
-

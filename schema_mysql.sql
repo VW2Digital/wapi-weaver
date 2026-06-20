@@ -223,3 +223,11 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Optimization Indexes
+CREATE INDEX idx_campaign_messages_wa_msg ON campaign_messages(wa_message_id);
+CREATE INDEX idx_campaign_messages_camp_status ON campaign_messages(campaign_id, status);
+CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX idx_webhook_events_processed ON webhook_events(processed, received_at);
+CREATE INDEX idx_contacts_user_opted ON contacts(user_id, opted_out);
+

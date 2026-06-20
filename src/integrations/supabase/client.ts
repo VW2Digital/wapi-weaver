@@ -17,9 +17,15 @@ class QueryBuilder {
     };
   }
 
-  select(columns: string | string[] = '*') {
+  select(columns: string | string[] = '*', options?: { count?: string; head?: boolean }) {
     if (this.query.action === 'select') {
       this.query.select = columns;
+    }
+    if (options?.head) {
+      this.query.head = true;
+    }
+    if (options?.count === 'exact') {
+      this.query.countMode = 'exact';
     }
     return this;
   }
@@ -33,7 +39,7 @@ class QueryBuilder {
     return this;
   }
 
-  upsert(data: any, options: { onConflict?: string } = {}) {
+  upsert(data: any, options: { onConflict?: string; count?: string } = {}) {
     this.query.action = 'insert';
     this.query.data = data;
     this.query.upsertConflict = true;
@@ -124,6 +130,12 @@ class QueryBuilder {
     return this;
   }
 
+  range(from: number, to: number) {
+    this.query.limit = to - from + 1;
+    this.query.offset = from;
+    return this;
+  }
+
   single() {
     this.singleRow = true;
     return this;
@@ -138,20 +150,45 @@ class QueryBuilder {
   async then(onfulfilled?: (value: any) => any, onrejected?: (reason: any) => any) {
     try {
       const res = await this.client.request('/api/query', this.query);
+
+      // HEAD mode: server returns { _headCount: N }
+      if (res.data && typeof res.data === 'object' && '_headCount' in res.data) {
+        const val = { data: null, error: null, count: res.data._headCount };
+        return onfulfilled ? onfulfilled(val) : val;
+      }
+
+      // COUNT + ROWS mode: server returns { _rows: [...], _totalCount: N }
+      if (res.data && typeof res.data === 'object' && '_rows' in res.data) {
+        const val = { data: res.data._rows, error: res.error, count: res.data._totalCount };
+        return onfulfilled ? onfulfilled(val) : val;
+      }
+
       let data = res.data;
       if (this.singleRow) {
         data = Array.isArray(data) ? data[0] : data;
         if (data === undefined || data === null) {
-          const val = { data: null, error: { message: 'No rows returned for single() query' } };
+          const val = { data: null, error: { message: 'No rows returned for single() query' }, count: 0 };
           return onfulfilled ? onfulfilled(val) : val;
         }
       } else if (this.maybeSingleRow) {
         data = Array.isArray(data) ? (data[0] || null) : (data || null);
       }
-      const val = { data, error: res.error };
+
+      let count: number | null = null;
+      if (Array.isArray(data)) {
+        count = data.length;
+      } else if (data && typeof data === 'object') {
+        if ('affectedRows' in data) {
+          count = (data as any).affectedRows;
+        } else {
+          count = 1;
+        }
+      }
+
+      const val = { data, error: res.error, count };
       return onfulfilled ? onfulfilled(val) : val;
     } catch (err: any) {
-      const val = { data: null, error: { message: err.message } };
+      const val = { data: null, error: { message: err.message }, count: null };
       return onfulfilled ? onfulfilled(val) : val;
     }
   }

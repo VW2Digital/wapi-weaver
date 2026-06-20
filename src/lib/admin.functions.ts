@@ -11,7 +11,7 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
       .select("role")
       .eq("user_id", context.userId);
     if (error) throw error;
-    const roles = (data ?? []).map((r) => r.role);
+    const roles = (data ?? []).map((r: { role: string }) => r.role);
     return { roles, isAdmin: roles.includes("admin") };
   });
 
@@ -108,9 +108,15 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
     const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
     if (!isAdmin) throw new Error("forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await (supabaseAdmin as any).rpc("export_schema_sql_internal");
-    if (error) throw error;
+    const { promises: fs } = await import("fs");
+    const path = await import("path");
+    let sql = "";
+    try {
+      const schemaPath = path.join(process.cwd(), "schema_mysql.sql");
+      sql = await fs.readFile(schemaPath, "utf-8");
+    } catch (err: any) {
+      throw new Error(`Failed to read schema file: ${err.message}`);
+    }
 
     await recordAudit({
       userId: context.userId,
@@ -118,10 +124,10 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
       action: "platform.export_schema",
       entityType: "database",
       entityId: "public",
-      metadata: { bytes: (data ?? "").length },
+      metadata: { bytes: sql.length },
     });
 
-    return { sql: (data ?? "") as string, generated_at: new Date().toISOString() };
+    return { sql, generated_at: new Date().toISOString() };
   });
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
@@ -168,20 +174,43 @@ export const createSchemaBackupNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
+    
+    const { promises: fs } = await import("fs");
+    const path = await import("path");
+    const crypto = await import("crypto");
+    
+    let sql = "";
+    try {
+      const schemaPath = path.join(process.cwd(), "schema_mysql.sql");
+      sql = await fs.readFile(schemaPath, "utf-8");
+    } catch (err: any) {
+      throw new Error(`Failed to read schema file: ${err.message}`);
+    }
+
+    const backupId = crypto.randomUUID();
+    const sizeBytes = Buffer.byteLength(sql, "utf-8");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await (supabaseAdmin as any).rpc("create_schema_backup", {
-      _source: "manual",
-      _user: context.userId,
-    });
-    if (error) throw error;
+    const { error } = await supabaseAdmin.from("schema_backups").insert({
+      id: backupId,
+      created_by: context.userId,
+      source: "manual",
+      sql: sql,
+      size_bytes: sizeBytes,
+      created_at: new Date().toISOString()
+    } as any);
+    
+    if (error) throw new Error(error.message);
+
     await recordAudit({
       userId: context.userId,
       actorEmail: (context.claims as any)?.email,
       action: "platform.schema_backup.manual",
       entityType: "schema_backup",
-      entityId: String(data),
+      entityId: backupId,
     });
-    return { id: data as string };
+    
+    return { id: backupId };
   });
 
 // Exclui um backup (apenas admins).
