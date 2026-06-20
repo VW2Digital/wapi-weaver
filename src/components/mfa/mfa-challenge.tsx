@@ -26,7 +26,7 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
         setLoading(false);
         return;
       }
-      const totp = (data?.totp ?? []).find((f) => f.status === "verified");
+      const totp = (data?.totp ?? []).find((f: any) => f.status === "verified");
       if (!totp) {
         toast.error("Nenhum fator 2FA encontrado");
         setLoading(false);

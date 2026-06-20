@@ -20,7 +20,8 @@ export const listContacts = createServerFn({ method: "GET" })
         .from("contacts")
         .select("*")
         .order("created_at", { ascending: false })
-        .range(from, from + PAGE - 1);
+        .limit(PAGE)
+        .offset(from);
       if (error) throw error;
       if (!data || data.length === 0) break;
       all.push(...data);
@@ -93,11 +94,11 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     let inserted = 0;
     for (let i = 0; i < cleaned.length; i += chunkSize) {
       const slice = cleaned.slice(i, i + chunkSize);
-      const { error, count } = await context.supabase
+      const { error } = await context.supabase
         .from("contacts")
-        .upsert(slice, { onConflict: "user_id,phone_e164", count: "exact" });
+        .upsert(slice, { onConflict: "user_id,phone_e164" });
       if (error) throw error;
-      inserted += count ?? slice.length;
+      inserted += slice.length;
     }
     return { inserted, invalid };
   });

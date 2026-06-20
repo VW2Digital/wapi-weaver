@@ -65,7 +65,7 @@ function Dashboard() {
   const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats() });
 
   const totals = (c.data ?? []).reduce(
-    (acc, x: any) => {
+    (acc: { sent: number; delivered: number; read: number; failed: number }, x: any) => {
       const t = x.totals ?? {};
       acc.sent += t.sent ?? 0;
       acc.delivered += t.delivered ?? 0;
