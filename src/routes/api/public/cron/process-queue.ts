@@ -40,16 +40,31 @@ async function processOnce() {
     .not("scheduled_at", "is", null)
     .lte("scheduled_at", new Date().toISOString());
 
-  // Pick up to BATCH pending messages whose campaign is queued or running
+  // Fetch active campaigns first
+  const { data: activeCampaigns } = await supabaseAdmin
+    .from("campaigns")
+    .select("id, status, message_type, payload, template_id")
+    .in("status", ["queued", "running"]);
+
+  if (!activeCampaigns || activeCampaigns.length === 0) return { processed: 0 };
+  const activeCampIds = activeCampaigns.map((c: any) => c.id);
+
+  // Pick up to BATCH pending messages for active campaigns
   const { data: messages, error } = await supabaseAdmin
     .from("campaign_messages")
-    .select("id, user_id, campaign_id, to_phone, contact_id, attempts, campaigns!inner(status, message_type, payload, template_id), contacts(name, custom_fields)")
+    .select("id, user_id, campaign_id, to_phone, contact_id, attempts, contacts(name, custom_fields)")
     .eq("status", "pending")
-    .in("campaigns.status", ["queued", "running"])
+    .in("campaign_id", activeCampIds)
     .limit(BATCH);
 
   if (error) throw error;
   if (!messages || messages.length === 0) return { processed: 0 };
+
+  // Attach campaign objects manually for the emulator compatibility
+  const campMap = Object.fromEntries(activeCampaigns.map((c: any) => [c.id, c]));
+  for (const m of messages) {
+    (m as any).campaigns = campMap[m.campaign_id];
+  }
 
   // Group by user to fetch credentials once per user
   const byUser = new Map<string, any[]>();

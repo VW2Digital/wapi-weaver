@@ -236,7 +236,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       );
     }
 
-    if (table === 'list_contacts' && colSelection.includes('contacts(*)')) {
+    if (table === 'list_contacts' && (colSelection.includes('contacts(') || colSelection.includes('contacts(*)'))) {
       isListContactsWithContacts = true;
       sql = `SELECT 
         \`list_contacts\`.\`list_id\`, 
