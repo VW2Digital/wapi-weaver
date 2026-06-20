@@ -30,6 +30,7 @@ import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
 import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
+import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 import { Route as ApiPublicMakeAdminRouteImport } from './routes/api/public/make-admin'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
@@ -144,6 +145,11 @@ const ApiStorageRemoveRoute = ApiStorageRemoveRouteImport.update({
   path: '/api/storage/remove',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStorageFileRoute = ApiStorageFileRouteImport.update({
+  id: '/api/storage/file',
+  path: '/api/storage/file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
     id: '/api/public/whatsapp-webhook',
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
@@ -248,6 +255,7 @@ export interface FileRoutesByTo {
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
   '/campaigns': typeof AppCampaignsIndexRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
@@ -314,6 +323,7 @@ export interface FileRouteTypes {
     | '/api/auth/update'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
+    | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
     | '/campaigns/'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/api/auth/update'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
+    | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
     | '/campaigns'
@@ -377,6 +388,7 @@ export interface FileRouteTypes {
     | '/api/auth/update'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
+    | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
     | '/_app/campaigns/'
@@ -399,6 +411,7 @@ export interface RootRouteChildren {
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiPublicMakeAdminRoute: typeof ApiPublicMakeAdminRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
+  ApiStorageFileRoute: typeof ApiStorageFileRoute
   ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
   ApiStorageUploadRoute: typeof ApiStorageUploadRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
@@ -554,6 +567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStorageRemoveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/storage/file': {
+      id: '/api/storage/file'
+      path: '/api/storage/file'
+      fullPath: '/api/storage/file'
+      preLoaderRoute: typeof ApiStorageFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp-webhook': {
       id: '/api/public/whatsapp-webhook'
       path: '/api/public/whatsapp-webhook'
@@ -667,6 +687,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiPublicMakeAdminRoute: ApiPublicMakeAdminRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
+  ApiStorageFileRoute: ApiStorageFileRoute,
   ApiStorageRemoveRoute: ApiStorageRemoveRoute,
   ApiStorageUploadRoute: ApiStorageUploadRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
