@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 
 async function verifySignature(rawBody: string, signatureHeader: string | null, appSecret: string) {
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
@@ -40,7 +40,7 @@ async function processStatusUpdate(value: any, userId: string) {
     }
 
     // SECURITY: scope mutation to the verified user
-    const { data: rows } = await supabaseAdmin
+    const { data: rows } = await dbAdmin
       .from("campaign_messages")
       .update(update)
       .eq("wa_message_id", waId)
@@ -48,7 +48,7 @@ async function processStatusUpdate(value: any, userId: string) {
       .select("campaign_id");
 
     // Update status in direct_messages table too
-    await supabaseAdmin
+    await dbAdmin
       .from("direct_messages")
       .update({ status })
       .eq("wa_message_id", waId)
@@ -56,7 +56,7 @@ async function processStatusUpdate(value: any, userId: string) {
 
     const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id)));
     for (const cid of campaignIds) {
-      const { data: agg } = await supabaseAdmin
+      const { data: agg } = await dbAdmin
         .from("campaign_messages")
         .select("status")
         .eq("campaign_id", cid)
@@ -64,7 +64,7 @@ async function processStatusUpdate(value: any, userId: string) {
       if (!agg) continue;
       const totals: any = { total: agg.length, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
       for (const r of agg) totals[r.status] = (totals[r.status] ?? 0) + 1;
-      await supabaseAdmin.from("campaigns").update({ totals }).eq("id", cid).eq("user_id", userId);
+      await dbAdmin.from("campaigns").update({ totals }).eq("id", cid).eq("user_id", userId);
     }
   }
 }
@@ -83,7 +83,7 @@ async function processInboundMessages(value: any, userId: string) {
     if (!isOptOut) continue;
     // Contatos salvos sem "+" (apenas dígitos com DDI). Meta envia sem "+" também.
     const phoneDigits = from.replace(/\D+/g, "");
-    await supabaseAdmin
+    await dbAdmin
       .from("contacts")
       .update({ opted_out: true })
       .eq("user_id", userId)
@@ -117,7 +117,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
     const reply_to_message_id = m.context?.message_id ?? null;
 
     // Salva na tabela direct_messages
-    await supabaseAdmin
+    await dbAdmin
       .from("direct_messages")
       .insert({
         user_id: userId,
@@ -154,9 +154,9 @@ async function processTemplateStatusUpdate(value: any, userId: string) {
   if (!status) return;
   const update: any = { status, synced_at: new Date().toISOString() };
   if (metaId) {
-    await supabaseAdmin.from("templates").update(update).eq("meta_template_id", metaId).eq("user_id", userId);
+    await dbAdmin.from("templates").update(update).eq("meta_template_id", metaId).eq("user_id", userId);
   } else if (name && language) {
-    await supabaseAdmin.from("templates").update(update).eq("name", name).eq("language", language).eq("user_id", userId);
+    await dbAdmin.from("templates").update(update).eq("name", name).eq("language", language).eq("user_id", userId);
   }
 }
 
@@ -164,7 +164,7 @@ async function processTemplateCategoryUpdate(value: any, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const newCategory = value?.new_category as string | undefined;
   if (!metaId || !newCategory) return;
-  await supabaseAdmin
+  await dbAdmin
     .from("templates")
     .update({ category: newCategory, synced_at: new Date().toISOString() })
     .eq("meta_template_id", metaId)
@@ -180,7 +180,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
         if (mode !== "subscribe" || !token) return new Response("Bad Request", { status: 400 });
-        const { data: profiles } = await supabaseAdmin
+        const { data: profiles } = await dbAdmin
           .from("profiles")
           .select("id")
           .eq("whatsapp_verify_token", token)
@@ -193,7 +193,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const sig = request.headers.get("x-hub-signature-256");
 
         // SECURITY: signature must match exactly one user; bind events to that user_id.
-        const { data: secrets } = await supabaseAdmin
+        const { data: secrets } = await dbAdmin
           .from("profiles")
           .select("id, whatsapp_app_secret")
           .not("whatsapp_app_secret", "is", null);
@@ -206,16 +206,16 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           }
         }
         if (!matchedUserId) {
-          await supabaseAdmin
+          await dbAdmin
             .from("webhook_events")
-            .insert({ raw: { rejected: true, body: rawBody.slice(0, 4000) } });
+            .insert({ source: "whatsapp", raw: { rejected: true, body: rawBody.slice(0, 4000) } });
           return new Response("Invalid signature", { status: 401 });
         }
 
         const payload = JSON.parse(rawBody);
-        const { data: evRow } = await supabaseAdmin
+        const { data: evRow } = await dbAdmin
           .from("webhook_events")
-          .insert({ raw: payload, user_id: matchedUserId })
+          .insert({ source: "whatsapp", raw: payload, user_id: matchedUserId })
           .select("id")
           .single();
 
@@ -234,7 +234,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         }
 
         if (evRow?.id) {
-          await supabaseAdmin
+          await dbAdmin
             .from("webhook_events")
             .update({ processed: true })
             .eq("id", evRow.id);

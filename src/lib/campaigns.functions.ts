@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { recordAudit } from "./audit.functions";
 
 const payloadSchema = z.object({
@@ -28,9 +28,9 @@ const createSchema = z.object({
 });
 
 export const listCampaigns = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("campaigns")
       .select("*")
       .order("created_at", { ascending: false })
@@ -40,17 +40,17 @@ export const listCampaigns = createServerFn({ method: "GET" })
   });
 
 export const getCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: campaign, error } = await context.supabase
+    const { data: campaign, error } = await context.db
       .from("campaigns")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw error;
     if (!campaign) return { campaign: null, messages: [], template: null };
-    const { data: messages } = await context.supabase
+    const { data: messages } = await context.db
       .from("campaign_messages")
       .select("*, contacts(name)")
       .eq("campaign_id", data.id)
@@ -59,7 +59,7 @@ export const getCampaign = createServerFn({ method: "POST" })
 
     let template = null;
     if (campaign.template_id) {
-      const { data: t } = await context.supabase
+      const { data: t } = await context.db
         .from("templates")
         .select("id, name, language, components")
         .eq("id", campaign.template_id)
@@ -70,11 +70,11 @@ export const getCampaign = createServerFn({ method: "POST" })
   });
 
 export const createCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
     // Fetch contacts from list
-    const { data: lcRows, error: lcErr } = await context.supabase
+    const { data: lcRows, error: lcErr } = await context.db
       .from("list_contacts")
       .select("contact_id, contacts(id, phone_e164, opted_out)")
       .eq("list_id", data.list_id);
@@ -85,7 +85,7 @@ export const createCampaign = createServerFn({ method: "POST" })
     if (contacts.length === 0) throw new Error("Lista sem contatos válidos");
 
     const status = data.start_now ? "queued" : "draft";
-    const { data: campaign, error } = await context.supabase
+    const { data: campaign, error } = await context.db
       .from("campaigns")
       .insert({
         user_id: context.userId,
@@ -112,7 +112,7 @@ export const createCampaign = createServerFn({ method: "POST" })
         to_phone: c.phone_e164,
         status: "pending" as const,
       }));
-      const { error: insErr } = await context.supabase.from("campaign_messages").insert(slice);
+      const { error: insErr } = await context.db.from("campaign_messages").insert(slice);
       if (insErr) throw insErr;
     }
 
@@ -129,11 +129,11 @@ export const createCampaign = createServerFn({ method: "POST" })
   });
 
 export const cancelCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     // Cancela mensagens que ainda não foram enviadas
-    await context.supabase
+    await context.db
       .from("campaign_messages")
       .update({
         status: "failed",
@@ -144,14 +144,14 @@ export const cancelCampaign = createServerFn({ method: "POST" })
       .in("status", ["pending", "sending"]);
 
     // Recalcula totais
-    const { data: agg } = await context.supabase
+    const { data: agg } = await context.db
       .from("campaign_messages")
       .select("status")
       .eq("campaign_id", data.id);
     const totals: any = { total: agg?.length ?? 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
     for (const r of agg ?? []) totals[r.status] = (totals[r.status] ?? 0) + 1;
 
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("campaigns")
       .update({ status: "cancelled", totals, finished_at: new Date().toISOString() })
       .eq("id", data.id);
@@ -167,20 +167,20 @@ export const cancelCampaign = createServerFn({ method: "POST" })
   });
 
 export const deleteCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: c } = await context.supabase
+    const { data: c } = await context.db
       .from("campaigns")
       .select("name")
       .eq("id", data.id)
       .maybeSingle();
-    const { error: mErr } = await context.supabase
+    const { error: mErr } = await context.db
       .from("campaign_messages")
       .delete()
       .eq("campaign_id", data.id);
     if (mErr) throw mErr;
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("campaigns")
       .delete()
       .eq("id", data.id);
@@ -204,10 +204,10 @@ function csvEscape(v: unknown): string {
 }
 
 export const exportCampaignReport = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: campaign, error: cErr } = await context.supabase
+    const { data: campaign, error: cErr } = await context.db
       .from("campaigns")
       .select("id, name, created_at, status")
       .eq("id", data.id)
@@ -219,7 +219,7 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
     let from = 0;
     const all: any[] = [];
     while (true) {
-      const { data: rows, error } = await context.supabase
+      const { data: rows, error } = await context.db
         .from("campaign_messages")
         .select("to_phone, status, attempts, wa_message_id, sent_at, delivered_at, read_at, failed_at, error, contact_id, contacts(name, email)")
         .eq("campaign_id", data.id)

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/mysql/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ function LoginPage() {
     if (mfaRequired) return;
     if (user) {
       // Verifica se o usuário precisa concluir 2FA antes de entrar
-      supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
+      db.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
         if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
           setMfaRequired(true);
         } else {
@@ -47,7 +47,7 @@ function LoginPage() {
     setBusy(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await db.auth.signUp({
           email,
           password,
           options: {
@@ -58,7 +58,7 @@ function LoginPage() {
         if (error) throw error;
         toast.success("Conta criada! Verifique seu e-mail para confirmar.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await db.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (e: any) {
@@ -80,7 +80,7 @@ function LoginPage() {
     if (!forgotEmail) return;
     setForgotBusy(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      const { error } = await db.auth.resetPasswordForEmail(forgotEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
@@ -190,7 +190,7 @@ function LoginPage() {
                   }
                   setBusy(true);
                   try {
-                    const { error } = await supabase.auth.signInWithOtp({
+                    const { error } = await db.auth.signInWithOtp({
                       email,
                       options: {
                         emailRedirectTo: `${window.location.origin}/dashboard`,

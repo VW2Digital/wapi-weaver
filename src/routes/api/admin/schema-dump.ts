@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -26,14 +26,14 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
           }
 
           // 2) Resolver usuário a partir do token (admin client valida o JWT)
-          const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+          const { data: userData, error: userErr } = await dbAdmin.auth.getUser(token);
           if (userErr || !userData.user) {
             return new Response("Unauthorized", { status: 401 });
           }
           const userId = userData.user.id;
 
           // 3) Verificar papel admin
-          const { data: roles, error: rolesErr } = await supabaseAdmin
+          const { data: roles, error: rolesErr } = await dbAdmin
             .from("user_roles")
             .select("role")
             .eq("user_id", userId);
@@ -64,7 +64,7 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
 
           // 5) Registrar auditoria (best-effort)
           try {
-            await supabaseAdmin.from("audit_logs").insert({
+            await dbAdmin.from("audit_logs").insert({
               user_id: userId,
               action: "platform.schema_dump.endpoint",
               entity_type: "database",

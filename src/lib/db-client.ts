@@ -201,7 +201,7 @@ class QueryBuilder {
   }
 }
 
-export class ServerSupabaseMySQLClient {
+export class ServerMySQLClient {
   private userId: string;
   private userRole: string;
 

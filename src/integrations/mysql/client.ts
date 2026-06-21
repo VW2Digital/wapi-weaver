@@ -1,11 +1,11 @@
 class QueryBuilder {
   private table: string;
-  private client: FakeSupabaseClient;
+  private client: MySQLClient;
   private query: any;
   private singleRow = false;
   private maybeSingleRow = false;
 
-  constructor(table: string, client: FakeSupabaseClient) {
+  constructor(table: string, client: MySQLClient) {
     this.table = table;
     this.client = client;
     this.query = {
@@ -167,7 +167,7 @@ class QueryBuilder {
       if (this.singleRow) {
         data = Array.isArray(data) ? data[0] : data;
         if (data === undefined || data === null) {
-          const val = { data: null, error: { message: 'No rows returned for single() query' }, count: 0 };
+          const val = { data: null, error: { message: 'Nenhuma linha retornada para a consulta single()' }, count: 0 };
           return onfulfilled ? onfulfilled(val) : val;
         }
       } else if (this.maybeSingleRow) {
@@ -194,11 +194,13 @@ class QueryBuilder {
   }
 }
 
-class FakeSupabaseClient {
+class MySQLClient {
   private _listeners: any[] = [];
 
   async request(path: string, body: any) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('sb-token') : null;
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('app-token') || localStorage.getItem('sb-token'))
+      : null;
     const headers = {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -216,15 +218,15 @@ class FakeSupabaseClient {
       result = text ? JSON.parse(text) : {};
     } catch (e) {
       if (!res.ok) {
-        throw new Error(`HTTP error ${res.status}: ${text.substring(0, 200)}`);
+        throw new Error(`Erro HTTP ${res.status}: ${text.substring(0, 200)}`);
       }
-      throw new Error(`Invalid JSON response: ${text.substring(0, 200)}`);
+      throw new Error(`Resposta JSON inválida: ${text.substring(0, 200)}`);
     }
 
     if (!res.ok) {
       const errMsg = (result.error && typeof result.error === 'object' && 'message' in result.error)
         ? result.error.message
-        : (typeof result.error === 'string' ? result.error : `HTTP error ${res.status}`);
+        : (typeof result.error === 'string' ? result.error : `Erro HTTP ${res.status}`);
       throw new Error(errMsg);
     }
     return result;
@@ -256,11 +258,11 @@ class FakeSupabaseClient {
   get auth() {
     return {
       getSession: async () => {
-        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('sb-session') : null;
+        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('app-session') : null;
         return { data: { session: sessionStr ? JSON.parse(sessionStr) : null }, error: null };
       },
       getUser: async () => {
-        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('sb-session') : null;
+        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('app-session') : null;
         const session = sessionStr ? JSON.parse(sessionStr) : null;
         return { data: { user: session ? session.user : null }, error: null };
       },
@@ -273,17 +275,17 @@ class FakeSupabaseClient {
           });
           const data = await res.json();
           if (!res.ok) {
-            return { data: { session: null, user: null }, error: { message: data.error || 'Failed to login' } };
+            return { data: { session: null, user: null }, error: { message: data.error || 'Falha ao fazer login' } };
           }
           const session = {
             access_token: data.access_token,
             user: data.user
           };
           if (typeof window !== 'undefined') {
-            localStorage.setItem('sb-token', data.access_token);
-            localStorage.setItem('sb-session', JSON.stringify(session));
+            localStorage.setItem('app-token', data.access_token);
+            localStorage.setItem('app-session', JSON.stringify(session));
           }
-          
+
           this._notifyListeners('SIGNED_IN', session);
           return { data: { session, user: data.user }, error: null };
         } catch (err: any) {
@@ -299,17 +301,17 @@ class FakeSupabaseClient {
           });
           const data = await res.json();
           if (!res.ok) {
-            return { data: { session: null, user: null }, error: { message: data.error || 'Failed to register' } };
+            return { data: { session: null, user: null }, error: { message: data.error || 'Falha ao registrar' } };
           }
           const session = {
             access_token: data.access_token,
             user: data.user
           };
           if (typeof window !== 'undefined') {
-            localStorage.setItem('sb-token', data.access_token);
-            localStorage.setItem('sb-session', JSON.stringify(session));
+            localStorage.setItem('app-token', data.access_token);
+            localStorage.setItem('app-session', JSON.stringify(session));
           }
-          
+
           this._notifyListeners('SIGNED_IN', session);
           return { data: { session, user: data.user }, error: null };
         } catch (err: any) {
@@ -318,15 +320,15 @@ class FakeSupabaseClient {
       },
       signOut: async () => {
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('sb-token');
-          localStorage.removeItem('sb-session');
+          localStorage.removeItem('app-token');
+          localStorage.removeItem('app-session');
         }
         this._notifyListeners('SIGNED_OUT', null);
         return { error: null };
       },
       updateUser: async ({ password }: any) => {
         try {
-          const token = typeof window !== 'undefined' ? localStorage.getItem('sb-token') : null;
+          const token = typeof window !== 'undefined' ? localStorage.getItem('app-token') : null;
           const headers = {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -338,7 +340,7 @@ class FakeSupabaseClient {
           });
           const data = await res.json();
           if (!res.ok) {
-            return { data: { user: null }, error: { message: data.error || 'Failed to update user' } };
+            return { data: { user: null }, error: { message: data.error || 'Falha ao atualizar usuário' } };
           }
           return { data: { user: {} as any }, error: null };
         } catch (err: any) {
@@ -347,7 +349,7 @@ class FakeSupabaseClient {
       },
       onAuthStateChange: (callback: any) => {
         this._listeners.push(callback);
-        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('sb-session') : null;
+        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('app-session') : null;
         const session = sessionStr ? JSON.parse(sessionStr) : null;
         setTimeout(() => callback('INITIAL_SESSION', session), 0);
         return {
@@ -402,7 +404,7 @@ class FakeSupabaseClient {
       try {
         cb(event, session);
       } catch (e) {
-        console.error('Error in auth state listener:', e);
+        console.error('Erro no listener de estado de autenticação:', e);
       }
     });
   }
@@ -419,7 +421,7 @@ class FakeSupabaseClient {
               reader.onerror = (error) => reject(error);
             });
 
-            const token = typeof window !== 'undefined' ? localStorage.getItem('sb-token') : null;
+            const token = typeof window !== 'undefined' ? localStorage.getItem('app-token') : null;
             const headers = {
               'Content-Type': 'application/json',
               ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -433,7 +435,7 @@ class FakeSupabaseClient {
 
             const result = await res.json();
             if (!res.ok) {
-              return { data: null, error: { message: result.error || `Upload failed with status ${res.status}` } };
+              return { data: null, error: { message: result.error || `Upload falhou com status ${res.status}` } };
             }
             return { data: { path: filePath }, error: null };
           } catch (err: any) {
@@ -442,7 +444,7 @@ class FakeSupabaseClient {
         },
         remove: async (paths: string[]) => {
           try {
-            const token = typeof window !== 'undefined' ? localStorage.getItem('sb-token') : null;
+            const token = typeof window !== 'undefined' ? localStorage.getItem('app-token') : null;
             const headers = {
               'Content-Type': 'application/json',
               ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -469,4 +471,5 @@ class FakeSupabaseClient {
   }
 }
 
-export const supabase = new FakeSupabaseClient() as any;
+export const db = new MySQLClient() as any;
+export { db as supabase };

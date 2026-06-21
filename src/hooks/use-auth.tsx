@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/mysql/client";
 
 export interface User {
   id: string;
@@ -27,10 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event: string, s: Session | null) => {
+    const { data: sub } = db.auth.onAuthStateChange((_event: string, s: Session | null) => {
       setSession(s);
     });
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
+    db.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       setSession(data.session);
       setLoading(false);
     });

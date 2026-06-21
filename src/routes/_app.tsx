@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/mysql/client";
 import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon, Receipt, ShieldCheck, Menu, ScrollText, UserCog, ShieldAlert, Activity } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,7 @@ function AppLayout() {
   useEffect(() => {
     if (!user) { setProfileAvatar(null); return; }
     let cancelled = false;
-    supabase.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle().then(({ data }: any) => {
+    db.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle().then(({ data }: any) => {
       if (!cancelled) setProfileAvatar(data?.avatar_url ?? null);
     });
     return () => { cancelled = true; };
@@ -89,7 +89,7 @@ function AppLayout() {
   useEffect(() => {
     if (!user) { setMfaOk(null); return; }
     let cancelled = false;
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
+    db.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
       if (cancelled) return;
       if (data && data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
         setMfaOk(false);
@@ -114,7 +114,7 @@ function AppLayout() {
   }
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await db.auth.signOut();
     router.navigate({ to: "/login", replace: true });
   };
   const SidebarBody = (

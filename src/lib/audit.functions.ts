@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 /**
  * Helper interno — chame de dentro de outros server fns para registrar uma ação.
@@ -15,10 +15,10 @@ export async function recordAudit(params: {
   metadata?: Record<string, unknown>;
 }) {
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { dbAdmin } = await import("@/integrations/mysql/client.server");
     let actorEmail = params.actorEmail ?? null;
     if (!actorEmail && params.userId) {
-      const { data } = await supabaseAdmin
+      const { data } = await dbAdmin
         .from("profiles")
         .select("email")
         .eq("id", params.userId)
@@ -27,7 +27,7 @@ export async function recordAudit(params: {
         actorEmail = data.email;
       }
     }
-    await supabaseAdmin.from("audit_logs").insert({
+    await dbAdmin.from("audit_logs").insert({
       user_id: params.userId,
       actor_email: actorEmail,
       action: params.action,
@@ -48,13 +48,13 @@ const listSchema = z.object({
 });
 
 export const listAuditLogs = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => listSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const from = (data.page - 1) * data.limit;
     const to = from + data.limit - 1;
 
-    let q = context.supabase
+    let q = context.db
       .from("audit_logs")
       .select("id, user_id, actor_email, action, entity_type, entity_id, metadata, created_at", { count: "exact" })
       .order("created_at", { ascending: false })
@@ -74,7 +74,7 @@ export const listAuditLogs = createServerFn({ method: "POST" })
         )
       );
       if (missingUserIds.length > 0) {
-        const { data: profiles } = await context.supabase
+        const { data: profiles } = await context.db
           .from("profiles")
           .select("id, email")
           .in("id", missingUserIds);

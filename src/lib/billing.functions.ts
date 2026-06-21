@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 export const getBillingReport = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({
       // ISO yyyy-mm — default: mês corrente
@@ -17,7 +17,7 @@ export const getBillingReport = createServerFn({ method: "POST" })
     const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
     const end = new Date(Date.UTC(y, m, 1)).toISOString();
 
-    const { data: rows, error } = await context.supabase
+    const { data: rows, error } = await context.db
       .from("campaign_messages")
       .select("status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at")
       .gte("created_at", start)

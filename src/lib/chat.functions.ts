@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 // Schema de validação para envio de mensagem direta
 const sendMessageInput = z.object({
@@ -22,12 +21,12 @@ const sendMessageInput = z.object({
 });
 
 export const listChatContacts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: contacts, error } = await supabaseAdmin
+    // context.db é scopado ao userId — filtros de user_id são aplicados automaticamente
+    const { data: contacts, error } = await context.db
       .from("contacts")
       .select("id, name, phone_e164")
-      .eq("user_id", context.userId)
       .order("name", { ascending: true });
 
     if (error) throw new Error(error.message);
@@ -35,15 +34,15 @@ export const listChatContacts = createServerFn({ method: "GET" })
   });
 
 export const getChatMessages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
 
-    const { data: messages, error } = await supabaseAdmin
+    // context.db auto-scopes by user_id — no need to add .eq("user_id", ...) manually
+    const { data: messages, error } = await context.db
       .from("direct_messages")
       .select("*")
-      .eq("user_id", context.userId)
       .eq("contact_phone", phone)
       .order("created_at", { ascending: true });
 
@@ -66,14 +65,13 @@ export const getChatMessages = createServerFn({ method: "POST" })
   });
 
 export const sendDirectMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => sendMessageInput.parse(d))
+  .middleware([requireAuth])
+  .validator((d) => sendMessageInput.parse(d))
   .handler(async ({ data, context }) => {
-    // 1. Busca credenciais do perfil
-    const { data: p, error: profErr } = await supabaseAdmin
+    // 1. Busca credenciais do perfil (scoped to the authenticated user)
+    const { data: p, error: profErr } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
-      .eq("id", context.userId)
       .maybeSingle();
 
     if (profErr || !p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
@@ -144,10 +142,10 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     }
 
     // 4. Registra a mensagem enviada na tabela direct_messages
-    const { error: msgErr } = await supabaseAdmin
+    // context.db is user-scoped: user_id is automatically filled in by the query compiler
+    const { error: msgErr } = await context.db
       .from("direct_messages")
       .insert({
-        user_id: context.userId,
         contact_phone: digits,
         direction: "outgoing",
         type: data.type,

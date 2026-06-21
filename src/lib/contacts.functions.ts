@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeToE164 } from "@/lib/phone";
 
 const contactInput = z.object({
@@ -11,12 +11,12 @@ const contactInput = z.object({
 });
 
 export const listContacts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const PAGE = 1000;
     const all: any[] = [];
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await context.supabase
+      const { data, error } = await context.db
         .from("contacts")
         .select("*")
         .order("created_at", { ascending: false })
@@ -31,12 +31,12 @@ export const listContacts = createServerFn({ method: "GET" })
   });
 
 export const createContact = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => contactInput.parse(d))
   .handler(async ({ data, context }) => {
     const phone = normalizeToE164(data.phone);
     if (!phone) throw new Error("Telefone inválido");
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await context.db
       .from("contacts")
       .upsert({
         user_id: context.userId,
@@ -53,10 +53,10 @@ export const createContact = createServerFn({ method: "POST" })
   });
 
 export const deleteContact = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("contacts").delete().eq("id", data.id);
+    const { error } = await context.db.from("contacts").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };
   });
@@ -71,7 +71,7 @@ const bulkInput = z.object({
 });
 
 export const bulkUpsertContacts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => bulkInput.parse(d))
   .handler(async ({ data, context }) => {
     const cleaned: any[] = [];
@@ -94,7 +94,7 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     let inserted = 0;
     for (let i = 0; i < cleaned.length; i += chunkSize) {
       const slice = cleaned.slice(i, i + chunkSize);
-      const { error } = await context.supabase
+      const { error } = await context.db
         .from("contacts")
         .upsert(slice, { onConflict: "user_id,phone_e164" });
       if (error) throw error;
@@ -106,21 +106,21 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
 const bulkIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(20000) });
 
 export const bulkDeleteContacts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => bulkIdsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("contacts").delete().in("id", data.ids);
+    const { error } = await context.db.from("contacts").delete().in("id", data.ids);
     if (error) throw error;
     return { deleted: data.ids.length };
   });
 
 export const bulkSetOptOut = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({ ids: z.array(z.string().uuid()).min(1).max(20000), opted_out: z.boolean() }).parse(d)
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("contacts")
       .update({ opted_out: data.opted_out })
       .in("id", data.ids);
@@ -129,7 +129,7 @@ export const bulkSetOptOut = createServerFn({ method: "POST" })
   });
 
 export const bulkAddContactsToList = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({
       list_id: z.string().uuid(),
@@ -142,7 +142,7 @@ export const bulkAddContactsToList = createServerFn({ method: "POST" })
       contact_id: cid,
       user_id: context.userId,
     }));
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("list_contacts")
       .upsert(rows, { onConflict: "list_id,contact_id" });
     if (error) throw error;
@@ -150,7 +150,7 @@ export const bulkAddContactsToList = createServerFn({ method: "POST" })
   });
 
 export const bulkAddTagToContacts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({
       tag_id: z.string().uuid(),
@@ -163,7 +163,7 @@ export const bulkAddTagToContacts = createServerFn({ method: "POST" })
       contact_id: cid,
       user_id: context.userId,
     }));
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("contact_tags")
       .upsert(rows, { onConflict: "tag_id,contact_id" });
     if (error) throw error;

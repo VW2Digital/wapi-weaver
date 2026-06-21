@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   whatsapp_access_token TEXT NULL,
   whatsapp_phone_number_id VARCHAR(100) NULL,
   whatsapp_waba_id VARCHAR(100) NULL,
+  whatsapp_business_id VARCHAR(100) NULL,
   whatsapp_business_phone VARCHAR(50) NULL,
   whatsapp_app_secret TEXT NULL,
   meta_graph_version VARCHAR(50) NOT NULL DEFAULT 'v20.0',

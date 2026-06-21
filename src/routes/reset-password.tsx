@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/mysql/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +21,10 @@ function ResetPasswordPage() {
   useEffect(() => {
     // O Supabase coloca os tokens no hash da URL após o redirect; o detectSessionInUrl: true
     // do client cria a sessão automaticamente. Aguardamos a sessão estar pronta.
-    const sub = supabase.auth.onAuthStateChange((event: string) => {
+    const sub = db.auth.onAuthStateChange((event: string) => {
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
     });
-    supabase.auth.getSession().then(({ data }: any) => {
+    db.auth.getSession().then(({ data }: any) => {
       if (data.session) setReady(true);
     });
     return () => sub.data.subscription.unsubscribe();
@@ -42,10 +42,10 @@ function ResetPasswordPage() {
     }
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await db.auth.updateUser({ password });
       if (error) throw error;
       toast.success("Senha atualizada! Faça login novamente.");
-      await supabase.auth.signOut();
+      await db.auth.signOut();
       navigate({ to: "/login" });
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao atualizar senha");

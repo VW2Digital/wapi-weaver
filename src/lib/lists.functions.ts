@@ -1,23 +1,23 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 export const listTags = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("tags").select("*").order("name");
+    const { data, error } = await context.db.from("tags").select("*").order("name");
     if (error) throw error;
     return data ?? [];
   });
 
 export const createTag = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({
     name: z.string().trim().min(1).max(40),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#25D366"),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await context.db
       .from("tags")
       .insert({ user_id: context.userId, name: data.name, color: data.color })
       .select()
@@ -27,18 +27,18 @@ export const createTag = createServerFn({ method: "POST" })
   });
 
 export const deleteTag = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("tags").delete().eq("id", data.id);
+    const { error } = await context.db.from("tags").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };
   });
 
 export const listLists = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("lists")
       .select("*, list_contacts(count)")
       .order("created_at", { ascending: false });
@@ -47,13 +47,13 @@ export const listLists = createServerFn({ method: "GET" })
   });
 
 export const createList = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({
     name: z.string().trim().min(1).max(80),
     description: z.string().trim().max(280).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await context.db
       .from("lists")
       .insert({ user_id: context.userId, name: data.name, description: data.description })
       .select()
@@ -63,16 +63,16 @@ export const createList = createServerFn({ method: "POST" })
   });
 
 export const deleteList = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("lists").delete().eq("id", data.id);
+    const { error } = await context.db.from("lists").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };
   });
 
 export const addContactsToList = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({
     list_id: z.string().uuid(),
     contact_ids: z.array(z.string().uuid()).min(1).max(20000),
@@ -83,7 +83,7 @@ export const addContactsToList = createServerFn({ method: "POST" })
       contact_id: cid,
       user_id: context.userId,
     }));
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("list_contacts")
       .upsert(rows, { onConflict: "list_id,contact_id" });
     if (error) throw error;
@@ -91,10 +91,10 @@ export const addContactsToList = createServerFn({ method: "POST" })
   });
 
 export const removeContactFromList = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ list_id: z.string().uuid(), contact_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("list_contacts")
       .delete()
       .eq("list_id", data.list_id)
@@ -104,10 +104,10 @@ export const removeContactFromList = createServerFn({ method: "POST" })
   });
 
 export const getListContacts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ list_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase
+    const { data: rows, error } = await context.db
       .from("list_contacts")
       .select("contact_id, contacts(*)")
       .eq("list_id", data.list_id);

@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { recordAudit } from "./audit.functions";
 
 export const getCurrentUserRoles = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
@@ -16,10 +16,10 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
   });
 
 export const getPlatformSettings = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     // RLS bloqueia não-admins automaticamente
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("platform_settings")
       .select("meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret")
       .eq("id", 1)
@@ -49,7 +49,7 @@ const settingsSchema = z.object({
 });
 
 export const updatePlatformSettings = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => settingsSchema.parse(d))
   .handler(async ({ data, context }) => {
     const update: Record<string, any> = { updated_at: new Date().toISOString(), updated_by: context.userId };
@@ -61,7 +61,7 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
     if (data.body_tags !== undefined) update.body_tags = data.body_tags === "" ? null : data.body_tags;
     if (data.cron_secret !== undefined) update.cron_secret = data.cron_secret === "" ? null : data.cron_secret;
 
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("platform_settings")
       .update(update as never)
       .eq("id", 1);
@@ -82,8 +82,8 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
 // Usa o cliente admin para contornar RLS, mas só expõe esses dois campos.
 export const getTrackingTags = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
+    const { dbAdmin } = await import("@/integrations/mysql/client.server");
+    const { data, error } = await dbAdmin
       .from("platform_settings")
       .select("head_tags, body_tags")
       .eq("id", 1)
@@ -95,13 +95,13 @@ export const getTrackingTags = createServerFn({ method: "GET" })
     };
   });
 
-// Exporta o schema completo do banco (apenas admins). Usa supabaseAdmin (service_role)
+// Exporta o schema completo do banco (apenas admins). Usa dbAdmin (service_role)
 // para chamar a função SECURITY DEFINER `public.export_schema_sql()`.
 export const exportSchemaSql = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     // Confirma admin via RLS antes de usar o admin client
-    const { data: roles } = await context.supabase
+    const { data: roles } = await context.db
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
@@ -141,10 +141,10 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
 
 // Lista o histórico de backups do schema (somente metadados — sem o SQL).
 export const listSchemaBackups = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("schema_backups")
       .select("id, created_at, source, size_bytes, created_by")
       .order("created_at", { ascending: false })
@@ -155,11 +155,11 @@ export const listSchemaBackups = createServerFn({ method: "GET" })
 
 // Retorna o SQL completo de um backup específico para download.
 export const getSchemaBackup = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await context.db
       .from("schema_backups")
       .select("id, created_at, source, size_bytes, sql")
       .eq("id", data.id)
@@ -171,7 +171,7 @@ export const getSchemaBackup = createServerFn({ method: "POST" })
 
 // Gera um backup manual sob demanda (apenas admins).
 export const createSchemaBackupNow = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
     
@@ -190,8 +190,8 @@ export const createSchemaBackupNow = createServerFn({ method: "POST" })
     const backupId = crypto.randomUUID();
     const sizeBytes = Buffer.byteLength(sql, "utf-8");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("schema_backups").insert({
+    const { dbAdmin } = await import("@/integrations/mysql/client.server");
+    const { error } = await dbAdmin.from("schema_backups").insert({
       id: backupId,
       created_by: context.userId,
       source: "manual",
@@ -215,11 +215,11 @@ export const createSchemaBackupNow = createServerFn({ method: "POST" })
 
 // Exclui um backup (apenas admins).
 export const deleteSchemaBackup = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("schema_backups")
       .delete()
       .eq("id", data.id);

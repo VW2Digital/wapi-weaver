@@ -1,13 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 export const listMyWebhookEvents = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((data: { limit?: number } | undefined) => ({
     limit: Math.min(Math.max(data?.limit ?? 100, 1), 500),
   }))
   .handler(async ({ context, data }) => {
-    const { data: events, error } = await context.supabase
+    const { data: events, error } = await context.db
       .from("webhook_events")
       .select("id, source, processed, received_at, raw")
       .eq("user_id", context.userId)

@@ -277,7 +277,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       sql = `SELECT 
         ${base},
         \`contacts\`.\`name\` AS \`c_contact_name\`,
-        \`contacts\`.\`email\` AS \`c_contact_email\`
+        \`contacts\`.\`email\` AS \`c_contact_email\`,
+        \`contacts\`.\`custom_fields\` AS \`c_contact_custom_fields\`
       FROM \`campaign_messages\`
       LEFT JOIN \`contacts\` ON \`campaign_messages\`.\`contact_id\` = \`contacts\`.\`id\`
       ${whereString}`;
@@ -381,11 +382,19 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     // Post-process campaign_messages JOIN contacts
     if (isCampaignMessagesWithContacts && Array.isArray(results)) {
       for (const row of results) {
-        row.contacts = row.c_contact_name !== null || row.c_contact_email !== null
-          ? { name: row.c_contact_name ?? null, email: row.c_contact_email ?? null }
+        row.contacts = row.c_contact_name !== null || row.c_contact_email !== null || row.c_contact_custom_fields !== null
+          ? { 
+              name: row.c_contact_name ?? null, 
+              email: row.c_contact_email ?? null, 
+              custom_fields: row.c_contact_custom_fields ?? null 
+            }
           : null;
+        if (row.contacts && typeof row.contacts.custom_fields === 'string' && (row.contacts.custom_fields.startsWith('{') || row.contacts.custom_fields.startsWith('['))) {
+          try { row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields); } catch (e) {}
+        }
         delete row.c_contact_name;
         delete row.c_contact_email;
+        delete row.c_contact_custom_fields;
       }
     }
 
@@ -429,10 +438,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     const isArray = Array.isArray(data);
     const dataList = isArray ? data : [data];
 
-    // Fetch all existing user IDs once to validate foreign keys
-    const userRows = await db.query('SELECT id FROM users');
-    const existingUserIds = new Set(userRows.map((u: any) => u.id));
-
     let totalAffectedRows = 0;
     const insertedIds: any[] = [];
 
@@ -450,11 +455,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           insertData.id = generateUUID();
         }
 
-        // Validate user_id to prevent foreign key errors (use executing user's ID as fallback)
-        if (hasUserIdColumn(table)) {
-          if (!insertData.user_id || !existingUserIds.has(insertData.user_id)) {
-            insertData.user_id = userId;
-          }
+        // Fill user_id from the executing context ONLY when it is absent from the payload.
+        // Never override an explicitly-provided user_id (e.g. webhook inserting on behalf of a matched user).
+        if (hasUserIdColumn(table) && !insertData.user_id) {
+          insertData.user_id = userId;
         }
 
         const columns = Object.keys(insertData);

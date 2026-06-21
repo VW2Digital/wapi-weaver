@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { toFriendlyError } from "@/lib/meta-errors";
 
 const buttonSchema = z.discriminatedUnion("type", [
@@ -91,12 +91,12 @@ function buildMetaComponents(input: CreateTemplateInput) {
 
 
 export const createTemplate = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => createTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
     const components = buildMetaComponents(data);
 
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -132,7 +132,7 @@ export const createTemplate = createServerFn({ method: "POST" })
       meta_template_id = body.id ?? null;
     }
 
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await context.db
       .from("templates")
       .upsert({
         user_id: context.userId,
@@ -157,13 +157,13 @@ const updateTemplateInput = createTemplateInput.extend({
 export type UpdateTemplateInput = z.infer<typeof updateTemplateInput>;
 
 export const updateTemplate = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => updateTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
     const components = buildMetaComponents(data);
 
     // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
-    const { data: tpl } = await context.supabase
+    const { data: tpl } = await context.db
       .from("templates")
       .select("*")
       .eq("id", data.id)
@@ -178,7 +178,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
     const meta_template_id: string | null = tpl.meta_template_id;
 
     // 2. Busca credenciais Meta do perfil
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -215,7 +215,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
     }
 
     // 3. Atualiza no banco (query-compiler usa WHERE id=? AND user_id=? automaticamente)
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await context.db
       .from("templates")
       .update({
         name: data.name,
@@ -236,17 +236,17 @@ export const updateTemplate = createServerFn({ method: "POST" })
 
 
 export const deleteTemplate = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: tpl } = await context.supabase
+    const { data: tpl } = await context.db
       .from("templates")
       .select("name, meta_template_id")
       .eq("id", data.id)
       .maybeSingle();
 
     if (tpl?.meta_template_id && !tpl.meta_template_id.startsWith("local_") && !tpl.meta_template_id.startsWith("sample_")) {
-      const { data: p } = await context.supabase
+      const { data: p } = await context.db
         .from("profiles")
         .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
         .eq("id", context.userId)
@@ -259,16 +259,16 @@ export const deleteTemplate = createServerFn({ method: "POST" })
         ).catch(() => null);
       }
     }
-    const { error } = await context.supabase.from("templates").delete().eq("id", data.id);
+    const { error } = await context.db.from("templates").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };
   });
 
 export const deleteTemplatesBulk = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ ids: z.array(z.string().uuid()).min(1).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: tpls } = await context.supabase
+    const { data: tpls } = await context.db
       .from("templates")
       .select("id, name, meta_template_id")
       .in("id", data.ids);
@@ -278,7 +278,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
     );
 
     if (remote.length > 0) {
-      const { data: p } = await context.supabase
+      const { data: p } = await context.db
         .from("profiles")
         .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
         .eq("id", context.userId)
@@ -296,7 +296,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
       }
     }
 
-    const { error } = await context.supabase.from("templates").delete().in("id", data.ids);
+    const { error } = await context.db.from("templates").delete().in("id", data.ids);
     if (error) throw error;
     return { ok: true, deleted: data.ids.length };
   });
@@ -304,9 +304,9 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
 
 
 export const listTemplates = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("templates")
       .select("*")
       .eq("status", "APPROVED")
@@ -317,9 +317,9 @@ export const listTemplates = createServerFn({ method: "GET" })
 
 // Returns all templates regardless of status — used by the Templates management page
 export const listAllTemplates = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await context.db
       .from("templates")
       .select("*")
       .order("name");
@@ -328,9 +328,9 @@ export const listAllTemplates = createServerFn({ method: "GET" })
   });
 
 export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -362,7 +362,7 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
         components: t.components ?? [],
         synced_at: new Date().toISOString(),
       }));
-      const { error } = await context.supabase
+      const { error } = await context.db
         .from("templates")
         .upsert(rows, { onConflict: "user_id,name,language" });
       if (error) throw error;
@@ -612,7 +612,7 @@ const SAMPLE_TEMPLATES = [
 ];
 
 export const seedSampleTemplates = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const rows = SAMPLE_TEMPLATES.map((t) => ({
       user_id: context.userId,
@@ -624,7 +624,7 @@ export const seedSampleTemplates = createServerFn({ method: "POST" })
       meta_template_id: `sample_${t.name}_${t.language}`,
       synced_at: new Date().toISOString(),
     }));
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("templates")
       .upsert(rows, { onConflict: "user_id,name,language" });
     if (error) throw error;
@@ -632,11 +632,11 @@ export const seedSampleTemplates = createServerFn({ method: "POST" })
   });
 
 export const submitTemplateToMeta = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
-    const { data: tpl, error: fetchErr } = await context.supabase
+    const { data: tpl, error: fetchErr } = await context.db
       .from("templates")
       .select("*")
       .eq("id", data.id)
@@ -647,7 +647,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     }
 
     // 2. Busca credenciais Meta
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -686,7 +686,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     const meta_template_id = body.id ?? null;
 
     // 4. Atualiza no banco com o ID e status da Meta
-    const { data: updated, error: updateErr } = await context.supabase
+    const { data: updated, error: updateErr } = await context.db
       .from("templates")
       .update({
         status,

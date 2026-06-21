@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 import { normalizeToE164 } from "@/lib/phone";
 
 const schema = z.object({
@@ -11,8 +11,6 @@ const schema = z.object({
   tags: z.array(z.string().max(40)).max(20).optional(),
 });
 
-// CORS: integrações server-to-server (CRM, n8n, Zapier) não precisam de wildcard.
-// Origens permitidas via env CORS_ALLOWED_ORIGINS (separadas por vírgula).
 function pickAllowedOrigin(request: Request): string | null {
   const origin = request.headers.get("origin");
   if (!origin) return null;
@@ -49,7 +47,7 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
         const apiKey = request.headers.get("x-api-key");
         if (!apiKey) return new Response(JSON.stringify({ error: "Missing X-API-Key" }), { status: 401, headers: cors });
 
-        const { data: profile } = await supabaseAdmin
+        const { data: profile } = await dbAdmin
           .from("profiles")
           .select("id")
           .eq("api_key", apiKey)
@@ -65,7 +63,7 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
         const phone = normalizeToE164(parsed.data.phone);
         if (!phone) return new Response(JSON.stringify({ error: "Invalid phone" }), { status: 400, headers: cors });
 
-        const { data: contact, error } = await supabaseAdmin
+        const { data: contact, error } = await dbAdmin
           .from("contacts")
           .upsert({
             user_id: profile.id,
@@ -82,13 +80,13 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
         // tags (optional)
         if (parsed.data.tags?.length) {
           for (const tagName of parsed.data.tags) {
-            const { data: tag } = await supabaseAdmin
+            const { data: tag } = await dbAdmin
               .from("tags")
               .upsert({ user_id: profile.id, name: tagName }, { onConflict: "user_id,name" })
               .select()
               .single();
             if (tag) {
-              await supabaseAdmin
+              await dbAdmin
                 .from("contact_tags")
                 .upsert({ contact_id: contact.id, tag_id: tag.id, user_id: profile.id });
             }

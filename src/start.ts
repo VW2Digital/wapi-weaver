@@ -1,6 +1,6 @@
 import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/react-start";
 
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { attachAuth } from "@/integrations/mysql/auth-attacher";
 import { renderErrorPage } from "./lib/error-page";
 
 const csrfMiddleware = createCsrfMiddleware({
@@ -24,5 +24,5 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [csrfMiddleware, errorMiddleware],
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [attachAuth],
 }));

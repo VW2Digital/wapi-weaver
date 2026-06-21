@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile } from "@/lib/profile.functions";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/mysql/client";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -67,11 +67,11 @@ function ProfilePage() {
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
+      const { error: upErr } = await db.storage
         .from("avatars")
         .upload(path, file, { cacheControl: "3600", upsert: true });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
       const url = pub.publicUrl;
       await save({ data: { avatar_url: url } });
       setForm((f: any) => ({ ...f, avatar_url: url }));
@@ -107,7 +107,7 @@ function ProfilePage() {
     }
     setPasswordBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await db.auth.updateUser({ password: newPassword });
       if (error) throw error;
       toast.success("Senha de acesso configurada com sucesso!");
       setNewPassword("");
@@ -134,7 +134,7 @@ function ProfilePage() {
       crypto.getRandomValues(bytes);
       const randomPassword = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("") + "A1!";
       
-      const { error } = await supabase.auth.updateUser({ password: randomPassword });
+      const { error } = await db.auth.updateUser({ password: randomPassword });
       if (error) throw error;
       toast.success("Senha de acesso removida. A partir de agora você deve entrar via Google ou links mágicos.");
       setNewPassword("");

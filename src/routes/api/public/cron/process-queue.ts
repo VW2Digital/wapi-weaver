@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const BATCH = 60;
@@ -9,13 +9,13 @@ const WEBHOOK_EVENTS_RETENTION_DAYS = 30;
 export async function processOnce() {
   // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
   const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
-  await supabaseAdmin
+  await dbAdmin
     .from("campaign_messages")
     .update({ status: "pending" })
     .eq("status", "sending")
     .lt("sent_at", stuckCutoff);
   // sent_at é null enquanto está "sending"; usamos created_at como fallback
-  await supabaseAdmin
+  await dbAdmin
     .from("campaign_messages")
     .update({ status: "pending" })
     .eq("status", "sending")
@@ -25,7 +25,7 @@ export async function processOnce() {
   // 0b. Limpa webhook_events processados antigos (>30 dias)
   if (Math.random() < 0.1) {
     const retCutoff = new Date(Date.now() - WEBHOOK_EVENTS_RETENTION_DAYS * 86_400_000).toISOString();
-    await supabaseAdmin
+    await dbAdmin
       .from("webhook_events")
       .delete()
       .eq("processed", true)
@@ -33,7 +33,7 @@ export async function processOnce() {
   }
 
   // Promove drafts agendados que já chegaram à hora
-  await supabaseAdmin
+  await dbAdmin
     .from("campaigns")
     .update({ status: "queued" })
     .eq("status", "draft")
@@ -41,7 +41,7 @@ export async function processOnce() {
     .lte("scheduled_at", new Date().toISOString());
 
   // Fetch active campaigns first
-  const { data: activeCampaigns } = await supabaseAdmin
+  const { data: activeCampaigns } = await dbAdmin
     .from("campaigns")
     .select("id, status, message_type, payload, template_id")
     .in("status", ["queued", "running"]);
@@ -50,7 +50,7 @@ export async function processOnce() {
   const activeCampIds = activeCampaigns.map((c: any) => c.id);
 
   // Pick up to BATCH pending messages for active campaigns
-  const { data: messages, error } = await supabaseAdmin
+  const { data: messages, error } = await dbAdmin
     .from("campaign_messages")
     .select("id, user_id, campaign_id, to_phone, contact_id, attempts, contacts(name, custom_fields)")
     .eq("status", "pending")
@@ -76,7 +76,7 @@ export async function processOnce() {
   let processed = 0;
 
   for (const [userId, msgs] of byUser) {
-    const { data: profile } = await supabaseAdmin
+    const { data: profile } = await dbAdmin
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version")
       .eq("id", userId)
@@ -84,7 +84,7 @@ export async function processOnce() {
 
     if (!profile?.whatsapp_phone_number_id || !profile?.whatsapp_access_token) {
       const ids = msgs.map((x) => x.id);
-      await supabaseAdmin
+      await dbAdmin
         .from("campaign_messages")
         .update({ status: "failed", failed_at: new Date().toISOString(), error: { message: "Credenciais não configuradas" } })
         .in("id", ids);
@@ -93,7 +93,7 @@ export async function processOnce() {
 
     // mark campaigns as running
     const campIds = Array.from(new Set(msgs.map((m: any) => m.campaign_id)));
-    await supabaseAdmin
+    await dbAdmin
       .from("campaigns")
       .update({ status: "running", started_at: new Date().toISOString() })
       .in("id", campIds)
@@ -105,7 +105,7 @@ export async function processOnce() {
 
     for (const m of msgs) {
       // mark sending
-      await supabaseAdmin.from("campaign_messages").update({ status: "sending", attempts: (m.attempts ?? 0) + 1 }).eq("id", m.id);
+      await dbAdmin.from("campaign_messages").update({ status: "sending", attempts: (m.attempts ?? 0) + 1 }).eq("id", m.id);
 
       try {
         const payload = buildWhatsAppPayload(
@@ -121,19 +121,19 @@ export async function processOnce() {
         });
         const body: any = await r.json();
         if (!r.ok) {
-          await supabaseAdmin
+          await dbAdmin
             .from("campaign_messages")
             .update({ status: "failed", failed_at: new Date().toISOString(), error: body?.error ?? body })
             .eq("id", m.id);
         } else {
           const waId = body?.messages?.[0]?.id ?? null;
-          await supabaseAdmin
+          await dbAdmin
             .from("campaign_messages")
             .update({ status: "sent", sent_at: new Date().toISOString(), wa_message_id: waId, error: null })
             .eq("id", m.id);
         }
       } catch (e: any) {
-        await supabaseAdmin
+        await dbAdmin
           .from("campaign_messages")
           .update({ status: "failed", failed_at: new Date().toISOString(), error: { message: e.message } })
           .eq("id", m.id);
@@ -144,7 +144,7 @@ export async function processOnce() {
 
     // Recompute campaign totals + maybe mark done
     for (const cid of campIds) {
-      const { data: agg } = await supabaseAdmin
+      const { data: agg } = await dbAdmin
         .from("campaign_messages")
         .select("status")
         .eq("campaign_id", cid);
@@ -157,7 +157,7 @@ export async function processOnce() {
         updates.status = totals.failed === totals.total ? "failed" : "done";
         updates.finished_at = new Date().toISOString();
       }
-      await supabaseAdmin.from("campaigns").update(updates).eq("id", cid);
+      await dbAdmin.from("campaigns").update(updates).eq("id", cid);
     }
   }
 
@@ -172,7 +172,7 @@ function timingSafeEqStr(a: string, b: string): boolean {
 }
 
 async function checkCronAuth(request: Request): Promise<Response | null> {
-  const { data } = await supabaseAdmin
+  const { data } = await dbAdmin
     .from("platform_settings")
     .select("cron_secret")
     .eq("id", 1)

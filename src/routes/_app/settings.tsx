@@ -1719,8 +1719,8 @@ function ExportSchemaButton() {
   async function handleEndpoint() {
     setLoading(true);
     try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { db } = await import("@/integrations/mysql/client");
+      const { data: sessionData } = await db.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessão expirada — faça login novamente.");
 

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 
 const credSchema = z.object({
@@ -25,18 +25,18 @@ const credSchema = z.object({
 });
 
 export const getProfile = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle();
+    const { data, error } = await context.db.from("profiles").select("*").eq("id", context.userId).maybeSingle();
     if (error) throw error;
     return data;
   });
 
 export const updateProfile = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => credSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("profiles")
       .update(data)
       .eq("id", context.userId);
@@ -45,12 +45,12 @@ export const updateProfile = createServerFn({ method: "POST" })
   });
 
 export const rotateApiKey = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const newKey = Array.from(crypto.getRandomValues(new Uint8Array(24)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    const { error } = await context.supabase
+    const { error } = await context.db
       .from("profiles")
       .update({ api_key: newKey })
       .eq("id", context.userId);
@@ -59,9 +59,9 @@ export const rotateApiKey = createServerFn({ method: "POST" })
   });
 
 export const pingMeta = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -79,7 +79,7 @@ export const pingMeta = createServerFn({ method: "POST" })
   });
 
 export const sendTestMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({
       to: z.string().trim().min(8).max(20),
@@ -87,7 +87,7 @@ export const sendTestMessage = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -127,10 +127,10 @@ export const sendTestMessage = createServerFn({ method: "POST" })
  * sem depender da janela de 24h.
  */
 export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ to: z.string().trim().min(8).max(20) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -171,11 +171,11 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
  * Retorna o status mais avançado encontrado (sent < delivered < read; failed sempre prevalece).
  */
 export const getTestMessageStatus = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ wamid: z.string().trim().min(5).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     // SECURITY: o wamid precisa pertencer ao usuário autenticado antes de varrermos webhook_events.
-    const { data: owned } = await supabaseAdmin
+    const { data: owned } = await dbAdmin
       .from("campaign_messages")
       .select("id")
       .eq("user_id", context.userId)
@@ -183,7 +183,7 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!owned) return { found: false as const };
 
-    const { data: events } = await supabaseAdmin
+    const { data: events } = await dbAdmin
       .from("webhook_events")
       .select("raw, received_at")
       .eq("user_id", context.userId)
@@ -220,10 +220,10 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
 
 
 export const getQRCode = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -244,9 +244,9 @@ export const getQRCode = createServerFn({ method: "POST" })
   });
 
 export const listQRCodes = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -267,7 +267,7 @@ export const listQRCodes = createServerFn({ method: "POST" })
   });
 
 export const createQRCode = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({
       prefilled_message: z.string().trim(),
@@ -275,7 +275,7 @@ export const createQRCode = createServerFn({ method: "POST" })
     }).parse(d)
   )
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -304,7 +304,7 @@ export const createQRCode = createServerFn({ method: "POST" })
   });
 
 export const updateQRCode = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) =>
     z.object({
       code: z.string().trim().min(1),
@@ -313,7 +313,7 @@ export const updateQRCode = createServerFn({ method: "POST" })
     }).parse(d)
   )
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -346,10 +346,10 @@ export const updateQRCode = createServerFn({ method: "POST" })
   });
 
 export const deleteQRCode = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -371,10 +371,10 @@ export const deleteQRCode = createServerFn({ method: "POST" })
   });
 
 export const listOwnedWABAs = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -398,10 +398,10 @@ export const listOwnedWABAs = createServerFn({ method: "POST" })
   });
 
 export const listClientWABAs = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -425,10 +425,10 @@ export const listClientWABAs = createServerFn({ method: "POST" })
   });
 
 export const getWABAInfo = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -452,10 +452,10 @@ export const getWABAInfo = createServerFn({ method: "POST" })
   });
 
 export const subscribeAppToWABA = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -480,10 +480,10 @@ export const subscribeAppToWABA = createServerFn({ method: "POST" })
   });
 
 export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -507,7 +507,7 @@ export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
   });
 
 export const registerPhoneNumber = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator(
     (d) =>
       z.object({
@@ -516,7 +516,7 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
       }).parse(d)
   )
   .handler(async ({ data, context }) => {
-    const { data: p } = await context.supabase
+    const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_access_token, meta_graph_version")
       .eq("id", context.userId)
@@ -548,7 +548,7 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
   });
 
 export const debugAccessToken = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d) => z.object({ token: z.string().trim().min(10) }).parse(d))
   .handler(async ({ data, context }) => {
     const apiVersion = "v20.0";

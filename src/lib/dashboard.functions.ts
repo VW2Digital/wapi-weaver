@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 async function countBefore(
   supabase: any,
@@ -30,7 +30,7 @@ async function countDeliveredBetween(
 }
 
 export const getDashboardStats = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const { supabase } = context;
     const now = new Date();
