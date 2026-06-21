@@ -13,7 +13,12 @@ const credSchema = z.object({
   whatsapp_app_secret: z.string().trim().max(256).nullable().optional(),
   whatsapp_verify_token: z.string().trim().max(128).nullable().optional(),
   rate_limit_per_second: z.number().int().min(1).max(80).optional(),
-  meta_graph_version: z.string().trim().regex(/^v\d+\.\d+$/, "Formato v20.0").max(10).optional(),
+  meta_graph_version: z
+    .string()
+    .trim()
+    .regex(/^v\d+\.\d+$/, "Formato v20.0")
+    .max(10)
+    .optional(),
   display_name: z.string().trim().max(100).nullable().optional(),
   full_name: z.string().trim().max(150).nullable().optional(),
   phone: z.string().trim().max(32).nullable().optional(),
@@ -27,7 +32,11 @@ const credSchema = z.object({
 export const getProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db.from("profiles").select("*").eq("id", context.userId).maybeSingle();
+    const { data, error } = await context.db
+      .from("profiles")
+      .select("*")
+      .eq("id", context.userId)
+      .maybeSingle();
     if (error) throw error;
     return data;
   });
@@ -36,10 +45,7 @@ export const updateProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => credSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.db
-      .from("profiles")
-      .update(data)
-      .eq("id", context.userId);
+    const { error } = await context.db.from("profiles").update(data).eq("id", context.userId);
     if (error) throw error;
     return { ok: true };
   });
@@ -70,9 +76,12 @@ export const pingMeta = createServerFn({ method: "POST" })
       return { ok: false, error: "Credenciais não configuradas" };
     }
     const apiVersion = p.meta_graph_version || "v20.0";
-    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}?fields=display_phone_number,verified_name,quality_rating`, {
-      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-    });
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}?fields=display_phone_number,verified_name,quality_rating`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar Meta" };
     return { ok: true, info: body };
@@ -81,10 +90,12 @@ export const pingMeta = createServerFn({ method: "POST" })
 export const sendTestMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({
-      to: z.string().trim().min(8).max(20),
-      text: z.string().trim().min(1).max(1000).optional(),
-    }).parse(d),
+    z
+      .object({
+        to: z.string().trim().min(8).max(20),
+        text: z.string().trim().min(1).max(1000).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
@@ -165,7 +176,6 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
     return { ok: true, wa_message_id: body?.messages?.[0]?.id, sent_to: digits };
   });
 
-
 /**
  * Procura nos webhook_events recentes status updates para o wamid fornecido.
  * Retorna o status mais avançado encontrado (sent < delivered < read; failed sempre prevalece).
@@ -202,7 +212,9 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
           for (const s of statuses) {
             if (s?.id !== data.wamid) continue;
             const status = s.status as string;
-            const ts = s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : ev.received_at;
+            const ts = s.timestamp
+              ? new Date(Number(s.timestamp) * 1000).toISOString()
+              : ev.received_at;
             if (status === "failed") {
               return { found: true, status: "failed", timestamp: ts, error: s.errors ?? null };
             }
@@ -216,8 +228,6 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
 
     return best ? { found: true, ...best } : { found: false };
   });
-
-
 
 export const getQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
@@ -236,7 +246,7 @@ export const getQRCode = createServerFn({ method: "POST" })
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=prefilled_message,deep_link_url,qr_image_url.format(PNG)&code=${encodeURIComponent(data.code)}`,
       {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
+      },
     );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar QR Code" };
@@ -259,7 +269,7 @@ export const listQRCodes = createServerFn({ method: "POST" })
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=code,prefilled_message,qr_image_url.format(PNG)`,
       {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
+      },
     );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar QR Codes" };
@@ -269,10 +279,12 @@ export const listQRCodes = createServerFn({ method: "POST" })
 export const createQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({
-      prefilled_message: z.string().trim(),
-      generate_qr_image: z.enum(["PNG", "SVG"]),
-    }).parse(d)
+    z
+      .object({
+        prefilled_message: z.string().trim(),
+        generate_qr_image: z.enum(["PNG", "SVG"]),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
@@ -296,7 +308,7 @@ export const createQRCode = createServerFn({ method: "POST" })
           prefilled_message: data.prefilled_message,
           generate_qr_image: data.generate_qr_image,
         }),
-      }
+      },
     );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao criar QR Code" };
@@ -306,11 +318,13 @@ export const createQRCode = createServerFn({ method: "POST" })
 export const updateQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({
-      code: z.string().trim().min(1),
-      prefilled_message: z.string().trim(),
-      generate_qr_image: z.enum(["PNG", "SVG"]).optional(),
-    }).parse(d)
+    z
+      .object({
+        code: z.string().trim().min(1),
+        prefilled_message: z.string().trim(),
+        generate_qr_image: z.enum(["PNG", "SVG"]).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
@@ -338,7 +352,7 @@ export const updateQRCode = createServerFn({ method: "POST" })
           "Content-Type": "application/json",
         },
         body: JSON.stringify(bodyPayload),
-      }
+      },
     );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao editar QR Code" };
@@ -363,7 +377,7 @@ export const deleteQRCode = createServerFn({ method: "POST" })
       {
         method: "DELETE",
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
+      },
     );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao excluir QR Code" };
@@ -389,11 +403,12 @@ export const listOwnedWABAs = createServerFn({ method: "POST" })
       `https://graph.facebook.com/${apiVersion}/${data.businessId}/owned_whatsapp_business_accounts`,
       {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
+      },
     );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar WABAs próprias" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao listar WABAs próprias" };
     return { ok: true, data: body.data || [] };
   });
 
@@ -416,11 +431,12 @@ export const listClientWABAs = createServerFn({ method: "POST" })
       `https://graph.facebook.com/${apiVersion}/${data.businessId}/client_whatsapp_business_accounts`,
       {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
+      },
     );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar WABAs de clientes" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao listar WABAs de clientes" };
     return { ok: true, data: body.data || [] };
   });
 
@@ -439,12 +455,9 @@ export const getWABAInfo = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${data.wabaId}`,
-      {
-        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
-    );
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.wabaId}`, {
+      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+    });
 
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar WABA" };
@@ -471,11 +484,12 @@ export const subscribeAppToWABA = createServerFn({ method: "POST" })
       {
         method: "POST",
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
+      },
     );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao inscrever app na WABA" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao inscrever app na WABA" };
     return { ok: true, data: body };
   });
 
@@ -494,26 +508,25 @@ export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${data.wabaId}/phone_numbers`,
-      {
-        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      }
-    );
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.wabaId}/phone_numbers`, {
+      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+    });
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar telefones da WABA" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao listar telefones da WABA" };
     return { ok: true, data: body.data || [] };
   });
 
 export const registerPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator(
-    (d) =>
-      z.object({
+  .inputValidator((d) =>
+    z
+      .object({
         phoneId: z.string().trim().min(5),
         pin: z.string().trim().length(6, "O PIN deve ter exatamente 6 dígitos"),
-      }).parse(d)
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
@@ -527,20 +540,17 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${data.phoneId}/register`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          pin: data.pin,
-        }),
-      }
-    );
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/register`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${p.whatsapp_access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        pin: data.pin,
+      }),
+    });
 
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao registrar número" };
@@ -556,12 +566,10 @@ export const debugAccessToken = createServerFn({ method: "POST" })
       `https://graph.facebook.com/${apiVersion}/debug_token?input_token=${encodeURIComponent(data.token)}`,
       {
         headers: { Authorization: `Bearer ${data.token}` },
-      }
+      },
     );
 
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao depurar token" };
     return { ok: true, data: body.data };
   });
-
-

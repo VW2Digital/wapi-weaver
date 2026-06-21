@@ -24,6 +24,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppCrmRouteImport } from './routes/_app/crm'
 import { Route as AppContactsRouteImport } from './routes/_app/contacts'
 import { Route as AppChatRouteImport } from './routes/_app/chat'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
@@ -114,6 +115,11 @@ const AppListsRoute = AppListsRouteImport.update({
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCrmRoute = AppCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
   getParentRoute: () => AppRoute,
 } as any)
 const AppContactsRoute = AppContactsRouteImport.update({
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AppBillingRoute
   '/chat': typeof AppChatRoute
   '/contacts': typeof AppContactsRoute
+  '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
@@ -248,6 +255,7 @@ export interface FileRoutesByTo {
   '/billing': typeof AppBillingRoute
   '/chat': typeof AppChatRoute
   '/contacts': typeof AppContactsRoute
+  '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/_app/billing': typeof AppBillingRoute
   '/_app/chat': typeof AppChatRoute
   '/_app/contacts': typeof AppContactsRoute
+  '/_app/crm': typeof AppCrmRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/lists': typeof AppListsRoute
   '/_app/profile': typeof AppProfileRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/chat'
     | '/contacts'
+    | '/crm'
     | '/dashboard'
     | '/lists'
     | '/profile'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/chat'
     | '/contacts'
+    | '/crm'
     | '/dashboard'
     | '/lists'
     | '/profile'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/_app/billing'
     | '/_app/chat'
     | '/_app/contacts'
+    | '/_app/crm'
     | '/_app/dashboard'
     | '/_app/lists'
     | '/_app/profile'
@@ -537,6 +549,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/crm': {
+      id: '/_app/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof AppCrmRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contacts': {
       id: '/_app/contacts'
       path: '/contacts'
@@ -664,6 +683,7 @@ interface AppRouteChildren {
   AppBillingRoute: typeof AppBillingRoute
   AppChatRoute: typeof AppChatRoute
   AppContactsRoute: typeof AppContactsRoute
+  AppCrmRoute: typeof AppCrmRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppListsRoute: typeof AppListsRoute
   AppProfileRoute: typeof AppProfileRoute
@@ -680,6 +700,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBillingRoute: AppBillingRoute,
   AppChatRoute: AppChatRoute,
   AppContactsRoute: AppContactsRoute,
+  AppCrmRoute: AppCrmRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppListsRoute: AppListsRoute,
   AppProfileRoute: AppProfileRoute,

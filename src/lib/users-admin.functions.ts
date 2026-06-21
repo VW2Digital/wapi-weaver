@@ -23,9 +23,7 @@ export const listUsers = createServerFn({ method: "GET" })
       perPage: 200,
     });
     if (uErr) throw uErr;
-    const { data: roles, error: rErr } = await dbAdmin
-      .from("user_roles")
-      .select("user_id, role");
+    const { data: roles, error: rErr } = await dbAdmin.from("user_roles").select("user_id, role");
     if (rErr) throw rErr;
     const rolesMap = new Map<string, string[]>();
     (roles ?? []).forEach((r: any) => {
@@ -67,9 +65,7 @@ export const createUser = createServerFn({ method: "POST" })
     const uid = created.user!.id;
     // O trigger assign_default_role já insere 'user'. Se admin solicitado, adiciona.
     if (data.role === "admin") {
-      await dbAdmin
-        .from("user_roles")
-        .insert({ user_id: uid, role: "admin" } as never);
+      await dbAdmin.from("user_roles").insert({ user_id: uid, role: "admin" } as never);
     }
     return { ok: true, id: uid };
   });
@@ -135,39 +131,28 @@ export const getUserActivity = createServerFn({ method: "POST" })
     if (uErr) throw uErr;
     const user = userInfo.user;
 
-    const [campaignsRes, msgsRes, contactsRes, listsRes, tagsRes, templatesRes, recentCampaignsRes] =
-      await Promise.all([
-        dbAdmin
-          .from("campaigns")
-          .select("id, status", { count: "exact" })
-          .eq("user_id", uid),
-        dbAdmin
-          .from("campaign_messages")
-          .select("status", { count: "exact" })
-          .eq("user_id", uid),
-        dbAdmin
-          .from("contacts")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", uid),
-        dbAdmin
-          .from("lists")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", uid),
-        dbAdmin
-          .from("tags")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", uid),
-        dbAdmin
-          .from("templates")
-          .select("id, status", { count: "exact" })
-          .eq("user_id", uid),
-        dbAdmin
-          .from("campaigns")
-          .select("id, name, status, created_at, started_at, finished_at, totals")
-          .eq("user_id", uid)
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
+    const [
+      campaignsRes,
+      msgsRes,
+      contactsRes,
+      listsRes,
+      tagsRes,
+      templatesRes,
+      recentCampaignsRes,
+    ] = await Promise.all([
+      dbAdmin.from("campaigns").select("id, status", { count: "exact" }).eq("user_id", uid),
+      dbAdmin.from("campaign_messages").select("status", { count: "exact" }).eq("user_id", uid),
+      dbAdmin.from("contacts").select("id", { count: "exact", head: true }).eq("user_id", uid),
+      dbAdmin.from("lists").select("id", { count: "exact", head: true }).eq("user_id", uid),
+      dbAdmin.from("tags").select("id", { count: "exact", head: true }).eq("user_id", uid),
+      dbAdmin.from("templates").select("id, status", { count: "exact" }).eq("user_id", uid),
+      dbAdmin
+        .from("campaigns")
+        .select("id, name, status, created_at, started_at, finished_at, totals")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
 
     const campaignsByStatus: Record<string, number> = {};
     (campaignsRes.data ?? []).forEach((c: any) => {
@@ -202,7 +187,14 @@ export const getUserActivity = createServerFn({ method: "POST" })
           created_at: string;
           started_at: string | null;
           finished_at: string | null;
-          totals: { read?: number; sent?: number; total?: number; failed?: number; pending?: number; delivered?: number };
+          totals: {
+            read?: number;
+            sent?: number;
+            total?: number;
+            failed?: number;
+            pending?: number;
+            delivered?: number;
+          };
         }>,
       },
       messages: {

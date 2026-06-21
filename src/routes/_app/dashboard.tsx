@@ -8,10 +8,30 @@ import { getDashboardStats } from "@/lib/dashboard.functions";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Send, Users, FileText, CheckCircle2, TrendingUp, TrendingDown, Minus, Target, Eye, AlertTriangle, Plus, X } from "lucide-react";
+import {
+  Send,
+  Users,
+  FileText,
+  CheckCircle2,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Target,
+  Eye,
+  AlertTriangle,
+  Plus,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -127,18 +147,16 @@ function Dashboard() {
     { key: "failed", name: "Falhou", value: totals.failed },
   ].filter((d) => d.value > 0);
 
-  const barData = (c.data ?? [])
-    .slice(0, 8)
-    .map((x: any) => {
-      const t = (x.totals ?? {}) as Record<string, number>;
-      const name = String(x.name ?? "—");
-      return {
-        name: name.length > 14 ? name.slice(0, 14) + "…" : name,
-        Entregue: t.delivered ?? 0,
-        Lida: t.read ?? 0,
-        Falhou: t.failed ?? 0,
-      };
-    });
+  const barData = (c.data ?? []).slice(0, 8).map((x: any) => {
+    const t = (x.totals ?? {}) as Record<string, number>;
+    const name = String(x.name ?? "—");
+    return {
+      name: name.length > 14 ? name.slice(0, 14) + "…" : name,
+      Entregue: t.delivered ?? 0,
+      Lida: t.read ?? 0,
+      Falhou: t.failed ?? 0,
+    };
+  });
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -191,28 +209,32 @@ function Dashboard() {
           if (alerts.length === 0) return null;
           return (
             <div className="space-y-2 px-4 pt-4 sm:px-6 sm:pt-6">
-              {alerts.filter(a => !dismissedAlerts.includes(a.title)).map((a) => (
-                <Alert key={a.title} variant="destructive" className="relative pr-10">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>{a.title}</AlertTitle>
-                  <AlertDescription>{a.description}</AlertDescription>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-4 right-4 h-6 w-6 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setDismissedAlerts(prev => [...prev, a.title])}
-                    aria-label="Fechar aviso"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </Alert>
-              ))}
+              {alerts
+                .filter((a) => !dismissedAlerts.includes(a.title))
+                .map((a) => (
+                  <Alert key={a.title} variant="destructive" className="relative pr-10">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>{a.title}</AlertTitle>
+                    <AlertDescription>{a.description}</AlertDescription>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-4 right-4 h-6 w-6 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDismissedAlerts((prev) => [...prev, a.title])}
+                      aria-label="Fechar aviso"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </Alert>
+                ))}
             </div>
           );
         })()}
 
         <section aria-labelledby="bento-heading" className="p-4 sm:p-6">
-          <h2 id="bento-heading" className="sr-only">Visão geral</h2>
+          <h2 id="bento-heading" className="sr-only">
+            Visão geral
+          </h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4 lg:grid-cols-6 lg:auto-rows-[7rem]">
             {/* Hero tile — Taxa de entrega (bento highlight) */}
             <Card className="col-span-2 sm:col-span-4 lg:col-span-3 lg:row-span-2 relative overflow-hidden p-5 sm:p-6 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
@@ -227,16 +249,20 @@ function Dashboard() {
               <div className="relative flex h-full flex-col justify-between gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Taxa de entrega</p>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Taxa de entrega
+                    </p>
                     {c.isPending ? (
                       <Skeleton className="mt-2 h-10 w-32" />
                     ) : (
                       <p className="mt-1 font-display text-4xl font-semibold leading-none sm:text-5xl">
-                        {deliverRate}<span className="ml-1 text-2xl text-muted-foreground sm:text-3xl">%</span>
+                        {deliverRate}
+                        <span className="ml-1 text-2xl text-muted-foreground sm:text-3xl">%</span>
                       </p>
                     )}
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {totals.delivered.toLocaleString("pt-BR")} de {totals.sent.toLocaleString("pt-BR")} mensagens entregues
+                      {totals.delivered.toLocaleString("pt-BR")} de{" "}
+                      {totals.sent.toLocaleString("pt-BR")} mensagens entregues
                     </p>
                   </div>
                   <div className="shrink-0 rounded-xl bg-primary/15 p-2.5 text-primary">
@@ -264,11 +290,20 @@ function Dashboard() {
               const down = tr ? tr.delta < 0 : false;
               const flat = tr ? tr.delta === 0 : true;
               const TrendIcon = up ? TrendingUp : down ? TrendingDown : Minus;
-              const trendColor = up ? "text-success" : down ? "text-destructive" : "text-muted-foreground";
+              const trendColor = up
+                ? "text-success"
+                : down
+                  ? "text-destructive"
+                  : "text-muted-foreground";
               return (
-                <Card key={s.label} className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                <Card
+                  key={s.label}
+                  className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+                >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
+                    <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      {s.label}
+                    </p>
                     {s.loading ? (
                       <>
                         <Skeleton className="mt-2 h-7 w-20" />
@@ -276,12 +311,18 @@ function Dashboard() {
                       </>
                     ) : (
                       <>
-                        <p className="mt-1 font-display text-2xl font-semibold leading-tight">{s.value.toLocaleString("pt-BR")}</p>
+                        <p className="mt-1 font-display text-2xl font-semibold leading-tight">
+                          {s.value.toLocaleString("pt-BR")}
+                        </p>
                         {tr && (
                           <div className={`mt-1 flex items-center gap-1 text-xs ${trendColor}`}>
                             <TrendIcon className="h-3 w-3 shrink-0" aria-hidden />
                             <span className="font-medium">
-                              {tr.isNew ? "novo" : flat ? "estável" : `${up ? "+" : ""}${tr.delta}%`}
+                              {tr.isNew
+                                ? "novo"
+                                : flat
+                                  ? "estável"
+                                  : `${up ? "+" : ""}${tr.delta}%`}
                             </span>
                             <span className="truncate text-muted-foreground">vs. 7d</span>
                           </div>
@@ -299,13 +340,19 @@ function Dashboard() {
             {/* Secondary tiles */}
             <Card className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Taxa de leitura</p>
+                <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Taxa de leitura
+                </p>
                 {c.isPending ? (
                   <Skeleton className="mt-2 h-7 w-20" />
                 ) : (
                   <>
-                    <p className="mt-1 font-display text-2xl font-semibold leading-tight">{readRate}%</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{totals.read.toLocaleString("pt-BR")} leituras confirmadas</p>
+                    <p className="mt-1 font-display text-2xl font-semibold leading-tight">
+                      {readRate}%
+                    </p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {totals.read.toLocaleString("pt-BR")} leituras confirmadas
+                    </p>
                   </>
                 )}
               </div>
@@ -314,200 +361,255 @@ function Dashboard() {
               </div>
             </Card>
 
-            <Card className={cn("col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5", totals.failed > 0 ? "border-destructive/40" : "")}>
+            <Card
+              className={cn(
+                "col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5",
+                totals.failed > 0 ? "border-destructive/40" : "",
+              )}
+            >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Falhas</p>
+                <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Falhas
+                </p>
                 {c.isPending ? (
                   <Skeleton className="mt-2 h-7 w-20" />
                 ) : (
                   <>
-                    <p className={`mt-1 font-display text-2xl font-semibold leading-tight ${totals.failed > 0 ? "text-destructive" : ""}`}>
+                    <p
+                      className={`mt-1 font-display text-2xl font-semibold leading-tight ${totals.failed > 0 ? "text-destructive" : ""}`}
+                    >
                       {totals.failed.toLocaleString("pt-BR")}
                     </p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">Verifique credenciais e templates</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      Verifique credenciais e templates
+                    </p>
                   </>
                 )}
               </div>
-              <div className={`shrink-0 rounded-lg p-2 ${totals.failed > 0 ? "bg-destructive/10 text-destructive" : "bg-accent text-accent-foreground"}`}>
+              <div
+                className={`shrink-0 rounded-lg p-2 ${totals.failed > 0 ? "bg-destructive/10 text-destructive" : "bg-accent text-accent-foreground"}`}
+              >
                 <AlertTriangle className="h-4 w-4" aria-hidden />
               </div>
             </Card>
           </div>
         </section>
 
+        <div className="grid gap-3 px-4 pb-6 sm:gap-4 sm:px-6 lg:grid-cols-5">
+          <Card className="p-4 sm:p-5 lg:col-span-2">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Distribuição de mensagens
+            </p>
+            <p className="mt-1 mb-2 text-xs text-muted-foreground">
+              Status agregado de todas as campanhas
+            </p>
+            <div className="h-64">
+              {pieData.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Sem dados ainda
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={2}
+                      stroke="none"
+                    >
+                      {pieData.map((d) => (
+                        <Cell key={d.key} fill={STATUS_HEX[d.key]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--popover)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        color: "var(--popover-foreground)",
+                      }}
+                      itemStyle={{ color: "var(--popover-foreground)" }}
+                      labelStyle={{ color: "var(--popover-foreground)" }}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </Card>
 
-      <div className="grid gap-3 px-4 pb-6 sm:gap-4 sm:px-6 lg:grid-cols-5">
-        <Card className="p-4 sm:p-5 lg:col-span-2">
+          <Card className="p-4 sm:p-5 lg:col-span-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Volume por campanha
+            </p>
+            <p className="mt-1 mb-2 text-xs text-muted-foreground">
+              Top {barData.length} campanhas mais recentes
+            </p>
+            <div className="h-64">
+              {barData.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Sem campanhas ainda
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11 }}
+                      stroke="currentColor"
+                      className="text-muted-foreground"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      stroke="currentColor"
+                      className="text-muted-foreground"
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--popover)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        color: "var(--popover-foreground)",
+                      }}
+                      itemStyle={{ color: "var(--popover-foreground)" }}
+                      labelStyle={{ color: "var(--popover-foreground)" }}
+                      cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
+                      iconType="circle"
+                    />
+                    <Bar
+                      dataKey="Entregue"
+                      stackId="a"
+                      fill={STATUS_HEX.delivered}
+                      radius={[0, 0, 0, 0]}
+                    />
+                    <Bar dataKey="Lida" stackId="a" fill={STATUS_HEX.read} radius={[0, 0, 0, 0]} />
+                    <Bar
+                      dataKey="Falhou"
+                      stackId="a"
+                      fill={STATUS_HEX.failed}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </Card>
+        </div>
 
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Distribuição de mensagens</p>
-          <p className="mt-1 mb-2 text-xs text-muted-foreground">Status agregado de todas as campanhas</p>
-          <div className="h-64">
-            {pieData.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Sem dados ainda
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={2}
-                    stroke="none"
-                  >
-                    {pieData.map((d) => (
-                      <Cell key={d.key} fill={STATUS_HEX[d.key]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      color: "var(--popover-foreground)",
-                    }}
-                    itemStyle={{ color: "var(--popover-foreground)" }}
-                    labelStyle={{ color: "var(--popover-foreground)" }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    iconType="circle"
-                    wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
+        <div className="px-4 pb-12 sm:px-6">
+          <h2 className="mb-3 font-display text-base font-semibold sm:text-lg">
+            Mensagens por status — por campanha
+          </h2>
 
-        <Card className="p-4 sm:p-5 lg:col-span-3">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Volume por campanha</p>
-          <p className="mt-1 mb-2 text-xs text-muted-foreground">Top {barData.length} campanhas mais recentes</p>
-          <div className="h-64">
-            {barData.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Sem campanhas ainda
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="currentColor" className="text-muted-foreground" allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      color: "var(--popover-foreground)",
-                    }}
-                    itemStyle={{ color: "var(--popover-foreground)" }}
-                    labelStyle={{ color: "var(--popover-foreground)" }}
-                    cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }} iconType="circle" />
-                  <Bar dataKey="Entregue" stackId="a" fill={STATUS_HEX.delivered} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Lida" stackId="a" fill={STATUS_HEX.read} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Falhou" stackId="a" fill={STATUS_HEX.failed} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <div className="px-4 pb-12 sm:px-6">
-        <h2 className="mb-3 font-display text-base font-semibold sm:text-lg">Mensagens por status — por campanha</h2>
-
-        <Card className="overflow-hidden">
-          <div className="hidden grid-cols-12 gap-3 border-b bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
-            <div className="col-span-3">Campanha</div>
-            <div className="col-span-4">Distribuição</div>
-            {STATUS_KEYS.map((k) => (
-              <div key={k} className="text-right">{STATUS_LABEL[k]}</div>
-            ))}
-          </div>
-          <div className="divide-y">
-            {(c.data ?? []).map((x: any) => {
-              const t = (x.totals ?? {}) as Record<string, number>;
-              const total = t.total ?? STATUS_KEYS.reduce((s, k) => s + (t[k] ?? 0), 0);
-              return (
-                <Link
-                  key={x.id}
-                  to="/campaigns/$id"
-                  params={{ id: x.id }}
-                  className="grid grid-cols-2 gap-3 px-4 py-3 text-sm hover:bg-muted/30 md:grid-cols-12 md:items-center"
-                >
-                  <div className="col-span-2 md:col-span-3">
-                    <p className="truncate font-medium">{x.name}</p>
-                    <p className="text-xs text-muted-foreground">{x.status} · {total} total</p>
-                  </div>
-                  <div className="col-span-2 md:col-span-4">
-                    <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
-                      {STATUS_KEYS.map((k) => {
-                        const v = t[k] ?? 0;
-                        const pct = total > 0 ? (v / total) * 100 : 0;
-                        if (pct === 0) return null;
-                        return (
-                          <div
-                            key={k}
-                            className={STATUS_COLOR[k]}
-                            style={{ width: `${pct}%` }}
-                            title={`${STATUS_LABEL[k]}: ${v}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {STATUS_KEYS.map((k) => (
-                    <div key={k} className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">{STATUS_LABEL[k]}:</span>
-                      <span className={k === "failed" && (t[k] ?? 0) > 0 ? "text-destructive font-medium" : ""}>
-                        {t[k] ?? 0}
-                      </span>
-                    </div>
-                  ))}
-                </Link>
-              );
-            })}
-            {(c.data ?? []).length === 0 && (
-              <Empty className="border-0 py-12">
-                <EmptyMedia variant="icon">
-                  <Send className="h-6 w-6" />
-                </EmptyMedia>
-                <EmptyHeader>
-                  <EmptyTitle>Nenhuma campanha ainda</EmptyTitle>
-                  <EmptyDescription>
-                    Crie sua primeira campanha para começar a disparar mensagens via WhatsApp Cloud API.
-                  </EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent>
-                  <Button asChild>
-                    <Link to="/campaigns">
-                      <Plus className="h-4 w-4" />
-                      Criar primeira campanha
-                    </Link>
-                  </Button>
-                </EmptyContent>
-              </Empty>
-            )}
-          </div>
-          {(c.data ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+          <Card className="overflow-hidden">
+            <div className="hidden grid-cols-12 gap-3 border-b bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+              <div className="col-span-3">Campanha</div>
+              <div className="col-span-4">Distribuição</div>
               {STATUS_KEYS.map((k) => (
-                <span key={k} className="inline-flex items-center gap-1.5">
-                  <span className={`h-2 w-3 rounded ${STATUS_COLOR[k]}`} /> {STATUS_LABEL[k]}
-                </span>
+                <div key={k} className="text-right">
+                  {STATUS_LABEL[k]}
+                </div>
               ))}
             </div>
-          )}
-        </Card>
-      </div>
+            <div className="divide-y">
+              {(c.data ?? []).map((x: any) => {
+                const t = (x.totals ?? {}) as Record<string, number>;
+                const total = t.total ?? STATUS_KEYS.reduce((s, k) => s + (t[k] ?? 0), 0);
+                return (
+                  <Link
+                    key={x.id}
+                    to="/campaigns/$id"
+                    params={{ id: x.id }}
+                    className="grid grid-cols-2 gap-3 px-4 py-3 text-sm hover:bg-muted/30 md:grid-cols-12 md:items-center"
+                  >
+                    <div className="col-span-2 md:col-span-3">
+                      <p className="truncate font-medium">{x.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {x.status} · {total} total
+                      </p>
+                    </div>
+                    <div className="col-span-2 md:col-span-4">
+                      <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
+                        {STATUS_KEYS.map((k) => {
+                          const v = t[k] ?? 0;
+                          const pct = total > 0 ? (v / total) * 100 : 0;
+                          if (pct === 0) return null;
+                          return (
+                            <div
+                              key={k}
+                              className={STATUS_COLOR[k]}
+                              style={{ width: `${pct}%` }}
+                              title={`${STATUS_LABEL[k]}: ${v}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {STATUS_KEYS.map((k) => (
+                      <div key={k} className="text-right text-sm tabular-nums md:col-span-1">
+                        <span className="md:hidden text-xs text-muted-foreground mr-1">
+                          {STATUS_LABEL[k]}:
+                        </span>
+                        <span
+                          className={
+                            k === "failed" && (t[k] ?? 0) > 0 ? "text-destructive font-medium" : ""
+                          }
+                        >
+                          {t[k] ?? 0}
+                        </span>
+                      </div>
+                    ))}
+                  </Link>
+                );
+              })}
+              {(c.data ?? []).length === 0 && (
+                <Empty className="border-0 py-12">
+                  <EmptyMedia variant="icon">
+                    <Send className="h-6 w-6" />
+                  </EmptyMedia>
+                  <EmptyHeader>
+                    <EmptyTitle>Nenhuma campanha ainda</EmptyTitle>
+                    <EmptyDescription>
+                      Crie sua primeira campanha para começar a disparar mensagens via WhatsApp
+                      Cloud API.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button asChild>
+                      <Link to="/campaigns">
+                        <Plus className="h-4 w-4" />
+                        Criar primeira campanha
+                      </Link>
+                    </Button>
+                  </EmptyContent>
+                </Empty>
+              )}
+            </div>
+            {(c.data ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+                {STATUS_KEYS.map((k) => (
+                  <span key={k} className="inline-flex items-center gap-1.5">
+                    <span className={`h-2 w-3 rounded ${STATUS_COLOR[k]}`} /> {STATUS_LABEL[k]}
+                  </span>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );

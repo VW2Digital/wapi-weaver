@@ -66,10 +66,12 @@ function ResetPasswordPage() {
 
         {!ready ? (
           <p className="text-sm text-muted-foreground">
-            Validando link de recuperação… Se você abriu esta página fora do email de
-            recuperação, volte ao{" "}
-            <a href="/login" className="text-primary hover:underline">login</a> e clique
-            em "Esqueci minha senha".
+            Validando link de recuperação… Se você abriu esta página fora do email de recuperação,
+            volte ao{" "}
+            <a href="/login" className="text-primary hover:underline">
+              login
+            </a>{" "}
+            e clique em "Esqueci minha senha".
           </p>
         ) : (
           <form onSubmit={submit} className="space-y-4">

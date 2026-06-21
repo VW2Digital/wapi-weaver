@@ -11,8 +11,15 @@ const buttonSchema = z.discriminatedUnion("type", [
     url: z.string().url().max(2000),
     example: z.array(z.string().max(2000)).max(1).optional(),
   }),
-  z.object({ type: z.literal("PHONE_NUMBER"), text: z.string().min(1).max(25), phone_number: z.string().min(5).max(20) }),
-  z.object({ type: z.literal("COPY_CODE"), example: z.array(z.string().min(1).max(15)).min(1).max(1) }),
+  z.object({
+    type: z.literal("PHONE_NUMBER"),
+    text: z.string().min(1).max(25),
+    phone_number: z.string().min(5).max(20),
+  }),
+  z.object({
+    type: z.literal("COPY_CODE"),
+    example: z.array(z.string().min(1).max(15)).min(1).max(1),
+  }),
   z.object({ type: z.literal("CATALOG"), text: z.string().min(1).max(25).default("Ver catálogo") }),
   z.object({ type: z.literal("MPM"), text: z.string().min(1).max(25).default("Ver produtos") }),
   z.object({
@@ -37,12 +44,21 @@ const buttonSchema = z.discriminatedUnion("type", [
 ]);
 
 const createTemplateInput = z.object({
-  name: z.string().trim().min(1).max(512).regex(/^[a-z0-9_]+$/, "Use apenas letras minúsculas, números e _"),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .regex(/^[a-z0-9_]+$/, "Use apenas letras minúsculas, números e _"),
   language: z.string().min(2).max(10),
   category: z.enum(["MARKETING", "UTILITY", "AUTHENTICATION"]),
   header: z.discriminatedUnion("format", [
     z.object({ format: z.literal("NONE") }),
-    z.object({ format: z.literal("TEXT"), text: z.string().min(1).max(60), examples: z.array(z.string().max(200)).max(10).optional() }),
+    z.object({
+      format: z.literal("TEXT"),
+      text: z.string().min(1).max(60),
+      examples: z.array(z.string().max(200)).max(10).optional(),
+    }),
     z.object({ format: z.literal("IMAGE"), example_url: z.string().url() }),
     z.object({ format: z.literal("VIDEO"), example_url: z.string().url() }),
     z.object({ format: z.literal("DOCUMENT"), example_url: z.string().url() }),
@@ -89,7 +105,6 @@ function buildMetaComponents(input: CreateTemplateInput) {
   return components;
 }
 
-
 export const createTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => createTemplateInput.parse(d))
@@ -126,7 +141,9 @@ export const createTemplate = createServerFn({ method: "POST" })
       const body: any = await res.json();
       if (!res.ok) {
         const friendly = toFriendlyError(body, "Falha ao enviar template à Meta");
-        throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+        throw new Error(
+          `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+        );
       }
       status = body.status ?? "PENDING";
       meta_template_id = body.id ?? null;
@@ -134,16 +151,19 @@ export const createTemplate = createServerFn({ method: "POST" })
 
     const { data: row, error } = await context.db
       .from("templates")
-      .upsert({
-        user_id: context.userId,
-        name: data.name,
-        language: data.language,
-        category: data.category,
-        status: status as any,
-        components,
-        meta_template_id: meta_template_id ?? `local_${data.name}_${data.language}`,
-        synced_at: new Date().toISOString(),
-      }, { onConflict: "user_id,name,language" })
+      .upsert(
+        {
+          user_id: context.userId,
+          name: data.name,
+          language: data.language,
+          category: data.category,
+          status: status as any,
+          components,
+          meta_template_id: meta_template_id ?? `local_${data.name}_${data.language}`,
+          synced_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,name,language" },
+      )
       .select()
       .single();
     if (error) throw error;
@@ -169,7 +189,14 @@ export const updateTemplate = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .maybeSingle();
 
-    console.log("[updateTemplate] Input ID:", data.id, "User ID:", context.userId, "Found Tpl:", tpl);
+    console.log(
+      "[updateTemplate] Input ID:",
+      data.id,
+      "User ID:",
+      context.userId,
+      "Found Tpl:",
+      tpl,
+    );
 
     if (!tpl) throw new Error("Template não encontrado.");
 
@@ -184,32 +211,32 @@ export const updateTemplate = createServerFn({ method: "POST" })
       .eq("id", context.userId)
       .maybeSingle();
 
-    const isRemote = meta_template_id
-      && !meta_template_id.startsWith("local_")
-      && !meta_template_id.startsWith("sample_");
+    const isRemote =
+      meta_template_id &&
+      !meta_template_id.startsWith("local_") &&
+      !meta_template_id.startsWith("sample_");
 
     if (isRemote && p?.whatsapp_waba_id && p?.whatsapp_access_token) {
       const apiVersion = p.meta_graph_version || "v20.0";
-      const res = await fetch(
-        `https://graph.facebook.com/${apiVersion}/${meta_template_id}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${p.whatsapp_access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: data.name,
-            components,
-            language: data.language,
-            category: data.category,
-          }),
+      const res = await fetch(`https://graph.facebook.com/${apiVersion}/${meta_template_id}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          name: data.name,
+          components,
+          language: data.language,
+          category: data.category,
+        }),
+      });
       const body: any = await res.json();
       if (!res.ok) {
         const friendly = toFriendlyError(body, "Falha ao editar template na Meta");
-        throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+        throw new Error(
+          `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+        );
       }
       status = body.status ?? status;
     }
@@ -234,7 +261,6 @@ export const updateTemplate = createServerFn({ method: "POST" })
     return row;
   });
 
-
 export const deleteTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
@@ -245,7 +271,11 @@ export const deleteTemplate = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .maybeSingle();
 
-    if (tpl?.meta_template_id && !tpl.meta_template_id.startsWith("local_") && !tpl.meta_template_id.startsWith("sample_")) {
+    if (
+      tpl?.meta_template_id &&
+      !tpl.meta_template_id.startsWith("local_") &&
+      !tpl.meta_template_id.startsWith("sample_")
+    ) {
       const { data: p } = await context.db
         .from("profiles")
         .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
@@ -274,7 +304,10 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
       .in("id", data.ids);
 
     const remote = (tpls ?? []).filter(
-      (t: any) => t.meta_template_id && !t.meta_template_id.startsWith("local_") && !t.meta_template_id.startsWith("sample_"),
+      (t: any) =>
+        t.meta_template_id &&
+        !t.meta_template_id.startsWith("local_") &&
+        !t.meta_template_id.startsWith("sample_"),
     );
 
     if (remote.length > 0) {
@@ -301,8 +334,6 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
     return { ok: true, deleted: data.ids.length };
   });
 
-
-
 export const listTemplates = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -319,10 +350,7 @@ export const listTemplates = createServerFn({ method: "GET" })
 export const listAllTemplates = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("templates")
-      .select("*")
-      .order("name");
+    const { data, error } = await context.db.from("templates").select("*").order("name");
     if (error) throw error;
     return data ?? [];
   });
@@ -340,13 +368,18 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
     }
     const apiVersion = p.meta_graph_version || "v20.0";
     const all: any[] = [];
-    let url: string | null = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=name,language,status,category,components,id&limit=200`;
+    let url: string | null =
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=name,language,status,category,components,id&limit=200`;
     while (url) {
-      const r: Response = await fetch(url, { headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } });
+      const r: Response = await fetch(url, {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      });
       const body: any = await r.json();
       if (!r.ok) {
         const friendly = toFriendlyError(body, "Falha ao consultar templates");
-        throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+        throw new Error(
+          `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+        );
       }
       all.push(...(body.data ?? []));
       url = body.paging?.next ?? null;
@@ -377,7 +410,10 @@ const SAMPLE_TEMPLATES = [
     category: "MARKETING",
     components: [
       { type: "HEADER", format: "TEXT", text: "Olá, {{1}} 👋" },
-      { type: "BODY", text: "Seja bem-vindo(a) à {{2}}! Estamos felizes em ter você por aqui. Se precisar de qualquer coisa, é só responder esta mensagem." },
+      {
+        type: "BODY",
+        text: "Seja bem-vindo(a) à {{2}}! Estamos felizes em ter você por aqui. Se precisar de qualquer coisa, é só responder esta mensagem.",
+      },
       { type: "FOOTER", text: "Equipe {{2}}" },
     ],
   },
@@ -387,9 +423,17 @@ const SAMPLE_TEMPLATES = [
     category: "UTILITY",
     components: [
       { type: "HEADER", format: "TEXT", text: "Pedido #{{1}} confirmado ✅" },
-      { type: "BODY", text: "Oi {{2}}! Recebemos seu pedido no valor de R$ {{3}}. A previsão de entrega é {{4}}. Obrigado pela compra!" },
+      {
+        type: "BODY",
+        text: "Oi {{2}}! Recebemos seu pedido no valor de R$ {{3}}. A previsão de entrega é {{4}}. Obrigado pela compra!",
+      },
       { type: "FOOTER", text: "Acompanhe pelo nosso site" },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Acompanhar pedido", url: "https://example.com/pedidos/{{1}}" }] },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Acompanhar pedido", url: "https://example.com/pedidos/{{1}}" },
+        ],
+      },
     ],
   },
   {
@@ -397,7 +441,10 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "AUTHENTICATION",
     components: [
-      { type: "BODY", text: "Seu código de verificação é {{1}}. Ele expira em 10 minutos. Não compartilhe com ninguém." },
+      {
+        type: "BODY",
+        text: "Seu código de verificação é {{1}}. Ele expira em 10 minutos. Não compartilhe com ninguém.",
+      },
       { type: "FOOTER", text: "Mensagem automática" },
     ],
   },
@@ -407,11 +454,17 @@ const SAMPLE_TEMPLATES = [
     category: "UTILITY",
     components: [
       { type: "HEADER", format: "TEXT", text: "Lembrete de agendamento 📅" },
-      { type: "BODY", text: "Olá {{1}}, lembrando seu compromisso em {{2}} às {{3}}. Confirma sua presença?" },
-      { type: "BUTTONS", buttons: [
-        { type: "QUICK_REPLY", text: "Sim, confirmo" },
-        { type: "QUICK_REPLY", text: "Preciso remarcar" },
-      ] },
+      {
+        type: "BODY",
+        text: "Olá {{1}}, lembrando seu compromisso em {{2}} às {{3}}. Confirma sua presença?",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "QUICK_REPLY", text: "Sim, confirmo" },
+          { type: "QUICK_REPLY", text: "Preciso remarcar" },
+        ],
+      },
     ],
   },
   {
@@ -419,7 +472,10 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "UTILITY",
     components: [
-      { type: "BODY", text: "Olá, {{1}}! Confirmamos o seu agendamento de {{2}} no dia {{3}} às {{4}}. Caso precise remarcar ou cancelar, pedimos que nos avise respondendo a esta mensagem. Aguardamos você!" }
+      {
+        type: "BODY",
+        text: "Olá, {{1}}! Confirmamos o seu agendamento de {{2}} no dia {{3}} às {{4}}. Caso precise remarcar ou cancelar, pedimos que nos avise respondendo a esta mensagem. Aguardamos você!",
+      },
     ],
   },
   {
@@ -427,11 +483,17 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "UTILITY",
     components: [
-      { type: "BODY", text: "Olá, {{1}}! Passando para confirmar o seu agendamento de {{2}} com o(a) {{3}} para o dia {{4}} às {{5}}.\n\nPor favor, confirme a sua presença selecionando uma das opções abaixo:" },
-      { type: "BUTTONS", buttons: [
-        { type: "QUICK_REPLY", text: "Sim, confirmado!" },
-        { type: "QUICK_REPLY", text: "Preciso remarcar" }
-      ] }
+      {
+        type: "BODY",
+        text: "Olá, {{1}}! Passando para confirmar o seu agendamento de {{2}} com o(a) {{3}} para o dia {{4}} às {{5}}.\n\nPor favor, confirme a sua presença selecionando uma das opções abaixo:",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "QUICK_REPLY", text: "Sim, confirmado!" },
+          { type: "QUICK_REPLY", text: "Preciso remarcar" },
+        ],
+      },
     ],
   },
   {
@@ -439,8 +501,14 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "BODY", text: "Oi {{1}}! Notamos que você deixou itens no carrinho. Finalize agora e ganhe {{2}}% de desconto usando o cupom {{3}}." },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Voltar ao carrinho", url: "https://example.com/carrinho" }] },
+      {
+        type: "BODY",
+        text: "Oi {{1}}! Notamos que você deixou itens no carrinho. Finalize agora e ganhe {{2}}% de desconto usando o cupom {{3}}.",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "URL", text: "Voltar ao carrinho", url: "https://example.com/carrinho" }],
+      },
     ],
   },
   {
@@ -451,7 +519,10 @@ const SAMPLE_TEMPLATES = [
       { type: "HEADER", format: "TEXT", text: "Oferta relâmpago ⚡" },
       { type: "BODY", text: "{{1}}, só hoje: {{2}} com {{3}}% OFF. Aproveite antes que acabe!" },
       { type: "FOOTER", text: "Válido até 23h59" },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Ver oferta", url: "https://example.com/oferta" }] },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "URL", text: "Ver oferta", url: "https://example.com/oferta" }],
+      },
     ],
   },
   {
@@ -459,12 +530,18 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "UTILITY",
     components: [
-      { type: "BODY", text: "Olá {{1}}, como foi sua experiência com {{2}}? Sua opinião nos ajuda muito 💚" },
-      { type: "BUTTONS", buttons: [
-        { type: "QUICK_REPLY", text: "😍 Excelente" },
-        { type: "QUICK_REPLY", text: "🙂 Boa" },
-        { type: "QUICK_REPLY", text: "😕 Pode melhorar" },
-      ] },
+      {
+        type: "BODY",
+        text: "Olá {{1}}, como foi sua experiência com {{2}}? Sua opinião nos ajuda muito 💚",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "QUICK_REPLY", text: "😍 Excelente" },
+          { type: "QUICK_REPLY", text: "🙂 Boa" },
+          { type: "QUICK_REPLY", text: "😕 Pode melhorar" },
+        ],
+      },
     ],
   },
   {
@@ -473,7 +550,10 @@ const SAMPLE_TEMPLATES = [
     category: "UTILITY",
     components: [
       { type: "HEADER", format: "TEXT", text: "Pagamento confirmado 💚" },
-      { type: "BODY", text: "Oi {{1}}, recebemos seu pagamento de R$ {{2}} referente ao pedido #{{3}}. Obrigado!" },
+      {
+        type: "BODY",
+        text: "Oi {{1}}, recebemos seu pagamento de R$ {{2}} referente ao pedido #{{3}}. Obrigado!",
+      },
       { type: "FOOTER", text: "Recibo enviado por e-mail" },
     ],
   },
@@ -483,8 +563,14 @@ const SAMPLE_TEMPLATES = [
     category: "MARKETING",
     components: [
       { type: "HEADER", format: "TEXT", text: "Novidade chegando 🚀" },
-      { type: "BODY", text: "{{1}}, acabamos de lançar {{2}}. Dá uma olhada e nos conta o que achou!" },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Conhecer agora", url: "https://example.com/novidades" }] },
+      {
+        type: "BODY",
+        text: "{{1}}, acabamos de lançar {{2}}. Dá uma olhada e nos conta o que achou!",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "URL", text: "Conhecer agora", url: "https://example.com/novidades" }],
+      },
     ],
   },
   {
@@ -492,7 +578,10 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "BODY", text: "Sentimos sua falta, {{1}}! Que tal voltar com {{2}}% de desconto na próxima compra? Cupom: {{3}}" },
+      {
+        type: "BODY",
+        text: "Sentimos sua falta, {{1}}! Que tal voltar com {{2}}% de desconto na próxima compra? Cupom: {{3}}",
+      },
       { type: "FOOTER", text: "Cupom válido por 7 dias" },
     ],
   },
@@ -513,7 +602,10 @@ const SAMPLE_TEMPLATES = [
     components: [
       { type: "HEADER", format: "TEXT", text: "Your order is on the way 📦" },
       { type: "BODY", text: "Hi {{1}}, order #{{2}} just shipped. Estimated delivery: {{3}}." },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Track order", url: "https://example.com/track/{{2}}" }] },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "URL", text: "Track order", url: "https://example.com/track/{{2}}" }],
+      },
     ],
   },
   {
@@ -521,14 +613,26 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200"] } },
-      { type: "BODY", text: "{{1}}, oferta exclusiva: {{2}} com {{3}}% OFF. Use o cupom {{4}} no checkout!" },
+      {
+        type: "HEADER",
+        format: "IMAGE",
+        example: {
+          header_handle: ["https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200"],
+        },
+      },
+      {
+        type: "BODY",
+        text: "{{1}}, oferta exclusiva: {{2}} com {{3}}% OFF. Use o cupom {{4}} no checkout!",
+      },
       { type: "FOOTER", text: "Válido até o fim do estoque" },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Comprar agora", url: "https://example.com/oferta" },
-        { type: "QUICK_REPLY", text: "Quero saber mais" },
-        { type: "QUICK_REPLY", text: "Não tenho interesse" },
-      ] },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Comprar agora", url: "https://example.com/oferta" },
+          { type: "QUICK_REPLY", text: "Quero saber mais" },
+          { type: "QUICK_REPLY", text: "Não tenho interesse" },
+        ],
+      },
     ],
   },
   {
@@ -536,12 +640,24 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200"] } },
-      { type: "BODY", text: "Olá {{1}}! Acabou de chegar a coleção {{2}}. Confira no nosso catálogo." },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Ver catálogo", url: "https://example.com/catalogo" },
-        { type: "PHONE_NUMBER", text: "Falar com vendedor", phone_number: "+5511999999999" },
-      ] },
+      {
+        type: "HEADER",
+        format: "IMAGE",
+        example: {
+          header_handle: ["https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200"],
+        },
+      },
+      {
+        type: "BODY",
+        text: "Olá {{1}}! Acabou de chegar a coleção {{2}}. Confira no nosso catálogo.",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Ver catálogo", url: "https://example.com/catalogo" },
+          { type: "PHONE_NUMBER", text: "Falar com vendedor", phone_number: "+5511999999999" },
+        ],
+      },
     ],
   },
   {
@@ -549,13 +665,25 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200"] } },
-      { type: "BODY", text: "{{1}}, você está convidado(a) para {{2}} no dia {{3}} às {{4}}. Garanta sua vaga!" },
+      {
+        type: "HEADER",
+        format: "IMAGE",
+        example: {
+          header_handle: ["https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200"],
+        },
+      },
+      {
+        type: "BODY",
+        text: "{{1}}, você está convidado(a) para {{2}} no dia {{3}} às {{4}}. Garanta sua vaga!",
+      },
       { type: "FOOTER", text: "Vagas limitadas" },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Confirmar presença", url: "https://example.com/evento" },
-        { type: "QUICK_REPLY", text: "Não poderei ir" },
-      ] },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Confirmar presença", url: "https://example.com/evento" },
+          { type: "QUICK_REPLY", text: "Não poderei ir" },
+        ],
+      },
     ],
   },
   {
@@ -563,11 +691,16 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "HEADER", format: "VIDEO", example: { header_handle: ["https://example.com/welcome.mp4"] } },
+      {
+        type: "HEADER",
+        format: "VIDEO",
+        example: { header_handle: ["https://example.com/welcome.mp4"] },
+      },
       { type: "BODY", text: "Bem-vindo(a) à {{1}}, {{2}}! Veja esse vídeo rápido para começar." },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Acessar minha conta", url: "https://example.com/login" },
-      ] },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "URL", text: "Acessar minha conta", url: "https://example.com/login" }],
+      },
     ],
   },
   {
@@ -575,12 +708,22 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "UTILITY",
     components: [
-      { type: "HEADER", format: "DOCUMENT", example: { header_handle: ["https://example.com/fatura.pdf"] } },
-      { type: "BODY", text: "Olá {{1}}, sua fatura referente a {{2}} no valor de R$ {{3}} está disponível. Vencimento: {{4}}." },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Pagar agora", url: "https://example.com/pagar" },
-        { type: "QUICK_REPLY", text: "Falar com atendente" },
-      ] },
+      {
+        type: "HEADER",
+        format: "DOCUMENT",
+        example: { header_handle: ["https://example.com/fatura.pdf"] },
+      },
+      {
+        type: "BODY",
+        text: "Olá {{1}}, sua fatura referente a {{2}} no valor de R$ {{3}} está disponível. Vencimento: {{4}}.",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Pagar agora", url: "https://example.com/pagar" },
+          { type: "QUICK_REPLY", text: "Falar com atendente" },
+        ],
+      },
     ],
   },
   {
@@ -588,12 +731,24 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "UTILITY",
     components: [
-      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=1200"] } },
-      { type: "BODY", text: "Oi {{1}}, seu pedido #{{2}} saiu para entrega 🚚. Previsão: até {{3}}." },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Rastrear", url: "https://example.com/rastreio" },
-        { type: "PHONE_NUMBER", text: "Suporte", phone_number: "+5511999999999" },
-      ] },
+      {
+        type: "HEADER",
+        format: "IMAGE",
+        example: {
+          header_handle: ["https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=1200"],
+        },
+      },
+      {
+        type: "BODY",
+        text: "Oi {{1}}, seu pedido #{{2}} saiu para entrega 🚚. Previsão: até {{3}}.",
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Rastrear", url: "https://example.com/rastreio" },
+          { type: "PHONE_NUMBER", text: "Suporte", phone_number: "+5511999999999" },
+        ],
+      },
     ],
   },
   {
@@ -601,12 +756,22 @@ const SAMPLE_TEMPLATES = [
     language: "pt_BR",
     category: "MARKETING",
     components: [
-      { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://images.unsplash.com/photo-1513151233558-d860c5398176?w=1200"] } },
-      { type: "BODY", text: "Feliz aniversário, {{1}}! 🎉 Temos um presente: {{2}}% OFF com o cupom {{3}}." },
+      {
+        type: "HEADER",
+        format: "IMAGE",
+        example: {
+          header_handle: ["https://images.unsplash.com/photo-1513151233558-d860c5398176?w=1200"],
+        },
+      },
+      {
+        type: "BODY",
+        text: "Feliz aniversário, {{1}}! 🎉 Temos um presente: {{2}}% OFF com o cupom {{3}}.",
+      },
       { type: "FOOTER", text: "Cupom válido por 7 dias" },
-      { type: "BUTTONS", buttons: [
-        { type: "URL", text: "Aproveitar agora", url: "https://example.com/cupom" },
-      ] },
+      {
+        type: "BUTTONS",
+        buttons: [{ type: "URL", text: "Aproveitar agora", url: "https://example.com/cupom" }],
+      },
     ],
   },
 ];
@@ -654,7 +819,9 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (!p?.whatsapp_waba_id || !p?.whatsapp_access_token) {
-      throw new Error("Configure WABA ID e Access Token nas Configurações antes de enviar para a Meta.");
+      throw new Error(
+        "Configure WABA ID e Access Token nas Configurações antes de enviar para a Meta.",
+      );
     }
 
     // 3. Envia para a Meta API
@@ -679,7 +846,9 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     const body: any = await res.json();
     if (!res.ok) {
       const friendly = toFriendlyError(body, "Falha ao enviar template à Meta");
-      throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`);
+      throw new Error(
+        `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+      );
     }
 
     const status = body.status ?? "PENDING";

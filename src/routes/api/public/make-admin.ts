@@ -18,18 +18,23 @@ export const Route = createFileRoute("/api/public/make-admin")({
             return new Response("Email required", { status: 400 });
           }
 
-          const [users]: any = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+          const users: any = await db.query("SELECT id FROM users WHERE email = ?", [email]);
           if (!users || users.length === 0) {
-            return new Response(`Usuário ${email} não encontrado no banco. Logue primeiro.`, { status: 404 });
+            return new Response(`Usuário ${email} não encontrado no banco. Logue primeiro.`, {
+              status: 404,
+            });
           }
 
           const userId = users[0].id;
           await db.query(
             "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin') ON DUPLICATE KEY UPDATE role='admin'",
-            [userId]
+            [userId],
           );
 
-          return new Response(`Sucesso! O usuário ${email} agora é um Administrador. Pode atualizar a página!`, { status: 200 });
+          return new Response(
+            `Sucesso! O usuário ${email} agora é um Administrador. Pode atualizar a página!`,
+            { status: 200 },
+          );
         } catch (e: any) {
           return new Response(`Erro: ${e.message}`, { status: 500 });
         }

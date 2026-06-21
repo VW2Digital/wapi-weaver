@@ -3,7 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { listCampaigns, createCampaign, cancelCampaign, deleteCampaign } from "@/lib/campaigns.functions";
+import {
+  listCampaigns,
+  createCampaign,
+  cancelCampaign,
+  deleteCampaign,
+} from "@/lib/campaigns.functions";
 import { listLists, getListContacts } from "@/lib/lists.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,9 +17,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Send, XCircle, ChevronRight, ChevronLeft, Megaphone, Trash2, MoreVertical, Eye } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Plus,
+  Send,
+  XCircle,
+  ChevronRight,
+  ChevronLeft,
+  Megaphone,
+  Trash2,
+  MoreVertical,
+  Eye,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,8 +75,11 @@ function CampaignsPage() {
 
   const [open, setOpen] = useState(false);
 
-  const filtered = (data ?? []).filter((c: any) =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.status.includes(search.toLowerCase())
+  const filtered = (data ?? []).filter(
+    (c: any) =>
+      !search ||
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.status.includes(search.toLowerCase()),
   );
 
   return (
@@ -60,10 +90,17 @@ function CampaignsPage() {
         action={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" /> Nova campanha</Button>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Nova campanha
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
-              <CampaignWizard onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["campaigns"] }); }} />
+              <CampaignWizard
+                onDone={() => {
+                  setOpen(false);
+                  qc.invalidateQueries({ queryKey: ["campaigns"] });
+                }}
+              />
             </DialogContent>
           </Dialog>
         }
@@ -85,26 +122,40 @@ function CampaignsPage() {
               icon={Megaphone}
               title="Nenhuma campanha ainda"
               description="Crie sua primeira campanha para disparar mensagens em massa para uma lista de contatos."
-              action={<Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" /> Nova campanha</Button>}
+              action={
+                <Button onClick={() => setOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" /> Nova campanha
+                </Button>
+              }
             />
           )}
           {!isLoading && (data ?? []).length > 0 && filtered.length === 0 && (
-            <EmptyState icon={Megaphone} title="Nenhuma campanha encontrada" description="Tente uma busca diferente." />
+            <EmptyState
+              icon={Megaphone}
+              title="Nenhuma campanha encontrada"
+              description="Tente uma busca diferente."
+            />
           )}
           <div className="divide-y">
             {filtered.map((c: any) => {
               const t = (c.totals ?? {}) as Record<string, number>;
               const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
               return (
-                <div key={c.id} className="flex items-center justify-between gap-4 p-4 hover:bg-muted/30">
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-4 p-4 hover:bg-muted/30"
+                >
                   <Link to="/campaigns/$id" params={{ id: c.id }} className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">
                       <p className="truncate font-medium">{c.name}</p>
-                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${s.cls}`}>{s.label}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${s.cls}`}>
+                        {s.label}
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {c.message_type} · {new Date(c.created_at).toLocaleString("pt-BR")} ·
-                      {" "}{t.sent ?? 0}/{t.total ?? 0} enviadas · {t.delivered ?? 0} entregues · {t.read ?? 0} lidas · {t.failed ?? 0} falharam
+                      {c.message_type} · {new Date(c.created_at).toLocaleString("pt-BR")} ·{" "}
+                      {t.sent ?? 0}/{t.total ?? 0} enviadas · {t.delivered ?? 0} entregues ·{" "}
+                      {t.read ?? 0} lidas · {t.failed ?? 0} falharam
                     </p>
                   </Link>
                   <div className="flex items-center gap-2">
@@ -117,7 +168,11 @@ function CampaignsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
                         <DropdownMenuItem asChild>
-                          <Link to="/campaigns/$id" params={{ id: c.id }} className="flex w-full items-center cursor-pointer">
+                          <Link
+                            to="/campaigns/$id"
+                            params={{ id: c.id }}
+                            className="flex w-full items-center cursor-pointer"
+                          >
                             <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
                             Detalhes
                           </Link>
@@ -128,8 +183,15 @@ function CampaignsPage() {
                             onClick={async () => {
                               const ok = await confirm({
                                 title: "Cancelar campanha?",
-                                description: <>Mensagens pendentes da campanha <strong>{c.name}</strong> não serão enviadas.</>,
-                                destructive: true, confirmText: "Cancelar campanha", cancelText: "Voltar",
+                                description: (
+                                  <>
+                                    Mensagens pendentes da campanha <strong>{c.name}</strong> não
+                                    serão enviadas.
+                                  </>
+                                ),
+                                destructive: true,
+                                confirmText: "Cancelar campanha",
+                                cancelText: "Voltar",
                               });
                               if (!ok) return;
                               await cancel({ data: { id: c.id } });
@@ -147,8 +209,15 @@ function CampaignsPage() {
                           onClick={async () => {
                             const ok = await confirm({
                               title: "Excluir campanha?",
-                              description: <>A campanha <strong>{c.name}</strong> e todas as mensagens associadas serão removidas permanentemente.</>,
-                              destructive: true, confirmText: "Excluir", cancelText: "Cancelar",
+                              description: (
+                                <>
+                                  A campanha <strong>{c.name}</strong> e todas as mensagens
+                                  associadas serão removidas permanentemente.
+                                </>
+                              ),
+                              destructive: true,
+                              confirmText: "Excluir",
+                              cancelText: "Cancelar",
                             });
                             if (!ok) return;
                             await remove({ data: { id: c.id } });
@@ -282,7 +351,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
         data: {
           name,
           message_type: messageType,
-          template_id: messageType === "template" ? (templateId || null) : null,
+          template_id: messageType === "template" ? templateId || null : null,
           list_id: listId,
           payload,
           start_now: startNow,
@@ -290,7 +359,10 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
         } as any,
       });
     },
-    onSuccess: (r) => { toast.success(`Campanha criada — ${r.queued} mensagens na fila`); onDone(); },
+    onSuccess: (r) => {
+      toast.success(`Campanha criada — ${r.queued} mensagens na fila`);
+      onDone();
+    },
     onError: (e: any) => toast.error(e.message ?? "Erro ao criar campanha"),
   });
 
@@ -305,12 +377,18 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
           <>
             <div>
               <Label>Nome da campanha</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Promo Black Friday" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Promo Black Friday"
+              />
             </div>
             <div>
               <Label>Lista de contatos</Label>
               <Select value={listId} onValueChange={setListId}>
-                <SelectTrigger><SelectValue placeholder="Selecione uma lista" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma lista" />
+                </SelectTrigger>
                 <SelectContent>
                   {(lists.data ?? []).map((l: any) => (
                     <SelectItem key={l.id} value={l.id}>
@@ -320,7 +398,9 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                 </SelectContent>
               </Select>
               {selectedList && (
-                <p className="mt-1 text-xs text-muted-foreground">{listCount} contatos serão atingidos.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {listCount} contatos serão atingidos.
+                </p>
               )}
             </div>
           </>
@@ -331,7 +411,9 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
             <div>
               <Label>Tipo de mensagem</Label>
               <Select value={messageType} onValueChange={(v) => setMessageType(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="template">Template aprovado (HSM)</SelectItem>
                   <SelectItem value="text">Texto livre (apenas janela 24h)</SelectItem>
@@ -345,18 +427,26 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                 <div>
                   <Label>Template</Label>
                   <Select value={templateId} onValueChange={setTemplateId}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um template aprovado" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um template aprovado" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {(templates.data ?? []).filter((t: any) => t.status === "APPROVED").map((t: any) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name} ({t.language})</SelectItem>
-                      ))}
+                      {(templates.data ?? [])
+                        .filter((t: any) => t.status === "APPROVED")
+                        .map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} ({t.language})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 {templateParamsCount > 0 && (
                   <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Variáveis do Template</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Variáveis do Template
+                    </p>
                     {Array.from({ length: templateParamsCount }).map((_, i) => (
                       <div key={i} className="space-y-1.5">
                         <Label className="text-xs font-medium">Parâmetro {`{{${i + 1}}}`}</Label>
@@ -399,7 +489,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                     <WhatsAppPreview
                       components={(selectedTemplate.components ?? []) as any}
                       variables={Object.fromEntries(
-                        paramValues.map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v)
+                        paramValues.map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v),
                       )}
                     />
                   </div>
@@ -410,13 +500,15 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
             {messageType === "text" && (
               <div className="space-y-1.5">
                 <Label>Texto</Label>
-                <Textarea 
-                  rows={5} 
-                  value={text} 
-                  onChange={(e) => setText(e.target.value)} 
-                  placeholder="Olá {{nome}}, ..." 
+                <Textarea
+                  rows={5}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Olá {{nome}}, ..."
                 />
-                <p className="text-xs text-muted-foreground">Clique nas tags abaixo para inseri-las no texto:</p>
+                <p className="text-xs text-muted-foreground">
+                  Clique nas tags abaixo para inseri-las no texto:
+                </p>
                 <div className="flex flex-wrap gap-1">
                   {availableFields.map((field) => (
                     <Button
@@ -424,7 +516,7 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                       type="button"
                       variant="outline"
                       className="h-6 px-2 py-0 text-[10px] rounded bg-background hover:bg-muted text-muted-foreground border-dashed"
-                      onClick={() => setText((t) => t ? `${t} {{${field}}}` : `{{${field}}}`)}
+                      onClick={() => setText((t) => (t ? `${t} {{${field}}}` : `{{${field}}}`))}
                     >
                       +{field}
                     </Button>
@@ -438,7 +530,9 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                 <div>
                   <Label>Tipo</Label>
                   <Select value={mediaType} onValueChange={(v) => setMediaType(v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="image">Imagem</SelectItem>
                       <SelectItem value="document">Documento (PDF)</SelectItem>
@@ -448,12 +542,18 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                 </div>
                 <div>
                   <Label>URL da mídia (pública, HTTPS)</Label>
-                  <Input value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} placeholder="https://..." />
+                  <Input
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Legenda (opcional)</Label>
                   <Input value={caption} onChange={(e) => setCaption(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Clique nas tags abaixo para inseri-las na legenda:</p>
+                  <p className="text-xs text-muted-foreground">
+                    Clique nas tags abaixo para inseri-las na legenda:
+                  </p>
                   <div className="flex flex-wrap gap-1">
                     {availableFields.map((field) => (
                       <Button
@@ -461,7 +561,9 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                         type="button"
                         variant="outline"
                         className="h-6 px-2 py-0 text-[10px] rounded bg-background hover:bg-muted text-muted-foreground border-dashed"
-                        onClick={() => setCaption((c) => c ? `${c} {{${field}}}` : `{{${field}}}`)}
+                        onClick={() =>
+                          setCaption((c) => (c ? `${c} {{${field}}}` : `{{${field}}}`))
+                        }
                       >
                         +{field}
                       </Button>
@@ -476,23 +578,46 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
         {step === 3 && (
           <>
             <Card className="space-y-2 p-4 text-sm">
-              <div><span className="text-muted-foreground">Nome:</span> <strong>{name}</strong></div>
-              <div><span className="text-muted-foreground">Lista:</span> {selectedList?.name} ({listCount} contatos)</div>
-              <div><span className="text-muted-foreground">Tipo:</span> {messageType}</div>
-              {messageType === "template" && <div><span className="text-muted-foreground">Template:</span> {selectedTemplate?.name}</div>}
-              {messageType === "text" && <div className="whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">{text}</div>}
-              {messageType === "media" && <div className="text-xs break-all">{mediaType}: {mediaUrl}</div>}
+              <div>
+                <span className="text-muted-foreground">Nome:</span> <strong>{name}</strong>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Lista:</span> {selectedList?.name} (
+                {listCount} contatos)
+              </div>
+              <div>
+                <span className="text-muted-foreground">Tipo:</span> {messageType}
+              </div>
+              {messageType === "template" && (
+                <div>
+                  <span className="text-muted-foreground">Template:</span> {selectedTemplate?.name}
+                </div>
+              )}
+              {messageType === "text" && (
+                <div className="whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">{text}</div>
+              )}
+              {messageType === "media" && (
+                <div className="text-xs break-all">
+                  {mediaType}: {mediaUrl}
+                </div>
+              )}
             </Card>
 
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm">
-                <input type="radio" checked={startNow} onChange={() => setStartNow(true)} /> Iniciar agora
+                <input type="radio" checked={startNow} onChange={() => setStartNow(true)} /> Iniciar
+                agora
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="radio" checked={!startNow} onChange={() => setStartNow(false)} /> Agendar
+                <input type="radio" checked={!startNow} onChange={() => setStartNow(false)} />{" "}
+                Agendar
               </label>
               {!startNow && (
-                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+                <Input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                />
               )}
             </div>
           </>
@@ -505,7 +630,10 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
         </Button>
         {step < 3 ? (
           <Button
-            disabled={(step === 1 && (!name || !listId)) || (step === 2 && messageType === "template" && !templateId)}
+            disabled={
+              (step === 1 && (!name || !listId)) ||
+              (step === 2 && messageType === "template" && !templateId)
+            }
             onClick={() => setStep(step + 1)}
           >
             Próximo <ChevronRight className="ml-1 h-4 w-4" />

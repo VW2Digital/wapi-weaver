@@ -1,6 +1,6 @@
-const fs = require('fs');
-let content = fs.readFileSync('src/routes/_app/settings.tsx', 'utf-8');
-const startIndex = content.indexOf('function QRCodeSection() {');
+const fs = require("fs");
+let content = fs.readFileSync("src/routes/_app/settings.tsx", "utf-8");
+const startIndex = content.indexOf("function QRCodeSection() {");
 if (startIndex !== -1) {
   content = content.substring(0, startIndex);
   const newFunc = `function QRCodeSection() {
@@ -140,5 +140,5 @@ if (startIndex !== -1) {
 }
 `;
   content += newFunc;
-  fs.writeFileSync('src/routes/_app/settings.tsx', content);
+  fs.writeFileSync("src/routes/_app/settings.tsx", content);
 }

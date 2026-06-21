@@ -137,15 +137,32 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease,
+      border-color 0.3s ease;
   }
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
   }
   /* Smooth transitions for themeable elements */
-  .bg-card, .bg-sidebar, .bg-background, .border, .text-foreground, .text-muted-foreground, .text-sidebar-foreground {
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  .bg-card,
+  .bg-sidebar,
+  .bg-background,
+  .border,
+  .text-foreground,
+  .text-muted-foreground,
+  .text-sidebar-foreground {
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease,
+      border-color 0.3s ease,
+      box-shadow 0.3s ease,
+      transform 0.3s ease;
   }
 
   /* Branded scrollbars */

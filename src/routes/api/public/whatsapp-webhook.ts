@@ -13,7 +13,15 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
   }
 }
 
-const OPT_OUT_KEYWORDS = ["stop", "sair", "parar", "cancelar", "descadastrar", "unsubscribe", "remover"];
+const OPT_OUT_KEYWORDS = [
+  "stop",
+  "sair",
+  "parar",
+  "cancelar",
+  "descadastrar",
+  "unsubscribe",
+  "remover",
+];
 
 async function processStatusUpdate(value: any, userId: string) {
   const statuses = value?.statuses ?? [];
@@ -21,8 +29,16 @@ async function processStatusUpdate(value: any, userId: string) {
     const waId: string | undefined = s.id;
     if (!waId) continue;
     const status = s.status;
-    const timestamp = s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : new Date().toISOString();
-    const update: any = { status };
+    const timestamp = s.timestamp
+      ? new Date(Number(s.timestamp) * 1000).toISOString()
+      : new Date().toISOString();
+    const update: any = {};
+
+    const allowedCampaignStatuses = ["pending", "sending", "sent", "delivered", "read", "failed"];
+    if (allowedCampaignStatuses.includes(status)) {
+      update.status = status;
+    }
+
     if (status === "delivered") update.delivered_at = timestamp;
     if (status === "read") update.read_at = timestamp;
     if (status === "failed") {
@@ -40,19 +56,26 @@ async function processStatusUpdate(value: any, userId: string) {
     }
 
     // SECURITY: scope mutation to the verified user
-    const { data: rows } = await dbAdmin
-      .from("campaign_messages")
-      .update(update)
-      .eq("wa_message_id", waId)
-      .eq("user_id", userId)
-      .select("campaign_id");
+    let rows: any[] | null = null;
+    if (Object.keys(update).length > 0) {
+      const { data } = await dbAdmin
+        .from("campaign_messages")
+        .update(update)
+        .eq("wa_message_id", waId)
+        .eq("user_id", userId)
+        .select("campaign_id");
+      rows = data;
+    }
 
     // Update status in direct_messages table too
-    await dbAdmin
-      .from("direct_messages")
-      .update({ status })
-      .eq("wa_message_id", waId)
-      .eq("user_id", userId);
+    const allowedDirectStatuses = ["sent", "delivered", "read", "failed"];
+    if (allowedDirectStatuses.includes(status)) {
+      await dbAdmin
+        .from("direct_messages")
+        .update({ status })
+        .eq("wa_message_id", waId)
+        .eq("user_id", userId);
+    }
 
     const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id)));
     for (const cid of campaignIds) {
@@ -62,7 +85,14 @@ async function processStatusUpdate(value: any, userId: string) {
         .eq("campaign_id", cid)
         .eq("user_id", userId);
       if (!agg) continue;
-      const totals: any = { total: agg.length, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
+      const totals: any = {
+        total: agg.length,
+        pending: 0,
+        sent: 0,
+        delivered: 0,
+        read: 0,
+        failed: 0,
+      };
       for (const r of agg) totals[r.status] = (totals[r.status] ?? 0) + 1;
       await dbAdmin.from("campaigns").update({ totals }).eq("id", cid).eq("user_id", userId);
     }
@@ -79,7 +109,9 @@ async function processInboundMessages(value: any, userId: string) {
       .trim()
       .toLowerCase();
     if (!text) continue;
-    const isOptOut = OPT_OUT_KEYWORDS.some((k) => text === k || text.startsWith(`${k} `) || text.endsWith(` ${k}`));
+    const isOptOut = OPT_OUT_KEYWORDS.some(
+      (k) => text === k || text.startsWith(`${k} `) || text.endsWith(` ${k}`),
+    );
     if (!isOptOut) continue;
     // Contatos salvos sem "+" (apenas dígitos com DDI). Meta envia sem "+" também.
     const phoneDigits = from.replace(/\D+/g, "");
@@ -117,19 +149,17 @@ async function processInboundDirectMessages(value: any, userId: string) {
     const reply_to_message_id = m.context?.message_id ?? null;
 
     // Salva na tabela direct_messages
-    await dbAdmin
-      .from("direct_messages")
-      .insert({
-        user_id: userId,
-        contact_phone: phoneDigits,
-        direction: "incoming",
-        type,
-        body,
-        wa_message_id: m.id,
-        status: "read",
-        reply_to_message_id,
-        metadata: m,
-      });
+    await dbAdmin.from("direct_messages").insert({
+      user_id: userId,
+      contact_phone: phoneDigits,
+      direction: "incoming",
+      type,
+      body,
+      wa_message_id: m.id,
+      status: "read",
+      reply_to_message_id,
+      metadata: m,
+    });
   }
 }
 
@@ -154,9 +184,18 @@ async function processTemplateStatusUpdate(value: any, userId: string) {
   if (!status) return;
   const update: any = { status, synced_at: new Date().toISOString() };
   if (metaId) {
-    await dbAdmin.from("templates").update(update).eq("meta_template_id", metaId).eq("user_id", userId);
+    await dbAdmin
+      .from("templates")
+      .update(update)
+      .eq("meta_template_id", metaId)
+      .eq("user_id", userId);
   } else if (name && language) {
-    await dbAdmin.from("templates").update(update).eq("name", name).eq("language", language).eq("user_id", userId);
+    await dbAdmin
+      .from("templates")
+      .update(update)
+      .eq("name", name)
+      .eq("language", language)
+      .eq("user_id", userId);
   }
 }
 
@@ -200,7 +239,10 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
 
         let matchedUserId: string | null = null;
         for (const s of secrets ?? []) {
-          if (s.whatsapp_app_secret && (await verifySignature(rawBody, sig, s.whatsapp_app_secret))) {
+          if (
+            s.whatsapp_app_secret &&
+            (await verifySignature(rawBody, sig, s.whatsapp_app_secret))
+          ) {
             matchedUserId = s.id as string;
             break;
           }
@@ -234,10 +276,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         }
 
         if (evRow?.id) {
-          await dbAdmin
-            .from("webhook_events")
-            .update({ processed: true })
-            .eq("id", evRow.id);
+          await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
         }
 
         return new Response("ok", { status: 200 });

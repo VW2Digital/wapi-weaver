@@ -12,7 +12,7 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => ((m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry)),
+      (m) => (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry),
     );
   }
   return serverEntryPromise;
@@ -87,10 +87,10 @@ function startQueueProcessor() {
   if (queueIntervalStarted) return;
   queueIntervalStarted = true;
   console.log("[Queue] Starting background queue processor (every 60s)...");
-  
+
   // Call once immediately on startup, then every 60s
   setTimeout(() => {
-    processOnce().catch(e => console.error("[Queue Init Error]", e));
+    processOnce().catch((e) => console.error("[Queue Init Error]", e));
   }, 5000);
 
   setInterval(async () => {

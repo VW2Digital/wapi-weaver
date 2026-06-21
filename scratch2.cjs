@@ -1,5 +1,5 @@
-const fs = require('fs');
-let content = fs.readFileSync('src/lib/profile.functions.ts', 'utf-8');
+const fs = require("fs");
+let content = fs.readFileSync("src/lib/profile.functions.ts", "utf-8");
 const newFunc = `
 export const listQRCodes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -25,4 +25,4 @@ export const listQRCodes = createServerFn({ method: "POST" })
   });
 `;
 content += newFunc;
-fs.writeFileSync('src/lib/profile.functions.ts', content);
+fs.writeFileSync("src/lib/profile.functions.ts", content);

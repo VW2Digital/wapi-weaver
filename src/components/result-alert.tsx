@@ -35,9 +35,7 @@ export function ResultAlert({ ok, successContent, error, details, fallback }: Pr
         <div className="min-w-0 flex-1 space-y-1">
           <div className="font-medium text-destructive">{friendly.title}</div>
           <p className="text-foreground/80">{friendly.message}</p>
-          {friendly.hint && (
-            <p className="text-xs text-muted-foreground">💡 {friendly.hint}</p>
-          )}
+          {friendly.hint && <p className="text-xs text-muted-foreground">💡 {friendly.hint}</p>}
           {(friendly.code || friendly.type) && (
             <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
               {friendly.code !== undefined && (
@@ -63,7 +61,11 @@ export function ResultAlert({ ok, successContent, error, details, fallback }: Pr
             </button>
           )}
           {open && Boolean(details) && (
-            <pre className={cn("mt-1 max-h-48 overflow-auto rounded bg-background/60 p-2 text-[11px] leading-relaxed")}>
+            <pre
+              className={cn(
+                "mt-1 max-h-48 overflow-auto rounded bg-background/60 p-2 text-[11px] leading-relaxed",
+              )}
+            >
               {JSON.stringify(details, null, 2)}
             </pre>
           )}

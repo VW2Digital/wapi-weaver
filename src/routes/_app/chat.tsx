@@ -67,6 +67,23 @@ function ChatPage() {
     queryFn: () => fetchContacts(),
   });
 
+  // Auto-select contact based on "phone" query parameter
+  useEffect(() => {
+    if (typeof window !== "undefined" && contactsQuery.data && !selectedContact) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const searchPhone = searchParams.get("phone");
+      if (searchPhone) {
+        const cleanedSearchPhone = searchPhone.replace(/\D/g, "");
+        const found = contactsQuery.data.find(
+          (c: any) => c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone
+        );
+        if (found) {
+          setSelectedContact(found);
+        }
+      }
+    }
+  }, [contactsQuery.data, selectedContact]);
+
   const selectedPhone = selectedContact?.phone_e164;
 
   const messagesQuery = useQuery({
@@ -97,10 +114,7 @@ function ChatPage() {
   const filteredContacts = (contactsQuery.data ?? []).filter((c: any) => {
     const term = searchQuery.toLowerCase().trim();
     if (!term) return true;
-    return (
-      (c.name ?? "").toLowerCase().includes(term) ||
-      (c.phone_e164 ?? "").includes(term)
-    );
+    return (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
   });
 
   // Mutation para envio de mensagens
@@ -190,7 +204,7 @@ function ChatPage() {
       const msg = messageMap.get(targetId);
       // Evita duplicar reação igual do mesmo remetente
       const exists = msg.reactions.some(
-        (rx: any) => rx.emoji === r.body && rx.direction === r.direction
+        (rx: any) => rx.emoji === r.body && rx.direction === r.direction,
       );
       if (!exists) {
         msg.reactions.push({
@@ -242,7 +256,7 @@ function ChatPage() {
         <div
           className={cn(
             "w-full md:w-80 lg:w-96 border-r flex flex-col h-full bg-card shrink-0",
-            selectedContact ? "hidden md:flex" : "flex"
+            selectedContact ? "hidden md:flex" : "flex",
           )}
         >
           <div className="p-3 border-b flex flex-col gap-2">
@@ -272,7 +286,9 @@ function ChatPage() {
               filteredContacts.map((c: any) => {
                 const isSelected = selectedContact?.id === c.id;
                 // Gera uma cor de avatar baseada no nome do contato
-                const hash = (c.name ?? "").split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+                const hash = (c.name ?? "")
+                  .split("")
+                  .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
                 const hue = hash % 360;
                 const avatarBg = `hsl(${hue}, 70%, 40%)`;
 
@@ -285,7 +301,7 @@ function ChatPage() {
                     }}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 text-left transition-colors hover:bg-muted/40",
-                      isSelected && "bg-muted"
+                      isSelected && "bg-muted",
                     )}
                   >
                     <div
@@ -315,7 +331,7 @@ function ChatPage() {
         <div
           className={cn(
             "flex-1 flex flex-col h-full bg-background relative",
-            selectedContact ? "flex" : "hidden md:flex"
+            selectedContact ? "flex" : "hidden md:flex",
           )}
         >
           {selectedContact ? (
@@ -341,8 +357,7 @@ function ChatPage() {
                       {selectedContact.name || "Sem Nome"}
                     </h3>
                     <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
-                      <Phone className="h-3 w-3 shrink-0" />
-                      +{selectedContact.phone_e164}
+                      <Phone className="h-3 w-3 shrink-0" />+{selectedContact.phone_e164}
                     </div>
                   </div>
                 </div>
@@ -386,8 +401,7 @@ function ChatPage() {
                     const isOutgoing = msg.direction === "outgoing";
                     const replyMsgId = msg.context?.message_id;
                     const replyMessage =
-                      replyMsgId &&
-                      displayMessages.find((m: any) => m.id === replyMsgId);
+                      replyMsgId && displayMessages.find((m: any) => m.id === replyMsgId);
 
                     return (
                       <div
@@ -395,7 +409,7 @@ function ChatPage() {
                         id={`msg-${msg.id}`}
                         className={cn(
                           "flex w-full flex-col group transition-all duration-300 rounded-lg p-1",
-                          isOutgoing ? "items-end" : "items-start"
+                          isOutgoing ? "items-end" : "items-start",
                         )}
                       >
                         {/* Container do Balão + Ações */}
@@ -436,18 +450,14 @@ function ChatPage() {
                                   "text-left text-xs p-2 rounded-t-xl border-l-4 mb-[-4px] opacity-90 transition-all hover:opacity-100",
                                   isOutgoing
                                     ? "bg-primary-foreground/30 border-primary-foreground/75 text-primary-foreground"
-                                    : "bg-muted border-primary text-muted-foreground"
+                                    : "bg-muted border-primary text-muted-foreground",
                                 )}
                               >
                                 <div className="font-bold mb-0.5">
-                                  {replyMessage.direction === "incoming"
-                                    ? "Contato"
-                                    : "Você"}
+                                  {replyMessage.direction === "incoming" ? "Contato" : "Você"}
                                 </div>
                                 <div className="truncate font-mono">
-                                  {replyMessage.type === "image"
-                                    ? "📷 Imagem"
-                                    : replyMessage.body}
+                                  {replyMessage.type === "image" ? "📷 Imagem" : replyMessage.body}
                                 </div>
                               </button>
                             )}
@@ -459,7 +469,7 @@ function ChatPage() {
                                 isOutgoing
                                   ? "bg-primary text-primary-foreground rounded-tr-none"
                                   : "bg-card border text-card-foreground rounded-tl-none",
-                                replyMessage && "rounded-t-none"
+                                replyMessage && "rounded-t-none",
                               )}
                             >
                               {msg.type === "image" ? (
@@ -484,7 +494,7 @@ function ChatPage() {
                               <div
                                 className={cn(
                                   "flex items-center justify-end gap-1 mt-1 text-[10px] opacity-70",
-                                  isOutgoing ? "text-primary-foreground" : "text-muted-foreground"
+                                  isOutgoing ? "text-primary-foreground" : "text-muted-foreground",
                                 )}
                               >
                                 <span>
@@ -502,7 +512,7 @@ function ChatPage() {
                               <div
                                 className={cn(
                                   "absolute bottom-[-10px] flex gap-0.5 bg-background shadow border rounded-full px-1.5 py-0.5 text-xs select-none",
-                                  isOutgoing ? "left-2" : "right-2"
+                                  isOutgoing ? "left-2" : "right-2",
                                 )}
                               >
                                 {msg.reactions.map((rx: any, idx: number) => (
@@ -612,8 +622,8 @@ function ChatPage() {
                             onChange={(e) => setMetaImageId(e.target.value)}
                           />
                           <p className="text-xs text-muted-foreground">
-                            A API oficial do WhatsApp requer que imagens sejam carregadas previamente na Meta
-                            para obter um ID de objeto de mídia.
+                            A API oficial do WhatsApp requer que imagens sejam carregadas
+                            previamente na Meta para obter um ID de objeto de mídia.
                           </p>
                         </div>
                       </div>
@@ -621,7 +631,10 @@ function ChatPage() {
                         <Button variant="outline" onClick={() => setIsImageModalOpen(false)}>
                           Cancelar
                         </Button>
-                        <Button onClick={handleSendImage} disabled={!metaImageId.trim() || sendMutation.isPending}>
+                        <Button
+                          onClick={handleSendImage}
+                          disabled={!metaImageId.trim() || sendMutation.isPending}
+                        >
                           Enviar Imagem
                         </Button>
                       </DialogFooter>
@@ -678,7 +691,8 @@ function ChatPage() {
               <div className="text-center max-w-sm space-y-1">
                 <p className="font-semibold text-foreground">ZapDispatch Chat Direto</p>
                 <p className="text-xs">
-                  Selecione um contato na lista à esquerda para carregar o histórico de conversas diretas e enviar novas mensagens.
+                  Selecione um contato na lista à esquerda para carregar o histórico de conversas
+                  diretas e enviar novas mensagens.
                 </p>
               </div>
             </div>

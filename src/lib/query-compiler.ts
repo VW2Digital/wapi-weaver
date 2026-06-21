@@ -1,62 +1,82 @@
-import db from './db';
+import db from "./db";
 
 function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
 // List of allowed tables to query directly
 const ALLOWED_TABLES = new Set([
-  'profiles',
-  'user_roles',
-  'platform_settings',
-  'audit_logs',
-  'schema_backups',
-  'salvy_numbers',
-  'tags',
-  'contacts',
-  'contact_tags',
-  'lists',
-  'list_contacts',
-  'templates',
-  'campaigns',
-  'campaign_messages',
-  'webhook_events',
-  'direct_messages',
+  "profiles",
+  "user_roles",
+  "platform_settings",
+  "audit_logs",
+  "schema_backups",
+  "salvy_numbers",
+  "tags",
+  "contacts",
+  "contact_tags",
+  "lists",
+  "list_contacts",
+  "templates",
+  "campaigns",
+  "campaign_messages",
+  "webhook_events",
+  "direct_messages",
+  "sales_funnels",
+  "sales_stages",
+  "opportunity_lost_reasons",
+  "opportunities",
+  "opportunity_contacts",
+  "opportunity_stage_history",
+  "opportunity_activities",
+  "opportunity_notes",
+  "opportunity_tags",
+  "opportunity_audit_logs",
 ]);
 
 // Helper to determine if a table has a user_id column
 function hasUserIdColumn(table: string): boolean {
   return [
-    'user_roles',
-    'audit_logs',
-    'salvy_numbers',
-    'tags',
-    'contacts',
-    'contact_tags',
-    'lists',
-    'list_contacts',
-    'templates',
-    'campaigns',
-    'campaign_messages',
-    'webhook_events',
-    'direct_messages'
+    "user_roles",
+    "audit_logs",
+    "salvy_numbers",
+    "tags",
+    "contacts",
+    "contact_tags",
+    "lists",
+    "list_contacts",
+    "templates",
+    "campaigns",
+    "campaign_messages",
+    "webhook_events",
+    "direct_messages",
+    "sales_funnels",
+    "sales_stages",
+    "opportunity_lost_reasons",
+    "opportunities",
+    "opportunity_contacts",
+    "opportunity_stage_history",
+    "opportunity_activities",
+    "opportunity_notes",
+    "opportunity_tags",
+    "opportunity_audit_logs",
   ].includes(table);
 }
 
 // Helper to format ISO dates to MySQL-compatible datetime format
 function formatToMysqlDateTime(val: any): any {
-  if (typeof val !== 'string') return val;
+  if (typeof val !== "string") return val;
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
     const d = new Date(val);
     if (!isNaN(d.getTime())) {
-      const pad = (n: number) => String(n).padStart(2, '0');
+      const pad = (n: number) => String(n).padStart(2, "0");
       return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
     }
   }
@@ -78,16 +98,21 @@ function preprocessData(table: string, data: any): any {
   // Auto-stringify any remaining objects/arrays (excluding Date and Buffer) to prevent MySQL driver bind errors on TEXT/JSON columns
   for (const key in processed) {
     const val = processed[key];
-    if (val !== null && typeof val === 'object' && !(val instanceof Date) && !Buffer.isBuffer(val)) {
+    if (
+      val !== null &&
+      typeof val === "object" &&
+      !(val instanceof Date) &&
+      !Buffer.isBuffer(val)
+    ) {
       processed[key] = JSON.stringify(val);
     }
   }
 
   // Handle boolean values (MySQL uses 1/0)
   for (const key in processed) {
-    if (processed[key] === 'true' || processed[key] === true) {
+    if (processed[key] === "true" || processed[key] === true) {
       processed[key] = 1;
-    } else if (processed[key] === 'false' || processed[key] === false) {
+    } else if (processed[key] === "false" || processed[key] === false) {
       processed[key] = 0;
     }
   }
@@ -96,16 +121,28 @@ function preprocessData(table: string, data: any): any {
 }
 
 export async function executeQuery(reqQuery: any, userId: string, userRole: string): Promise<any> {
-  const { table, action, select, data, filters = [], order = [], limit, offset, upsertConflict, head, countMode } = reqQuery;
+  const {
+    table,
+    action,
+    select,
+    data,
+    filters = [],
+    order = [],
+    limit,
+    offset,
+    upsertConflict,
+    head,
+    countMode,
+  } = reqQuery;
 
   if (!table || !ALLOWED_TABLES.has(table)) {
     throw new Error(`A tabela '${table}' não é permitida ou não existe`);
   }
 
-  const isSenderAdmin = userRole === 'admin';
+  const isSenderAdmin = userRole === "admin";
   const enforceUserRestriction = hasUserIdColumn(table) && !isSenderAdmin;
 
-  let sql = '';
+  let sql = "";
   const params: any[] = [];
 
   // Build WHERE clause
@@ -113,98 +150,98 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
   // Enforce RLS-like filter on user_id
   if (enforceUserRestriction) {
-    whereClauses.push('user_id = ?');
+    whereClauses.push("user_id = ?");
     params.push(userId);
-  } else if (table === 'profiles' && !isSenderAdmin) {
-    whereClauses.push('id = ?');
+  } else if (table === "profiles" && !isSenderAdmin) {
+    whereClauses.push("id = ?");
     params.push(userId);
   }
 
   // Parse filters passed from the client
   for (const filter of filters) {
     const { type, column, value, operator } = filter;
-    
+
     // Safety check on column names
     if (!/^[a-zA-Z0-9_]+$/.test(column)) {
       throw new Error(`Nome de coluna inválido: ${column}`);
     }
 
-    if (type === 'eq') {
+    if (type === "eq") {
       if (value === null) {
         whereClauses.push(`${column} IS NULL`);
       } else {
         whereClauses.push(`${column} = ?`);
         params.push(value);
       }
-    } else if (type === 'neq') {
+    } else if (type === "neq") {
       if (value === null) {
         whereClauses.push(`${column} IS NOT NULL`);
       } else {
         whereClauses.push(`${column} != ?`);
         params.push(value);
       }
-    } else if (type === 'in') {
+    } else if (type === "in") {
       if (Array.isArray(value) && value.length > 0) {
-        const placeholders = value.map(() => '?').join(',');
+        const placeholders = value.map(() => "?").join(",");
         whereClauses.push(`${column} IN (${placeholders})`);
         params.push(...value);
       } else {
-        whereClauses.push('1 = 0');
+        whereClauses.push("1 = 0");
       }
-    } else if (type === 'gte') {
+    } else if (type === "gte") {
       whereClauses.push(`${column} >= ?`);
       params.push(value);
-    } else if (type === 'lte') {
+    } else if (type === "lte") {
       whereClauses.push(`${column} <= ?`);
       params.push(value);
-    } else if (type === 'gt') {
+    } else if (type === "gt") {
       whereClauses.push(`${column} > ?`);
       params.push(value);
-    } else if (type === 'lt') {
+    } else if (type === "lt") {
       whereClauses.push(`${column} < ?`);
       params.push(value);
-    } else if (type === 'like') {
+    } else if (type === "like") {
       whereClauses.push(`${column} LIKE ?`);
       params.push(value);
-    } else if (type === 'ilike') {
+    } else if (type === "ilike") {
       whereClauses.push(`LOWER(${column}) LIKE LOWER(?)`);
       params.push(value);
-    } else if (type === 'is') {
+    } else if (type === "is") {
       if (value === null) {
         whereClauses.push(`${column} IS NULL`);
-      } else if (typeof value === 'boolean') {
+      } else if (typeof value === "boolean") {
         whereClauses.push(`${column} = ?`);
         params.push(value ? 1 : 0);
       } else {
         whereClauses.push(`${column} = ?`);
         params.push(value);
       }
-    } else if (type === 'not') {
+    } else if (type === "not") {
       const op = operator;
-      if (op === 'is') {
+      if (op === "is") {
         if (value === null) {
           whereClauses.push(`${column} IS NOT NULL`);
-        } else if (typeof value === 'boolean') {
+        } else if (typeof value === "boolean") {
           whereClauses.push(`${column} != ?`);
           params.push(value ? 1 : 0);
         } else {
           whereClauses.push(`${column} != ?`);
           params.push(value);
         }
-      } else if (op === 'eq') {
+      } else if (op === "eq") {
         if (value === null) {
           whereClauses.push(`${column} IS NOT NULL`);
         } else {
           whereClauses.push(`${column} != ?`);
           params.push(value);
         }
-      } else if (op === 'in') {
+      } else if (op === "in") {
         if (Array.isArray(value) && value.length > 0) {
-          const placeholders = value.map(() => '?').join(',');
+          const placeholders = value.map(() => "?").join(",");
           whereClauses.push(`${column} NOT IN (${placeholders})`);
           params.push(...value);
         } else {
-          whereClauses.push('1 = 1');
+          whereClauses.push("1 = 1");
         }
       } else {
         whereClauses.push(`NOT (${column} = ?)`);
@@ -213,18 +250,18 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     }
   }
 
-  const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+  const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(" AND ")}` : "";
 
   let isListContactsWithContacts = false;
   let isCampaignMessagesWithContacts = false;
   let isContactTagsWithTags = false;
 
-  if (action === 'select') {
-    let colSelection = '*';
-    if (select && select !== '*') {
+  if (action === "select") {
+    let colSelection = "*";
+    if (select && select !== "*") {
       if (Array.isArray(select)) {
-        colSelection = select.map(c => `\`${c}\``).join(', ');
-      } else if (typeof select === 'string') {
+        colSelection = select.map((c) => `\`${c}\``).join(", ");
+      } else if (typeof select === "string") {
         colSelection = select;
       }
     }
@@ -238,14 +275,17 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     }
 
     // Translate PostgreSQL relation counts into MySQL subqueries
-    if (colSelection.includes('list_contacts(count)')) {
+    if (colSelection.includes("list_contacts(count)")) {
       colSelection = colSelection.replace(
-        'list_contacts(count)',
-        '(SELECT COUNT(*) FROM `list_contacts` WHERE `list_contacts`.`list_id` = `lists`.`id`) AS `list_contacts_count`'
+        "list_contacts(count)",
+        "(SELECT COUNT(*) FROM `list_contacts` WHERE `list_contacts`.`list_id` = `lists`.`id`) AS `list_contacts_count`",
       );
     }
 
-    if (table === 'list_contacts' && (colSelection.includes('contacts(') || colSelection.includes('contacts(*)'))) {
+    if (
+      table === "list_contacts" &&
+      (colSelection.includes("contacts(") || colSelection.includes("contacts(*)"))
+    ) {
       isListContactsWithContacts = true;
       sql = `SELECT 
         \`list_contacts\`.\`list_id\`, 
@@ -265,15 +305,24 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       FROM \`list_contacts\`
       LEFT JOIN \`contacts\` ON \`list_contacts\`.\`contact_id\` = \`contacts\`.\`id\`
       ${whereString}`;
-    } else if (table === 'campaign_messages' && (colSelection.includes('contacts(') || colSelection.includes('contacts(*)'))) {
+    } else if (
+      table === "campaign_messages" &&
+      (colSelection.includes("contacts(") || colSelection.includes("contacts(*)"))
+    ) {
       isCampaignMessagesWithContacts = true;
       // Strip contacts(...) from colSelection and build explicit JOIN columns
       const baseCol = colSelection
-        .replace(/,?\s*contacts\([^)]*\)/g, '')
+        .replace(/,?\s*contacts\([^)]*\)/g, "")
         .trim()
-        .replace(/^,|,$/, '')
+        .replace(/^,|,$/, "")
         .trim();
-      const base = baseCol && baseCol !== '*' ? `\`campaign_messages\`.${baseCol.split(',').map((c: string) => c.trim().startsWith('`') ? c.trim() : `\`${c.trim()}\``).join(', `campaign_messages`.')}` : '`campaign_messages`.*';
+      const base =
+        baseCol && baseCol !== "*"
+          ? `\`campaign_messages\`.${baseCol
+              .split(",")
+              .map((c: string) => (c.trim().startsWith("`") ? c.trim() : `\`${c.trim()}\``))
+              .join(", `campaign_messages`.")}`
+          : "`campaign_messages`.*";
       sql = `SELECT 
         ${base},
         \`contacts\`.\`name\` AS \`c_contact_name\`,
@@ -282,7 +331,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       FROM \`campaign_messages\`
       LEFT JOIN \`contacts\` ON \`campaign_messages\`.\`contact_id\` = \`contacts\`.\`id\`
       ${whereString}`;
-    } else if (table === 'contact_tags' && (colSelection.includes('tags(') || colSelection.includes('tags(*)'))) {
+    } else if (
+      table === "contact_tags" &&
+      (colSelection.includes("tags(") || colSelection.includes("tags(*)"))
+    ) {
       isContactTagsWithTags = true;
       sql = `SELECT 
         \`contact_tags\`.\`contact_id\`,
@@ -302,7 +354,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     // Add ORDER BY
     if (order && order.length > 0) {
       const orderClauses = order.map((o: any) => {
-        const dir = o.ascending ? 'ASC' : 'DESC';
+        const dir = o.ascending ? "ASC" : "DESC";
         if (isListContactsWithContacts) {
           return `\`list_contacts\`.\`${o.column}\` ${dir}`;
         }
@@ -311,12 +363,12 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
         return `\`${o.column}\` ${dir}`;
       });
-      sql += ` ORDER BY ${orderClauses.join(', ')}`;
+      sql += ` ORDER BY ${orderClauses.join(", ")}`;
     }
 
     // When count:'exact' is requested, run a parallel COUNT query
     let totalCount: number | null = null;
-    if (countMode === 'exact') {
+    if (countMode === "exact") {
       const countSql = `SELECT COUNT(*) AS \`_count\` FROM \`${table}\`${whereString}`;
       const countRes = await db.query(countSql, params);
       totalCount = Number(countRes?.[0]?._count ?? 0);
@@ -329,7 +381,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         throw new Error(`Valor de LIMIT inválido: ${limit}`);
       }
       sql += ` LIMIT ${parsedLimit}`;
-      
+
       if (offset !== undefined && offset !== null) {
         const parsedOffset = parseInt(offset, 10);
         if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
@@ -340,11 +392,11 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     }
 
     const results = await db.query(sql, params);
-    
+
     // Post-process custom count subqueries back to Supabase-like nested arrays
-    if (table === 'lists' && Array.isArray(results)) {
+    if (table === "lists" && Array.isArray(results)) {
       for (const row of results) {
-        if ('list_contacts_count' in row) {
+        if ("list_contacts_count" in row) {
           row.list_contacts = [{ count: row.list_contacts_count || 0 }];
           delete row.list_contacts_count;
         }
@@ -364,33 +416,54 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
             opted_out: row.c_opted_out === 1 || row.c_opted_out === true,
             custom_fields: row.c_custom_fields,
             created_at: row.c_created_at,
-            updated_at: row.c_updated_at
+            updated_at: row.c_updated_at,
           };
-          if (typeof row.contacts.custom_fields === 'string' && (row.contacts.custom_fields.startsWith('{') || row.contacts.custom_fields.startsWith('['))) {
-            try { row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields); } catch (e) {}
+          if (
+            typeof row.contacts.custom_fields === "string" &&
+            (row.contacts.custom_fields.startsWith("{") ||
+              row.contacts.custom_fields.startsWith("["))
+          ) {
+            try {
+              row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
+            } catch (e) {}
           }
         } else {
           row.contacts = null;
         }
-        delete row.c_id; delete row.c_user_id; delete row.c_phone_e164;
-        delete row.c_name; delete row.c_email; delete row.c_source;
-        delete row.c_opted_out; delete row.c_custom_fields;
-        delete row.c_created_at; delete row.c_updated_at;
+        delete row.c_id;
+        delete row.c_user_id;
+        delete row.c_phone_e164;
+        delete row.c_name;
+        delete row.c_email;
+        delete row.c_source;
+        delete row.c_opted_out;
+        delete row.c_custom_fields;
+        delete row.c_created_at;
+        delete row.c_updated_at;
       }
     }
 
     // Post-process campaign_messages JOIN contacts
     if (isCampaignMessagesWithContacts && Array.isArray(results)) {
       for (const row of results) {
-        row.contacts = row.c_contact_name !== null || row.c_contact_email !== null || row.c_contact_custom_fields !== null
-          ? { 
-              name: row.c_contact_name ?? null, 
-              email: row.c_contact_email ?? null, 
-              custom_fields: row.c_contact_custom_fields ?? null 
-            }
-          : null;
-        if (row.contacts && typeof row.contacts.custom_fields === 'string' && (row.contacts.custom_fields.startsWith('{') || row.contacts.custom_fields.startsWith('['))) {
-          try { row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields); } catch (e) {}
+        row.contacts =
+          row.c_contact_name !== null ||
+          row.c_contact_email !== null ||
+          row.c_contact_custom_fields !== null
+            ? {
+                name: row.c_contact_name ?? null,
+                email: row.c_contact_email ?? null,
+                custom_fields: row.c_contact_custom_fields ?? null,
+              }
+            : null;
+        if (
+          row.contacts &&
+          typeof row.contacts.custom_fields === "string" &&
+          (row.contacts.custom_fields.startsWith("{") || row.contacts.custom_fields.startsWith("["))
+        ) {
+          try {
+            row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
+          } catch (e) {}
         }
         delete row.c_contact_name;
         delete row.c_contact_email;
@@ -411,7 +484,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         } else {
           row.tags = null;
         }
-        delete row.t_id; delete row.t_name; delete row.t_color; delete row.t_created_at;
+        delete row.t_id;
+        delete row.t_name;
+        delete row.t_color;
+        delete row.t_created_at;
       }
     }
 
@@ -420,8 +496,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       for (const row of results) {
         for (const key in row) {
           const val = row[key];
-          if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
-            try { row[key] = JSON.parse(val); } catch (e) {}
+          if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
+            try {
+              row[key] = JSON.parse(val);
+            } catch (e) {}
           }
         }
       }
@@ -433,8 +511,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     }
 
     return results;
-
-  } else if (action === 'insert') {
+  } else if (action === "insert") {
     const isArray = Array.isArray(data);
     const dataList = isArray ? data : [data];
 
@@ -451,7 +528,12 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
 
         // Generate UUID if not provided
-        if (!insertData.id && table !== 'platform_settings' && table !== 'list_contacts' && table !== 'contact_tags') {
+        if (
+          !insertData.id &&
+          table !== "platform_settings" &&
+          table !== "list_contacts" &&
+          table !== "contact_tags"
+        ) {
           insertData.id = generateUUID();
         }
 
@@ -462,16 +544,16 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
 
         const columns = Object.keys(insertData);
-        const placeholders = columns.map(() => '?').join(', ');
-        const values = Object.values(insertData).map(v => v === undefined ? null : v);
+        const placeholders = columns.map(() => "?").join(", ");
+        const values = Object.values(insertData).map((v) => (v === undefined ? null : v));
 
-        let sqlQuery = `INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(', ')}) VALUES (${placeholders})`;
+        let sqlQuery = `INSERT INTO \`${table}\` (${columns.map((c) => `\`${c}\``).join(", ")}) VALUES (${placeholders})`;
 
         if (upsertConflict) {
           const updateAssigns = columns
-            .filter(c => c !== 'id' && c !== 'user_id' && c !== 'created_at')
-            .map(c => `\`${c}\` = VALUES(\`${c}\`)`)
-            .join(', ');
+            .filter((c) => c !== "id" && c !== "user_id" && c !== "created_at")
+            .map((c) => `\`${c}\` = VALUES(\`${c}\`)`)
+            .join(", ");
 
           if (updateAssigns.length > 0) {
             sqlQuery += ` ON DUPLICATE KEY UPDATE ${updateAssigns}`;
@@ -488,34 +570,55 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     if (!isArray) {
       const singleData = dataList[0] || {};
       let rows: any[] = [];
-      
-      if (table === 'list_contacts' && singleData.list_id && singleData.contact_id) {
-        rows = await db.query(`SELECT * FROM \`list_contacts\` WHERE \`list_id\` = ? AND \`contact_id\` = ?`, [singleData.list_id, singleData.contact_id]);
-      } else if (table === 'contact_tags' && singleData.contact_id && singleData.tag_id) {
-        rows = await db.query(`SELECT * FROM \`contact_tags\` WHERE \`contact_id\` = ? AND \`tag_id\` = ?`, [singleData.contact_id, singleData.tag_id]);
+
+      if (table === "list_contacts" && singleData.list_id && singleData.contact_id) {
+        rows = await db.query(
+          `SELECT * FROM \`list_contacts\` WHERE \`list_id\` = ? AND \`contact_id\` = ?`,
+          [singleData.list_id, singleData.contact_id],
+        );
+      } else if (table === "contact_tags" && singleData.contact_id && singleData.tag_id) {
+        rows = await db.query(
+          `SELECT * FROM \`contact_tags\` WHERE \`contact_id\` = ? AND \`tag_id\` = ?`,
+          [singleData.contact_id, singleData.tag_id],
+        );
       } else {
-        let pkCol = 'id';
+        let pkCol = "id";
         let pkVal = results.insertedIds[0];
-        if (table === 'platform_settings') {
-          pkCol = 'id';
+        if (table === "platform_settings") {
+          pkCol = "id";
           pkVal = singleData.id || 1;
         }
 
         if (pkVal) {
           rows = await db.query(`SELECT * FROM \`${table}\` WHERE \`${pkCol}\` = ?`, [pkVal]);
-          
+
           // Fallback: If no rows found, we might have hit a duplicate key during upsert
           if (rows.length === 0) {
-            if (table === 'contacts' && singleData.phone_e164) {
-              rows = await db.query(`SELECT * FROM \`contacts\` WHERE \`user_id\` = ? AND \`phone_e164\` = ?`, [singleData.user_id || userId, singleData.phone_e164]);
-            } else if (table === 'tags' && singleData.name) {
-              rows = await db.query(`SELECT * FROM \`tags\` WHERE \`user_id\` = ? AND \`name\` = ?`, [singleData.user_id || userId, singleData.name]);
-            } else if (table === 'user_roles' && singleData.role) {
-              rows = await db.query(`SELECT * FROM \`user_roles\` WHERE \`user_id\` = ? AND \`role\` = ?`, [singleData.user_id || userId, singleData.role]);
-            } else if (table === 'salvy_numbers' && singleData.salvy_id) {
-              rows = await db.query(`SELECT * FROM \`salvy_numbers\` WHERE \`user_id\` = ? AND \`salvy_id\` = ?`, [singleData.user_id || userId, singleData.salvy_id]);
-            } else if (table === 'templates' && singleData.name && singleData.language) {
-              rows = await db.query(`SELECT * FROM \`templates\` WHERE \`user_id\` = ? AND \`name\` = ? AND \`language\` = ?`, [singleData.user_id || userId, singleData.name, singleData.language]);
+            if (table === "contacts" && singleData.phone_e164) {
+              rows = await db.query(
+                `SELECT * FROM \`contacts\` WHERE \`user_id\` = ? AND \`phone_e164\` = ?`,
+                [singleData.user_id || userId, singleData.phone_e164],
+              );
+            } else if (table === "tags" && singleData.name) {
+              rows = await db.query(
+                `SELECT * FROM \`tags\` WHERE \`user_id\` = ? AND \`name\` = ?`,
+                [singleData.user_id || userId, singleData.name],
+              );
+            } else if (table === "user_roles" && singleData.role) {
+              rows = await db.query(
+                `SELECT * FROM \`user_roles\` WHERE \`user_id\` = ? AND \`role\` = ?`,
+                [singleData.user_id || userId, singleData.role],
+              );
+            } else if (table === "salvy_numbers" && singleData.salvy_id) {
+              rows = await db.query(
+                `SELECT * FROM \`salvy_numbers\` WHERE \`user_id\` = ? AND \`salvy_id\` = ?`,
+                [singleData.user_id || userId, singleData.salvy_id],
+              );
+            } else if (table === "templates" && singleData.name && singleData.language) {
+              rows = await db.query(
+                `SELECT * FROM \`templates\` WHERE \`user_id\` = ? AND \`name\` = ? AND \`language\` = ?`,
+                [singleData.user_id || userId, singleData.name, singleData.language],
+              );
             }
           }
         }
@@ -526,7 +629,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         // Parse JSON columns back
         for (const key in row) {
           const val = row[key];
-          if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+          if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
             try {
               row[key] = JSON.parse(val);
             } catch (e) {
@@ -536,29 +639,30 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
         return row;
       }
-      
+
       const pkVal = results.insertedIds[0];
       return { id: pkVal, affectedRows: results.totalAffectedRows };
     }
 
     return { affectedRows: results.totalAffectedRows };
-
-  } else if (action === 'update') {
+  } else if (action === "update") {
     const updateData = preprocessData(table, data);
-    
+
     // Format datetime fields
     for (const key in updateData) {
       updateData[key] = formatToMysqlDateTime(updateData[key]);
     }
 
-    const columns = Object.keys(updateData).filter(c => c !== 'id' && c !== 'user_id' && c !== 'created_at');
-    
+    const columns = Object.keys(updateData).filter(
+      (c) => c !== "id" && c !== "user_id" && c !== "created_at",
+    );
+
     if (columns.length === 0) {
       return [];
     }
 
-    const setClauses = columns.map(c => `\`${c}\` = ?`).join(', ');
-    const values = columns.map(c => updateData[c]);
+    const setClauses = columns.map((c) => `\`${c}\` = ?`).join(", ");
+    const values = columns.map((c) => updateData[c]);
 
     sql = `UPDATE \`${table}\` SET ${setClauses}${whereString}`;
     const allParams = [...values, ...params];
@@ -572,7 +676,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         for (const row of updatedRows) {
           for (const key in row) {
             const val = row[key];
-            if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+            if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
               try {
                 row[key] = JSON.parse(val);
               } catch (e) {
@@ -586,8 +690,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     } catch (e) {
       return { affectedRows: result.affectedRows };
     }
-
-  } else if (action === 'delete') {
+  } else if (action === "delete") {
     sql = `DELETE FROM \`${table}\`${whereString}`;
     const result = await db.query(sql, params);
     return { affectedRows: result.affectedRows };

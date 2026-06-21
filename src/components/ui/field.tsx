@@ -87,19 +87,13 @@ function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field-content"
-      className={cn(
-        "group/field-content flex flex-1 flex-col gap-1.5 leading-snug",
-        className,
-      )}
+      className={cn("group/field-content flex flex-1 flex-col gap-1.5 leading-snug", className)}
       {...props}
     />
   );
 }
 
-function FieldLabel({
-  className,
-  ...props
-}: React.ComponentProps<typeof Label>) {
+function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
   return (
     <Label
       data-slot="field-label"
@@ -127,10 +121,7 @@ function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function FieldDescription({
-  className,
-  ...props
-}: React.ComponentProps<"p">) {
+function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="field-description"
@@ -145,11 +136,7 @@ function FieldDescription({
   );
 }
 
-function FieldSeparator({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function FieldSeparator({ children, className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field-separator"
@@ -160,10 +147,7 @@ function FieldSeparator({
       )}
       {...props}
     >
-      <div
-        className="absolute inset-0 flex items-center justify-center"
-        aria-hidden="true"
-      >
+      <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
         <div className="bg-border h-px w-full" />
       </div>
       {children && (
@@ -192,10 +176,7 @@ function FieldError({
     if (errors.length === 1 && errors[0]?.message) return errors[0].message;
     return (
       <ul className="ml-4 flex list-disc flex-col gap-1">
-        {errors.map(
-          (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>,
-        )}
+        {errors.map((error, index) => error?.message && <li key={index}>{error.message}</li>)}
       </ul>
     );
   }, [children, errors]);

@@ -6,12 +6,25 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/empty-state";
 import { ScrollText } from "lucide-react";
 import { listAuditLogs } from "@/lib/audit.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/audit")({ component: AuditPage });
@@ -69,7 +82,11 @@ function AuditPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         title="Log de auditoria"
-        subtitle={isAdmin ? "Todas as ações sensíveis da plataforma." : "Suas ações sensíveis na plataforma."}
+        subtitle={
+          isAdmin
+            ? "Todas as ações sensíveis da plataforma."
+            : "Suas ações sensíveis na plataforma."
+        }
       />
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         <Card className="p-4">
@@ -131,7 +148,8 @@ function AuditPage() {
               {total > 0 && (
                 <div className="flex items-center justify-between border-t p-4 text-xs md:text-sm text-muted-foreground bg-muted/10">
                   <div>
-                    Mostrando {Math.min(total, (page - 1) * 20 + 1)} a {Math.min(total, page * 20)} de {total} registros
+                    Mostrando {Math.min(total, (page - 1) * 20 + 1)} a {Math.min(total, page * 20)}{" "}
+                    de {total} registros
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -166,40 +184,48 @@ function AuditPage() {
       <Dialog open={selectedLog !== null} onOpenChange={(open) => !open && setSelectedLog(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="font-display text-lg font-semibold">Detalhes do Evento de Auditoria</DialogTitle>
-            <DialogDescription>
-              Informações completas registradas para esta ação.
-            </DialogDescription>
+            <DialogTitle className="font-display text-lg font-semibold">
+              Detalhes do Evento de Auditoria
+            </DialogTitle>
+            <DialogDescription>Informações completas registradas para esta ação.</DialogDescription>
           </DialogHeader>
           {selectedLog && (
             <div className="mt-4 space-y-6">
               <div className="grid grid-cols-2 gap-4 border-b pb-4">
                 <div>
-                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Quando</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Quando
+                  </div>
                   <div className="mt-1 text-sm font-medium">
                     {new Date(selectedLog.created_at).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Ação</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Ação
+                  </div>
                   <div className="mt-1 flex flex-col">
                     <span className="text-sm font-medium">{actionLabel(selectedLog.action)}</span>
-                    <code className="text-[10px] text-muted-foreground mt-0.5">{selectedLog.action}</code>
+                    <code className="text-[10px] text-muted-foreground mt-0.5">
+                      {selectedLog.action}
+                    </code>
                   </div>
                 </div>
                 {isAdmin && (
                   <div>
-                    <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Usuário</div>
-                    <div className="mt-1 text-sm font-medium">
-                      {selectedLog.actor_email ?? "—"}
+                    <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Usuário
                     </div>
+                    <div className="mt-1 text-sm font-medium">{selectedLog.actor_email ?? "—"}</div>
                     <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
                       ID: {selectedLog.user_id ?? "—"}
                     </div>
                   </div>
                 )}
                 <div>
-                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Entidade</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Entidade
+                  </div>
                   <div className="mt-1">
                     {selectedLog.entity_type ? (
                       <div className="flex flex-col gap-1">
@@ -218,7 +244,9 @@ function AuditPage() {
               </div>
 
               <div>
-                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Metadados / Dados Relacionados</div>
+                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                  Metadados / Dados Relacionados
+                </div>
                 <pre className="overflow-x-auto rounded-xl bg-muted p-4 text-xs text-muted-foreground font-mono max-h-[300px]">
                   {JSON.stringify(selectedLog.metadata ?? {}, null, 2)}
                 </pre>

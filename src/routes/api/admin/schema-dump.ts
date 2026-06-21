@@ -2,6 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { promises as fs } from "fs";
 import path from "path";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
 
 // GET /api/admin/schema-dump
 // Endpoint seguro que gera o dump (apenas schema, sem dados) do schema `public`
@@ -18,19 +23,22 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
         try {
           // 1) Validar Bearer token
           const authz = request.headers.get("authorization") ?? "";
-          const token = authz.toLowerCase().startsWith("bearer ")
-            ? authz.slice(7).trim()
-            : "";
+          const token = authz.toLowerCase().startsWith("bearer ") ? authz.slice(7).trim() : "";
           if (!token) {
             return new Response("Unauthorized", { status: 401 });
           }
 
-          // 2) Resolver usuário a partir do token (admin client valida o JWT)
-          const { data: userData, error: userErr } = await dbAdmin.auth.getUser(token);
-          if (userErr || !userData.user) {
+          // 2) Resolver usuário a partir do token (valida o JWT)
+          let decoded: any;
+          try {
+            decoded = jwt.verify(token, JWT_SECRET);
+          } catch (e) {
             return new Response("Unauthorized", { status: 401 });
           }
-          const userId = userData.user.id;
+          if (!decoded || !decoded.sub) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+          const userId = decoded.sub;
 
           // 3) Verificar papel admin
           const { data: roles, error: rolesErr } = await dbAdmin
@@ -56,10 +64,7 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
           }
 
           const body = String(sql ?? "");
-          const ts = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-")
-            .slice(0, 19);
+          const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
           const filename = `schema-public-${ts}.sql`;
 
           // 5) Registrar auditoria (best-effort)
@@ -104,5 +109,3 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
     },
   },
 });
-
-

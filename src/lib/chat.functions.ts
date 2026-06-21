@@ -6,17 +6,23 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 const sendMessageInput = z.object({
   to: z.string().trim().min(8).max(20),
   type: z.enum(["text", "reaction", "image"]),
-  text: z.object({
-    body: z.string(),
-    preview_url: z.boolean().default(false),
-  }).optional(),
-  reaction: z.object({
-    message_id: z.string(),
-    emoji: z.string(),
-  }).optional(),
-  image: z.object({
-    id: z.string(),
-  }).optional(),
+  text: z
+    .object({
+      body: z.string(),
+      preview_url: z.boolean().default(false),
+    })
+    .optional(),
+  reaction: z
+    .object({
+      message_id: z.string(),
+      emoji: z.string(),
+    })
+    .optional(),
+  image: z
+    .object({
+      id: z.string(),
+    })
+    .optional(),
   reply_to_message_id: z.string().optional(),
 });
 
@@ -57,8 +63,11 @@ export const getChatMessages = createServerFn({ method: "POST" })
         type: row.type as "text" | "reaction" | "image",
         body: row.body,
         status: row.status,
-        reaction: row.type === "reaction" ? (meta?.reaction || { emoji: row.body, message_id: row.reply_to_message_id }) : null,
-        image: row.type === "image" ? (meta?.image || { id: row.body }) : null,
+        reaction:
+          row.type === "reaction"
+            ? meta?.reaction || { emoji: row.body, message_id: row.reply_to_message_id }
+            : null,
+        image: row.type === "image" ? meta?.image || { id: row.body } : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
       };
     });
@@ -122,7 +131,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
 
     const body = await r.json();
@@ -143,22 +152,20 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     // 4. Registra a mensagem enviada na tabela direct_messages
     // context.db is user-scoped: user_id is automatically filled in by the query compiler
-    const { error: msgErr } = await context.db
-      .from("direct_messages")
-      .insert({
-        contact_phone: digits,
-        direction: "outgoing",
-        type: data.type,
-        body: bodyText,
-        wa_message_id: wamid,
-        status: "sent",
-        reply_to_message_id: data.reply_to_message_id || null,
-        metadata: {
-          text: data.text,
-          reaction: data.reaction,
-          image: data.image,
-        },
-      });
+    const { error: msgErr } = await context.db.from("direct_messages").insert({
+      contact_phone: digits,
+      direction: "outgoing",
+      type: data.type,
+      body: bodyText,
+      wa_message_id: wamid,
+      status: "sent",
+      reply_to_message_id: data.reply_to_message_id || null,
+      metadata: {
+        text: data.text,
+        reaction: data.reaction,
+        image: data.image,
+      },
+    });
 
     if (msgErr) throw new Error(msgErr.message);
 

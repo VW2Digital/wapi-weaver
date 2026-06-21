@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "start": "node start.js",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "ci": "npm run lint && npm run type-check && npm run test && npm run build"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

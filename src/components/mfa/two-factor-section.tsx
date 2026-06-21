@@ -12,7 +12,11 @@ type Factor = { id: string; status: "verified" | "unverified"; friendly_name?: s
 export function TwoFactorSection() {
   const [loading, setLoading] = useState(true);
   const [factors, setFactors] = useState<Factor[]>([]);
-  const [enrolling, setEnrolling] = useState<{ factorId: string; qr: string; secret: string } | null>(null);
+  const [enrolling, setEnrolling] = useState<{
+    factorId: string;
+    qr: string;
+    secret: string;
+  } | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -57,7 +61,9 @@ export function TwoFactorSection() {
     if (code.length < 6) return toast.error("Informe o código de 6 dígitos");
     setBusy(true);
     try {
-      const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({ factorId: enrolling.factorId });
+      const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({
+        factorId: enrolling.factorId,
+      });
       if (chErr) throw chErr;
       const { error: vErr } = await supabase.auth.mfa.verify({
         factorId: enrolling.factorId,
@@ -101,8 +107,8 @@ export function TwoFactorSection() {
         <h2 className="font-display text-lg font-semibold">Autenticação em dois fatores (2FA)</h2>
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
-        Aumente a segurança da sua conta exigindo um código gerado em um app autenticador
-        (Google Authenticator, Authy, 1Password, etc.) ao entrar.
+        Aumente a segurança da sua conta exigindo um código gerado em um app autenticador (Google
+        Authenticator, Authy, 1Password, etc.) ao entrar.
       </p>
 
       {loading ? (
@@ -163,7 +169,11 @@ export function TwoFactorSection() {
               Cancelar
             </Button>
             <Button onClick={confirmEnroll} disabled={busy || code.length < 6}>
-              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
+              {busy ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <KeyRound className="mr-2 h-4 w-4" />
+              )}
               Ativar 2FA
             </Button>
           </div>
@@ -172,7 +182,11 @@ export function TwoFactorSection() {
         <div className="flex items-center justify-between rounded-lg border border-dashed p-4">
           <div className="text-sm text-muted-foreground">2FA está desativado nesta conta.</div>
           <Button onClick={startEnroll} disabled={busy}>
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="mr-2 h-4 w-4" />
+            )}
             Ativar 2FA
           </Button>
         </div>

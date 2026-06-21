@@ -1,12 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
-async function countBefore(
-  supabase: any,
-  table: string,
-  cutoffIso: string,
-  column = "created_at",
-) {
+async function countBefore(supabase: any, table: string, cutoffIso: string, column = "created_at") {
   const { count, error } = await supabase
     .from(table)
     .select("*", { count: "exact", head: true })
@@ -15,11 +10,7 @@ async function countBefore(
   return count ?? 0;
 }
 
-async function countDeliveredBetween(
-  supabase: any,
-  startIso: string,
-  endIso: string,
-) {
+async function countDeliveredBetween(supabase: any, startIso: string, endIso: string) {
   const { count, error } = await supabase
     .from("campaign_messages")
     .select("*", { count: "exact", head: true })

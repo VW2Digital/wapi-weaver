@@ -11,7 +11,10 @@ type SignInOptions = {
 
 export const lovable = {
   auth: {
-    signInWithOAuth: async (provider: "google" | "apple" | "microsoft" | "lovable", opts?: SignInOptions) => {
+    signInWithOAuth: async (
+      provider: "google" | "apple" | "microsoft" | "lovable",
+      opts?: SignInOptions,
+    ) => {
       let targetProvider: any = provider;
       if (provider === "lovable") {
         targetProvider = "google";
@@ -22,7 +25,9 @@ export const lovable = {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: targetProvider,
         options: {
-          redirectTo: opts?.redirect_uri || (typeof window !== "undefined" ? window.location.origin : undefined),
+          redirectTo:
+            opts?.redirect_uri ||
+            (typeof window !== "undefined" ? window.location.origin : undefined),
           queryParams: opts?.extraParams,
         },
       });

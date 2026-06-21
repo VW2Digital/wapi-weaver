@@ -38,14 +38,17 @@ export const createContact = createServerFn({ method: "POST" })
     if (!phone) throw new Error("Telefone inválido");
     const { data: row, error } = await context.db
       .from("contacts")
-      .upsert({
-        user_id: context.userId,
-        phone_e164: phone,
-        name: data.name || null,
-        email: data.email || null,
-        custom_fields: data.custom_fields ?? {},
-        source: "manual",
-      }, { onConflict: "user_id,phone_e164" })
+      .upsert(
+        {
+          user_id: context.userId,
+          phone_e164: phone,
+          name: data.name || null,
+          email: data.email || null,
+          custom_fields: data.custom_fields ?? {},
+          source: "manual",
+        },
+        { onConflict: "user_id,phone_e164" },
+      )
       .select()
       .single();
     if (error) throw error;
@@ -62,12 +65,17 @@ export const deleteContact = createServerFn({ method: "POST" })
   });
 
 const bulkInput = z.object({
-  rows: z.array(z.object({
-    phone: z.string(),
-    name: z.string().nullable().optional(),
-    email: z.string().nullable().optional(),
-    custom_fields: z.record(z.string(), z.any()).optional(),
-  })).min(1).max(20000),
+  rows: z
+    .array(
+      z.object({
+        phone: z.string(),
+        name: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+        custom_fields: z.record(z.string(), z.any()).optional(),
+      }),
+    )
+    .min(1)
+    .max(20000),
 });
 
 export const bulkUpsertContacts = createServerFn({ method: "POST" })
@@ -78,7 +86,10 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     let invalid = 0;
     for (const r of data.rows) {
       const phone = normalizeToE164(r.phone);
-      if (!phone) { invalid++; continue; }
+      if (!phone) {
+        invalid++;
+        continue;
+      }
       cleaned.push({
         user_id: context.userId,
         phone_e164: phone,
@@ -117,7 +128,9 @@ export const bulkDeleteContacts = createServerFn({ method: "POST" })
 export const bulkSetOptOut = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({ ids: z.array(z.string().uuid()).min(1).max(20000), opted_out: z.boolean() }).parse(d)
+    z
+      .object({ ids: z.array(z.string().uuid()).min(1).max(20000), opted_out: z.boolean() })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { error } = await context.db
@@ -131,10 +144,12 @@ export const bulkSetOptOut = createServerFn({ method: "POST" })
 export const bulkAddContactsToList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({
-      list_id: z.string().uuid(),
-      contact_ids: z.array(z.string().uuid()).min(1).max(20000),
-    }).parse(d)
+    z
+      .object({
+        list_id: z.string().uuid(),
+        contact_ids: z.array(z.string().uuid()).min(1).max(20000),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const rows = data.contact_ids.map((cid) => ({
@@ -152,10 +167,12 @@ export const bulkAddContactsToList = createServerFn({ method: "POST" })
 export const bulkAddTagToContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({
-      tag_id: z.string().uuid(),
-      contact_ids: z.array(z.string().uuid()).min(1).max(20000),
-    }).parse(d)
+    z
+      .object({
+        tag_id: z.string().uuid(),
+        contact_ids: z.array(z.string().uuid()).min(1).max(20000),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const rows = data.contact_ids.map((cid) => ({

@@ -20,7 +20,10 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="font-display text-7xl font-bold text-foreground">404</h1>
         <p className="mt-2 text-sm text-muted-foreground">Página não encontrada.</p>
-        <Link to="/" className="mt-6 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+        <Link
+          to="/"
+          className="mt-6 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
           Voltar
         </Link>
       </div>
@@ -46,13 +49,30 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Disparador WhatsApp Cloud API" },
-      { name: "description", content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta." },
+      {
+        name: "description",
+        content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",
+      },
       { property: "og:title", content: "Disparador WhatsApp Cloud API" },
       { name: "twitter:title", content: "Disparador WhatsApp Cloud API" },
-      { property: "og:description", content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta." },
-      { name: "twitter:description", content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/SgrGDqcOrgQk4XTillSI6aIodcF3/social-images/social-1780147276477-Captura_de_tela_2026-05-30_102104.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/SgrGDqcOrgQk4XTillSI6aIodcF3/social-images/social-1780147276477-Captura_de_tela_2026-05-30_102104.webp" },
+      {
+        property: "og:description",
+        content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",
+      },
+      {
+        name: "twitter:description",
+        content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/SgrGDqcOrgQk4XTillSI6aIodcF3/social-images/social-1780147276477-Captura_de_tela_2026-05-30_102104.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/SgrGDqcOrgQk4XTillSI6aIodcF3/social-images/social-1780147276477-Captura_de_tela_2026-05-30_102104.webp",
+      },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
@@ -60,7 +80,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,

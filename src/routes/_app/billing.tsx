@@ -9,7 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Receipt, MessageSquare, CheckCheck, XCircle, DollarSign, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Receipt,
+  MessageSquare,
+  CheckCheck,
+  XCircle,
+  DollarSign,
+  CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_app/billing")({ component: BillingPage });
 
@@ -95,7 +104,8 @@ function BillingPage() {
             <Card className="p-6">
               <h2 className="font-display text-lg font-semibold mb-1">Conversas por categoria</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                A Meta cobra por <strong>conversa</strong> (janela de 24h), não por mensagem. Use isto para conferir sua fatura.
+                A Meta cobra por <strong>conversa</strong> (janela de 24h), não por mensagem. Use
+                isto para conferir sua fatura.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -112,12 +122,16 @@ function BillingPage() {
                       .map(([cat, v]) => (
                         <tr key={cat} className="border-b last:border-0">
                           <td className="py-3">
-                            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.unknown}`}>
+                            <span
+                              className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.unknown}`}
+                            >
                               {CATEGORY_LABELS[cat] ?? cat}
                             </span>
                           </td>
                           <td className="py-3 text-right font-mono">{v.conversations}</td>
-                          <td className="py-3 text-right font-mono text-muted-foreground">{v.messages}</td>
+                          <td className="py-3 text-right font-mono text-muted-foreground">
+                            {v.messages}
+                          </td>
                         </tr>
                       ))}
                     {Object.keys(totals.by_category).length === 0 && (
@@ -138,8 +152,10 @@ function BillingPage() {
                 <div className="text-sm">
                   <p className="font-medium mb-1">Como funciona a cobrança da Meta</p>
                   <p className="text-muted-foreground">
-                    Toda primeira mensagem para um contato em uma janela de 24h abre uma <strong>conversa cobrada</strong>.
-                    Mensagens subsequentes dentro da mesma janela são gratuitas. O preço varia por categoria (marketing, utilidade, autenticação, serviço) e país do destinatário.
+                    Toda primeira mensagem para um contato em uma janela de 24h abre uma{" "}
+                    <strong>conversa cobrada</strong>. Mensagens subsequentes dentro da mesma janela
+                    são gratuitas. O preço varia por categoria (marketing, utilidade, autenticação,
+                    serviço) e país do destinatário.
                   </p>
                 </div>
               </div>
@@ -178,8 +194,34 @@ function StatCard({
   );
 }
 
-const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const MONTH_LONG = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const MONTH_NAMES = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
+const MONTH_LONG = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
 
 function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -192,7 +234,13 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
   const label = `${MONTH_LONG[month - 1]} de ${year}`;
 
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setViewYear(year); }}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setViewYear(year);
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           id="month"
@@ -205,11 +253,21 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3 pointer-events-auto" align="start">
         <div className="flex items-center justify-between mb-3">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewYear((y) => y - 1)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setViewYear((y) => y - 1)}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="text-sm font-medium">{viewYear}</div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewYear((y) => y + 1)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setViewYear((y) => y + 1)}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -233,8 +291,8 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
                   selected
                     ? "bg-primary text-primary-foreground font-medium"
                     : isCurrent
-                    ? "border border-primary/40 text-foreground hover:bg-accent"
-                    : "text-foreground hover:bg-accent",
+                      ? "border border-primary/40 text-foreground hover:bg-accent"
+                      : "text-foreground hover:bg-accent",
                   isFuture && "opacity-40 cursor-not-allowed hover:bg-transparent",
                 )}
               >

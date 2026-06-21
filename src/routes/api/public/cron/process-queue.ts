@@ -24,7 +24,9 @@ export async function processOnce() {
 
   // 0b. Limpa webhook_events processados antigos (>30 dias)
   if (Math.random() < 0.1) {
-    const retCutoff = new Date(Date.now() - WEBHOOK_EVENTS_RETENTION_DAYS * 86_400_000).toISOString();
+    const retCutoff = new Date(
+      Date.now() - WEBHOOK_EVENTS_RETENTION_DAYS * 86_400_000,
+    ).toISOString();
     await dbAdmin
       .from("webhook_events")
       .delete()
@@ -52,7 +54,9 @@ export async function processOnce() {
   // Pick up to BATCH pending messages for active campaigns
   const { data: messages, error } = await dbAdmin
     .from("campaign_messages")
-    .select("id, user_id, campaign_id, to_phone, contact_id, attempts, contacts(name, custom_fields)")
+    .select(
+      "id, user_id, campaign_id, to_phone, contact_id, attempts, contacts(name, custom_fields)",
+    )
     .eq("status", "pending")
     .in("campaign_id", activeCampIds)
     .limit(BATCH);
@@ -78,7 +82,9 @@ export async function processOnce() {
   for (const [userId, msgs] of byUser) {
     const { data: profile } = await dbAdmin
       .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version")
+      .select(
+        "whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version",
+      )
       .eq("id", userId)
       .maybeSingle();
 
@@ -86,7 +92,11 @@ export async function processOnce() {
       const ids = msgs.map((x) => x.id);
       await dbAdmin
         .from("campaign_messages")
-        .update({ status: "failed", failed_at: new Date().toISOString(), error: { message: "Credenciais não configuradas" } })
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          error: { message: "Credenciais não configuradas" },
+        })
         .in("id", ids);
       continue;
     }
@@ -105,7 +115,10 @@ export async function processOnce() {
 
     for (const m of msgs) {
       // mark sending
-      await dbAdmin.from("campaign_messages").update({ status: "sending", attempts: (m.attempts ?? 0) + 1 }).eq("id", m.id);
+      await dbAdmin
+        .from("campaign_messages")
+        .update({ status: "sending", attempts: (m.attempts ?? 0) + 1 })
+        .eq("id", m.id);
 
       try {
         const payload = buildWhatsAppPayload(
@@ -116,26 +129,42 @@ export async function processOnce() {
         );
         const r = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${profile.whatsapp_access_token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${profile.whatsapp_access_token}`,
+          },
           body: JSON.stringify(payload),
         });
         const body: any = await r.json();
         if (!r.ok) {
           await dbAdmin
             .from("campaign_messages")
-            .update({ status: "failed", failed_at: new Date().toISOString(), error: body?.error ?? body })
+            .update({
+              status: "failed",
+              failed_at: new Date().toISOString(),
+              error: body?.error ?? body,
+            })
             .eq("id", m.id);
         } else {
           const waId = body?.messages?.[0]?.id ?? null;
           await dbAdmin
             .from("campaign_messages")
-            .update({ status: "sent", sent_at: new Date().toISOString(), wa_message_id: waId, error: null })
+            .update({
+              status: "sent",
+              sent_at: new Date().toISOString(),
+              wa_message_id: waId,
+              error: null,
+            })
             .eq("id", m.id);
         }
       } catch (e: any) {
         await dbAdmin
           .from("campaign_messages")
-          .update({ status: "failed", failed_at: new Date().toISOString(), error: { message: e.message } })
+          .update({
+            status: "failed",
+            failed_at: new Date().toISOString(),
+            error: { message: e.message },
+          })
           .eq("id", m.id);
       }
       processed++;
@@ -149,9 +178,16 @@ export async function processOnce() {
         .select("status")
         .eq("campaign_id", cid);
       if (!agg) continue;
-      const totals = { total: agg.length, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 } as any;
+      const totals = {
+        total: agg.length,
+        pending: 0,
+        sent: 0,
+        delivered: 0,
+        read: 0,
+        failed: 0,
+      } as any;
       for (const r of agg) totals[r.status] = (totals[r.status] ?? 0) + 1;
-      const remaining = totals.pending + (agg.filter((r: any) => r.status === "sending").length);
+      const remaining = totals.pending + agg.filter((r: any) => r.status === "sending").length;
       const updates: any = { totals };
       if (remaining === 0) {
         updates.status = totals.failed === totals.total ? "failed" : "done";
@@ -186,10 +222,10 @@ async function checkCronAuth(request: Request): Promise<Response | null> {
     if (process.env.NODE_ENV === "development") {
       return null; // Permite executar localmente para testes
     }
-    return new Response(
-      JSON.stringify({ ok: false, error: "cron_secret not configured" }),
-      { status: 503, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ ok: false, error: "cron_secret not configured" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const header =

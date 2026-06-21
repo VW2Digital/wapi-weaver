@@ -122,21 +122,27 @@ function ProfilePage() {
   async function handleDeletePassword() {
     const ok = await confirm({
       title: "Remover senha de acesso?",
-      description: "Tem certeza de que deseja remover a senha? Você perderá o acesso por email + senha e só poderá entrar usando o Google OAuth ou links mágicos enviados por e-mail.",
+      description:
+        "Tem certeza de que deseja remover a senha? Você perderá o acesso por email + senha e só poderá entrar usando o Google OAuth ou links mágicos enviados por e-mail.",
       destructive: true,
       confirmText: "Remover senha",
-      cancelText: "Cancelar"
+      cancelText: "Cancelar",
     });
     if (!ok) return;
     setPasswordBusy(true);
     try {
       const bytes = new Uint8Array(16);
       crypto.getRandomValues(bytes);
-      const randomPassword = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("") + "A1!";
-      
+      const randomPassword =
+        Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("") + "A1!";
+
       const { error } = await db.auth.updateUser({ password: randomPassword });
       if (error) throw error;
-      toast.success("Senha de acesso removida. A partir de agora você deve entrar via Google ou links mágicos.");
+      toast.success(
+        "Senha de acesso removida. A partir de agora você deve entrar via Google ou links mágicos.",
+      );
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
@@ -157,7 +163,10 @@ function ProfilePage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader title="Meu perfil" subtitle="Gerencie sua foto, dados pessoais e dados da empresa." />
+      <PageHeader
+        title="Meu perfil"
+        subtitle="Gerencie sua foto, dados pessoais e dados da empresa."
+      />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         {/* Foto + identificação */}
@@ -188,11 +197,20 @@ function ProfilePage() {
                   onClick={() => fileRef.current?.click()}
                   disabled={uploading}
                 >
-                  {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+                  {uploading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="mr-2 h-4 w-4" />
+                  )}
                   {uploading ? "Enviando…" : "Trocar foto"}
                 </Button>
                 {form.avatar_url && (
-                  <Button variant="ghost" size="sm" onClick={removeAvatar} className="text-destructive">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={removeAvatar}
+                    className="text-destructive"
+                  >
                     <Trash2 className="mr-2 h-4 w-4" /> Remover
                   </Button>
                 )}
@@ -231,7 +249,9 @@ function ProfilePage() {
             <div className="space-y-1.5">
               <Label>E-mail</Label>
               <Input value={user?.email ?? ""} disabled />
-              <p className="text-[11px] text-muted-foreground">O e-mail de login não pode ser alterado aqui.</p>
+              <p className="text-[11px] text-muted-foreground">
+                O e-mail de login não pode ser alterado aqui.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Telefone / WhatsApp pessoal</Label>
@@ -335,7 +355,8 @@ function ProfilePage() {
             </Button>
           </div>
           <p className="mb-4 text-xs text-muted-foreground leading-relaxed">
-            Configure uma senha para poder logar diretamente com seu e-mail e senha, sem depender exclusivamente de login social (Google) ou links mágicos.
+            Configure uma senha para poder logar diretamente com seu e-mail e senha, sem depender
+            exclusivamente de login social (Google) ou links mágicos.
           </p>
           <form onSubmit={handleUpdatePassword} className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">

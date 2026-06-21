@@ -43,15 +43,20 @@ type EventRow = {
 };
 
 type Summary = {
-  kind:
-    | "template_status"
-    | "template_category"
-    | "message_status"
-    | "inbound"
-    | "other";
+  kind: "template_status" | "template_category" | "message_status" | "inbound" | "other";
   title: string;
   description: string;
-  status?: "approved" | "rejected" | "pending" | "paused" | "disabled" | "sent" | "delivered" | "read" | "failed" | "info";
+  status?:
+    | "approved"
+    | "rejected"
+    | "pending"
+    | "paused"
+    | "disabled"
+    | "sent"
+    | "delivered"
+    | "read"
+    | "failed"
+    | "info";
   icon: typeof Activity;
 };
 
@@ -112,7 +117,8 @@ function summarize(raw: any): Summary[] {
           });
         }
         for (const m of v.messages ?? []) {
-          const text = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? "(mídia)";
+          const text =
+            m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? "(mídia)";
           out.push({
             kind: "inbound",
             title: `Mensagem recebida de ${m.from ?? "—"}`,
@@ -145,21 +151,61 @@ function summarize(raw: any): Summary[] {
 }
 
 function StatusBadge({ status }: { status?: Summary["status"] }) {
-  const cfg: Record<NonNullable<Summary["status"]>, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
-    approved: { label: "Aprovado", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", Icon: CheckCircle2 },
-    rejected: { label: "Rejeitado", cls: "bg-red-500/10 text-red-600 border-red-500/20", Icon: XCircle },
-    pending: { label: "Pendente", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20", Icon: Clock },
-    paused: { label: "Pausado", cls: "bg-orange-500/10 text-orange-600 border-orange-500/20", Icon: AlertTriangle },
-    disabled: { label: "Desativado", cls: "bg-muted text-muted-foreground border-border", Icon: XCircle },
-    sent: { label: "Enviada", cls: "bg-sky-500/10 text-sky-600 border-sky-500/20", Icon: CheckCircle2 },
-    delivered: { label: "Entregue", cls: "bg-blue-500/10 text-blue-600 border-blue-500/20", Icon: CheckCircle2 },
-    read: { label: "Lida", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", Icon: CheckCircle2 },
+  const cfg: Record<
+    NonNullable<Summary["status"]>,
+    { label: string; cls: string; Icon: typeof CheckCircle2 }
+  > = {
+    approved: {
+      label: "Aprovado",
+      cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+      Icon: CheckCircle2,
+    },
+    rejected: {
+      label: "Rejeitado",
+      cls: "bg-red-500/10 text-red-600 border-red-500/20",
+      Icon: XCircle,
+    },
+    pending: {
+      label: "Pendente",
+      cls: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+      Icon: Clock,
+    },
+    paused: {
+      label: "Pausado",
+      cls: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+      Icon: AlertTriangle,
+    },
+    disabled: {
+      label: "Desativado",
+      cls: "bg-muted text-muted-foreground border-border",
+      Icon: XCircle,
+    },
+    sent: {
+      label: "Enviada",
+      cls: "bg-sky-500/10 text-sky-600 border-sky-500/20",
+      Icon: CheckCircle2,
+    },
+    delivered: {
+      label: "Entregue",
+      cls: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+      Icon: CheckCircle2,
+    },
+    read: {
+      label: "Lida",
+      cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+      Icon: CheckCircle2,
+    },
     failed: { label: "Falhou", cls: "bg-red-500/10 text-red-600 border-red-500/20", Icon: XCircle },
     info: { label: "Info", cls: "bg-muted text-muted-foreground border-border", Icon: Activity },
   };
   const { label, cls, Icon } = cfg[status ?? "info"];
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium", cls)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium",
+        cls,
+      )}
+    >
       <Icon className="h-3 w-3" /> {label}
     </span>
   );
@@ -215,14 +261,19 @@ function WebhookEventsPage() {
       if (!search) return true;
       const s = search.toLowerCase();
       return (
-        e.summaries.some((x) => x.title.toLowerCase().includes(s) || x.description.toLowerCase().includes(s)) ||
-        JSON.stringify(e.raw).toLowerCase().includes(s)
+        e.summaries.some(
+          (x) => x.title.toLowerCase().includes(s) || x.description.toLowerCase().includes(s),
+        ) || JSON.stringify(e.raw).toLowerCase().includes(s)
       );
     });
   }, [enriched, filter, search]);
 
   const stats = useMemo(() => {
-    let approved = 0, rejected = 0, pending = 0, delivered = 0, failed = 0;
+    let approved = 0,
+      rejected = 0,
+      pending = 0,
+      delivered = 0,
+      failed = 0;
     for (const e of enriched) {
       for (const s of e.summaries) {
         if (s.status === "approved") approved++;
@@ -257,23 +308,33 @@ function WebhookEventsPage() {
           </Card>
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Aprovados</div>
-            <div className="mt-1 font-display text-2xl font-semibold text-emerald-600">{stats.approved}</div>
+            <div className="mt-1 font-display text-2xl font-semibold text-emerald-600">
+              {stats.approved}
+            </div>
           </Card>
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Pendentes</div>
-            <div className="mt-1 font-display text-2xl font-semibold text-amber-600">{stats.pending}</div>
+            <div className="mt-1 font-display text-2xl font-semibold text-amber-600">
+              {stats.pending}
+            </div>
           </Card>
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Rejeitados</div>
-            <div className="mt-1 font-display text-2xl font-semibold text-red-600">{stats.rejected}</div>
+            <div className="mt-1 font-display text-2xl font-semibold text-red-600">
+              {stats.rejected}
+            </div>
           </Card>
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Entregues</div>
-            <div className="mt-1 font-display text-2xl font-semibold text-blue-600">{stats.delivered}</div>
+            <div className="mt-1 font-display text-2xl font-semibold text-blue-600">
+              {stats.delivered}
+            </div>
           </Card>
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Falhas</div>
-            <div className="mt-1 font-display text-2xl font-semibold text-red-600">{stats.failed}</div>
+            <div className="mt-1 font-display text-2xl font-semibold text-red-600">
+              {stats.failed}
+            </div>
           </Card>
         </div>
 
@@ -334,14 +395,19 @@ function WebhookEventsPage() {
                           <StatusBadge status={primary.status} />
                           {e.summaries.length > 1 && (
                             <Badge variant="secondary" className="text-[10px]">
-                              +{e.summaries.length - 1} evento{e.summaries.length - 1 > 1 ? "s" : ""}
+                              +{e.summaries.length - 1} evento
+                              {e.summaries.length - 1 > 1 ? "s" : ""}
                             </Badge>
                           )}
                         </div>
-                        <p className="mt-0.5 truncate text-sm text-muted-foreground">{primary.description}</p>
+                        <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                          {primary.description}
+                        </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-xs font-medium text-muted-foreground">{timeAgo(e.received_at)}</div>
+                        <div className="text-xs font-medium text-muted-foreground">
+                          {timeAgo(e.received_at)}
+                        </div>
                         <div className="mt-0.5 text-[10px] text-muted-foreground">
                           {new Date(e.received_at).toLocaleString()}
                         </div>

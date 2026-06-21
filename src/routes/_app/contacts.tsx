@@ -2,8 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  listContacts, createContact, deleteContact, bulkUpsertContacts,
-  bulkDeleteContacts, bulkSetOptOut, bulkAddContactsToList, bulkAddTagToContacts,
+  listContacts,
+  createContact,
+  deleteContact,
+  bulkUpsertContacts,
+  bulkDeleteContacts,
+  bulkSetOptOut,
+  bulkAddContactsToList,
+  bulkAddTagToContacts,
 } from "@/lib/contacts.functions";
 import { listLists, listTags } from "@/lib/lists.functions";
 import { PageHeader } from "@/components/layout/page-header";
@@ -13,12 +19,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub,
-  DropdownMenuSubTrigger, DropdownMenuSubContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Trash2, Upload, Plus, Users, MoreHorizontal, ListPlus, Tag as TagIcon, ShieldOff, ShieldCheck } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Trash2,
+  Upload,
+  Plus,
+  Users,
+  MoreHorizontal,
+  ListPlus,
+  Tag as TagIcon,
+  ShieldOff,
+  ShieldCheck,
+} from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import Papa from "papaparse";
@@ -46,7 +74,10 @@ function ContactsPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
 
-  const { data: contacts, isLoading } = useQuery({ queryKey: ["contacts"], queryFn: () => fetch() });
+  const { data: contacts, isLoading } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: () => fetch(),
+  });
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const tags = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags() });
 
@@ -65,7 +96,12 @@ function ContactsPage() {
 
   const createMut = useMutation({
     mutationFn: (d: typeof form) => create({ data: d as any }),
-    onSuccess: () => { toast.success("Contato adicionado"); setOpen(false); setForm({ phone: "", name: "", email: "" }); qc.invalidateQueries({ queryKey: ["contacts"] }); },
+    onSuccess: () => {
+      toast.success("Contato adicionado");
+      setOpen(false);
+      setForm({ phone: "", name: "", email: "" });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -89,20 +125,21 @@ function ContactsPage() {
         toast.error("Nenhum dado encontrado no arquivo.");
         return;
       }
-      
+
       const headers = Object.keys(rows[0]);
       setImportHeaders(headers);
       setImportRows(rows);
 
       // Auto-detect columns
-      const phoneMatch = headers.find(h => /phone|telefone|celular|contato|numero/i.test(h)) || headers[0] || "";
-      const nameMatch = headers.find(h => /name|nome|contato|cliente/i.test(h)) || "";
-      const emailMatch = headers.find(h => /email|e-mail/i.test(h)) || "";
+      const phoneMatch =
+        headers.find((h) => /phone|telefone|celular|contato|numero/i.test(h)) || headers[0] || "";
+      const nameMatch = headers.find((h) => /name|nome|contato|cliente/i.test(h)) || "";
+      const emailMatch = headers.find((h) => /email|e-mail/i.test(h)) || "";
 
       setMapping({
         phone: phoneMatch,
         name: nameMatch,
-        email: emailMatch
+        email: emailMatch,
       });
       setIsMappingOpen(true);
     } catch (err: any) {
@@ -117,21 +154,23 @@ function ContactsPage() {
       return;
     }
     try {
-      const mapped = importRows.map((r) => {
-        const known = [mapping.phone, mapping.name, mapping.email].filter(Boolean);
-        const custom: Record<string, any> = {};
-        for (const k of Object.keys(r)) {
-          if (!known.includes(k) && r[k] != null && r[k] !== "") {
-            custom[k] = r[k];
+      const mapped = importRows
+        .map((r) => {
+          const known = [mapping.phone, mapping.name, mapping.email].filter(Boolean);
+          const custom: Record<string, any> = {};
+          for (const k of Object.keys(r)) {
+            if (!known.includes(k) && r[k] != null && r[k] !== "") {
+              custom[k] = r[k];
+            }
           }
-        }
-        return {
-          phone: String(r[mapping.phone] ?? ""),
-          name: mapping.name ? String(r[mapping.name] ?? "") : null,
-          email: mapping.email ? String(r[mapping.email] ?? "") : null,
-          custom_fields: custom,
-        };
-      }).filter((r) => r.phone);
+          return {
+            phone: String(r[mapping.phone] ?? ""),
+            name: mapping.name ? String(r[mapping.name] ?? "") : null,
+            email: mapping.email ? String(r[mapping.email] ?? "") : null,
+            custom_fields: custom,
+          };
+        })
+        .filter((r) => r.phone);
 
       if (mapped.length === 0) {
         toast.error("Nenhum telefone válido encontrado nos contatos.");
@@ -139,7 +178,9 @@ function ContactsPage() {
       }
 
       const res = await bulk({ data: { rows: mapped } });
-      toast.success(`${res.inserted} contatos importados${res.invalid ? `, ${res.invalid} inválidos` : ""}`);
+      toast.success(
+        `${res.inserted} contatos importados${res.invalid ? `, ${res.invalid} inválidos` : ""}`,
+      );
       invalidate();
       setIsMappingOpen(false);
       setImportRows([]);
@@ -153,8 +194,12 @@ function ContactsPage() {
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return (contacts ?? []).filter((c: any) =>
-      !s || c.phone_e164.includes(search) || c.name?.toLowerCase().includes(s) || c.email?.toLowerCase().includes(s)
+    return (contacts ?? []).filter(
+      (c: any) =>
+        !s ||
+        c.phone_e164.includes(search) ||
+        c.name?.toLowerCase().includes(s) ||
+        c.email?.toLowerCase().includes(s),
     );
   }, [contacts, search]);
 
@@ -164,7 +209,7 @@ function ContactsPage() {
 
   const togglePage = (checked: boolean) => {
     const n = new Set(picked);
-    pageRows.forEach((c: any) => checked ? n.add(c.id) : n.delete(c.id));
+    pageRows.forEach((c: any) => (checked ? n.add(c.id) : n.delete(c.id)));
     setPicked(n);
   };
   const toggleOne = (id: string, checked: boolean) => {
@@ -176,8 +221,13 @@ function ContactsPage() {
   const handleDeleteOne = async (id: string, label: string) => {
     const ok = await confirm({
       title: "Excluir contato?",
-      description: <>Tem certeza que deseja excluir <strong>{label}</strong>? Esta ação não pode ser desfeita.</>,
-      destructive: true, confirmText: "Excluir",
+      description: (
+        <>
+          Tem certeza que deseja excluir <strong>{label}</strong>? Esta ação não pode ser desfeita.
+        </>
+      ),
+      destructive: true,
+      confirmText: "Excluir",
     });
     if (!ok) return;
     await del({ data: { id } });
@@ -189,7 +239,8 @@ function ContactsPage() {
     const ok = await confirm({
       title: `Excluir ${ids.length} contato${ids.length === 1 ? "" : "s"}?`,
       description: "Esta ação não pode ser desfeita.",
-      destructive: true, confirmText: "Excluir",
+      destructive: true,
+      confirmText: "Excluir",
     });
     if (!ok) return;
     await bulkDel({ data: { ids } });
@@ -219,7 +270,10 @@ function ContactsPage() {
     toast.success(`Tag "${tagName}" aplicada a ${ids.length} contatos`);
   };
 
-  const goPage = (p: number) => { setPage(p); setPicked(new Set()); };
+  const goPage = (p: number) => {
+    setPage(p);
+    setPicked(new Set());
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -228,8 +282,18 @@ function ContactsPage() {
         subtitle={`${contacts?.length ?? 0} contato${(contacts?.length ?? 0) === 1 ? "" : "s"} cadastrado${(contacts?.length ?? 0) === 1 ? "" : "s"}.`}
         action={
           <div className="grid grid-cols-2 gap-2 w-full lg:w-auto">
-            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" hidden onChange={handleFile} />
-            <Button variant="outline" onClick={() => fileRef.current?.click()} className="w-full justify-center">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              hidden
+              onChange={handleFile}
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              className="w-full justify-center"
+            >
               <Upload className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">Importar CSV/XLSX</span>
             </Button>
@@ -241,12 +305,39 @@ function ContactsPage() {
                 </Button>
               </DialogTrigger>
               <DialogContent>
-                <DialogHeader><DialogTitle>Novo contato</DialogTitle></DialogHeader>
+                <DialogHeader>
+                  <DialogTitle>Novo contato</DialogTitle>
+                </DialogHeader>
                 <div className="space-y-3">
-                  <div className="space-y-1.5"><Label>Telefone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+55 11 99999-0000" /></div>
-                  <div className="space-y-1.5"><Label>Nome</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-                  <div className="space-y-1.5"><Label>E-mail</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-                  <Button onClick={() => createMut.mutate(form)} disabled={createMut.isPending} className="w-full">Adicionar</Button>
+                  <div className="space-y-1.5">
+                    <Label>Telefone</Label>
+                    <Input
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="+55 11 99999-0000"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Nome</Label>
+                    <Input
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>E-mail</Label>
+                    <Input
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => createMut.mutate(form)}
+                    disabled={createMut.isPending}
+                    className="w-full"
+                  >
+                    Adicionar
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -260,34 +351,58 @@ function ContactsPage() {
               className="max-w-sm"
               placeholder="Buscar por nome, telefone ou e-mail…"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
             {picked.size > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{picked.size} selecionado{picked.size === 1 ? "" : "s"}</span>
+                <span className="text-xs text-muted-foreground">
+                  {picked.size} selecionado{picked.size === 1 ? "" : "s"}
+                </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline"><MoreHorizontal className="mr-1 h-4 w-4" /> Ações em lote</Button>
+                    <Button size="sm" variant="outline">
+                      <MoreHorizontal className="mr-1 h-4 w-4" /> Ações em lote
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56">
                     <DropdownMenuLabel>Aplicar a {picked.size} contatos</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger><ListPlus className="mr-2 h-4 w-4" /> Adicionar a lista</DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger>
+                        <ListPlus className="mr-2 h-4 w-4" /> Adicionar a lista
+                      </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="max-h-72 overflow-auto">
-                        {(lists.data ?? []).length === 0 && <DropdownMenuItem disabled>Nenhuma lista</DropdownMenuItem>}
+                        {(lists.data ?? []).length === 0 && (
+                          <DropdownMenuItem disabled>Nenhuma lista</DropdownMenuItem>
+                        )}
                         {(lists.data ?? []).map((l: any) => (
-                          <DropdownMenuItem key={l.id} onClick={() => handleAddToList(l.id, l.name)}>{l.name}</DropdownMenuItem>
+                          <DropdownMenuItem
+                            key={l.id}
+                            onClick={() => handleAddToList(l.id, l.name)}
+                          >
+                            {l.name}
+                          </DropdownMenuItem>
                         ))}
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger><TagIcon className="mr-2 h-4 w-4" /> Aplicar tag</DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger>
+                        <TagIcon className="mr-2 h-4 w-4" /> Aplicar tag
+                      </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="max-h-72 overflow-auto">
-                        {(tags.data ?? []).length === 0 && <DropdownMenuItem disabled>Nenhuma tag</DropdownMenuItem>}
+                        {(tags.data ?? []).length === 0 && (
+                          <DropdownMenuItem disabled>Nenhuma tag</DropdownMenuItem>
+                        )}
                         {(tags.data ?? []).map((t: any) => (
                           <DropdownMenuItem key={t.id} onClick={() => handleAddTag(t.id, t.name)}>
-                            <span className="mr-2 inline-block h-3 w-3 rounded-full" style={{ background: t.color }} />{t.name}
+                            <span
+                              className="mr-2 inline-block h-3 w-3 rounded-full"
+                              style={{ background: t.color }}
+                            />
+                            {t.name}
                           </DropdownMenuItem>
                         ))}
                       </DropdownMenuSubContent>
@@ -300,12 +415,17 @@ function ContactsPage() {
                       <ShieldCheck className="mr-2 h-4 w-4" /> Remover opt-out
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleBulkDelete}>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={handleBulkDelete}
+                    >
                       <Trash2 className="mr-2 h-4 w-4" /> Excluir selecionados
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>Limpar</Button>
+                <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>
+                  Limpar
+                </Button>
               </div>
             )}
           </div>
@@ -316,35 +436,70 @@ function ContactsPage() {
               <EmptyState
                 icon={Users}
                 title={search ? "Nenhum contato encontrado" : "Nenhum contato ainda"}
-                description={search ? "Tente uma busca diferente." : "Importe um CSV/XLSX ou adicione manualmente seu primeiro contato."}
-                action={!search && (
-                  <Button onClick={() => fileRef.current?.click()}>
-                    <Upload className="mr-2 h-4 w-4" /> Importar contatos
-                  </Button>
-                )}
+                description={
+                  search
+                    ? "Tente uma busca diferente."
+                    : "Importe um CSV/XLSX ou adicione manualmente seu primeiro contato."
+                }
+                action={
+                  !search && (
+                    <Button onClick={() => fileRef.current?.click()}>
+                      <Upload className="mr-2 h-4 w-4" /> Importar contatos
+                    </Button>
+                  )
+                }
               />
             ) : (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 border-b bg-muted text-left text-xs uppercase text-foreground">
                   <tr>
                     <th className="w-10 p-3">
-                      <Checkbox checked={allPagePicked} onCheckedChange={(c) => togglePage(!!c)} aria-label="Selecionar página" />
+                      <Checkbox
+                        checked={allPagePicked}
+                        onCheckedChange={(c) => togglePage(!!c)}
+                        aria-label="Selecionar página"
+                      />
                     </th>
-                    <th className="p-3">Telefone</th><th className="p-3">Nome</th><th className="p-3">E-mail</th><th className="p-3">Origem</th><th className="p-3"></th>
+                    <th className="p-3">Telefone</th>
+                    <th className="p-3">Nome</th>
+                    <th className="p-3">E-mail</th>
+                    <th className="p-3">Origem</th>
+                    <th className="p-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageRows.map((c: any) => (
-                    <tr key={c.id} className={`border-b last:border-0 hover:bg-muted/30 ${picked.has(c.id) ? "bg-muted/40" : ""}`}>
+                    <tr
+                      key={c.id}
+                      className={`border-b last:border-0 hover:bg-muted/30 ${picked.has(c.id) ? "bg-muted/40" : ""}`}
+                    >
                       <td className="p-3">
-                        <Checkbox checked={picked.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} aria-label={`Selecionar ${c.phone_e164}`} />
+                        <Checkbox
+                          checked={picked.has(c.id)}
+                          onCheckedChange={(v) => toggleOne(c.id, !!v)}
+                          aria-label={`Selecionar ${c.phone_e164}`}
+                        />
                       </td>
-                      <td className="p-3 font-mono">+{c.phone_e164}{c.opted_out && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">opt-out</span>}</td>
+                      <td className="p-3 font-mono">
+                        +{c.phone_e164}
+                        {c.opted_out && (
+                          <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">
+                            opt-out
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3">{c.name ?? "—"}</td>
                       <td className="p-3 text-muted-foreground">{c.email ?? "—"}</td>
-                      <td className="p-3 text-xs"><span className="rounded bg-muted px-2 py-0.5">{c.source ?? "—"}</span></td>
+                      <td className="p-3 text-xs">
+                        <span className="rounded bg-muted px-2 py-0.5">{c.source ?? "—"}</span>
+                      </td>
                       <td className="p-3 text-right">
-                        <Button size="icon" variant="ghost" aria-label="Excluir" onClick={() => handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`)}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Excluir"
+                          onClick={() => handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`)}
+                        >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </td>
@@ -360,14 +515,24 @@ function ContactsPage() {
         </Card>
       </div>
 
-      <Dialog open={isMappingOpen} onOpenChange={(o) => { if (!o) { setIsMappingOpen(false); if (fileRef.current) fileRef.current.value = ""; } }}>
+      <Dialog
+        open={isMappingOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setIsMappingOpen(false);
+            if (fileRef.current) fileRef.current.value = "";
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Mapear colunas do arquivo</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Detectamos <strong>{importRows.length}</strong> contatos. Mapeie abaixo quais colunas contêm as informações correspondentes. Colunas não mapeadas serão adicionadas automaticamente como campos personalizados.
+              Detectamos <strong>{importRows.length}</strong> contatos. Mapeie abaixo quais colunas
+              contêm as informações correspondentes. Colunas não mapeadas serão adicionadas
+              automaticamente como campos personalizados.
             </p>
 
             <div className="space-y-1.5">
@@ -382,7 +547,9 @@ function ContactsPage() {
               >
                 <option value="">Selecione a coluna...</option>
                 {importHeaders.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
                 ))}
               </select>
             </div>
@@ -396,7 +563,9 @@ function ContactsPage() {
               >
                 <option value="">(Nenhuma / Não importar)</option>
                 {importHeaders.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
                 ))}
               </select>
             </div>
@@ -410,13 +579,23 @@ function ContactsPage() {
               >
                 <option value="">(Nenhuma / Não importar)</option>
                 {importHeaders.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
                 ))}
               </select>
             </div>
-            
+
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => { setIsMappingOpen(false); if (fileRef.current) fileRef.current.value = ""; }}>Cancelar</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsMappingOpen(false);
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+              >
+                Cancelar
+              </Button>
               <Button onClick={confirmImport}>Confirmar e Importar</Button>
             </div>
           </div>

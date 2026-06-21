@@ -24,10 +24,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
-import { ShieldCheck, UserPlus, Trash2, Users as UsersIcon, Loader2, BarChart3, Mail, Send, CheckCheck, XCircle, Clock, FileText, Tag, List as ListIcon, Megaphone } from "lucide-react";
-import { listUsers, createUser, setUserRole, deleteUser, getUserActivity } from "@/lib/users-admin.functions";
+import {
+  ShieldCheck,
+  UserPlus,
+  Trash2,
+  Users as UsersIcon,
+  Loader2,
+  BarChart3,
+  Mail,
+  Send,
+  CheckCheck,
+  XCircle,
+  Clock,
+  FileText,
+  Tag,
+  List as ListIcon,
+  Megaphone,
+} from "lucide-react";
+import {
+  listUsers,
+  createUser,
+  setUserRole,
+  deleteUser,
+  getUserActivity,
+} from "@/lib/users-admin.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
 import { useConfirm } from "@/components/confirm-dialog";
 
@@ -81,8 +110,12 @@ function AdminUsers() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-users"] });
 
   const createMut = useMutation({
-    mutationFn: (input: { email: string; password: string; display_name?: string; role: "admin" | "user" }) =>
-      create({ data: input }),
+    mutationFn: (input: {
+      email: string;
+      password: string;
+      display_name?: string;
+      role: "admin" | "user";
+    }) => create({ data: input }),
     onSuccess: () => {
       toast.success("Usuário criado");
       invalidate();
@@ -110,7 +143,12 @@ function AdminUsers() {
   });
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "", display_name: "", role: "user" as "admin" | "user" });
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    display_name: "",
+    role: "user" as "admin" | "user",
+  });
   const [activityUser, setActivityUser] = useState<{ id: string; email: string } | null>(null);
 
   const submit = async (e: React.FormEvent) => {
@@ -305,10 +343,7 @@ function AdminUsers() {
         </Card>
       </div>
 
-      <UserActivityDialog
-        user={activityUser}
-        onOpenChange={(o) => !o && setActivityUser(null)}
-      />
+      <UserActivityDialog user={activityUser} onOpenChange={(o) => !o && setActivityUser(null)} />
     </div>
   );
 }
@@ -349,10 +384,7 @@ function UserActivityDialog({
               <InfoRow label="Conta criada" value={fmt(data.profile.created_at)} />
               <InfoRow label="Email confirmado" value={fmt(data.profile.confirmed_at)} />
               <InfoRow label="Último login" value={fmt(data.profile.last_sign_in_at)} />
-              <InfoRow
-                label="Status"
-                value={data.profile.confirmed_at ? "Ativo" : "Pendente"}
-              />
+              <InfoRow label="Status" value={data.profile.confirmed_at ? "Ativo" : "Pendente"} />
             </section>
 
             <section>
@@ -373,11 +405,27 @@ function UserActivityDialog({
                 <Send className="h-4 w-4" /> Mensagens por status
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <StatusPill icon={Clock} label="Pendentes" value={data.messages.byStatus.pending ?? 0} />
+                <StatusPill
+                  icon={Clock}
+                  label="Pendentes"
+                  value={data.messages.byStatus.pending ?? 0}
+                />
                 <StatusPill icon={Send} label="Enviadas" value={data.messages.byStatus.sent ?? 0} />
-                <StatusPill icon={CheckCheck} label="Entregues" value={data.messages.byStatus.delivered ?? 0} />
-                <StatusPill icon={CheckCheck} label="Lidas" value={data.messages.byStatus.read ?? 0} />
-                <StatusPill icon={XCircle} label="Falhas" value={data.messages.byStatus.failed ?? 0} />
+                <StatusPill
+                  icon={CheckCheck}
+                  label="Entregues"
+                  value={data.messages.byStatus.delivered ?? 0}
+                />
+                <StatusPill
+                  icon={CheckCheck}
+                  label="Lidas"
+                  value={data.messages.byStatus.read ?? 0}
+                />
+                <StatusPill
+                  icon={XCircle}
+                  label="Falhas"
+                  value={data.messages.byStatus.failed ?? 0}
+                />
               </div>
             </section>
 
@@ -420,7 +468,7 @@ function UserActivityDialog({
                           <Badge variant="outline">{c.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right text-sm">
-                          {(c.totals?.delivered ?? 0)}/{(c.totals?.total ?? 0)}
+                          {c.totals?.delivered ?? 0}/{c.totals?.total ?? 0}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {fmt(c.created_at)}

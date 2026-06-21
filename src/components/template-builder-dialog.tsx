@@ -2,17 +2,45 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Phone, Reply, Copy, ShoppingBag, LayoutGrid, Zap, KeyRound, PhoneCall } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ExternalLink,
+  Phone,
+  Reply,
+  Copy,
+  ShoppingBag,
+  LayoutGrid,
+  Zap,
+  KeyRound,
+  PhoneCall,
+} from "lucide-react";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { createTemplate, updateTemplate, type CreateTemplateInput } from "@/lib/templates.functions";
+import {
+  createTemplate,
+  updateTemplate,
+  type CreateTemplateInput,
+} from "@/lib/templates.functions";
 
 type HeaderState =
   | { format: "NONE" }
@@ -27,8 +55,21 @@ type ButtonState =
   | { type: "COPY_CODE"; example: string[] }
   | { type: "CATALOG"; text: string }
   | { type: "MPM"; text: string }
-  | { type: "FLOW"; text: string; flow_id: string; flow_action: "navigate" | "data_exchange"; navigate_screen?: string }
-  | { type: "OTP"; otp_type: "COPY_CODE" | "ONE_TAP" | "ZERO_TAP"; text?: string; autofill_text?: string; package_name?: string; signature_hash?: string }
+  | {
+      type: "FLOW";
+      text: string;
+      flow_id: string;
+      flow_action: "navigate" | "data_exchange";
+      navigate_screen?: string;
+    }
+  | {
+      type: "OTP";
+      otp_type: "COPY_CODE" | "ONE_TAP" | "ZERO_TAP";
+      text?: string;
+      autofill_text?: string;
+      package_name?: string;
+      signature_hash?: string;
+    }
   | { type: "VOICE_CALL"; text: string };
 
 const LANGS = [
@@ -47,7 +88,13 @@ function extractVarCount(text: string) {
   return nums.length ? Math.max(...nums) : 0;
 }
 
-export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNode; template?: any }) {
+export function TemplateBuilderDialog({
+  trigger,
+  template,
+}: {
+  trigger: ReactNode;
+  template?: any;
+}) {
   const [open, setOpen] = useState(false);
   const submitCreate = useServerFn(createTemplate);
   const submitUpdate = useServerFn(updateTemplate);
@@ -67,7 +114,7 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
       setName(template.name || "");
       setLanguage(template.language || "pt_BR");
       setCategory(template.category || "MARKETING");
-      
+
       const comps = template.components || [];
       const headerComp = comps.find((c: any) => c.type === "HEADER");
       if (headerComp) {
@@ -76,7 +123,10 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
         } else if (headerComp.format === "LOCATION") {
           setHeader({ format: "LOCATION" });
         } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComp.format)) {
-          setHeader({ format: headerComp.format, example_url: headerComp.example?.header_handle?.[0] || "" });
+          setHeader({
+            format: headerComp.format,
+            example_url: headerComp.example?.header_handle?.[0] || "",
+          });
         } else {
           setHeader({ format: "NONE" });
         }
@@ -122,8 +172,16 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
   const previewComponents: any[] = [];
   if (header.format === "TEXT") {
     previewComponents.push({ type: "HEADER", format: "TEXT", text: header.text });
-  } else if (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT") {
-    previewComponents.push({ type: "HEADER", format: header.format, example: { header_handle: [header.example_url] } });
+  } else if (
+    header.format === "IMAGE" ||
+    header.format === "VIDEO" ||
+    header.format === "DOCUMENT"
+  ) {
+    previewComponents.push({
+      type: "HEADER",
+      format: header.format,
+      example: { header_handle: [header.example_url] },
+    });
   } else if (header.format === "LOCATION") {
     previewComponents.push({ type: "HEADER", format: "LOCATION" });
   }
@@ -158,7 +216,11 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
       }
     },
     onSuccess: () => {
-      toast.success(template ? "Template atualizado com sucesso." : "Template criado. Aguarde a análise da Meta.");
+      toast.success(
+        template
+          ? "Template atualizado com sucesso."
+          : "Template criado. Aguarde a análise da Meta.",
+      );
       qc.invalidateQueries({ queryKey: ["templates"] });
       qc.invalidateQueries({ queryKey: ["templates", "all"] });
       reset();
@@ -168,24 +230,47 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
   });
 
   function reset() {
-    setName(""); setLanguage("pt_BR"); setCategory("MARKETING");
-    setHeader({ format: "NONE" }); setBody(""); setBodyExamples([]);
-    setFooter(""); setButtons([]);
+    setName("");
+    setLanguage("pt_BR");
+    setCategory("MARKETING");
+    setHeader({ format: "NONE" });
+    setBody("");
+    setBodyExamples([]);
+    setFooter("");
+    setButtons([]);
   }
 
   function addButton(type: ButtonState["type"]) {
     if (buttons.length >= 10) return;
     let nb: ButtonState;
     switch (type) {
-      case "QUICK_REPLY": nb = { type, text: "" }; break;
-      case "URL": nb = { type, text: "", url: "https://" }; break;
-      case "PHONE_NUMBER": nb = { type, text: "", phone_number: "+55" }; break;
-      case "COPY_CODE": nb = { type, example: [""] }; break;
-      case "CATALOG": nb = { type, text: "Ver catálogo" }; break;
-      case "MPM": nb = { type, text: "Ver produtos" }; break;
-      case "FLOW": nb = { type, text: "", flow_id: "", flow_action: "navigate" }; break;
-      case "OTP": nb = { type, otp_type: "COPY_CODE", text: "Copiar código" }; break;
-      case "VOICE_CALL": nb = { type, text: "Ligar" }; break;
+      case "QUICK_REPLY":
+        nb = { type, text: "" };
+        break;
+      case "URL":
+        nb = { type, text: "", url: "https://" };
+        break;
+      case "PHONE_NUMBER":
+        nb = { type, text: "", phone_number: "+55" };
+        break;
+      case "COPY_CODE":
+        nb = { type, example: [""] };
+        break;
+      case "CATALOG":
+        nb = { type, text: "Ver catálogo" };
+        break;
+      case "MPM":
+        nb = { type, text: "Ver produtos" };
+        break;
+      case "FLOW":
+        nb = { type, text: "", flow_id: "", flow_action: "navigate" };
+        break;
+      case "OTP":
+        nb = { type, otp_type: "COPY_CODE", text: "Copiar código" };
+        break;
+      case "VOICE_CALL":
+        nb = { type, text: "Ligar" };
+        break;
     }
     setButtons([...buttons, nb!]);
   }
@@ -215,16 +300,24 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
                     placeholder="ex: boas_vindas_clientes"
                     value={name}
                     disabled={!!template}
-                    onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
+                    onChange={(e) =>
+                      setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))
+                    }
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">minúsculas, números e _</p>
                 </div>
                 <div>
                   <Label>Idioma</Label>
                   <Select value={language} onValueChange={setLanguage} disabled={!!template}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {LANGS.map((l) => <SelectItem key={l.v} value={l.v}>{l.l}</SelectItem>)}
+                      {LANGS.map((l) => (
+                        <SelectItem key={l.v} value={l.v}>
+                          {l.l}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -232,7 +325,9 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
               <div>
                 <Label>Categoria</Label>
                 <Select value={category} onValueChange={(v: any) => setCategory(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MARKETING">Marketing</SelectItem>
                     <SelectItem value="UTILITY">Utilidade (transacional)</SelectItem>
@@ -246,13 +341,18 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
             <Card className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Cabeçalho</h3>
-                <Select value={header.format} onValueChange={(v: any) => {
-                  if (v === "NONE") setHeader({ format: "NONE" });
-                  else if (v === "TEXT") setHeader({ format: "TEXT", text: "" });
-                  else if (v === "LOCATION") setHeader({ format: "LOCATION" });
-                  else setHeader({ format: v, example_url: "" });
-                }}>
-                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <Select
+                  value={header.format}
+                  onValueChange={(v: any) => {
+                    if (v === "NONE") setHeader({ format: "NONE" });
+                    else if (v === "TEXT") setHeader({ format: "TEXT", text: "" });
+                    else if (v === "LOCATION") setHeader({ format: "LOCATION" });
+                    else setHeader({ format: v, example_url: "" });
+                  }}
+                >
+                  <SelectTrigger className="w-44">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="NONE">Sem cabeçalho</SelectItem>
                     <SelectItem value="TEXT">Texto</SelectItem>
@@ -273,15 +373,21 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
                   />
                 </div>
               )}
-              {(header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT") && (
+              {(header.format === "IMAGE" ||
+                header.format === "VIDEO" ||
+                header.format === "DOCUMENT") && (
                 <div>
                   <Label>URL de exemplo ({header.format.toLowerCase()})</Label>
                   <Input
                     placeholder="https://…"
                     value={header.example_url}
-                    onChange={(e) => setHeader({ format: header.format, example_url: e.target.value })}
+                    onChange={(e) =>
+                      setHeader({ format: header.format, example_url: e.target.value })
+                    }
                   />
-                  <p className="mt-1 text-[11px] text-muted-foreground">A Meta exige um exemplo para aprovar.</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    A Meta exige um exemplo para aprovar.
+                  </p>
                 </div>
               )}
             </Card>
@@ -300,7 +406,11 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
                 onChange={(e) => setBody(e.target.value)}
               />
               <p className="text-[11px] text-muted-foreground">
-                Use <code>{"{{1}}"}, {"{{2}}"}</code> etc. para variáveis dinâmicas.
+                Use{" "}
+                <code>
+                  {"{{1}}"}, {"{{2}}"}
+                </code>{" "}
+                etc. para variáveis dinâmicas.
               </p>
               {bodyVarCount > 0 && (
                 <div className="space-y-2 rounded border bg-muted/30 p-3">
@@ -327,7 +437,12 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
                 <h3 className="font-medium">Rodapé (opcional)</h3>
                 <span className="text-xs text-muted-foreground">{footer.length}/60</span>
               </div>
-              <Input maxLength={60} value={footer} onChange={(e) => setFooter(e.target.value)} placeholder="ex: Equipe Acme" />
+              <Input
+                maxLength={60}
+                value={footer}
+                onChange={(e) => setFooter(e.target.value)}
+                placeholder="ex: Equipe Acme"
+              />
             </Card>
 
             {/* Buttons */}
@@ -336,118 +451,265 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
                 <h3 className="font-medium">Botões ({buttons.length}/10)</h3>
               </div>
               <div className="flex flex-wrap gap-1">
-                <Button size="sm" variant="outline" onClick={() => addButton("QUICK_REPLY")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("QUICK_REPLY")}
+                  disabled={buttons.length >= 10}
+                >
                   <Reply className="mr-1 h-3.5 w-3.5" /> Resposta rápida
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("URL")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("URL")}
+                  disabled={buttons.length >= 10}
+                >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" /> Link
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("PHONE_NUMBER")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("PHONE_NUMBER")}
+                  disabled={buttons.length >= 10}
+                >
                   <Phone className="mr-1 h-3.5 w-3.5" /> Telefone
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("COPY_CODE")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("COPY_CODE")}
+                  disabled={buttons.length >= 10}
+                >
                   <Copy className="mr-1 h-3.5 w-3.5" /> Copiar código
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("CATALOG")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("CATALOG")}
+                  disabled={buttons.length >= 10}
+                >
                   <ShoppingBag className="mr-1 h-3.5 w-3.5" /> Catálogo
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("MPM")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("MPM")}
+                  disabled={buttons.length >= 10}
+                >
                   <LayoutGrid className="mr-1 h-3.5 w-3.5" /> Multi-produto
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("FLOW")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("FLOW")}
+                  disabled={buttons.length >= 10}
+                >
                   <Zap className="mr-1 h-3.5 w-3.5" /> Flow
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("OTP")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("OTP")}
+                  disabled={buttons.length >= 10}
+                >
                   <KeyRound className="mr-1 h-3.5 w-3.5" /> OTP (auth)
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => addButton("VOICE_CALL")} disabled={buttons.length >= 10}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addButton("VOICE_CALL")}
+                  disabled={buttons.length >= 10}
+                >
                   <PhoneCall className="mr-1 h-3.5 w-3.5" /> Chamada
                 </Button>
               </div>
               {buttons.length === 0 && (
-                <p className="text-xs text-muted-foreground">Nenhum botão. A Meta exige tipos compatíveis (ex.: OTP só em templates de Autenticação; Catálogo/MPM exigem catálogo conectado).</p>
+                <p className="text-xs text-muted-foreground">
+                  Nenhum botão. A Meta exige tipos compatíveis (ex.: OTP só em templates de
+                  Autenticação; Catálogo/MPM exigem catálogo conectado).
+                </p>
               )}
               <div className="space-y-2">
                 {buttons.map((b, i) => {
                   const labels: Record<string, string> = {
-                    QUICK_REPLY: "Resposta", URL: "Link", PHONE_NUMBER: "Telefone",
-                    COPY_CODE: "Cód.", CATALOG: "Catálogo", MPM: "Produtos",
-                    FLOW: "Flow", OTP: "OTP", VOICE_CALL: "Voz",
+                    QUICK_REPLY: "Resposta",
+                    URL: "Link",
+                    PHONE_NUMBER: "Telefone",
+                    COPY_CODE: "Cód.",
+                    CATALOG: "Catálogo",
+                    MPM: "Produtos",
+                    FLOW: "Flow",
+                    OTP: "OTP",
+                    VOICE_CALL: "Voz",
                   };
                   return (
                     <div key={i} className="flex items-start gap-2 rounded border p-2">
-                      <span className="mt-2 w-16 shrink-0 text-xs font-medium text-muted-foreground">{labels[b.type]}</span>
+                      <span className="mt-2 w-16 shrink-0 text-xs font-medium text-muted-foreground">
+                        {labels[b.type]}
+                      </span>
                       <div className="flex-1 grid gap-2 md:grid-cols-2">
                         {b.type === "QUICK_REPLY" && (
-                          <Input className="md:col-span-2" placeholder="Texto (até 25)" maxLength={25}
-                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                          <Input
+                            className="md:col-span-2"
+                            placeholder="Texto (até 25)"
+                            maxLength={25}
+                            value={b.text}
+                            onChange={(e) => updateButton(i, { text: e.target.value } as any)}
+                          />
                         )}
-                        {b.type === "URL" && (<>
-                          <Input placeholder="Texto do botão" maxLength={25}
-                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
-                          <Input placeholder="https://exemplo.com/{{1}}"
-                            value={b.url} onChange={(e) => updateButton(i, { url: e.target.value } as any)} />
-                          {b.url.includes("{{1}}") && (
-                            <Input className="md:col-span-2" placeholder="Exemplo do valor de {{1}} na URL"
-                              value={b.example?.[0] ?? ""}
-                              onChange={(e) => updateButton(i, { example: [e.target.value] } as any)} />
-                          )}
-                        </>)}
-                        {b.type === "PHONE_NUMBER" && (<>
-                          <Input placeholder="Texto do botão" maxLength={25}
-                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
-                          <Input placeholder="+5511999999999"
-                            value={b.phone_number} onChange={(e) => updateButton(i, { phone_number: e.target.value } as any)} />
-                        </>)}
+                        {b.type === "URL" && (
+                          <>
+                            <Input
+                              placeholder="Texto do botão"
+                              maxLength={25}
+                              value={b.text}
+                              onChange={(e) => updateButton(i, { text: e.target.value } as any)}
+                            />
+                            <Input
+                              placeholder="https://exemplo.com/{{1}}"
+                              value={b.url}
+                              onChange={(e) => updateButton(i, { url: e.target.value } as any)}
+                            />
+                            {b.url.includes("{{1}}") && (
+                              <Input
+                                className="md:col-span-2"
+                                placeholder="Exemplo do valor de {{1}} na URL"
+                                value={b.example?.[0] ?? ""}
+                                onChange={(e) =>
+                                  updateButton(i, { example: [e.target.value] } as any)
+                                }
+                              />
+                            )}
+                          </>
+                        )}
+                        {b.type === "PHONE_NUMBER" && (
+                          <>
+                            <Input
+                              placeholder="Texto do botão"
+                              maxLength={25}
+                              value={b.text}
+                              onChange={(e) => updateButton(i, { text: e.target.value } as any)}
+                            />
+                            <Input
+                              placeholder="+5511999999999"
+                              value={b.phone_number}
+                              onChange={(e) =>
+                                updateButton(i, { phone_number: e.target.value } as any)
+                              }
+                            />
+                          </>
+                        )}
                         {b.type === "COPY_CODE" && (
-                          <Input className="md:col-span-2" placeholder="Código de exemplo (ex.: PROMO10)" maxLength={15}
+                          <Input
+                            className="md:col-span-2"
+                            placeholder="Código de exemplo (ex.: PROMO10)"
+                            maxLength={15}
                             value={b.example[0] ?? ""}
-                            onChange={(e) => updateButton(i, { example: [e.target.value] } as any)} />
+                            onChange={(e) => updateButton(i, { example: [e.target.value] } as any)}
+                          />
                         )}
                         {(b.type === "CATALOG" || b.type === "MPM" || b.type === "VOICE_CALL") && (
-                          <Input className="md:col-span-2" placeholder="Texto do botão" maxLength={25}
-                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
+                          <Input
+                            className="md:col-span-2"
+                            placeholder="Texto do botão"
+                            maxLength={25}
+                            value={b.text}
+                            onChange={(e) => updateButton(i, { text: e.target.value } as any)}
+                          />
                         )}
-                        {b.type === "FLOW" && (<>
-                          <Input placeholder="Texto do botão" maxLength={25}
-                            value={b.text} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
-                          <Input placeholder="Flow ID"
-                            value={b.flow_id} onChange={(e) => updateButton(i, { flow_id: e.target.value } as any)} />
-                          <Select value={b.flow_action} onValueChange={(v: any) => updateButton(i, { flow_action: v } as any)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="navigate">navigate</SelectItem>
-                              <SelectItem value="data_exchange">data_exchange</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {b.flow_action === "navigate" && (
-                            <Input placeholder="Tela inicial (opcional)"
-                              value={b.navigate_screen ?? ""}
-                              onChange={(e) => updateButton(i, { navigate_screen: e.target.value } as any)} />
-                          )}
-                        </>)}
-                        {b.type === "OTP" && (<>
-                          <Select value={b.otp_type} onValueChange={(v: any) => updateButton(i, { otp_type: v } as any)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="COPY_CODE">Copy code</SelectItem>
-                              <SelectItem value="ONE_TAP">One-tap autofill</SelectItem>
-                              <SelectItem value="ZERO_TAP">Zero-tap</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Input placeholder="Texto do botão (opcional)" maxLength={25}
-                            value={b.text ?? ""} onChange={(e) => updateButton(i, { text: e.target.value } as any)} />
-                          {(b.otp_type === "ONE_TAP" || b.otp_type === "ZERO_TAP") && (<>
-                            <Input placeholder="Autofill text" maxLength={25}
-                              value={b.autofill_text ?? ""} onChange={(e) => updateButton(i, { autofill_text: e.target.value } as any)} />
-                            <Input placeholder="Package name (Android)"
-                              value={b.package_name ?? ""} onChange={(e) => updateButton(i, { package_name: e.target.value } as any)} />
-                            <Input className="md:col-span-2" placeholder="Signature hash (Android)"
-                              value={b.signature_hash ?? ""} onChange={(e) => updateButton(i, { signature_hash: e.target.value } as any)} />
-                          </>)}
-                        </>)}
+                        {b.type === "FLOW" && (
+                          <>
+                            <Input
+                              placeholder="Texto do botão"
+                              maxLength={25}
+                              value={b.text}
+                              onChange={(e) => updateButton(i, { text: e.target.value } as any)}
+                            />
+                            <Input
+                              placeholder="Flow ID"
+                              value={b.flow_id}
+                              onChange={(e) => updateButton(i, { flow_id: e.target.value } as any)}
+                            />
+                            <Select
+                              value={b.flow_action}
+                              onValueChange={(v: any) => updateButton(i, { flow_action: v } as any)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="navigate">navigate</SelectItem>
+                                <SelectItem value="data_exchange">data_exchange</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {b.flow_action === "navigate" && (
+                              <Input
+                                placeholder="Tela inicial (opcional)"
+                                value={b.navigate_screen ?? ""}
+                                onChange={(e) =>
+                                  updateButton(i, { navigate_screen: e.target.value } as any)
+                                }
+                              />
+                            )}
+                          </>
+                        )}
+                        {b.type === "OTP" && (
+                          <>
+                            <Select
+                              value={b.otp_type}
+                              onValueChange={(v: any) => updateButton(i, { otp_type: v } as any)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="COPY_CODE">Copy code</SelectItem>
+                                <SelectItem value="ONE_TAP">One-tap autofill</SelectItem>
+                                <SelectItem value="ZERO_TAP">Zero-tap</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              placeholder="Texto do botão (opcional)"
+                              maxLength={25}
+                              value={b.text ?? ""}
+                              onChange={(e) => updateButton(i, { text: e.target.value } as any)}
+                            />
+                            {(b.otp_type === "ONE_TAP" || b.otp_type === "ZERO_TAP") && (
+                              <>
+                                <Input
+                                  placeholder="Autofill text"
+                                  maxLength={25}
+                                  value={b.autofill_text ?? ""}
+                                  onChange={(e) =>
+                                    updateButton(i, { autofill_text: e.target.value } as any)
+                                  }
+                                />
+                                <Input
+                                  placeholder="Package name (Android)"
+                                  value={b.package_name ?? ""}
+                                  onChange={(e) =>
+                                    updateButton(i, { package_name: e.target.value } as any)
+                                  }
+                                />
+                                <Input
+                                  className="md:col-span-2"
+                                  placeholder="Signature hash (Android)"
+                                  value={b.signature_hash ?? ""}
+                                  onChange={(e) =>
+                                    updateButton(i, { signature_hash: e.target.value } as any)
+                                  }
+                                />
+                              </>
+                            )}
+                          </>
+                        )}
                       </div>
-                      <Button size="icon" variant="ghost" onClick={() => setButtons(buttons.filter((_, j) => j !== i))}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setButtons(buttons.filter((_, j) => j !== i))}
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -456,15 +718,26 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
               </div>
             </Card>
 
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => { reset(); setOpen(false); }}>Cancelar</Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  reset();
+                  setOpen(false);
+                }}
+              >
+                Cancelar
+              </Button>
               <Button
                 onClick={() => mutation.mutate()}
                 disabled={mutation.isPending || !name || !body}
               >
                 {!template && <Plus className="mr-1 h-4 w-4" />}
-                {mutation.isPending ? "Salvando…" : template ? "Salvar alterações" : "Criar template"}
+                {mutation.isPending
+                  ? "Salvando…"
+                  : template
+                    ? "Salvar alterações"
+                    : "Criar template"}
               </Button>
             </div>
           </div>
@@ -481,7 +754,8 @@ export function TemplateBuilderDialog({ trigger, template }: { trigger: ReactNod
                 </div>
               )}
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Se as credenciais da Meta estiverem configuradas, o template é enviado para aprovação. Caso contrário, fica salvo localmente como PENDING.
+                Se as credenciais da Meta estiverem configuradas, o template é enviado para
+                aprovação. Caso contrário, fica salvo localmente como PENDING.
               </p>
             </div>
           </div>

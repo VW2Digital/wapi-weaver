@@ -56,7 +56,9 @@ export const listAuditLogs = createServerFn({ method: "POST" })
 
     let q = context.db
       .from("audit_logs")
-      .select("id, user_id, actor_email, action, entity_type, entity_id, metadata, created_at", { count: "exact" })
+      .select("id, user_id, actor_email, action, entity_type, entity_id, metadata, created_at", {
+        count: "exact",
+      })
       .order("created_at", { ascending: false })
       .range(from, to);
 
@@ -68,17 +70,15 @@ export const listAuditLogs = createServerFn({ method: "POST" })
     if (rows && rows.length > 0) {
       const missingUserIds = Array.from(
         new Set(
-          rows
-            .filter((r: any) => !r.actor_email && r.user_id)
-            .map((r: any) => r.user_id as string)
-        )
+          rows.filter((r: any) => !r.actor_email && r.user_id).map((r: any) => r.user_id as string),
+        ),
       );
       if (missingUserIds.length > 0) {
         const { data: profiles } = await context.db
           .from("profiles")
           .select("id, email")
           .in("id", missingUserIds);
-        
+
         if (profiles && profiles.length > 0) {
           const emailMap = new Map((profiles as any[]).map((p: any) => [p.id, p.email]));
           mappedRows = rows.map((r: any) => {

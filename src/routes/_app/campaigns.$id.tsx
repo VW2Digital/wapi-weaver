@@ -6,7 +6,15 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, RefreshCw, Download, MessageSquare, Calendar, Layers, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  RefreshCw,
+  Download,
+  MessageSquare,
+  Calendar,
+  Layers,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
 
@@ -46,7 +54,9 @@ function CampaignDetailPage() {
       const blob = new Blob([r.csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = r.filename; a.click();
+      a.href = url;
+      a.download = r.filename;
+      a.click();
       URL.revokeObjectURL(url);
       toast.success(`Exportado: ${r.rows} linha(s)`);
     },
@@ -54,7 +64,8 @@ function CampaignDetailPage() {
   });
 
   if (isLoading) return <p className="p-10 text-muted-foreground">Carregando…</p>;
-  if (!data?.campaign) return <p className="p-10 text-muted-foreground">Campanha não encontrada.</p>;
+  if (!data?.campaign)
+    return <p className="p-10 text-muted-foreground">Campanha não encontrada.</p>;
 
   const c = data.campaign;
   const t = (c.totals ?? {}) as Record<string, number>;
@@ -70,14 +81,34 @@ function CampaignDetailPage() {
         subtitle={`Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`}
         action={
           <div className="flex items-center gap-2">
-            <Link to="/campaigns" className="hidden sm:block"><Button variant="ghost"><ArrowLeft className="mr-1 h-4 w-4" /> Voltar</Button></Link>
-            <Button variant="outline" size="icon" className="sm:w-auto sm:px-4" onClick={() => refetch()} disabled={isFetching} title="Atualizar">
+            <Link to="/campaigns" className="hidden sm:block">
+              <Button variant="ghost">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="icon"
+              className="sm:w-auto sm:px-4"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title="Atualizar"
+            >
               <RefreshCw className={`h-4 w-4 sm:mr-1 ${isFetching ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">Atualizar</span>
             </Button>
-            <Button variant="outline" size="icon" className="sm:w-auto sm:px-4" onClick={() => exportMut.mutate()} disabled={exportMut.isPending} title="Exportar CSV">
+            <Button
+              variant="outline"
+              size="icon"
+              className="sm:w-auto sm:px-4"
+              onClick={() => exportMut.mutate()}
+              disabled={exportMut.isPending}
+              title="Exportar CSV"
+            >
               <Download className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">{exportMut.isPending ? "Exportando…" : "Exportar CSV"}</span>
+              <span className="hidden sm:inline">
+                {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
+              </span>
             </Button>
           </div>
         }
@@ -87,17 +118,30 @@ function CampaignDetailPage() {
         {/* Summary strip */}
         <Card className="p-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryItem icon={<span className={`inline-block h-2 w-2 rounded-full ${s.cls}`} />} label="Status">
-              <span className={`inline-block rounded px-2 py-0.5 text-sm font-medium ${s.cls}`}>{s.label}</span>
+            <SummaryItem
+              icon={<span className={`inline-block h-2 w-2 rounded-full ${s.cls}`} />}
+              label="Status"
+            >
+              <span className={`inline-block rounded px-2 py-0.5 text-sm font-medium ${s.cls}`}>
+                {s.label}
+              </span>
             </SummaryItem>
             <SummaryItem icon={<Layers className="h-4 w-4 text-muted-foreground" />} label="Tipo">
               <span className="text-sm font-medium capitalize">{c.message_type}</span>
             </SummaryItem>
-            <SummaryItem icon={<Users className="h-4 w-4 text-muted-foreground" />} label="Total na fila">
+            <SummaryItem
+              icon={<Users className="h-4 w-4 text-muted-foreground" />}
+              label="Total na fila"
+            >
               <span className="text-sm font-medium">{total} contatos</span>
             </SummaryItem>
-            <SummaryItem icon={<Calendar className="h-4 w-4 text-muted-foreground" />} label="Criada em">
-              <span className="text-sm font-medium">{new Date(c.created_at).toLocaleString("pt-BR")}</span>
+            <SummaryItem
+              icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
+              label="Criada em"
+            >
+              <span className="text-sm font-medium">
+                {new Date(c.created_at).toLocaleString("pt-BR")}
+              </span>
             </SummaryItem>
           </div>
         </Card>
@@ -109,7 +153,10 @@ function CampaignDetailPage() {
               <h3 className="font-display text-base font-semibold">Progresso de envio</h3>
               <p className="text-xs text-muted-foreground">{pct}% concluído</p>
             </div>
-            <span className="text-2xl font-semibold tabular-nums">{sent}<span className="text-base text-muted-foreground">/{total}</span></span>
+            <span className="text-2xl font-semibold tabular-nums">
+              {sent}
+              <span className="text-base text-muted-foreground">/{total}</span>
+            </span>
           </div>
           <Progress value={pct} className="h-2" />
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -133,7 +180,9 @@ function CampaignDetailPage() {
 
           <Card className="overflow-hidden">
             <div className="border-b p-4">
-              <h3 className="font-display text-base font-semibold">Destinatários ({data.messages.length})</h3>
+              <h3 className="font-display text-base font-semibold">
+                Destinatários ({data.messages.length})
+              </h3>
               <p className="text-xs text-muted-foreground">Últimas 500 mensagens da campanha.</p>
             </div>
             <div className="max-h-[600px] overflow-auto">
@@ -152,19 +201,36 @@ function CampaignDetailPage() {
                 <tbody>
                   {data.messages.map((m: any) => (
                     <tr key={m.id} className="border-t hover:bg-muted/30">
-                      <td className="p-3 text-xs">{m.contacts?.name || <span className="text-muted-foreground">—</span>}</td>
+                      <td className="p-3 text-xs">
+                        {m.contacts?.name || <span className="text-muted-foreground">—</span>}
+                      </td>
                       <td className="p-3 font-mono text-xs">+{m.to_phone}</td>
                       <td className="p-3">{MSG_STATUS[m.status] ?? m.status}</td>
-                      <td className="p-3 text-xs text-muted-foreground">{m.sent_at ? new Date(m.sent_at).toLocaleString("pt-BR") : "—"}</td>
-                      <td className="p-3 text-xs text-muted-foreground">{m.delivered_at ? new Date(m.delivered_at).toLocaleString("pt-BR") : "—"}</td>
-                      <td className="p-3 text-xs text-muted-foreground">{m.read_at ? new Date(m.read_at).toLocaleString("pt-BR") : "—"}</td>
-                      <td className="p-3 text-xs text-destructive">{m.error ? (typeof m.error === "string" ? m.error : JSON.stringify(m.error).slice(0, 80)) : "—"}</td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {m.sent_at ? new Date(m.sent_at).toLocaleString("pt-BR") : "—"}
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {m.delivered_at ? new Date(m.delivered_at).toLocaleString("pt-BR") : "—"}
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {m.read_at ? new Date(m.read_at).toLocaleString("pt-BR") : "—"}
+                      </td>
+                      <td className="p-3 text-xs text-destructive">
+                        {m.error
+                          ? typeof m.error === "string"
+                            ? m.error
+                            : JSON.stringify(m.error).slice(0, 80)
+                          : "—"}
+                      </td>
                     </tr>
                   ))}
                   {data.messages.length === 0 && (
-                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Sem mensagens ainda.</td></tr>
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                        Sem mensagens ainda.
+                      </td>
+                    </tr>
                   )}
-
                 </tbody>
               </table>
             </div>
@@ -175,7 +241,15 @@ function CampaignDetailPage() {
   );
 }
 
-function SummaryItem({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+function SummaryItem({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
@@ -187,11 +261,25 @@ function SummaryItem({ icon, label, children }: { icon: React.ReactNode; label: 
   );
 }
 
-function MetricCard({ label, value, hint, variant }: { label: string; value: number; hint?: string; variant?: "destructive" }) {
+function MetricCard({
+  label,
+  value,
+  hint,
+  variant,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+  variant?: "destructive";
+}) {
   return (
     <Card className="p-4">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${variant === "destructive" ? "text-destructive" : ""}`}>{value}</p>
+      <p
+        className={`mt-1 text-2xl font-semibold ${variant === "destructive" ? "text-destructive" : ""}`}
+      >
+        {value}
+      </p>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </Card>
   );
@@ -218,7 +306,8 @@ function CampaignMessagePreview({ campaign, template }: { campaign: any; templat
     }
     return (
       <div className="text-sm text-muted-foreground">
-        Template <span className="font-medium text-foreground">{p.template_name ?? "—"}</span> ({p.language ?? "—"})
+        Template <span className="font-medium text-foreground">{p.template_name ?? "—"}</span> (
+        {p.language ?? "—"})
         {Array.isArray(p.variables) && p.variables.length > 0 && (
           <div className="mt-2 text-xs">Variáveis: {p.variables.join(", ")}</div>
         )}
@@ -238,12 +327,19 @@ function CampaignMessagePreview({ campaign, template }: { campaign: any; templat
     return (
       <div className="space-y-2 max-w-md">
         <div className="rounded-lg border bg-card p-3">
-          <div className="mb-2 text-xs uppercase text-muted-foreground">{p.media_type ?? "mídia"}</div>
+          <div className="mb-2 text-xs uppercase text-muted-foreground">
+            {p.media_type ?? "mídia"}
+          </div>
           {p.media_type === "image" && p.media_url && (
             <img src={p.media_url} alt="" className="max-h-64 rounded object-contain" />
           )}
           {p.media_type !== "image" && (
-            <a href={p.media_url} target="_blank" rel="noreferrer" className="break-all text-xs text-primary underline">
+            <a
+              href={p.media_url}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-xs text-primary underline"
+            >
               {p.media_url}
             </a>
           )}
@@ -253,5 +349,7 @@ function CampaignMessagePreview({ campaign, template }: { campaign: any; templat
     );
   }
 
-  return <pre className="overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify(p, null, 2)}</pre>;
+  return (
+    <pre className="overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify(p, null, 2)}</pre>
+  );
 }

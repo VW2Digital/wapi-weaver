@@ -1,18 +1,18 @@
-import { serve } from '@hono/node-server'
-import { serveStatic } from '@hono/node-server/serve-static'
-import { Hono } from 'hono'
-import server from './dist/server/server.js'
-import mysql from 'mysql2/promise'
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { Hono } from "hono";
+import server from "./dist/server/server.js";
+import mysql from "mysql2/promise";
 
 async function initDatabase() {
   try {
     console.log("Auto-migrating database schema...");
     const connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306', 10),
-      user: process.env.DB_USER || 'wapi_user',
-      password: process.env.DB_PASSWORD || 'S0xbxPfKazBVT8JFy1UEOjIsrjox',
-      database: process.env.DB_NAME || 'wapi_weaver',
+      host: process.env.DB_HOST || "localhost",
+      port: parseInt(process.env.DB_PORT || "3306", 10),
+      user: process.env.DB_USER || "wapi_user",
+      password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+      database: process.env.DB_NAME || "wapi_weaver",
     });
 
     console.log("Ensuring table direct_messages exists...");
@@ -39,7 +39,7 @@ async function initDatabase() {
         CREATE INDEX idx_direct_messages_user_phone ON direct_messages(user_id, contact_phone);
       `);
     } catch (err) {
-      if (err.code !== 'ER_DUP_KEYNAME') {
+      if (err.code !== "ER_DUP_KEYNAME") {
         console.warn("Could not create user_phone index:", err.message);
       }
     }
@@ -50,7 +50,7 @@ async function initDatabase() {
         CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
       `);
     } catch (err) {
-      if (err.code !== 'ER_DUP_KEYNAME') {
+      if (err.code !== "ER_DUP_KEYNAME") {
         console.warn("Could not create wa_id index:", err.message);
       }
     }
@@ -65,22 +65,22 @@ async function initDatabase() {
 // Run database init on startup
 await initDatabase();
 
-const app = new Hono()
+const app = new Hono();
 
 // Serve static assets from dist/client
-app.use('/assets/*', serveStatic({ root: './dist/client' }))
-app.use('/*', serveStatic({ root: './dist/client' }))
+app.use("/assets/*", serveStatic({ root: "./dist/client" }));
+app.use("/*", serveStatic({ root: "./dist/client" }));
 
 // Pass all other requests to the TanStack Start SSR fetch handler
-app.all('*', async (c) => {
-  return server.fetch(c.req.raw)
-})
+app.all("*", async (c) => {
+  return server.fetch(c.req.raw);
+});
 
-const port = process.env.PORT || 3000
+const port = process.env.PORT || 3000;
 
-console.log(`Starting Node server on port ${port}...`)
+console.log(`Starting Node server on port ${port}...`);
 
 serve({
   fetch: app.fetch,
-  port: Number(port)
-})
+  port: Number(port),
+});

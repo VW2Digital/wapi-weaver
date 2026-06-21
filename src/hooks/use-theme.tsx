@@ -63,7 +63,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setIsSystem(true);
   };
 
-  return <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, resetTheme, isSystem }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, resetTheme, isSystem }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

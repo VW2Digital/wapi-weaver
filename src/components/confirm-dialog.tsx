@@ -62,7 +62,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               onClick={() => close(true)}
               className={cn(
                 state.opts.destructive &&
-                  "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  "bg-destructive text-destructive-foreground hover:bg-destructive/90",
               )}
             >
               {state.opts.confirmText ?? "Confirmar"}

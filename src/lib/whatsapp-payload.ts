@@ -4,7 +4,12 @@ function toE164NoPlus(raw: string): string {
   return String(raw ?? "").replace(/\D+/g, "");
 }
 
-export function buildWhatsAppPayload(messageType: string, toPhone: string, payload: any, contact?: { name?: string | null; custom_fields?: any }) {
+export function buildWhatsAppPayload(
+  messageType: string,
+  toPhone: string,
+  payload: any,
+  contact?: { name?: string | null; custom_fields?: any },
+) {
   const base: any = { messaging_product: "whatsapp", to: toE164NoPlus(toPhone) };
 
   const interpolate = (s: string) =>

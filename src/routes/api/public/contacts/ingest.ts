@@ -45,37 +45,67 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
       POST: async ({ request }) => {
         const cors = corsHeaders(request, { "Content-Type": "application/json" });
         const apiKey = request.headers.get("x-api-key");
-        if (!apiKey) return new Response(JSON.stringify({ error: "Missing X-API-Key" }), { status: 401, headers: cors });
+        if (!apiKey)
+          return new Response(JSON.stringify({ error: "Missing X-API-Key" }), {
+            status: 401,
+            headers: cors,
+          });
 
         const { data: profile } = await dbAdmin
           .from("profiles")
           .select("id")
           .eq("api_key", apiKey)
           .maybeSingle();
-        if (!profile) return new Response(JSON.stringify({ error: "Invalid API key" }), { status: 401, headers: cors });
+        if (!profile)
+          return new Response(JSON.stringify({ error: "Invalid API key" }), {
+            status: 401,
+            headers: cors,
+          });
 
         let body: unknown;
-        try { body = await request.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: cors }); }
+        try {
+          body = await request.json();
+        } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+            status: 400,
+            headers: cors,
+          });
+        }
 
         const parsed = schema.safeParse(body);
-        if (!parsed.success) return new Response(JSON.stringify({ error: "Validation failed", details: parsed.error.flatten() }), { status: 400, headers: cors });
+        if (!parsed.success)
+          return new Response(
+            JSON.stringify({ error: "Validation failed", details: parsed.error.flatten() }),
+            { status: 400, headers: cors },
+          );
 
         const phone = normalizeToE164(parsed.data.phone);
-        if (!phone) return new Response(JSON.stringify({ error: "Invalid phone" }), { status: 400, headers: cors });
+        if (!phone)
+          return new Response(JSON.stringify({ error: "Invalid phone" }), {
+            status: 400,
+            headers: cors,
+          });
 
         const { data: contact, error } = await dbAdmin
           .from("contacts")
-          .upsert({
-            user_id: profile.id,
-            phone_e164: phone,
-            name: parsed.data.name ?? null,
-            email: parsed.data.email ?? null,
-            custom_fields: parsed.data.custom_fields ?? {},
-            source: "api",
-          }, { onConflict: "user_id,phone_e164" })
+          .upsert(
+            {
+              user_id: profile.id,
+              phone_e164: phone,
+              name: parsed.data.name ?? null,
+              email: parsed.data.email ?? null,
+              custom_fields: parsed.data.custom_fields ?? {},
+              source: "api",
+            },
+            { onConflict: "user_id,phone_e164" },
+          )
           .select()
           .single();
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: cors });
+        if (error)
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: cors,
+          });
 
         // tags (optional)
         if (parsed.data.tags?.length) {
@@ -93,7 +123,10 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
           }
         }
 
-        return new Response(JSON.stringify({ ok: true, contact_id: contact.id }), { status: 200, headers: cors });
+        return new Response(JSON.stringify({ ok: true, contact_id: contact.id }), {
+          status: 200,
+          headers: cors,
+        });
       },
     },
   },

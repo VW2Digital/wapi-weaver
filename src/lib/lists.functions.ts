@@ -12,10 +12,17 @@ export const listTags = createServerFn({ method: "GET" })
 
 export const createTag = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({
-    name: z.string().trim().min(1).max(40),
-    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#25D366"),
-  }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({
+        name: z.string().trim().min(1).max(40),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .default("#25D366"),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.db
       .from("tags")
@@ -48,10 +55,14 @@ export const listLists = createServerFn({ method: "GET" })
 
 export const createList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({
-    name: z.string().trim().min(1).max(80),
-    description: z.string().trim().max(280).optional(),
-  }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({
+        name: z.string().trim().min(1).max(80),
+        description: z.string().trim().max(280).optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.db
       .from("lists")
@@ -73,10 +84,14 @@ export const deleteList = createServerFn({ method: "POST" })
 
 export const addContactsToList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({
-    list_id: z.string().uuid(),
-    contact_ids: z.array(z.string().uuid()).min(1).max(20000),
-  }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({
+        list_id: z.string().uuid(),
+        contact_ids: z.array(z.string().uuid()).min(1).max(20000),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const rows = data.contact_ids.map((cid) => ({
       list_id: data.list_id,
@@ -92,7 +107,9 @@ export const addContactsToList = createServerFn({ method: "POST" })
 
 export const removeContactFromList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ list_id: z.string().uuid(), contact_id: z.string().uuid() }).parse(d))
+  .inputValidator((d) =>
+    z.object({ list_id: z.string().uuid(), contact_id: z.string().uuid() }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { error } = await context.db
       .from("list_contacts")

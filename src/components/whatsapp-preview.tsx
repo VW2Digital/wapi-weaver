@@ -1,4 +1,17 @@
-import { ExternalLink, Phone, Reply, FileText, Video, Copy, ShoppingBag, LayoutGrid, Zap, KeyRound, PhoneCall, MapPin } from "lucide-react";
+import {
+  ExternalLink,
+  Phone,
+  Reply,
+  FileText,
+  Video,
+  Copy,
+  ShoppingBag,
+  LayoutGrid,
+  Zap,
+  KeyRound,
+  PhoneCall,
+  MapPin,
+} from "lucide-react";
 
 type Button = {
   type: string;
@@ -26,9 +39,17 @@ function renderText(s?: string, vars?: Record<string, string>) {
       const key = m[1].trim();
       const value = vars?.[key];
       if (value) {
-        return <span key={i} className="font-medium">{value}</span>;
+        return (
+          <span key={i} className="font-medium">
+            {value}
+          </span>
+        );
       }
-      return <span key={i} className="rounded bg-primary/15 px-1 text-primary">{p}</span>;
+      return (
+        <span key={i} className="rounded bg-primary/15 px-1 text-primary">
+          {p}
+        </span>
+      );
     }
     return <span key={i}>{p}</span>;
   });
@@ -47,18 +68,13 @@ export function WhatsAppPreview({
   const buttonsBlock = components.find((c) => c.type === "BUTTONS");
   const buttons = buttonsBlock?.buttons ?? [];
 
-  const headerImage =
-    header?.format === "IMAGE" ? header.example?.header_handle?.[0] : undefined;
+  const headerImage = header?.format === "IMAGE" ? header.example?.header_handle?.[0] : undefined;
 
   return (
     <div className="rounded-2xl bg-[#e5ddd5] p-4">
       <div className="relative ml-auto max-w-[300px] rounded-lg rounded-tr-none bg-white p-2 text-neutral-900 shadow-sm">
         {headerImage && (
-          <img
-            src={headerImage}
-            alt=""
-            className="mb-2 h-32 w-full rounded-md object-cover"
-          />
+          <img src={headerImage} alt="" className="mb-2 h-32 w-full rounded-md object-cover" />
         )}
         {header?.format === "VIDEO" && (
           <div className="mb-2 flex h-32 w-full items-center justify-center rounded-md bg-neutral-200 text-neutral-600">
@@ -96,13 +112,13 @@ export function WhatsAppPreview({
           {buttons.map((b, i) => {
             const label =
               b.type === "OTP"
-                ? (b.text || (b.otp_type === "COPY_CODE" ? "Copiar código" : "Verificar"))
+                ? b.text || (b.otp_type === "COPY_CODE" ? "Copiar código" : "Verificar")
                 : b.type === "COPY_CODE"
                   ? `Copiar código${b.example?.[0] ? ` (${b.example[0]})` : ""}`
                   : b.type === "CATALOG"
-                    ? (b.text || "Ver catálogo")
+                    ? b.text || "Ver catálogo"
                     : b.type === "MPM"
-                      ? (b.text || "Ver produtos")
+                      ? b.text || "Ver produtos"
                       : b.text;
             return (
               <div

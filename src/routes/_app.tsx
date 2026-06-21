@@ -2,7 +2,28 @@ import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { db } from "@/integrations/mysql/client";
-import { MessageCircle, LayoutDashboard, Users, ListChecks, FileText, Send, Settings, LogOut, User as UserIcon, ChevronUp, Sun, Moon, Receipt, ShieldCheck, Menu, ScrollText, UserCog, ShieldAlert, Activity } from "lucide-react";
+import {
+  MessageCircle,
+  LayoutDashboard,
+  Users,
+  ListChecks,
+  FileText,
+  Send,
+  Settings,
+  LogOut,
+  User as UserIcon,
+  ChevronUp,
+  Sun,
+  Moon,
+  Receipt,
+  ShieldCheck,
+  Menu,
+  ScrollText,
+  UserCog,
+  ShieldAlert,
+  Activity,
+  Kanban,
+} from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import {
@@ -22,7 +43,10 @@ import { useEffect, useState } from "react";
 function useGravatarUrl(email: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!email) { setUrl(null); return; }
+    if (!email) {
+      setUrl(null);
+      return;
+    }
     const normalized = email.trim().toLowerCase();
     crypto.subtle
       .digest("SHA-256", new TextEncoder().encode(normalized))
@@ -46,13 +70,13 @@ const NAV = [
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns", label: "Campanhas", icon: Send },
-  
+  { to: "/crm", label: "Funil de Vendas", icon: Kanban },
+
   { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/users", label: "Usuários", icon: ShieldCheck },
   { to: "/audit", label: "Auditoria", icon: ScrollText },
   { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
 ] as const;
-
 
 function AppLayout() {
   const { user, loading } = useAuth();
@@ -66,18 +90,29 @@ function AppLayout() {
   const { isAdmin, loading: rolesLoading } = useRoles();
 
   useEffect(() => {
-    if (!user) { setProfileAvatar(null); return; }
+    if (!user) {
+      setProfileAvatar(null);
+      return;
+    }
     let cancelled = false;
-    db.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle().then(({ data }: any) => {
-      if (!cancelled) setProfileAvatar(data?.avatar_url ?? null);
-    });
-    return () => { cancelled = true; };
+    db.from("profiles")
+      .select("avatar_url")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (!cancelled) setProfileAvatar(data?.avatar_url ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   const avatarUrl = profileAvatar || gravatarUrl;
 
   // Close drawer on navigation
-  useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [loc.pathname]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -87,7 +122,10 @@ function AppLayout() {
 
   // Garante AAL2 quando o usuário tem 2FA habilitado
   useEffect(() => {
-    if (!user) { setMfaOk(null); return; }
+    if (!user) {
+      setMfaOk(null);
+      return;
+    }
     let cancelled = false;
     db.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }: any) => {
       if (cancelled) return;
@@ -97,7 +135,9 @@ function AppLayout() {
         setMfaOk(true);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   useEffect(() => {
@@ -107,10 +147,18 @@ function AppLayout() {
   }, [mfaOk, router]);
 
   if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
-    return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">Carregando…</div>;
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-muted-foreground">
+        Carregando…
+      </div>
+    );
   }
   if (!user || mfaOk === false) {
-    return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">Carregando…</div>;
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-muted-foreground">
+        Carregando…
+      </div>
+    );
   }
 
   const logout = async () => {
@@ -123,9 +171,13 @@ function AppLayout() {
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary">
           <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
         </div>
-        <span className="font-display text-base font-semibold text-sidebar-foreground">ZapDispatch</span>
+        <span className="font-display text-base font-semibold text-sidebar-foreground">
+          ZapDispatch
+        </span>
       </div>
-      <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60">Menu</div>
+      <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+        Menu
+      </div>
       <nav className="flex-1 space-y-1 px-3 overflow-y-auto">
         {NAV.map(({ to, label, icon: Icon }) => {
           const isAdminOnly = ["/users", "/audit", "/webhook-events", "/billing"].includes(to);
@@ -142,9 +194,18 @@ function AppLayout() {
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
               )}
             >
-              {active && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200" />}
-              <Icon className={cn("h-4 w-4 transition-transform duration-200 group-hover:scale-110", active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70")} />
-              <span className="transition-transform duration-200 group-hover:translate-x-0.5">{label}</span>
+              {active && (
+                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200" />
+              )}
+              <Icon
+                className={cn(
+                  "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
+                  active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
+                )}
+              />
+              <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+                {label}
+              </span>
             </Link>
           );
         })}
@@ -152,7 +213,10 @@ function AppLayout() {
       <div className="m-3 mt-4 border-t border-sidebar-border pt-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label="Abrir menu do usuário" className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors">
+            <button
+              aria-label="Abrir menu do usuário"
+              className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors"
+            >
               <Avatar className="h-9 w-9">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
                 <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
@@ -160,7 +224,9 @@ function AppLayout() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate text-sidebar-foreground">{user.email?.split("@")[0]}</div>
+                <div className="text-sm font-medium truncate text-sidebar-foreground">
+                  {user.email?.split("@")[0]}
+                </div>
                 <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
               </div>
               <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0" />
@@ -185,12 +251,25 @@ function AppLayout() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={(e) => { e.preventDefault(); toggleTheme(); }} className="cursor-pointer">
-              {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                toggleTheme();
+              }}
+              className="cursor-pointer"
+            >
+              {theme === "dark" ? (
+                <Sun className="mr-2 h-4 w-4" />
+              ) : (
+                <Moon className="mr-2 h-4 w-4" />
+              )}
               {theme === "dark" ? "Tema claro" : "Tema escuro"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={logout}
+              className="cursor-pointer text-destructive focus:text-destructive"
+            >
               <LogOut className="mr-2 h-4 w-4" /> Sair
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -204,8 +283,6 @@ function AppLayout() {
       <aside className="hidden md:flex flex-col rounded-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm md:fixed md:inset-y-3 md:left-3 md:w-[260px] md:z-30">
         {SidebarBody}
       </aside>
-
-
 
       {/* Mobile top bar */}
       <header className="md:hidden mb-3 flex items-center gap-2 rounded-2xl border bg-card px-3 py-2 shadow-sm">

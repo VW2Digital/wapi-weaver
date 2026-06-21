@@ -16,7 +16,17 @@ services:
       # Automatically initialize database schema on first container startup
       - ./schema_mysql.sql:/docker-entrypoint-initdb.d/1-schema.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p4dgjvikyycAYkRvHHx1ouky62Sgx"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p4dgjvikyycAYkRvHHx1ouky62Sgx",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -13,7 +13,6 @@ export interface Session {
   [key: string]: any;
 }
 
-
 interface AuthCtx {
   user: User | null;
   session: Session | null;

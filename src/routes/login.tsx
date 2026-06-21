@@ -70,7 +70,9 @@ function LoginPage() {
 
   const google = async () => {
     setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
     if (result.error) toast.error("Falha no login com Google");
     setBusy(false);
   };
@@ -94,7 +96,6 @@ function LoginPage() {
     }
   };
 
-
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="hidden bg-sidebar p-12 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
@@ -109,7 +110,8 @@ function LoginPage() {
             Dispare mensagens em escala com a API oficial do WhatsApp.
           </h1>
           <p className="text-sidebar-foreground/70">
-            Contatos, listas, templates aprovados, fila de envio e webhooks de status — tudo em um painel.
+            Contatos, listas, templates aprovados, fila de envio e webhooks de status — tudo em um
+            painel.
           </p>
         </div>
         <p className="text-xs text-sidebar-foreground/50">
@@ -133,129 +135,163 @@ function LoginPage() {
           {mfaRequired ? (
             <div className="mt-6">
               <MfaChallenge
-                onVerified={() => { setMfaRequired(false); navigate({ to: "/dashboard" }); }}
+                onVerified={() => {
+                  setMfaRequired(false);
+                  navigate({ to: "/dashboard" });
+                }}
                 onCancel={() => setMfaRequired(false)}
               />
             </div>
           ) : (
-          <>
-
-
-          <Button type="button" variant="outline" className="mt-6 w-full" onClick={google} disabled={busy}>
-            Continuar com Google
-          </Button>
-
-          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="h-px flex-1 bg-border" /> ou <div className="h-px flex-1 bg-border" />
-          </div>
-
-          <form onSubmit={submit} className="space-y-4">
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Nome</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Senha</Label>
-                {mode === "signin" && (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground hover:text-primary hover:underline"
-                    onClick={() => { setForgotEmail(email); setForgotOpen(true); }}
-                  >
-                    Esqueci minha senha
-                  </button>
-                )}
-              </div>
-              <PasswordInput id="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-            <Button type="submit" className="w-full" disabled={busy}>
-              {mode === "signin" ? "Entrar" : "Criar conta"}
-            </Button>
-            {mode === "signin" && (
+            <>
               <Button
                 type="button"
                 variant="outline"
-                className="w-full"
-                onClick={async () => {
-                  if (!email) {
-                    toast.error("Informe seu e-mail para receber o link mágico.");
-                    return;
-                  }
-                  setBusy(true);
-                  try {
-                    const { error } = await db.auth.signInWithOtp({
-                      email,
-                      options: {
-                        emailRedirectTo: `${window.location.origin}/dashboard`,
-                      },
-                    });
-                    if (error) throw error;
-                    toast.success("Link mágico enviado! Verifique sua caixa de entrada.");
-                  } catch (e: any) {
-                    toast.error(e.message ?? "Falha ao enviar link mágico");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
+                className="mt-6 w-full"
+                onClick={google}
                 disabled={busy}
               >
-                Entrar com Link Mágico (sem senha)
+                Continuar com Google
               </Button>
-            )}
-          </form>
 
-          <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Recuperar acesso</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={sendReset} className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Informe o e-mail da conta. Enviaremos um link para você definir uma nova senha.
-                </p>
+              <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="h-px flex-1 bg-border" /> ou{" "}
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
+              <form onSubmit={submit} className="space-y-4">
+                {mode === "signup" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name">Nome</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
                 <div className="space-y-1.5">
-                  <Label htmlFor="forgot-email">E-mail</Label>
+                  <Label htmlFor="email">E-mail</Label>
                   <Input
-                    id="forgot-email"
+                    id="email"
                     type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={forgotBusy}>
-                  Enviar link de recuperação
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Senha</Label>
+                    {mode === "signin" && (
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          setForgotOpen(true);
+                        }}
+                      >
+                        Esqueci minha senha
+                      </button>
+                    )}
+                  </div>
+                  <PasswordInput
+                    id="password"
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={busy}>
+                  {mode === "signin" ? "Entrar" : "Criar conta"}
                 </Button>
+                {mode === "signin" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      if (!email) {
+                        toast.error("Informe seu e-mail para receber o link mágico.");
+                        return;
+                      }
+                      setBusy(true);
+                      try {
+                        const { error } = await db.auth.signInWithOtp({
+                          email,
+                          options: {
+                            emailRedirectTo: `${window.location.origin}/dashboard`,
+                          },
+                        });
+                        if (error) throw error;
+                        toast.success("Link mágico enviado! Verifique sua caixa de entrada.");
+                      } catch (e: any) {
+                        toast.error(e.message ?? "Falha ao enviar link mágico");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy}
+                  >
+                    Entrar com Link Mágico (sem senha)
+                  </Button>
+                )}
               </form>
-            </DialogContent>
-          </Dialog>
 
+              <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Recuperar acesso</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={sendReset} className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Informe o e-mail da conta. Enviaremos um link para você definir uma nova
+                      senha.
+                    </p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="forgot-email">E-mail</Label>
+                      <Input
+                        id="forgot-email"
+                        type="email"
+                        required
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={forgotBusy}>
+                      Enviar link de recuperação
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === "signin" ? "Não tem conta?" : "Já tem conta?"}{" "}
-            <button
-              type="button"
-              className="font-medium text-primary hover:underline"
-              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            >
-              {mode === "signin" ? "Criar agora" : "Entrar"}
-            </button>
-          </p>
-          <footer className="mt-6 flex flex-wrap items-center justify-center gap-3 border-t pt-4 text-[11px] text-muted-foreground">
-            <Link to="/privacy" className="hover:text-foreground">Política de Privacidade</Link>
-            <span className="text-border">|</span>
-            <Link to="/terms" className="hover:text-foreground">Termos de Serviço</Link>
-            <span className="text-border">|</span>
-            <Link to="/data-deletion" className="hover:text-foreground">Exclusão de Dados</Link>
-          </footer>
-          </>
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                {mode === "signin" ? "Não tem conta?" : "Já tem conta?"}{" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary hover:underline"
+                  onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                >
+                  {mode === "signin" ? "Criar agora" : "Entrar"}
+                </button>
+              </p>
+              <footer className="mt-6 flex flex-wrap items-center justify-center gap-3 border-t pt-4 text-[11px] text-muted-foreground">
+                <Link to="/privacy" className="hover:text-foreground">
+                  Política de Privacidade
+                </Link>
+                <span className="text-border">|</span>
+                <Link to="/terms" className="hover:text-foreground">
+                  Termos de Serviço
+                </Link>
+                <span className="text-border">|</span>
+                <Link to="/data-deletion" className="hover:text-foreground">
+                  Exclusão de Dados
+                </Link>
+              </footer>
+            </>
           )}
         </Card>
       </div>

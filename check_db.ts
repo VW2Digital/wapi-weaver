@@ -1,4 +1,4 @@
-import db from './src/lib/db';
+import db from "./src/lib/db";
 
 async function check() {
   try {
@@ -12,7 +12,7 @@ async function check() {
 
     const [columns] = await db.query("SHOW COLUMNS FROM webhook_events");
     console.log("Columns:", columns);
-  } catch(e) {
+  } catch (e) {
     console.error(e);
   }
   process.exit();

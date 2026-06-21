@@ -2,11 +2,7 @@ import * as React from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function NativeSelect({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"select">) {
+function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
     <div
       data-slot="native-select-wrapper"

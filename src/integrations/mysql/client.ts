@@ -10,28 +10,28 @@ class QueryBuilder {
     this.client = client;
     this.query = {
       table,
-      action: 'select',
+      action: "select",
       filters: [],
       order: [],
-      select: '*'
+      select: "*",
     };
   }
 
-  select(columns: string | string[] = '*', options?: { count?: string; head?: boolean }) {
-    if (this.query.action === 'select') {
+  select(columns: string | string[] = "*", options?: { count?: string; head?: boolean }) {
+    if (this.query.action === "select") {
       this.query.select = columns;
     }
     if (options?.head) {
       this.query.head = true;
     }
-    if (options?.count === 'exact') {
-      this.query.countMode = 'exact';
+    if (options?.count === "exact") {
+      this.query.countMode = "exact";
     }
     return this;
   }
 
   insert(data: any, options: { upsert?: boolean } = {}) {
-    this.query.action = 'insert';
+    this.query.action = "insert";
     this.query.data = data;
     if (options.upsert) {
       this.query.upsertConflict = true;
@@ -40,82 +40,82 @@ class QueryBuilder {
   }
 
   upsert(data: any, options: { onConflict?: string; count?: string } = {}) {
-    this.query.action = 'insert';
+    this.query.action = "insert";
     this.query.data = data;
     this.query.upsertConflict = true;
     return this;
   }
 
   update(data: any) {
-    this.query.action = 'update';
+    this.query.action = "update";
     this.query.data = data;
     return this;
   }
 
   delete() {
-    this.query.action = 'delete';
+    this.query.action = "delete";
     return this;
   }
 
   eq(column: string, value: any) {
-    this.query.filters.push({ type: 'eq', column, value });
+    this.query.filters.push({ type: "eq", column, value });
     return this;
   }
 
   neq(column: string, value: any) {
-    this.query.filters.push({ type: 'neq', column, value });
+    this.query.filters.push({ type: "neq", column, value });
     return this;
   }
 
   in(column: string, value: any[]) {
-    this.query.filters.push({ type: 'in', column, value });
+    this.query.filters.push({ type: "in", column, value });
     return this;
   }
 
   gte(column: string, value: any) {
-    this.query.filters.push({ type: 'gte', column, value });
+    this.query.filters.push({ type: "gte", column, value });
     return this;
   }
 
   lte(column: string, value: any) {
-    this.query.filters.push({ type: 'lte', column, value });
+    this.query.filters.push({ type: "lte", column, value });
     return this;
   }
 
   gt(column: string, value: any) {
-    this.query.filters.push({ type: 'gt', column, value });
+    this.query.filters.push({ type: "gt", column, value });
     return this;
   }
 
   lt(column: string, value: any) {
-    this.query.filters.push({ type: 'lt', column, value });
+    this.query.filters.push({ type: "lt", column, value });
     return this;
   }
 
   not(column: string, operator: string, value: any) {
-    this.query.filters.push({ type: 'not', column, operator, value });
+    this.query.filters.push({ type: "not", column, operator, value });
     return this;
   }
 
   like(column: string, value: string) {
-    this.query.filters.push({ type: 'like', column, value });
+    this.query.filters.push({ type: "like", column, value });
     return this;
   }
 
   ilike(column: string, value: string) {
-    this.query.filters.push({ type: 'ilike', column, value });
+    this.query.filters.push({ type: "ilike", column, value });
     return this;
   }
 
   is(column: string, value: any) {
-    this.query.filters.push({ type: 'is', column, value });
+    this.query.filters.push({ type: "is", column, value });
     return this;
   }
 
   order(column: string, options: { ascending?: boolean } = {}) {
     this.query.order.push({
       column,
-      ascending: options.ascending !== false
+      ascending: options.ascending !== false,
     });
     return this;
   }
@@ -149,16 +149,16 @@ class QueryBuilder {
   // Make the QueryBuilder a thenable so that we can await it directly.
   async then(onfulfilled?: (value: any) => any, onrejected?: (reason: any) => any) {
     try {
-      const res = await this.client.request('/api/query', this.query);
+      const res = await this.client.request("/api/query", this.query);
 
       // HEAD mode: server returns { _headCount: N }
-      if (res.data && typeof res.data === 'object' && '_headCount' in res.data) {
+      if (res.data && typeof res.data === "object" && "_headCount" in res.data) {
         const val = { data: null, error: null, count: res.data._headCount };
         return onfulfilled ? onfulfilled(val) : val;
       }
 
       // COUNT + ROWS mode: server returns { _rows: [...], _totalCount: N }
-      if (res.data && typeof res.data === 'object' && '_rows' in res.data) {
+      if (res.data && typeof res.data === "object" && "_rows" in res.data) {
         const val = { data: res.data._rows, error: res.error, count: res.data._totalCount };
         return onfulfilled ? onfulfilled(val) : val;
       }
@@ -167,18 +167,22 @@ class QueryBuilder {
       if (this.singleRow) {
         data = Array.isArray(data) ? data[0] : data;
         if (data === undefined || data === null) {
-          const val = { data: null, error: { message: 'Nenhuma linha retornada para a consulta single()' }, count: 0 };
+          const val = {
+            data: null,
+            error: { message: "Nenhuma linha retornada para a consulta single()" },
+            count: 0,
+          };
           return onfulfilled ? onfulfilled(val) : val;
         }
       } else if (this.maybeSingleRow) {
-        data = Array.isArray(data) ? (data[0] || null) : (data || null);
+        data = Array.isArray(data) ? data[0] || null : data || null;
       }
 
       let count: number | null = null;
       if (Array.isArray(data)) {
         count = data.length;
-      } else if (data && typeof data === 'object') {
-        if ('affectedRows' in data) {
+      } else if (data && typeof data === "object") {
+        if ("affectedRows" in data) {
           count = (data as any).affectedRows;
         } else {
           count = 1;
@@ -198,18 +202,19 @@ class MySQLClient {
   private _listeners: any[] = [];
 
   async request(path: string, body: any) {
-    const token = typeof window !== 'undefined'
-      ? (localStorage.getItem('app-token') || localStorage.getItem('sb-token'))
-      : null;
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("app-token") || localStorage.getItem("sb-token")
+        : null;
     const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
     const res = await fetch(path, {
-      method: 'POST',
+      method: "POST",
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     const text = await res.text();
@@ -224,9 +229,12 @@ class MySQLClient {
     }
 
     if (!res.ok) {
-      const errMsg = (result.error && typeof result.error === 'object' && 'message' in result.error)
-        ? result.error.message
-        : (typeof result.error === 'string' ? result.error : `Erro HTTP ${res.status}`);
+      const errMsg =
+        result.error && typeof result.error === "object" && "message" in result.error
+          ? result.error.message
+          : typeof result.error === "string"
+            ? result.error
+            : `Erro HTTP ${res.status}`;
       throw new Error(errMsg);
     }
     return result;
@@ -243,10 +251,10 @@ class MySQLClient {
       },
       subscribe: () => {
         return {
-          unsubscribe: () => {}
+          unsubscribe: () => {},
         };
       },
-      unsubscribe: () => {}
+      unsubscribe: () => {},
     };
     return ch;
   }
@@ -258,35 +266,40 @@ class MySQLClient {
   get auth() {
     return {
       getSession: async () => {
-        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('app-session') : null;
+        const sessionStr =
+          typeof window !== "undefined" ? localStorage.getItem("app-session") : null;
         return { data: { session: sessionStr ? JSON.parse(sessionStr) : null }, error: null };
       },
       getUser: async () => {
-        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('app-session') : null;
+        const sessionStr =
+          typeof window !== "undefined" ? localStorage.getItem("app-session") : null;
         const session = sessionStr ? JSON.parse(sessionStr) : null;
         return { data: { user: session ? session.user : null }, error: null };
       },
       signInWithPassword: async ({ email, password }: any) => {
         try {
-          const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
           });
           const data = await res.json();
           if (!res.ok) {
-            return { data: { session: null, user: null }, error: { message: data.error || 'Falha ao fazer login' } };
+            return {
+              data: { session: null, user: null },
+              error: { message: data.error || "Falha ao fazer login" },
+            };
           }
           const session = {
             access_token: data.access_token,
-            user: data.user
+            user: data.user,
           };
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('app-token', data.access_token);
-            localStorage.setItem('app-session', JSON.stringify(session));
+          if (typeof window !== "undefined") {
+            localStorage.setItem("app-token", data.access_token);
+            localStorage.setItem("app-session", JSON.stringify(session));
           }
 
-          this._notifyListeners('SIGNED_IN', session);
+          this._notifyListeners("SIGNED_IN", session);
           return { data: { session, user: data.user }, error: null };
         } catch (err: any) {
           return { data: { session: null, user: null }, error: { message: err.message } };
@@ -294,53 +307,59 @@ class MySQLClient {
       },
       signUp: async ({ email, password, options }: any) => {
         try {
-          const res = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, options })
+          const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password, options }),
           });
           const data = await res.json();
           if (!res.ok) {
-            return { data: { session: null, user: null }, error: { message: data.error || 'Falha ao registrar' } };
+            return {
+              data: { session: null, user: null },
+              error: { message: data.error || "Falha ao registrar" },
+            };
           }
           const session = {
             access_token: data.access_token,
-            user: data.user
+            user: data.user,
           };
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('app-token', data.access_token);
-            localStorage.setItem('app-session', JSON.stringify(session));
+          if (typeof window !== "undefined") {
+            localStorage.setItem("app-token", data.access_token);
+            localStorage.setItem("app-session", JSON.stringify(session));
           }
 
-          this._notifyListeners('SIGNED_IN', session);
+          this._notifyListeners("SIGNED_IN", session);
           return { data: { session, user: data.user }, error: null };
         } catch (err: any) {
           return { data: { session: null, user: null }, error: { message: err.message } };
         }
       },
       signOut: async () => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('app-token');
-          localStorage.removeItem('app-session');
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("app-token");
+          localStorage.removeItem("app-session");
         }
-        this._notifyListeners('SIGNED_OUT', null);
+        this._notifyListeners("SIGNED_OUT", null);
         return { error: null };
       },
       updateUser: async ({ password }: any) => {
         try {
-          const token = typeof window !== 'undefined' ? localStorage.getItem('app-token') : null;
+          const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
           const headers = {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           };
-          const res = await fetch('/api/auth/update', {
-            method: 'POST',
+          const res = await fetch("/api/auth/update", {
+            method: "POST",
             headers,
-            body: JSON.stringify({ password })
+            body: JSON.stringify({ password }),
           });
           const data = await res.json();
           if (!res.ok) {
-            return { data: { user: null }, error: { message: data.error || 'Falha ao atualizar usuário' } };
+            return {
+              data: { user: null },
+              error: { message: data.error || "Falha ao atualizar usuário" },
+            };
           }
           return { data: { user: {} as any }, error: null };
         } catch (err: any) {
@@ -349,17 +368,18 @@ class MySQLClient {
       },
       onAuthStateChange: (callback: any) => {
         this._listeners.push(callback);
-        const sessionStr = typeof window !== 'undefined' ? localStorage.getItem('app-session') : null;
+        const sessionStr =
+          typeof window !== "undefined" ? localStorage.getItem("app-session") : null;
         const session = sessionStr ? JSON.parse(sessionStr) : null;
-        setTimeout(() => callback('INITIAL_SESSION', session), 0);
+        setTimeout(() => callback("INITIAL_SESSION", session), 0);
         return {
           data: {
             subscription: {
               unsubscribe: () => {
-                this._listeners = this._listeners.filter(cb => cb !== callback);
-              }
-            }
-          }
+                this._listeners = this._listeners.filter((cb) => cb !== callback);
+              },
+            },
+          },
         };
       },
       resetPasswordForEmail: async (email: string) => {
@@ -373,10 +393,10 @@ class MySQLClient {
           getAuthenticatorAssuranceLevel: async () => {
             return {
               data: {
-                currentLevel: 'aal1',
-                nextLevel: 'aal1'
+                currentLevel: "aal1",
+                nextLevel: "aal1",
               },
-              error: null
+              error: null,
             };
           },
           listFactors: async () => {
@@ -393,18 +413,18 @@ class MySQLClient {
           },
           unenroll: async () => {
             return { error: null };
-          }
+          },
         };
-      }
+      },
     };
   }
 
   _notifyListeners(event: string, session: any) {
-    this._listeners.forEach(cb => {
+    this._listeners.forEach((cb) => {
       try {
         cb(event, session);
       } catch (e) {
-        console.error('Erro no listener de estado de autenticação:', e);
+        console.error("Erro no listener de estado de autenticação:", e);
       }
     });
   }
@@ -417,25 +437,28 @@ class MySQLClient {
             const base64 = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.readAsDataURL(file);
-              reader.onload = () => resolve((reader.result as string).split(',')[1]);
+              reader.onload = () => resolve((reader.result as string).split(",")[1]);
               reader.onerror = (error) => reject(error);
             });
 
-            const token = typeof window !== 'undefined' ? localStorage.getItem('app-token') : null;
+            const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
             const headers = {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             };
 
-            const res = await fetch('/api/storage/upload', {
-              method: 'POST',
+            const res = await fetch("/api/storage/upload", {
+              method: "POST",
               headers,
-              body: JSON.stringify({ path: filePath, fileData: base64 })
+              body: JSON.stringify({ path: filePath, fileData: base64 }),
             });
 
             const result = await res.json();
             if (!res.ok) {
-              return { data: null, error: { message: result.error || `Upload falhou com status ${res.status}` } };
+              return {
+                data: null,
+                error: { message: result.error || `Upload falhou com status ${res.status}` },
+              };
             }
             return { data: { path: filePath }, error: null };
           } catch (err: any) {
@@ -444,15 +467,15 @@ class MySQLClient {
         },
         remove: async (paths: string[]) => {
           try {
-            const token = typeof window !== 'undefined' ? localStorage.getItem('app-token') : null;
+            const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
             const headers = {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             };
-            const res = await fetch('/api/storage/remove', {
-              method: 'POST',
+            const res = await fetch("/api/storage/remove", {
+              method: "POST",
               headers,
-              body: JSON.stringify({ paths })
+              body: JSON.stringify({ paths }),
             });
             const result = await res.json();
             return { data: paths, error: res.ok ? null : { message: result.error } };
@@ -465,8 +488,8 @@ class MySQLClient {
         },
         createSignedUrl: async (filePath: string, expiresIn: number) => {
           return { data: { signedUrl: `/api/storage/file?path=${filePath}` }, error: null };
-        }
-      })
+        },
+      }),
     };
   }
 }

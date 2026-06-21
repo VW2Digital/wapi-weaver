@@ -39,7 +39,7 @@ Webhook Meta → /api/public/whatsapp-webhook → atualiza status
 
 Todas com RLS `user_id = auth.uid()` exceto webhook_events (service role).
 
-## Server functions (src/lib/*.functions.ts)
+## Server functions (src/lib/\*.functions.ts)
 
 - `uploadContactsCsv` — parse CSV/XLSX, normaliza E.164, upsert por (user_id, phone)
 - `createContact`, `updateContact`, `deleteContact`
@@ -50,7 +50,7 @@ Todas com RLS `user_id = auth.uid()` exceto webhook_events (service role).
 - `getCampaignStats` — agrega status
 - `getMetaCredentialsStatus` — verifica se token + phone_id estão ok (ping `/me`)
 
-## Server routes (src/routes/api/public/*)
+## Server routes (src/routes/api/public/\*)
 
 - `whatsapp-webhook.ts` — verify + status callback (assinatura HMAC com `WHATSAPP_APP_SECRET`)
 - `contacts/ingest.ts` — POST com `X-API-Key` → cria contato no CRM
@@ -103,6 +103,7 @@ Visual sério/SaaS profissional: sidebar escura, conteúdo claro, verde WhatsApp
 12. Dashboard com métricas
 
 Vou implementar tudo nessa ordem em um único loop. Você só vai precisar:
+
 - Confirmar a ativação do Cloud
 - Colar `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET` e definir um `WHATSAPP_VERIFY_TOKEN` quando eu pedir
 - Configurar a URL do webhook no painel da Meta (eu mostro qual é) depois do deploy

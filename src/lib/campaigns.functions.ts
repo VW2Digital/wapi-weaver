@@ -96,7 +96,14 @@ export const createCampaign = createServerFn({ method: "POST" })
         payload: data.payload,
         scheduled_at: data.scheduled_at ?? null,
         status,
-        totals: { total: contacts.length, pending: contacts.length, sent: 0, delivered: 0, read: 0, failed: 0 },
+        totals: {
+          total: contacts.length,
+          pending: contacts.length,
+          sent: 0,
+          delivered: 0,
+          read: 0,
+          failed: 0,
+        },
       })
       .select()
       .single();
@@ -148,7 +155,14 @@ export const cancelCampaign = createServerFn({ method: "POST" })
       .from("campaign_messages")
       .select("status")
       .eq("campaign_id", data.id);
-    const totals: any = { total: agg?.length ?? 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
+    const totals: any = {
+      total: agg?.length ?? 0,
+      pending: 0,
+      sent: 0,
+      delivered: 0,
+      read: 0,
+      failed: 0,
+    };
     for (const r of agg ?? []) totals[r.status] = (totals[r.status] ?? 0) + 1;
 
     const { error } = await context.db
@@ -180,10 +194,7 @@ export const deleteCampaign = createServerFn({ method: "POST" })
       .delete()
       .eq("campaign_id", data.id);
     if (mErr) throw mErr;
-    const { error } = await context.db
-      .from("campaigns")
-      .delete()
-      .eq("id", data.id);
+    const { error } = await context.db.from("campaigns").delete().eq("id", data.id);
     if (error) throw error;
     await recordAudit({
       userId: context.userId,
@@ -221,7 +232,9 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
     while (true) {
       const { data: rows, error } = await context.db
         .from("campaign_messages")
-        .select("to_phone, status, attempts, wa_message_id, sent_at, delivered_at, read_at, failed_at, error, contact_id, contacts(name, email)")
+        .select(
+          "to_phone, status, attempts, wa_message_id, sent_at, delivered_at, read_at, failed_at, error, contact_id, contacts(name, email)",
+        )
         .eq("campaign_id", data.id)
         .order("created_at", { ascending: true })
         .limit(pageSize)
@@ -249,19 +262,21 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
     const lines = [header.join(",")];
     for (const r of all) {
       const contact = (r as any).contacts ?? {};
-      lines.push([
-        csvEscape(r.to_phone),
-        csvEscape(contact.name),
-        csvEscape(contact.email),
-        csvEscape(r.status),
-        csvEscape(r.attempts),
-        csvEscape(r.wa_message_id),
-        csvEscape(r.sent_at),
-        csvEscape(r.delivered_at),
-        csvEscape(r.read_at),
-        csvEscape(r.failed_at),
-        csvEscape(r.error),
-      ].join(","));
+      lines.push(
+        [
+          csvEscape(r.to_phone),
+          csvEscape(contact.name),
+          csvEscape(contact.email),
+          csvEscape(r.status),
+          csvEscape(r.attempts),
+          csvEscape(r.wa_message_id),
+          csvEscape(r.sent_at),
+          csvEscape(r.delivered_at),
+          csvEscape(r.read_at),
+          csvEscape(r.failed_at),
+          csvEscape(r.error),
+        ].join(","),
+      );
     }
 
     await recordAudit({

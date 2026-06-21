@@ -1,14 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { MessageCircle, CheckCircle, AlertTriangle, Ban, RefreshCw, CreditCard, Gavel, Mail } from "lucide-react";
+import {
+  MessageCircle,
+  CheckCircle,
+  AlertTriangle,
+  Ban,
+  RefreshCw,
+  CreditCard,
+  Gavel,
+  Mail,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
       { title: "Termos de Serviço — ZapDispatch" },
-      { name: "description", content: "Termos de Serviço da ZapDispatch. Leia as regras e condições de uso da nossa plataforma." },
+      {
+        name: "description",
+        content:
+          "Termos de Serviço da ZapDispatch. Leia as regras e condições de uso da nossa plataforma.",
+      },
       { property: "og:title", content: "Termos de Serviço — ZapDispatch" },
-      { property: "og:description", content: "Regras e condições de uso da plataforma ZapDispatch." },
+      {
+        property: "og:description",
+        content: "Regras e condições de uso da plataforma ZapDispatch.",
+      },
       { property: "og:type", content: "website" },
     ],
   }),
@@ -45,9 +61,13 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">1. Aceitação dos Termos</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Ao acessar e utilizar a plataforma ZapDispatch, você concorda integralmente com estes Termos de Serviço,
-              bem como com nossa <Link to="/privacy" className="text-primary hover:underline">Política de Privacidade</Link>.
-              Se não concordar com qualquer parte destes termos, você não deve usar nossos serviços.
+              Ao acessar e utilizar a plataforma ZapDispatch, você concorda integralmente com estes
+              Termos de Serviço, bem como com nossa{" "}
+              <Link to="/privacy" className="text-primary hover:underline">
+                Política de Privacidade
+              </Link>
+              . Se não concordar com qualquer parte destes termos, você não deve usar nossos
+              serviços.
             </p>
           </section>
 
@@ -57,8 +77,8 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">2. Descrição do Serviço</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A ZapDispatch é uma plataforma de gerenciamento e disparo de mensagens via WhatsApp Cloud API oficial da Meta.
-              Nossos serviços incluem:
+              A ZapDispatch é uma plataforma de gerenciamento e disparo de mensagens via WhatsApp
+              Cloud API oficial da Meta. Nossos serviços incluem:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
               <li>Criação e gestão de contatos e listas de distribuição.</li>
@@ -68,7 +88,8 @@ function TermsPage() {
               <li>Geração de relatórios e estatísticas de envio.</li>
             </ul>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Você é responsável por ter uma conta de WhatsApp Business aprovada pela Meta e por manter suas credenciais de acesso válidas e seguras.
+              Você é responsável por ter uma conta de WhatsApp Business aprovada pela Meta e por
+              manter suas credenciais de acesso válidas e seguras.
             </p>
           </section>
 
@@ -79,10 +100,17 @@ function TermsPage() {
             </div>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
               <li>Você deve ter pelo menos 18 anos para usar a plataforma.</li>
-              <li>É proibido criar contas usando informações falsas ou de terceiros sem autorização.</li>
-              <li>Você é responsável por manter a confidencialidade de sua senha e credenciais de acesso.</li>
+              <li>
+                É proibido criar contas usando informações falsas ou de terceiros sem autorização.
+              </li>
+              <li>
+                Você é responsável por manter a confidencialidade de sua senha e credenciais de
+                acesso.
+              </li>
               <li>Notifique-nos imediatamente sobre qualquer uso não autorizado da sua conta.</li>
-              <li>Reservamo-nos o direito de suspender ou encerrar contas que violem estes termos.</li>
+              <li>
+                Reservamo-nos o direito de suspender ou encerrar contas que violem estes termos.
+              </li>
             </ul>
           </section>
 
@@ -95,11 +123,22 @@ function TermsPage() {
               É expressamente proibido utilizar a plataforma para:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Enviar spam, mensagens não solicitadas ou em massa sem consentimento dos destinatários.</li>
-              <li>Transmitir conteúdo ilegal, difamatório, ameaçador, obsceno ou que viole direitos de terceiros.</li>
-              <li>Usar a plataforma para atividades fraudulentas, phishing ou engenharia social.</li>
+              <li>
+                Enviar spam, mensagens não solicitadas ou em massa sem consentimento dos
+                destinatários.
+              </li>
+              <li>
+                Transmitir conteúdo ilegal, difamatório, ameaçador, obsceno ou que viole direitos de
+                terceiros.
+              </li>
+              <li>
+                Usar a plataforma para atividades fraudulentas, phishing ou engenharia social.
+              </li>
               <li>Enviar mensagens que violem as Políticas Comerciais do WhatsApp ou da Meta.</li>
-              <li>Tentar acessar, modificar ou interferir nos sistemas da plataforma de forma não autorizada.</li>
+              <li>
+                Tentar acessar, modificar ou interferir nos sistemas da plataforma de forma não
+                autorizada.
+              </li>
               <li>Compartilhar credenciais de acesso da Meta com terceiros não autorizados.</li>
             </ul>
           </section>
@@ -113,30 +152,45 @@ function TermsPage() {
               A ZapDispatch pode oferecer planos pagos no futuro. Quando isso ocorrer:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Os valores e condições de pagamento serão claramente informados no momento da contratação.</li>
+              <li>
+                Os valores e condições de pagamento serão claramente informados no momento da
+                contratação.
+              </li>
               <li>Cobranças serão feitas conforme o plano escolhido (mensal, anual, etc.).</li>
-              <li>Você pode cancelar sua assinatura a qualquer momento, com efeito ao final do período pago.</li>
-              <li>Reembolsos serão analisados caso a caso, respeitando o Código de Defesa do Consumidor.</li>
+              <li>
+                Você pode cancelar sua assinatura a qualquer momento, com efeito ao final do período
+                pago.
+              </li>
+              <li>
+                Reembolsos serão analisados caso a caso, respeitando o Código de Defesa do
+                Consumidor.
+              </li>
             </ul>
           </section>
 
           <section className="space-y-3">
             <div className="flex items-center gap-2">
               <Ban className="h-5 w-5 text-primary" />
-              <h2 className="font-display text-xl font-semibold">6. Limitação de Responsabilidade</h2>
+              <h2 className="font-display text-xl font-semibold">
+                6. Limitação de Responsabilidade
+              </h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A ZapDispatch atua como intermediadora tecnológica entre você e a WhatsApp Cloud API da Meta.
-              Não somos responsáveis por:
+              A ZapDispatch atua como intermediadora tecnológica entre você e a WhatsApp Cloud API
+              da Meta. Não somos responsáveis por:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Falhas de entrega de mensagens causadas pela Meta, pelo destinatário ou por problemas de rede.</li>
+              <li>
+                Falhas de entrega de mensagens causadas pela Meta, pelo destinatário ou por
+                problemas de rede.
+              </li>
               <li>Bloqueios ou suspensões de número de telefone impostos pela Meta.</li>
               <li>Perdas de dados decorrentes de falhas técnicas fora do nosso controle direto.</li>
               <li>Danos indiretos, lucros cessantes ou perdas de oportunidade de negócio.</li>
             </ul>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Nossa responsabilidade total, em qualquer hipótese, está limitada ao valor pago por você nos últimos 12 meses de uso da plataforma.
+              Nossa responsabilidade total, em qualquer hipótese, está limitada ao valor pago por
+              você nos últimos 12 meses de uso da plataforma.
             </p>
           </section>
 
@@ -146,8 +200,9 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">7. Modificações nos Termos</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Podemos atualizar estes Termos de Serviço periodicamente. Alterações materiais serão notificadas com pelo menos 15 dias de antecedência.
-              O uso continuado da plataforma após as alterações constitui aceitação dos novos termos.
+              Podemos atualizar estes Termos de Serviço periodicamente. Alterações materiais serão
+              notificadas com pelo menos 15 dias de antecedência. O uso continuado da plataforma
+              após as alterações constitui aceitação dos novos termos.
             </p>
           </section>
 
@@ -157,10 +212,14 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">8. Rescisão</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Podemos suspender ou encerrar sua conta imediatamente, sem aviso prévio, caso identifiquemos violação destes termos,
-              uso indevido da plataforma ou atividades que possam comprometer a segurança ou reputação do serviço.
-              Você pode encerrar sua conta a qualquer momento através das configurações ou solicitando a{" "}
-              <Link to="/data-deletion" className="text-primary hover:underline">exclusão dos seus dados</Link>.
+              Podemos suspender ou encerrar sua conta imediatamente, sem aviso prévio, caso
+              identifiquemos violação destes termos, uso indevido da plataforma ou atividades que
+              possam comprometer a segurança ou reputação do serviço. Você pode encerrar sua conta a
+              qualquer momento através das configurações ou solicitando a{" "}
+              <Link to="/data-deletion" className="text-primary hover:underline">
+                exclusão dos seus dados
+              </Link>
+              .
             </p>
           </section>
 
@@ -170,8 +229,9 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">9. Lei Aplicável</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Estes Termos de Serviço são regidos pelas leis da República Federativa do Brasil. Quaisquer disputas serão resolvidas
-              no foro da cidade de São Paulo, SP, com exclusão de qualquer outro, por mais privilegiado que seja.
+              Estes Termos de Serviço são regidos pelas leis da República Federativa do Brasil.
+              Quaisquer disputas serão resolvidas no foro da cidade de São Paulo, SP, com exclusão
+              de qualquer outro, por mais privilegiado que seja.
             </p>
           </section>
 
@@ -182,17 +242,25 @@ function TermsPage() {
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
               Para dúvidas sobre estes Termos de Serviço, entre em contato pelo e-mail:{" "}
-              <a href="mailto:legal@zapdispatch.com.br" className="text-primary hover:underline">legal@zapdispatch.com.br</a>
+              <a href="mailto:legal@zapdispatch.com.br" className="text-primary hover:underline">
+                legal@zapdispatch.com.br
+              </a>
             </p>
           </section>
         </Card>
 
         <footer className="mt-10 flex flex-wrap items-center justify-center gap-4 border-t py-6 text-xs text-muted-foreground">
-          <Link to="/privacy" className="hover:text-foreground">Política de Privacidade</Link>
+          <Link to="/privacy" className="hover:text-foreground">
+            Política de Privacidade
+          </Link>
           <span className="text-border">|</span>
-          <Link to="/data-deletion" className="hover:text-foreground">Exclusão de Dados</Link>
+          <Link to="/data-deletion" className="hover:text-foreground">
+            Exclusão de Dados
+          </Link>
           <span className="text-border">|</span>
-          <Link to="/login" className="hover:text-foreground">Login</Link>
+          <Link to="/login" className="hover:text-foreground">
+            Login
+          </Link>
         </footer>
       </main>
     </div>

@@ -5,21 +5,29 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 export const getBillingReport = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) =>
-    z.object({
-      // ISO yyyy-mm — default: mês corrente
-      month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
-    }).parse(d ?? {}),
+    z
+      .object({
+        // ISO yyyy-mm — default: mês corrente
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .optional(),
+      })
+      .parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
     const now = new Date();
-    const month = data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const month =
+      data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
     const [y, m] = month.split("-").map(Number);
     const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
     const end = new Date(Date.UTC(y, m, 1)).toISOString();
 
     const { data: rows, error } = await context.db
       .from("campaign_messages")
-      .select("status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at")
+      .select(
+        "status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at",
+      )
       .gte("created_at", start)
       .lt("created_at", end);
 
