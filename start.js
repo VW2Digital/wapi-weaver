@@ -2,6 +2,68 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import server from './dist/server/server.js'
+import mysql from 'mysql2/promise'
+
+async function initDatabase() {
+  try {
+    console.log("Auto-migrating database schema...");
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306', 10),
+      user: process.env.DB_USER || 'wapi_user',
+      password: process.env.DB_PASSWORD || 'S0xbxPfKazBVT8JFy1UEOjIsrjox',
+      database: process.env.DB_NAME || 'wapi_weaver',
+    });
+
+    console.log("Ensuring table direct_messages exists...");
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        contact_phone VARCHAR(50) NOT NULL,
+        direction ENUM('incoming', 'outgoing') NOT NULL,
+        type ENUM('text', 'reaction', 'image') NOT NULL DEFAULT 'text',
+        body TEXT NOT NULL,
+        wa_message_id VARCHAR(255) NULL,
+        status ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
+        reply_to_message_id VARCHAR(255) NULL,
+        metadata JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    console.log("Ensuring index idx_direct_messages_user_phone exists...");
+    try {
+      await connection.query(`
+        CREATE INDEX idx_direct_messages_user_phone ON direct_messages(user_id, contact_phone);
+      `);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_KEYNAME') {
+        console.warn("Could not create user_phone index:", err.message);
+      }
+    }
+
+    console.log("Ensuring index idx_direct_messages_wa_id exists...");
+    try {
+      await connection.query(`
+        CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
+      `);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_KEYNAME') {
+        console.warn("Could not create wa_id index:", err.message);
+      }
+    }
+
+    console.log("Database schema is up to date.");
+    await connection.end();
+  } catch (error) {
+    console.error("Error during database auto-migration:", error);
+  }
+}
+
+// Run database init on startup
+await initDatabase();
 
 const app = new Hono()
 
