@@ -16,7 +16,8 @@ const pool = mysql.createPool({
 // Helper to run query and return results
 export async function query(sql: string, params?: any[]): Promise<any> {
   try {
-    const [results] = await pool.execute(sql, params);
+    const sanitizedParams = params?.map(p => p === undefined ? null : p);
+    const [results] = await pool.execute(sql, sanitizedParams);
     return results;
   } catch (error) {
     console.error('Database query error:', error);

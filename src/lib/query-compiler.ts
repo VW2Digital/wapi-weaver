@@ -28,6 +28,7 @@ const ALLOWED_TABLES = new Set([
   'campaigns',
   'campaign_messages',
   'webhook_events',
+  'direct_messages',
 ]);
 
 // Helper to determine if a table has a user_id column
@@ -44,7 +45,8 @@ function hasUserIdColumn(table: string): boolean {
     'templates',
     'campaigns',
     'campaign_messages',
-    'webhook_events'
+    'webhook_events',
+    'direct_messages'
   ].includes(table);
 }
 
@@ -65,6 +67,13 @@ function formatToMysqlDateTime(val: any): any {
 function preprocessData(table: string, data: any): any {
   if (!data) return data;
   const processed = { ...data };
+
+  // Remove keys with undefined values to prevent MySQL driver bind errors
+  for (const key in processed) {
+    if (processed[key] === undefined) {
+      delete processed[key];
+    }
+  }
 
   // Auto-stringify any remaining objects/arrays (excluding Date and Buffer) to prevent MySQL driver bind errors on TEXT/JSON columns
   for (const key in processed) {
@@ -90,7 +99,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
   const { table, action, select, data, filters = [], order = [], limit, offset, upsertConflict, head, countMode } = reqQuery;
 
   if (!table || !ALLOWED_TABLES.has(table)) {
-    throw new Error(`Table '${table}' is not allowed or does not exist`);
+    throw new Error(`A tabela '${table}' não é permitida ou não existe`);
   }
 
   const isSenderAdmin = userRole === 'admin';
@@ -117,7 +126,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     
     // Safety check on column names
     if (!/^[a-zA-Z0-9_]+$/.test(column)) {
-      throw new Error(`Invalid column name: ${column}`);
+      throw new Error(`Nome de coluna inválido: ${column}`);
     }
 
     if (type === 'eq') {
@@ -316,14 +325,14 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     if (limit !== undefined && limit !== null) {
       const parsedLimit = parseInt(limit, 10);
       if (Number.isNaN(parsedLimit) || parsedLimit < 0) {
-        throw new Error(`Invalid LIMIT value: ${limit}`);
+        throw new Error(`Valor de LIMIT inválido: ${limit}`);
       }
       sql += ` LIMIT ${parsedLimit}`;
       
       if (offset !== undefined && offset !== null) {
         const parsedOffset = parseInt(offset, 10);
         if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
-          throw new Error(`Invalid OFFSET value: ${offset}`);
+          throw new Error(`Valor de OFFSET inválido: ${offset}`);
         }
         sql += ` OFFSET ${parsedOffset}`;
       }
@@ -450,7 +459,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
         const columns = Object.keys(insertData);
         const placeholders = columns.map(() => '?').join(', ');
-        const values = Object.values(insertData);
+        const values = Object.values(insertData).map(v => v === undefined ? null : v);
 
         let sqlQuery = `INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(', ')}) VALUES (${placeholders})`;
 
@@ -580,5 +589,5 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     return { affectedRows: result.affectedRows };
   }
 
-  throw new Error(`Unsupported query action: ${action}`);
+  throw new Error(`Ação de consulta não suportada: ${action}`);
 }

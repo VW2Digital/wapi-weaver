@@ -224,10 +224,28 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS direct_messages (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  contact_phone VARCHAR(50) NOT NULL,
+  direction ENUM('incoming', 'outgoing') NOT NULL,
+  type ENUM('text', 'reaction', 'image') NOT NULL DEFAULT 'text',
+  body TEXT NOT NULL,
+  wa_message_id VARCHAR(255) NULL,
+  status ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
+  reply_to_message_id VARCHAR(255) NULL,
+  metadata JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Optimization Indexes
 CREATE INDEX idx_campaign_messages_wa_msg ON campaign_messages(wa_message_id);
 CREATE INDEX idx_campaign_messages_camp_status ON campaign_messages(campaign_id, status);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
 CREATE INDEX idx_webhook_events_processed ON webhook_events(processed, received_at);
 CREATE INDEX idx_contacts_user_opted ON contacts(user_id, opted_out);
+CREATE INDEX idx_direct_messages_user_phone ON direct_messages(user_id, contact_phone);
+CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
+
 
