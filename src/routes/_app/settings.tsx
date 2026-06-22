@@ -389,11 +389,7 @@ function SettingsPage() {
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
-        <AppearanceCard />
-
-        <AdminPlatformSection />
-
-        <SetupWizard
+        <Appearance        <SetupWizard
           credentialsComplete={
             !!(form.whatsapp_phone_number_id && form.whatsapp_waba_id && form.whatsapp_access_token)
           }
@@ -403,39 +399,50 @@ function SettingsPage() {
           {(step) => (
             <>
               {step === 0 && (
-                <Card className="p-6">
+                <Card className="p-6 space-y-6">
                   <div className="flex items-start gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                       1
                     </div>
                     <div className="flex-1">
                       <h2 className="font-display text-lg font-semibold">
-                        Conectar sua conta do WhatsApp
+                        Etapa 1: Conectar suas credenciais da Meta (Facebook)
                       </h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Preencha os 3 dados abaixo. Você encontra todos no painel da Meta em{" "}
-                        <strong>business.facebook.com</strong> → <strong>WhatsApp Manager</strong> →{" "}
-                        <strong>Configurações da API</strong>.
+                      <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                        Preencha os campos abaixo com os dados do painel de desenvolvedor do Facebook.
                         <br />
                         <span className="text-xs">
-                          Não tem ainda? Crie grátis em{" "}
+                          👉 Se você ainda não tem uma conta, acesse{" "}
                           <a
                             href="https://business.facebook.com"
                             target="_blank"
                             rel="noreferrer"
-                            className="text-primary underline"
+                            className="text-primary underline font-medium hover:text-primary/80"
                           >
                             business.facebook.com
-                          </a>
-                          .
+                          </a>{" "}
+                          para criar o seu gerenciador de negócios.
                         </span>
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  {/* Alerta de Cuidado para Iniciantes */}
+                  <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-xs text-blue-900 dark:text-blue-200">
+                    <div className="flex items-center gap-2 font-semibold text-sm mb-1">
+                      <AlertTriangle className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>💡 Dica de Ouro para evitar erros de configuração:</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      Os IDs solicitados abaixo são códigos compostos <strong>apenas por números</strong> (geralmente com 15 a 17 dígitos). 
+                      <strong className="text-foreground"> Nunca coloque letras ou o seu número de telefone celular nestes campos.</strong> 
+                      Confira com atenção qual ID é qual para evitar erros ao disparar mensagens.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
                     <Field
-                      label="ID do número de telefone"
+                      label="ID do Número de Telefone"
                       sublabel="(Phone Number ID)"
                       digitsOnly
                       value={form.whatsapp_phone_number_id}
@@ -446,22 +453,23 @@ function SettingsPage() {
                       }}
                       placeholder="Ex: 106500000000000"
                       hint={
-                        "⚠️ NÃO é o seu número de telefone. É um ID numérico longo (15+ dígitos) que identifica o número dentro da Meta.\n📍 Onde achar: business.facebook.com → WhatsApp Manager → Visão geral → clique no número → aparece 'ID do número de telefone'.\n👉 Use o botão de copiar ao lado do número no painel da Meta."
+                        "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado como 'ID do número de telefone' (um código longo de 15 dígitos).\n👉 Copie clicando no botão ao lado do ID no painel da Meta.\n🚨 ATENÇÃO: NÃO coloque seu número de telefone aqui! Digite o ID gerado pelo Facebook."
                       }
                       success={
                         validateMetaId(
                           String(form.whatsapp_phone_number_id ?? ""),
                           "Phone Number ID",
                         ).ok
-                          ? `Formato OK · ${String(form.whatsapp_phone_number_id).length} dígitos`
+                          ? `Formato correto · ${String(form.whatsapp_phone_number_id).length} dígitos`
                           : null
                       }
                       error={errors.whatsapp_phone_number_id}
                       copyLabel="Phone Number ID"
                       metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
                     />
+
                     <Field
-                      label="ID da conta WhatsApp Business"
+                      label="ID da Conta WhatsApp Business"
                       sublabel="(WABA ID)"
                       digitsOnly
                       value={form.whatsapp_waba_id}
@@ -472,20 +480,21 @@ function SettingsPage() {
                       }}
                       placeholder="Ex: 112300000000000"
                       hint={
-                        "⚠️ É DIFERENTE do Phone Number ID acima. Esse identifica a CONTA inteira (WABA), não um número específico.\n📍 Onde achar: business.facebook.com → Configurações da empresa → Contas → Contas do WhatsApp → clique na sua conta → 'ID da conta WhatsApp Business' no topo.\n👉 Se você colocar esse valor no campo errado, vai aparecer o erro 'Object with ID does not exist'."
+                        "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado logo abaixo do Phone Number ID como 'ID da conta do WhatsApp Business'.\n🚨 CUIDADO: Este ID identifica a sua CONTA de negócios inteira, não um número específico. É diferente do Phone Number ID."
                       }
                       success={
                         validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok
-                          ? `Formato OK · ${String(form.whatsapp_waba_id).length} dígitos`
+                          ? `Formato correto · ${String(form.whatsapp_waba_id).length} dígitos`
                           : null
                       }
                       error={errors.whatsapp_waba_id}
                       copyLabel="WABA ID"
                       metaUrl="https://business.facebook.com/wa/manage/account/"
                     />
+
                     <Field
-                      label="ID da conta de negócios (Meta Business ID)"
-                      sublabel="(Business ID)"
+                      label="ID da Conta de Negócios (Business ID)"
+                      sublabel="(Meta Business ID)"
                       digitsOnly
                       value={form.whatsapp_business_id}
                       onChange={(v) => {
@@ -495,11 +504,11 @@ function SettingsPage() {
                       }}
                       placeholder="Ex: 104500000000000"
                       hint={
-                        "⚠️ Identifica a sua conta de negócios inteira na Meta.\n📍 Onde achar: business.facebook.com → Configurações da empresa → Informações da empresa → 'ID do Gerenciador de Negócios' no topo."
+                        "📍 Onde encontrar: Acesse o painel Meta Business Suite (business.facebook.com) → Configurações da empresa → Informações da empresa. O código está listado como 'ID do Gerenciador de Negócios'."
                       }
                       success={
                         validateMetaId(String(form.whatsapp_business_id ?? ""), "Business ID").ok
-                          ? `Formato OK · ${String(form.whatsapp_business_id).length} dígitos`
+                          ? `Formato correto · ${String(form.whatsapp_business_id).length} dígitos`
                           : null
                       }
                       error={errors.whatsapp_business_id}
@@ -508,29 +517,27 @@ function SettingsPage() {
                     />
 
                     <Field
-                      label="Seu número de WhatsApp"
-                      sublabel="(só para exibição)"
+                      label="Seu Número do WhatsApp"
+                      sublabel="(Apenas identificação visual)"
                       value={form.whatsapp_business_phone}
                       onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })}
                       placeholder="5511999990000"
-                      hint="Com DDD e código do país. Ex.: 55 (Brasil) + 11 (DDD) + número."
+                      hint="O número de telefone ativo da sua conta. Digite com DDI do país (55 para Brasil), DDD e o número completo. Ex: 5511999990000"
                     />
+
                     <Field
-                      label="Velocidade de envio"
-                      sublabel="(mensagens por segundo)"
+                      label="Velocidade de Envio"
+                      sublabel="(Mensagens por segundo)"
                       type="number"
                       value={form.rate_limit_per_second?.toString() ?? "20"}
                       onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })}
-                      hint="Deixe 20 se não souber. Aumente só se a Meta liberou um limite maior para sua conta."
+                      hint="Recomendamos manter em 20. Altere somente se a sua conta na Meta tiver autorização para limites de velocidade superiores."
                     />
 
-                    <div className="md:col-span-2 space-y-1.5">
+                    <div className="md:col-span-2 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <Label className="flex items-baseline gap-2">
-                          <span>Token de acesso permanente</span>
-                          <span className="text-[11px] font-normal text-muted-foreground">
-                            (Access Token de System User)
-                          </span>
+                          <span className="font-semibold">Token de Acesso Permanente (System User Token)</span>
                         </Label>
                         <div className="flex gap-2">
                           <Button
@@ -550,7 +557,7 @@ function SettingsPage() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir na Meta
+                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Configurações do Negócio
                             </a>
                           </Button>
                           <Button
@@ -560,31 +567,52 @@ function SettingsPage() {
                             disabled={
                               debugTokenMut.isPending || !(form.whatsapp_access_token ?? "").trim()
                             }
-                            title="Verificar escopos e validade do token na Meta"
+                            title="Verificar validade e permissões do token"
                           >
                             {debugTokenMut.isPending ? (
                               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                             ) : (
                               <KeyRound className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Depurar Token
+                            Testar Validade do Token
                           </Button>
                         </div>
                       </div>
+
+                      {/* Alerta explicativo de Token Permanente vs Temporário */}
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-900 dark:text-amber-200">
+                        <div className="flex items-center gap-2 font-semibold text-sm mb-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span>⚠️ Super Importante: Não use o Token Temporário!</span>
+                        </div>
+                        <p className="mb-3 leading-relaxed">
+                          O painel da Meta oferece um token que expira em 24 horas. Se você usar esse token, o sistema vai parar de funcionar amanhã! 
+                          Você deve gerar um <strong>Token Permanente</strong> seguindo o passo a passo abaixo:
+                        </p>
+                        <ol className="list-decimal pl-5 space-y-1.5 font-medium leading-relaxed">
+                          <li>Vá em <strong>Configurações do Negócio</strong> → <strong>Usuários do Sistema</strong> (System Users).</li>
+                          <li>Clique em <strong>Adicionar</strong>, crie um usuário com função de <strong>Administrador</strong> (Admin).</li>
+                          <li>Selecione este usuário criado e clique em <strong>Gerar Novo Token</strong>.</li>
+                          <li>Selecione o seu aplicativo na lista e marque obrigatoriamente as permissões: <code className="text-[10px] bg-background px-1 py-0.5 rounded">whatsapp_business_messaging</code> e <code className="text-[10px] bg-background px-1 py-0.5 rounded">whatsapp_business_management</code>.</li>
+                          <li>Defina a expiração como <strong>Sem Expiração (Never)</strong>.</li>
+                          <li>Gere o token, copie o código longo (começa com <code className="text-[10px] font-bold">EAA...</code>) e cole abaixo.</li>
+                        </ol>
+                      </div>
+
                       {(() => {
                         const tokenValue = form.whatsapp_access_token ?? "";
                         const v = validateAccessToken(tokenValue);
                         return (
                           <>
                             <Textarea
-                              rows={3}
+                              rows={4}
                               value={tokenValue}
                               onChange={(e) =>
                                 setForm({ ...form, whatsapp_access_token: e.target.value })
                               }
-                              placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx..."
+                              placeholder="Cole o token permanente longo aqui (EAA...)"
                               className={cn(
-                                "font-mono text-xs",
+                                "font-mono text-xs leading-relaxed",
                                 v.error && "border-destructive focus-visible:ring-destructive",
                                 !v.error && v.ok && "border-success/60 focus-visible:ring-success",
                               )}
@@ -602,23 +630,11 @@ function SettingsPage() {
                               </p>
                             )}
                             {!v.error && !v.warning && v.ok && (
-                              <p className="flex items-center gap-1.5 text-xs text-success">
+                              <p className="flex items-center gap-1.5 text-xs text-success font-medium">
                                 <Check className="h-3.5 w-3.5" />
-                                Formato OK · {tokenValue.trim().length} caracteres
+                                Token formatado corretamente ({tokenValue.trim().length} caracteres)
                               </p>
                             )}
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">
-                              É uma "senha" longa que começa com{" "}
-                              <code className="text-[10px]">EAA</code>. Gere em{" "}
-                              <strong>Meta Business → Configurações → Usuários do sistema</strong> —
-                              crie um usuário Admin, clique em <em>"Gerar token"</em> e marque as
-                              permissões{" "}
-                              <code className="text-[10px]">whatsapp_business_messaging</code> e{" "}
-                              <code className="text-[10px]">whatsapp_business_management</code>.
-                              <br />
-                              <strong className="text-foreground">Importante:</strong> escolha
-                              "nunca expira" para não ter que refazer.
-                            </p>
 
                             {debugResult && (
                               <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
@@ -918,7 +934,7 @@ function SettingsPage() {
                   <p className="mt-2 text-xs text-muted-foreground">
                     💡 <strong>Não chegou nada?</strong> Use o <strong>hello_world</strong> — é um
                     template oficial da Meta que ignora a janela de 24h. Se esse chegar e o texto
-                    livre não, é confirmação de que o problema é a janela.
+                    livre não, é confirmação de que o problem é a janela.
                   </p>
 
                   {testResult && (
@@ -1061,6 +1077,15 @@ function SettingsPage() {
                       <p className="text-[11px] text-muted-foreground">
                         No painel da Meta:{" "}
                         <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado para
+                        confirmar que cada aviso veio mesmo da Meta.
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </SetupWizard>ado para
                         confirmar que cada aviso veio mesmo da Meta.
                       </p>
                     </div>
