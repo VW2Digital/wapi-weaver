@@ -247,7 +247,12 @@ server {
     proxy_read_timeout 120s;
     proxy_connect_timeout 120s;
 
-    # Todo o tráfego vai para o container Node/Vite na porta 3000
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        allow all;
+    }
+
+    # Todo o tráfego vai para o container Node/Vite na porta 3003
     location / {
         proxy_pass http://127.0.0.1:3003;
         proxy_http_version 1.1;
@@ -273,9 +278,9 @@ if [ "${INSTALL_SSL:-n}" = "s" ] || [ "${INSTALL_SSL:-n}" = "S" ]; then
   echo ""
   print_step "  Instalando certificado SSL com Let's Encrypt..."
   if [ -n "${SSL_EMAIL:-}" ]; then
-    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
+    certbot --authenticator webroot --installer nginx -w /var/www/html -d "$DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
   else
-    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect
+    certbot --authenticator webroot --installer nginx -w /var/www/html -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect
   fi
   print_ok "SSL instalado! HTTPS habilitado para ${DOMAIN}."
 
