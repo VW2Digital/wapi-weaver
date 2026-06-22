@@ -389,7 +389,8 @@ function SettingsPage() {
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
-        <Appearance        <SetupWizard
+        <AppearanceCard />
+        <SetupWizard
           credentialsComplete={
             !!(form.whatsapp_phone_number_id && form.whatsapp_waba_id && form.whatsapp_access_token)
           }
@@ -1077,15 +1078,6 @@ function SettingsPage() {
                       <p className="text-[11px] text-muted-foreground">
                         No painel da Meta:{" "}
                         <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado para
-                        confirmar que cada aviso veio mesmo da Meta.
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              )}
-            </>
-          )}
-        </SetupWizard>ado para
                         confirmar que cada aviso veio mesmo da Meta.
                       </p>
                     </div>
