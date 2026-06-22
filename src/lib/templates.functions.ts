@@ -68,6 +68,21 @@ const createTemplateInput = z.object({
   body_examples: z.array(z.string().max(200)).max(20).optional(),
   footer: z.string().max(60).optional(),
   buttons: z.array(buttonSchema).max(10).optional(),
+  parameter_format: z.enum(["NAMED", "POSITIONAL"]).optional(),
+  allow_category_change: z.boolean().optional(),
+  cta_url_link_tracking_opted_out: z.boolean().optional(),
+  message_send_ttl_seconds: z.number().int().positive().optional(),
+  sub_category: z.enum([
+    "BOOKING_STATUS",
+    "CALL_PERMISSIONS_REQUEST",
+    "FLIGHT_DELAY_AND_GATE_CHANGE_ALERT",
+    "FRAUD_ALERT",
+    "ORDER_DETAILS",
+    "ORDER_STATUS",
+    "RICH_ORDER_STATUS"
+  ]).optional(),
+  display_format: z.enum(["ORDER_DETAILS"]).optional(),
+  is_primary_device_delivery_only: z.boolean().optional(),
 });
 
 export type CreateTemplateInput = z.infer<typeof createTemplateInput>;
@@ -135,6 +150,13 @@ export const createTemplate = createServerFn({ method: "POST" })
             language: data.language,
             category: data.category,
             components,
+            parameter_format: data.parameter_format,
+            allow_category_change: data.allow_category_change,
+            cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out,
+            message_send_ttl_seconds: data.message_send_ttl_seconds,
+            sub_category: data.sub_category,
+            display_format: data.display_format,
+            is_primary_device_delivery_only: data.is_primary_device_delivery_only,
           }),
         },
       );
@@ -182,29 +204,17 @@ export const updateTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const components = buildMetaComponents(data);
 
-    // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
     const { data: tpl } = await context.db
       .from("templates")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
 
-    console.log(
-      "[updateTemplate] Input ID:",
-      data.id,
-      "User ID:",
-      context.userId,
-      "Found Tpl:",
-      tpl,
-    );
-
     if (!tpl) throw new Error("Template não encontrado.");
 
-    // Mantém o status atual — só atualiza se for remoto e a Meta retornar novo status
     let status: string = tpl.status ?? "PENDING";
     const meta_template_id: string | null = tpl.meta_template_id;
 
-    // 2. Busca credenciais Meta do perfil
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
@@ -229,6 +239,13 @@ export const updateTemplate = createServerFn({ method: "POST" })
           components,
           language: data.language,
           category: data.category,
+          parameter_format: data.parameter_format,
+          allow_category_change: data.allow_category_change,
+          cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out,
+          message_send_ttl_seconds: data.message_send_ttl_seconds,
+          sub_category: data.sub_category,
+          display_format: data.display_format,
+          is_primary_device_delivery_only: data.is_primary_device_delivery_only,
         }),
       });
       const body: any = await res.json();
@@ -241,7 +258,6 @@ export const updateTemplate = createServerFn({ method: "POST" })
       status = body.status ?? status;
     }
 
-    // 3. Atualiza no banco (query-compiler usa WHERE id=? AND user_id=? automaticamente)
     const { data: row, error } = await context.db
       .from("templates")
       .update({
@@ -263,11 +279,11 @@ export const updateTemplate = createServerFn({ method: "POST" })
 
 export const deleteTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d) => z.object({ id: z.string().uuid(), deleteMode: z.enum(["single", "all"]).default("single") }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: tpl } = await context.db
       .from("templates")
-      .select("name, meta_template_id")
+      .select("name, language, meta_template_id")
       .eq("id", data.id)
       .maybeSingle();
 
@@ -283,14 +299,33 @@ export const deleteTemplate = createServerFn({ method: "POST" })
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token && tpl?.name) {
         const apiVersion = p.meta_graph_version || "v20.0";
-        await fetch(
-          `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(tpl.name)}`,
-          { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
-        ).catch(() => null);
+        let url = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(tpl.name)}`;
+        if (data.deleteMode === "single") {
+          url += `&hsm_id=${encodeURIComponent(tpl.meta_template_id)}`;
+        }
+        const res = await fetch(url, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+        });
+        if (!res.ok) {
+          const body: any = await res.json().catch(() => null);
+          if (body) {
+            const friendly = toFriendlyError(body, "Falha ao excluir template na Meta");
+            throw new Error(
+              `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+            );
+          }
+        }
       }
     }
-    const { error } = await context.db.from("templates").delete().eq("id", data.id);
-    if (error) throw error;
+    
+    if (data.deleteMode === "all" && tpl?.name) {
+      const { error } = await context.db.from("templates").delete().eq("name", tpl.name);
+      if (error) throw error;
+    } else {
+      const { error } = await context.db.from("templates").delete().eq("id", data.id);
+      if (error) throw error;
+    }
     return { ok: true };
   });
 
@@ -318,14 +353,21 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
         const apiVersion = p.meta_graph_version || "v20.0";
-        await Promise.all(
-          remote.map((t: any) =>
-            fetch(
-              `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(t.name)}`,
-              { method: "DELETE", headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
-            ).catch(() => null),
-          ),
-        );
+        const remoteMetaIds = remote.map((t: any) => t.meta_template_id);
+        const url = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?hsm_ids=${encodeURIComponent(JSON.stringify(remoteMetaIds))}`;
+        const res = await fetch(url, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          if (body) {
+            const friendly = toFriendlyError(body, "Falha ao excluir templates em massa na Meta");
+            throw new Error(
+              `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+            );
+          }
+        }
       }
     }
 
@@ -346,7 +388,6 @@ export const listTemplates = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
-// Returns all templates regardless of status — used by the Templates management page
 export const listAllTemplates = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -368,8 +409,22 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
     }
     const apiVersion = p.meta_graph_version || "v20.0";
     const all: any[] = [];
+    const fields = [
+      "name",
+      "language",
+      "status",
+      "category",
+      "components",
+      "id",
+      "sub_category",
+      "parameter_format",
+      "allow_category_change",
+      "cta_url_link_tracking_opted_out",
+      "message_send_ttl_seconds",
+      "is_primary_device_delivery_only"
+    ].join(",");
     let url: string | null =
-      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=name,language,status,category,components,id&limit=200`;
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=${fields}&limit=200`;
     while (url) {
       const r: Response = await fetch(url, {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
@@ -394,6 +449,12 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
         status: t.status,
         components: t.components ?? [],
         synced_at: new Date().toISOString(),
+        parameter_format: t.parameter_format,
+        allow_category_change: t.allow_category_change ? 1 : 0,
+        cta_url_link_tracking_opted_out: t.cta_url_link_tracking_opted_out ? 1 : 0,
+        message_send_ttl_seconds: t.message_send_ttl_seconds,
+        sub_category: t.sub_category,
+        is_primary_device_delivery_only: t.is_primary_device_delivery_only ? 1 : 0,
       }));
       const { error } = await context.db
         .from("templates")
@@ -869,3 +930,136 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     if (updateErr) throw updateErr;
     return updated;
   });
+
+export const getMetaTemplateDetails = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid().optional(), meta_template_id: z.string().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    let metaTemplateId = data.meta_template_id;
+    if (data.id) {
+      const { data: tpl } = await context.db
+        .from("templates")
+        .select("meta_template_id")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (tpl?.meta_template_id) {
+        metaTemplateId = tpl.meta_template_id;
+      }
+    }
+
+    if (!metaTemplateId || metaTemplateId.startsWith("local_") || metaTemplateId.startsWith("sample_")) {
+      throw new Error("Este template não possui um ID da Meta ativo.");
+    }
+
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      throw new Error("Configure seu Token de Acesso em Configurações.");
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const fields = [
+      "id",
+      "ad_account_id",
+      "ad_adset_id",
+      "ad_campaign_id",
+      "ad_id",
+      "bid_spec",
+      "category",
+      "components",
+      "correct_category",
+      "cta_url_link_tracking_opted_out",
+      "degrees_of_freedom_spec",
+      "display_format",
+      "health_status",
+      "is_primary_device_delivery_only",
+      "is_sms_fallback_enabled",
+      "language",
+      "last_updated_time",
+      "library_template_name",
+      "message_send_ttl_seconds",
+      "name",
+      "parameter_format",
+      "previous_category",
+      "quality_score",
+      "rejected_reason",
+      "source",
+      "status",
+      "sub_category"
+    ].join(",");
+
+    const res = await fetch(`https://graph.facebook.com/${apiVersion}/${metaTemplateId}?fields=${fields}`, {
+      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+    });
+    const body: any = await res.json();
+    if (!res.ok) {
+      const friendly = toFriendlyError(body, "Falha ao obter detalhes do template na Meta");
+      throw new Error(
+        `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+      );
+    }
+    return body;
+  });
+
+export const listMetaTemplatesDirect = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator(
+    z.object({
+      limit: z.number().int().min(1).max(100).optional(),
+      after: z.string().optional(),
+      before: z.string().optional(),
+    }).parse
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_waba_id || !p?.whatsapp_access_token) {
+      throw new Error("Configure seu WABA ID e Token de Acesso em Configurações.");
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const fields = [
+      "id",
+      "name",
+      "language",
+      "status",
+      "category",
+      "components",
+      "quality_score",
+      "rejected_reason",
+      "sub_category",
+      "last_updated_time",
+      "parameter_format",
+      "allow_category_change",
+      "cta_url_link_tracking_opted_out",
+      "message_send_ttl_seconds",
+      "is_primary_device_delivery_only",
+      "health_status"
+    ].join(",");
+
+    let url = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=${fields}`;
+    if (data.limit) url += `&limit=${data.limit}`;
+    if (data.after) url += `&after=${data.after}`;
+    if (data.before) url += `&before=${data.before}`;
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+    });
+    const body: any = await res.json();
+    if (!res.ok) {
+      const friendly = toFriendlyError(body, "Falha ao obter lista de templates da Meta");
+      throw new Error(
+        `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+      );
+    }
+    return body;
+  });
+

@@ -21,6 +21,28 @@ import {
   listWABAPhoneNumbers,
   registerPhoneNumber,
   debugAccessToken,
+  listAssignedWABAs,
+  getWABABotDetails,
+  checkCallPermissions,
+  manageCall,
+  sendAdvancedSandboxMessage,
+  uploadMetaMedia,
+  requestVerificationCode,
+  verifyVerificationCode,
+  deregisterPhoneNumber,
+  getPhoneSettings,
+  updatePhoneSettings,
+  getOBAStatus,
+  applyForOBA,
+  getSinglePhoneInfo,
+  updatePhoneConfig,
+  getSolutionDetails,
+  acceptSolutionInvitation,
+  rejectSolutionInvitation,
+  sendSolutionDeactivation,
+  acceptSolutionDeactivation,
+  rejectSolutionDeactivation,
+  getSolutionAccessToken,
 } from "@/lib/profile.functions";
 import {
   getCurrentUserRoles,
@@ -88,6 +110,12 @@ import {
   Plus,
   Pencil,
   Loader2,
+  Settings,
+  Phone,
+  UploadCloud,
+  Users,
+  Smartphone,
+  Bot,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -1131,6 +1159,8 @@ function SettingsPage() {
         <QRCodeSection />
 
         <WABASection />
+
+        <AdvancedToolsSection />
 
         <Card className="p-6">
           <div className="flex items-start justify-between gap-3">
@@ -2919,17 +2949,211 @@ function WABASection() {
   const [searchId, setSearchId] = useState("");
   const [details, setDetails] = useState<any>(null);
   const [list, setList] = useState<any[]>([]);
-  const [listType, setListType] = useState<"owned" | "client" | null>(null);
+  const [listType, setListType] = useState<"owned" | "client" | "assigned" | null>(null);
 
   // Estados para Telefones e Webhooks
   const [phonesMap, setPhonesMap] = useState<Record<string, any[]>>({});
   const [loadingPhones, setLoadingPhones] = useState<Record<string, boolean>>({});
   const [subscribing, setSubscribing] = useState<Record<string, boolean>>({});
 
-  // Estados para Modal de Registro PIN 2FA
-  const [pinModalOpen, setPinModalOpen] = useState(false);
-  const [pinPhoneId, setPinPhoneId] = useState("");
-  const [pinCode, setPinCode] = useState("");
+  // Atribuídas ao Token states
+  const fetchAssigned = useServerFn(listAssignedWABAs);
+  const [metaUserId, setMetaUserId] = useState<string>("");
+
+  // Onboarding Wizard states
+  const requestCode = useServerFn(requestVerificationCode);
+  const verifyCode = useServerFn(verifyVerificationCode);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingPhoneId, setOnboardingPhoneId] = useState("");
+  const [onboardingStep, setOnboardingStep] = useState(1); // 1: Request, 2: Verify, 3: Register
+  const [codeMethod, setCodeMethod] = useState<"SMS" | "VOICE">("SMS");
+  const [codeLanguage, setCodeLanguage] = useState("pt_BR");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [twoFactorPin, setTwoFactorPin] = useState("");
+
+  // Settings Gear states
+  const getPhoneSettingsFn = useServerFn(getPhoneSettings);
+  const updatePhoneSettingsFn = useServerFn(updatePhoneSettings);
+  const getOBAStatusFn = useServerFn(getOBAStatus);
+  const applyForOBAFn = useServerFn(applyForOBA);
+  const getSinglePhoneInfoFn = useServerFn(getSinglePhoneInfo);
+  const updatePhoneConfigFn = useServerFn(updatePhoneConfig);
+  const fetchDebugToken = useServerFn(debugAccessToken);
+
+  const [phoneSettingsOpen, setPhoneSettingsOpen] = useState(false);
+  const [settingsPhoneId, setSettingsPhoneId] = useState("");
+  const [settingsTab, setSettingsTab] = useState("general"); // general, calling, oba
+  
+  // Settings Gear form fields
+  const [displayName, setDisplayName] = useState("");
+  const [searchVisibility, setSearchVisibility] = useState("PUBLIC");
+  const [obaStatus, setObaStatus] = useState<any>(null);
+  const [obaCategory, setObaCategory] = useState("OTHER");
+  const [obaWebsite, setObaWebsite] = useState("");
+  const [obaReason, setObaReason] = useState("");
+  const [callingEnabled, setCallingEnabled] = useState(true);
+  const [sipEnabled, setSipEnabled] = useState(false);
+
+  // Deregister phone states & mutations
+  const deregisterPhone = useServerFn(deregisterPhoneNumber);
+  const deregisterPhoneMut = useMutation({
+    mutationFn: (phoneId: string) => deregisterPhone({ data: { phoneId } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        toast.success("Número desregistrado com sucesso.");
+        qc.invalidateQueries({ queryKey: ["profile"] });
+      } else {
+        toast.error(res.error || "Falha ao desregistrar número.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const listAssignedMut = useMutation({
+    mutationFn: async () => {
+      let currentUserId = metaUserId;
+      if (!currentUserId) {
+        const token = String(profileData?.whatsapp_access_token ?? "").trim();
+        if (!token) throw new Error("Insira e salve o Access Token no Passo 1 antes de usar.");
+        const debugRes = await fetchDebugToken({ data: { token } });
+        if (!debugRes.ok || !debugRes.data?.user_id) {
+          throw new Error(debugRes.error || "Não foi possível resolver o Meta User ID.");
+        }
+        currentUserId = debugRes.data.user_id;
+        setMetaUserId(currentUserId);
+      }
+      const res = await fetchAssigned({ data: { metaUserId: currentUserId } });
+      if (!res.ok) throw new Error(res.error || "Erro ao listar WABAs atribuídas.");
+      return res.data || [];
+    },
+    onSuccess: (data) => {
+      setList(data);
+      setListType("assigned");
+      toast.success(`Carregadas ${data.length} contas WABA atribuídas.`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const onboardingRequestCodeMut = useMutation({
+    mutationFn: () => requestCode({ data: { phoneId: onboardingPhoneId, method: codeMethod, language: codeLanguage } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        toast.success("Código de verificação solicitado! Confira seu telefone.");
+        setOnboardingStep(2);
+      } else {
+        toast.error(res.error || "Erro ao solicitar código.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const onboardingVerifyCodeMut = useMutation({
+    mutationFn: () => verifyCode({ data: { phoneId: onboardingPhoneId, code: verificationCode } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        toast.success("Código de verificação aceito! Defina o PIN de 2FA.");
+        setOnboardingStep(3);
+      } else {
+        toast.error(res.error || "Código incorreto ou expirado.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const onboardingRegisterPinMut = useMutation({
+    mutationFn: () => registerPhone({ data: { phoneId: onboardingPhoneId, pin: twoFactorPin } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        toast.success("Número registrado com sucesso!");
+        setOnboardingOpen(false);
+        // Refresh phone list
+        const activeWaba = searchId || details?.id || list.find((w) => phonesMap[w.id])?.id;
+        if (activeWaba) loadPhonesMut.mutate(activeWaba);
+      } else {
+        toast.error(res.error || "Falha ao registrar PIN.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const loadPhoneSettingsMut = useMutation({
+    mutationFn: async (phoneId: string) => {
+      const [settingsRes, obaRes, infoRes] = await Promise.all([
+        getPhoneSettingsFn({ data: { phoneId } }),
+        getOBAStatusFn({ data: { phoneId } }).catch(() => ({ ok: true, data: null })),
+        getSinglePhoneInfoFn({ data: { phoneId } }),
+      ]);
+      return {
+        settings: settingsRes.ok ? settingsRes.data : null,
+        oba: obaRes.ok ? obaRes.data : null,
+        info: infoRes.ok ? infoRes.data : null,
+      };
+    },
+    onSuccess: (data) => {
+      if (data.info) {
+        setDisplayName(data.info.verified_name || "");
+      }
+      if (data.settings) {
+        setCallingEnabled(data.settings.calling_enabled ?? true);
+        setSipEnabled(data.settings.sip_enabled ?? false);
+      }
+      if (data.oba) {
+        setObaStatus(data.oba);
+      } else {
+        setObaStatus(null);
+      }
+      toast.success("Configurações do telefone carregadas!");
+    },
+    onError: (e: any) => toast.error("Erro ao carregar configurações: " + e.message),
+  });
+
+  const savePhoneSettingsMut = useMutation({
+    mutationFn: async () => {
+      await updatePhoneSettingsFn({
+        data: {
+          phoneId: settingsPhoneId,
+          payload: {
+            calling_enabled: callingEnabled,
+            sip_enabled: sipEnabled,
+          },
+        },
+      });
+      await updatePhoneConfigFn({
+        data: {
+          phoneId: settingsPhoneId,
+          payload: {
+            verified_name: displayName,
+            search_visibility: searchVisibility,
+          },
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Configurações salvas com sucesso!");
+      setPhoneSettingsOpen(false);
+      // Refresh phone list
+      const activeWaba = searchId || details?.id || list.find((w) => phonesMap[w.id])?.id;
+      if (activeWaba) loadPhonesMut.mutate(activeWaba);
+    },
+    onError: (e: any) => toast.error("Falha ao salvar configurações: " + e.message),
+  });
+
+  const obaRequestMut = useMutation({
+    mutationFn: () => applyForOBAFn({
+      data: {
+        phoneId: settingsPhoneId,
+        payload: {
+          category: obaCategory,
+          website: obaWebsite,
+          reason: obaReason,
+        },
+      },
+    }),
+    onSuccess: () => {
+      toast.success("Solicitação de Selo Verde (OBA) enviada com sucesso!");
+    },
+    onError: (e: any) => toast.error("Erro ao solicitar Selo Verde: " + e.message),
+  });
 
   const searchMut = useMutation({
     mutationFn: (id: string) => fetchInfo({ data: { wabaId: id } }),
@@ -3079,28 +3303,68 @@ function WABASection() {
             className="p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-muted/10"
           >
             <div>
-              <p className="font-semibold text-foreground">
-                {ph.verified_name || "Sem Nome de Exibição"}
-              </p>
-              <p className="font-mono text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-semibold text-foreground">
+                  {ph.verified_name || "Sem Nome de Exibição"}
+                </span>
+                {ph.is_official_business_account && (
+                  <Badge variant="secondary" className="bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/15 border-none h-4 px-1.5 py-0 text-[9px] font-medium leading-none">
+                    Oficial
+                  </Badge>
+                )}
+                {ph.status && (
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "h-4 px-1.5 py-0 text-[9px] font-medium border-none leading-none",
+                      ph.status === "CONNECTED" && "bg-success/15 text-success hover:bg-success/20",
+                      ph.status === "FLAGGED" && "bg-amber-500/15 text-amber-500 hover:bg-amber-500/20",
+                      ph.status === "RESTRICTED" && "bg-destructive/15 text-destructive hover:bg-destructive/20",
+                      !["CONNECTED", "FLAGGED", "RESTRICTED"].includes(ph.status) && "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20"
+                    )}
+                  >
+                    {ph.status}
+                  </Badge>
+                )}
+              </div>
+              <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
                 +{ph.display_phone_number} (ID: {ph.id})
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Qualidade:{" "}
-                <span
-                  className={cn(
-                    "font-medium",
-                    ph.quality_rating === "GREEN" && "text-success",
-                    ph.quality_rating === "YELLOW" && "text-amber-500",
-                    ph.quality_rating === "RED" && "text-destructive",
-                  )}
-                >
-                  {ph.quality_rating}
+              <div className="text-[10px] text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>
+                  Qualidade:{" "}
+                  <span
+                    className={cn(
+                      "font-medium",
+                      ph.quality_rating === "GREEN" && "text-success",
+                      ph.quality_rating === "YELLOW" && "text-amber-500",
+                      ph.quality_rating === "RED" && "text-destructive",
+                    )}
+                  >
+                    {ph.quality_rating || "N/A"}
+                  </span>
                 </span>
-                {ph.code_verification_status && ` · Status: ${ph.code_verification_status}`}
-              </p>
+                {ph.code_verification_status && (
+                  <>
+                    <span>·</span>
+                    <span>2FA: {ph.code_verification_status}</span>
+                  </>
+                )}
+                {ph.messaging_limit_tier && (
+                  <>
+                    <span>·</span>
+                    <span>Limite: {ph.messaging_limit_tier.replace("TIER_", "")}</span>
+                  </>
+                )}
+                {ph.platform_type && (
+                  <>
+                    <span>·</span>
+                    <span>Plataforma: {ph.platform_type}</span>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex gap-1.5 self-end sm:self-center shrink-0">
+            <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
               <Button
                 size="sm"
                 variant="outline"
@@ -3119,10 +3383,42 @@ function WABASection() {
                 size="sm"
                 variant="outline"
                 className="h-7 text-[10px]"
-                onClick={() => handleOpenPinModal(ph.id)}
+                onClick={() => {
+                  setOnboardingPhoneId(ph.id);
+                  setOnboardingStep(1);
+                  setOnboardingOpen(true);
+                }}
                 disabled={registerPhoneMut.isPending}
               >
-                Registrar (2FA)
+                Assistente Onboarding
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSettingsPhoneId(ph.id);
+                  setSettingsTab("general");
+                  loadPhoneSettingsMut.mutate(ph.id);
+                  setPhoneSettingsOpen(true);
+                }}
+                title="Configurações avançadas do telefone"
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => {
+                  if (confirm("⚠️ AVISO CRÍTICO: Desregistrar o número desativará o envio de mensagens. Deseja mesmo desregistrar?")) {
+                    deregisterPhoneMut.mutate(ph.id);
+                  }
+                }}
+                title="Desregistrar da Meta"
+                disabled={deregisterPhoneMut.isPending}
+              >
+                {deregisterPhoneMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
             </div>
           </div>
@@ -3184,40 +3480,69 @@ function WABASection() {
 
               {details && (
                 <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-                  <div className="flex justify-between items-start">
+                  <div className="flex justify-between items-start flex-wrap gap-2">
                     <span className="font-semibold text-sm">
                       {details.name || "Conta sem Nome"}
                     </span>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        details.status === "APPROVED"
-                          ? "bg-success/15 text-success hover:bg-success/20 border-none"
-                          : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none",
+                    <div className="flex gap-1.5 flex-wrap">
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "border-none",
+                          (details.account_review_status || details.status) === "APPROVED"
+                            ? "bg-success/15 text-success hover:bg-success/20"
+                            : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20",
+                        )}
+                      >
+                        Revisão: {details.account_review_status || details.status || "UNKNOWN"}
+                      </Badge>
+                      {details.business_verification_status && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "border-none",
+                            details.business_verification_status === "VERIFIED"
+                              ? "bg-blue-500/15 text-blue-500 hover:bg-blue-500/20"
+                              : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20",
+                          )}
+                        >
+                          Verificação: {details.business_verification_status}
+                        </Badge>
                       )}
-                    >
-                      {details.status}
-                    </Badge>
+                    </div>
                   </div>
                   <div className="text-xs space-y-1 font-mono">
                     <p className="text-muted-foreground">
-                      <span className="font-sans font-medium">ID:</span> {details.id}
+                      <span className="font-sans font-medium text-foreground">ID:</span> {details.id}
                     </p>
                     {details.timezone_id && (
                       <p className="text-muted-foreground">
-                        <span className="font-sans font-medium">Fuso Horário:</span>{" "}
+                        <span className="font-sans font-medium text-foreground">Fuso Horário:</span>{" "}
                         {details.timezone_id}
                       </p>
                     )}
-                    {details.currency && (
+                    {details.message_template_namespace && (
                       <p className="text-muted-foreground">
-                        <span className="font-sans font-medium">Moeda:</span> {details.currency}
+                        <span className="font-sans font-medium text-foreground">Namespace de Templates:</span>{" "}
+                        {details.message_template_namespace}
                       </p>
                     )}
-                    {details.message_limit && (
+                    {details.country && (
                       <p className="text-muted-foreground">
-                        <span className="font-sans font-medium">Limite:</span>{" "}
-                        {details.message_limit}
+                        <span className="font-sans font-medium text-foreground">País:</span>{" "}
+                        {details.country}
+                      </p>
+                    )}
+                    {details.ownership_type && (
+                      <p className="text-muted-foreground">
+                        <span className="font-sans font-medium text-foreground">Tipo de Propriedade:</span>{" "}
+                        {details.ownership_type}
+                      </p>
+                    )}
+                    {details.primary_business_location && (
+                      <p className="text-muted-foreground">
+                        <span className="font-sans font-medium text-foreground">Localização:</span>{" "}
+                        {details.primary_business_location}
                       </p>
                     )}
                   </div>
@@ -3281,7 +3606,7 @@ function WABASection() {
                       variant={listType === "owned" ? "default" : "outline"}
                       size="sm"
                       onClick={() => listMut.mutate("owned")}
-                      disabled={listMut.isPending}
+                      disabled={listMut.isPending || listAssignedMut.isPending}
                     >
                       {listMut.isPending && listType === "owned" ? (
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -3292,12 +3617,23 @@ function WABASection() {
                       variant={listType === "client" ? "default" : "outline"}
                       size="sm"
                       onClick={() => listMut.mutate("client")}
-                      disabled={listMut.isPending}
+                      disabled={listMut.isPending || listAssignedMut.isPending}
                     >
                       {listMut.isPending && listType === "client" ? (
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                       ) : null}
                       Clientes (Client)
+                    </Button>
+                    <Button
+                      variant={listType === "assigned" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => listAssignedMut.mutate()}
+                      disabled={listMut.isPending || listAssignedMut.isPending}
+                    >
+                      {listAssignedMut.isPending ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      Atribuídas ao Token
                     </Button>
                   </div>
 
@@ -3316,19 +3652,20 @@ function WABASection() {
                                 ID: {w.id}
                               </p>
                               <p className="text-muted-foreground text-[10px] mt-0.5">
-                                Fuso: {w.timezone_id} · Limite: {w.message_limit ?? "N/A"}
+                                Fuso: {w.timezone_id || "N/A"}{w.country && ` · País: ${w.country}`}{w.business_verification_status && ` · Verif.: ${w.business_verification_status}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Badge
                                 variant="secondary"
                                 className={cn(
-                                  w.status === "APPROVED"
-                                    ? "bg-success/15 text-success hover:bg-success/20 border-none"
-                                    : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20 border-none",
+                                  "border-none",
+                                  (w.account_review_status || w.status) === "APPROVED"
+                                    ? "bg-success/15 text-success hover:bg-success/20"
+                                    : "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20",
                                 )}
                               >
-                                {w.status}
+                                {w.account_review_status || w.status || "UNKNOWN"}
                               </Badge>
                               <Button
                                 size="sm"
@@ -3392,45 +3729,1138 @@ function WABASection() {
         </div>
       )}
 
-      {/* Modal para Registro PIN 2FA */}
-      <Dialog open={pinModalOpen} onOpenChange={setPinModalOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+      {/* Onboarding Wizard Dialog */}
+      <Dialog open={onboardingOpen} onOpenChange={setOnboardingOpen}>
+        <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
-            <DialogTitle>Registrar Número na API Cloud (2FA)</DialogTitle>
+            <DialogTitle>Assistente de Ativação do Número</DialogTitle>
             <DialogDescription>
-              Insira o PIN de 2 fatores (2FA) de 6 dígitos que você definiu para este número de
-              telefone no painel do WhatsApp Manager.
+              Complete as etapas para verificar e ativar seu número na Meta Cloud API.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleRegisterPhone} className="space-y-4 py-3">
-            <div className="space-y-2">
-              <Label htmlFor="pin-code">PIN de 6 dígitos</Label>
-              <Input
-                id="pin-code"
-                placeholder="Ex: 123456"
-                type="password"
-                maxLength={6}
-                value={pinCode}
-                onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
-                className="text-center font-mono text-lg tracking-widest"
-                required
-              />
-              <p className="text-[11px] text-muted-foreground">
-                📍 Onde achar/definir: WhatsApp Manager → Ferramentas → Configurações do número de
-                telefone → Confirmação em duas etapas.
-              </p>
+
+          <div className="flex items-center justify-between border-y py-3 my-2 text-xs">
+            <span className={cn("px-2 py-1 rounded-full font-medium", onboardingStep === 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+              1. Solicitar Código
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className={cn("px-2 py-1 rounded-full font-medium", onboardingStep === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+              2. Verificar Código
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className={cn("px-2 py-1 rounded-full font-medium", onboardingStep === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+              3. Registrar PIN
+            </span>
+          </div>
+
+          {onboardingStep === 1 && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Método de Envio</Label>
+                <Select value={codeMethod} onValueChange={(val: any) => setCodeMethod(val)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SMS">SMS (Recomendado)</SelectItem>
+                    <SelectItem value="VOICE">Chamada de Voz</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Idioma do Código</Label>
+                <Select value={codeLanguage} onValueChange={setCodeLanguage}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pt_BR">Português (Brasil)</SelectItem>
+                    <SelectItem value="en_US">Inglês (Estados Unidos)</SelectItem>
+                    <SelectItem value="es_ES">Espanhol (Espanha)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <DialogFooter className="pt-4 border-t">
+                <Button variant="outline" onClick={() => setOnboardingOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => onboardingRequestCodeMut.mutate()} 
+                  disabled={onboardingRequestCodeMut.isPending}
+                >
+                  {onboardingRequestCodeMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Solicitar Código
+                </Button>
+              </DialogFooter>
             </div>
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setPinModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={registerPhoneMut.isPending || pinCode.length !== 6}>
-                {registerPhoneMut.isPending ? "Registrando..." : "Registrar"}
-              </Button>
-            </DialogFooter>
-          </form>
+          )}
+
+          {onboardingStep === 2 && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Código de Verificação</Label>
+                <Input
+                  placeholder="Ex: 123456"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                  className="text-center font-mono text-lg tracking-widest"
+                  maxLength={6}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Insira o código numérico enviado pela Meta via {codeMethod === "SMS" ? "SMS" : "Chamada de Voz"}.
+                </p>
+              </div>
+
+              <DialogFooter className="pt-4 border-t flex justify-between">
+                <Button variant="outline" onClick={() => setOnboardingStep(1)}>
+                  Voltar
+                </Button>
+                <Button 
+                  onClick={() => onboardingVerifyCodeMut.mutate()} 
+                  disabled={onboardingVerifyCodeMut.isPending || verificationCode.length < 4}
+                >
+                  {onboardingVerifyCodeMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Verificar Código
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {onboardingStep === 3 && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Definir PIN de Duas Etapas (6 dígitos)</Label>
+                <Input
+                  type="password"
+                  placeholder="Ex: 123456"
+                  value={twoFactorPin}
+                  onChange={(e) => setTwoFactorPin(e.target.value.replace(/\D/g, ""))}
+                  className="text-center font-mono text-lg tracking-widest"
+                  maxLength={6}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Este PIN será registrado como segurança de duas etapas (2FA) para o seu número na Cloud API. Use apenas números.
+                </p>
+              </div>
+
+              <DialogFooter className="pt-4 border-t flex justify-between">
+                <Button variant="outline" onClick={() => setOnboardingStep(2)}>
+                  Voltar
+                </Button>
+                <Button 
+                  onClick={() => onboardingRegisterPinMut.mutate()} 
+                  disabled={onboardingRegisterPinMut.isPending || twoFactorPin.length !== 6}
+                >
+                  {onboardingRegisterPinMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Registrar PIN e Concluir
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Phone Settings Dialog */}
+      <Dialog open={phoneSettingsOpen} onOpenChange={setPhoneSettingsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Configurações do Telefone</DialogTitle>
+            <DialogDescription>
+              Gerencie configurações avançadas, nome de exibição e solicitação de Selo Oficial.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadPhoneSettingsMut.isPending ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Carregando configurações da Meta...</p>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="flex border-b text-sm">
+                <button
+                  type="button"
+                  className={cn("px-4 py-2 border-b-2 font-medium transition-colors", settingsTab === "general" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+                  onClick={() => setSettingsTab("general")}
+                >
+                  Geral e Nome
+                </button>
+                <button
+                  type="button"
+                  className={cn("px-4 py-2 border-b-2 font-medium transition-colors", settingsTab === "calling" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+                  onClick={() => setSettingsTab("calling")}
+                >
+                  Chamadas
+                </button>
+                <button
+                  type="button"
+                  className={cn("px-4 py-2 border-b-2 font-medium transition-colors", settingsTab === "oba" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+                  onClick={() => setSettingsTab("oba")}
+                >
+                  Selo Verde (OBA)
+                </button>
+              </div>
+
+              {settingsTab === "general" && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label>Nome de Exibição (Verified Name)</Label>
+                    <Input
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Nome oficial da empresa"
+                    />
+                    <p className="text-[10px] text-muted-foreground leading-normal">
+                      ⚠️ Mudar o nome de exibição exige aprovação da Meta. O número pode ficar temporariamente em revisão.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Visibilidade de Pesquisa</Label>
+                    <Select value={searchVisibility} onValueChange={setSearchVisibility}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PUBLIC">Público (Visível na busca do WhatsApp)</SelectItem>
+                        <SelectItem value="PRIVATE">Privado (Invisível na busca)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === "calling" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <Label className="font-semibold">Habilitar Chamadas de Voz</Label>
+                      <p className="text-xs text-muted-foreground">Permite receber chamadas de voz de usuários do WhatsApp.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={callingEnabled}
+                      onChange={(e) => setCallingEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pb-3">
+                    <div>
+                      <Label className="font-semibold">Protocolo SIP (PABX)</Label>
+                      <p className="text-xs text-muted-foreground">Roteia chamadas via SIP para integração com centrais VoIP.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={sipEnabled}
+                      onChange={(e) => setSipEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === "oba" && (
+                <div className="space-y-4">
+                  <div className="bg-muted/30 p-3 rounded-lg border text-xs space-y-1.5">
+                    <p className="font-semibold text-foreground">Status Atual do Selo Oficial:</p>
+                    <div>
+                      Selo OBA:{" "}
+                      <Badge variant="outline" className={cn(obaStatus?.oba_status === "APPROVED" ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground")}>
+                        {obaStatus?.oba_status || "Não oficial / Não solicitado"}
+                      </Badge>
+                    </div>
+                    {obaStatus?.status_message && (
+                      <p className="text-muted-foreground italic">"{obaStatus.status_message}"</p>
+                    )}
+                  </div>
+
+                  <div className="border-t pt-3 space-y-3">
+                    <h4 className="text-xs font-semibold text-foreground">Solicitar Selo Verde (OBA)</h4>
+                    <div className="space-y-1.5">
+                      <Label>Categoria da Empresa</Label>
+                      <Select value={obaCategory} onValueChange={setObaCategory}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="OTHER">Outros</SelectItem>
+                          <SelectItem value="FINANCE">Finanças / Bancos</SelectItem>
+                          <SelectItem value="RETAIL">Varejo / E-commerce</SelectItem>
+                          <SelectItem value="HEALTH">Saúde</SelectItem>
+                          <SelectItem value="EDUCATION">Educação</SelectItem>
+                          <SelectItem value="GOVERNMENT">Governo / Institucional</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Website de Referência</Label>
+                      <Input
+                        value={obaWebsite}
+                        onChange={(e) => setObaWebsite(e.target.value)}
+                        placeholder="https://suaempresa.com"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Motivo da Solicitação</Label>
+                      <Textarea
+                        value={obaReason}
+                        onChange={(e) => setObaReason(e.target.value)}
+                        placeholder="Descreva por que sua marca é de interesse público..."
+                        rows={3}
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-xs"
+                      onClick={() => obaRequestMut.mutate()}
+                      disabled={obaRequestMut.isPending}
+                    >
+                      {obaRequestMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      Enviar Solicitação de Selo Verde
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="pt-4 border-t">
+                <Button variant="outline" onClick={() => setPhoneSettingsOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => savePhoneSettingsMut.mutate()}
+                  disabled={savePhoneSettingsMut.isPending}
+                >
+                  {savePhoneSettingsMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Salvar
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function AdvancedToolsSection() {
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_advanced_tools_collapsed",
+    true,
+  );
+  
+  const [activeTab, setActiveTab] = useState("bots");
+  
+  const profileQuery = useQuery({ queryKey: ["profile"] });
+  const profileData = profileQuery.data as any;
+  const activePhoneId = profileData?.whatsapp_phone_number_id || "";
+
+  // 1. Bots Tab States
+  const [botId, setBotId] = useState("");
+  const [botDetails, setBotDetails] = useState<any>(null);
+  const fetchBotDetails = useServerFn(getWABABotDetails);
+  const botMut = useMutation({
+    mutationFn: () => fetchBotDetails({ data: { botId } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setBotDetails(res.data || res);
+        toast.success("Detalhes do robô WABA carregados!");
+      } else {
+        toast.error(res.error || "Erro ao carregar robô.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // 2. Calls Tab States
+  const [callRecipient, setCallRecipient] = useState("");
+  const [callId, setCallId] = useState("");
+  const [sdpValue, setSdpValue] = useState("");
+  const [sdpType, setSdpType] = useState("offer");
+  const [callPermResult, setCallPermResult] = useState<any>(null);
+  
+  const checkCallPermFn = useServerFn(checkCallPermissions);
+  const manageCallFn = useServerFn(manageCall);
+
+  const checkCallPermMut = useMutation({
+    mutationFn: () => checkCallPermFn({ data: { phoneId: activePhoneId, recipientPhone: callRecipient } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setCallPermResult(res.data);
+        toast.success("Permissões de chamada verificadas!");
+      } else {
+        toast.error(res.error || "Erro ao verificar permissão.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const manageCallMut = useMutation({
+    mutationFn: (action: "connect" | "accept" | "reject" | "terminate") =>
+      manageCallFn({
+        data: {
+          phoneId: activePhoneId,
+          action,
+          to: action === "connect" ? callRecipient : undefined,
+          callId: action !== "connect" ? callId : undefined,
+          sdp: sdpValue || undefined,
+          sdpType: sdpValue ? sdpType : undefined,
+        },
+      }),
+    onSuccess: (res: any, action) => {
+      if (res.ok) {
+        toast.success(`Chamada: Ação "${action}" executada com sucesso!`);
+        if (res.data?.call_id) {
+          setCallId(res.data.call_id);
+        }
+      } else {
+        toast.error(res.error || `Erro ao executar ação "${action}".`);
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // 3. Sandbox Messages States
+  const [msgRecipient, setMsgRecipient] = useState("");
+  const [msgType, setMsgType] = useState<"text" | "marketing" | "interactive">("text");
+  
+  // msg text fields
+  const [msgTextBody, setMsgTextBody] = useState("");
+  // msg marketing fields
+  const [templateName, setTemplateName] = useState("hello_world");
+  const [templateLanguage, setTemplateLanguage] = useState("en_us");
+  const [templateParamsJson, setTemplateParamsJson] = useState("[]");
+  // msg interactive fields
+  const [interactiveJson, setInteractiveJson] = useState(
+    JSON.stringify(
+      {
+        type: "button",
+        header: { type: "text", text: "Título da Mensagem" },
+        body: { text: "Corpo da mensagem interativa" },
+        footer: { text: "Rodapé" },
+        action: {
+          buttons: [
+            { type: "reply", reply: { id: "btn_1", title: "Opção 1" } },
+            { type: "reply", reply: { id: "btn_2", title: "Opção 2" } },
+          ],
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const sendSandboxFn = useServerFn(sendAdvancedSandboxMessage);
+  const sendSandboxMut = useMutation({
+    mutationFn: () => {
+      let payload: any = {};
+      if (msgType === "text") {
+        payload = { text: { body: msgTextBody } };
+      } else if (msgType === "marketing") {
+        let params = [];
+        try {
+          params = JSON.parse(templateParamsJson);
+        } catch {
+          throw new Error("Parâmetros do template precisam ser um JSON válido (Array).");
+        }
+        payload = {
+          template: {
+            name: templateName,
+            language: { code: templateLanguage },
+            components: params,
+          },
+        };
+      } else {
+        let interactiveData = {};
+        try {
+          interactiveData = JSON.parse(interactiveJson);
+        } catch {
+          throw new Error("Estrutura interativa precisa ser um JSON válido.");
+        }
+        payload = {
+          type: "interactive",
+          interactive: interactiveData,
+        };
+      }
+      return sendSandboxFn({
+        data: {
+          phoneId: activePhoneId,
+          type: msgType,
+          to: msgRecipient,
+          payload,
+        },
+      });
+    },
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        toast.success("Mensagem de sandbox enviada com sucesso!");
+      } else {
+        toast.error(res.error || "Erro ao enviar mensagem.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // 4. Media Upload States
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedMediaId, setUploadedMediaId] = useState("");
+  const uploadMediaFn = useServerFn(uploadMetaMedia);
+  const uploadMediaMut = useMutation({
+    mutationFn: async () => {
+      if (!selectedFile) throw new Error("Selecione um arquivo primeiro.");
+      
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(selectedFile);
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(",")[1];
+          resolve(base64);
+        };
+        reader.onerror = (e) => reject(e);
+      });
+
+      return uploadMediaFn({
+        data: {
+          phoneId: activePhoneId,
+          fileName: selectedFile.name,
+          fileType: selectedFile.type,
+          fileBase64,
+        },
+      });
+    },
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setUploadedMediaId(res.data?.id);
+        toast.success("Mídia carregada com sucesso na Meta!");
+      } else {
+        toast.error(res.error || "Erro ao carregar mídia.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // 5. Solution Partner States
+  const [solId, setSolId] = useState("");
+  const [solDetails, setSolDetails] = useState<any>(null);
+  const [solBusinessId, setSolBusinessId] = useState("");
+  const [solAccessToken, setSolAccessToken] = useState("");
+
+  const getSolDetailsFn = useServerFn(getSolutionDetails);
+  const acceptSolInvFn = useServerFn(acceptSolutionInvitation);
+  const rejectSolInvFn = useServerFn(rejectSolutionInvitation);
+  const sendSolDeactFn = useServerFn(sendSolutionDeactivation);
+  const acceptSolDeactFn = useServerFn(acceptSolutionDeactivation);
+  const rejectSolDeactFn = useServerFn(rejectSolutionDeactivation);
+  const getSolTokenFn = useServerFn(getSolutionAccessToken);
+
+  const getSolDetailsMut = useMutation({
+    mutationFn: () => getSolDetailsFn({ data: { solutionId: solId } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setSolDetails(res.data || res);
+        toast.success("Detalhes da Solução carregados!");
+      } else {
+        toast.error(res.error || "Erro ao carregar detalhes da solução.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const solLifecycleMut = useMutation({
+    mutationFn: async (action: "accept" | "reject" | "deactivate" | "accept_deact" | "reject_deact") => {
+      const fns = {
+        accept: acceptSolInvFn,
+        reject: rejectSolInvFn,
+        deactivate: sendSolDeactFn,
+        accept_deact: acceptSolDeactFn,
+        reject_deact: rejectSolDeactFn,
+      };
+      const res = await fns[action]({ data: { solutionId: solId } });
+      if (!res.ok) throw new Error(res.error || "Erro ao executar ação da solução.");
+      return res.data || res;
+    },
+    onSuccess: (data) => {
+      setSolDetails(data);
+      toast.success("Ação na solução executada com sucesso!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const getSolTokenMut = useMutation({
+    mutationFn: () => getSolTokenFn({ data: { solutionId: solId, businessId: solBusinessId } }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        setSolAccessToken(res.data?.access_token || res.data?.token || JSON.stringify(res.data));
+        toast.success("Token granular da solução obtido com sucesso!");
+      } else {
+        toast.error(res.error || "Erro ao obter token.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="p-6 border-primary/20 bg-background/50 backdrop-blur-md">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-primary" />
+            Ferramentas Avançadas de Comunicação
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Acesse ferramentas avançadas para Robôs, Chamadas (SDP), Mensagens Sandbox, Upload de Mídia e Gestão de Soluções Multi-Parceiro.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          className="shrink-0 gap-1"
+        >
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          <span className="hidden sm:inline text-xs">{collapsed ? "Expandir" : "Recolher"}</span>
+        </Button>
+      </div>
+
+      {!collapsed && (
+        <div className="mt-6 border-t pt-6 space-y-6">
+          {!activePhoneId && (
+            <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 p-3 rounded-lg text-xs flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>Atenção: Nenhum número de telefone ativo selecionado. Algumas ferramentas de chamadas e mensagens sandbox exigem um telefone ativo. Clique em "Usar Número" na lista acima.</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-1 border-b pb-2 text-xs">
+            <button
+              type="button"
+              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "bots" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              onClick={() => setActiveTab("bots")}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              Robô WABA
+            </button>
+            <button
+              type="button"
+              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "calls" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              onClick={() => setActiveTab("calls")}
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Chamadas
+            </button>
+            <button
+              type="button"
+              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "messages" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              onClick={() => setActiveTab("messages")}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Enviar Mensagem
+            </button>
+            <button
+              type="button"
+              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "media" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              onClick={() => setActiveTab("media")}
+            >
+              <UploadCloud className="h-3.5 w-3.5" />
+              Upload de Mídia
+            </button>
+            <button
+              type="button"
+              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "solutions" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              onClick={() => setActiveTab("solutions")}
+            >
+              <Users className="h-3.5 w-3.5" />
+              Parcerias (Solutions)
+            </button>
+          </div>
+
+          {activeTab === "bots" && (
+            <div className="space-y-4 max-w-xl text-xs">
+              <div className="space-y-1.5">
+                <Label>ID do Robô WABA</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Bot ID..."
+                    value={botId}
+                    onChange={(e) => setBotId(e.target.value)}
+                  />
+                  <Button
+                    onClick={() => botMut.mutate()}
+                    disabled={botMut.isPending || !botId.trim()}
+                  >
+                    {botMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar Robô"}
+                  </Button>
+                </div>
+              </div>
+
+              {botDetails && (
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <span className="font-semibold text-sm">Robô: {botDetails.id}</span>
+                    <Badge variant="outline" className={cn(botDetails.enable_welcome_message ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground")}>
+                      Welcome Message: {botDetails.enable_welcome_message ? "Sim" : "Não"}
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div>
+                      <p className="font-semibold text-foreground mb-1">Prompts / Diretrizes:</p>
+                      <pre className="p-2 border rounded bg-background font-mono text-[10px] max-h-32 overflow-y-auto">
+                        {JSON.stringify(botDetails.prompts || [], null, 2)}
+                      </pre>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground mb-1">Comandos Configurados:</p>
+                      <pre className="p-2 border rounded bg-background font-mono text-[10px] max-h-32 overflow-y-auto">
+                        {JSON.stringify(botDetails.commands || [], null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "calls" && (
+            <div className="grid gap-6 md:grid-cols-2 text-xs">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-sm text-foreground">Permissões e Iniciar</h3>
+                  <p className="text-xs text-muted-foreground">Verifique se o destinatário aceita chamadas e inicie com SDP.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Destinatário (DDD + número)</Label>
+                  <Input
+                    placeholder="Ex: 5511999999999"
+                    value={callRecipient}
+                    onChange={(e) => setCallRecipient(e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => checkCallPermMut.mutate()}
+                    disabled={checkCallPermMut.isPending || !callRecipient || !activePhoneId}
+                  >
+                    {checkCallPermMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    Verificar Permissões
+                  </Button>
+                  
+                  <Button
+                    onClick={() => manageCallMut.mutate("connect")}
+                    disabled={manageCallMut.isPending || !callRecipient || !activePhoneId}
+                  >
+                    {manageCallMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    Iniciar Chamada (Connect)
+                  </Button>
+                </div>
+
+                {callPermResult && (
+                  <div className="bg-muted/30 p-3 rounded-lg border">
+                    <p className="font-semibold text-foreground mb-1">Resultado de Permissão:</p>
+                    <pre className="font-mono text-[10px]">{JSON.stringify(callPermResult, null, 2)}</pre>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-sm text-foreground">Gerenciamento de Chamadas Ativas</h3>
+                  <p className="text-xs text-muted-foreground">Insira chaves SDP e Call ID para aceitar, rejeitar ou encerrar.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Call ID (ID da Chamada)</Label>
+                  <Input
+                    placeholder="Call ID..."
+                    value={callId}
+                    onChange={(e) => setCallId(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label>SDP Payload</Label>
+                    <Textarea
+                      placeholder="Session Description Protocol..."
+                      value={sdpValue}
+                      onChange={(e) => setSdpValue(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>SDP Type</Label>
+                    <Select value={sdpType} onValueChange={setSdpType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="offer">Offer (Proposta)</SelectItem>
+                        <SelectItem value="answer">Answer (Resposta)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => manageCallMut.mutate("accept")}
+                    disabled={manageCallMut.isPending || !callId || !activePhoneId}
+                  >
+                    Aceitar (Accept)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => manageCallMut.mutate("reject")}
+                    disabled={manageCallMut.isPending || !callId || !activePhoneId}
+                  >
+                    Rejeitar (Reject)
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => manageCallMut.mutate("terminate")}
+                    disabled={manageCallMut.isPending || !callId || !activePhoneId}
+                  >
+                    Encerrar (Terminate)
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "messages" && (
+            <div className="grid gap-6 md:grid-cols-2 text-xs">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-sm text-foreground">Destinatário & Tipo</h3>
+                  <p className="text-xs text-muted-foreground">Defina o número e o tipo de mensagem sandbox da API.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Destinatário (E.164 sem +)</Label>
+                  <Input
+                    placeholder="Ex: 5511999999999"
+                    value={msgRecipient}
+                    onChange={(e) => setMsgRecipient(e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Tipo de Mensagem</Label>
+                  <Select value={msgType} onValueChange={(val: any) => setMsgType(val)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Texto Livre</SelectItem>
+                      <SelectItem value="marketing">Template de Marketing</SelectItem>
+                      <SelectItem value="interactive">Mensagem Interativa (JSON)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => sendSandboxMut.mutate()}
+                  disabled={sendSandboxMut.isPending || !msgRecipient || !activePhoneId}
+                >
+                  {sendSandboxMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Enviar Mensagem Sandbox
+                </Button>
+              </div>
+
+              <div className="space-y-4 border-l pl-6">
+                {msgType === "text" && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-foreground">Mensagem de Texto</h4>
+                      <p className="text-xs text-muted-foreground">Texto livre que requer janela de 24h aberta.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Corpo da Mensagem</Label>
+                      <Textarea
+                        placeholder="Escreva sua mensagem..."
+                        value={msgTextBody}
+                        onChange={(e) => setMsgTextBody(e.target.value)}
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {msgType === "marketing" && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-foreground">Template de Marketing</h4>
+                      <p className="text-xs text-muted-foreground">Envia campanhas via templates de marketing.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1.5">
+                        <Label>Nome do Template</Label>
+                        <Input
+                          placeholder="Ex: hello_world"
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Idioma</Label>
+                        <Input
+                          placeholder="Ex: pt_BR"
+                          value={templateLanguage}
+                          onChange={(e) => setTemplateLanguage(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Componentes (JSON Array)</Label>
+                      <Textarea
+                        value={templateParamsJson}
+                        onChange={(e) => setTemplateParamsJson(e.target.value)}
+                        rows={3}
+                        className="font-mono text-[10px]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {msgType === "interactive" && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-foreground">Interactive (Botões, Listas)</h4>
+                      <p className="text-xs text-muted-foreground">Monte estruturas interativas.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Estrutura da Mensagem Interativa (JSON)</Label>
+                      <Textarea
+                        value={interactiveJson}
+                        onChange={(e) => setInteractiveJson(e.target.value)}
+                        rows={6}
+                        className="font-mono text-[10px]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "media" && (
+            <div className="space-y-4 max-w-xl text-xs">
+              <div>
+                <h3 className="font-medium text-sm text-foreground">Carregar Mídia na API da Meta</h3>
+                <p className="text-xs text-muted-foreground">Faça upload de arquivos e use o ID retornado.</p>
+              </div>
+
+              <div className="border border-dashed rounded-lg p-6 bg-muted/10 text-center space-y-3">
+                <UploadCloud className="h-10 w-10 mx-auto text-muted-foreground/50" />
+                <div className="flex flex-col items-center justify-center">
+                  <input
+                    type="file"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="text-xs cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                  />
+                  {selectedFile && (
+                    <p className="mt-2 text-foreground font-medium">
+                      Selecionado: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={() => uploadMediaMut.mutate()}
+                disabled={uploadMediaMut.isPending || !selectedFile || !activePhoneId}
+              >
+                {uploadMediaMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                Fazer Upload para Meta
+              </Button>
+
+              {uploadedMediaId && (
+                <div className="bg-muted/30 p-3 rounded-lg border space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-foreground">Media ID Gerado:</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => {
+                        navigator.clipboard.writeText(uploadedMediaId);
+                        toast.success("Media ID copiado!");
+                      }}
+                    >
+                      <Copy className="h-3 w-3 mr-1" /> Copiar ID
+                    </Button>
+                  </div>
+                  <p className="font-mono bg-background p-2 rounded text-xs select-all text-foreground border">{uploadedMediaId}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "solutions" && (
+            <div className="grid gap-6 md:grid-cols-2 text-xs">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-sm text-foreground">Parcerias e Soluções Multi-Parceiro</h3>
+                  <p className="text-xs text-muted-foreground">Gerencie o ciclo de vida da solução da Meta (aceitar convites, rejeitar parcerias ou solicitar desativações).</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>ID da Solução (Solution ID)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Solution ID..."
+                      value={solId}
+                      onChange={(e) => setSolId(e.target.value)}
+                    />
+                    <Button
+                      onClick={() => getSolDetailsMut.mutate()}
+                      disabled={getSolDetailsMut.isPending || !solId.trim()}
+                    >
+                      {getSolDetailsMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                    </Button>
+                  </div>
+                </div>
+
+                {solDetails && (
+                  <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <span className="font-semibold text-sm">Solução: {solDetails.id}</span>
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                        {solDetails.status || "N/A"}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs">
+                      <p><span className="font-medium text-foreground">Nome:</span> {solDetails.name || "N/A"}</p>
+                      <p><span className="font-medium text-foreground">Status do Pedido:</span> {solDetails.status_for_pending_request || "N/A"}</p>
+                      <p><span className="font-medium text-foreground">App Dono:</span> {solDetails.owner_app || "N/A"}</p>
+                      <div>
+                        <span className="font-medium text-foreground">Permissões Dono:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(solDetails.owner_permissions || []).map((p: string) => (
+                            <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-3 space-y-2">
+                      <p className="font-medium text-foreground">Ações de Onboarding & Ciclo de Vida:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => solLifecycleMut.mutate("accept")}
+                          disabled={solLifecycleMut.isPending}
+                        >
+                          Aceitar Convite
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => solLifecycleMut.mutate("reject")}
+                          disabled={solLifecycleMut.isPending}
+                        >
+                          Rejeitar Convite
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 border-t border-dashed pt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => solLifecycleMut.mutate("deactivate")}
+                          disabled={solLifecycleMut.isPending}
+                        >
+                          Pedir Desativação
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => solLifecycleMut.mutate("accept_deact")}
+                          disabled={solLifecycleMut.isPending}
+                        >
+                          Aceitar Desat.
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => solLifecycleMut.mutate("accept_deact")}
+                          disabled={solLifecycleMut.isPending}
+                        >
+                          Rejeitar Desat.
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4 border-l pl-6">
+                <div>
+                  <h3 className="font-medium text-sm text-foreground">Token de Acesso da Solução</h3>
+                  <p className="text-xs text-muted-foreground">Gere tokens granulares para acessar contas comerciais do cliente através da parceria.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>ID do Cliente (Customer Business ID)</Label>
+                  <Input
+                    placeholder="Business ID do Cliente..."
+                    value={solBusinessId}
+                    onChange={(e) => setSolBusinessId(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => getSolTokenMut.mutate()}
+                  disabled={getSolTokenMut.isPending || !solId.trim() || !solBusinessId.trim()}
+                >
+                  {getSolTokenMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Gerar Access Token Granular
+                </Button>
+
+                {solAccessToken && (
+                  <div className="bg-muted/30 p-3 rounded-lg border space-y-2 mt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-foreground text-xs">Token do Parceiro:</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => {
+                          navigator.clipboard.writeText(solAccessToken);
+                          toast.success("Token copiado!");
+                        }}
+                      >
+                        <Copy className="h-3 w-3 mr-1" /> Copiar Token
+                      </Button>
+                    </div>
+                    <pre className="p-2 border rounded bg-background font-mono text-[10px] max-h-32 overflow-y-auto whitespace-pre-wrap select-all text-foreground">
+                      {solAccessToken}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

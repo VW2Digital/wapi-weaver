@@ -14,6 +14,8 @@ import {
   Zap,
   KeyRound,
   PhoneCall,
+  Settings,
+  ChevronDown
 } from "lucide-react";
 
 import {
@@ -35,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
 import {
   createTemplate,
@@ -109,11 +112,28 @@ export function TemplateBuilderDialog({
   const [footer, setFooter] = useState("");
   const [buttons, setButtons] = useState<ButtonState[]>([]);
 
+  // Advanced configurations
+  const [parameterFormat, setParameterFormat] = useState<"NAMED" | "POSITIONAL" | "default">("default");
+  const [allowCategoryChange, setAllowCategoryChange] = useState<boolean>(true);
+  const [ctaUrlLinkTrackingOptedOut, setCtaUrlLinkTrackingOptedOut] = useState<boolean>(false);
+  const [messageSendTtlSeconds, setMessageSendTtlSeconds] = useState<string>("");
+  const [subCategory, setSubCategory] = useState<string>("default");
+  const [isPrimaryDeviceDeliveryOnly, setIsPrimaryDeviceDeliveryOnly] = useState<boolean>(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   useEffect(() => {
     if (template && open) {
       setName(template.name || "");
       setLanguage(template.language || "pt_BR");
       setCategory(template.category || "MARKETING");
+
+      // Load advanced configs
+      setParameterFormat(template.parameter_format || "default");
+      setAllowCategoryChange(template.allow_category_change !== 0);
+      setCtaUrlLinkTrackingOptedOut(template.cta_url_link_tracking_opted_out === 1);
+      setMessageSendTtlSeconds(template.message_send_ttl_seconds ? String(template.message_send_ttl_seconds) : "");
+      setSubCategory(template.sub_category || "default");
+      setIsPrimaryDeviceDeliveryOnly(template.is_primary_device_delivery_only === 1);
 
       const comps = template.components || [];
       const headerComp = comps.find((c: any) => c.type === "HEADER");
@@ -207,6 +227,13 @@ export function TemplateBuilderDialog({
         body_examples: bodyExamples.filter((s) => s.length > 0),
         footer: footer || undefined,
         buttons: buttons.length ? (buttons as any) : undefined,
+        // Advanced
+        parameter_format: parameterFormat === "default" ? undefined : parameterFormat,
+        allow_category_change: allowCategoryChange,
+        cta_url_link_tracking_opted_out: ctaUrlLinkTrackingOptedOut,
+        message_send_ttl_seconds: messageSendTtlSeconds ? parseInt(messageSendTtlSeconds, 10) : undefined,
+        sub_category: (category === "UTILITY" && subCategory !== "default") ? subCategory : undefined,
+        is_primary_device_delivery_only: isPrimaryDeviceDeliveryOnly,
       };
       if (template?.id) {
         payload.id = template.id;
@@ -238,6 +265,13 @@ export function TemplateBuilderDialog({
     setBodyExamples([]);
     setFooter("");
     setButtons([]);
+    setParameterFormat("default");
+    setAllowCategoryChange(true);
+    setCtaUrlLinkTrackingOptedOut(false);
+    setMessageSendTtlSeconds("");
+    setSubCategory("default");
+    setIsPrimaryDeviceDeliveryOnly(false);
+    setShowAdvanced(false);
   }
 
   function addButton(type: ButtonState["type"]) {
@@ -716,6 +750,125 @@ export function TemplateBuilderDialog({
                   );
                 })}
               </div>
+            </Card>
+
+            {/* Advanced Settings */}
+            <Card className="overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="flex w-full items-center gap-2 bg-muted/40 p-4 text-left font-medium transition hover:bg-muted/60"
+              >
+                <Settings className="h-4 w-4 text-primary" />
+                <span>Configurações Avançadas (Opcional)</span>
+                <ChevronDown
+                  className={`ml-auto h-4 w-4 text-muted-foreground transition-transform ${
+                    showAdvanced ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {showAdvanced && (
+                <div className="p-4 space-y-4 border-t bg-card text-card-foreground">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Formato dos Parâmetros */}
+                    <div className="space-y-1.5">
+                      <Label>Formato dos Parâmetros</Label>
+                      <Select value={parameterFormat} onValueChange={(v: any) => setParameterFormat(v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o formato" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Padrão da Meta</SelectItem>
+                          <SelectItem value="POSITIONAL">Posicional ({"{{1}}, {{2}}"})</SelectItem>
+                          <SelectItem value="NAMED">Nomeado (Variáveis por nome)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        Define como os parâmetros dinâmicos são estruturados.
+                      </p>
+                    </div>
+
+                    {/* TTL (Seconds) */}
+                    <div className="space-y-1.5">
+                      <Label>Tempo de Vida (TTL - Segundos)</Label>
+                      <Input
+                        type="number"
+                        placeholder="Ex: 86400 (24 horas)"
+                        value={messageSendTtlSeconds}
+                        onChange={(e) => setMessageSendTtlSeconds(e.target.value)}
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Prazo máximo de validade para entrega das mensagens.
+                      </p>
+                    </div>
+                  </div>
+
+                  {category === "UTILITY" && (
+                    <div className="space-y-1.5">
+                      <Label>Sub-categoria de Utilidade</Label>
+                      <Select value={subCategory} onValueChange={setSubCategory}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a subcategoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Nenhuma</SelectItem>
+                          <SelectItem value="BOOKING_STATUS">Status da Reserva (BOOKING_STATUS)</SelectItem>
+                          <SelectItem value="CALL_PERMISSIONS_REQUEST">Permissões de Chamada (CALL_PERMISSIONS_REQUEST)</SelectItem>
+                          <SelectItem value="FLIGHT_DELAY_AND_GATE_CHANGE_ALERT">Aviso de Voo (FLIGHT_DELAY_AND_GATE_CHANGE_ALERT)</SelectItem>
+                          <SelectItem value="FRAUD_ALERT">Alerta de Fraude (FRAUD_ALERT)</SelectItem>
+                          <SelectItem value="ORDER_DETAILS">Detalhes do Pedido (ORDER_DETAILS)</SelectItem>
+                          <SelectItem value="ORDER_STATUS">Status do Pedido (ORDER_STATUS)</SelectItem>
+                          <SelectItem value="RICH_ORDER_STATUS">Status do Pedido Completo (RICH_ORDER_STATUS)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        Classificação específica exigida para certos fluxos transacionais.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-3 pt-2">
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border bg-muted/10 p-3 hover:bg-muted/20">
+                      <Checkbox
+                        checked={allowCategoryChange}
+                        onCheckedChange={(checked) => setAllowCategoryChange(!!checked)}
+                      />
+                      <div className="grid gap-0.5 leading-none">
+                        <span className="text-xs font-semibold">Permitir reclassificação automática</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Autoriza a Meta a alterar a categoria do template caso divirja da análise interna.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border bg-muted/10 p-3 hover:bg-muted/20">
+                      <Checkbox
+                        checked={ctaUrlLinkTrackingOptedOut}
+                        onCheckedChange={(checked) => setCtaUrlLinkTrackingOptedOut(!!checked)}
+                      />
+                      <div className="grid gap-0.5 leading-none">
+                        <span className="text-xs font-semibold">Desativar rastreamento de links CTA</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Remove o rastreamento automático do engajamento em botões do tipo URL.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border bg-muted/10 p-3 hover:bg-muted/20">
+                      <Checkbox
+                        checked={isPrimaryDeviceDeliveryOnly}
+                        onCheckedChange={(checked) => setIsPrimaryDeviceDeliveryOnly(!!checked)}
+                      />
+                      <div className="grid gap-0.5 leading-none">
+                        <span className="text-xs font-semibold">Entrega exclusiva no dispositivo primário</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Restringe a entrega de mensagens apenas para o smartphone principal do destinatário.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
             </Card>
 
             <div className="flex justify-end gap-2 pt-2">
