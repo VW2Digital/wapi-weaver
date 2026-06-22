@@ -35,9 +35,12 @@ import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remov
 import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 import { Route as ApiPublicMakeAdminRouteImport } from './routes/api/public/make-admin'
+import { Route as ApiAuthVerifyTokenRouteImport } from './routes/api/auth/verify-token'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
@@ -173,6 +176,11 @@ const ApiPublicMakeAdminRoute = ApiPublicMakeAdminRouteImport.update({
   path: '/api/public/make-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthVerifyTokenRoute = ApiAuthVerifyTokenRouteImport.update({
+  id: '/api/auth/verify-token',
+  path: '/api/auth/verify-token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthUpdateRoute = ApiAuthUpdateRouteImport.update({
   id: '/api/auth/update',
   path: '/api/auth/update',
@@ -183,9 +191,19 @@ const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
   path: '/api/auth/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthOtpRoute = ApiAuthOtpRouteImport.update({
+  id: '/api/auth/otp',
+  path: '/api/auth/otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
   id: '/api/auth/login',
   path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthForgotPasswordRoute = ApiAuthForgotPasswordRouteImport.update({
+  id: '/api/auth/forgot-password',
+  path: '/api/auth/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
@@ -232,9 +250,12 @@ export interface FileRoutesByFullPath {
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
+  '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/storage/file': typeof ApiStorageFileRoute
@@ -266,9 +287,12 @@ export interface FileRoutesByTo {
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
+  '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/storage/file': typeof ApiStorageFileRoute
@@ -302,9 +326,12 @@ export interface FileRoutesById {
   '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
+  '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/storage/file': typeof ApiStorageFileRoute
@@ -338,9 +365,12 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
+    | '/api/auth/forgot-password'
     | '/api/auth/login'
+    | '/api/auth/otp'
     | '/api/auth/register'
     | '/api/auth/update'
+    | '/api/auth/verify-token'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/storage/file'
@@ -372,9 +402,12 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
+    | '/api/auth/forgot-password'
     | '/api/auth/login'
+    | '/api/auth/otp'
     | '/api/auth/register'
     | '/api/auth/update'
+    | '/api/auth/verify-token'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/storage/file'
@@ -407,9 +440,12 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/_app/campaigns/$id'
     | '/api/admin/schema-dump'
+    | '/api/auth/forgot-password'
     | '/api/auth/login'
+    | '/api/auth/otp'
     | '/api/auth/register'
     | '/api/auth/update'
+    | '/api/auth/verify-token'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/storage/file'
@@ -430,9 +466,12 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ApiQueryRoute: typeof ApiQueryRoute
   ApiAdminSchemaDumpRoute: typeof ApiAdminSchemaDumpRoute
+  ApiAuthForgotPasswordRoute: typeof ApiAuthForgotPasswordRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthOtpRoute: typeof ApiAuthOtpRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
+  ApiAuthVerifyTokenRoute: typeof ApiAuthVerifyTokenRoute
   ApiPublicMakeAdminRoute: typeof ApiPublicMakeAdminRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiStorageFileRoute: typeof ApiStorageFileRoute
@@ -626,6 +665,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMakeAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/verify-token': {
+      id: '/api/auth/verify-token'
+      path: '/api/auth/verify-token'
+      fullPath: '/api/auth/verify-token'
+      preLoaderRoute: typeof ApiAuthVerifyTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/update': {
       id: '/api/auth/update'
       path: '/api/auth/update'
@@ -640,11 +686,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/otp': {
+      id: '/api/auth/otp'
+      path: '/api/auth/otp'
+      fullPath: '/api/auth/otp'
+      preLoaderRoute: typeof ApiAuthOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/login': {
       id: '/api/auth/login'
       path: '/api/auth/login'
       fullPath: '/api/auth/login'
       preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/forgot-password': {
+      id: '/api/auth/forgot-password'
+      path: '/api/auth/forgot-password'
+      fullPath: '/api/auth/forgot-password'
+      preLoaderRoute: typeof ApiAuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/schema-dump': {
@@ -724,9 +784,12 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ApiQueryRoute: ApiQueryRoute,
   ApiAdminSchemaDumpRoute: ApiAdminSchemaDumpRoute,
+  ApiAuthForgotPasswordRoute: ApiAuthForgotPasswordRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthOtpRoute: ApiAuthOtpRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
+  ApiAuthVerifyTokenRoute: ApiAuthVerifyTokenRoute,
   ApiPublicMakeAdminRoute: ApiPublicMakeAdminRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiStorageFileRoute: ApiStorageFileRoute,

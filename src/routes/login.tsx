@@ -27,6 +27,44 @@ function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotBusy, setForgotBusy] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
+  const [verifyingToken, setVerifyingToken] = useState(false);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const token = searchParams.get("token");
+    if (token) {
+      setVerifyingToken(true);
+      fetch("/api/auth/verify-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Falha ao verificar token");
+          }
+
+          const session = {
+            access_token: data.access_token,
+            user: data.user,
+          };
+
+          localStorage.setItem("app-token", data.access_token);
+          localStorage.setItem("app-session", JSON.stringify(session));
+
+          db._notifyListeners("SIGNED_IN", session);
+          toast.success("Autenticado com sucesso!");
+          navigate({ to: "/dashboard" });
+        })
+        .catch((err: any) => {
+          toast.error(err.message || "Link inválido ou expirado.");
+        })
+        .finally(() => {
+          setVerifyingToken(false);
+        });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (mfaRequired) return;
@@ -132,7 +170,14 @@ function LoginPage() {
                 : "Comece a configurar suas campanhas."}
           </p>
 
-          {mfaRequired ? (
+          {verifyingToken ? (
+            <div className="mt-6 flex flex-col items-center justify-center space-y-4 py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <p className="text-sm text-muted-foreground animate-pulse">
+                Validando seu link mágico...
+              </p>
+            </div>
+          ) : mfaRequired ? (
             <div className="mt-6">
               <MfaChallenge
                 onVerified={() => {

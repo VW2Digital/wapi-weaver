@@ -19,14 +19,44 @@ function ResetPasswordPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // O Supabase coloca os tokens no hash da URL após o redirect; o detectSessionInUrl: true
-    // do client cria a sessão automaticamente. Aguardamos a sessão estar pronta.
     const sub = db.auth.onAuthStateChange((event: string) => {
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
     });
-    db.auth.getSession().then(({ data }: any) => {
-      if (data.session) setReady(true);
-    });
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const token = searchParams.get("token");
+
+    if (token) {
+      fetch("/api/auth/verify-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Falha ao verificar token");
+          }
+
+          const session = {
+            access_token: data.access_token,
+            user: data.user,
+          };
+
+          localStorage.setItem("app-token", data.access_token);
+          localStorage.setItem("app-session", JSON.stringify(session));
+
+          db._notifyListeners("PASSWORD_RECOVERY", session);
+        })
+        .catch((err: any) => {
+          toast.error(err.message || "Link de recuperação inválido ou expirado.");
+        });
+    } else {
+      db.auth.getSession().then(({ data }: any) => {
+        if (data.session) setReady(true);
+      });
+    }
+
     return () => sub.data.subscription.unsubscribe();
   }, []);
 

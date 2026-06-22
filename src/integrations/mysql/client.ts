@@ -383,10 +383,42 @@ class MySQLClient {
         };
       },
       resetPasswordForEmail: async (email: string) => {
-        return { data: {}, error: null };
+        try {
+          const res = await fetch("/api/auth/forgot-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            return {
+              data: null,
+              error: { message: data.error || "Falha ao enviar e-mail de recuperação" },
+            };
+          }
+          return { data: {}, error: null };
+        } catch (err: any) {
+          return { data: null, error: { message: err.message } };
+        }
       },
       signInWithOtp: async ({ email }: any) => {
-        return { data: {}, error: null };
+        try {
+          const res = await fetch("/api/auth/otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            return {
+              data: null,
+              error: { message: data.error || "Falha ao enviar link mágico" },
+            };
+          }
+          return { data: {}, error: null };
+        } catch (err: any) {
+          return { data: null, error: { message: err.message } };
+        }
       },
       get mfa() {
         return {
