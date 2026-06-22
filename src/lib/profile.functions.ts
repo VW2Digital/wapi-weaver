@@ -468,6 +468,47 @@ export const getWABAInfo = createServerFn({ method: "POST" })
     return { ok: true, data: body };
   });
 
+export const updateWABA = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        wabaId: z.string().trim().min(5),
+        name: z.string().trim().optional(),
+        timezone_id: z.string().trim().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const bodyPayload: any = {};
+    if (data.name) bodyPayload.name = data.name;
+    if (data.timezone_id) bodyPayload.timezone_id = data.timezone_id;
+
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.wabaId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${p.whatsapp_access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyPayload),
+    });
+
+    const body = await r.json();
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao atualizar WABA" };
+    return { ok: true, data: body };
+  });
+
 export const subscribeAppToWABA = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
@@ -822,7 +863,7 @@ export const requestVerificationCode = createServerFn({ method: "POST" })
     z
       .object({
         phoneId: z.string().trim().min(5),
-        method: z.enum(["SMS", "VOICE"]),
+        method: z.enum(["SMS", "VOICE", "IVR"]),
         language: z.string().trim().min(2),
       })
       .parse(d),

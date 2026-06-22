@@ -17,6 +17,7 @@ import {
   listOwnedWABAs,
   listClientWABAs,
   getWABAInfo,
+  updateWABA,
   subscribeAppToWABA,
   listWABAPhoneNumbers,
   registerPhoneNumber,
@@ -2966,7 +2967,7 @@ function WABASection() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingPhoneId, setOnboardingPhoneId] = useState("");
   const [onboardingStep, setOnboardingStep] = useState(1); // 1: Request, 2: Verify, 3: Register
-  const [codeMethod, setCodeMethod] = useState<"SMS" | "VOICE">("SMS");
+  const [codeMethod, setCodeMethod] = useState<"SMS" | "VOICE" | "IVR">("SMS");
   const [codeLanguage, setCodeLanguage] = useState("pt_BR");
   const [verificationCode, setVerificationCode] = useState("");
   const [twoFactorPin, setTwoFactorPin] = useState("");
@@ -2993,6 +2994,59 @@ function WABASection() {
   const [obaReason, setObaReason] = useState("");
   const [callingEnabled, setCallingEnabled] = useState(true);
   const [sipEnabled, setSipEnabled] = useState(false);
+
+  // WABA Edit states
+  const updateWABAFn = useServerFn(updateWABA);
+  const [wabaEditDialogOpen, setWabaEditDialogOpen] = useState(false);
+  const [editWabaId, setEditWabaId] = useState("");
+  const [editWabaName, setEditWabaName] = useState("");
+  const [editWabaTimezone, setEditWabaTimezone] = useState("");
+
+  const openEditWabaDialog = (waba: any) => {
+    setEditWabaId(waba.id);
+    setEditWabaName(waba.name || "");
+    setEditWabaTimezone(waba.timezone_id || "");
+    setWabaEditDialogOpen(true);
+  };
+
+  const updateWabaMut = useMutation({
+    mutationFn: () =>
+      updateWABAFn({
+        data: {
+          wabaId: editWabaId,
+          name: editWabaName,
+          timezone_id: editWabaTimezone,
+        },
+      }),
+    onSuccess: (res: any) => {
+      if (res.ok) {
+        toast.success("WABA atualizada com sucesso na Meta!");
+        setWabaEditDialogOpen(false);
+        if (details && details.id === editWabaId) {
+          searchMut.mutate(editWabaId);
+        }
+        if (listType) {
+          if (listType === "assigned") {
+            listAssignedMut.mutate();
+          } else {
+            listMut.mutate(listType);
+          }
+        }
+      } else {
+        toast.error(res.error || "Falha ao atualizar WABA.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const handleUpdateWaba = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editWabaName.trim()) {
+      toast.error("O nome da WABA é obrigatório.");
+      return;
+    }
+    updateWabaMut.mutate();
+  };
 
   // Deregister phone states & mutations
   const deregisterPhone = useServerFn(deregisterPhoneNumber);
@@ -3246,31 +3300,7 @@ function WABASection() {
     onError: (e: any) => toast.error("Erro ao salvar telefone ativo: " + e.message),
   });
 
-  const registerPhoneMut = useMutation({
-    mutationFn: (payload: { phoneId: string; pin: string }) =>
-      registerPhone({ data: { phoneId: payload.phoneId, pin: payload.pin } }),
-    onSuccess: () => {
-      toast.success("Número de telefone registrado com sucesso na Meta Cloud API!");
-      setPinModalOpen(false);
-      setPinCode("");
-    },
-    onError: (e: any) => toast.error("Erro ao registrar número: " + e.message),
-  });
 
-  const handleOpenPinModal = (phoneId: string) => {
-    setPinPhoneId(phoneId);
-    setPinCode("");
-    setPinModalOpen(true);
-  };
-
-  const handleRegisterPhone = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinCode.length !== 6 || /\D/.test(pinCode)) {
-      toast.error("O PIN deve conter exatamente 6 dígitos.");
-      return;
-    }
-    registerPhoneMut.mutate({ phoneId: pinPhoneId, pin: pinCode });
-  };
 
   const renderPhoneList = (wabaId: string) => {
     const listPhones = phonesMap[wabaId] ?? [];
@@ -3388,7 +3418,7 @@ function WABASection() {
                   setOnboardingStep(1);
                   setOnboardingOpen(true);
                 }}
-                disabled={registerPhoneMut.isPending}
+                disabled={onboardingRegisterPinMut.isPending}
               >
                 Assistente Onboarding
               </Button>
@@ -3561,6 +3591,14 @@ function WABASection() {
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => openEditWabaDialog(details)}
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                        Editar WABA
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => subscribeAppMut.mutate(details.id)}
                         disabled={subscribing[details.id]}
                       >
@@ -3675,6 +3713,15 @@ function WABASection() {
                               >
                                 Ativar
                               </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={() => openEditWabaDialog(w)}
+                                title="Editar WABA"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </div>
 
@@ -3764,6 +3811,7 @@ function WABASection() {
                   <SelectContent>
                     <SelectItem value="SMS">SMS (Recomendado)</SelectItem>
                     <SelectItem value="VOICE">Chamada de Voz</SelectItem>
+                    <SelectItem value="IVR">IVR (Chamada Interativa de Voz)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -4043,6 +4091,63 @@ function WABASection() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* WABA Edit Dialog */}
+      <Dialog open={wabaEditDialogOpen} onOpenChange={setWabaEditDialogOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Editar Conta WhatsApp Business (WABA)</DialogTitle>
+            <DialogDescription>
+              Atualize as configurações e informações da conta comercial selecionada diretamente na Meta.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateWaba} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="waba-id-field">WABA ID</Label>
+              <Input
+                id="waba-id-field"
+                value={editWabaId}
+                disabled
+                className="bg-muted text-muted-foreground cursor-not-allowed font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="waba-name-field">Nome da WABA</Label>
+              <Input
+                id="waba-name-field"
+                value={editWabaName}
+                onChange={(e) => setEditWabaName(e.target.value)}
+                placeholder="Ex: Minha Empresa WhatsApp"
+                required
+              />
+              <p className="text-[10px] text-muted-foreground leading-normal">
+                Nome de exibição da conta comercial do WhatsApp Business na Meta.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="waba-timezone-field">Fuso Horário (Timezone ID)</Label>
+              <Input
+                id="waba-timezone-field"
+                value={editWabaTimezone}
+                onChange={(e) => setEditWabaTimezone(e.target.value)}
+                placeholder="Ex: America/Sao_Paulo"
+              />
+              <p className="text-[10px] text-muted-foreground leading-normal">
+                Identificador de fuso horário da Meta. Ex: America/Sao_Paulo, America/New_York, UTC.
+              </p>
+            </div>
+            <DialogFooter className="pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setWabaEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateWabaMut.isPending}>
+                {updateWabaMut.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </Card>
