@@ -4,6 +4,19 @@ import { Hono } from "hono";
 import server from "./dist/server/server.js";
 import mysql from "mysql2/promise";
 
+async function ensureColumnExists(connection, tableName, columnName, columnDefinition) {
+  try {
+    const [columns] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\` LIKE ?`, [columnName]);
+    if (columns.length === 0) {
+      console.log(`Adding missing column \`${columnName}\` to table \`${tableName}\`...`);
+      await connection.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${columnDefinition}`);
+      console.log(`Column \`${columnName}\` added successfully.`);
+    }
+  } catch (err) {
+    console.error(`Error ensuring column \`${columnName}\` in table \`${tableName}\`:`, err);
+  }
+}
+
 async function initDatabase() {
   try {
     console.log("Auto-migrating database schema...");
@@ -14,6 +27,19 @@ async function initDatabase() {
       password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
       database: process.env.DB_NAME || "wapi_weaver",
     });
+
+    console.log("Checking columns in profiles table...");
+    await ensureColumnExists(connection, "profiles", "rate_limit_per_second", "INT NOT NULL DEFAULT 10");
+    await ensureColumnExists(connection, "profiles", "whatsapp_verify_token", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_access_token", "TEXT NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_phone_number_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_waba_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_business_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_business_phone", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_app_secret", "TEXT NULL");
+    await ensureColumnExists(connection, "profiles", "meta_graph_version", "VARCHAR(50) NOT NULL DEFAULT 'v20.0'");
+    await ensureColumnExists(connection, "profiles", "salvy_api_key", "TEXT NULL");
+    await ensureColumnExists(connection, "profiles", "api_key", "VARCHAR(255) NULL");
 
     console.log("Ensuring table direct_messages exists...");
     await connection.query(`
