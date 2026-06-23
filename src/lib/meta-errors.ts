@@ -70,6 +70,16 @@ export function toFriendlyError(
 
   // Mapas por código
   switch (code) {
+    case "template_not_found":
+      return {
+        title: "Template não encontrado para esta campanha",
+        message:
+          "Essa campanha está usando um template que não existe ou não está aprovado na conta WhatsApp conectada.",
+        hint: "Escolha um template aprovado da lista e recrie a campanha.",
+        code,
+        type,
+        trace,
+      };
     case 190:
       return {
         title: "Token de acesso inválido ou expirado",
@@ -120,6 +130,19 @@ export function toFriendlyError(
     case 132001:
     case 132005:
     case 132007:
+      if (code === 132001) {
+        return {
+          title: "O template escolhido não existe nessa conta ou nesse idioma",
+          message:
+            "A campanha tentou usar um template que a Meta não encontrou na conta WhatsApp conectada. Isso acontece quando o nome está desatualizado, o idioma não bate, ou o template nunca foi aprovado nessa conta.",
+          hint:
+            meta?.error_data?.details ||
+            "Escolha um template aprovado da lista de templates e recrie a campanha.",
+          code,
+          type,
+          trace,
+        };
+      }
       return {
         title: "Template não disponível",
         message: "O template informado não existe, não está aprovado ou o idioma não confere.",

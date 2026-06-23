@@ -52,6 +52,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ListSkeleton } from "@/components/table-skeleton";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_app/campaigns/")({ component: CampaignsPage });
 
@@ -171,12 +172,23 @@ function CampaignsPage() {
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${s.cls}`}>
                         {s.label}
                       </span>
+                      {c.template_diagnostic?.status === "invalid" && (
+                        <Badge variant="destructive">Template inválido</Badge>
+                      )}
+                      {c.template_diagnostic?.status === "legacy_unlinked" && (
+                        <Badge variant="outline">Campanha antiga</Badge>
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {c.message_type} · {new Date(c.created_at).toLocaleString("pt-BR")} ·{" "}
                       {t.sent ?? 0}/{t.total ?? 0} enviadas · {t.delivered ?? 0} entregues ·{" "}
                       {t.read ?? 0} lidas · {t.failed ?? 0} falharam
                     </p>
+                    {c.template_diagnostic?.status === "invalid" && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {c.template_diagnostic.message}
+                      </p>
+                    )}
                   </Link>
                   <div className="flex items-center gap-2">
                     <DropdownMenu>

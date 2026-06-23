@@ -26,6 +26,22 @@ function extractTemplatePlaceholders(components: any[] = []) {
   return placeholders;
 }
 
+function buildTemplateLookupKey(name?: string | null, language?: string | null) {
+  return `${String(name ?? "").trim().toLowerCase()}::${String(language ?? "").trim().toLowerCase()}`;
+}
+
+function assertTemplatePayload(payload: any) {
+  if (
+    !payload?.to ||
+    !payload?.template?.name ||
+    !payload?.template?.language?.code ||
+    payload?.messaging_product !== "whatsapp" ||
+    payload?.type !== "template"
+  ) {
+    throw new Error("Payload inválido: campo obrigatório nulo — " + JSON.stringify(payload));
+  }
+}
+
 export async function processOnce() {
   // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
   const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
@@ -79,6 +95,7 @@ export async function processOnce() {
   );
 
   let templateMap: Record<string, any> = {};
+  let templateByNameLang: Record<string, any> = {};
   if (templateIds.length > 0) {
     const { data: templates } = await dbAdmin
       .from("templates")
@@ -86,6 +103,18 @@ export async function processOnce() {
       .in("id", templateIds);
     templateMap = Object.fromEntries((templates ?? []).map((template: any) => [template.id, template]));
   }
+
+  const { data: allApprovedTemplates } = await dbAdmin
+    .from("templates")
+    .select("id, name, language, components, parameter_format, status, meta_template_id")
+    .eq("status", "APPROVED")
+    .not("meta_template_id", "is", null);
+  templateByNameLang = Object.fromEntries(
+    (allApprovedTemplates ?? []).map((template: any) => [
+      buildTemplateLookupKey(template.name, template.language),
+      template,
+    ]),
+  );
 
   // Pick up to BATCH pending messages for active campaigns
   const { data: messages, error } = await dbAdmin
@@ -162,7 +191,44 @@ export async function processOnce() {
 
       try {
         const campaignPayload = { ...((m as any).campaigns.payload ?? {}) };
-        const linkedTemplate = (m as any).template;
+        let linkedTemplate = (m as any).template;
+        if ((m as any).campaigns.message_type === "template" && !linkedTemplate) {
+          const resolvedTemplate =
+            templateByNameLang[
+              buildTemplateLookupKey(campaignPayload.template_name, campaignPayload.language)
+            ] ?? null;
+
+          if (resolvedTemplate) {
+            linkedTemplate = resolvedTemplate;
+            (m as any).template = resolvedTemplate;
+            await dbAdmin
+              .from("campaigns")
+              .update({ template_id: resolvedTemplate.id })
+              .eq("id", (m as any).campaign_id)
+              .is("template_id", null);
+          }
+        }
+
+        if ((m as any).campaigns.message_type === "template" && !linkedTemplate) {
+          await dbAdmin
+            .from("campaign_messages")
+            .update({
+              status: "failed",
+              failed_at: new Date().toISOString(),
+              error: {
+                message:
+                  "Este template não existe ou não está aprovado na conta WhatsApp conectada. Escolha um template aprovado da lista e recrie a campanha.",
+                code: "template_not_found",
+                template_name: campaignPayload.template_name ?? null,
+                language: campaignPayload.language ?? null,
+              },
+            })
+            .eq("id", m.id);
+          processed++;
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+
         if ((m as any).campaigns.message_type === "template" && linkedTemplate) {
           if (!campaignPayload.template_name) campaignPayload.template_name = linkedTemplate.name;
           if (!campaignPayload.language) campaignPayload.language = linkedTemplate.language;
@@ -185,6 +251,10 @@ export async function processOnce() {
           campaignPayload,
           (m as any).contacts,
         );
+        if ((m as any).campaigns.message_type === "template") {
+          assertTemplatePayload(payload);
+        }
+        console.log("PAYLOAD ENVIADO:", JSON.stringify(payload, null, 2));
         const r = await fetch(url, {
           method: "POST",
           headers: {
@@ -195,12 +265,16 @@ export async function processOnce() {
         });
         const body: any = await r.json();
         if (!r.ok) {
+          console.error("ERRO META:", JSON.stringify(body?.error ?? body, null, 2));
           await dbAdmin
             .from("campaign_messages")
             .update({
               status: "failed",
               failed_at: new Date().toISOString(),
-              error: body?.error ?? body,
+              error: {
+                ...(body?.error ?? body),
+                request_payload: payload,
+              },
             })
             .eq("id", m.id);
         } else {
@@ -221,7 +295,14 @@ export async function processOnce() {
           .update({
             status: "failed",
             failed_at: new Date().toISOString(),
-            error: { message: e.message },
+            error: {
+              message: e.message,
+              request_payload: {
+                campaign_id: (m as any).campaign_id,
+                to_phone: m.to_phone,
+                campaign_payload,
+              },
+            },
           })
           .eq("id", m.id);
       }

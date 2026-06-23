@@ -12,6 +12,14 @@ const payloadSchema = z.object({
   template_placeholders: z.array(z.string()).optional(),
   parameter_format: z.enum(["NAMED", "POSITIONAL"]).optional(),
   header_image_url: z.string().url().optional(),
+  header_image_id: z.string().optional(),
+  header_media_id: z.string().optional(),
+  header_media_link: z.string().url().optional(),
+  header_video_id: z.string().optional(),
+  header_video_url: z.string().url().optional(),
+  header_document_id: z.string().optional(),
+  header_document_url: z.string().url().optional(),
+  header_document_filename: z.string().max(255).optional(),
   // For text/media
   text: z.string().max(4096).optional(),
   media_type: z.enum(["image", "document", "video"]).optional(),
@@ -30,6 +38,98 @@ const createSchema = z.object({
   start_now: z.boolean().default(true),
 });
 
+function buildTemplateLookupKey(name?: string | null, language?: string | null) {
+  return `${String(name ?? "").trim().toLowerCase()}::${String(language ?? "").trim().toLowerCase()}`;
+}
+
+async function attachTemplateDiagnostics(db: any, campaigns: any[]) {
+  if (!campaigns.length) return campaigns;
+
+  const templateIds = Array.from(
+    new Set(
+      campaigns
+        .filter((campaign) => campaign.message_type === "template" && campaign.template_id)
+        .map((campaign) => campaign.template_id),
+    ),
+  );
+
+  let templatesById: Record<string, any> = {};
+  if (templateIds.length > 0) {
+    const { data: linkedTemplates, error } = await db
+      .from("templates")
+      .select("id, name, language, status, meta_template_id")
+      .in("id", templateIds);
+    if (error) throw error;
+    templatesById = Object.fromEntries(
+      (linkedTemplates ?? []).map((template: any) => [template.id, template]),
+    );
+  }
+
+  const { data: approvedTemplates, error: approvedErr } = await db
+    .from("templates")
+    .select("id, name, language, status, meta_template_id")
+    .eq("status", "APPROVED")
+    .not("meta_template_id", "is", null);
+  if (approvedErr) throw approvedErr;
+
+  const approvedByNameLang = Object.fromEntries(
+    (approvedTemplates ?? []).map((template: any) => [
+      buildTemplateLookupKey(template.name, template.language),
+      template,
+    ]),
+  );
+
+  return campaigns.map((campaign) => {
+    if (campaign.message_type !== "template") {
+      return { ...campaign, template_diagnostic: { status: "ok" } };
+    }
+
+    const linkedTemplate = campaign.template_id ? templatesById[campaign.template_id] ?? null : null;
+    const payloadName = campaign.payload?.template_name ?? null;
+    const payloadLanguage = campaign.payload?.language ?? null;
+    const payloadTemplate =
+      approvedByNameLang[buildTemplateLookupKey(payloadName, payloadLanguage)] ?? null;
+
+    if (linkedTemplate?.status === "APPROVED" && linkedTemplate?.meta_template_id) {
+      return {
+        ...campaign,
+        template_diagnostic: {
+          status: "ok",
+          template_id: linkedTemplate.id,
+          template_name: linkedTemplate.name,
+          language: linkedTemplate.language,
+        },
+      };
+    }
+
+    if (!campaign.template_id && payloadTemplate) {
+      return {
+        ...campaign,
+        template_diagnostic: {
+          status: "legacy_unlinked",
+          template_id: payloadTemplate.id,
+          template_name: payloadTemplate.name,
+          language: payloadTemplate.language,
+          message:
+            "Essa campanha é antiga e ainda não está vinculada ao template salvo no sistema, mas pode ser resolvida automaticamente no envio.",
+        },
+      };
+    }
+
+    return {
+      ...campaign,
+      template_diagnostic: {
+        status: "invalid",
+        template_id: linkedTemplate?.id ?? null,
+        template_name: linkedTemplate?.name ?? payloadName,
+        language: linkedTemplate?.language ?? payloadLanguage,
+        message:
+          "Essa campanha usa um template inexistente, não aprovado ou desconectado da conta WhatsApp atual.",
+      },
+    };
+  });
+}
+
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -39,7 +139,7 @@ export const listCampaigns = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw error;
-    return data ?? [];
+    return attachTemplateDiagnostics(context.db, data ?? []);
   });
 
 export const getCampaign = createServerFn({ method: "POST" })
@@ -64,18 +164,40 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (campaign.template_id) {
       const { data: t } = await context.db
         .from("templates")
-        .select("id, name, language, components")
+        .select("id, name, language, components, status, meta_template_id")
         .eq("id", campaign.template_id)
         .maybeSingle();
       template = t;
     }
-    return { campaign, messages: messages ?? [], template };
+    const [campaignWithDiagnostics] = await attachTemplateDiagnostics(context.db, [campaign]);
+    return { campaign: campaignWithDiagnostics, messages: messages ?? [], template };
   });
 
 export const createCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
+    if (data.message_type === "template") {
+      if (!data.template_id) {
+        throw new Error("Selecione um template aprovado antes de criar a campanha.");
+      }
+
+      const { data: template, error: templateErr } = await context.db
+        .from("templates")
+        .select("id, name, language, status, meta_template_id")
+        .eq("id", data.template_id)
+        .maybeSingle();
+      if (templateErr) throw templateErr;
+
+      if (!template) {
+        throw new Error("O template selecionado não foi encontrado.");
+      }
+
+      if (template.status !== "APPROVED" || !template.meta_template_id) {
+        throw new Error("Esse template ainda não está aprovado na Meta e não pode ser usado em campanha.");
+      }
+    }
+
     // Fetch contacts from list
     const { data: lcRows, error: lcErr } = await context.db
       .from("list_contacts")

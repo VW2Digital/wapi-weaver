@@ -11,6 +11,10 @@ function extractTemplateTokens(text: string): string[] {
     .filter(Boolean);
 }
 
+function hasValue(value: unknown) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
 export function buildWhatsAppPayload(
   messageType: string,
   toPhone: string,
@@ -59,6 +63,48 @@ export function buildWhatsAppPayload(
       valuesByToken.set(String(token), interpolate(variableValues[index] ?? ""));
     });
 
+    if (!hasValue(base.to) || !hasValue(payload.template_name) || !hasValue(payload.language)) {
+      throw new Error(
+        `Parâmetro obrigatório ausente: ${JSON.stringify({
+          to: base.to,
+          template_name: payload.template_name ?? null,
+          language_code: payload.language ?? null,
+        })}`,
+      );
+    }
+
+    const requiredTextTokens = new Set<string>();
+    let headerMediaRequirement: "image" | "video" | "document" | null = null;
+    for (const component of templateComponents) {
+      if (component?.type === "HEADER") {
+        if (component.format === "TEXT") {
+          extractTemplateTokens(component.text ?? "").forEach((token) => requiredTextTokens.add(token));
+        }
+        if (component.format === "IMAGE") headerMediaRequirement = "image";
+        if (component.format === "VIDEO") headerMediaRequirement = "video";
+        if (component.format === "DOCUMENT") headerMediaRequirement = "document";
+      }
+      if (component?.type === "BODY") {
+        extractTemplateTokens(component.text ?? "").forEach((token) => requiredTextTokens.add(token));
+      }
+      if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
+        component.buttons.forEach((button: any) => {
+          if (button?.type === "URL") {
+            extractTemplateTokens(button?.url ?? "").forEach((token) => requiredTextTokens.add(token));
+          }
+        });
+      }
+    }
+
+    const missingTokens = Array.from(requiredTextTokens).filter((token) => !hasValue(valuesByToken.get(token)));
+    if (missingTokens.length > 0) {
+      throw new Error(
+        `Variáveis obrigatórias do template não foram preenchidas: ${missingTokens
+          .map((token) => `{{${token}}}`)
+          .join(", ")}`,
+      );
+    }
+
     const makeTextParameters = (tokens: string[]) =>
       tokens.map((token) => {
         const normalized = String(token).trim();
@@ -68,10 +114,60 @@ export function buildWhatsAppPayload(
           : { type: "text", text };
       });
 
-    if (payload.header_image_url) {
+    if (headerMediaRequirement === "image") {
+      const imageId = payload.header_media_id ?? payload.header_image_id;
+      const imageLink = payload.header_media_link ?? payload.header_image_url;
+      if (!hasValue(imageId) && !hasValue(imageLink)) {
+        throw new Error(
+          "Este template exige uma imagem no cabeçalho. Informe o ID ou a URL pública da imagem antes de enviar a campanha.",
+        );
+      }
       components.push({
         type: "header",
-        parameters: [{ type: "image", image: { link: payload.header_image_url } }],
+        parameters: [
+          imageId
+            ? { type: "image", image: { id: imageId } }
+            : { type: "image", image: { link: imageLink } },
+        ],
+      });
+    }
+
+    if (headerMediaRequirement === "video") {
+      const videoId = payload.header_media_id ?? payload.header_video_id;
+      const videoLink = payload.header_media_link ?? payload.header_video_url;
+      if (!hasValue(videoId) && !hasValue(videoLink)) {
+        throw new Error(
+          "Este template exige um vídeo no cabeçalho. Informe o ID ou a URL pública do vídeo antes de enviar a campanha.",
+        );
+      }
+      components.push({
+        type: "header",
+        parameters: [
+          videoId
+            ? { type: "video", video: { id: videoId } }
+            : { type: "video", video: { link: videoLink } },
+        ],
+      });
+    }
+
+    if (headerMediaRequirement === "document") {
+      const documentId = payload.header_media_id ?? payload.header_document_id;
+      const documentLink = payload.header_media_link ?? payload.header_document_url;
+      if (!hasValue(documentId) && !hasValue(documentLink)) {
+        throw new Error(
+          "Este template exige um documento no cabeçalho. Informe o ID ou a URL pública do documento antes de enviar a campanha.",
+        );
+      }
+      components.push({
+        type: "header",
+        parameters: [
+          documentId
+            ? { type: "document", document: { id: documentId, filename: payload.header_document_filename } }
+            : {
+                type: "document",
+                document: { link: documentLink, filename: payload.header_document_filename },
+              },
+        ],
       });
     }
 
@@ -118,7 +214,7 @@ export function buildWhatsAppPayload(
       template: {
         name: payload.template_name,
         language: { code: payload.language },
-        ...(components.length ? { components } : {}),
+        components,
       },
     };
   }

@@ -15,9 +15,12 @@ import {
   Calendar,
   Layers,
   Users,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_app/campaigns/$id")({ component: CampaignDetailPage });
 
@@ -137,6 +140,27 @@ function CampaignDetailPage() {
       />
 
       <div className="flex-1 overflow-y-auto space-y-6 p-6">
+        {c.template_diagnostic?.status === "invalid" && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Essa campanha usa um template inválido</AlertTitle>
+            <AlertDescription>
+              {c.template_diagnostic.message} Recrie a campanha com um template aprovado da conta
+              atual para voltar a enviar normalmente.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {c.template_diagnostic?.status === "legacy_unlinked" && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Campanha antiga detectada</AlertTitle>
+            <AlertDescription>
+              {c.template_diagnostic.message}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Summary strip */}
         <Card className="p-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -149,7 +173,15 @@ function CampaignDetailPage() {
               </span>
             </SummaryItem>
             <SummaryItem icon={<Layers className="h-4 w-4 text-muted-foreground" />} label="Tipo">
-              <span className="text-sm font-medium capitalize">{c.message_type}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium capitalize">{c.message_type}</span>
+                {c.template_diagnostic?.status === "invalid" && (
+                  <Badge variant="destructive">Template inválido</Badge>
+                )}
+                {c.template_diagnostic?.status === "legacy_unlinked" && (
+                  <Badge variant="outline">Campanha antiga</Badge>
+                )}
+              </div>
             </SummaryItem>
             <SummaryItem
               icon={<Users className="h-4 w-4 text-muted-foreground" />}
