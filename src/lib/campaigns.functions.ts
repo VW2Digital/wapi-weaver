@@ -8,6 +8,9 @@ const payloadSchema = z.object({
   template_name: z.string().optional(),
   language: z.string().optional(),
   variables: z.array(z.string()).optional(), // body variables in order
+  template_components: z.array(z.any()).optional(),
+  template_placeholders: z.array(z.string()).optional(),
+  parameter_format: z.enum(["NAMED", "POSITIONAL"]).optional(),
   header_image_url: z.string().url().optional(),
   // For text/media
   text: z.string().max(4096).optional(),

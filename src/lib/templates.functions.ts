@@ -87,6 +87,16 @@ const createTemplateInput = z.object({
 
 export type CreateTemplateInput = z.infer<typeof createTemplateInput>;
 
+function extractTemplatePlaceholders(text: string) {
+  const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+  const placeholders: string[] = [];
+  for (const match of matches) {
+    const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+    if (token && !placeholders.includes(token)) placeholders.push(token);
+  }
+  return placeholders;
+}
+
 function buildMetaComponents(input: CreateTemplateInput) {
   const components: any[] = [];
   if (input.header.format !== "NONE") {
@@ -108,7 +118,17 @@ function buildMetaComponents(input: CreateTemplateInput) {
   }
   const bodyComp: any = { type: "BODY", text: input.body };
   if (input.body_examples && input.body_examples.length > 0) {
-    bodyComp.example = { body_text: [input.body_examples] };
+    if (input.parameter_format === "NAMED") {
+      const placeholders = extractTemplatePlaceholders(input.body).filter((token) => !/^\d+$/.test(token));
+      bodyComp.example = {
+        body_text_named_params: placeholders.map((paramName, index) => ({
+          param_name: paramName,
+          example: input.body_examples?.[index] ?? "",
+        })),
+      };
+    } else {
+      bodyComp.example = { body_text: [input.body_examples] };
+    }
   }
   components.push(bodyComp);
   if (input.footer && input.footer.trim()) {
@@ -124,6 +144,16 @@ export const createTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => createTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
+    const bodyPlaceholders = extractTemplatePlaceholders(data.body);
+    if (bodyPlaceholders.length > 0) {
+      const missingExamples = bodyPlaceholders.filter((_, index) => !data.body_examples?.[index]?.trim());
+      if (missingExamples.length > 0) {
+        throw new Error(
+          "Preencha um exemplo para cada variável do corpo do template antes de enviar para a Meta.",
+        );
+      }
+    }
+
     const components = buildMetaComponents(data);
 
     const { data: p } = await context.db
@@ -181,6 +211,12 @@ export const createTemplate = createServerFn({ method: "POST" })
           category: data.category,
           status: status as any,
           components,
+          parameter_format: data.parameter_format,
+          allow_category_change: data.allow_category_change ? 1 : 0,
+          cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
+          message_send_ttl_seconds: data.message_send_ttl_seconds,
+          sub_category: data.sub_category,
+          is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
           meta_template_id: meta_template_id ?? `local_${data.name}_${data.language}`,
           synced_at: new Date().toISOString(),
         },
@@ -202,6 +238,16 @@ export const updateTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => updateTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
+    const bodyPlaceholders = extractTemplatePlaceholders(data.body);
+    if (bodyPlaceholders.length > 0) {
+      const missingExamples = bodyPlaceholders.filter((_, index) => !data.body_examples?.[index]?.trim());
+      if (missingExamples.length > 0) {
+        throw new Error(
+          "Preencha um exemplo para cada variável do corpo do template antes de enviar para a Meta.",
+        );
+      }
+    }
+
     const components = buildMetaComponents(data);
 
     const { data: tpl } = await context.db
@@ -266,6 +312,12 @@ export const updateTemplate = createServerFn({ method: "POST" })
         category: data.category,
         status: status as any,
         components,
+        parameter_format: data.parameter_format,
+        allow_category_change: data.allow_category_change ? 1 : 0,
+        cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
+        message_send_ttl_seconds: data.message_send_ttl_seconds,
+        sub_category: data.sub_category,
+        is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
         meta_template_id,
         synced_at: new Date().toISOString(),
       })
@@ -385,7 +437,12 @@ export const listTemplates = createServerFn({ method: "GET" })
       .eq("status", "APPROVED")
       .order("name");
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []).filter(
+      (template: any) =>
+        template.meta_template_id &&
+        !String(template.meta_template_id).startsWith("local_") &&
+        !String(template.meta_template_id).startsWith("sample_"),
+    );
   });
 
 export const listAllTemplates = createServerFn({ method: "GET" })
@@ -900,6 +957,23 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
           language: tpl.language,
           category: tpl.category,
           components: tpl.components,
+          parameter_format: tpl.parameter_format ?? undefined,
+          allow_category_change:
+            tpl.allow_category_change === null || tpl.allow_category_change === undefined
+              ? undefined
+              : !!tpl.allow_category_change,
+          cta_url_link_tracking_opted_out:
+            tpl.cta_url_link_tracking_opted_out === null ||
+            tpl.cta_url_link_tracking_opted_out === undefined
+              ? undefined
+              : !!tpl.cta_url_link_tracking_opted_out,
+          message_send_ttl_seconds: tpl.message_send_ttl_seconds ?? undefined,
+          sub_category: tpl.sub_category ?? undefined,
+          is_primary_device_delivery_only:
+            tpl.is_primary_device_delivery_only === null ||
+            tpl.is_primary_device_delivery_only === undefined
+              ? undefined
+              : !!tpl.is_primary_device_delivery_only,
         }),
       },
     );
@@ -1062,4 +1136,3 @@ export const listMetaTemplatesDirect = createServerFn({ method: "GET" })
     }
     return body;
   });
-

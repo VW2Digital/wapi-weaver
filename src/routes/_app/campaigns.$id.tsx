@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getCampaign, exportCampaignReport } from "@/lib/campaigns.functions";
+import { toFriendlyError } from "@/lib/meta-errors";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,27 @@ const MSG_STATUS: Record<string, string> = {
   read: "Lida",
   failed: "Falhou",
 };
+
+function formatCampaignError(error: unknown) {
+  if (!error) return "—";
+
+  if (typeof error === "string") {
+    try {
+      const parsed = JSON.parse(error);
+      const friendly = toFriendlyError(parsed, "Falha ao enviar mensagem");
+      return `${friendly.title}. ${friendly.message}`;
+    } catch {
+      return error;
+    }
+  }
+
+  if (typeof error === "object") {
+    const friendly = toFriendlyError(error, "Falha ao enviar mensagem");
+    return `${friendly.title}. ${friendly.message}`;
+  }
+
+  return String(error);
+}
 
 function CampaignDetailPage() {
   const { id } = Route.useParams();
@@ -216,11 +238,7 @@ function CampaignDetailPage() {
                         {m.read_at ? new Date(m.read_at).toLocaleString("pt-BR") : "—"}
                       </td>
                       <td className="p-3 text-xs text-destructive">
-                        {m.error
-                          ? typeof m.error === "string"
-                            ? m.error
-                            : JSON.stringify(m.error).slice(0, 80)
-                          : "—"}
+                        {formatCampaignError(m.error)}
                       </td>
                     </tr>
                   ))}

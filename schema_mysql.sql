@@ -164,6 +164,12 @@ CREATE TABLE IF NOT EXISTS templates (
   category VARCHAR(50) NULL,
   status ENUM('APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED') NOT NULL DEFAULT 'PENDING',
   components JSON NULL,
+  parameter_format VARCHAR(20) NULL,
+  allow_category_change BOOLEAN NOT NULL DEFAULT TRUE,
+  cta_url_link_tracking_opted_out BOOLEAN NOT NULL DEFAULT FALSE,
+  message_send_ttl_seconds INT NULL,
+  sub_category VARCHAR(100) NULL,
+  is_primary_device_delivery_only BOOLEAN NOT NULL DEFAULT FALSE,
   meta_template_id VARCHAR(255) NULL,
   synced_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_template (user_id, name, language),
@@ -482,6 +488,5 @@ CREATE INDEX idx_opt_notes_pinned ON opportunity_notes(is_pinned);
 
 CREATE INDEX idx_opt_audit_opp ON opportunity_audit_logs(opportunity_id);
 CREATE INDEX idx_opt_audit_created ON opportunity_audit_logs(created_at);
-
 
 

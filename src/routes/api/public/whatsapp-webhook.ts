@@ -13,6 +13,64 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
   }
 }
 
+function extractPhoneNumberIds(payload: any): string[] {
+  const ids = new Set<string>();
+  for (const entry of payload?.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      const phoneNumberId = change?.value?.metadata?.phone_number_id;
+      if (phoneNumberId) ids.add(String(phoneNumberId));
+    }
+  }
+  return Array.from(ids);
+}
+
+async function resolveWebhookUser(rawBody: string, signatureHeader: string | null, payload: any) {
+  const { data: profiles } = await dbAdmin
+    .from("profiles")
+    .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
+    .not("whatsapp_app_secret", "is", null);
+
+  const verifiedProfiles: Array<{
+    id: string;
+    whatsapp_app_secret?: string | null;
+    whatsapp_phone_number_id?: string | null;
+  }> = [];
+
+  for (const profile of profiles ?? []) {
+    if (
+      profile.whatsapp_app_secret &&
+      (await verifySignature(rawBody, signatureHeader, profile.whatsapp_app_secret))
+    ) {
+      verifiedProfiles.push(profile as any);
+    }
+  }
+
+  if (verifiedProfiles.length === 0) {
+    return { userId: null, reason: "invalid_signature" as const };
+  }
+
+  const payloadPhoneIds = extractPhoneNumberIds(payload);
+  if (payloadPhoneIds.length > 0) {
+    const byPhoneId = verifiedProfiles.filter((profile) =>
+      profile.whatsapp_phone_number_id && payloadPhoneIds.includes(String(profile.whatsapp_phone_number_id)),
+    );
+
+    if (byPhoneId.length === 1) {
+      return { userId: byPhoneId[0].id, reason: "phone_number_id" as const };
+    }
+
+    if (byPhoneId.length > 1) {
+      return { userId: null, reason: "ambiguous_phone_number_id" as const };
+    }
+  }
+
+  if (verifiedProfiles.length === 1) {
+    return { userId: verifiedProfiles[0].id, reason: "signature_only" as const };
+  }
+
+  return { userId: null, reason: "ambiguous_signature" as const };
+}
+
 const OPT_OUT_KEYWORDS = [
   "stop",
   "sair",
@@ -230,31 +288,24 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
+        const payload = JSON.parse(rawBody);
+        const resolved = await resolveWebhookUser(rawBody, sig, payload);
+        const matchedUserId = resolved.userId;
 
-        // SECURITY: signature must match exactly one user; bind events to that user_id.
-        const { data: secrets } = await dbAdmin
-          .from("profiles")
-          .select("id, whatsapp_app_secret")
-          .not("whatsapp_app_secret", "is", null);
-
-        let matchedUserId: string | null = null;
-        for (const s of secrets ?? []) {
-          if (
-            s.whatsapp_app_secret &&
-            (await verifySignature(rawBody, sig, s.whatsapp_app_secret))
-          ) {
-            matchedUserId = s.id as string;
-            break;
-          }
-        }
         if (!matchedUserId) {
           await dbAdmin
             .from("webhook_events")
-            .insert({ source: "whatsapp", raw: { rejected: true, body: rawBody.slice(0, 4000) } });
-          return new Response("Invalid signature", { status: 401 });
+            .insert({
+              source: "whatsapp",
+              raw: {
+                rejected: true,
+                reason: resolved.reason,
+                phone_number_ids: extractPhoneNumberIds(payload),
+                body: rawBody.slice(0, 4000),
+              },
+            });
+          return new Response("Webhook user could not be resolved", { status: 401 });
         }
-
-        const payload = JSON.parse(rawBody);
         const { data: evRow } = await dbAdmin
           .from("webhook_events")
           .insert({ source: "whatsapp", raw: payload, user_id: matchedUserId })

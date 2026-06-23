@@ -55,6 +55,26 @@ import { WhatsAppPreview } from "@/components/whatsapp-preview";
 
 export const Route = createFileRoute("/_app/campaigns/")({ component: CampaignsPage });
 
+function extractTemplatePlaceholders(components: any[] = []) {
+  const placeholders: string[] = [];
+  const pushFromText = (text?: string) => {
+    const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+    for (const match of matches) {
+      const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+      if (token && !placeholders.includes(token)) placeholders.push(token);
+    }
+  };
+
+  components.forEach((component: any) => {
+    if (component?.text) pushFromText(component.text);
+    if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
+      component.buttons.forEach((button: any) => pushFromText(button?.url));
+    }
+  });
+
+  return placeholders;
+}
+
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   draft: { label: "Rascunho", cls: "bg-muted text-muted-foreground" },
   queued: { label: "Na fila", cls: "bg-warning/15 text-warning-foreground" },
@@ -290,44 +310,15 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
     return Array.from(fields);
   }, [listContactsData]);
 
-  const templateParamsCount = useMemo(() => {
-    if (!selectedTemplate) return 0;
-    const params = new Set<number>();
-
-    selectedTemplate.components?.forEach((c: any) => {
-      // Procura variáveis {{1}}, {{2}} etc. em campos de texto
-      if (c.text) {
-        const matches = c.text.match(/\{\{(\d+)\}\}/g);
-        if (matches) {
-          matches.forEach((m: string) => {
-            const num = parseInt(m.replace(/\D+/g, ""), 10);
-            if (!isNaN(num)) params.add(num);
-          });
-        }
-      }
-      // Procura variáveis em botões com URLs dinâmicas
-      if (c.type === "BUTTONS" && Array.isArray(c.buttons)) {
-        c.buttons.forEach((b: any) => {
-          if (b.url) {
-            const matches = b.url.match(/\{\{(\d+)\}\}/g);
-            if (matches) {
-              matches.forEach((m: string) => {
-                const num = parseInt(m.replace(/\D+/g, ""), 10);
-                if (!isNaN(num)) params.add(num);
-              });
-            }
-          }
-        });
-      }
-    });
-
-    return params.size > 0 ? Math.max(...Array.from(params)) : 0;
+  const templatePlaceholders = useMemo(() => {
+    if (!selectedTemplate) return [];
+    return extractTemplatePlaceholders(selectedTemplate.components ?? []);
   }, [selectedTemplate]);
 
   // Sincroniza a quantidade de inputs com o template selecionado
   useEffect(() => {
-    setParamValues(Array(templateParamsCount).fill(""));
-  }, [templateParamsCount]);
+    setParamValues(Array(templatePlaceholders.length).fill(""));
+  }, [templatePlaceholders]);
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -336,6 +327,9 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
         if (!selectedTemplate) throw new Error("Selecione um template");
         payload.template_name = selectedTemplate.name;
         payload.language = selectedTemplate.language;
+        payload.template_components = selectedTemplate.components ?? [];
+        payload.template_placeholders = templatePlaceholders;
+        if (selectedTemplate.parameter_format) payload.parameter_format = selectedTemplate.parameter_format;
         const vars = paramValues.map((v) => v.trim());
         if (vars.length) payload.variables = vars;
       } else if (messageType === "text") {
@@ -442,14 +436,16 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                   </Select>
                 </div>
 
-                {templateParamsCount > 0 && (
+                {templatePlaceholders.length > 0 && (
                   <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Variáveis do Template
                     </p>
-                    {Array.from({ length: templateParamsCount }).map((_, i) => (
+                    {templatePlaceholders.map((placeholder, i) => (
                       <div key={i} className="space-y-1.5">
-                        <Label className="text-xs font-medium">Parâmetro {`{{${i + 1}}}`}</Label>
+                        <Label className="text-xs font-medium">
+                          Parâmetro {`{{${placeholder}}}`}
+                        </Label>
                         <Input
                           value={paramValues[i] ?? ""}
                           onChange={(e) => {
@@ -489,7 +485,9 @@ function CampaignWizard({ onDone }: { onDone: () => void }) {
                     <WhatsAppPreview
                       components={(selectedTemplate.components ?? []) as any}
                       variables={Object.fromEntries(
-                        paramValues.map((v, i) => [String(i + 1), v.trim()]).filter(([, v]) => v),
+                        paramValues
+                          .map((v, i) => [templatePlaceholders[i], v.trim()])
+                          .filter(([key, value]) => key && value),
                       )}
                     />
                   </div>

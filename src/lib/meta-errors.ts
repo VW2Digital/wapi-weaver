@@ -128,6 +128,16 @@ export function toFriendlyError(
         type,
         trace,
       };
+    case 132012:
+      return {
+        title: "Os dados do template foram enviados no formato errado",
+        message:
+          "O WhatsApp rejeitou os campos dinâmicos deste template. Isso costuma acontecer quando falta preencher alguma variável, sobra variável, ou um botão com link dinâmico foi montado no formato incorreto.",
+        hint: "Revise os parâmetros do template. Se ele tiver variáveis no corpo, cabeçalho ou botão com link, cada parte precisa ser enviada no lugar certo. Depois reenviamos a campanha.",
+        code,
+        type,
+        trace,
+      };
     case 4:
     case 80007:
       return {

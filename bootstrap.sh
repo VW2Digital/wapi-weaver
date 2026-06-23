@@ -191,6 +191,8 @@ docker compose up -d
 
 echo -e "${YELLOW}Aguardando a aplicação inicializar (healthcheck do MySQL)...${NC}"
 sleep 35
+echo -e "${YELLOW}Aplicando validação automática de schema no banco existente...${NC}"
+docker compose exec -T app node scripts/ensure-schema.js
 echo -e "${GREEN}Containers rodando com sucesso!${NC}"
 
 # 7. Configurando o Servidor Nginx
@@ -269,4 +271,3 @@ echo "Comandos úteis:"
 echo "Ver logs do App: cd /var/www/wapi-weaver && docker compose logs -f app"
 echo "Reiniciar App:   cd /var/www/wapi-weaver && docker compose restart"
 echo "========================================================================"
-

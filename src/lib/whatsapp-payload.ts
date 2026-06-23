@@ -4,6 +4,13 @@ function toE164NoPlus(raw: string): string {
   return String(raw ?? "").replace(/\D+/g, "");
 }
 
+function extractTemplateTokens(text: string): string[] {
+  const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+  return matches
+    .map((match) => match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim())
+    .filter(Boolean);
+}
+
 export function buildWhatsAppPayload(
   messageType: string,
   toPhone: string,
@@ -40,18 +47,71 @@ export function buildWhatsAppPayload(
 
   if (messageType === "template") {
     const components: any[] = [];
+    const variableValues = Array.isArray(payload.variables) ? payload.variables : [];
+    const templateComponents = Array.isArray(payload.template_components) ? payload.template_components : [];
+    const placeholderKeys = Array.isArray(payload.template_placeholders)
+      ? payload.template_placeholders
+      : variableValues.map((_: string, index: number) => String(index + 1));
+    const isNamedFormat = payload.parameter_format === "NAMED";
+    const valuesByToken = new Map<string, string>();
+
+    placeholderKeys.forEach((token: string, index: number) => {
+      valuesByToken.set(String(token), interpolate(variableValues[index] ?? ""));
+    });
+
+    const makeTextParameters = (tokens: string[]) =>
+      tokens.map((token) => {
+        const normalized = String(token).trim();
+        const text = valuesByToken.get(normalized) ?? "";
+        return isNamedFormat && !/^\d+$/.test(normalized)
+          ? { type: "text", parameter_name: normalized, text }
+          : { type: "text", text };
+      });
+
     if (payload.header_image_url) {
       components.push({
         type: "header",
         parameters: [{ type: "image", image: { link: payload.header_image_url } }],
       });
     }
-    if (payload.variables?.length) {
+
+    if (templateComponents.length > 0) {
+      for (const component of templateComponents) {
+        if (component?.type === "HEADER" && component.format === "TEXT") {
+          const tokens = extractTemplateTokens(component.text ?? "");
+          if (tokens.length > 0) {
+            components.push({ type: "header", parameters: makeTextParameters(tokens) });
+          }
+        }
+
+        if (component?.type === "BODY") {
+          const tokens = extractTemplateTokens(component.text ?? "");
+          if (tokens.length > 0) {
+            components.push({ type: "body", parameters: makeTextParameters(tokens) });
+          }
+        }
+
+        if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
+          component.buttons.forEach((button: any, index: number) => {
+            const urlTokens = extractTemplateTokens(button?.url ?? "");
+            if (button?.type === "URL" && urlTokens.length > 0) {
+              components.push({
+                type: "button",
+                sub_type: "url",
+                index: String(index),
+                parameters: makeTextParameters(urlTokens),
+              });
+            }
+          });
+        }
+      }
+    } else if (payload.variables?.length) {
       components.push({
         type: "body",
         parameters: payload.variables.map((v: string) => ({ type: "text", text: interpolate(v) })),
       });
     }
+
     return {
       ...base,
       type: "template",

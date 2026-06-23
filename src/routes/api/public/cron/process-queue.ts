@@ -6,6 +6,26 @@ const BATCH = 60;
 const STUCK_SENDING_MINUTES = 5;
 const WEBHOOK_EVENTS_RETENTION_DAYS = 30;
 
+function extractTemplatePlaceholders(components: any[] = []) {
+  const placeholders: string[] = [];
+  const collect = (text?: string) => {
+    const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+    for (const match of matches) {
+      const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+      if (token && !placeholders.includes(token)) placeholders.push(token);
+    }
+  };
+
+  for (const component of components) {
+    if (component?.text) collect(component.text);
+    if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
+      component.buttons.forEach((button: any) => collect(button?.url));
+    }
+  }
+
+  return placeholders;
+}
+
 export async function processOnce() {
   // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
   const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
@@ -50,6 +70,22 @@ export async function processOnce() {
 
   if (!activeCampaigns || activeCampaigns.length === 0) return { processed: 0 };
   const activeCampIds = activeCampaigns.map((c: any) => c.id);
+  const templateIds = Array.from(
+    new Set(
+      activeCampaigns
+        .filter((campaign: any) => campaign.message_type === "template" && campaign.template_id)
+        .map((campaign: any) => campaign.template_id),
+    ),
+  );
+
+  let templateMap: Record<string, any> = {};
+  if (templateIds.length > 0) {
+    const { data: templates } = await dbAdmin
+      .from("templates")
+      .select("id, name, language, components, parameter_format")
+      .in("id", templateIds);
+    templateMap = Object.fromEntries((templates ?? []).map((template: any) => [template.id, template]));
+  }
 
   // Pick up to BATCH pending messages for active campaigns
   const { data: messages, error } = await dbAdmin
@@ -68,6 +104,10 @@ export async function processOnce() {
   const campMap = Object.fromEntries(activeCampaigns.map((c: any) => [c.id, c]));
   for (const m of messages) {
     (m as any).campaigns = campMap[m.campaign_id];
+    const campaignTemplateId = (m as any).campaigns?.template_id;
+    if (campaignTemplateId) {
+      (m as any).template = templateMap[campaignTemplateId] ?? null;
+    }
   }
 
   // Group by user to fetch credentials once per user
@@ -121,10 +161,28 @@ export async function processOnce() {
         .eq("id", m.id);
 
       try {
+        const campaignPayload = { ...((m as any).campaigns.payload ?? {}) };
+        const linkedTemplate = (m as any).template;
+        if ((m as any).campaigns.message_type === "template" && linkedTemplate) {
+          if (!campaignPayload.template_name) campaignPayload.template_name = linkedTemplate.name;
+          if (!campaignPayload.language) campaignPayload.language = linkedTemplate.language;
+          if (!campaignPayload.template_components) {
+            campaignPayload.template_components = linkedTemplate.components ?? [];
+          }
+          if (!campaignPayload.template_placeholders) {
+            campaignPayload.template_placeholders = extractTemplatePlaceholders(
+              linkedTemplate.components ?? [],
+            );
+          }
+          if (!campaignPayload.parameter_format && linkedTemplate.parameter_format) {
+            campaignPayload.parameter_format = linkedTemplate.parameter_format;
+          }
+        }
+
         const payload = buildWhatsAppPayload(
           (m as any).campaigns.message_type,
           m.to_phone,
-          (m as any).campaigns.payload,
+          campaignPayload,
           (m as any).contacts,
         );
         const r = await fetch(url, {

@@ -86,9 +86,13 @@ const LANGS = [
 ];
 
 function extractVarCount(text: string) {
-  const matches = text.match(/\{\{\s*\d+\s*\}\}/g) ?? [];
-  const nums = matches.map((m) => parseInt(m.replace(/[^\d]/g, ""), 10)).filter((n) => !isNaN(n));
-  return nums.length ? Math.max(...nums) : 0;
+  const matches = text.match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+  const tokens: string[] = [];
+  for (const match of matches) {
+    const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+    if (token && !tokens.includes(token)) tokens.push(token);
+  }
+  return tokens;
 }
 
 export function TemplateBuilderDialog({
@@ -181,13 +185,13 @@ export function TemplateBuilderDialog({
     }
   }, [template, open]);
 
-  const bodyVarCount = extractVarCount(body);
+  const bodyPlaceholders = extractVarCount(body);
   useEffect(() => {
     setBodyExamples((prev) => {
-      if (prev.length === bodyVarCount) return prev;
-      return Array.from({ length: bodyVarCount }, (_, i) => prev[i] ?? "");
+      if (prev.length === bodyPlaceholders.length) return prev;
+      return Array.from({ length: bodyPlaceholders.length }, (_, i) => prev[i] ?? "");
     });
-  }, [bodyVarCount]);
+  }, [bodyPlaceholders]);
 
   const previewComponents: any[] = [];
   if (header.format === "TEXT") {
@@ -446,13 +450,15 @@ export function TemplateBuilderDialog({
                 </code>{" "}
                 etc. para variáveis dinâmicas.
               </p>
-              {bodyVarCount > 0 && (
+              {bodyPlaceholders.length > 0 && (
                 <div className="space-y-2 rounded border bg-muted/30 p-3">
-                  <p className="text-xs font-medium">Exemplos para aprovação ({bodyVarCount})</p>
-                  {Array.from({ length: bodyVarCount }).map((_, i) => (
+                  <p className="text-xs font-medium">
+                    Exemplos para aprovação ({bodyPlaceholders.length})
+                  </p>
+                  {bodyPlaceholders.map((placeholder, i) => (
                     <Input
-                      key={i}
-                      placeholder={`Exemplo para {{${i + 1}}}`}
+                      key={`${placeholder}-${i}`}
+                      placeholder={`Exemplo para {{${placeholder}}}`}
                       value={bodyExamples[i] ?? ""}
                       onChange={(e) => {
                         const next = [...bodyExamples];
