@@ -231,10 +231,30 @@ docker compose up -d
 
 echo ""
 echo "  Aguardando a aplicação inicializar (healthcheck do MySQL pode levar ~30s)..."
-sleep 35
+APP_READY=0
+for attempt in $(seq 1 18); do
+  if docker compose ps app 2>/dev/null | grep -Eq "(Up|running)"; then
+    APP_READY=1
+    break
+  fi
+  echo "  App ainda iniciando/reiniciando... tentativa ${attempt}/18"
+  sleep 10
+done
 
-echo "  Aplicando atualização automática do schema no banco existente..."
-docker compose exec -T app node scripts/ensure-schema.js
+if [ "$APP_READY" -eq 1 ]; then
+  echo "  Aplicando atualização automática do schema no banco existente..."
+  if docker compose exec -T app node scripts/ensure-schema.js; then
+    print_ok "Schema validado com sucesso."
+  else
+    print_error "Falha ao validar o schema automaticamente."
+    echo "  Verifique os logs com: docker compose logs app"
+    exit 1
+  fi
+else
+  print_error "Container da aplicação não estabilizou a tempo para executar o ensure-schema."
+  echo "  Verifique os logs com: docker compose logs app"
+  exit 1
+fi
 
 # Verificar se os containers estão rodando
 if docker compose ps | grep -q "wapi_weaver_app.*Up\|wapi_weaver_app.*running"; then
