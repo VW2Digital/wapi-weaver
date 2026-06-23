@@ -38,15 +38,60 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
       data: { step: s },
     }));
 
-    const newEdges: Edge[] = steps
-      .filter((s) => s.next_step_id)
-      .map((s) => ({
-        id: `e-${s.id}-${s.next_step_id}`,
-        source: s.id,
-        target: s.next_step_id,
-        type: "smoothstep",
-        animated: true,
-      }));
+    const newEdges: Edge[] = [];
+    steps.forEach((s) => {
+      // 1. Conexão automática/fallback
+      if (s.next_step_id && s.next_step_id !== "-999" && s.next_step_id !== "-997" && s.next_step_id !== "-998") {
+        const targetExists = steps.some((step) => step.id === s.next_step_id);
+        if (targetExists) {
+          newEdges.push({
+            id: `e-${s.id}-${s.next_step_id}`,
+            source: s.id,
+            target: s.next_step_id,
+            type: "smoothstep",
+            animated: true,
+          });
+        }
+      }
+
+      // 2. Conexões de botões interativos
+      if (s.message_type === "buttons" && s.buttons_config) {
+        try {
+          const configObj = typeof s.buttons_config === "string" 
+            ? JSON.parse(s.buttons_config) 
+            : s.buttons_config;
+          const buttons = configObj?.action?.buttons || [];
+          buttons.forEach((btn: any, btnIdx: number) => {
+            const rawId = btn.reply?.id || "";
+            let targetId = "";
+            if (rawId.startsWith("step:")) {
+              targetId = rawId.replace("step:", "");
+            } else if (rawId) {
+              const isStep = steps.some((step) => step.id === rawId);
+              if (isStep) targetId = rawId;
+            }
+
+            if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+              const targetExists = steps.some((step) => step.id === targetId);
+              if (targetExists) {
+                newEdges.push({
+                  id: `e-${s.id}-${targetId}-btn-${btnIdx}`,
+                  source: s.id,
+                  target: targetId,
+                  type: "smoothstep",
+                  label: btn.reply?.title || `Botão ${btnIdx + 1}`,
+                  style: { stroke: "#8b5cf6", strokeWidth: 2 },
+                  labelStyle: { fill: "#8b5cf6", fontWeight: 600, fontSize: 10 },
+                  animated: true,
+                });
+              }
+            }
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
 
     setNodes(newNodes);
     setEdges(newEdges);
