@@ -1027,35 +1027,35 @@ function ChatPage() {
                     <DropdownMenuContent align="start" className="w-48 p-1">
                       <DropdownMenuItem onClick={() => handleMediaAttachClick("image")}>
                         <ImageIcon className="h-4 w-4 mr-2 text-blue-500" />
-                        <span>📷 Imagem</span>
+                        <span>Imagem</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleMediaAttachClick("audio")}>
                         <Volume2 className="h-4 w-4 mr-2 text-orange-500" />
-                        <span>🎙️ Áudio</span>
+                        <span>Áudio</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleMediaAttachClick("video")}>
                         <Video className="h-4 w-4 mr-2 text-red-500" />
-                        <span>🎥 Vídeo</span>
+                        <span>Vídeo</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleMediaAttachClick("document")}>
                         <FileText className="h-4 w-4 mr-2 text-green-500" />
-                        <span>📄 Documento</span>
+                        <span>Documento</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleMediaAttachClick("sticker")}>
                         <Smile className="h-4 w-4 mr-2 text-yellow-500" />
-                        <span>👾 Sticker</span>
+                        <span>Sticker</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsLocationModalOpen(true)}>
                         <MapPin className="h-4 w-4 mr-2 text-rose-500" />
-                        <span>📍 Localização</span>
+                        <span>Localização</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsContactModalOpen(true)}>
                         <Users className="h-4 w-4 mr-2 text-indigo-500" />
-                        <span>👤 Contato</span>
+                        <span>Contato</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsImageModalOpen(true)}>
                         <LinkIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span>🆔 Imagem por ID</span>
+                        <span>Imagem por ID</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

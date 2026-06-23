@@ -23,19 +23,54 @@ import { WhatsAppPreview } from "@/components/whatsapp-preview";
 import { ChevronLeft, ChevronRight, Send, Loader2, Upload, Paperclip } from "lucide-react";
 
 function extractTemplatePlaceholders(components: any[] = []) {
-  const placeholders: string[] = [];
-  const pushFromText = (text?: string) => {
-    const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
-    for (const match of matches) {
-      const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
-      if (token && !placeholders.includes(token)) placeholders.push(token);
-    }
-  };
+  const placeholders: { key: string; label: string; token: string }[] = [];
 
   components.forEach((component: any) => {
-    if (component?.text) pushFromText(component.text);
+    if (component?.type === "HEADER" && component.format === "TEXT") {
+      const matches = String(component.text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+      matches.forEach((m) => {
+        const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+        if (token && !placeholders.some(p => p.key === `header_${token}`)) {
+          placeholders.push({
+            key: `header_${token}`,
+            label: `Cabeçalho: Parâmetro {{${token}}}`,
+            token,
+          });
+        }
+      });
+    }
+
+    if (component?.type === "BODY") {
+      const matches = String(component.text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+      matches.forEach((m) => {
+        const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+        if (token && !placeholders.some(p => p.key === token)) {
+          placeholders.push({
+            key: token,
+            label: `Corpo: Parâmetro {{${token}}}`,
+            token,
+          });
+        }
+      });
+    }
+
     if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
-      component.buttons.forEach((button: any) => pushFromText(button?.url));
+      component.buttons.forEach((button: any, btnIndex: number) => {
+        if (button?.type === "URL") {
+          const matches = String(button.url ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+          matches.forEach((m) => {
+            const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+            const key = `button_${btnIndex}_${token}`;
+            if (token && !placeholders.some(p => p.key === key)) {
+              placeholders.push({
+                key,
+                label: `Botão "${button.text}": Link dinâmico {{${token}}}`,
+                token,
+              });
+            }
+          });
+        }
+      });
     }
   });
 
@@ -233,7 +268,7 @@ export function CampaignWizard({
         payload.template_name = selectedTemplate.name;
         payload.language = selectedTemplate.language;
         payload.template_components = selectedTemplate.components ?? [];
-        payload.template_placeholders = templatePlaceholders;
+        payload.template_placeholders = templatePlaceholders.map((p) => p.key);
         if (selectedTemplate.parameter_format) payload.parameter_format = selectedTemplate.parameter_format;
         const vars = paramValues.map((v) => v.trim());
         if (vars.length) payload.variables = vars;
@@ -360,207 +395,217 @@ export function CampaignWizard({
             </div>
 
             {messageType === "template" && (
-              <>
-                <div>
-                  <Label>Template</Label>
-                  <Select value={templateId} onValueChange={setTemplateId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um template aprovado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(templates.data ?? [])
-                        .filter((t: any) => t.status === "APPROVED")
-                        .map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} ({t.language})
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {headerMediaFormat && (
-                  <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-                    <div>
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
-                        Mídia do Cabeçalho ({headerMediaFormat === "IMAGE" ? "Imagem" : headerMediaFormat === "VIDEO" ? "Vídeo" : "Documento"})
-                      </Label>
-                      <div className="flex rounded-md bg-muted p-1 gap-1">
-                        {(["upload", "url", "id"] as const).map((source) => (
-                          <Button
-                            key={source}
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className={`flex-1 text-xs py-1.5 h-auto ${
-                              headerMediaSource === source
-                                ? "bg-background shadow-sm text-foreground"
-                                : "text-muted-foreground hover:bg-background/50"
-                            }`}
-                            onClick={() => setHeaderMediaSource(source)}
-                          >
-                            {source === "upload"
-                              ? "Upload de arquivo"
-                              : source === "url"
-                              ? "URL pública"
-                              : "ID da Meta"}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {headerMediaSource === "upload" && (
-                      <div className="space-y-3">
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleHeaderFileChange}
-                          accept={
-                            headerMediaFormat === "IMAGE"
-                              ? "image/*"
-                              : headerMediaFormat === "VIDEO"
-                              ? "video/*"
-                              : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
-                          }
-                          className="hidden"
-                        />
-                        <div
-                          className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 bg-background/50 hover:bg-background/80 transition-colors cursor-pointer"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          {uploadingHeaderMedia ? (
-                            <div className="flex flex-col items-center space-y-2">
-                              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                              <span className="text-xs text-muted-foreground">Enviando arquivo para a Meta...</span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center space-y-2">
-                              <Upload className="h-8 w-8 text-muted-foreground" />
-                              <span className="text-xs font-medium text-foreground">Clique para fazer upload</span>
-                              <span className="text-[10px] text-muted-foreground">
-                                {headerMediaFormat === "IMAGE"
-                                  ? "Imagens até 5MB"
-                                  : headerMediaFormat === "VIDEO"
-                                  ? "Vídeos até 16MB"
-                                  : "Documentos até 100MB"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        {headerMediaId && (
-                          <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/20 p-2 text-xs text-emerald-500">
-                            <span className="font-semibold">✓</span>
-                            <span className="truncate">
-                              Arquivo enviado. ID da Meta:{" "}
-                              <code className="bg-emerald-500/10 px-1 py-0.5 rounded font-mono">{headerMediaId}</code>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {headerMediaSource === "url" && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">URL pública da mídia (HTTPS)</Label>
-                        <Input
-                          value={headerMediaUrl}
-                          onChange={(e) => {
-                            setHeaderMediaUrl(e.target.value);
-                            setHeaderMediaId("");
-                          }}
-                          placeholder="https://sua-empresa.com.br/assets/banner.png"
-                          className="text-xs"
-                        />
-                      </div>
-                    )}
-
-                    {headerMediaSource === "id" && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">ID do objeto de mídia na Meta</Label>
-                        <Input
-                          value={headerMediaId}
-                          onChange={(e) => {
-                            setHeaderMediaId(e.target.value);
-                            setHeaderMediaUrl("");
-                          }}
-                          placeholder="Ex: 92837498237498237"
-                          className="text-xs font-mono"
-                        />
-                      </div>
-                    )}
-
-                    {headerMediaFormat === "DOCUMENT" && (
-                      <div className="space-y-1.5 pt-2 border-t border-muted">
-                        <Label className="text-xs">Nome do arquivo do documento (exibido no chat)</Label>
-                        <Input
-                          value={headerDocumentFilename}
-                          onChange={(e) => setHeaderDocumentFilename(e.target.value)}
-                          placeholder="catalogo_produtos.pdf"
-                          className="text-xs"
-                        />
-                      </div>
-                    )}
+              <div className="grid gap-6 md:grid-cols-[1fr_320px] items-start">
+                {/* Coluna Esquerda: Configurações e Variáveis */}
+                <div className="space-y-4">
+                  <div>
+                    <Label>Template</Label>
+                    <Select value={templateId} onValueChange={setTemplateId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um template aprovado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(templates.data ?? [])
+                          .filter((t: any) => t.status === "APPROVED")
+                          .map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name} ({t.language})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
 
-                {templatePlaceholders.length > 0 && (
-                  <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Variáveis do Template
-                    </p>
-                    {templatePlaceholders.map((placeholder, i) => (
-                      <div key={i} className="space-y-1.5">
-                        <Label className="text-xs font-medium">
-                          Parâmetro {`{{${placeholder}}}`}
+                  {headerMediaFormat && (
+                    <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                      <div>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                          Mídia do Cabeçalho ({headerMediaFormat === "IMAGE" ? "Imagem" : headerMediaFormat === "VIDEO" ? "Vídeo" : "Documento"})
                         </Label>
-                        <Input
-                          value={paramValues[i] ?? ""}
-                          onChange={(e) => {
-                            const next = [...paramValues];
-                            next[i] = e.target.value;
-                            setParamValues(next);
-                          }}
-                          placeholder="Digite o texto ou insira variáveis da lista"
-                          className="text-xs"
-                        />
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {availableFields.map((field) => (
+                        <div className="flex rounded-md bg-muted p-1 gap-1">
+                          {(["upload", "url", "id"] as const).map((source) => (
                             <Button
-                              key={field}
+                              key={source}
                               type="button"
-                              variant="outline"
-                              className="h-6 rounded border-dashed bg-background px-2 py-0 text-[10px] text-muted-foreground hover:bg-muted"
-                              onClick={() => {
-                                const next = [...paramValues];
-                                const current = next[i] ?? "";
-                                next[i] = current ? `${current} {{${field}}}` : `{{${field}}}`;
-                                setParamValues(next);
-                              }}
+                              variant="ghost"
+                              size="sm"
+                              className={`flex-1 text-xs py-1.5 h-auto ${
+                                headerMediaSource === source
+                                  ? "bg-background shadow-sm text-foreground"
+                                  : "text-muted-foreground hover:bg-background/50"
+                              }`}
+                              onClick={() => setHeaderMediaSource(source)}
                             >
-                              +{field}
+                              {source === "upload"
+                                ? "Upload de arquivo"
+                                : source === "url"
+                                ? "URL pública"
+                                : "ID da Meta"}
                             </Button>
                           ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
 
-                {selectedTemplate && (
-                  <div>
-                    <Label className="mb-2 block">Pré-visualização</Label>
+                      {headerMediaSource === "upload" && (
+                        <div className="space-y-3">
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleHeaderFileChange}
+                            accept={
+                              headerMediaFormat === "IMAGE"
+                                ? "image/*"
+                                : headerMediaFormat === "VIDEO"
+                                ? "video/*"
+                                : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+                            }
+                            className="hidden"
+                          />
+                          <div
+                            className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 bg-background/50 hover:bg-background/80 transition-colors cursor-pointer"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            {uploadingHeaderMedia ? (
+                              <div className="flex flex-col items-center space-y-2">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                <span className="text-xs text-muted-foreground">Enviando arquivo para a Meta...</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center space-y-2">
+                                <Upload className="h-8 w-8 text-muted-foreground" />
+                                <span className="text-xs font-medium text-foreground">Clique para fazer upload</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {headerMediaFormat === "IMAGE"
+                                    ? "Imagens até 5MB"
+                                    : headerMediaFormat === "VIDEO"
+                                    ? "Vídeos até 16MB"
+                                    : "Documentos até 100MB"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {headerMediaId && (
+                            <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/20 p-2 text-xs text-emerald-500">
+                              <span className="font-semibold">✓</span>
+                              <span className="truncate">
+                                Arquivo enviado. ID da Meta:{" "}
+                                <code className="bg-emerald-500/10 px-1 py-0.5 rounded font-mono">{headerMediaId}</code>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {headerMediaSource === "url" && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">URL pública da mídia (HTTPS)</Label>
+                          <Input
+                            value={headerMediaUrl}
+                            onChange={(e) => {
+                              setHeaderMediaUrl(e.target.value);
+                              setHeaderMediaId("");
+                            }}
+                            placeholder="https://sua-empresa.com.br/assets/banner.png"
+                            className="text-xs"
+                          />
+                        </div>
+                      )}
+
+                      {headerMediaSource === "id" && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">ID do objeto de mídia na Meta</Label>
+                          <Input
+                            value={headerMediaId}
+                            onChange={(e) => {
+                              setHeaderMediaId(e.target.value);
+                              setHeaderMediaUrl("");
+                            }}
+                            placeholder="Ex: 92837498237498237"
+                            className="text-xs font-mono"
+                          />
+                        </div>
+                      )}
+
+                      {headerMediaFormat === "DOCUMENT" && (
+                        <div className="space-y-1.5 pt-2 border-t border-muted">
+                          <Label className="text-xs">Nome do arquivo do documento (exibido no chat)</Label>
+                          <Input
+                            value={headerDocumentFilename}
+                            onChange={(e) => setHeaderDocumentFilename(e.target.value)}
+                            placeholder="catalogo_produtos.pdf"
+                            className="text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {templatePlaceholders.length > 0 && (
+                    <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Variáveis do Template
+                      </p>
+                      {templatePlaceholders.map((placeholder, i) => (
+                        <div key={i} className="space-y-1.5">
+                          <Label className="text-xs font-medium">
+                            {placeholder.label}
+                          </Label>
+                          <Input
+                            value={paramValues[i] ?? ""}
+                            onChange={(e) => {
+                              const next = [...paramValues];
+                              next[i] = e.target.value;
+                              setParamValues(next);
+                            }}
+                            placeholder="Digite o texto ou insira variáveis da lista"
+                            className="text-xs"
+                          />
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {availableFields.map((field) => (
+                              <Button
+                                key={field}
+                                type="button"
+                                variant="outline"
+                                className="h-6 rounded border-dashed bg-background px-2 py-0 text-[10px] text-muted-foreground hover:bg-muted"
+                                onClick={() => {
+                                  const next = [...paramValues];
+                                  const current = next[i] ?? "";
+                                  next[i] = current ? `${current} {{${field}}}` : `{{${field}}}`;
+                                  setParamValues(next);
+                                }}
+                              >
+                                +{field}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Coluna Direita: Pré-visualização */}
+                <div className="md:sticky md:top-4 space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block">
+                    Pré-visualização
+                  </Label>
+                  {selectedTemplate ? (
                     <WhatsAppPreview
                       components={(selectedTemplate.components ?? []) as any}
                       headerMediaUrl={headerMediaUrl || undefined}
                       variables={Object.fromEntries(
                         paramValues
-                          .map((v, i) => [templatePlaceholders[i], v.trim()])
+                          .map((v, i) => [templatePlaceholders[i]?.token, v.trim()])
                           .filter(([key, value]) => key && value),
                       )}
                     />
-                  </div>
-                )}
-              </>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed p-8 text-center text-xs text-muted-foreground bg-muted/10">
+                      Selecione um template para ver a pré-visualização.
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {messageType === "text" && (

@@ -152,7 +152,7 @@ function CampaignDetailPage() {
 
       <div className="flex-1 overflow-y-auto space-y-6 p-6">
         <Dialog open={openEdit} onOpenChange={setOpenEdit}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl">
             <CampaignWizard
               initialCampaign={c}
               onDone={() => {

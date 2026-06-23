@@ -65,7 +65,7 @@ function CampaignsPage() {
                 <Plus className="mr-2 h-4 w-4" /> Nova campanha
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl">
               <CampaignWizard
                 initialCampaign={editingCampaign}
                 onDone={() => {

@@ -8,20 +8,43 @@ const WEBHOOK_EVENTS_RETENTION_DAYS = 30;
 
 function extractTemplatePlaceholders(components: any[] = []) {
   const placeholders: string[] = [];
-  const collect = (text?: string) => {
-    const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
-    for (const match of matches) {
-      const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
-      if (token && !placeholders.includes(token)) placeholders.push(token);
-    }
-  };
 
-  for (const component of components) {
-    if (component?.text) collect(component.text);
-    if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
-      component.buttons.forEach((button: any) => collect(button?.url));
+  components.forEach((component: any) => {
+    if (component?.type === "HEADER" && component.format === "TEXT") {
+      const matches = String(component.text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+      matches.forEach((m) => {
+        const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+        if (token && !placeholders.includes(`header_${token}`)) {
+          placeholders.push(`header_${token}`);
+        }
+      });
     }
-  }
+
+    if (component?.type === "BODY") {
+      const matches = String(component.text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+      matches.forEach((m) => {
+        const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+        if (token && !placeholders.includes(token)) {
+          placeholders.push(token);
+        }
+      });
+    }
+
+    if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
+      component.buttons.forEach((button: any, btnIndex: number) => {
+        if (button?.type === "URL") {
+          const matches = String(button.url ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
+          matches.forEach((m) => {
+            const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
+            const key = `button_${btnIndex}_${token}`;
+            if (token && !placeholders.includes(key)) {
+              placeholders.push(key);
+            }
+          });
+        }
+      });
+    }
+  });
 
   return placeholders;
 }

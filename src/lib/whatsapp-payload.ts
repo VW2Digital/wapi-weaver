@@ -105,10 +105,11 @@ export function buildWhatsAppPayload(
       );
     }
 
-    const makeTextParameters = (tokens: string[]) =>
+    const makeTextParameters = (tokens: string[], prefix?: string) =>
       tokens.map((token) => {
         const normalized = String(token).trim();
-        const text = valuesByToken.get(normalized) ?? "";
+        const lookupKey = prefix ? `${prefix}${normalized}` : normalized;
+        const text = (valuesByToken.has(lookupKey) ? valuesByToken.get(lookupKey) : valuesByToken.get(normalized)) ?? "";
         return isNamedFormat && !/^\d+$/.test(normalized)
           ? { type: "text", parameter_name: normalized, text }
           : { type: "text", text };
@@ -176,7 +177,7 @@ export function buildWhatsAppPayload(
         if (component?.type === "HEADER" && component.format === "TEXT") {
           const tokens = extractTemplateTokens(component.text ?? "");
           if (tokens.length > 0) {
-            components.push({ type: "header", parameters: makeTextParameters(tokens) });
+            components.push({ type: "header", parameters: makeTextParameters(tokens, "header_") });
           }
         }
 
@@ -195,7 +196,7 @@ export function buildWhatsAppPayload(
                 type: "button",
                 sub_type: "url",
                 index: String(index),
-                parameters: makeTextParameters(urlTokens),
+                parameters: makeTextParameters(urlTokens, `button_${index}_`),
               });
             }
           });
