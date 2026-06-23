@@ -130,10 +130,24 @@ fi
 # Docker Compose Plugin v2
 if ! docker compose version &>/dev/null 2>&1; then
   echo "  Instalando Docker Compose Plugin..."
-  apt-get install -y -qq docker-compose-plugin
-  print_ok "Docker Compose instalado."
-else
+  apt-get install -y -qq docker-compose-plugin || true
+fi
+
+if docker compose version &>/dev/null 2>&1; then
   print_ok "Docker Compose já instalado: $(docker compose version)"
+elif command -v docker-compose &>/dev/null 2>&1; then
+  docker() {
+    if [ "$1" = "compose" ]; then
+      shift
+      command docker-compose "$@"
+    else
+      command docker "$@"
+    fi
+  }
+  print_ok "Usando docker-compose legado: $(docker-compose version --short 2>/dev/null || docker-compose version | head -n 1)"
+else
+  print_error "Docker Compose não está disponível. Instale o plugin docker-compose-plugin ou o binário docker-compose."
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -166,30 +180,36 @@ print_ok "Código da aplicação pronto."
 # ---------------------------------------------------------------------------
 print_step "[5/7] Configurando variáveis de ambiente de produção..."
 
-# Criar .env se não existir
-if [ ! -f "${APP_DIR}/.env" ]; then
+# Criar/atualizar .env com segredos seguros
+if [ -f "${APP_DIR}/.env" ]; then
+  echo "  Atualizando .env existente com os valores atuais..."
+else
   echo "  Gerando .env com segredos seguros..."
-  JWT_SEC=$(openssl rand -hex 32)
-  DB_PASS=$(openssl rand -hex 16)
-  DB_ROOT_PASS=$(openssl rand -hex 16)
-  
-  cat > "${APP_DIR}/.env" <<EOF
+fi
+
+JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+DB_PASS=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+
+[ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
+[ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
+[ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
+
+cat > "${APP_DIR}/.env" <<EOF
 DB_HOST=banco-mysql
 DB_PORT=3306
 DB_USER=wapi_user
 DB_PASSWORD=${DB_PASS}
 DB_NAME=wapi_weaver
 JWT_SECRET=${JWT_SEC}
+MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
 EOF
-  
-  # Atualiza também no docker-compose.yml as senhas do container MySQL
-  sed -i "s/MYSQL_ROOT_PASSWORD: .*/MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}/" "${APP_DIR}/docker-compose.yml"
-  sed -i "s/MYSQL_PASSWORD: .*/MYSQL_PASSWORD: ${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
-  sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
-  sed -i "s/JWT_SECRET=.*/JWT_SECRET=${JWT_SEC}/" "${APP_DIR}/docker-compose.yml"
-else
-  echo "  Arquivo .env já existe, mantendo configurações."
-fi
+
+# Atualiza também no docker-compose.yml as senhas do container MySQL e do app
+sed -i "s/MYSQL_ROOT_PASSWORD: .*/MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}/" "${APP_DIR}/docker-compose.yml"
+sed -i "s/MYSQL_PASSWORD: .*/MYSQL_PASSWORD: ${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
+sed -i "s/- DB_PASSWORD=.*/- DB_PASSWORD=${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
+sed -i "s/- JWT_SECRET=.*/- JWT_SECRET=${JWT_SEC}/" "${APP_DIR}/docker-compose.yml"
 
 print_ok "Configurações aplicadas."
 
@@ -212,6 +232,9 @@ docker compose up -d
 echo ""
 echo "  Aguardando a aplicação inicializar (healthcheck do MySQL pode levar ~30s)..."
 sleep 35
+
+echo "  Aplicando atualização automática do schema no banco existente..."
+docker compose exec -T app node scripts/ensure-schema.js
 
 # Verificar se os containers estão rodando
 if docker compose ps | grep -q "wapi_weaver_app.*Up\|wapi_weaver_app.*running"; then
