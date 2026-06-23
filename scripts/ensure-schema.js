@@ -349,6 +349,53 @@ export async function ensureDatabaseSchema() {
     `,
     );
 
+    await ensureTableExists(
+      connection,
+      "tags",
+      `
+      CREATE TABLE IF NOT EXISTS tags (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        color VARCHAR(50) NOT NULL DEFAULT '#8B5CF6',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_tag (user_id, name),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "conversation_tags",
+      `
+      CREATE TABLE IF NOT EXISTS conversation_tags (
+        contact_number VARCHAR(50) NOT NULL,
+        tag_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        PRIMARY KEY (contact_number, tag_id),
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "message_tags",
+      `
+      CREATE TABLE IF NOT EXISTS message_tags (
+        message_id VARCHAR(36) NOT NULL,
+        tag_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        PRIMARY KEY (message_id, tag_id),
+        FOREIGN KEY (message_id) REFERENCES direct_messages(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
     // Garantir enum atualizado para direct_messages.type
     try {
       await connection.query(`
@@ -408,9 +455,39 @@ export async function ensureDatabaseSchema() {
     );
     await ensureIndexExists(
       connection,
-      "direct_messages",
-      "uq_direct_messages_user_wa_id",
-      "CREATE UNIQUE INDEX uq_direct_messages_user_wa_id ON direct_messages(user_id, wa_message_id)",
+      "conversation_tags",
+      "idx_conversation_tags_contact",
+      "CREATE INDEX idx_conversation_tags_contact ON conversation_tags(contact_number)",
+    );
+    await ensureIndexExists(
+      connection,
+      "conversation_tags",
+      "idx_conversation_tags_tag",
+      "CREATE INDEX idx_conversation_tags_tag ON conversation_tags(tag_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "conversation_tags",
+      "idx_conversation_tags_user",
+      "CREATE INDEX idx_conversation_tags_user ON conversation_tags(user_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "message_tags",
+      "idx_message_tags_message",
+      "CREATE INDEX idx_message_tags_message ON message_tags(message_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "message_tags",
+      "idx_message_tags_tag",
+      "CREATE INDEX idx_message_tags_tag ON message_tags(tag_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "message_tags",
+      "idx_message_tags_user",
+      "CREATE INDEX idx_message_tags_user ON message_tags(user_id)",
     );
 
     logSchema("Schema validado com sucesso.");

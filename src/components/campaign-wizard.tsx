@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { createCampaign, updateCampaign } from "@/lib/campaigns.functions";
 import { listLists, getListContacts } from "@/lib/lists.functions";
 import { listTemplates } from "@/lib/templates.functions";
-import { getProfile, uploadMetaMedia } from "@/lib/profile.functions";
+import { getProfile } from "@/lib/profile.functions";
+import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,7 +97,6 @@ export function CampaignWizard({
   const profileQuery = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const profile = profileQuery.data;
 
-  const uploadMediaFn = useServerFn(uploadMetaMedia);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
@@ -141,38 +141,17 @@ export function CampaignWizard({
     const toastId = toast.loading(`Enviando ${headerMediaFormat.toLowerCase()} para a Meta...`);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64 = (reader.result as string).split(",")[1];
-          const res = await uploadMediaFn({
-            data: {
-              phoneId,
-              fileName: file.name,
-              fileType: file.type,
-              fileBase64: base64,
-            },
-          });
+      const res = await uploadMetaMediaViaApi(phoneId, file);
 
-          if (!res.ok || !res.data?.id) {
-            throw new Error(res.error || "Falha no upload de mídia na Meta.");
-          }
+      if (!res.ok || !res.data?.id) {
+        throw new Error(res.error || "Falha no upload de mídia na Meta.");
+      }
 
-          setHeaderMediaId(res.data.id);
-          toast.success("Mídia enviada e configurada com sucesso!", { id: toastId });
-        } catch (err: any) {
-          toast.error(err.message || "Erro ao processar upload", { id: toastId });
-        } finally {
-          setUploadingHeaderMedia(false);
-        }
-      };
-      reader.onerror = () => {
-        toast.error("Erro ao ler o arquivo local.", { id: toastId });
-        setUploadingHeaderMedia(false);
-      };
-      reader.readAsDataURL(file);
+      setHeaderMediaId(res.data.id);
+      toast.success("Mídia enviada e configurada com sucesso!", { id: toastId });
     } catch (err: any) {
       toast.error(err.message || "Erro no envio de mídia.", { id: toastId });
+    } finally {
       setUploadingHeaderMedia(false);
     }
   };

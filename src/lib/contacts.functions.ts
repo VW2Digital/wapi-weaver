@@ -10,6 +10,53 @@ const contactInput = z.object({
   custom_fields: z.record(z.string(), z.any()).optional(),
 });
 
+export const updateContactProfilePhoto = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        avatar_url: z.string().trim().max(1000).nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: contact, error: fetchErr } = await context.db
+      .from("contacts")
+      .select("id, custom_fields")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!contact) throw new Error("Contato não encontrado.");
+
+    const currentCustomFields =
+      contact.custom_fields && typeof contact.custom_fields === "object"
+        ? { ...(contact.custom_fields as Record<string, any>) }
+        : {};
+
+    if (data.avatar_url) {
+      currentCustomFields.avatar_url = data.avatar_url;
+    } else {
+      delete currentCustomFields.avatar_url;
+      delete currentCustomFields.photo_url;
+      delete currentCustomFields.photo;
+      delete currentCustomFields.picture;
+      delete currentCustomFields.image_url;
+      delete currentCustomFields.image;
+    }
+
+    const { data: updated, error } = await context.db
+      .from("contacts")
+      .update({ custom_fields: currentCustomFields })
+      .eq("id", data.id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return updated;
+  });
+
 export const listContacts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {

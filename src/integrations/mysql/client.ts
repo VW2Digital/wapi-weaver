@@ -151,6 +151,24 @@ class QueryBuilder {
     try {
       const res = await this.client.request("/api/query", this.query);
 
+      if (
+        typeof window !== "undefined" &&
+        ["insert", "update", "delete"].includes(this.query.action) &&
+        this.table === "conversation_tags"
+      ) {
+        try {
+          const bc = new BroadcastChannel("conversation-tags-realtime");
+          bc.postMessage({
+            event: this.query.action.toUpperCase(),
+            table: "conversation_tags",
+            data: res.data,
+          });
+          bc.close();
+        } catch (e) {
+          console.error("Error broadcasting tag update:", e);
+        }
+      }
+
       // HEAD mode: server returns { _headCount: N }
       if (res.data && typeof res.data === "object" && "_headCount" in res.data) {
         const val = { data: null, error: null, count: res.data._headCount };
@@ -200,6 +218,8 @@ class QueryBuilder {
 
 class MySQLClient {
   private _listeners: any[] = [];
+  private _channels = new Map<string, any[]>();
+  private _broadcastChannels = new Map<string, BroadcastChannel>();
 
   async request(path: string, body: any) {
     const token =
@@ -245,16 +265,47 @@ class MySQLClient {
   }
 
   channel(name: string) {
+    let bc = this._broadcastChannels.get(name);
+    if (!bc && typeof window !== "undefined") {
+      try {
+        bc = new BroadcastChannel(name);
+        this._broadcastChannels.set(name, bc);
+        bc.onmessage = (event) => {
+          const listeners = this._channels.get(name) || [];
+          listeners.forEach((listener) => {
+            try {
+              listener.callback(event.data);
+            } catch (e) {
+              console.error("Error in realtime channel callback:", e);
+            }
+          });
+        };
+      } catch (err) {
+        console.error("BroadcastChannel not supported or error:", err);
+      }
+    }
+
     const ch = {
       on: (event: string, filter: any, callback: any) => {
+        const listeners = this._channels.get(name) || [];
+        listeners.push({ event, filter, callback });
+        this._channels.set(name, listeners);
         return ch;
       },
-      subscribe: () => {
-        return {
-          unsubscribe: () => {},
-        };
+      subscribe: (statusCallback?: any) => {
+        if (statusCallback) {
+          setTimeout(() => statusCallback("SUBSCRIBED"), 0);
+        }
+        return ch;
       },
-      unsubscribe: () => {},
+      unsubscribe: () => {
+        this._channels.delete(name);
+        const activeBc = this._broadcastChannels.get(name);
+        if (activeBc) {
+          activeBc.close();
+          this._broadcastChannels.delete(name);
+        }
+      },
     };
     return ch;
   }
@@ -466,23 +517,19 @@ class MySQLClient {
       from: (bucket: string) => ({
         upload: async (filePath: string, file: File) => {
           try {
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(file);
-              reader.onload = () => resolve((reader.result as string).split(",")[1]);
-              reader.onerror = (error) => reject(error);
-            });
-
             const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
             const headers = {
-              "Content-Type": "application/json",
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             };
+
+            const form = new FormData();
+            form.append("path", filePath);
+            form.append("file", file);
 
             const res = await fetch("/api/storage/upload", {
               method: "POST",
               headers,
-              body: JSON.stringify({ path: filePath, fileData: base64 }),
+              body: form,
             });
 
             const result = await res.json();

@@ -267,7 +267,32 @@ CREATE TABLE IF NOT EXISTS direct_messages (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS conversation_tags (
+  contact_number VARCHAR(50) NOT NULL,
+  tag_id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
+  PRIMARY KEY (contact_number, tag_id),
+  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS message_tags (
+  message_id VARCHAR(36) NOT NULL,
+  tag_id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
+  PRIMARY KEY (message_id, tag_id),
+  FOREIGN KEY (message_id) REFERENCES direct_messages(id) ON DELETE CASCADE,
+  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Optimization Indexes
+CREATE INDEX idx_conversation_tags_contact ON conversation_tags(contact_number);
+CREATE INDEX idx_conversation_tags_tag ON conversation_tags(tag_id);
+CREATE INDEX idx_conversation_tags_user ON conversation_tags(user_id);
+CREATE INDEX idx_message_tags_message ON message_tags(message_id);
+CREATE INDEX idx_message_tags_tag ON message_tags(tag_id);
+CREATE INDEX idx_message_tags_user ON message_tags(user_id);
 CREATE INDEX idx_campaign_messages_wa_msg ON campaign_messages(wa_message_id);
 CREATE INDEX idx_campaign_messages_camp_status ON campaign_messages(campaign_id, status);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);

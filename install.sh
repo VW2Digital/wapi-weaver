@@ -345,6 +345,7 @@ server {
     # Aumentar timeout para uploads/APIs lentas
     proxy_read_timeout 120s;
     proxy_connect_timeout 120s;
+    client_max_body_size 20M;
 
     location /.well-known/acme-challenge/ {
         root /var/www/html;

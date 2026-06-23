@@ -10,12 +10,37 @@ export const Route = createFileRoute("/api/storage/upload")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const { path: filePath, fileData } = await request.json();
-          if (!filePath || !fileData) {
-            return new Response(JSON.stringify({ error: "Missing path or fileData" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+          let filePath = "";
+          let buffer: Buffer | null = null;
+          const contentType = request.headers.get("content-type") || "";
+
+          if (contentType.includes("multipart/form-data")) {
+            const form = await request.formData();
+            const pathField = form.get("path");
+            const fileField = form.get("file");
+
+            if (typeof pathField !== "string" || !pathField.trim() || !(fileField instanceof File)) {
+              return new Response(JSON.stringify({ error: "Missing path or file" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+
+            filePath = pathField.trim();
+            buffer = Buffer.from(await fileField.arrayBuffer());
+          } else {
+            const body = await request.json();
+            filePath = body?.path || "";
+            const fileData = body?.fileData;
+
+            if (!filePath || !fileData) {
+              return new Response(JSON.stringify({ error: "Missing path or fileData" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+
+            buffer = Buffer.from(fileData, "base64");
           }
 
           // Safety normalization to prevent directory traversal
@@ -27,7 +52,6 @@ export const Route = createFileRoute("/api/storage/upload")({
             fs.mkdirSync(dir, { recursive: true });
           }
 
-          const buffer = Buffer.from(fileData, "base64");
           fs.writeFileSync(fullPath, buffer);
 
           return new Response(JSON.stringify({ success: true, path: safePath }), {

@@ -27,7 +27,6 @@ import {
   checkCallPermissions,
   manageCall,
   sendAdvancedSandboxMessage,
-  uploadMetaMedia,
   requestVerificationCode,
   verifyVerificationCode,
   deregisterPhoneNumber,
@@ -45,6 +44,7 @@ import {
   rejectSolutionDeactivation,
   getSolutionAccessToken,
 } from "@/lib/profile.functions";
+import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import {
   getCurrentUserRoles,
   getPlatformSettings,
@@ -4658,30 +4658,10 @@ function AdvancedToolsSection() {
   // 4. Media Upload States
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedMediaId, setUploadedMediaId] = useState("");
-  const uploadMediaFn = useServerFn(uploadMetaMedia);
   const uploadMediaMut = useMutation({
     mutationFn: async () => {
       if (!selectedFile) throw new Error("Selecione um arquivo primeiro.");
-      
-      const fileBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(selectedFile);
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64 = result.split(",")[1];
-          resolve(base64);
-        };
-        reader.onerror = (e) => reject(e);
-      });
-
-      return uploadMediaFn({
-        data: {
-          phoneId: activePhoneId,
-          fileName: selectedFile.name,
-          fileType: selectedFile.type,
-          fileBase64,
-        },
-      });
+      return uploadMetaMediaViaApi(activePhoneId, selectedFile);
     },
     onSuccess: (res: any) => {
       if (res.ok) {

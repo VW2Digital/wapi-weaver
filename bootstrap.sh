@@ -253,6 +253,7 @@ server {
     add_header X-XSS-Protection "1; mode=block";
     proxy_read_timeout 120s;
     proxy_connect_timeout 120s;
+    client_max_body_size 20M;
 
     location / {
         proxy_pass http://127.0.0.1:3000;

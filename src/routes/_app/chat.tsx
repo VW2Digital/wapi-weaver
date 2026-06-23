@@ -7,7 +7,9 @@ import {
   getChatMessages,
   sendDirectMessage,
 } from "@/lib/chat.functions";
-import { getProfile, uploadMetaMedia } from "@/lib/profile.functions";
+import { updateContactProfilePhoto } from "@/lib/contacts.functions";
+import { getProfile } from "@/lib/profile.functions";
+import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +56,8 @@ import {
   Video,
   Volume2,
   FileText,
+  Trash2,
+  Camera,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -92,6 +96,7 @@ function ChatPage() {
   const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
+  const saveContactProfilePhoto = useServerFn(updateContactProfilePhoto);
   const qc = useQueryClient();
 
   const [selectedContact, setSelectedContact] = useState<any>(null);
@@ -105,12 +110,14 @@ function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const contactPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const [sessionToken, setSessionToken] = useState("");
   const [pendingMediaType, setPendingMediaType] = useState<"image" | "audio" | "video" | "document" | "sticker" | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [uploadingContactPhoto, setUploadingContactPhoto] = useState(false);
 
   // States for Location Modal
   const [locLat, setLocLat] = useState("");
@@ -135,6 +142,317 @@ function ChatPage() {
     queryFn: () => fetchLocalProfile(),
   });
   const profile = profileQuery.data;
+
+  // States for Tags
+  const [selectedFilterTagIds, setSelectedFilterTagIds] = useState<string[]>([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [selectedColor, setSelectedColor] = useState("#6366f1");
+  const [isManageTagsOpen, setIsManageTagsOpen] = useState(false);
+
+  const PREDEFINED_COLORS = [
+    "#6366f1",
+    "#ef4444",
+    "#f59e0b",
+    "#22c55e",
+    "#3b82f6",
+    "#ec4899",
+    "#8b5cf6",
+    "#14b8a6",
+  ];
+
+  // Persistent cache for conversation tags
+  const [cachedConvTags, setCachedConvTags] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const val = localStorage.getItem("tags:conv");
+        return val ? JSON.parse(val) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Queries for Tags
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("tags")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  });
+
+  const conversationTagsQuery = useQuery({
+    queryKey: ["conversation-tags"],
+    queryFn: async () => {
+      const { data, error } = await db.from("conversation_tags").select("*, tags(*)");
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  });
+
+  // Sync cache and localstorage when query finishes
+  useEffect(() => {
+    if (conversationTagsQuery.data) {
+      setCachedConvTags(conversationTagsQuery.data);
+      try {
+        localStorage.setItem("tags:conv", JSON.stringify(conversationTagsQuery.data));
+      } catch (e) {}
+    }
+  }, [conversationTagsQuery.data]);
+
+  // Realtime channel subscription
+  useEffect(() => {
+    const channel = db.channel("conversation-tags-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversation_tags" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["conversation-tags"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [qc]);
+
+  // Tag Handlers
+  const handleCreateTag = async (name: string, color: string) => {
+    const nameTrim = name.trim();
+    if (!nameTrim) return null;
+    if (nameTrim.length > 20) {
+      toast.error("O nome da tag deve ter até 20 caracteres.");
+      return null;
+    }
+    
+    const existing = (tagsQuery.data ?? []).find(
+      (t: any) => t.name.toLowerCase() === nameTrim.toLowerCase()
+    );
+    if (existing) {
+      toast.error("Tag já existe com esse nome.");
+      return null;
+    }
+
+    const { data, error } = await db.from("tags").insert({
+      id: crypto.randomUUID(),
+      name: nameTrim,
+      color: color,
+    });
+
+    if (error) {
+      if (error.message.includes("Duplicate") || error.message.includes("uq_user_tag")) {
+        toast.error("Tag já existe com esse nome.");
+      } else {
+        toast.error("Erro ao criar tag: " + error.message);
+      }
+      return null;
+    }
+
+    toast.success("Tag criada com sucesso");
+    qc.invalidateQueries({ queryKey: ["tags"] });
+    return data;
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    const { error } = await db.from("tags").delete().eq("id", tagId);
+    if (error) {
+      toast.error("Erro ao excluir tag: " + error.message);
+    } else {
+      toast.success("Tag excluída com sucesso");
+      qc.invalidateQueries({ queryKey: ["tags"] });
+      qc.invalidateQueries({ queryKey: ["conversation-tags"] });
+      qc.invalidateQueries({ queryKey: ["message-tags"] });
+    }
+  };
+
+  const handleToggleConversationTag = async (phone: string, tagId: string, isApplied: boolean) => {
+    if (isApplied) {
+      const { error } = await db
+        .from("conversation_tags")
+        .delete()
+        .eq("contact_number", phone)
+        .eq("tag_id", tagId);
+      if (error) {
+        toast.error("Erro ao remover tag da conversa: " + error.message);
+      } else {
+        qc.invalidateQueries({ queryKey: ["conversation-tags"] });
+      }
+    } else {
+      const { error } = await db.from("conversation_tags").insert({
+        contact_number: phone,
+        tag_id: tagId,
+      });
+      if (error) {
+        toast.error("Erro ao adicionar tag à conversa: " + error.message);
+      } else {
+        qc.invalidateQueries({ queryKey: ["conversation-tags"] });
+      }
+    }
+  };
+
+  const handleClearConversationTags = async (phone: string) => {
+    const { error } = await db
+      .from("conversation_tags")
+      .delete()
+      .eq("contact_number", phone);
+    if (error) {
+      toast.error("Erro ao limpar tags da conversa: " + error.message);
+    } else {
+      toast.success("Tags da conversa removidas");
+      qc.invalidateQueries({ queryKey: ["conversation-tags"] });
+    }
+  };
+
+  const handleToggleMessageTag = async (msgId: string, tagId: string, isApplied: boolean) => {
+    if (isApplied) {
+      const { error } = await db
+        .from("message_tags")
+        .delete()
+        .eq("message_id", msgId)
+        .eq("tag_id", tagId);
+      if (error) {
+        toast.error("Erro ao remover tag da mensagem: " + error.message);
+      } else {
+        qc.invalidateQueries({ queryKey: ["message-tags"] });
+      }
+    } else {
+      const { error } = await db.from("message_tags").insert({
+        message_id: msgId,
+        tag_id: tagId,
+      });
+      if (error) {
+        toast.error("Erro ao adicionar tag à mensagem: " + error.message);
+      } else {
+        qc.invalidateQueries({ queryKey: ["message-tags"] });
+      }
+    }
+  };
+
+  const handleClearMessageTags = async (msgId: string) => {
+    const { error } = await db
+      .from("message_tags")
+      .delete()
+      .eq("message_id", msgId);
+    if (error) {
+      toast.error("Erro ao limpar tags da mensagem: " + error.message);
+    } else {
+      toast.success("Tags da mensagem removidas");
+      qc.invalidateQueries({ queryKey: ["message-tags"] });
+    }
+  };
+
+  const renderMessageTagDropdown = (msg: any) => {
+    const msgTags = (messageTagsQuery.data ?? []).filter((mt: any) => mt.message_id === msg.id);
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+            title="Etiquetas da mensagem"
+          >
+            <Tag className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="p-2 min-w-[220px]" align="start">
+          {msgTags.length > 0 && (
+            <div className="border-b pb-1.5 mb-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
+                onClick={() => handleClearMessageTags(msg.id)}
+              >
+                <X className="h-3 w-3 mr-1.5" /> Limpar tags ({msgTags.length})
+              </Button>
+            </div>
+          )}
+
+          <div className="max-h-44 overflow-y-auto space-y-1">
+            {(tagsQuery.data ?? []).length === 0 ? (
+              <div className="text-[10px] text-muted-foreground p-1 text-center">
+                Nenhuma etiqueta cadastrada.
+              </div>
+            ) : (
+              (tagsQuery.data ?? []).map((tag: any) => {
+                const isApplied = msgTags.some((mt: any) => mt.tag_id === tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => handleToggleMessageTag(msg.id, tag.id, isApplied)}
+                    className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                      <span className="truncate">{tag.name}</span>
+                    </div>
+                    <span
+                      className={cn(
+                        "h-4 w-4 rounded border flex items-center justify-center transition-all",
+                        isApplied ? "bg-primary text-primary-foreground border-primary" : "border-muted-foreground/30",
+                      )}
+                    >
+                      {isApplied && <Check className="h-3 w-3" />}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
+            <p className="text-[10px] text-muted-foreground px-1 font-semibold">Nova tag</p>
+            <div className="flex gap-1">
+              <Input
+                placeholder="Nome..."
+                className="h-7 text-xs px-2 flex-1"
+                maxLength={20}
+                onKeyDown={async (e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const target = e.currentTarget;
+                    const val = target.value.trim();
+                    if (!val) return;
+                    const res = await handleCreateTag(val, selectedColor);
+                    if (res?.id) {
+                      target.value = "";
+                      await handleToggleMessageTag(msg.id, res.id, false);
+                    }
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-between px-1">
+              {PREDEFINED_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={cn(
+                    "h-3 w-3 rounded-full border transition-transform hover:scale-110",
+                    selectedColor === c ? "border-foreground" : "border-transparent",
+                  )}
+                  style={{ backgroundColor: c }}
+                  onClick={() => setSelectedColor(c)}
+                />
+              ))}
+            </div>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   // Queries
   const contactsQuery = useQuery({
@@ -198,8 +516,13 @@ function ChatPage() {
   // Contatos filtrados
   const filteredContacts = (contactsQuery.data ?? []).filter((c: any) => {
     const term = searchQuery.toLowerCase().trim();
-    if (!term) return true;
-    return (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
+    const matchesSearch = !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
+    if (!matchesSearch) return false;
+
+    if (selectedFilterTagIds.length === 0) return true;
+
+    const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
+    return contactTags.some((ct: any) => selectedFilterTagIds.includes(ct.tag_id));
   });
 
   // Mutation para envio de mensagens
@@ -286,8 +609,6 @@ function ChatPage() {
     setIsImageModalOpen(false);
   };
 
-  const uploadMediaFn = useServerFn(uploadMetaMedia);
-
   const handleMediaAttachClick = (type: "image" | "audio" | "video" | "document" | "sticker") => {
     setPendingMediaType(type);
     if (mediaInputRef.current) {
@@ -315,44 +636,31 @@ function ChatPage() {
     const toastId = toast.loading(`Enviando ${pendingMediaType} para a Meta...`);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        const res = await uploadMediaFn({
-          data: {
-            phoneId,
-            fileName: file.name,
-            fileType: file.type,
-            fileBase64: base64,
-          },
-        });
+      const res = await uploadMetaMediaViaApi(phoneId, file);
 
-        if (!res.ok || !res.data?.id) {
-          throw new Error(res.error || "Falha no upload de mídia na Meta.");
-        }
+      if (!res.ok || !res.data?.id) {
+        throw new Error(res.error || "Falha no upload de mídia na Meta.");
+      }
 
-        const mediaId = res.data.id;
-        
-        const sendRes = await sendMessage({
-          data: {
-            to: selectedPhone,
-            type: pendingMediaType,
-            [pendingMediaType]: pendingMediaType === "document" 
-              ? { id: mediaId, filename: file.name }
-              : { id: mediaId },
-            reply_to_message_id: replyingTo?.id,
-          } as any,
-        });
+      const mediaId = res.data.id;
 
-        if (!sendRes.ok) {
-          throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
-        }
+      const sendRes = await sendMessage({
+        data: {
+          to: selectedPhone,
+          type: pendingMediaType,
+          [pendingMediaType]:
+            pendingMediaType === "document" ? { id: mediaId, filename: file.name } : { id: mediaId },
+          reply_to_message_id: replyingTo?.id,
+        } as any,
+      });
 
-        toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
-        qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
-        setReplyingTo(null);
-      };
-      reader.readAsDataURL(file);
+      if (!sendRes.ok) {
+        throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
+      }
+
+      toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
+      qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
+      setReplyingTo(null);
     } catch (err: any) {
       toast.error(err.message || "Erro ao realizar upload da mídia.", { id: toastId });
     } finally {
@@ -420,6 +728,88 @@ function ChatPage() {
     setContactPhoneState("");
   };
 
+  const handleUploadContactPhoto = async (file: File) => {
+    if (!selectedContact?.id) {
+      toast.error("Selecione um contato válido.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 5MB).");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("O arquivo precisa ser uma imagem.");
+      return;
+    }
+
+    setUploadingContactPhoto(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const storagePath = `contacts/${selectedContact.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await db.storage
+        .from("avatars")
+        .upload(storagePath, file, { cacheControl: "3600", upsert: true } as any);
+      if (upErr) throw new Error(upErr.message || "Falha ao enviar imagem.");
+
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(storagePath);
+      const url = pub.publicUrl;
+      const updated = await saveContactProfilePhoto({
+        data: { id: selectedContact.id, avatar_url: url },
+      });
+
+      setSelectedContact((prev: any) => ({
+        ...(prev ?? {}),
+        ...(updated ?? {}),
+        custom_fields: {
+          ...((prev?.custom_fields as any) ?? {}),
+          ...((updated?.custom_fields as any) ?? {}),
+          avatar_url: url,
+        },
+      }));
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      toast.success("Foto do contato atualizada.");
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao atualizar foto do contato.");
+    } finally {
+      setUploadingContactPhoto(false);
+      if (contactPhotoInputRef.current) contactPhotoInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveContactPhoto = async () => {
+    if (!selectedContact?.id) return;
+    setUploadingContactPhoto(true);
+    try {
+      const updated = await saveContactProfilePhoto({
+        data: { id: selectedContact.id, avatar_url: null },
+      });
+      setSelectedContact((prev: any) => {
+        const custom = { ...((prev?.custom_fields as any) ?? {}), ...((updated?.custom_fields as any) ?? {}) };
+        delete custom.avatar_url;
+        delete custom.photo_url;
+        delete custom.photo;
+        delete custom.picture;
+        delete custom.image_url;
+        delete custom.image;
+        return {
+          ...(prev ?? {}),
+          ...(updated ?? {}),
+          custom_fields: custom,
+        };
+      });
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      toast.success("Foto do contato removida.");
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao remover foto do contato.");
+    } finally {
+      setUploadingContactPhoto(false);
+    }
+  };
+
   // Processa reações e monta árvore de mensagens
   const rawMessages = messagesQuery.data ?? [];
   const normalMessages = rawMessages.filter((m: any) => m.type !== "reaction");
@@ -448,6 +838,22 @@ function ChatPage() {
   });
 
   const displayMessages = Array.from(messageMap.values());
+
+  const visibleMessageIds = displayMessages.map((m: any) => m.id);
+  const messageTagsQuery = useQuery({
+    queryKey: ["message-tags", visibleMessageIds],
+    queryFn: async () => {
+      if (visibleMessageIds.length === 0) return [];
+      const { data, error } = await db
+        .from("message_tags")
+        .select("*, tags(*)")
+        .in("message_id", visibleMessageIds);
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: visibleMessageIds.length > 0,
+    staleTime: 5000,
+  });
 
   const scrollToMessage = (id: string) => {
     const el = document.getElementById(`msg-${id}`);
@@ -501,6 +907,68 @@ function ChatPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+            </div>
+
+            {/* TagFilterBar: Barra de Filtros de Tag */}
+            <div className="flex flex-col gap-1 pt-1.5 border-t">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Etiquetas</span>
+                <div className="flex items-center gap-2">
+                  {selectedFilterTagIds.length > 0 && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground font-medium transition-colors"
+                      onClick={() => setSelectedFilterTagIds([])}
+                      title="Limpar filtros"
+                    >
+                      <X className="h-3 w-3" /> Limpar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="text-[10px] text-primary hover:underline font-semibold transition-colors"
+                    onClick={() => setIsManageTagsOpen(true)}
+                  >
+                    Gerenciar
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto py-0.5">
+                {tagsQuery.isLoading ? (
+                  <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+                ) : (tagsQuery.data ?? []).length === 0 ? (
+                  <span className="text-[10px] text-muted-foreground italic">Nenhuma etiqueta.</span>
+                ) : (
+                  (tagsQuery.data ?? []).map((tag: any) => {
+                    const isActive = selectedFilterTagIds.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => {
+                          setSelectedFilterTagIds((prev) =>
+                            prev.includes(tag.id)
+                              ? prev.filter((id) => id !== tag.id)
+                              : [...prev, tag.id]
+                          );
+                        }}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] transition-all cursor-pointer font-semibold border",
+                          isActive
+                            ? "text-white border-transparent"
+                            : "bg-muted text-muted-foreground border-transparent hover:bg-muted/85"
+                        )}
+                        style={isActive ? { backgroundColor: tag.color } : undefined}
+                      >
+                        {!isActive && (
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                        )}
+                        {tag.name}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 
@@ -562,9 +1030,30 @@ function ChatPage() {
                           {c.name || "Sem Nome"}
                         </span>
                       </div>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        +{c.phone_e164}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground font-mono">
+                          +{c.phone_e164}
+                        </span>
+                        {/* Render dots for applied tags */}
+                        {(() => {
+                          const contactTags = cachedConvTags.filter(
+                            (ct: any) => ct.contact_number === c.phone_e164
+                          );
+                          if (contactTags.length === 0) return null;
+                          return (
+                            <div className="flex gap-0.5">
+                              {contactTags.map((ct: any) => (
+                                <span
+                                  key={ct.tag_id}
+                                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: ct.tags?.color || "#8B5CF6" }}
+                                  title={ct.tags?.name}
+                                />
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </button>
                 );
@@ -630,9 +1119,30 @@ function ChatPage() {
                   })()}
 
                   <div>
-                    <h3 className="font-semibold text-sm truncate text-foreground leading-tight">
-                      {selectedContact.name || "Sem Nome"}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm truncate text-foreground leading-tight">
+                        {selectedContact.name || "Sem Nome"}
+                      </h3>
+                      {/* Render conversation tag pills/dots in header */}
+                      {(() => {
+                        const contactTags = cachedConvTags.filter(
+                          (ct: any) => ct.contact_number === selectedContact.phone_e164
+                        );
+                        if (contactTags.length === 0) return null;
+                        return (
+                          <div className="flex gap-1">
+                            {contactTags.map((ct: any) => (
+                              <span
+                                key={ct.tag_id}
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: ct.tags?.color || "#8B5CF6" }}
+                                title={ct.tags?.name}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
                       <Phone className="h-3 w-3 shrink-0" />+{selectedContact.phone_e164}
                     </div>
@@ -640,6 +1150,111 @@ function ChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Conversation Tag Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-full hover:bg-muted"
+                        title="Etiquetas da conversa"
+                      >
+                        <Tag className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="p-2 min-w-[200px]" align="end">
+                      {(() => {
+                        const contactTags = cachedConvTags.filter(
+                          (ct: any) => ct.contact_number === selectedContact.phone_e164
+                        );
+                        return (
+                          <>
+                            {contactTags.length > 0 && (
+                              <div className="border-b pb-1.5 mb-1.5">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
+                                  onClick={() => handleClearConversationTags(selectedContact.phone_e164)}
+                                >
+                                  <X className="h-3 w-3 mr-1.5" /> Limpar etiquetas ({contactTags.length})
+                                </Button>
+                              </div>
+                            )}
+
+                            <div className="max-h-40 overflow-y-auto space-y-1">
+                              {(tagsQuery.data ?? []).length === 0 ? (
+                                <div className="text-[10px] text-muted-foreground p-1 text-center">Nenhuma etiqueta cadastrada.</div>
+                              ) : (
+                                (tagsQuery.data ?? []).map((tag: any) => {
+                                  const isApplied = contactTags.some((ct: any) => ct.tag_id === tag.id);
+                                  return (
+                                    <button
+                                      key={tag.id}
+                                      type="button"
+                                      onClick={() => handleToggleConversationTag(selectedContact.phone_e164, tag.id, isApplied)}
+                                      className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                                        <span className="truncate">{tag.name}</span>
+                                      </div>
+                                      <span className={cn(
+                                        "h-4 w-4 rounded border flex items-center justify-center transition-all",
+                                        isApplied ? "bg-primary text-primary-foreground border-primary" : "border-muted-foreground/30"
+                                      )}>
+                                        {isApplied && <Check className="h-3 w-3" />}
+                                      </span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Inline tag creator form */}
+                            <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
+                              <p className="text-[10px] text-muted-foreground px-1 font-semibold">Nova etiqueta</p>
+                              <div className="flex gap-1">
+                                <Input
+                                  placeholder="Nome..."
+                                  className="h-7 text-xs px-2 flex-1"
+                                  maxLength={20}
+                                  onKeyDown={async (e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const target = e.currentTarget;
+                                      const val = target.value.trim();
+                                      if (!val) return;
+                                      const res = await handleCreateTag(val, selectedColor);
+                                      if (res) {
+                                        target.value = "";
+                                        handleToggleConversationTag(selectedContact.phone_e164, res.id, false);
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="flex justify-between px-1">
+                                {PREDEFINED_COLORS.slice(0, 8).map((c) => (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    className={cn(
+                                      "h-3 w-3 rounded-full border transition-transform hover:scale-110",
+                                      selectedColor === c ? "border-foreground" : "border-transparent"
+                                    )}
+                                    style={{ backgroundColor: c }}
+                                    onClick={() => setSelectedColor(c)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   {/* Indicador discreto de sincronização automática */}
                   <div
                     className="flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -697,28 +1312,42 @@ function ChatPage() {
                         <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
                           {/* Ações Rápidas (Lado esquerdo para outgoing, lado direito para incoming) */}
                           {!isOutgoing && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                >
-                                  <Smile className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
-                                {DEFAULT_EMOJIS.map((emoji) => (
-                                  <button
-                                    key={emoji}
-                                    onClick={() => handleSendReaction(msg.id, emoji)}
-                                    className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                            <div className="flex flex-col gap-1">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
                                   >
-                                    {emoji}
-                                  </button>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                    <Smile className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
+                                  {DEFAULT_EMOJIS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => handleSendReaction(msg.id, emoji)}
+                                      className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+
+                              {renderMessageTagDropdown(msg)}
+
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                onClick={() => setReplyingTo(msg)}
+                                title="Responder"
+                              >
+                                <Reply className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </div>
                           )}
 
                           {/* Balão em si */}
@@ -760,6 +1389,27 @@ function ChatPage() {
                                 replyMessage && "rounded-t-none",
                               )}
                             >
+                              {/* Display applied tags in message body */}
+                              {(() => {
+                                const msgTags = (messageTagsQuery.data ?? []).filter(
+                                  (mt: any) => mt.message_id === msg.id
+                                );
+                                if (msgTags.length === 0) return null;
+                                return (
+                                  <div className="flex flex-wrap gap-1 mb-1">
+                                    {msgTags.map((mt: any) => (
+                                      <span
+                                        key={mt.tag_id}
+                                        className="text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider"
+                                        style={{ color: "#fff", backgroundColor: mt.tags?.color || "#8B5CF6" }}
+                                        title={mt.tags?.name}
+                                      >
+                                        {mt.tags?.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                               {msg.type === "image" ? (
                                 <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 flex flex-col gap-1 max-w-sm">
                                   {sessionToken && msg.body ? (
@@ -941,39 +1591,43 @@ function ChatPage() {
 
                           {/* Ações para Outgoing */}
                           {isOutgoing && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                >
-                                  <Smile className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
-                                {DEFAULT_EMOJIS.map((emoji) => (
-                                  <button
-                                    key={emoji}
-                                    onClick={() => handleSendReaction(msg.id, emoji)}
-                                    className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
-                                  >
-                                    {emoji}
-                                  </button>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                            <div className="flex flex-col gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                onClick={() => setReplyingTo(msg)}
+                                title="Responder"
+                              >
+                                <Reply className="h-4 w-4 text-muted-foreground" />
+                              </Button>
 
-                          {/* Botão de Responder (Reply) */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                            onClick={() => setReplyingTo(msg)}
-                          >
-                            <Reply className="h-4 w-4 text-muted-foreground" />
-                          </Button>
+                              {renderMessageTagDropdown(msg)}
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                  >
+                                    <Smile className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
+                                  {DEFAULT_EMOJIS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => handleSendReaction(msg.id, emoji)}
+                                      className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1203,6 +1857,86 @@ function ChatPage() {
                     </DialogContent>
                   </Dialog>
 
+                  {/* Dialog de Gerenciamento de Etiquetas */}
+                  <Dialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen}>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Gerenciar Etiquetas</DialogTitle>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-2">
+                        {/* Criar nova tag */}
+                        <div className="space-y-2 border-b pb-4">
+                          <Label className="text-xs font-semibold">Nova etiqueta</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Nome (max 20 caracteres)"
+                              value={newTagName}
+                              maxLength={20}
+                              onChange={(e) => setNewTagName(e.target.value)}
+                              className="flex-1 font-sans"
+                            />
+                            <Button
+                              onClick={async () => {
+                                if (!newTagName.trim()) return;
+                                const res = await handleCreateTag(newTagName, selectedColor);
+                                if (res) setNewTagName("");
+                              }}
+                            >
+                              Criar
+                            </Button>
+                          </div>
+                          
+                          {/* Color picker */}
+                          <div className="flex gap-2 justify-between pt-1">
+                            {PREDEFINED_COLORS.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                className={cn(
+                                  "h-6 w-6 rounded-full border-2 transition-transform hover:scale-110",
+                                  selectedColor === c ? "border-foreground" : "border-transparent"
+                                )}
+                                style={{ backgroundColor: c }}
+                                onClick={() => setSelectedColor(c)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Listar tags existentes */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold">Etiquetas existentes</Label>
+                          <div className="max-h-60 overflow-y-auto space-y-1 pt-1">
+                            {tagsQuery.isLoading ? (
+                              <div className="text-center py-4 text-xs text-muted-foreground">Carregando...</div>
+                            ) : (tagsQuery.data ?? []).length === 0 ? (
+                              <div className="text-center py-4 text-xs text-muted-foreground">Nenhuma etiqueta criada.</div>
+                            ) : (
+                              (tagsQuery.data ?? []).map((tag: any) => (
+                                <div key={tag.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                                    <span className="font-medium">{tag.name}</span>
+                                  </div>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleDeleteTag(tag.id)}
+                                    title="Excluir etiqueta"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
                   <Button
                     size="icon"
                     variant={previewUrl ? "default" : "outline"}
@@ -1314,6 +2048,49 @@ function ChatPage() {
                         <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
                           Opt-out
                         </span>
+                      )}
+                    </div>
+
+                    <input
+                      ref={contactPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadContactPhoto(file);
+                      }}
+                    />
+
+                    <div className="flex w-full flex-col gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => contactPhotoInputRef.current?.click()}
+                        disabled={uploadingContactPhoto}
+                      >
+                        {uploadingContactPhoto ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Camera className="mr-2 h-4 w-4" />
+                        )}
+                        {uploadingContactPhoto ? "Enviando…" : "Trocar foto"}
+                      </Button>
+
+                      {getContactAvatarUrl(selectedContact) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-destructive hover:text-destructive"
+                          onClick={handleRemoveContactPhoto}
+                          disabled={uploadingContactPhoto}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remover foto
+                        </Button>
                       )}
                     </div>
                   </div>

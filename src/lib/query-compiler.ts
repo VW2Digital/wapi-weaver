@@ -22,6 +22,8 @@ const ALLOWED_TABLES = new Set([
   "tags",
   "contacts",
   "contact_tags",
+  "conversation_tags",
+  "message_tags",
   "lists",
   "list_contacts",
   "templates",
@@ -51,6 +53,8 @@ function hasUserIdColumn(table: string): boolean {
     "tags",
     "contacts",
     "contact_tags",
+    "conversation_tags",
+    "message_tags",
     "lists",
     "list_contacts",
     "templates",
@@ -257,6 +261,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
   let isListContactsWithContacts = false;
   let isCampaignMessagesWithContacts = false;
   let isContactTagsWithTags = false;
+  let isConversationTagsWithTags = false;
+  let isMessageTagsWithTags = false;
 
   if (action === "select") {
     let colSelection = "*";
@@ -348,9 +354,41 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         \`tags\`.\`created_at\` AS \`t_created_at\`
       FROM \`contact_tags\`
       LEFT JOIN \`tags\` ON \`contact_tags\`.\`tag_id\` = \`tags\`.\`id\`
-      ${whereString}`;
+      \${whereString}`;
+    } else if (
+      table === "conversation_tags" &&
+      (colSelection.includes("tags(") || colSelection.includes("tags(*)"))
+    ) {
+      isConversationTagsWithTags = true;
+      sql = `SELECT 
+        \`conversation_tags\`.\`contact_number\`,
+        \`conversation_tags\`.\`tag_id\`,
+        \`conversation_tags\`.\`user_id\`,
+        \`tags\`.\`id\` AS \`t_id\`,
+        \`tags\`.\`name\` AS \`t_name\`,
+        \`tags\`.\`color\` AS \`t_color\`,
+        \`tags\`.\`created_at\` AS \`t_created_at\`
+      FROM \`conversation_tags\`
+      LEFT JOIN \`tags\` ON \`conversation_tags\`.\`tag_id\` = \`tags\`.\`id\`
+      \${whereString}`;
+    } else if (
+      table === "message_tags" &&
+      (colSelection.includes("tags(") || colSelection.includes("tags(*)"))
+    ) {
+      isMessageTagsWithTags = true;
+      sql = `SELECT 
+        \`message_tags\`.\`message_id\`,
+        \`message_tags\`.\`tag_id\`,
+        \`message_tags\`.\`user_id\`,
+        \`tags\`.\`id\` AS \`t_id\`,
+        \`tags\`.\`name\` AS \`t_name\`,
+        \`tags\`.\`color\` AS \`t_color\`,
+        \`tags\`.\`created_at\` AS \`t_created_at\`
+      FROM \`message_tags\`
+      LEFT JOIN \`tags\` ON \`message_tags\`.\`tag_id\` = \`tags\`.\`id\`
+      \${whereString}`;
     } else {
-      sql = `SELECT ${colSelection} FROM \`${table}\`${whereString}`;
+      sql = `SELECT \${colSelection} FROM \`\${table}\`\${whereString}`;
     }
 
     // Add ORDER BY
@@ -362,6 +400,12 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
         if (isCampaignMessagesWithContacts) {
           return `\`campaign_messages\`.\`${o.column}\` ${dir}`;
+        }
+        if (isConversationTagsWithTags) {
+          return `\`conversation_tags\`.\`${o.column}\` ${dir}`;
+        }
+        if (isMessageTagsWithTags) {
+          return `\`message_tags\`.\`${o.column}\` ${dir}`;
         }
         return `\`${o.column}\` ${dir}`;
       });
@@ -493,6 +537,46 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
+    // Post-process conversation_tags JOIN tags
+    if (isConversationTagsWithTags && Array.isArray(results)) {
+      for (const row of results) {
+        if (row.t_id) {
+          row.tags = {
+            id: row.t_id,
+            name: row.t_name,
+            color: row.t_color,
+            created_at: row.t_created_at,
+          };
+        } else {
+          row.tags = null;
+        }
+        delete row.t_id;
+        delete row.t_name;
+        delete row.t_color;
+        delete row.t_created_at;
+      }
+    }
+
+    // Post-process message_tags JOIN tags
+    if (isMessageTagsWithTags && Array.isArray(results)) {
+      for (const row of results) {
+        if (row.t_id) {
+          row.tags = {
+            id: row.t_id,
+            name: row.t_name,
+            color: row.t_color,
+            created_at: row.t_created_at,
+          };
+        } else {
+          row.tags = null;
+        }
+        delete row.t_id;
+        delete row.t_name;
+        delete row.t_color;
+        delete row.t_created_at;
+      }
+    }
+
     // Parse JSON columns back to objects/arrays for consistency with Supabase response
     if (Array.isArray(results)) {
       for (const row of results) {
@@ -534,7 +618,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           !insertData.id &&
           table !== "platform_settings" &&
           table !== "list_contacts" &&
-          table !== "contact_tags"
+          table !== "contact_tags" &&
+          table !== "conversation_tags" &&
+          table !== "message_tags"
         ) {
           insertData.id = generateUUID();
         }
@@ -582,6 +668,16 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         rows = await db.query(
           `SELECT * FROM \`contact_tags\` WHERE \`contact_id\` = ? AND \`tag_id\` = ?`,
           [singleData.contact_id, singleData.tag_id],
+        );
+      } else if (table === "conversation_tags" && singleData.contact_number && singleData.tag_id) {
+        rows = await db.query(
+          `SELECT * FROM \`conversation_tags\` WHERE \`contact_number\` = ? AND \`tag_id\` = ?`,
+          [singleData.contact_number, singleData.tag_id],
+        );
+      } else if (table === "message_tags" && singleData.message_id && singleData.tag_id) {
+        rows = await db.query(
+          `SELECT * FROM \`message_tags\` WHERE \`message_id\` = ? AND \`tag_id\` = ?`,
+          [singleData.message_id, singleData.tag_id],
         );
       } else {
         let pkCol = "id";
