@@ -275,6 +275,34 @@ export async function ensureDatabaseSchema() {
     await ensureColumnExists(connection, "profiles", "salvy_api_key", "TEXT NULL");
     await ensureColumnExists(connection, "profiles", "api_key", "VARCHAR(255) NULL");
 
+    await ensureTableExists(
+      connection,
+      "platform_settings",
+      `
+      CREATE TABLE IF NOT EXISTS platform_settings (
+        id INT NOT NULL PRIMARY KEY DEFAULT 1,
+        meta_app_id VARCHAR(255) NULL,
+        meta_app_secret TEXT NULL,
+        meta_config_id VARCHAR(255) NULL,
+        meta_graph_version VARCHAR(50) NOT NULL DEFAULT 'v20.0',
+        cron_secret TEXT NULL,
+        head_tags TEXT NULL,
+        body_tags TEXT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        updated_by VARCHAR(36) NULL,
+        FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
+
+    logSchema("Garantindo linha singleton de platform_settings (id=1)...");
+    await connection.query(
+      `
+      INSERT IGNORE INTO platform_settings (id, meta_graph_version)
+      VALUES (1, 'v20.0')
+    `,
+    );
+
     await ensureColumnExists(connection, "templates", "parameter_format", "VARCHAR(20) NULL");
     await ensureColumnExists(
       connection,

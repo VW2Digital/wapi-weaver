@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT IGNORE INTO platform_settings (id, meta_graph_version)
+VALUES (1, 'v20.0');
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NULL,

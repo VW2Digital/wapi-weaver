@@ -92,10 +92,10 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
     if (data.cron_secret !== undefined)
       update.cron_secret = data.cron_secret === "" ? null : data.cron_secret;
 
-    const { error } = await context.db
-      .from("platform_settings")
-      .update(update as never)
-      .eq("id", 1);
+    const { error } = await context.db.from("platform_settings").upsert({
+      id: 1,
+      ...update,
+    } as never);
 
     if (error) throw error;
     await recordAudit({

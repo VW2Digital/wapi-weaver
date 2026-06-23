@@ -58,7 +58,11 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
             if (settings?.meta_app_id) appId = String(settings.meta_app_id).trim();
           }
 
-          if (!appId) throw new Error("META_APP_ID não configurado no servidor.");
+          if (!appId) {
+            throw new Error(
+              "Meta App ID não configurado. Preencha o campo App ID em Configurações antes de enviar a foto do perfil.",
+            );
+          }
 
           const form = await request.formData();
           const file = form.get("profile_picture");
