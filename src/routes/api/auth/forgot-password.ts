@@ -29,7 +29,7 @@ export const Route = createFileRoute("/api/auth/forgot-password")({
             const token = jwt.sign(
               { sub: user.id, email: user.email, purpose: "password-reset" },
               JWT_SECRET,
-              { expiresIn: "15m" }
+              { expiresIn: "15m" },
             );
 
             // Get origin from request URL
@@ -43,7 +43,9 @@ export const Route = createFileRoute("/api/auth/forgot-password")({
             console.log(`Link:   ${resetLink}`);
             console.log(`======================================================\n`);
           } else {
-            console.log(`\n[AUTH] Recuperação de senha solicitada para e-mail não cadastrado: ${email}\n`);
+            console.log(
+              `\n[AUTH] Recuperação de senha solicitada para e-mail não cadastrado: ${email}\n`,
+            );
           }
 
           // Return success even if email wasn't found (standard security practice)

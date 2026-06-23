@@ -1,0 +1,392 @@
+═══════════════════════════════════════════════════════════════════
+  DOCUMENTAÇÃO COMPLETA — AUTOMAÇÕES DE BOT E IA
+  CRM Multi-canal (WhatsApp / Instagram / Messenger / Telegram / Web)
+═══════════════════════════════════════════════════════════════════
+
+Este documento descreve, em detalhes, como funcionam os dois grandes
+motores de automação da plataforma:
+
+  1) BOT DE FLUXO (BotFlow) — automação estruturada por passos
+  2) AGENTE DE IA (AI Agent) — atendimento conversacional com LLM
+  + Orquestrador, filas de aprovação, TTS, follow-ups, campanhas
+  + Como os dois se integram, regras de pausa, prioridades e limites
+
+───────────────────────────────────────────────────────────────────
+  PARTE 1 — BOT DE FLUXO (BotFlow)
+───────────────────────────────────────────────────────────────────
+
+▸ O QUE É
+  Um motor de **passos pré-definidos** (steps) que reage a
+  mensagens recebidas. Cada instância (WhatsApp / Telegram) tem
+  seu próprio fluxo, ativável ou desativável por chave geral.
+
+▸ ESTRUTURA DE DADOS (tabelas)
+  • bot_settings           — configuração geral por instância
+      - is_active (liga/desliga o bot)
+      - pause_timeout_minutes (auto-retomada após pausa)
+  • bot_steps              — cada "tela" do fluxo
+      - step_order (numeração sequencial — 1, 2, 3...)
+      - trigger_type: "start" | "keyword" | "button"
+      - trigger_value (palavra-chave que dispara o step)
+      - message_type: text | image | video | audio | document |
+        buttons | dynamic_buttons | image_buttons | url_buttons |
+        list | poll | pix
+      - message_content (texto da mensagem)
+      - media_caption, footer_text
+      - buttons_config (JSON de botões CTA/reply)
+      - next_step (encadeamento automático)
+      - delay_seconds (atraso antes de enviar)
+      - assign_team_id / assign_user_id / assign_instance_id
+        (handoff para atendente humano após o step)
+      - handoff_message (texto do botão de abrir lista)
+      - card_color (visual no canvas)
+  • bot_step_options       — opções clicáveis de uma lista
+      - option_number, label, description
+      - next_step_order (para onde leva)
+      - assign_team_id / assign_user_id / target_agent_id
+  • bot_conversation_state — estado por contato/conversa
+      - current_step, last_interaction
+      - is_paused, paused_until
+      - bot_active (pode ser desligado só p/ um contato)
+  • bot_appointment_sessions — sessões de agendamento via bot
+
+▸ TIPOS DE MENSAGEM SUPORTADOS
+  • text              — texto puro com formatação WhatsApp
+                        (*negrito*, _itálico_, ~tachado~)
+  • image / video /
+    audio / document  — mídia com legenda opcional
+  • list              — LISTA INTERATIVA nativa do WhatsApp
+                        (use quando houver 4+ opções; cada
+                        opção pode ter título + descrição)
+  • dynamic_buttons   — botões de RESPOSTA RÁPIDA (2-3 opções)
+  • buttons           — botões CTA (URL, Ligar, Copiar código)
+  • url_buttons /
+    image_buttons     — variações com link/imagem
+  • poll              — enquete nativa
+  • pix               — cartão de cobrança PIX
+                        (CPF/CNPJ/EMAIL/PHONE/RANDOM + valor)
+
+▸ TIPOS DE GATILHO (trigger_type)
+  • start    — primeiro passo, disparado pela 1ª mensagem do
+               contato (apenas 1 por fluxo)
+  • keyword  — disparado quando o contato envia exatamente
+               trigger_value (ou via next_step)
+  • button   — alcançado pelo clique em um botão/opção
+
+▸ CÓDIGOS ESPECIAIS DE NAVEGAÇÃO
+  Convencionados nos campos next_step / next_step_order:
+  • -999 → encerrar fluxo e ENTREGAR ao atendente humano
+  • -998 → encerrar fluxo SEM handoff (silencioso)
+  • -997 → reiniciar do step "start"
+  •  null → não encadeia (espera próxima mensagem do contato)
+
+▸ HANDOFF / ATRIBUIÇÃO AUTOMÁTICA
+  Quando um step ou option define assign_team_id, assign_user_id
+  ou assign_instance_id, ao chegar nele o motor:
+    1. Cria/atualiza conversation_assignment
+    2. Aplica round-robin sticky dentro do time
+    3. Pausa o bot para essa conversa
+    4. Notifica o atendente (assignment_notifications)
+    5. Envia handoff_message se definido
+
+▸ PAUSA AUTOMÁTICA (pause_timeout_minutes)
+  • Quando um humano responde, o bot pausa para aquela conversa.
+  • Após pause_timeout_minutes sem interação humana, o bot volta
+    a operar (caso bot_active continue true).
+  • Pausa manual também é possível via UI ("Pausar bot").
+
+▸ EDITOR VISUAL (BotFlowCanvas)
+  • Tela em formato Kanban/Canvas com cada step como cartão
+  • Drag-and-drop para reordenar
+  • Cor personalizável por step (card_color)
+  • Simulador embutido (BotFlowSimulator) — testa o fluxo
+    sem precisar mandar mensagem real
+  • Templates prontos (bot_templates) por segmento
+  • Undo/Redo no editor (use-undo-redo)
+
+▸ GERAÇÃO DE FLUXO POR IA
+  Edge function: generate-bot-flow
+  • O usuário descreve em texto livre o tipo de bot ("clínica
+    odontológica com agendamento e convênios").
+  • Envia para Lovable AI Gateway (google/gemini-2.5-pro).
+  • System prompt instrui a IA a usar componentes NATIVOS
+    (list/dynamic_buttons) ao invés de texto numerado.
+  • Retorna array JSON validado (8-25 steps), sempre terminando
+    com "Falar com atendente".
+  • Validações de tamanho: label até 24 chars, descrição até 72,
+    botão até 20.
+
+▸ EXECUÇÃO (webhook-evolution / webhook-telegram)
+  Estes arquivos são PROTEGIDOS — não editar. Eles:
+    1. Recebem o evento da Evolution API / Telegram
+    2. Buscam bot_settings e bot_conversation_state
+    3. Verificam se o bot está ativo, não pausado e a janela
+       de mensagens é válida
+    4. Resolvem o próximo step (por keyword, button, next_step)
+    5. Aplicam delay_seconds
+    6. Enviam a mensagem renderizada (com placeholders)
+    7. Atualizam current_step
+    8. Disparam handoff se necessário
+
+▸ INTEGRAÇÕES DO BOT
+  • Quick Replies — bot pode acionar templates salvos
+  • Kanban — handoff pode mover lead para coluna específica
+  • Lead History — cada interação grava evento no histórico
+  • Tags — pode aplicar tag automaticamente em opções
+
+───────────────────────────────────────────────────────────────────
+  PARTE 2 — AGENTE DE IA (AI Agent)
+───────────────────────────────────────────────────────────────────
+
+▸ O QUE É
+  Um atendente conversacional baseado em LLM (OpenAI / Lovable
+  AI Gateway) que entende mensagens em linguagem natural, mantém
+  contexto da conversa e pode executar ações (tools).
+
+▸ TABELAS PRINCIPAIS
+  • ai_agent_settings        — 19 colunas, 1 por conta/instância
+      - is_active, model (gpt-5, gemini-2.5-flash, etc)
+      - system_prompt (persona, regras de negócio)
+      - temperature, max_tokens (default 4096)
+      - tts_enabled, tts_voice_id (ElevenLabs)
+      - approval_required (humano aprova antes de enviar)
+      - working_hours, fallback_to_human
+      - knowledge_base_id (RAG)
+  • ai_pending_actions       — fila de aprovação
+      - status: pending | approved | rejected | sent | failed
+      - 5 políticas RLS
+  • ai_orchestrator_settings — modo autônomo avançado
+      - autonomy_level, max_steps_per_run
+      - allowed_tools (JSON), guardrails
+  • knowledge_base           — documentos para RAG
+      - content, embedding (vetorizado)
+  • lead_dossiers            — resumo automático do lead
+      - tópicos discutidos, intenção, score
+  • assistant_chat_messages  — histórico do AI assistant do
+                               dashboard (chat lateral interno)
+
+▸ EDGE FUNCTIONS DE IA
+  • ai-agent              — responde mensagens de clientes
+  • ai-orchestrator       — modo agente autônomo com tool-calls
+  • ai-campaign           — gera variações de campanha
+  • ai-dashboard-assistant — chat de análise no dashboard
+  • ai-proactive-cron     — dispara mensagens proativas
+                            (follow-ups, recuperação de carrinho)
+  • lead-dossier          — gera/atualiza dossiê do lead
+  • transcribe-audio      — Whisper para áudios recebidos
+  • generate-bot-flow     — gera fluxos de bot (ver Parte 1)
+
+▸ FLUXO DE RESPOSTA (ai-agent)
+  1. Recebe mensagem nova (texto ou áudio transcrito)
+  2. Verifica:
+     - ai_agent_settings.is_active = true
+     - Bot não está em handoff humano
+     - Dentro de working_hours
+     - Janela WhatsApp aberta (24h)
+  3. Aplica LOCK de 120s (anti-duplicidade) +
+     debounce window (agrupa mensagens rápidas)
+  4. Monta contexto:
+     - System prompt + persona
+     - Últimas N mensagens da conversa
+     - Knowledge base (busca semântica)
+     - Dossiê do lead
+     - Custom fields do contato
+  5. Chama o LLM (OpenAI ou Lovable AI Gateway)
+     - max_tokens 4096
+     - Pass-through de erros como HTTP 200 (evita retry agressivo)
+  6. Se tts_enabled → ElevenLabs gera áudio OGG Opus
+     - Aplica normalização TTS pré-processada
+       (números por extenso, datas, símbolos)
+  7. Se approval_required:
+     → grava em ai_pending_actions (status pending)
+     → notifica atendente, espera aprovação manual
+  8. Caso contrário → envia diretamente pela Evolution API
+  9. Grava resposta em messages + atualiza lead_dossier
+
+▸ FILA DE APROVAÇÃO (AiApprovalQueue.tsx)
+  • Lista todas as respostas em status "pending"
+  • Atendente pode: Aprovar, Editar e aprovar, Rejeitar
+  • Aprovação dispara o envio real
+  • Rejeição registra motivo e pode treinar o prompt
+
+▸ ORQUESTRADOR AUTÔNOMO (ai-orchestrator)
+  Modo mais avançado: o agente pode usar TOOLS:
+    • create_appointment        — agendar no calendário
+    • update_kanban_card        — mover lead de coluna
+    • apply_tag                  — etiquetar conversa
+    • send_quick_reply           — disparar template
+    • create_order               — registrar pedido
+    • lookup_inventory           — consultar estoque
+    • assign_to_team             — transferir
+    • create_followup            — agendar follow-up
+  Limites de segurança (guardrails):
+    • max_steps_per_run (default 10)
+    • Lista branca de tools por conta
+    • Validação de parâmetros antes da execução
+    • Logs em ai_pending_actions com status
+    • Rollback automático se uma tool falhar
+
+▸ TTS (Text-to-Speech) — ElevenLabs
+  • Voz configurável por agente (tts_voice_id)
+  • Pré-processamento aplicado ANTES do envio:
+    - "R$ 1.234,56" → "mil duzentos e trinta e quatro reais..."
+    - "25/12/2025" → "vinte e cinco de dezembro..."
+    - URLs/emails substituídos por "link" / "email"
+    - Emojis removidos
+    - Pontuação ajustada para pausas naturais
+  • Saída em OGG Opus para compatibilidade WhatsApp
+  • Player com waveform roxo #800080 e avatar na bolha
+
+▸ TRANSCRIÇÃO DE ÁUDIO (transcribe-audio)
+  • Whisper API processa áudios recebidos
+  • Resultado vira input para o ai-agent
+  • UI mostra transcrição com break-words
+
+▸ KNOWLEDGE BASE (RAG)
+  • Upload de PDFs/TXTs/MD em knowledge_base
+  • Conteúdo é fatiado e vetorizado (embedding)
+  • Na hora da resposta, busca semântica retorna trechos
+    relevantes que são injetados no prompt
+  • Múltiplas bases por conta — agente escolhe via setting
+
+▸ MENSAGENS PROATIVAS (ai-proactive-cron)
+  Roda via pg_cron a cada N minutos:
+  • Recuperação de carrinho abandonado (e-commerce)
+  • Lembrete de agendamento (24h e 1h antes)
+  • Follow-up de leads sem resposta há X dias
+  • CSAT pós-atendimento (apenas WhatsApp)
+  • Reativação de leads frios
+
+▸ ASSISTENTE DO DASHBOARD (ai-dashboard-assistant)
+  • Botão flutuante (glassmorphism 70% opacidade)
+  • Permite perguntar em linguagem natural sobre métricas:
+    "quantos leads novos hoje?"
+    "qual atendente fechou mais vendas essa semana?"
+  • Tem acesso de leitura agregada às tabelas via RPC
+  • Histórico salvo em assistant_chat_messages
+  • Max-height 400px no scroll
+
+▸ DOSSIÊ DO LEAD (lead-dossier)
+  • Atualizado automaticamente após cada interação
+  • Contém:
+    - Resumo da conversa
+    - Tópicos / produtos de interesse
+    - Estágio do funil
+    - Score de qualificação (0-100)
+    - Sentimento (positivo/neutro/negativo)
+    - Próxima ação sugerida
+  • Visível no painel lateral do contato (700px desktop)
+
+───────────────────────────────────────────────────────────────────
+  PARTE 3 — INTEGRAÇÃO BOT × IA × HUMANO
+───────────────────────────────────────────────────────────────────
+
+▸ PRIORIDADE DE RESPOSTA
+  Ordem de quem responde a uma mensagem nova:
+    1. Atendente humano respondeu nas últimas X min → ninguém
+    2. Bot está em step com next_step esperando → bot avança
+    3. Bot está em handoff (assign_*) → humano assume
+    4. AI Agent ativo e bot não estiver em fluxo → IA responde
+    5. Auto-reply (cooldown 1h) → mensagem padrão
+    6. Fila → aguarda atendente
+
+▸ PAUSA CRUZADA
+  • Quando humano envia mensagem → bot E IA pausam (até timeout)
+  • Quando bot está em fluxo ativo → IA NÃO interfere
+  • Quando IA responde → bot fica fora até o atendente assumir
+
+▸ AUTO-REPLY (auto_reply_settings)
+  • Mensagem padrão fora do horário
+  • Cooldown de 1h por contato (auto_reply_logs)
+  • Não dispara se bot ou IA estão ativos
+
+▸ CAMPANHAS (process-campaign + trigger-scheduled-campaigns)
+  • Disparo em massa via pg_cron
+  • Variações geradas por IA (ai-campaign)
+  • Logs em campaign_logs (acesso por admin da conta)
+  • Normalização Sunday index (7 → 0)
+  • Sticky assignment para respostas
+
+▸ ASSIGNMENT ROUND-ROBIN STICKY
+  • assign-conversation usa pg_advisory_xact_lock
+  • Round-robin dentro do time
+  • Sticky: mesmo lead volta para mesmo atendente
+  • Prioridade: configurável por time
+  • Notificações realtime via assignment_notifications
+
+───────────────────────────────────────────────────────────────────
+  PARTE 4 — SEGURANÇA E LIMITES
+───────────────────────────────────────────────────────────────────
+
+▸ MULTI-TENANCY
+  • Todas as tabelas isoladas por account_id (RLS)
+  • bot_settings e ai_agent_settings linkadas por instance_id
+  • SECURITY DEFINER em funções críticas (has_role, same_account)
+
+▸ LIMITES TÉCNICOS
+  • IA: max_tokens 4096, lock de 120s
+  • Bot: máximo prático ~50 steps (sem limite hard)
+  • Mensagens em lote: 15 por batch (process-media-queue)
+  • Áudio: OGG Opus obrigatório
+  • Telefones: DDI 55 + DDD enforced
+
+▸ PROTEÇÕES
+  • Webhooks (webhook-evolution, webhook-instagram) — bloqueados
+    para edição (estabilidade crítica)
+  • AES-256-GCM para secrets em account_secrets
+  • Strict CSP, sem dangerouslySetInnerHTML
+  • Rate limiting nos webhooks
+  • HMAC validation em webhooks externos
+
+▸ CONFIABILIDADE
+  • Retry com backoff exponencial (3 tentativas no frontend)
+  • Debounce de mensagens rápidas (agrupa antes de chamar IA)
+  • Locks distribuídos evitam dupla resposta
+  • Fallback: se IA falha → cai para auto-reply ou humano
+  • Pass-through de erros HTTP 200 para não derrubar webhook
+
+───────────────────────────────────────────────────────────────────
+  PARTE 5 — INTERFACE DO USUÁRIO
+───────────────────────────────────────────────────────────────────
+
+▸ TELAS DEDICADAS
+  • BotPanel              — gestão de fluxos por instância
+  • BotFlowCanvas         — editor visual de steps
+  • BotFlowSimulator      — testa o fluxo
+  • AiAgentPanel /
+    AiAgentPanelFresh     — config do agente IA
+  • AiApprovalQueue       — fila de respostas pendentes
+  • AiOrchestratorSettings — config do modo autônomo
+  • KnowledgeBasePanel    — gestão da base de conhecimento
+  • LeadDossierPanel      — dossiê automatizado do lead
+
+▸ CONTROLES NA CONVERSA
+  • Pausar/Retomar bot para esta conversa
+  • Resetar bot para o passo inicial
+  • Alternar IA on/off por contato
+  • Ver respostas pendentes de aprovação
+  • Forçar handoff manual
+
+═══════════════════════════════════════════════════════════════════
+  RESUMO EXECUTIVO
+═══════════════════════════════════════════════════════════════════
+
+BOT DE FLUXO:
+  Robô determinístico, ideal para menus, qualificação inicial,
+  agendamentos guiados, FAQ estruturado. Rápido, previsível,
+  100% sob controle. Editável visualmente. Pode ser gerado por IA.
+
+AGENTE DE IA:
+  Conversacional, entende contexto, ideal para vendas consultivas,
+  suporte com base de conhecimento, qualificação avançada. Pode
+  agir (orchestrator) ou apenas responder. Suporta TTS e fila de
+  aprovação humana.
+
+INTEGRAÇÃO:
+  Os dois convivem sem conflito. Bot tem prioridade em fluxos
+  ativos; IA assume quando o bot termina ou fica ocioso; humano
+  sobrescreve ambos a qualquer momento.
+
+═══════════════════════════════════════════════════════════════════
+  Fim do documento.
+═══════════════════════════════════════════════════════════════════

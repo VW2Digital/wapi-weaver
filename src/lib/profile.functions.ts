@@ -77,7 +77,8 @@ export const pingMeta = createServerFn({ method: "POST" })
       return { ok: false, error: "Credenciais não configuradas" };
     }
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type";
+    const fields =
+      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}?fields=${fields}`,
       {
@@ -401,7 +402,8 @@ export const listOwnedWABAs = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
+    const fields =
+      "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.businessId}/owned_whatsapp_business_accounts?fields=${fields}`,
       {
@@ -430,7 +432,8 @@ export const listClientWABAs = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
+    const fields =
+      "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.businessId}/client_whatsapp_business_accounts?fields=${fields}`,
       {
@@ -459,10 +462,14 @@ export const getWABAInfo = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
-    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.wabaId}?fields=${fields}`, {
-      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-    });
+    const fields =
+      "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.wabaId}?fields=${fields}`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
 
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar WABA" };
@@ -554,10 +561,14 @@ export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type";
-    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.wabaId}/phone_numbers?fields=${fields}`, {
-      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-    });
+    const fields =
+      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.wabaId}/phone_numbers?fields=${fields}`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
 
     const body = await r.json();
     if (!r.ok)
@@ -636,7 +647,8 @@ export const listAssignedWABAs = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
+    const fields =
+      "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.metaUserId}/assigned_whatsapp_business_accounts?fields=${fields}`,
       {
@@ -711,7 +723,10 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
 
     const body = await r.json();
     if (!r.ok)
-      return { ok: false, error: body?.error?.message ?? "Falha ao verificar permissões de chamada" };
+      return {
+        ok: false,
+        error: body?.error?.message ?? "Falha ao verificar permissões de chamada",
+      };
     return { ok: true, data: body };
   });
 
@@ -805,7 +820,8 @@ export const sendAdvancedSandboxMessage = createServerFn({ method: "POST" })
     });
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao enviar mensagem de teste" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao enviar mensagem de teste" };
     return { ok: true, data: body };
   });
 
@@ -983,7 +999,11 @@ export const getPhoneSettings = createServerFn({ method: "POST" })
     });
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao obter configurações de telefone" };
+    if (!r.ok)
+      return {
+        ok: false,
+        error: body?.error?.message ?? "Falha ao obter configurações de telefone",
+      };
     return { ok: true, data: body };
   });
 
@@ -1019,7 +1039,11 @@ export const updatePhoneSettings = createServerFn({ method: "POST" })
     });
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao atualizar configurações de telefone" };
+    if (!r.ok)
+      return {
+        ok: false,
+        error: body?.error?.message ?? "Falha ao atualizar configurações de telefone",
+      };
     return { ok: true, data: body };
   });
 
@@ -1104,13 +1128,18 @@ export const getSinglePhoneInfo = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
-    const fields = "display_phone_number,verified_name,quality_rating,name_status,code_verification_status";
-    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}?fields=${fields}`, {
-      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-    });
+    const fields =
+      "display_phone_number,verified_name,quality_rating,name_status,code_verification_status";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.phoneId}?fields=${fields}`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao obter dados do telefone" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao obter dados do telefone" };
     return { ok: true, data: body };
   });
 
@@ -1174,7 +1203,8 @@ export const getSolutionDetails = createServerFn({ method: "POST" })
     );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao obter detalhes da solução" };
+    if (!r.ok)
+      return { ok: false, error: body?.error?.message ?? "Falha ao obter detalhes da solução" };
     return { ok: true, data: body };
   });
 
@@ -1258,7 +1288,11 @@ export const sendSolutionDeactivation = createServerFn({ method: "POST" })
     );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao enviar solicitação de desativação" };
+    if (!r.ok)
+      return {
+        ok: false,
+        error: body?.error?.message ?? "Falha ao enviar solicitação de desativação",
+      };
     return { ok: true, data: body };
   });
 
@@ -1356,7 +1390,10 @@ export const getSolutionAccessToken = createServerFn({ method: "POST" })
     );
 
     const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao obter token de acesso da solução" };
+    if (!r.ok)
+      return {
+        ok: false,
+        error: body?.error?.message ?? "Falha ao obter token de acesso da solução",
+      };
     return { ok: true, data: body };
   });
-

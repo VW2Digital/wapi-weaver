@@ -147,7 +147,8 @@ function TemplateDetailsDialog({
 
         {error && (
           <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
-            <strong>Erro ao obter detalhes:</strong> {(error as any).message ?? "Falha de comunicação com a API da Meta."}
+            <strong>Erro ao obter detalhes:</strong>{" "}
+            {(error as any).message ?? "Falha de comunicação com a API da Meta."}
           </div>
         )}
 
@@ -182,20 +183,28 @@ function TemplateDetailsDialog({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-lg border p-3.5 space-y-1">
-                  <span className="text-xs font-medium text-muted-foreground">Score de Qualidade</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Score de Qualidade
+                  </span>
                   <div className="pt-0.5">
-                    <span className={cn(
-                      "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                      qualityScoreColors[data.quality_score?.score] || qualityScoreColors.UNKNOWN
-                    )}>
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                        qualityScoreColors[data.quality_score?.score] || qualityScoreColors.UNKNOWN,
+                      )}
+                    >
                       {qualityScoreLabels[data.quality_score?.score] || qualityScoreLabels.UNKNOWN}
                     </span>
                   </div>
                 </div>
                 <div className="rounded-lg border p-3.5 space-y-1">
-                  <span className="text-xs font-medium text-muted-foreground">Pode Enviar Mensagem</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Pode Enviar Mensagem
+                  </span>
                   <p className="text-sm font-semibold">
-                    {data.health_status?.can_send_message === "true" || data.health_status?.can_send_message === true || data.status === "APPROVED" ? (
+                    {data.health_status?.can_send_message === "true" ||
+                    data.health_status?.can_send_message === true ||
+                    data.status === "APPROVED" ? (
                       <span className="text-success">Sim (Ativo)</span>
                     ) : (
                       <span className="text-destructive">Não (Bloqueado)</span>
@@ -209,7 +218,9 @@ function TemplateDetailsDialog({
                   <span className="font-semibold text-destructive">Motivo da Rejeição:</span>
                   <p className="font-medium">{data.rejected_reason}</p>
                   <p className="text-xs text-muted-foreground pt-1 border-t border-destructive/20">
-                    💡 <strong>O que significa?</strong> {rejectedReasons[data.rejected_reason] || "Análise e ajustes no texto ou botões são necessários para reenviar o template."}
+                    💡 <strong>O que significa?</strong>{" "}
+                    {rejectedReasons[data.rejected_reason] ||
+                      "Análise e ajustes no texto ou botões são necessários para reenviar o template."}
                   </p>
                 </div>
               )}
@@ -232,13 +243,17 @@ function TemplateDetailsDialog({
                   <div className="space-y-0.5">
                     <span className="text-muted-foreground">Rastreamento de Cliques em CTA:</span>
                     <p className="font-medium">
-                      {data.cta_url_link_tracking_opted_out ? "Desativado (Opted Out)" : "Ativo (Padrão)"}
+                      {data.cta_url_link_tracking_opted_out
+                        ? "Desativado (Opted Out)"
+                        : "Ativo (Padrão)"}
                     </p>
                   </div>
                   <div className="space-y-0.5">
                     <span className="text-muted-foreground">Entrega em Dispositivo Primário:</span>
                     <p className="font-medium">
-                      {data.is_primary_device_delivery_only ? "Sim, exclusiva" : "Não (Todos os dispositivos)"}
+                      {data.is_primary_device_delivery_only
+                        ? "Sim, exclusiva"
+                        : "Não (Todos os dispositivos)"}
                     </p>
                   </div>
                   {data.sub_category && (
@@ -276,12 +291,13 @@ function TemplatesPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { data, isLoading } = useQuery({ queryKey: ["templates", "all"], queryFn: () => fetch() });
-  
+
   const [activeTab, setActiveTab] = useState<"db" | "meta">("db");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
 
   const [cursorAfter, setCursorAfter] = useState<string | undefined>(undefined);
   const [cursorBefore, setCursorBefore] = useState<string | undefined>(undefined);
@@ -289,7 +305,11 @@ function TemplatesPage() {
   const [deleteTemplateItem, setDeleteTemplateItem] = useState<any>(null);
   const [deleteMode, setDeleteMode] = useState<"single" | "all">("single");
 
-  const { data: metaData, isLoading: isLoadingMeta, error: metaError } = useQuery({
+  const {
+    data: metaData,
+    isLoading: isLoadingMeta,
+    error: metaError,
+  } = useQuery({
     queryKey: ["templates", "meta", cursorAfter, cursorBefore],
     queryFn: () => fetchDirect({ data: { limit: 12, after: cursorAfter, before: cursorBefore } }),
     enabled: activeTab === "meta",
@@ -429,7 +449,9 @@ function TemplatesPage() {
   }
 
   async function deleteFromMetaDirect(t: any) {
-    const localMatch = (data ?? []).find((l: any) => l.name === t.name && l.language === t.language);
+    const localMatch = (data ?? []).find(
+      (l: any) => l.name === t.name && l.language === t.language,
+    );
     if (localMatch?.id) {
       setDeleteTemplateItem({ id: localMatch.id, name: t.name, language: t.language });
       setDeleteMode("single");
@@ -438,7 +460,9 @@ function TemplatesPage() {
       try {
         await sync();
         const updated = await fetch();
-        const newMatch = (updated ?? []).find((l: any) => l.name === t.name && l.language === t.language);
+        const newMatch = (updated ?? []).find(
+          (l: any) => l.name === t.name && l.language === t.language,
+        );
         toast.dismiss();
         if (newMatch?.id) {
           setDeleteTemplateItem({ id: newMatch.id, name: t.name, language: t.language });
@@ -482,13 +506,9 @@ function TemplatesPage() {
               <RefreshCw className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Sincronizar</span>
             </Button>
-            <TemplateBuilderDialog
-              trigger={
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" /> Novo template
-                </Button>
-              }
-            />
+            <Button onClick={() => setEditingTemplate("NEW")}>
+              <Plus className="mr-2 h-4 w-4" /> Novo template
+            </Button>
           </div>
         }
       />
@@ -506,7 +526,7 @@ function TemplatesPage() {
               "flex-1 px-4 py-2 text-xs font-semibold rounded-md transition-all duration-200",
               activeTab === "db"
                 ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >
             Meus Templates (DB Local)
@@ -520,7 +540,7 @@ function TemplatesPage() {
               "flex-1 px-4 py-2 text-xs font-semibold rounded-md transition-all duration-200",
               activeTab === "meta"
                 ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >
             Direto da Meta (Tempo Real)
@@ -528,7 +548,7 @@ function TemplatesPage() {
         </div>
 
         {activeTab === "db" ? (
-          (!isLoading && (data ?? []).length === 0) ? (
+          !isLoading && (data ?? []).length === 0 ? (
             <Card>
               <EmptyState
                 icon={FileText}
@@ -536,13 +556,9 @@ function TemplatesPage() {
                 description="Sincronize seus templates aprovados pela Meta ou carregue exemplos para começar."
                 action={
                   <div className="flex gap-2">
-                    <TemplateBuilderDialog
-                      trigger={
-                        <Button>
-                          <Plus className="mr-2 h-4 w-4" /> Criar template
-                        </Button>
-                      }
-                    />
+                    <Button onClick={() => setEditingTemplate("NEW")}>
+                      <Plus className="mr-2 h-4 w-4" /> Criar template
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={() => seedMut.mutate()}
@@ -673,14 +689,9 @@ function TemplatesPage() {
                                       </DropdownMenuItem>
                                     }
                                   />
-                                  <TemplateBuilderDialog
-                                    template={t}
-                                    trigger={
-                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                        <Pencil className="mr-2 h-4 w-4" /> Editar
-                                      </DropdownMenuItem>
-                                    }
-                                  />
+                                  <DropdownMenuItem onSelect={() => setEditingTemplate(t)}>
+                                    <Pencil className="mr-2 h-4 w-4" /> Editar
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => singleDelete(t)}
                                     className="text-destructive focus:text-destructive"
@@ -777,13 +788,9 @@ function TemplatesPage() {
                   title="Nenhum template na Meta"
                   description="Não encontramos nenhum template criado diretamente nesta conta do WhatsApp Business na Meta."
                   action={
-                    <TemplateBuilderDialog
-                      trigger={
-                        <Button>
-                          <Plus className="mr-2 h-4 w-4" /> Criar Novo Template
-                        </Button>
-                      }
-                    />
+                    <Button onClick={() => setEditingTemplate("NEW")}>
+                      <Plus className="mr-2 h-4 w-4" /> Criar Novo Template
+                    </Button>
                   }
                 />
               </Card>
@@ -800,7 +807,9 @@ function TemplatesPage() {
                       >
                         <div className="border-b p-4">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-medium truncate min-w-0" title={t.name}>{t.name}</p>
+                            <p className="font-medium truncate min-w-0" title={t.name}>
+                              {t.name}
+                            </p>
                             <div className="flex items-center gap-1.5">
                               <span
                                 className={`rounded px-2 py-0.5 text-[10px] font-semibold ${statusColors[t.status] ?? "bg-muted"}`}
@@ -881,7 +890,12 @@ function TemplatesPage() {
         )}
       </div>
 
-      <Dialog open={!!deleteTemplateItem} onOpenChange={(open) => { if (!open) setDeleteTemplateItem(null); }}>
+      <Dialog
+        open={!!deleteTemplateItem}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTemplateItem(null);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-destructive flex items-center gap-2">
@@ -903,9 +917,12 @@ function TemplatesPage() {
                 className="mt-1 accent-primary"
               />
               <div className="grid gap-0.5 leading-none">
-                <span className="text-sm font-semibold">Excluir apenas o idioma atual ({deleteTemplateItem?.language})</span>
+                <span className="text-sm font-semibold">
+                  Excluir apenas o idioma atual ({deleteTemplateItem?.language})
+                </span>
                 <span className="text-xs text-muted-foreground">
-                  Apenas este idioma e ID serão removidos. Outras traduções do mesmo template continuarão ativas na Meta.
+                  Apenas este idioma e ID serão removidos. Outras traduções do mesmo template
+                  continuarão ativas na Meta.
                 </span>
               </div>
             </label>

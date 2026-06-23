@@ -31,7 +31,7 @@ function extractTemplatePlaceholders(components: any[] = []) {
       const matches = String(component.text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
       matches.forEach((m) => {
         const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
-        if (token && !placeholders.some(p => p.key === `header_${token}`)) {
+        if (token && !placeholders.some((p) => p.key === `header_${token}`)) {
           placeholders.push({
             key: `header_${token}`,
             label: `Cabeçalho: Parâmetro {{${token}}}`,
@@ -45,7 +45,7 @@ function extractTemplatePlaceholders(components: any[] = []) {
       const matches = String(component.text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
       matches.forEach((m) => {
         const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
-        if (token && !placeholders.some(p => p.key === token)) {
+        if (token && !placeholders.some((p) => p.key === token)) {
           placeholders.push({
             key: token,
             label: `Corpo: Parâmetro {{${token}}}`,
@@ -62,7 +62,7 @@ function extractTemplatePlaceholders(components: any[] = []) {
           matches.forEach((m) => {
             const token = m.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
             const key = `button_${btnIndex}_${token}`;
-            if (token && !placeholders.some(p => p.key === key)) {
+            if (token && !placeholders.some((p) => p.key === key)) {
               placeholders.push({
                 key,
                 label: `Botão "${button.text}": Link dinâmico {{${token}}}`,
@@ -123,9 +123,10 @@ export function CampaignWizard({
   const listCount = selectedList?.list_contacts?.[0]?.count ?? 0;
 
   const headerComponent = selectedTemplate?.components?.find((c: any) => c.type === "HEADER");
-  const headerMediaFormat = headerComponent && ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComponent.format)
-    ? headerComponent.format as "IMAGE" | "VIDEO" | "DOCUMENT"
-    : null;
+  const headerMediaFormat =
+    headerComponent && ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComponent.format)
+      ? (headerComponent.format as "IMAGE" | "VIDEO" | "DOCUMENT")
+      : null;
 
   const handleHeaderFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -231,8 +232,14 @@ export function CampaignWizard({
     );
 
     const p = initialCampaign.payload ?? {};
-    const mediaId = p.header_media_id || p.header_image_id || p.header_video_id || p.header_document_id || "";
-    const mUrl = p.header_media_link || p.header_image_url || p.header_video_url || p.header_document_url || "";
+    const mediaId =
+      p.header_media_id || p.header_image_id || p.header_video_id || p.header_document_id || "";
+    const mUrl =
+      p.header_media_link ||
+      p.header_image_url ||
+      p.header_video_url ||
+      p.header_document_url ||
+      "";
     setHeaderMediaId(mediaId);
     setHeaderMediaUrl(mUrl);
     setHeaderDocumentFilename(p.header_document_filename ?? "");
@@ -248,7 +255,8 @@ export function CampaignWizard({
         payload.language = selectedTemplate.language;
         payload.template_components = selectedTemplate.components ?? [];
         payload.template_placeholders = templatePlaceholders.map((p) => p.key);
-        if (selectedTemplate.parameter_format) payload.parameter_format = selectedTemplate.parameter_format;
+        if (selectedTemplate.parameter_format)
+          payload.parameter_format = selectedTemplate.parameter_format;
         const vars = paramValues.map((v) => v.trim());
         if (vars.length) payload.variables = vars;
 
@@ -311,7 +319,8 @@ export function CampaignWizard({
     },
     onError: (e: any) =>
       toast.error(
-        e.message ?? (initialCampaign?.id ? "Erro ao atualizar campanha" : "Erro ao criar campanha"),
+        e.message ??
+          (initialCampaign?.id ? "Erro ao atualizar campanha" : "Erro ao criar campanha"),
       ),
   });
 
@@ -395,11 +404,15 @@ export function CampaignWizard({
                     </Select>
                   </div>
 
-                  {selectedTemplate && (
+                  {selectedTemplate &&
                     (() => {
-                      const templateButtons = selectedTemplate?.components?.find((c: any) => c.type === "BUTTONS")?.buttons ?? [];
+                      const templateButtons =
+                        selectedTemplate?.components?.find((c: any) => c.type === "BUTTONS")
+                          ?.buttons ?? [];
                       const hasButtons = templateButtons.length > 0;
-                      const hasDynamicButtons = templatePlaceholders.some(p => p.key.startsWith("button_"));
+                      const hasDynamicButtons = templatePlaceholders.some((p) =>
+                        p.key.startsWith("button_"),
+                      );
                       if (!hasButtons) return null;
 
                       return (
@@ -409,27 +422,40 @@ export function CampaignWizard({
                             Informação sobre Botões do Template
                           </p>
                           <p className="text-muted-foreground leading-normal">
-                            • <strong>Texto do Botão (CTA):</strong> É fixado conforme aprovado na Meta. Para alterá-lo, edite o template na seção <strong>Templates</strong>.
+                            • <strong>Texto do Botão (CTA):</strong> É fixado conforme aprovado na
+                            Meta. Para alterá-lo, edite o template na seção{" "}
+                            <strong>Templates</strong>.
                           </p>
                           {!hasDynamicButtons ? (
                             <p className="text-muted-foreground leading-normal">
-                              • <strong>Link do Botão:</strong> Este template possui links estáticos. Para enviar links dinâmicos e personalizáveis por envio, edite o template na aba <strong>Templates</strong> e configure a URL terminando com <code>{"{{1}}"}</code> (ex: <code>https://site.com/{"{{1}}"}</code>).
+                              • <strong>Link do Botão:</strong> Este template possui links
+                              estáticos. Para enviar links dinâmicos e personalizáveis por envio,
+                              edite o template na aba <strong>Templates</strong> e configure a URL
+                              terminando com <code>{"{{1}}"}</code> (ex:{" "}
+                              <code>https://site.com/{"{{1}}"}</code>).
                             </p>
                           ) : (
                             <p className="text-muted-foreground leading-normal">
-                              • <strong>Link do Botão:</strong> Este template possui links dinâmicos. Preencha o campo de link dinâmico abaixo para definir a parte personalizada do link (ex: código do cupom ou ID do cliente).
+                              • <strong>Link do Botão:</strong> Este template possui links
+                              dinâmicos. Preencha o campo de link dinâmico abaixo para definir a
+                              parte personalizada do link (ex: código do cupom ou ID do cliente).
                             </p>
                           )}
                         </div>
                       );
-                    })()
-                  )}
+                    })()}
 
                   {headerMediaFormat && (
                     <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
                       <div>
                         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
-                          Mídia do Cabeçalho ({headerMediaFormat === "IMAGE" ? "Imagem" : headerMediaFormat === "VIDEO" ? "Vídeo" : "Documento"})
+                          Mídia do Cabeçalho (
+                          {headerMediaFormat === "IMAGE"
+                            ? "Imagem"
+                            : headerMediaFormat === "VIDEO"
+                              ? "Vídeo"
+                              : "Documento"}
+                          )
                         </Label>
                         <div className="flex rounded-md bg-muted p-1 gap-1">
                           {(["upload", "url", "id"] as const).map((source) => (
@@ -448,8 +474,8 @@ export function CampaignWizard({
                               {source === "upload"
                                 ? "Upload de arquivo"
                                 : source === "url"
-                                ? "URL pública"
-                                : "ID da Meta"}
+                                  ? "URL pública"
+                                  : "ID da Meta"}
                             </Button>
                           ))}
                         </div>
@@ -465,8 +491,8 @@ export function CampaignWizard({
                               headerMediaFormat === "IMAGE"
                                 ? "image/*"
                                 : headerMediaFormat === "VIDEO"
-                                ? "video/*"
-                                : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+                                  ? "video/*"
+                                  : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
                             }
                             className="hidden"
                           />
@@ -477,18 +503,22 @@ export function CampaignWizard({
                             {uploadingHeaderMedia ? (
                               <div className="flex flex-col items-center space-y-2">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                <span className="text-xs text-muted-foreground">Enviando arquivo para a Meta...</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Enviando arquivo para a Meta...
+                                </span>
                               </div>
                             ) : (
                               <div className="flex flex-col items-center space-y-2">
                                 <Upload className="h-8 w-8 text-muted-foreground" />
-                                <span className="text-xs font-medium text-foreground">Clique para fazer upload</span>
+                                <span className="text-xs font-medium text-foreground">
+                                  Clique para fazer upload
+                                </span>
                                 <span className="text-[10px] text-muted-foreground">
                                   {headerMediaFormat === "IMAGE"
                                     ? "Imagens até 5MB"
                                     : headerMediaFormat === "VIDEO"
-                                    ? "Vídeos até 16MB"
-                                    : "Documentos até 100MB"}
+                                      ? "Vídeos até 16MB"
+                                      : "Documentos até 100MB"}
                                 </span>
                               </div>
                             )}
@@ -498,7 +528,9 @@ export function CampaignWizard({
                               <span className="font-semibold">✓</span>
                               <span className="truncate">
                                 Arquivo enviado. ID da Meta:{" "}
-                                <code className="bg-emerald-500/10 px-1 py-0.5 rounded font-mono">{headerMediaId}</code>
+                                <code className="bg-emerald-500/10 px-1 py-0.5 rounded font-mono">
+                                  {headerMediaId}
+                                </code>
                               </span>
                             </div>
                           )}
@@ -537,7 +569,9 @@ export function CampaignWizard({
 
                       {headerMediaFormat === "DOCUMENT" && (
                         <div className="space-y-1.5 pt-2 border-t border-muted">
-                          <Label className="text-xs">Nome do arquivo do documento (exibido no chat)</Label>
+                          <Label className="text-xs">
+                            Nome do arquivo do documento (exibido no chat)
+                          </Label>
                           <Input
                             value={headerDocumentFilename}
                             onChange={(e) => setHeaderDocumentFilename(e.target.value)}
@@ -556,9 +590,7 @@ export function CampaignWizard({
                       </p>
                       {templatePlaceholders.map((placeholder, i) => (
                         <div key={i} className="space-y-1.5">
-                          <Label className="text-xs font-medium">
-                            {placeholder.label}
-                          </Label>
+                          <Label className="text-xs font-medium">{placeholder.label}</Label>
                           <Input
                             value={paramValues[i] ?? ""}
                             onChange={(e) => {
@@ -702,7 +734,8 @@ export function CampaignWizard({
                 <span className="text-muted-foreground">Nome:</span> <strong>{name}</strong>
               </div>
               <div>
-                <span className="text-muted-foreground">Lista:</span> {selectedList?.name} ({listCount} contatos)
+                <span className="text-muted-foreground">Lista:</span> {selectedList?.name} (
+                {listCount} contatos)
               </div>
               <div>
                 <span className="text-muted-foreground">Tipo:</span> {messageType}
@@ -724,10 +757,12 @@ export function CampaignWizard({
 
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm">
-                <input type="radio" checked={startNow} onChange={() => setStartNow(true)} /> Iniciar agora
+                <input type="radio" checked={startNow} onChange={() => setStartNow(true)} /> Iniciar
+                agora
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="radio" checked={!startNow} onChange={() => setStartNow(false)} /> Agendar
+                <input type="radio" checked={!startNow} onChange={() => setStartNow(false)} />{" "}
+                Agendar
               </label>
               {!startNow && (
                 <Input
@@ -749,12 +784,11 @@ export function CampaignWizard({
           <Button
             disabled={
               (step === 1 && (!name || !listId)) ||
-              (step === 2 && (
-                (messageType === "template" && (
-                  !templateId || (headerMediaFormat !== null && !headerMediaId && !headerMediaUrl)
-                )) ||
-                (messageType === "media" && !mediaUrl)
-              ))
+              (step === 2 &&
+                ((messageType === "template" &&
+                  (!templateId ||
+                    (headerMediaFormat !== null && !headerMediaId && !headerMediaUrl))) ||
+                  (messageType === "media" && !mediaUrl)))
             }
             onClick={() => setStep(step + 1)}
           >

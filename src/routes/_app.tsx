@@ -27,6 +27,8 @@ import {
   ShieldAlert,
   Activity,
   Kanban,
+  Bot,
+  BrainCircuit,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -75,6 +77,8 @@ const NAV = [
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
+  { to: "/bot", label: "Bot de Fluxo", icon: Bot },
+  { to: "/ai-agent", label: "Agente de IA", icon: BrainCircuit },
 
   { to: "/billing", label: "Faturamento", icon: Receipt },
   {
@@ -242,7 +246,7 @@ function AppLayout() {
           const { to, label, icon: Icon } = item;
           const isAdminOnly = ["/users", "/audit", "/webhook-events", "/billing"].includes(to);
           if (isAdminOnly && !isAdmin) return null;
-          
+
           const hasChildren = item.children && item.children.length > 0;
           if (hasChildren) {
             const visibleChildren = item.children.filter((child: any) => {
@@ -252,13 +256,15 @@ function AppLayout() {
             if (visibleChildren.length === 0) return null;
 
             const isOpen = openMenus[to] || false;
-            const isAnyChildActive = visibleChildren.some((child: any) => loc.pathname.startsWith(child.to));
+            const isAnyChildActive = visibleChildren.some((child: any) =>
+              loc.pathname.startsWith(child.to),
+            );
 
             return (
               <div key={to} className="space-y-1">
                 <button
                   type="button"
-                  onClick={() => setOpenMenus(prev => ({ ...prev, [to]: !prev[to] }))}
+                  onClick={() => setOpenMenus((prev) => ({ ...prev, [to]: !prev[to] }))}
                   className={cn(
                     "w-full group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
                     isAnyChildActive
@@ -270,7 +276,9 @@ function AppLayout() {
                     <Icon
                       className={cn(
                         "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
-                        isAnyChildActive ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
+                        isAnyChildActive
+                          ? "text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground/70",
                       )}
                     />
                     <span className="transition-transform duration-200 group-hover:translate-x-0.5">

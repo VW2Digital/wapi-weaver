@@ -63,11 +63,9 @@ export const Route = createFileRoute("/api/auth/verify-token")({
           const role = roles && roles.length > 0 ? roles[0].role : "user";
 
           // Sign new long-lived session JWT (30 days)
-          const sessionToken = jwt.sign(
-            { sub: user.id, email: user.email, role },
-            JWT_SECRET,
-            { expiresIn: "30d" }
-          );
+          const sessionToken = jwt.sign({ sub: user.id, email: user.email, role }, JWT_SECRET, {
+            expiresIn: "30d",
+          });
 
           const responseData = {
             access_token: sessionToken,

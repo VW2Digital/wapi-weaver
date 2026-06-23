@@ -420,7 +420,8 @@ function SettingsPage() {
                         Etapa 1: Conectar suas credenciais da Meta (Facebook)
                       </h2>
                       <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                        Preencha os campos abaixo com os dados do painel de desenvolvedor do Facebook.
+                        Preencha os campos abaixo com os dados do painel de desenvolvedor do
+                        Facebook.
                         <br />
                         <span className="text-xs">
                           👉 Se você ainda não tem uma conta, acesse{" "}
@@ -445,8 +446,12 @@ function SettingsPage() {
                       <span>💡 Dica de Ouro para evitar erros de configuração:</span>
                     </div>
                     <p className="leading-relaxed">
-                      Os IDs solicitados abaixo são códigos compostos <strong>apenas por números</strong> (geralmente com 15 a 17 dígitos). 
-                      <strong className="text-foreground"> Nunca coloque letras ou o seu número de telefone celular nestes campos.</strong> 
+                      Os IDs solicitados abaixo são códigos compostos{" "}
+                      <strong>apenas por números</strong> (geralmente com 15 a 17 dígitos).
+                      <strong className="text-foreground">
+                        {" "}
+                        Nunca coloque letras ou o seu número de telefone celular nestes campos.
+                      </strong>
                       Confira com atenção qual ID é qual para evitar erros ao disparar mensagens.
                     </p>
                   </div>
@@ -572,7 +577,9 @@ function SettingsPage() {
                     <div className="md:col-span-2 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <Label className="flex items-baseline gap-2">
-                          <span className="font-semibold">Token de Acesso Permanente (System User Token)</span>
+                          <span className="font-semibold">
+                            Token de Acesso Permanente (System User Token)
+                          </span>
                         </Label>
                         <div className="flex gap-2">
                           <Button
@@ -592,7 +599,8 @@ function SettingsPage() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Configurações do Negócio
+                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Configurações do
+                              Negócio
                             </a>
                           </Button>
                           <Button
@@ -621,16 +629,42 @@ function SettingsPage() {
                           <span>⚠️ Super Importante: Não use o Token Temporário!</span>
                         </div>
                         <p className="mb-3 leading-relaxed">
-                          O painel da Meta oferece um token que expira em 24 horas. Se você usar esse token, o sistema vai parar de funcionar amanhã! 
-                          Você deve gerar um <strong>Token Permanente</strong> seguindo o passo a passo abaixo:
+                          O painel da Meta oferece um token que expira em 24 horas. Se você usar
+                          esse token, o sistema vai parar de funcionar amanhã! Você deve gerar um{" "}
+                          <strong>Token Permanente</strong> seguindo o passo a passo abaixo:
                         </p>
                         <ol className="list-decimal pl-5 space-y-1.5 font-medium leading-relaxed">
-                          <li>Vá em <strong>Configurações do Negócio</strong> → <strong>Usuários do Sistema</strong> (System Users).</li>
-                          <li>Clique em <strong>Adicionar</strong>, crie um usuário com função de <strong>Administrador</strong> (Admin).</li>
-                          <li>Selecione este usuário criado e clique em <strong>Gerar Novo Token</strong>.</li>
-                          <li>Selecione o seu aplicativo na lista e marque obrigatoriamente as permissões: <code className="text-[10px] bg-background px-1 py-0.5 rounded">whatsapp_business_messaging</code> e <code className="text-[10px] bg-background px-1 py-0.5 rounded">whatsapp_business_management</code>.</li>
-                          <li>Defina a expiração como <strong>Sem Expiração (Never)</strong>.</li>
-                          <li>Gere o token, copie o código longo (começa com <code className="text-[10px] font-bold">EAA...</code>) e cole abaixo.</li>
+                          <li>
+                            Vá em <strong>Configurações do Negócio</strong> →{" "}
+                            <strong>Usuários do Sistema</strong> (System Users).
+                          </li>
+                          <li>
+                            Clique em <strong>Adicionar</strong>, crie um usuário com função de{" "}
+                            <strong>Administrador</strong> (Admin).
+                          </li>
+                          <li>
+                            Selecione este usuário criado e clique em{" "}
+                            <strong>Gerar Novo Token</strong>.
+                          </li>
+                          <li>
+                            Selecione o seu aplicativo na lista e marque obrigatoriamente as
+                            permissões:{" "}
+                            <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                              whatsapp_business_messaging
+                            </code>{" "}
+                            e{" "}
+                            <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                              whatsapp_business_management
+                            </code>
+                            .
+                          </li>
+                          <li>
+                            Defina a expiração como <strong>Sem Expiração (Never)</strong>.
+                          </li>
+                          <li>
+                            Gere o token, copie o código longo (começa com{" "}
+                            <code className="text-[10px] font-bold">EAA...</code>) e cole abaixo.
+                          </li>
                         </ol>
                       </div>
 
@@ -762,7 +796,7 @@ function SettingsPage() {
                           "ID da conta WhatsApp Business",
                         );
                         if (err2) nextErrors.whatsapp_waba_id = err2;
-                        
+
                         const appIdValue = String(form.whatsapp_app_id ?? "").trim();
                         if (appIdValue && /\D/.test(appIdValue)) {
                           nextErrors.whatsapp_app_id = "App ID deve conter apenas dígitos.";
@@ -2157,7 +2191,8 @@ function AdminPlatformSection() {
                   Organização do Menu Lateral
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Reorganize os itens do menu lateral usando as setas. As alterações afetam todos os usuários da plataforma.
+                  Reorganize os itens do menu lateral usando as setas. As alterações afetam todos os
+                  usuários da plataforma.
                 </p>
               </div>
               <Button
@@ -2166,7 +2201,9 @@ function AdminPlatformSection() {
                 size="sm"
                 onClick={toggleSidebarOrderCollapsed}
                 aria-expanded={!sidebarOrderCollapsed}
-                aria-label={sidebarOrderCollapsed ? "Expandir seção de menu" : "Recolher seção de menu"}
+                aria-label={
+                  sidebarOrderCollapsed ? "Expandir seção de menu" : "Recolher seção de menu"
+                }
                 className="shrink-0 gap-1 mt-0.5"
               >
                 {sidebarOrderCollapsed ? (
@@ -2198,8 +2235,12 @@ function AdminPlatformSection() {
                               <Icon className="h-4 w-4" />
                             </div>
                             <div className="text-left">
-                              <div className="text-sm font-medium text-foreground leading-snug">{item.label}</div>
-                              <div className="text-[10px] text-muted-foreground leading-none">{item.to}</div>
+                              <div className="text-sm font-medium text-foreground leading-snug">
+                                {item.label}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground leading-none">
+                                {item.to}
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -2235,7 +2276,9 @@ function AdminPlatformSection() {
                         setSavingSidebar(true);
                         try {
                           const paths = localNavOrder.map((item) => item.to);
-                          const res = await saveSidebarOrder({ data: { order: JSON.stringify(paths) } });
+                          const res = await saveSidebarOrder({
+                            data: { order: JSON.stringify(paths) },
+                          });
                           if (!res.ok) throw new Error("Erro de resposta do servidor");
                           toast.success("Ordem do menu lateral salva!");
                           qc.invalidateQueries({ queryKey: ["sidebar-order"] });
@@ -2305,7 +2348,7 @@ function AdminPlatformSection() {
                             <div key={item.to} className="space-y-0.5">
                               <div
                                 className={cn(
-                                  "relative flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors text-sidebar-foreground/75"
+                                  "relative flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors text-sidebar-foreground/75",
                                 )}
                               >
                                 <div className="flex items-center gap-2">
@@ -2347,13 +2390,20 @@ function AdminPlatformSection() {
                               "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
                               active
                                 ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                : "text-sidebar-foreground/75"
+                                : "text-sidebar-foreground/75",
                             )}
                           >
                             {active && (
                               <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
                             )}
-                            <Icon className={cn("h-3.5 w-3.5", active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/75")} />
+                            <Icon
+                              className={cn(
+                                "h-3.5 w-3.5",
+                                active
+                                  ? "text-sidebar-accent-foreground"
+                                  : "text-sidebar-foreground/75",
+                              )}
+                            />
                             <span className="truncate">{item.label}</span>
                           </div>
                         );
@@ -3327,7 +3377,7 @@ function WABASection() {
   const [phoneSettingsOpen, setPhoneSettingsOpen] = useState(false);
   const [settingsPhoneId, setSettingsPhoneId] = useState("");
   const [settingsTab, setSettingsTab] = useState("general"); // general, calling, oba
-  
+
   // Settings Gear form fields
   const [displayName, setDisplayName] = useState("");
   const [searchVisibility, setSearchVisibility] = useState("PUBLIC");
@@ -3432,7 +3482,10 @@ function WABASection() {
   });
 
   const onboardingRequestCodeMut = useMutation({
-    mutationFn: () => requestCode({ data: { phoneId: onboardingPhoneId, method: codeMethod, language: codeLanguage } }),
+    mutationFn: () =>
+      requestCode({
+        data: { phoneId: onboardingPhoneId, method: codeMethod, language: codeLanguage },
+      }),
     onSuccess: (res: any) => {
       if (res.ok) {
         toast.success("Código de verificação solicitado! Confira seu telefone.");
@@ -3536,16 +3589,17 @@ function WABASection() {
   });
 
   const obaRequestMut = useMutation({
-    mutationFn: () => applyForOBAFn({
-      data: {
-        phoneId: settingsPhoneId,
-        payload: {
-          category: obaCategory,
-          website: obaWebsite,
-          reason: obaReason,
+    mutationFn: () =>
+      applyForOBAFn({
+        data: {
+          phoneId: settingsPhoneId,
+          payload: {
+            category: obaCategory,
+            website: obaWebsite,
+            reason: obaReason,
+          },
         },
-      },
-    }),
+      }),
     onSuccess: () => {
       toast.success("Solicitação de Selo Verde (OBA) enviada com sucesso!");
     },
@@ -3643,8 +3697,6 @@ function WABASection() {
     onError: (e: any) => toast.error("Erro ao salvar telefone ativo: " + e.message),
   });
 
-
-
   const renderPhoneList = (wabaId: string) => {
     const listPhones = phonesMap[wabaId] ?? [];
     const loading = loadingPhones[wabaId];
@@ -3681,7 +3733,10 @@ function WABASection() {
                   {ph.verified_name || "Sem Nome de Exibição"}
                 </span>
                 {ph.is_official_business_account && (
-                  <Badge variant="secondary" className="bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/15 border-none h-4 px-1.5 py-0 text-[9px] font-medium leading-none">
+                  <Badge
+                    variant="secondary"
+                    className="bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/15 border-none h-4 px-1.5 py-0 text-[9px] font-medium leading-none"
+                  >
                     Oficial
                   </Badge>
                 )}
@@ -3691,9 +3746,12 @@ function WABASection() {
                     className={cn(
                       "h-4 px-1.5 py-0 text-[9px] font-medium border-none leading-none",
                       ph.status === "CONNECTED" && "bg-success/15 text-success hover:bg-success/20",
-                      ph.status === "FLAGGED" && "bg-amber-500/15 text-amber-500 hover:bg-amber-500/20",
-                      ph.status === "RESTRICTED" && "bg-destructive/15 text-destructive hover:bg-destructive/20",
-                      !["CONNECTED", "FLAGGED", "RESTRICTED"].includes(ph.status) && "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20"
+                      ph.status === "FLAGGED" &&
+                        "bg-amber-500/15 text-amber-500 hover:bg-amber-500/20",
+                      ph.status === "RESTRICTED" &&
+                        "bg-destructive/15 text-destructive hover:bg-destructive/20",
+                      !["CONNECTED", "FLAGGED", "RESTRICTED"].includes(ph.status) &&
+                        "bg-muted-foreground/15 text-muted-foreground hover:bg-muted-foreground/20",
                     )}
                   >
                     {ph.status}
@@ -3784,14 +3842,22 @@ function WABASection() {
                 variant="ghost"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 onClick={() => {
-                  if (confirm("⚠️ AVISO CRÍTICO: Desregistrar o número desativará o envio de mensagens. Deseja mesmo desregistrar?")) {
+                  if (
+                    confirm(
+                      "⚠️ AVISO CRÍTICO: Desregistrar o número desativará o envio de mensagens. Deseja mesmo desregistrar?",
+                    )
+                  ) {
                     deregisterPhoneMut.mutate(ph.id);
                   }
                 }}
                 title="Desregistrar da Meta"
                 disabled={deregisterPhoneMut.isPending}
               >
-                {deregisterPhoneMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {deregisterPhoneMut.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
               </Button>
             </div>
           </div>
@@ -3886,7 +3952,8 @@ function WABASection() {
                   </div>
                   <div className="text-xs space-y-1 font-mono">
                     <p className="text-muted-foreground">
-                      <span className="font-sans font-medium text-foreground">ID:</span> {details.id}
+                      <span className="font-sans font-medium text-foreground">ID:</span>{" "}
+                      {details.id}
                     </p>
                     {details.timezone_id && (
                       <p className="text-muted-foreground">
@@ -3896,7 +3963,9 @@ function WABASection() {
                     )}
                     {details.message_template_namespace && (
                       <p className="text-muted-foreground">
-                        <span className="font-sans font-medium text-foreground">Namespace de Templates:</span>{" "}
+                        <span className="font-sans font-medium text-foreground">
+                          Namespace de Templates:
+                        </span>{" "}
                         {details.message_template_namespace}
                       </p>
                     )}
@@ -3908,7 +3977,9 @@ function WABASection() {
                     )}
                     {details.ownership_type && (
                       <p className="text-muted-foreground">
-                        <span className="font-sans font-medium text-foreground">Tipo de Propriedade:</span>{" "}
+                        <span className="font-sans font-medium text-foreground">
+                          Tipo de Propriedade:
+                        </span>{" "}
                         {details.ownership_type}
                       </p>
                     )}
@@ -4033,7 +4104,10 @@ function WABASection() {
                                 ID: {w.id}
                               </p>
                               <p className="text-muted-foreground text-[10px] mt-0.5">
-                                Fuso: {w.timezone_id || "N/A"}{w.country && ` · País: ${w.country}`}{w.business_verification_status && ` · Verif.: ${w.business_verification_status}`}
+                                Fuso: {w.timezone_id || "N/A"}
+                                {w.country && ` · País: ${w.country}`}
+                                {w.business_verification_status &&
+                                  ` · Verif.: ${w.business_verification_status}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -4130,15 +4204,36 @@ function WABASection() {
           </DialogHeader>
 
           <div className="flex items-center justify-between border-y py-3 my-2 text-xs">
-            <span className={cn("px-2 py-1 rounded-full font-medium", onboardingStep === 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+            <span
+              className={cn(
+                "px-2 py-1 rounded-full font-medium",
+                onboardingStep === 1
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
               1. Solicitar Código
             </span>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className={cn("px-2 py-1 rounded-full font-medium", onboardingStep === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+            <span
+              className={cn(
+                "px-2 py-1 rounded-full font-medium",
+                onboardingStep === 2
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
               2. Verificar Código
             </span>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className={cn("px-2 py-1 rounded-full font-medium", onboardingStep === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+            <span
+              className={cn(
+                "px-2 py-1 rounded-full font-medium",
+                onboardingStep === 3
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
               3. Registrar PIN
             </span>
           </div>
@@ -4177,11 +4272,13 @@ function WABASection() {
                 <Button variant="outline" onClick={() => setOnboardingOpen(false)}>
                   Cancelar
                 </Button>
-                <Button 
-                  onClick={() => onboardingRequestCodeMut.mutate()} 
+                <Button
+                  onClick={() => onboardingRequestCodeMut.mutate()}
                   disabled={onboardingRequestCodeMut.isPending}
                 >
-                  {onboardingRequestCodeMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {onboardingRequestCodeMut.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   Solicitar Código
                 </Button>
               </DialogFooter>
@@ -4200,7 +4297,8 @@ function WABASection() {
                   maxLength={6}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Insira o código numérico enviado pela Meta via {codeMethod === "SMS" ? "SMS" : "Chamada de Voz"}.
+                  Insira o código numérico enviado pela Meta via{" "}
+                  {codeMethod === "SMS" ? "SMS" : "Chamada de Voz"}.
                 </p>
               </div>
 
@@ -4208,11 +4306,13 @@ function WABASection() {
                 <Button variant="outline" onClick={() => setOnboardingStep(1)}>
                   Voltar
                 </Button>
-                <Button 
-                  onClick={() => onboardingVerifyCodeMut.mutate()} 
+                <Button
+                  onClick={() => onboardingVerifyCodeMut.mutate()}
                   disabled={onboardingVerifyCodeMut.isPending || verificationCode.length < 4}
                 >
-                  {onboardingVerifyCodeMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {onboardingVerifyCodeMut.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   Verificar Código
                 </Button>
               </DialogFooter>
@@ -4232,7 +4332,8 @@ function WABASection() {
                   maxLength={6}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Este PIN será registrado como segurança de duas etapas (2FA) para o seu número na Cloud API. Use apenas números.
+                  Este PIN será registrado como segurança de duas etapas (2FA) para o seu número na
+                  Cloud API. Use apenas números.
                 </p>
               </div>
 
@@ -4240,11 +4341,13 @@ function WABASection() {
                 <Button variant="outline" onClick={() => setOnboardingStep(2)}>
                   Voltar
                 </Button>
-                <Button 
-                  onClick={() => onboardingRegisterPinMut.mutate()} 
+                <Button
+                  onClick={() => onboardingRegisterPinMut.mutate()}
                   disabled={onboardingRegisterPinMut.isPending || twoFactorPin.length !== 6}
                 >
-                  {onboardingRegisterPinMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {onboardingRegisterPinMut.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   Registrar PIN e Concluir
                 </Button>
               </DialogFooter>
@@ -4273,21 +4376,36 @@ function WABASection() {
               <div className="flex border-b text-sm">
                 <button
                   type="button"
-                  className={cn("px-4 py-2 border-b-2 font-medium transition-colors", settingsTab === "general" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+                  className={cn(
+                    "px-4 py-2 border-b-2 font-medium transition-colors",
+                    settingsTab === "general"
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
                   onClick={() => setSettingsTab("general")}
                 >
                   Geral e Nome
                 </button>
                 <button
                   type="button"
-                  className={cn("px-4 py-2 border-b-2 font-medium transition-colors", settingsTab === "calling" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+                  className={cn(
+                    "px-4 py-2 border-b-2 font-medium transition-colors",
+                    settingsTab === "calling"
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
                   onClick={() => setSettingsTab("calling")}
                 >
                   Chamadas
                 </button>
                 <button
                   type="button"
-                  className={cn("px-4 py-2 border-b-2 font-medium transition-colors", settingsTab === "oba" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+                  className={cn(
+                    "px-4 py-2 border-b-2 font-medium transition-colors",
+                    settingsTab === "oba"
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
                   onClick={() => setSettingsTab("oba")}
                 >
                   Selo Verde (OBA)
@@ -4304,7 +4422,8 @@ function WABASection() {
                       placeholder="Nome oficial da empresa"
                     />
                     <p className="text-[10px] text-muted-foreground leading-normal">
-                      ⚠️ Mudar o nome de exibição exige aprovação da Meta. O número pode ficar temporariamente em revisão.
+                      ⚠️ Mudar o nome de exibição exige aprovação da Meta. O número pode ficar
+                      temporariamente em revisão.
                     </p>
                   </div>
 
@@ -4315,7 +4434,9 @@ function WABASection() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="PUBLIC">Público (Visível na busca do WhatsApp)</SelectItem>
+                        <SelectItem value="PUBLIC">
+                          Público (Visível na busca do WhatsApp)
+                        </SelectItem>
                         <SelectItem value="PRIVATE">Privado (Invisível na busca)</SelectItem>
                       </SelectContent>
                     </Select>
@@ -4328,7 +4449,9 @@ function WABASection() {
                   <div className="flex items-center justify-between border-b pb-3">
                     <div>
                       <Label className="font-semibold">Habilitar Chamadas de Voz</Label>
-                      <p className="text-xs text-muted-foreground">Permite receber chamadas de voz de usuários do WhatsApp.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Permite receber chamadas de voz de usuários do WhatsApp.
+                      </p>
                     </div>
                     <input
                       type="checkbox"
@@ -4341,7 +4464,9 @@ function WABASection() {
                   <div className="flex items-center justify-between pb-3">
                     <div>
                       <Label className="font-semibold">Protocolo SIP (PABX)</Label>
-                      <p className="text-xs text-muted-foreground">Roteia chamadas via SIP para integração com centrais VoIP.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Roteia chamadas via SIP para integração com centrais VoIP.
+                      </p>
                     </div>
                     <input
                       type="checkbox"
@@ -4359,7 +4484,14 @@ function WABASection() {
                     <p className="font-semibold text-foreground">Status Atual do Selo Oficial:</p>
                     <div>
                       Selo OBA:{" "}
-                      <Badge variant="outline" className={cn(obaStatus?.oba_status === "APPROVED" ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground")}>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          obaStatus?.oba_status === "APPROVED"
+                            ? "bg-success/10 text-success border-success/20"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
                         {obaStatus?.oba_status || "Não oficial / Não solicitado"}
                       </Badge>
                     </div>
@@ -4369,7 +4501,9 @@ function WABASection() {
                   </div>
 
                   <div className="border-t pt-3 space-y-3">
-                    <h4 className="text-xs font-semibold text-foreground">Solicitar Selo Verde (OBA)</h4>
+                    <h4 className="text-xs font-semibold text-foreground">
+                      Solicitar Selo Verde (OBA)
+                    </h4>
                     <div className="space-y-1.5">
                       <Label>Categoria da Empresa</Label>
                       <Select value={obaCategory} onValueChange={setObaCategory}>
@@ -4413,7 +4547,9 @@ function WABASection() {
                       onClick={() => obaRequestMut.mutate()}
                       disabled={obaRequestMut.isPending}
                     >
-                      {obaRequestMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      {obaRequestMut.isPending ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
                       Enviar Solicitação de Selo Verde
                     </Button>
                   </div>
@@ -4428,7 +4564,9 @@ function WABASection() {
                   onClick={() => savePhoneSettingsMut.mutate()}
                   disabled={savePhoneSettingsMut.isPending}
                 >
-                  {savePhoneSettingsMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {savePhoneSettingsMut.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   Salvar
                 </Button>
               </DialogFooter>
@@ -4443,7 +4581,8 @@ function WABASection() {
           <DialogHeader>
             <DialogTitle>Editar Conta WhatsApp Business (WABA)</DialogTitle>
             <DialogDescription>
-              Atualize as configurações e informações da conta comercial selecionada diretamente na Meta.
+              Atualize as configurações e informações da conta comercial selecionada diretamente na
+              Meta.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdateWaba} className="space-y-4 py-2">
@@ -4486,7 +4625,9 @@ function WABASection() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={updateWabaMut.isPending}>
-                {updateWabaMut.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                {updateWabaMut.isPending ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : null}
                 Salvar
               </Button>
             </DialogFooter>
@@ -4502,9 +4643,9 @@ function AdvancedToolsSection() {
     "zapdispatch_settings_advanced_tools_collapsed",
     true,
   );
-  
+
   const [activeTab, setActiveTab] = useState("bots");
-  
+
   const profileQuery = useQuery({ queryKey: ["profile"] });
   const profileData = profileQuery.data as any;
   const activePhoneId = profileData?.whatsapp_phone_number_id || "";
@@ -4532,12 +4673,13 @@ function AdvancedToolsSection() {
   const [sdpValue, setSdpValue] = useState("");
   const [sdpType, setSdpType] = useState("offer");
   const [callPermResult, setCallPermResult] = useState<any>(null);
-  
+
   const checkCallPermFn = useServerFn(checkCallPermissions);
   const manageCallFn = useServerFn(manageCall);
 
   const checkCallPermMut = useMutation({
-    mutationFn: () => checkCallPermFn({ data: { phoneId: activePhoneId, recipientPhone: callRecipient } }),
+    mutationFn: () =>
+      checkCallPermFn({ data: { phoneId: activePhoneId, recipientPhone: callRecipient } }),
     onSuccess: (res: any) => {
       if (res.ok) {
         setCallPermResult(res.data);
@@ -4577,7 +4719,7 @@ function AdvancedToolsSection() {
   // 3. Sandbox Messages States
   const [msgRecipient, setMsgRecipient] = useState("");
   const [msgType, setMsgType] = useState<"text" | "marketing" | "interactive">("text");
-  
+
   // msg text fields
   const [msgTextBody, setMsgTextBody] = useState("");
   // msg marketing fields
@@ -4702,7 +4844,9 @@ function AdvancedToolsSection() {
   });
 
   const solLifecycleMut = useMutation({
-    mutationFn: async (action: "accept" | "reject" | "deactivate" | "accept_deact" | "reject_deact") => {
+    mutationFn: async (
+      action: "accept" | "reject" | "deactivate" | "accept_deact" | "reject_deact",
+    ) => {
       const fns = {
         accept: acceptSolInvFn,
         reject: rejectSolInvFn,
@@ -4743,7 +4887,8 @@ function AdvancedToolsSection() {
             Ferramentas Avançadas de Comunicação
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Acesse ferramentas avançadas para Robôs, Chamadas (SDP), Mensagens Sandbox, Upload de Mídia e Gestão de Soluções Multi-Parceiro.
+            Acesse ferramentas avançadas para Robôs, Chamadas (SDP), Mensagens Sandbox, Upload de
+            Mídia e Gestão de Soluções Multi-Parceiro.
           </p>
         </div>
         <Button
@@ -4764,14 +4909,23 @@ function AdvancedToolsSection() {
           {!activePhoneId && (
             <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 p-3 rounded-lg text-xs flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>Atenção: Nenhum número de telefone ativo selecionado. Algumas ferramentas de chamadas e mensagens sandbox exigem um telefone ativo. Clique em "Usar Número" na lista acima.</span>
+              <span>
+                Atenção: Nenhum número de telefone ativo selecionado. Algumas ferramentas de
+                chamadas e mensagens sandbox exigem um telefone ativo. Clique em "Usar Número" na
+                lista acima.
+              </span>
             </div>
           )}
 
           <div className="flex flex-wrap gap-1 border-b pb-2 text-xs">
             <button
               type="button"
-              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "bots" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5",
+                activeTab === "bots"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
+              )}
               onClick={() => setActiveTab("bots")}
             >
               <Bot className="h-3.5 w-3.5" />
@@ -4779,7 +4933,12 @@ function AdvancedToolsSection() {
             </button>
             <button
               type="button"
-              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "calls" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5",
+                activeTab === "calls"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
+              )}
               onClick={() => setActiveTab("calls")}
             >
               <Phone className="h-3.5 w-3.5" />
@@ -4787,7 +4946,12 @@ function AdvancedToolsSection() {
             </button>
             <button
               type="button"
-              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "messages" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5",
+                activeTab === "messages"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
+              )}
               onClick={() => setActiveTab("messages")}
             >
               <Send className="h-3.5 w-3.5" />
@@ -4795,7 +4959,12 @@ function AdvancedToolsSection() {
             </button>
             <button
               type="button"
-              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "media" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5",
+                activeTab === "media"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
+              )}
               onClick={() => setActiveTab("media")}
             >
               <UploadCloud className="h-3.5 w-3.5" />
@@ -4803,7 +4972,12 @@ function AdvancedToolsSection() {
             </button>
             <button
               type="button"
-              className={cn("px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5", activeTab === "solutions" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5",
+                activeTab === "solutions"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
+              )}
               onClick={() => setActiveTab("solutions")}
             >
               <Users className="h-3.5 w-3.5" />
@@ -4825,7 +4999,11 @@ function AdvancedToolsSection() {
                     onClick={() => botMut.mutate()}
                     disabled={botMut.isPending || !botId.trim()}
                   >
-                    {botMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar Robô"}
+                    {botMut.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Buscar Robô"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -4834,11 +5012,18 @@ function AdvancedToolsSection() {
                 <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
                   <div className="flex justify-between items-center border-b pb-2">
                     <span className="font-semibold text-sm">Robô: {botDetails.id}</span>
-                    <Badge variant="outline" className={cn(botDetails.enable_welcome_message ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground")}>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        botDetails.enable_welcome_message
+                          ? "bg-success/10 text-success border-success/20"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
                       Welcome Message: {botDetails.enable_welcome_message ? "Sim" : "Não"}
                     </Badge>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div>
                       <p className="font-semibold text-foreground mb-1">Prompts / Diretrizes:</p>
@@ -4863,7 +5048,9 @@ function AdvancedToolsSection() {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-medium text-sm text-foreground">Permissões e Iniciar</h3>
-                  <p className="text-xs text-muted-foreground">Verifique se o destinatário aceita chamadas e inicie com SDP.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Verifique se o destinatário aceita chamadas e inicie com SDP.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -4881,15 +5068,19 @@ function AdvancedToolsSection() {
                     onClick={() => checkCallPermMut.mutate()}
                     disabled={checkCallPermMut.isPending || !callRecipient || !activePhoneId}
                   >
-                    {checkCallPermMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    {checkCallPermMut.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : null}
                     Verificar Permissões
                   </Button>
-                  
+
                   <Button
                     onClick={() => manageCallMut.mutate("connect")}
                     disabled={manageCallMut.isPending || !callRecipient || !activePhoneId}
                   >
-                    {manageCallMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    {manageCallMut.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : null}
                     Iniciar Chamada (Connect)
                   </Button>
                 </div>
@@ -4897,15 +5088,21 @@ function AdvancedToolsSection() {
                 {callPermResult && (
                   <div className="bg-muted/30 p-3 rounded-lg border">
                     <p className="font-semibold text-foreground mb-1">Resultado de Permissão:</p>
-                    <pre className="font-mono text-[10px]">{JSON.stringify(callPermResult, null, 2)}</pre>
+                    <pre className="font-mono text-[10px]">
+                      {JSON.stringify(callPermResult, null, 2)}
+                    </pre>
                   </div>
                 )}
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <h3 className="font-medium text-sm text-foreground">Gerenciamento de Chamadas Ativas</h3>
-                  <p className="text-xs text-muted-foreground">Insira chaves SDP e Call ID para aceitar, rejeitar ou encerrar.</p>
+                  <h3 className="font-medium text-sm text-foreground">
+                    Gerenciamento de Chamadas Ativas
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Insira chaves SDP e Call ID para aceitar, rejeitar ou encerrar.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -4973,7 +5170,9 @@ function AdvancedToolsSection() {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-medium text-sm text-foreground">Destinatário & Tipo</h3>
-                  <p className="text-xs text-muted-foreground">Defina o número e o tipo de mensagem sandbox da API.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Defina o número e o tipo de mensagem sandbox da API.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -5004,7 +5203,9 @@ function AdvancedToolsSection() {
                   onClick={() => sendSandboxMut.mutate()}
                   disabled={sendSandboxMut.isPending || !msgRecipient || !activePhoneId}
                 >
-                  {sendSandboxMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {sendSandboxMut.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   Enviar Mensagem Sandbox
                 </Button>
               </div>
@@ -5014,7 +5215,9 @@ function AdvancedToolsSection() {
                   <div className="space-y-3">
                     <div>
                       <h4 className="font-semibold text-foreground">Mensagem de Texto</h4>
-                      <p className="text-xs text-muted-foreground">Texto livre que requer janela de 24h aberta.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Texto livre que requer janela de 24h aberta.
+                      </p>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Corpo da Mensagem</Label>
@@ -5032,7 +5235,9 @@ function AdvancedToolsSection() {
                   <div className="space-y-3">
                     <div>
                       <h4 className="font-semibold text-foreground">Template de Marketing</h4>
-                      <p className="text-xs text-muted-foreground">Envia campanhas via templates de marketing.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Envia campanhas via templates de marketing.
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1.5">
@@ -5067,7 +5272,9 @@ function AdvancedToolsSection() {
                 {msgType === "interactive" && (
                   <div className="space-y-3">
                     <div>
-                      <h4 className="font-semibold text-foreground">Interactive (Botões, Listas)</h4>
+                      <h4 className="font-semibold text-foreground">
+                        Interactive (Botões, Listas)
+                      </h4>
                       <p className="text-xs text-muted-foreground">Monte estruturas interativas.</p>
                     </div>
                     <div className="space-y-1.5">
@@ -5088,8 +5295,12 @@ function AdvancedToolsSection() {
           {activeTab === "media" && (
             <div className="space-y-4 max-w-xl text-xs">
               <div>
-                <h3 className="font-medium text-sm text-foreground">Carregar Mídia na API da Meta</h3>
-                <p className="text-xs text-muted-foreground">Faça upload de arquivos e use o ID retornado.</p>
+                <h3 className="font-medium text-sm text-foreground">
+                  Carregar Mídia na API da Meta
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Faça upload de arquivos e use o ID retornado.
+                </p>
               </div>
 
               <div className="border border-dashed rounded-lg p-6 bg-muted/10 text-center space-y-3">
@@ -5113,7 +5324,9 @@ function AdvancedToolsSection() {
                 onClick={() => uploadMediaMut.mutate()}
                 disabled={uploadMediaMut.isPending || !selectedFile || !activePhoneId}
               >
-                {uploadMediaMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                {uploadMediaMut.isPending ? (
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : null}
                 Fazer Upload para Meta
               </Button>
 
@@ -5133,7 +5346,9 @@ function AdvancedToolsSection() {
                       <Copy className="h-3 w-3 mr-1" /> Copiar ID
                     </Button>
                   </div>
-                  <p className="font-mono bg-background p-2 rounded text-xs select-all text-foreground border">{uploadedMediaId}</p>
+                  <p className="font-mono bg-background p-2 rounded text-xs select-all text-foreground border">
+                    {uploadedMediaId}
+                  </p>
                 </div>
               )}
             </div>
@@ -5143,8 +5358,13 @@ function AdvancedToolsSection() {
             <div className="grid gap-6 md:grid-cols-2 text-xs">
               <div className="space-y-4">
                 <div>
-                  <h3 className="font-medium text-sm text-foreground">Parcerias e Soluções Multi-Parceiro</h3>
-                  <p className="text-xs text-muted-foreground">Gerencie o ciclo de vida da solução da Meta (aceitar convites, rejeitar parcerias ou solicitar desativações).</p>
+                  <h3 className="font-medium text-sm text-foreground">
+                    Parcerias e Soluções Multi-Parceiro
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Gerencie o ciclo de vida da solução da Meta (aceitar convites, rejeitar
+                    parcerias ou solicitar desativações).
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -5159,7 +5379,11 @@ function AdvancedToolsSection() {
                       onClick={() => getSolDetailsMut.mutate()}
                       disabled={getSolDetailsMut.isPending || !solId.trim()}
                     >
-                      {getSolDetailsMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                      {getSolDetailsMut.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Buscar"
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -5168,27 +5392,43 @@ function AdvancedToolsSection() {
                   <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
                     <div className="flex justify-between items-center border-b pb-2">
                       <span className="font-semibold text-sm">Solução: {solDetails.id}</span>
-                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                      <Badge
+                        variant="outline"
+                        className="bg-primary/10 text-primary border-primary/20"
+                      >
                         {solDetails.status || "N/A"}
                       </Badge>
                     </div>
 
                     <div className="space-y-1.5 text-xs">
-                      <p><span className="font-medium text-foreground">Nome:</span> {solDetails.name || "N/A"}</p>
-                      <p><span className="font-medium text-foreground">Status do Pedido:</span> {solDetails.status_for_pending_request || "N/A"}</p>
-                      <p><span className="font-medium text-foreground">App Dono:</span> {solDetails.owner_app || "N/A"}</p>
+                      <p>
+                        <span className="font-medium text-foreground">Nome:</span>{" "}
+                        {solDetails.name || "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">Status do Pedido:</span>{" "}
+                        {solDetails.status_for_pending_request || "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">App Dono:</span>{" "}
+                        {solDetails.owner_app || "N/A"}
+                      </p>
                       <div>
                         <span className="font-medium text-foreground">Permissões Dono:</span>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {(solDetails.owner_permissions || []).map((p: string) => (
-                            <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
+                            <Badge key={p} variant="secondary" className="text-[10px]">
+                              {p}
+                            </Badge>
                           ))}
                         </div>
                       </div>
                     </div>
 
                     <div className="border-t pt-3 space-y-2">
-                      <p className="font-medium text-foreground">Ações de Onboarding & Ciclo de Vida:</p>
+                      <p className="font-medium text-foreground">
+                        Ações de Onboarding & Ciclo de Vida:
+                      </p>
                       <div className="flex flex-wrap gap-1.5">
                         <Button
                           size="sm"
@@ -5241,8 +5481,13 @@ function AdvancedToolsSection() {
 
               <div className="space-y-4 border-l pl-6">
                 <div>
-                  <h3 className="font-medium text-sm text-foreground">Token de Acesso da Solução</h3>
-                  <p className="text-xs text-muted-foreground">Gere tokens granulares para acessar contas comerciais do cliente através da parceria.</p>
+                  <h3 className="font-medium text-sm text-foreground">
+                    Token de Acesso da Solução
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Gere tokens granulares para acessar contas comerciais do cliente através da
+                    parceria.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -5259,14 +5504,18 @@ function AdvancedToolsSection() {
                   onClick={() => getSolTokenMut.mutate()}
                   disabled={getSolTokenMut.isPending || !solId.trim() || !solBusinessId.trim()}
                 >
-                  {getSolTokenMut.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  {getSolTokenMut.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   Gerar Access Token Granular
                 </Button>
 
                 {solAccessToken && (
                   <div className="bg-muted/30 p-3 rounded-lg border space-y-2 mt-2">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-foreground text-xs">Token do Parceiro:</span>
+                      <span className="font-semibold text-foreground text-xs">
+                        Token do Parceiro:
+                      </span>
                       <Button
                         variant="ghost"
                         size="sm"

@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/auth/otp")({
               {
                 status: 400,
                 headers: { "Content-Type": "application/json" },
-              }
+              },
             );
           }
 
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/auth/otp")({
           const token = jwt.sign(
             { sub: user.id, email: user.email, purpose: "magic-link" },
             JWT_SECRET,
-            { expiresIn: "15m" }
+            { expiresIn: "15m" },
           );
 
           // Get origin from request URL

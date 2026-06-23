@@ -82,15 +82,7 @@ export const Route = createFileRoute("/_app/chat")({
 function getContactAvatarUrl(contact: any): string {
   const cf = contact?.custom_fields;
   if (!cf || typeof cf !== "object") return "";
-  return (
-    cf.avatar_url ||
-    cf.photo_url ||
-    cf.photo ||
-    cf.picture ||
-    cf.image_url ||
-    cf.image ||
-    ""
-  );
+  return cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
 }
 
 /** Gera uma cor HSL consistente baseada no nome do contato */
@@ -102,16 +94,37 @@ function getAvatarColor(name: string): string {
 }
 
 const TAG_ICONS: Record<string, any> = {
-  Tag, Star, Heart, AlertCircle, Zap, Bookmark, Flag, Briefcase, ShoppingCart, Activity, Shield
+  Tag,
+  Star,
+  Heart,
+  AlertCircle,
+  Zap,
+  Bookmark,
+  Flag,
+  Briefcase,
+  ShoppingCart,
+  Activity,
+  Shield,
 };
 
-function TagBadge({ tag, className, showName = true }: { tag: any; className?: string; showName?: boolean }) {
+function TagBadge({
+  tag,
+  className,
+  showName = true,
+}: {
+  tag: any;
+  className?: string;
+  showName?: boolean;
+}) {
   if (!tag) return null;
   const Icon = TAG_ICONS[tag.icon] || Tag;
   const color = tag.color || "#8B5CF6";
   return (
-    <div 
-      className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 border text-[10px] font-medium tracking-wide leading-none", className)} 
+    <div
+      className={cn(
+        "flex items-center gap-1 rounded-full px-2 py-0.5 border text-[10px] font-medium tracking-wide leading-none",
+        className,
+      )}
       style={{ backgroundColor: `${color}20`, color: color, borderColor: `${color}40` }}
       title={tag.name}
     >
@@ -143,7 +156,9 @@ function ChatPage() {
   const contactPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const [sessionToken, setSessionToken] = useState("");
-  const [pendingMediaType, setPendingMediaType] = useState<"image" | "audio" | "video" | "document" | "sticker" | null>(null);
+  const [pendingMediaType, setPendingMediaType] = useState<
+    "image" | "audio" | "video" | "document" | "sticker" | null
+  >(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -208,10 +223,7 @@ function ChatPage() {
   const tagsQuery = useQuery({
     queryKey: ["tags"],
     queryFn: async () => {
-      const { data, error } = await db
-        .from("tags")
-        .select("*")
-        .order("name", { ascending: true });
+      const { data, error } = await db.from("tags").select("*").order("name", { ascending: true });
       if (error) throw new Error(error.message);
       return data || [];
     },
@@ -242,14 +254,11 @@ function ChatPage() {
 
   // Realtime channel subscription
   useEffect(() => {
-    const channel = db.channel("conversation-tags-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "conversation_tags" },
-        () => {
-          qc.invalidateQueries({ queryKey: ["conversation-tags"] });
-        }
-      )
+    const channel = db
+      .channel("conversation-tags-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversation_tags" }, () => {
+        qc.invalidateQueries({ queryKey: ["conversation-tags"] });
+      })
       .subscribe();
 
     return () => {
@@ -265,9 +274,9 @@ function ChatPage() {
       toast.error("O nome da tag deve ter até 20 caracteres.");
       return null;
     }
-    
+
     const existing = (tagsQuery.data ?? []).find(
-      (t: any) => t.name.toLowerCase() === nameTrim.toLowerCase()
+      (t: any) => t.name.toLowerCase() === nameTrim.toLowerCase(),
     );
     if (existing) {
       toast.error("Tag já existe com esse nome.");
@@ -333,10 +342,7 @@ function ChatPage() {
   };
 
   const handleClearConversationTags = async (phone: string) => {
-    const { error } = await db
-      .from("conversation_tags")
-      .delete()
-      .eq("contact_number", phone);
+    const { error } = await db.from("conversation_tags").delete().eq("contact_number", phone);
     if (error) {
       toast.error("Erro ao limpar tags da conversa: " + error.message);
     } else {
@@ -371,10 +377,7 @@ function ChatPage() {
   };
 
   const handleClearMessageTags = async (msgId: string) => {
-    const { error } = await db
-      .from("message_tags")
-      .delete()
-      .eq("message_id", msgId);
+    const { error } = await db.from("message_tags").delete().eq("message_id", msgId);
     if (error) {
       toast.error("Erro ao limpar tags da mensagem: " + error.message);
     } else {
@@ -430,7 +433,9 @@ function ChatPage() {
                     <span
                       className={cn(
                         "h-4 w-4 rounded border flex items-center justify-center transition-all",
-                        isApplied ? "bg-primary text-primary-foreground border-primary" : "border-muted-foreground/30",
+                        isApplied
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-muted-foreground/30",
                       )}
                     >
                       {isApplied && <Check className="h-3 w-3" />}
@@ -510,7 +515,7 @@ function ChatPage() {
       if (searchPhone) {
         const cleanedSearchPhone = searchPhone.replace(/\D/g, "");
         const found = contactsQuery.data.find(
-          (c: any) => c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone
+          (c: any) => c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone,
         );
         if (found) {
           setSelectedContact(found);
@@ -544,7 +549,6 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
-
   // Scroll ao fim ao carregar novas mensagens
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -553,7 +557,8 @@ function ChatPage() {
   // Contatos filtrados
   const filteredContacts = (contactsQuery.data ?? []).filter((c: any) => {
     const term = searchQuery.toLowerCase().trim();
-    const matchesSearch = !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
+    const matchesSearch =
+      !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
     if (!matchesSearch) return false;
 
     if (selectedFilterTagIds.length === 0) return true;
@@ -566,7 +571,16 @@ function ChatPage() {
   const sendMutation = useMutation<any, any, any>({
     box: true,
     mutationFn: async (payload: {
-      type: "text" | "reaction" | "image" | "audio" | "video" | "document" | "sticker" | "location" | "contacts";
+      type:
+        | "text"
+        | "reaction"
+        | "image"
+        | "audio"
+        | "video"
+        | "document"
+        | "sticker"
+        | "location"
+        | "contacts";
       text?: { body: string; preview_url: boolean };
       reaction?: { message_id: string; emoji: string };
       image?: { id?: string; link?: string };
@@ -654,7 +668,7 @@ function ChatPage() {
       else if (type === "video") mediaInputRef.current.accept = "video/*";
       else if (type === "document") mediaInputRef.current.accept = "*/*";
       else if (type === "sticker") mediaInputRef.current.accept = "image/webp,image/png";
-      
+
       mediaInputRef.current.click();
     }
   };
@@ -662,7 +676,7 @@ function ChatPage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !pendingMediaType) return;
-    
+
     const phoneId = profile?.whatsapp_phone_number_id;
     if (!phoneId) {
       toast.error("ID do número de telefone não configurado. Vá em Configurações.");
@@ -686,7 +700,9 @@ function ChatPage() {
           to: selectedPhone,
           type: pendingMediaType,
           [pendingMediaType]:
-            pendingMediaType === "document" ? { id: mediaId, filename: file.name } : { id: mediaId },
+            pendingMediaType === "document"
+              ? { id: mediaId, filename: file.name }
+              : { id: mediaId },
           reply_to_message_id: replyingTo?.id,
         } as any,
       });
@@ -823,7 +839,10 @@ function ChatPage() {
         data: { id: selectedContact.id, avatar_url: null },
       });
       setSelectedContact((prev: any) => {
-        const custom = { ...((prev?.custom_fields as any) ?? {}), ...((updated?.custom_fields as any) ?? {}) };
+        const custom = {
+          ...((prev?.custom_fields as any) ?? {}),
+          ...((updated?.custom_fields as any) ?? {}),
+        };
         delete custom.avatar_url;
         delete custom.photo_url;
         delete custom.photo;
@@ -949,7 +968,9 @@ function ChatPage() {
             {/* TagFilterBar: Barra de Filtros de Tag */}
             <div className="flex flex-col gap-1 pt-1.5 border-t">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Etiquetas</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Etiquetas
+                </span>
                 <div className="flex items-center gap-2">
                   {selectedFilterTagIds.length > 0 && (
                     <button
@@ -970,12 +991,14 @@ function ChatPage() {
                   </button>
                 </div>
               </div>
-              
+
               <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto py-0.5">
                 {tagsQuery.isLoading ? (
                   <div className="h-4 w-12 rounded bg-muted animate-pulse" />
                 ) : (tagsQuery.data ?? []).length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground italic">Nenhuma etiqueta.</span>
+                  <span className="text-[10px] text-muted-foreground italic">
+                    Nenhuma etiqueta.
+                  </span>
                 ) : (
                   (tagsQuery.data ?? []).map((tag: any) => {
                     const isActive = selectedFilterTagIds.includes(tag.id);
@@ -986,12 +1009,14 @@ function ChatPage() {
                           setSelectedFilterTagIds((prev) =>
                             prev.includes(tag.id)
                               ? prev.filter((id) => id !== tag.id)
-                              : [...prev, tag.id]
+                              : [...prev, tag.id],
                           );
                         }}
                         className={cn(
                           "transition-all cursor-pointer hover:scale-105",
-                          isActive ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background rounded-full" : "opacity-60"
+                          isActive
+                            ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background rounded-full"
+                            : "opacity-60",
                         )}
                       >
                         <TagBadge tag={tag} />
@@ -1068,17 +1093,17 @@ function ChatPage() {
                         {/* Render dots for applied tags */}
                         {(() => {
                           const contactTags = cachedConvTags.filter(
-                            (ct: any) => ct.contact_number === c.phone_e164
+                            (ct: any) => ct.contact_number === c.phone_e164,
                           );
                           if (contactTags.length === 0) return null;
                           return (
                             <div className="flex gap-0.5">
                               {contactTags.map((ct: any) => (
-                                <TagBadge 
-                                  key={ct.tag_id} 
-                                  tag={ct.tags} 
-                                  showName={false} 
-                                  className="px-1" 
+                                <TagBadge
+                                  key={ct.tag_id}
+                                  tag={ct.tags}
+                                  showName={false}
+                                  className="px-1"
                                 />
                               ))}
                             </div>
@@ -1100,1164 +1125,1263 @@ function ChatPage() {
             selectedContact ? "flex" : "hidden md:flex",
           )}
         >
-        {/* Coluna central de mensagens */}
-        <div className="flex-1 flex flex-col h-full min-w-0">
-          {selectedContact ? (
-            <>
-              {/* Header do Chat */}
-              <div className="p-3 border-b flex items-center justify-between bg-card">
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="md:hidden"
-                    onClick={() => setSelectedContact(null)}
-                  >
-                    <ArrowLeft className="h-5 w-5" />
-                  </Button>
+          {/* Coluna central de mensagens */}
+          <div className="flex-1 flex flex-col h-full min-w-0">
+            {selectedContact ? (
+              <>
+                {/* Header do Chat */}
+                <div className="p-3 border-b flex items-center justify-between bg-card">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="md:hidden"
+                      onClick={() => setSelectedContact(null)}
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </Button>
 
-                  {(() => {
-                    const avatarUrl = getContactAvatarUrl(selectedContact);
-                    const avatarBg = getAvatarColor(selectedContact.name ?? "");
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => setContactInfoOpen((o) => !o)}
-                        title="Ver dados do contato"
-                        className="h-9 w-9 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 ring-2 ring-transparent hover:ring-primary/60 transition-all duration-200 cursor-pointer"
-                        style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
-                      >
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt={selectedContact.name ?? "Contato"}
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              const parent = target.parentElement;
-                              if (parent) {
-                                target.style.display = "none";
-                                parent.style.backgroundColor = avatarBg;
-                                parent.textContent = (selectedContact.name ?? "C").slice(0, 2).toUpperCase();
-                              }
-                            }}
-                          />
-                        ) : (
-                          (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
-                        )}
-                      </button>
-                    );
-                  })()}
+                    {(() => {
+                      const avatarUrl = getContactAvatarUrl(selectedContact);
+                      const avatarBg = getAvatarColor(selectedContact.name ?? "");
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setContactInfoOpen((o) => !o)}
+                          title="Ver dados do contato"
+                          className="h-9 w-9 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 ring-2 ring-transparent hover:ring-primary/60 transition-all duration-200 cursor-pointer"
+                          style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                        >
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={selectedContact.name ?? "Contato"}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  target.style.display = "none";
+                                  parent.style.backgroundColor = avatarBg;
+                                  parent.textContent = (selectedContact.name ?? "C")
+                                    .slice(0, 2)
+                                    .toUpperCase();
+                                }
+                              }}
+                            />
+                          ) : (
+                            (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
+                          )}
+                        </button>
+                      );
+                    })()}
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-sm truncate text-foreground leading-tight">
-                        {selectedContact.name || "Sem Nome"}
-                      </h3>
-                      {/* Render conversation tag pills/dots in header */}
-                      {(() => {
-                        const contactTags = cachedConvTags.filter(
-                          (ct: any) => ct.contact_number === selectedContact.phone_e164
-                        );
-                        if (contactTags.length === 0) return null;
-                        return (
-                          <div className="flex gap-1">
-                            {contactTags.map((ct: any) => (
-                              <TagBadge key={ct.tag_id} tag={ct.tags} />
-                            ))}
-                          </div>
-                        );
-                      })()}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-sm truncate text-foreground leading-tight">
+                          {selectedContact.name || "Sem Nome"}
+                        </h3>
+                        {/* Render conversation tag pills/dots in header */}
+                        {(() => {
+                          const contactTags = cachedConvTags.filter(
+                            (ct: any) => ct.contact_number === selectedContact.phone_e164,
+                          );
+                          if (contactTags.length === 0) return null;
+                          return (
+                            <div className="flex gap-1">
+                              {contactTags.map((ct: any) => (
+                                <TagBadge key={ct.tag_id} tag={ct.tags} />
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                        <Phone className="h-3 w-3 shrink-0" />+{selectedContact.phone_e164}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
-                      <Phone className="h-3 w-3 shrink-0" />+{selectedContact.phone_e164}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Conversation Tag Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-full hover:bg-muted"
+                          title="Etiquetas da conversa"
+                        >
+                          <Tag className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="p-2 min-w-[200px]" align="end">
+                        {(() => {
+                          const contactTags = cachedConvTags.filter(
+                            (ct: any) => ct.contact_number === selectedContact.phone_e164,
+                          );
+                          return (
+                            <>
+                              {contactTags.length > 0 && (
+                                <div className="border-b pb-1.5 mb-1.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
+                                    onClick={() =>
+                                      handleClearConversationTags(selectedContact.phone_e164)
+                                    }
+                                  >
+                                    <X className="h-3 w-3 mr-1.5" /> Limpar etiquetas (
+                                    {contactTags.length})
+                                  </Button>
+                                </div>
+                              )}
+
+                              <div className="max-h-40 overflow-y-auto space-y-1">
+                                {(tagsQuery.data ?? []).length === 0 ? (
+                                  <div className="text-[10px] text-muted-foreground p-1 text-center">
+                                    Nenhuma etiqueta cadastrada.
+                                  </div>
+                                ) : (
+                                  (tagsQuery.data ?? []).map((tag: any) => {
+                                    const isApplied = contactTags.some(
+                                      (ct: any) => ct.tag_id === tag.id,
+                                    );
+                                    return (
+                                      <button
+                                        key={tag.id}
+                                        type="button"
+                                        onClick={() =>
+                                          handleToggleConversationTag(
+                                            selectedContact.phone_e164,
+                                            tag.id,
+                                            isApplied,
+                                          )
+                                        }
+                                        className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className="h-3 w-3 rounded-full"
+                                            style={{ backgroundColor: tag.color }}
+                                          />
+                                          <span className="truncate">{tag.name}</span>
+                                        </div>
+                                        <span
+                                          className={cn(
+                                            "h-4 w-4 rounded border flex items-center justify-center transition-all",
+                                            isApplied
+                                              ? "bg-primary text-primary-foreground border-primary"
+                                              : "border-muted-foreground/30",
+                                          )}
+                                        >
+                                          {isApplied && <Check className="h-3 w-3" />}
+                                        </span>
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+
+                              {/* Inline tag creator form */}
+                              <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
+                                <p className="text-[10px] text-muted-foreground px-1 font-semibold">
+                                  Nova etiqueta
+                                </p>
+                                <div className="flex gap-1">
+                                  <Input
+                                    placeholder="Nome..."
+                                    className="h-7 text-xs px-2 flex-1"
+                                    maxLength={20}
+                                    onKeyDown={async (e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const target = e.currentTarget;
+                                        const val = target.value.trim();
+                                        if (!val) return;
+                                        const res = await handleCreateTag(val, selectedColor);
+                                        if (res) {
+                                          target.value = "";
+                                          handleToggleConversationTag(
+                                            selectedContact.phone_e164,
+                                            res.id,
+                                            false,
+                                          );
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex justify-between px-1">
+                                  {PREDEFINED_COLORS.slice(0, 8).map((c) => (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      className={cn(
+                                        "h-3 w-3 rounded-full border transition-transform hover:scale-110",
+                                        selectedColor === c
+                                          ? "border-foreground"
+                                          : "border-transparent",
+                                      )}
+                                      style={{ backgroundColor: c }}
+                                      onClick={() => setSelectedColor(c)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Indicador discreto de sincronização automática */}
+                    <div
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                      title="Atualizando automaticamente a cada 4s"
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          messagesQuery.isFetching ? "bg-primary animate-pulse" : "bg-green-500",
+                        )}
+                      />
+                      <span className="hidden sm:inline">
+                        {messagesQuery.isFetching ? "Sincronizando..." : "Ao vivo"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* Conversation Tag Dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 rounded-full hover:bg-muted"
-                        title="Etiquetas da conversa"
-                      >
-                        <Tag className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="p-2 min-w-[200px]" align="end">
-                      {(() => {
-                        const contactTags = cachedConvTags.filter(
-                          (ct: any) => ct.contact_number === selectedContact.phone_e164
-                        );
-                        return (
-                          <>
-                            {contactTags.length > 0 && (
-                              <div className="border-b pb-1.5 mb-1.5">
+                {/* Corpo / Lista de Balões */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/10 relative">
+                  {messagesQuery.isLoading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span>Carregando conversa...</span>
+                      </div>
+                    </div>
+                  ) : displayMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-6 gap-2">
+                      <MessageCircle className="h-10 w-10 text-muted-foreground/50 animate-bounce" />
+                      <p className="font-semibold">Nenhuma mensagem neste chat</p>
+                      <p className="text-xs max-w-xs">
+                        Envie uma mensagem abaixo para iniciar a conversa direta oficial do
+                        WhatsApp.
+                      </p>
+                    </div>
+                  ) : (
+                    displayMessages.map((msg: any) => {
+                      const isOutgoing = msg.direction === "outgoing";
+                      const replyMsgId = msg.context?.message_id;
+                      const replyMessage =
+                        replyMsgId && displayMessages.find((m: any) => m.id === replyMsgId);
+
+                      return (
+                        <div
+                          key={msg.id}
+                          id={`msg-${msg.id}`}
+                          className={cn(
+                            "flex w-full flex-col group transition-all duration-300 rounded-lg p-1",
+                            isOutgoing ? "items-end" : "items-start",
+                          )}
+                        >
+                          {/* Container do Balão + Ações */}
+                          <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
+                            {/* Ações Rápidas (Lado esquerdo para outgoing, lado direito para incoming) */}
+                            {!isOutgoing && (
+                              <div className="flex flex-col gap-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                    >
+                                      <Smile className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
+                                    {DEFAULT_EMOJIS.map((emoji) => (
+                                      <button
+                                        key={emoji}
+                                        onClick={() => handleSendReaction(msg.id, emoji)}
+                                        className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                {renderMessageTagDropdown(msg)}
+
                                 <Button
+                                  size="icon"
                                   variant="ghost"
-                                  size="sm"
-                                  className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
-                                  onClick={() => handleClearConversationTags(selectedContact.phone_e164)}
+                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                  onClick={() => setReplyingTo(msg)}
+                                  title="Responder"
                                 >
-                                  <X className="h-3 w-3 mr-1.5" /> Limpar etiquetas ({contactTags.length})
+                                  <Reply className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               </div>
                             )}
 
-                            <div className="max-h-40 overflow-y-auto space-y-1">
-                              {(tagsQuery.data ?? []).length === 0 ? (
-                                <div className="text-[10px] text-muted-foreground p-1 text-center">Nenhuma etiqueta cadastrada.</div>
-                              ) : (
-                                (tagsQuery.data ?? []).map((tag: any) => {
-                                  const isApplied = contactTags.some((ct: any) => ct.tag_id === tag.id);
-                                  return (
-                                    <button
-                                      key={tag.id}
-                                      type="button"
-                                      onClick={() => handleToggleConversationTag(selectedContact.phone_e164, tag.id, isApplied)}
-                                      className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                                        <span className="truncate">{tag.name}</span>
-                                      </div>
-                                      <span className={cn(
-                                        "h-4 w-4 rounded border flex items-center justify-center transition-all",
-                                        isApplied ? "bg-primary text-primary-foreground border-primary" : "border-muted-foreground/30"
-                                      )}>
-                                        {isApplied && <Check className="h-3 w-3" />}
-                                      </span>
-                                    </button>
-                                  );
-                                })
+                            {/* Balão em si */}
+                            <div className="flex flex-col relative">
+                              {/* Bloco de Resposta */}
+                              {replyMessage && (
+                                <button
+                                  onClick={() => scrollToMessage(replyMessage.id)}
+                                  className={cn(
+                                    "text-left text-xs p-2 rounded-t-xl border-l-4 mb-[-4px] opacity-90 transition-all hover:opacity-100",
+                                    isOutgoing
+                                      ? "bg-primary-foreground/30 border-primary-foreground/75 text-primary-foreground"
+                                      : "bg-muted border-primary text-muted-foreground",
+                                  )}
+                                >
+                                  <div className="font-bold mb-0.5">
+                                    {replyMessage.direction === "incoming" ? "Contato" : "Você"}
+                                  </div>
+                                  <div className="truncate font-mono">
+                                    {replyMessage.type === "image"
+                                      ? "📷 Imagem"
+                                      : replyMessage.type === "audio"
+                                        ? "🎙️ Áudio"
+                                        : replyMessage.type === "video"
+                                          ? "🎥 Vídeo"
+                                          : replyMessage.type === "document"
+                                            ? "📄 Documento"
+                                            : replyMessage.type === "sticker"
+                                              ? "😊 Sticker"
+                                              : replyMessage.type === "location"
+                                                ? "📍 Localização"
+                                                : replyMessage.type === "contacts"
+                                                  ? "👤 Contato"
+                                                  : replyMessage.body}
+                                  </div>
+                                </button>
                               )}
-                            </div>
 
-                            {/* Inline tag creator form */}
-                            <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
-                              <p className="text-[10px] text-muted-foreground px-1 font-semibold">Nova etiqueta</p>
-                              <div className="flex gap-1">
-                                <Input
-                                  placeholder="Nome..."
-                                  className="h-7 text-xs px-2 flex-1"
-                                  maxLength={20}
-                                  onKeyDown={async (e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      const target = e.currentTarget;
-                                      const val = target.value.trim();
-                                      if (!val) return;
-                                      const res = await handleCreateTag(val, selectedColor);
-                                      if (res) {
-                                        target.value = "";
-                                        handleToggleConversationTag(selectedContact.phone_e164, res.id, false);
-                                      }
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <div className="flex justify-between px-1">
-                                {PREDEFINED_COLORS.slice(0, 8).map((c) => (
-                                  <button
-                                    key={c}
-                                    type="button"
-                                    className={cn(
-                                      "h-3 w-3 rounded-full border transition-transform hover:scale-110",
-                                      selectedColor === c ? "border-foreground" : "border-transparent"
-                                    )}
-                                    style={{ backgroundColor: c }}
-                                    onClick={() => setSelectedColor(c)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  {/* Indicador discreto de sincronização automática */}
-                  <div
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                    title="Atualizando automaticamente a cada 4s"
-                  >
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        messagesQuery.isFetching
-                          ? "bg-primary animate-pulse"
-                          : "bg-green-500",
-                      )}
-                    />
-                    <span className="hidden sm:inline">
-                      {messagesQuery.isFetching ? "Sincronizando..." : "Ao vivo"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Corpo / Lista de Balões */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/10 relative">
-                {messagesQuery.isLoading ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <span>Carregando conversa...</span>
-                    </div>
-                  </div>
-                ) : displayMessages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-6 gap-2">
-                    <MessageCircle className="h-10 w-10 text-muted-foreground/50 animate-bounce" />
-                    <p className="font-semibold">Nenhuma mensagem neste chat</p>
-                    <p className="text-xs max-w-xs">
-                      Envie uma mensagem abaixo para iniciar a conversa direta oficial do WhatsApp.
-                    </p>
-                  </div>
-                ) : (
-                  displayMessages.map((msg: any) => {
-                    const isOutgoing = msg.direction === "outgoing";
-                    const replyMsgId = msg.context?.message_id;
-                    const replyMessage =
-                      replyMsgId && displayMessages.find((m: any) => m.id === replyMsgId);
-
-                    return (
-                      <div
-                        key={msg.id}
-                        id={`msg-${msg.id}`}
-                        className={cn(
-                          "flex w-full flex-col group transition-all duration-300 rounded-lg p-1",
-                          isOutgoing ? "items-end" : "items-start",
-                        )}
-                      >
-                        {/* Container do Balão + Ações */}
-                        <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
-                          {/* Ações Rápidas (Lado esquerdo para outgoing, lado direito para incoming) */}
-                          {!isOutgoing && (
-                            <div className="flex flex-col gap-1">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                  >
-                                    <Smile className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
-                                  {DEFAULT_EMOJIS.map((emoji) => (
-                                    <button
-                                      key={emoji}
-                                      onClick={() => handleSendReaction(msg.id, emoji)}
-                                      className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-
-                              {renderMessageTagDropdown(msg)}
-
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                onClick={() => setReplyingTo(msg)}
-                                title="Responder"
-                              >
-                                <Reply className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-                            </div>
-                          )}
-
-                          {/* Balão em si */}
-                          <div className="flex flex-col relative">
-                            {/* Bloco de Resposta */}
-                            {replyMessage && (
-                              <button
-                                onClick={() => scrollToMessage(replyMessage.id)}
+                              {/* Conteúdo Principal */}
+                              <div
                                 className={cn(
-                                  "text-left text-xs p-2 rounded-t-xl border-l-4 mb-[-4px] opacity-90 transition-all hover:opacity-100",
+                                  "p-3 rounded-2xl shadow-sm relative transition-all duration-200",
                                   isOutgoing
-                                    ? "bg-primary-foreground/30 border-primary-foreground/75 text-primary-foreground"
-                                    : "bg-muted border-primary text-muted-foreground",
+                                    ? "bg-primary text-primary-foreground rounded-tr-none"
+                                    : "bg-card border text-card-foreground rounded-tl-none",
+                                  replyMessage && "rounded-t-none",
                                 )}
                               >
-                                <div className="font-bold mb-0.5">
-                                  {replyMessage.direction === "incoming" ? "Contato" : "Você"}
-                                </div>
-                                <div className="truncate font-mono">
-                                  {replyMessage.type === "image" ? "📷 Imagem" : 
-                                   replyMessage.type === "audio" ? "🎙️ Áudio" : 
-                                   replyMessage.type === "video" ? "🎥 Vídeo" : 
-                                   replyMessage.type === "document" ? "📄 Documento" : 
-                                   replyMessage.type === "sticker" ? "😊 Sticker" : 
-                                   replyMessage.type === "location" ? "📍 Localização" : 
-                                   replyMessage.type === "contacts" ? "👤 Contato" : 
-                                   replyMessage.body}
-                                </div>
-                              </button>
-                            )}
-
-                            {/* Conteúdo Principal */}
-                            <div
-                              className={cn(
-                                "p-3 rounded-2xl shadow-sm relative transition-all duration-200",
-                                isOutgoing
-                                  ? "bg-primary text-primary-foreground rounded-tr-none"
-                                  : "bg-card border text-card-foreground rounded-tl-none",
-                                replyMessage && "rounded-t-none",
-                              )}
-                            >
-                              {/* Display applied tags in message body */}
-                              {(() => {
-                                const msgTags = (messageTagsQuery.data ?? []).filter(
-                                  (mt: any) => mt.message_id === msg.id
-                                );
-                                if (msgTags.length === 0) return null;
-                                return (
-                                  <div className="flex flex-wrap gap-1 mb-1">
-                                    {msgTags.map((mt: any) => (
-                                      <TagBadge 
-                                        key={mt.tag_id} 
-                                        tag={mt.tags} 
-                                        className={cn(
-                                          "shadow-sm", 
-                                          isOutgoing ? "border-primary-foreground/30" : ""
-                                        )} 
+                                {/* Display applied tags in message body */}
+                                {(() => {
+                                  const msgTags = (messageTagsQuery.data ?? []).filter(
+                                    (mt: any) => mt.message_id === msg.id,
+                                  );
+                                  if (msgTags.length === 0) return null;
+                                  return (
+                                    <div className="flex flex-wrap gap-1 mb-1">
+                                      {msgTags.map((mt: any) => (
+                                        <TagBadge
+                                          key={mt.tag_id}
+                                          tag={mt.tags}
+                                          className={cn(
+                                            "shadow-sm",
+                                            isOutgoing ? "border-primary-foreground/30" : "",
+                                          )}
+                                        />
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                                {msg.type === "image" ? (
+                                  <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 flex flex-col gap-1 max-w-sm">
+                                    {sessionToken && msg.body ? (
+                                      <img
+                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                        alt="Imagem"
+                                        className="rounded-md max-h-64 object-contain"
                                       />
-                                    ))}
+                                    ) : (
+                                      <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
+                                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                    )}
                                   </div>
-                                );
-                              })()}
-                              {msg.type === "image" ? (
-                                <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 flex flex-col gap-1 max-w-sm">
-                                  {sessionToken && msg.body ? (
-                                    <img
-                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                      alt="Imagem"
-                                      className="rounded-md max-h-64 object-contain"
-                                    />
-                                  ) : (
-                                    <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
-                                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                    </div>
-                                  )}
-                                </div>
-                              ) : msg.type === "audio" ? (
-                                <div className="p-1">
-                                  {sessionToken && msg.body ? (
-                                    <audio
-                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                      controls
-                                      className="w-full max-w-[240px] h-9"
-                                    />
-                                  ) : (
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <Volume2 className="h-4 w-4" /> Áudio (ID: {msg.body})
-                                    </div>
-                                  )}
-                                </div>
-                              ) : msg.type === "video" ? (
-                                <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 max-w-sm">
-                                  {sessionToken && msg.body ? (
-                                    <video
-                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                      controls
-                                      className="rounded-md max-h-64 object-contain"
-                                    />
-                                  ) : (
-                                    <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
-                                      <Video className="h-6 w-6 text-muted-foreground" />
-                                    </div>
-                                  )}
-                                </div>
-                              ) : msg.type === "document" ? (
-                                <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm flex items-center gap-3">
-                                  <FileText className="h-8 w-8 text-primary shrink-0" />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium truncate text-foreground">
-                                      {msg.body || "Documento"}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">Documento PDF/Office</p>
+                                ) : msg.type === "audio" ? (
+                                  <div className="p-1">
+                                    {sessionToken && msg.body ? (
+                                      <audio
+                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                        controls
+                                        className="w-full max-w-[240px] h-9"
+                                      />
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <Volume2 className="h-4 w-4" /> Áudio (ID: {msg.body})
+                                      </div>
+                                    )}
                                   </div>
-                                  {sessionToken && msg.body && (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      asChild
-                                      className="h-8 w-8 shrink-0 rounded-full"
-                                    >
-                                      <a
-                                        href={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}&download=1`}
-                                        download
+                                ) : msg.type === "video" ? (
+                                  <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 max-w-sm">
+                                    {sessionToken && msg.body ? (
+                                      <video
+                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                        controls
+                                        className="rounded-md max-h-64 object-contain"
+                                      />
+                                    ) : (
+                                      <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
+                                        <Video className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : msg.type === "document" ? (
+                                  <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm flex items-center gap-3">
+                                    <FileText className="h-8 w-8 text-primary shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-medium truncate text-foreground">
+                                        {msg.body || "Documento"}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Documento PDF/Office
+                                      </p>
+                                    </div>
+                                    {sessionToken && msg.body && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        asChild
+                                        className="h-8 w-8 shrink-0 rounded-full"
                                       >
-                                        <ExternalLink className="h-4 w-4" />
-                                      </a>
-                                    </Button>
-                                  )}
-                                </div>
-                              ) : msg.type === "sticker" ? (
-                                <div className="p-1">
-                                  {sessionToken && msg.body ? (
-                                    <img
-                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                      alt="Sticker"
-                                      className="h-24 w-24 object-contain"
-                                    />
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground font-mono">Sticker (ID: {msg.body})</span>
-                                  )}
-                                </div>
-                              ) : msg.type === "location" ? (
-                                <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-2">
-                                  <div className="flex items-start gap-2.5">
-                                    <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-foreground">
-                                        {msg.location?.name || "Localização"}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground leading-normal">
-                                        {msg.location?.address || `${msg.location?.latitude}, ${msg.location?.longitude}`}
-                                      </p>
-                                    </div>
+                                        <a
+                                          href={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}&download=1`}
+                                          download
+                                        >
+                                          <ExternalLink className="h-4 w-4" />
+                                        </a>
+                                      </Button>
+                                    )}
                                   </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full text-xs h-7 gap-1"
-                                    asChild
-                                  >
-                                    <a
-                                      href={`https://www.google.com/maps/search/?api=1&query=${msg.location?.latitude},${msg.location?.longitude}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      <ExternalLink className="h-3 w-3" /> Ver no Google Maps
-                                    </a>
-                                  </Button>
-                                </div>
-                              ) : msg.type === "contacts" ? (
-                                <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                      <User className="h-4 w-4" />
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-foreground truncate">
-                                        {msg.contacts?.[0]?.name?.formatted_name || "Contato"}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground font-mono truncate">
-                                        {msg.contacts?.[0]?.phones?.[0]?.phone || "Sem telefone"}
-                                      </p>
-                                    </div>
+                                ) : msg.type === "sticker" ? (
+                                  <div className="p-1">
+                                    {sessionToken && msg.body ? (
+                                      <img
+                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                        alt="Sticker"
+                                        className="h-24 w-24 object-contain"
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground font-mono">
+                                        Sticker (ID: {msg.body})
+                                      </span>
+                                    )}
                                   </div>
-                                  {msg.contacts?.[0]?.phones?.[0]?.phone && (
+                                ) : msg.type === "location" ? (
+                                  <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-2">
+                                    <div className="flex items-start gap-2.5">
+                                      <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-foreground">
+                                          {msg.location?.name || "Localização"}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground leading-normal">
+                                          {msg.location?.address ||
+                                            `${msg.location?.latitude}, ${msg.location?.longitude}`}
+                                        </p>
+                                      </div>
+                                    </div>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       className="w-full text-xs h-7 gap-1"
                                       asChild
                                     >
-                                      <a href={`tel:${msg.contacts[0].phones[0].phone}`}>
-                                        <Phone className="h-3 w-3" /> Ligar para Contato
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${msg.location?.latitude},${msg.location?.longitude}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        <ExternalLink className="h-3 w-3" /> Ver no Google Maps
                                       </a>
                                     </Button>
+                                  </div>
+                                ) : msg.type === "contacts" ? (
+                                  <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                        <User className="h-4 w-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-foreground truncate">
+                                          {msg.contacts?.[0]?.name?.formatted_name || "Contato"}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground font-mono truncate">
+                                          {msg.contacts?.[0]?.phones?.[0]?.phone || "Sem telefone"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {msg.contacts?.[0]?.phones?.[0]?.phone && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full text-xs h-7 gap-1"
+                                        asChild
+                                      >
+                                        <a href={`tel:${msg.contacts[0].phones[0].phone}`}>
+                                          <Phone className="h-3 w-3" /> Ligar para Contato
+                                        </a>
+                                      </Button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm whitespace-pre-wrap break-words leading-relaxed select-text">
+                                    {msg.body}
+                                  </p>
+                                )}
+
+                                {/* Horário + Status */}
+                                <div
+                                  className={cn(
+                                    "flex items-center justify-end gap-1 mt-1 text-[10px] opacity-70",
+                                    isOutgoing
+                                      ? "text-primary-foreground"
+                                      : "text-muted-foreground",
                                   )}
-                                </div>
-                              ) : (
-                                <p className="text-sm whitespace-pre-wrap break-words leading-relaxed select-text">
-                                  {msg.body}
-                                </p>
-                              )}
-
-                              {/* Horário + Status */}
-                              <div
-                                className={cn(
-                                  "flex items-center justify-end gap-1 mt-1 text-[10px] opacity-70",
-                                  isOutgoing ? "text-primary-foreground" : "text-muted-foreground",
-                                )}
-                              >
-                                <span>
-                                  {new Date(msg.timestamp).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </span>
-                                {isOutgoing && renderStatus(msg.status)}
-                              </div>
-                            </div>
-
-                            {/* Emojis de Reação Flutuantes */}
-                            {msg.reactions && msg.reactions.length > 0 && (
-                              <div
-                                className={cn(
-                                  "absolute bottom-[-10px] flex gap-0.5 bg-background shadow border rounded-full px-1.5 py-0.5 text-xs select-none",
-                                  isOutgoing ? "left-2" : "right-2",
-                                )}
-                              >
-                                {msg.reactions.map((rx: any, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    title={rx.direction === "outgoing" ? "Você" : "Contato"}
-                                    className="transition-transform hover:scale-110"
-                                  >
-                                    {rx.emoji}
+                                >
+                                  <span>
+                                    {new Date(msg.timestamp).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
                                   </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Ações para Outgoing */}
-                          {isOutgoing && (
-                            <div className="flex flex-col gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                onClick={() => setReplyingTo(msg)}
-                                title="Responder"
-                              >
-                                <Reply className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-
-                              {renderMessageTagDropdown(msg)}
-
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                  >
-                                    <Smile className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
-                                  {DEFAULT_EMOJIS.map((emoji) => (
-                                    <button
-                                      key={emoji}
-                                      onClick={() => handleSendReaction(msg.id, emoji)}
-                                      className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Caixa de Texto de Envio */}
-              <div className="border-t bg-card flex flex-col">
-                {/* Banner de Resposta */}
-                {replyingTo && (
-                  <div className="flex items-center justify-between bg-muted/60 px-4 py-2 border-b text-xs transition-all duration-300">
-                    <div className="flex-1 min-w-0 border-l-4 border-primary pl-2">
-                      <div className="font-semibold text-primary">
-                        Respondendo a {replyingTo.direction === "incoming" ? "Contato" : "Você"}
-                      </div>
-                      <div className="text-muted-foreground truncate font-mono">
-                        {replyingTo.type === "image" ? "📷 Imagem" : replyingTo.body}
-                      </div>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 shrink-0 rounded-full"
-                      onClick={() => setReplyingTo(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* Área do Input de Texto */}
-                <div className="p-3 flex items-end gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        title="Anexar arquivo ou mídia"
-                        className="shrink-0 h-10 w-10 rounded-full hover:bg-muted"
-                        disabled={uploadingMedia || sendMutation.isPending}
-                      >
-                        {uploadingMedia ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                        ) : (
-                          <Paperclip className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-48 p-1">
-                      <DropdownMenuItem onClick={() => handleMediaAttachClick("image")}>
-                        <ImageIcon className="h-4 w-4 mr-2 text-blue-500" />
-                        <span>Imagem</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleMediaAttachClick("audio")}>
-                        <Volume2 className="h-4 w-4 mr-2 text-orange-500" />
-                        <span>Áudio</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleMediaAttachClick("video")}>
-                        <Video className="h-4 w-4 mr-2 text-red-500" />
-                        <span>Vídeo</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleMediaAttachClick("document")}>
-                        <FileText className="h-4 w-4 mr-2 text-green-500" />
-                        <span>Documento</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleMediaAttachClick("sticker")}>
-                        <Smile className="h-4 w-4 mr-2 text-yellow-500" />
-                        <span>Sticker</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setIsLocationModalOpen(true)}>
-                        <MapPin className="h-4 w-4 mr-2 text-rose-500" />
-                        <span>Localização</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setIsContactModalOpen(true)}>
-                        <Users className="h-4 w-4 mr-2 text-indigo-500" />
-                        <span>Contato</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setIsImageModalOpen(true)}>
-                        <LinkIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span>Imagem por ID</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  {/* Hidden file input */}
-                  <input
-                    type="file"
-                    ref={mediaInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-
-                  {/* Modal de envio de Imagem da Meta por ID */}
-                  <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Enviar Imagem da Meta</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="meta-image-id">ID do Objeto de Imagem na Meta</Label>
-                          <Input
-                            id="meta-image-id"
-                            placeholder="Insira o Meta Object ID (ex: 285938592058)"
-                            value={metaImageId}
-                            onChange={(e) => setMetaImageId(e.target.value)}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            A API oficial do WhatsApp requer que imagens sejam carregadas
-                            previamente na Meta para obter um ID de objeto de mídia.
-                          </p>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsImageModalOpen(false)}>
-                          Cancelar
-                        </Button>
-                        <Button
-                          onClick={handleSendImage}
-                          disabled={!metaImageId.trim() || sendMutation.isPending}
-                        >
-                          Enviar Imagem
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Modal de Envio de Localização */}
-                  <Dialog open={isLocationModalOpen} onOpenChange={setIsLocationModalOpen}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Enviar Localização</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label htmlFor="loc-lat">Latitude</Label>
-                            <Input
-                              id="loc-lat"
-                              placeholder="Ex: -23.55052"
-                              value={locLat}
-                              onChange={(e) => setLocLat(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="loc-lng">Longitude</Label>
-                            <Input
-                              id="loc-lng"
-                              placeholder="Ex: -46.633308"
-                              value={locLng}
-                              onChange={(e) => setLocLng(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="loc-name">Nome do Local (Opcional)</Label>
-                          <Input
-                            id="loc-name"
-                            placeholder="Ex: Praça da Sé"
-                            value={locName}
-                            onChange={(e) => setLocName(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="loc-address">Endereço (Opcional)</Label>
-                          <Input
-                            id="loc-address"
-                            placeholder="Ex: Praça da Sé, São Paulo - SP"
-                            value={locAddress}
-                            onChange={(e) => setLocAddress(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsLocationModalOpen(false)}>
-                          Cancelar
-                        </Button>
-                        <Button
-                          onClick={handleSendLocation}
-                          disabled={!locLat || !locLng || sendMutation.isPending}
-                        >
-                          Enviar Localização
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Modal de Envio de Contato */}
-                  <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Enviar Contato</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-2">
-                        <div className="space-y-1">
-                          <Label htmlFor="contact-name">Nome do Contato</Label>
-                          <Input
-                            id="contact-name"
-                            placeholder="Ex: João Silva"
-                            value={contactNameState}
-                            onChange={(e) => setContactNameState(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="contact-phone">Telefone (com DDI/DDD)</Label>
-                          <Input
-                            id="contact-phone"
-                            placeholder="Ex: 5511999999999"
-                            value={contactPhoneState}
-                            onChange={(e) => setContactPhoneState(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsContactModalOpen(false)}>
-                          Cancelar
-                        </Button>
-                        <Button
-                          onClick={handleSendContact}
-                          disabled={!contactNameState.trim() || !contactPhoneState.trim() || sendMutation.isPending}
-                        >
-                          Enviar Contato
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Dialog de Gerenciamento de Etiquetas */}
-                  <Dialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen}>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Gerenciar Etiquetas</DialogTitle>
-                      </DialogHeader>
-                      
-                      <div className="space-y-4 py-2">
-                        {/* Criar nova tag */}
-                        <div className="space-y-3 border-b pb-4">
-                          <Label className="text-xs font-semibold">Nova etiqueta</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Nome (max 20 caracteres)"
-                              value={newTagName}
-                              maxLength={20}
-                              onChange={(e) => setNewTagName(e.target.value)}
-                              className="flex-1 font-sans"
-                            />
-                            <Button
-                              onClick={async () => {
-                                if (!newTagName.trim()) return;
-                                const res = await handleCreateTag(newTagName, selectedColor, selectedIconName);
-                                if (res) setNewTagName("");
-                              }}
-                            >
-                              Criar
-                            </Button>
-                          </div>
-                          
-                          <div className="flex flex-col gap-2">
-                            <Label className="text-xs text-muted-foreground">Cor e Ícone</Label>
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="color"
-                                value={selectedColor}
-                                onChange={(e) => setSelectedColor(e.target.value)}
-                                className="w-8 h-8 p-0 border-0 cursor-pointer rounded-lg overflow-hidden shrink-0"
-                              />
-                              <div className="flex gap-1.5 flex-wrap">
-                                {PREDEFINED_COLORS.map((c) => (
-                                  <button
-                                    key={c}
-                                    type="button"
-                                    className={cn(
-                                      "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110",
-                                      selectedColor === c ? "border-foreground" : "border-transparent"
-                                    )}
-                                    style={{ backgroundColor: c }}
-                                    onClick={() => setSelectedColor(c)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                            
-                            {/* Ícone picker */}
-                            <div className="flex gap-2 flex-wrap pt-1">
-                              {Object.keys(TAG_ICONS).map((iconName) => {
-                                const IconComp = TAG_ICONS[iconName];
-                                return (
-                                  <button
-                                    key={iconName}
-                                    type="button"
-                                    onClick={() => setSelectedIconName(iconName)}
-                                    className={cn(
-                                      "h-7 w-7 rounded border flex items-center justify-center transition-colors hover:bg-muted",
-                                      selectedIconName === iconName ? "bg-primary text-primary-foreground border-primary" : "border-transparent text-muted-foreground"
-                                    )}
-                                  >
-                                    <IconComp className="h-4 w-4" />
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Listar tags existentes */}
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold">Etiquetas existentes</Label>
-                          <div className="max-h-60 overflow-y-auto space-y-1 pt-1">
-                            {tagsQuery.isLoading ? (
-                              <div className="text-center py-4 text-xs text-muted-foreground">Carregando...</div>
-                            ) : (tagsQuery.data ?? []).length === 0 ? (
-                              <div className="text-center py-4 text-xs text-muted-foreground">Nenhuma etiqueta criada.</div>
-                            ) : (
-                              (tagsQuery.data ?? []).map((tag: any) => (
-                                <div key={tag.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm">
-                                  <TagBadge tag={tag} className="text-xs px-2 py-1" />
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={() => handleDeleteTag(tag.id)}
-                                    title="Excluir etiqueta"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  {isOutgoing && renderStatus(msg.status)}
                                 </div>
-                              ))
+                              </div>
+
+                              {/* Emojis de Reação Flutuantes */}
+                              {msg.reactions && msg.reactions.length > 0 && (
+                                <div
+                                  className={cn(
+                                    "absolute bottom-[-10px] flex gap-0.5 bg-background shadow border rounded-full px-1.5 py-0.5 text-xs select-none",
+                                    isOutgoing ? "left-2" : "right-2",
+                                  )}
+                                >
+                                  {msg.reactions.map((rx: any, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      title={rx.direction === "outgoing" ? "Você" : "Contato"}
+                                      className="transition-transform hover:scale-110"
+                                    >
+                                      {rx.emoji}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Ações para Outgoing */}
+                            {isOutgoing && (
+                              <div className="flex flex-col gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                  onClick={() => setReplyingTo(msg)}
+                                  title="Responder"
+                                >
+                                  <Reply className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+
+                                {renderMessageTagDropdown(msg)}
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                    >
+                                      <Smile className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
+                                    {DEFAULT_EMOJIS.map((emoji) => (
+                                      <button
+                                        key={emoji}
+                                        onClick={() => handleSendReaction(msg.id, emoji)}
+                                        className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Button
-                    size="icon"
-                    variant={previewUrl ? "default" : "outline"}
-                    title={previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"}
-                    onClick={() => setPreviewUrl(!previewUrl)}
-                    className="shrink-0 h-10 w-10 rounded-full"
-                  >
-                    <LinkIcon className="h-5 w-5" />
-                  </Button>
-
-                  <div className="flex-1 relative">
-                    <Label className="sr-only">Mensagem</Label>
-                    <Textarea
-                      placeholder="Digite sua mensagem..."
-                      className="min-h-[40px] max-h-[120px] py-2 px-3 resize-none rounded-xl pr-10"
-                      rows={1}
-                      value={typedMessage}
-                      onChange={(e) => setTypedMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendText();
-                        }
-                      }}
-                    />
-                  </div>
-
-                  <Button
-                    size="icon"
-                    className="shrink-0 h-10 w-10 rounded-full"
-                    disabled={!typedMessage.trim() || sendMutation.isPending}
-                    onClick={handleSendText}
-                  >
-                    {sendMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 gap-4 bg-muted/5">
-              <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center shadow-inner">
-                <MessageCircle className="h-8 w-8 text-muted-foreground/60" />
-              </div>
-              <div className="text-center max-w-sm space-y-1">
-                <p className="font-semibold text-foreground">ZapDispatch Chat Direto</p>
-                <p className="text-xs">
-                  Selecione um contato na lista à esquerda para carregar o histórico de conversas
-                  diretas e enviar novas mensagens.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Painel lateral de informações do contato */}
-        {selectedContact && (
-          <div
-            className={cn(
-              "h-full border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden shrink-0",
-              contactInfoOpen ? "w-72" : "w-0 border-l-0",
-            )}
-          >
-            {contactInfoOpen && (
-              <div className="flex flex-col h-full w-72">
-                {/* Header do painel */}
-                <div className="flex items-center justify-between p-4 border-b shrink-0">
-                  <span className="font-semibold text-sm">Dados do Contato</span>
-                  <button
-                    onClick={() => setContactInfoOpen(false)}
-                    className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
-                  >
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </div>
-
-                {/* Conteúdo scrollável */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-5">
-                  {contactDetailsQuery.isLoading && (
-                    <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Carregando dados completos do contato…
-                    </div>
-                  )}
-                  {/* Avatar grande + nome */}
-                  <div className="flex flex-col items-center gap-3 py-2">
-                    {(() => {
-                      const avatarUrl = getContactAvatarUrl(selectedContact);
-                      const avatarBg = getAvatarColor(selectedContact.name ?? "");
-                      return (
-                        <div
-                          className="h-20 w-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-lg"
-                          style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
-                        >
-                          {avatarUrl ? (
-                            <img src={avatarUrl} alt={selectedContact.name ?? ""} className="h-full w-full object-cover" />
-                          ) : (
-                            (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
-                          )}
                         </div>
                       );
-                    })()}
-                    <div className="text-center">
-                      <p className="font-semibold text-base leading-tight">{selectedContact.name || "Sem Nome"}</p>
-                      {selectedContact.opted_out && (
-                        <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
-                          Opt-out
-                        </span>
-                      )}
-                    </div>
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
+                {/* Caixa de Texto de Envio */}
+                <div className="border-t bg-card flex flex-col">
+                  {/* Banner de Resposta */}
+                  {replyingTo && (
+                    <div className="flex items-center justify-between bg-muted/60 px-4 py-2 border-b text-xs transition-all duration-300">
+                      <div className="flex-1 min-w-0 border-l-4 border-primary pl-2">
+                        <div className="font-semibold text-primary">
+                          Respondendo a {replyingTo.direction === "incoming" ? "Contato" : "Você"}
+                        </div>
+                        <div className="text-muted-foreground truncate font-mono">
+                          {replyingTo.type === "image" ? "📷 Imagem" : replyingTo.body}
+                        </div>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 shrink-0 rounded-full"
+                        onClick={() => setReplyingTo(null)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Área do Input de Texto */}
+                  <div className="p-3 flex items-end gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          title="Anexar arquivo ou mídia"
+                          className="shrink-0 h-10 w-10 rounded-full hover:bg-muted"
+                          disabled={uploadingMedia || sendMutation.isPending}
+                        >
+                          {uploadingMedia ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          ) : (
+                            <Paperclip className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-48 p-1">
+                        <DropdownMenuItem onClick={() => handleMediaAttachClick("image")}>
+                          <ImageIcon className="h-4 w-4 mr-2 text-blue-500" />
+                          <span>Imagem</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleMediaAttachClick("audio")}>
+                          <Volume2 className="h-4 w-4 mr-2 text-orange-500" />
+                          <span>Áudio</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleMediaAttachClick("video")}>
+                          <Video className="h-4 w-4 mr-2 text-red-500" />
+                          <span>Vídeo</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleMediaAttachClick("document")}>
+                          <FileText className="h-4 w-4 mr-2 text-green-500" />
+                          <span>Documento</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleMediaAttachClick("sticker")}>
+                          <Smile className="h-4 w-4 mr-2 text-yellow-500" />
+                          <span>Sticker</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setIsLocationModalOpen(true)}>
+                          <MapPin className="h-4 w-4 mr-2 text-rose-500" />
+                          <span>Localização</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setIsContactModalOpen(true)}>
+                          <Users className="h-4 w-4 mr-2 text-indigo-500" />
+                          <span>Contato</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setIsImageModalOpen(true)}>
+                          <LinkIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>Imagem por ID</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Hidden file input */}
                     <input
-                      ref={contactPhotoInputRef}
                       type="file"
-                      accept="image/*"
+                      ref={mediaInputRef}
+                      onChange={handleFileChange}
                       className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadContactPhoto(file);
-                      }}
                     />
 
-                    <div className="flex w-full flex-col gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => contactPhotoInputRef.current?.click()}
-                        disabled={uploadingContactPhoto}
-                      >
-                        {uploadingContactPhoto ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Camera className="mr-2 h-4 w-4" />
-                        )}
-                        {uploadingContactPhoto ? "Enviando…" : "Trocar foto"}
-                      </Button>
-
-                      {getContactAvatarUrl(selectedContact) && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="w-full text-destructive hover:text-destructive"
-                          onClick={handleRemoveContactPhoto}
-                          disabled={uploadingContactPhoto}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remover foto
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="h-px bg-border" />
-
-                  {/* Campos principais */}
-                  <div className="space-y-3">
-                    {/* Telefone */}
-                    <div className="flex items-start gap-2.5">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Telefone</p>
-                        <p className="text-sm font-mono break-all">+{selectedContact.phone_e164}</p>
-                      </div>
-                    </div>
-
-                    {/* E-mail */}
-                    {selectedContact.email && (
-                      <div className="flex items-start gap-2.5">
-                        <Mail className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">E-mail</p>
-                          <p className="text-sm break-all">{selectedContact.email}</p>
+                    {/* Modal de envio de Imagem da Meta por ID */}
+                    <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Enviar Imagem da Meta</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="meta-image-id">ID do Objeto de Imagem na Meta</Label>
+                            <Input
+                              id="meta-image-id"
+                              placeholder="Insira o Meta Object ID (ex: 285938592058)"
+                              value={metaImageId}
+                              onChange={(e) => setMetaImageId(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              A API oficial do WhatsApp requer que imagens sejam carregadas
+                              previamente na Meta para obter um ID de objeto de mídia.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsImageModalOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={handleSendImage}
+                            disabled={!metaImageId.trim() || sendMutation.isPending}
+                          >
+                            Enviar Imagem
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
 
-                    {/* Source */}
-                    {selectedContact.source && (
-                      <div className="flex items-start gap-2.5">
-                        <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Origem</p>
-                          <p className="text-sm capitalize">{selectedContact.source.replace(/_/g, " ")}</p>
+                    {/* Modal de Envio de Localização */}
+                    <Dialog open={isLocationModalOpen} onOpenChange={setIsLocationModalOpen}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Enviar Localização</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label htmlFor="loc-lat">Latitude</Label>
+                              <Input
+                                id="loc-lat"
+                                placeholder="Ex: -23.55052"
+                                value={locLat}
+                                onChange={(e) => setLocLat(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="loc-lng">Longitude</Label>
+                              <Input
+                                id="loc-lng"
+                                placeholder="Ex: -46.633308"
+                                value={locLng}
+                                onChange={(e) => setLocLng(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="loc-name">Nome do Local (Opcional)</Label>
+                            <Input
+                              id="loc-name"
+                              placeholder="Ex: Praça da Sé"
+                              value={locName}
+                              onChange={(e) => setLocName(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="loc-address">Endereço (Opcional)</Label>
+                            <Input
+                              id="loc-address"
+                              placeholder="Ex: Praça da Sé, São Paulo - SP"
+                              value={locAddress}
+                              onChange={(e) => setLocAddress(e.target.value)}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsLocationModalOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={handleSendLocation}
+                            disabled={!locLat || !locLng || sendMutation.isPending}
+                          >
+                            Enviar Localização
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
 
-                  {/* Custom Fields */}
-                  {selectedContact.custom_fields && Object.keys(selectedContact.custom_fields).length > 0 && (() => {
-                    const cf = selectedContact.custom_fields;
-                    const photoKeys = new Set(["avatar_url", "photo_url", "photo", "picture", "image_url", "image"]);
-                    const entries = Object.entries(cf).filter(([k]) => !photoKeys.has(k));
-                    if (entries.length === 0) return null;
-                    return (
-                      <>
-                        <div className="h-px bg-border" />
-                        <div className="space-y-3">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
-                            <Tag className="h-3 w-3" /> Campos personalizados
-                          </p>
-                          {entries.map(([key, value]) => (
-                            <div key={key} className="flex items-start gap-2.5">
-                              <div className="min-w-0 w-full">
-                                <p className="text-[10px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p>
-                                <p className="text-sm break-all font-mono">
-                                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}
-                                </p>
+                    {/* Modal de Envio de Contato */}
+                    <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Enviar Contato</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="contact-name">Nome do Contato</Label>
+                            <Input
+                              id="contact-name"
+                              placeholder="Ex: João Silva"
+                              value={contactNameState}
+                              onChange={(e) => setContactNameState(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="contact-phone">Telefone (com DDI/DDD)</Label>
+                            <Input
+                              id="contact-phone"
+                              placeholder="Ex: 5511999999999"
+                              value={contactPhoneState}
+                              onChange={(e) => setContactPhoneState(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsContactModalOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={handleSendContact}
+                            disabled={
+                              !contactNameState.trim() ||
+                              !contactPhoneState.trim() ||
+                              sendMutation.isPending
+                            }
+                          >
+                            Enviar Contato
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    {/* Dialog de Gerenciamento de Etiquetas */}
+                    <Dialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen}>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Gerenciar Etiquetas</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-2">
+                          {/* Criar nova tag */}
+                          <div className="space-y-3 border-b pb-4">
+                            <Label className="text-xs font-semibold">Nova etiqueta</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Nome (max 20 caracteres)"
+                                value={newTagName}
+                                maxLength={20}
+                                onChange={(e) => setNewTagName(e.target.value)}
+                                className="flex-1 font-sans"
+                              />
+                              <Button
+                                onClick={async () => {
+                                  if (!newTagName.trim()) return;
+                                  const res = await handleCreateTag(
+                                    newTagName,
+                                    selectedColor,
+                                    selectedIconName,
+                                  );
+                                  if (res) setNewTagName("");
+                                }}
+                              >
+                                Criar
+                              </Button>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                              <Label className="text-xs text-muted-foreground">Cor e Ícone</Label>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="color"
+                                  value={selectedColor}
+                                  onChange={(e) => setSelectedColor(e.target.value)}
+                                  className="w-8 h-8 p-0 border-0 cursor-pointer rounded-lg overflow-hidden shrink-0"
+                                />
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {PREDEFINED_COLORS.map((c) => (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      className={cn(
+                                        "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110",
+                                        selectedColor === c
+                                          ? "border-foreground"
+                                          : "border-transparent",
+                                      )}
+                                      style={{ backgroundColor: c }}
+                                      onClick={() => setSelectedColor(c)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Ícone picker */}
+                              <div className="flex gap-2 flex-wrap pt-1">
+                                {Object.keys(TAG_ICONS).map((iconName) => {
+                                  const IconComp = TAG_ICONS[iconName];
+                                  return (
+                                    <button
+                                      key={iconName}
+                                      type="button"
+                                      onClick={() => setSelectedIconName(iconName)}
+                                      className={cn(
+                                        "h-7 w-7 rounded border flex items-center justify-center transition-colors hover:bg-muted",
+                                        selectedIconName === iconName
+                                          ? "bg-primary text-primary-foreground border-primary"
+                                          : "border-transparent text-muted-foreground",
+                                      )}
+                                    >
+                                      <IconComp className="h-4 w-4" />
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
-                          ))}
+                          </div>
+
+                          {/* Listar tags existentes */}
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold">Etiquetas existentes</Label>
+                            <div className="max-h-60 overflow-y-auto space-y-1 pt-1">
+                              {tagsQuery.isLoading ? (
+                                <div className="text-center py-4 text-xs text-muted-foreground">
+                                  Carregando...
+                                </div>
+                              ) : (tagsQuery.data ?? []).length === 0 ? (
+                                <div className="text-center py-4 text-xs text-muted-foreground">
+                                  Nenhuma etiqueta criada.
+                                </div>
+                              ) : (
+                                (tagsQuery.data ?? []).map((tag: any) => (
+                                  <div
+                                    key={tag.id}
+                                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm"
+                                  >
+                                    <TagBadge tag={tag} className="text-xs px-2 py-1" />
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      onClick={() => handleDeleteTag(tag.id)}
+                                      title="Excluir etiqueta"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </>
-                    );
-                  })()}
+                      </DialogContent>
+                    </Dialog>
 
-                  {/* Metadados do sistema */}
-                  <div className="h-px bg-border" />
-                  <div className="space-y-3">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
-                      <Info className="h-3 w-3" /> Sistema
-                    </p>
-                    {selectedContact.id && (
-                      <div className="space-y-0.5">
-                        <p className="text-[10px] text-muted-foreground capitalize">ID</p>
-                        <p className="text-xs font-mono break-all">{selectedContact.id}</p>
-                      </div>
-                    )}
-                    {selectedContact.created_at && (
-                      <div className="space-y-0.5">
-                        <p className="text-[10px] text-muted-foreground capitalize">Criado em</p>
-                        <p className="text-xs font-mono break-all">{String(selectedContact.created_at)}</p>
-                      </div>
-                    )}
-                    {selectedContact.updated_at && (
-                      <div className="space-y-0.5">
-                        <p className="text-[10px] text-muted-foreground capitalize">Atualizado em</p>
-                        <p className="text-xs font-mono break-all">{String(selectedContact.updated_at)}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Atalhos */}
-                  <div className="h-px bg-border" />
-                  <div className="space-y-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Ações rápidas</p>
-                    <a
-                      href={`/contacts`}
-                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg px-3 py-2 transition-colors"
+                    <Button
+                      size="icon"
+                      variant={previewUrl ? "default" : "outline"}
+                      title={previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"}
+                      onClick={() => setPreviewUrl(!previewUrl)}
+                      className="shrink-0 h-10 w-10 rounded-full"
                     >
-                      <User className="h-4 w-4" />
-                      <span>Ver na lista de contatos</span>
-                      <ExternalLink className="h-3 w-3 ml-auto" />
-                    </a>
+                      <LinkIcon className="h-5 w-5" />
+                    </Button>
+
+                    <div className="flex-1 relative">
+                      <Label className="sr-only">Mensagem</Label>
+                      <Textarea
+                        placeholder="Digite sua mensagem..."
+                        className="min-h-[40px] max-h-[120px] py-2 px-3 resize-none rounded-xl pr-10"
+                        rows={1}
+                        value={typedMessage}
+                        onChange={(e) => setTypedMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendText();
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <Button
+                      size="icon"
+                      className="shrink-0 h-10 w-10 rounded-full"
+                      disabled={!typedMessage.trim() || sendMutation.isPending}
+                      onClick={handleSendText}
+                    >
+                      {sendMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 gap-4 bg-muted/5">
+                <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center shadow-inner">
+                  <MessageCircle className="h-8 w-8 text-muted-foreground/60" />
+                </div>
+                <div className="text-center max-w-sm space-y-1">
+                  <p className="font-semibold text-foreground">ZapDispatch Chat Direto</p>
+                  <p className="text-xs">
+                    Selecione um contato na lista à esquerda para carregar o histórico de conversas
+                    diretas e enviar novas mensagens.
+                  </p>
                 </div>
               </div>
             )}
           </div>
-        )}
+
+          {/* Painel lateral de informações do contato */}
+          {selectedContact && (
+            <div
+              className={cn(
+                "h-full border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden shrink-0",
+                contactInfoOpen ? "w-72" : "w-0 border-l-0",
+              )}
+            >
+              {contactInfoOpen && (
+                <div className="flex flex-col h-full w-72">
+                  {/* Header do painel */}
+                  <div className="flex items-center justify-between p-4 border-b shrink-0">
+                    <span className="font-semibold text-sm">Dados do Contato</span>
+                    <button
+                      onClick={() => setContactInfoOpen(false)}
+                      className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+
+                  {/* Conteúdo scrollável */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                    {contactDetailsQuery.isLoading && (
+                      <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Carregando dados completos do contato…
+                      </div>
+                    )}
+                    {/* Avatar grande + nome */}
+                    <div className="flex flex-col items-center gap-3 py-2">
+                      {(() => {
+                        const avatarUrl = getContactAvatarUrl(selectedContact);
+                        const avatarBg = getAvatarColor(selectedContact.name ?? "");
+                        return (
+                          <div
+                            className="h-20 w-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-lg"
+                            style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                          >
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt={selectedContact.name ?? ""}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <div className="text-center">
+                        <p className="font-semibold text-base leading-tight">
+                          {selectedContact.name || "Sem Nome"}
+                        </p>
+                        {selectedContact.opted_out && (
+                          <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
+                            Opt-out
+                          </span>
+                        )}
+                      </div>
+
+                      <input
+                        ref={contactPhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadContactPhoto(file);
+                        }}
+                      />
+
+                      <div className="flex w-full flex-col gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => contactPhotoInputRef.current?.click()}
+                          disabled={uploadingContactPhoto}
+                        >
+                          {uploadingContactPhoto ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Camera className="mr-2 h-4 w-4" />
+                          )}
+                          {uploadingContactPhoto ? "Enviando…" : "Trocar foto"}
+                        </Button>
+
+                        {getContactAvatarUrl(selectedContact) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-destructive hover:text-destructive"
+                            onClick={handleRemoveContactPhoto}
+                            disabled={uploadingContactPhoto}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Remover foto
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border" />
+
+                    {/* Campos principais */}
+                    <div className="space-y-3">
+                      {/* Telefone */}
+                      <div className="flex items-start gap-2.5">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                            Telefone
+                          </p>
+                          <p className="text-sm font-mono break-all">
+                            +{selectedContact.phone_e164}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* E-mail */}
+                      {selectedContact.email && (
+                        <div className="flex items-start gap-2.5">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                              E-mail
+                            </p>
+                            <p className="text-sm break-all">{selectedContact.email}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Source */}
+                      {selectedContact.source && (
+                        <div className="flex items-start gap-2.5">
+                          <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                              Origem
+                            </p>
+                            <p className="text-sm capitalize">
+                              {selectedContact.source.replace(/_/g, " ")}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Custom Fields */}
+                    {selectedContact.custom_fields &&
+                      Object.keys(selectedContact.custom_fields).length > 0 &&
+                      (() => {
+                        const cf = selectedContact.custom_fields;
+                        const photoKeys = new Set([
+                          "avatar_url",
+                          "photo_url",
+                          "photo",
+                          "picture",
+                          "image_url",
+                          "image",
+                        ]);
+                        const entries = Object.entries(cf).filter(([k]) => !photoKeys.has(k));
+                        if (entries.length === 0) return null;
+                        return (
+                          <>
+                            <div className="h-px bg-border" />
+                            <div className="space-y-3">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                                <Tag className="h-3 w-3" /> Campos personalizados
+                              </p>
+                              {entries.map(([key, value]) => (
+                                <div key={key} className="flex items-start gap-2.5">
+                                  <div className="min-w-0 w-full">
+                                    <p className="text-[10px] text-muted-foreground capitalize">
+                                      {key.replace(/_/g, " ")}
+                                    </p>
+                                    <p className="text-sm break-all font-mono">
+                                      {typeof value === "object"
+                                        ? JSON.stringify(value)
+                                        : String(value ?? "")}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        );
+                      })()}
+
+                    {/* Metadados do sistema */}
+                    <div className="h-px bg-border" />
+                    <div className="space-y-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                        <Info className="h-3 w-3" /> Sistema
+                      </p>
+                      {selectedContact.id && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] text-muted-foreground capitalize">ID</p>
+                          <p className="text-xs font-mono break-all">{selectedContact.id}</p>
+                        </div>
+                      )}
+                      {selectedContact.created_at && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] text-muted-foreground capitalize">Criado em</p>
+                          <p className="text-xs font-mono break-all">
+                            {String(selectedContact.created_at)}
+                          </p>
+                        </div>
+                      )}
+                      {selectedContact.updated_at && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] text-muted-foreground capitalize">
+                            Atualizado em
+                          </p>
+                          <p className="text-xs font-mono break-all">
+                            {String(selectedContact.updated_at)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Atalhos */}
+                    <div className="h-px bg-border" />
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                        Ações rápidas
+                      </p>
+                      <a
+                        href={`/contacts`}
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg px-3 py-2 transition-colors"
+                      >
+                        <User className="h-4 w-4" />
+                        <span>Ver na lista de contatos</span>
+                        <ExternalLink className="h-3 w-3 ml-auto" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </div>
   );
 }

@@ -149,8 +149,10 @@ export const getChatMessages = createServerFn({ method: "POST" })
         video: row.type === "video" ? meta?.video || { id: row.body } : null,
         document: row.type === "document" ? meta?.document || { id: row.body } : null,
         sticker: row.type === "sticker" ? meta?.sticker || { id: row.body } : null,
-        location: row.type === "location" ? meta?.location || meta?.message?.location || null : null,
-        contacts: row.type === "contacts" ? meta?.contacts || meta?.message?.contacts || null : null,
+        location:
+          row.type === "location" ? meta?.location || meta?.message?.location || null : null,
+        contacts:
+          row.type === "contacts" ? meta?.contacts || meta?.message?.contacts || null : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
       };
     });
@@ -207,8 +209,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };
     } else if (data.type === "document") {
       payload.type = "document";
-      payload.document = data.document?.id 
-        ? { id: data.document.id, filename: data.document.filename } 
+      payload.document = data.document?.id
+        ? { id: data.document.id, filename: data.document.filename }
         : { link: data.document?.link, filename: data.document?.filename };
     } else if (data.type === "sticker") {
       payload.type = "sticker";
@@ -292,6 +294,19 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     });
 
     if (msgErr) throw new Error(msgErr.message);
+
+    // 5. PAUSA O BOT (Fase 1 do BotFlow)
+    // Quando um humano envia mensagem, o bot entra em pausa automática por padrão.
+    // Vamos setar paused_until para +60 minutos (fallback genérico)
+    const pausedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await context.db
+      .from("bot_conversation_state")
+      .update({
+        is_paused: true,
+        paused_until: pausedUntil,
+      })
+      .eq("contact_number", digits)
+      .eq("instance_id", p.whatsapp_phone_number_id);
 
     return { ok: true, wamid, body };
   });

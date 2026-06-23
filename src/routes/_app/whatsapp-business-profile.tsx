@@ -47,11 +47,7 @@ function toForm(p: WhatsAppBusinessProfile): FormState {
 
 /** Bloco de skeleton animado */
 function Skeleton({ className = "" }: { className?: string }) {
-  return (
-    <div
-      className={`animate-pulse rounded-md bg-muted ${className}`}
-    />
-  );
+  return <div className={`animate-pulse rounded-md bg-muted ${className}`} />;
 }
 
 function WhatsAppBusinessProfilePage() {
@@ -262,7 +258,10 @@ function WhatsAppBusinessProfilePage() {
                 {!localProfileQuery.isLoading && !localProfileQuery.data?.whatsapp_app_id && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-relaxed">
                     ⚠️ <strong>Meta App ID não configurado.</strong> Preencha o campo App ID nas{" "}
-                    <Link to="/settings" className="underline font-bold text-primary hover:text-primary/80">
+                    <Link
+                      to="/settings"
+                      className="underline font-bold text-primary hover:text-primary/80"
+                    >
                       Configurações
                     </Link>{" "}
                     (Etapa 1) antes de enviar a foto do perfil.
@@ -314,7 +313,9 @@ function WhatsAppBusinessProfilePage() {
                       placeholder="Texto curto sobre a empresa"
                     />
                   )}
-                  <div className="text-xs text-muted-foreground">{form.about.trim().length}/139</div>
+                  <div className="text-xs text-muted-foreground">
+                    {form.about.trim().length}/139
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -349,7 +350,9 @@ function WhatsAppBusinessProfilePage() {
                     rows={4}
                   />
                 )}
-                <div className="text-xs text-muted-foreground">{form.description.trim().length}/512</div>
+                <div className="text-xs text-muted-foreground">
+                  {form.description.trim().length}/512
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -365,7 +368,9 @@ function WhatsAppBusinessProfilePage() {
                       rows={3}
                     />
                   )}
-                  <div className="text-xs text-muted-foreground">{form.address.trim().length}/256</div>
+                  <div className="text-xs text-muted-foreground">
+                    {form.address.trim().length}/256
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -403,7 +408,9 @@ function WhatsAppBusinessProfilePage() {
                           next[idx] = e.target.value;
                           setForm((s) => ({ ...s, websites: next }));
                         }}
-                        placeholder={idx === 0 ? "https://www.empresa.com.br" : "https://instagram.com/empresa"}
+                        placeholder={
+                          idx === 0 ? "https://www.empresa.com.br" : "https://instagram.com/empresa"
+                        }
                       />
                     ))
                   )}

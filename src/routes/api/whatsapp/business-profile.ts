@@ -26,9 +26,15 @@ function getAuthUserId(request: Request): { userId: string; role: string } {
 }
 
 function pickMetaCredentials(p: any) {
-  const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "").toString().trim();
-  const accessToken = (process.env.META_ACCESS_TOKEN || p?.whatsapp_access_token || "").toString().trim();
-  const apiVersion = (process.env.META_GRAPH_API_VERSION || p?.meta_graph_version || "v25.0").toString().trim();
+  const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "")
+    .toString()
+    .trim();
+  const accessToken = (process.env.META_ACCESS_TOKEN || p?.whatsapp_access_token || "")
+    .toString()
+    .trim();
+  const apiVersion = (process.env.META_GRAPH_API_VERSION || p?.meta_graph_version || "v25.0")
+    .toString()
+    .trim();
   if (!phoneNumberId || !accessToken) {
     throw new Error("Credenciais da Meta não configuradas (Phone Number ID / Access Token).");
   }
@@ -40,9 +46,12 @@ const verticalSchema = z
   .trim()
   .optional()
   .transform((v) => (v === "" ? "" : v))
-  .refine((v) => v === undefined || v === "" || (WHATSAPP_VERTICALS as readonly string[]).includes(v), {
-    message: "Categoria (vertical) inválida.",
-  });
+  .refine(
+    (v) => v === undefined || v === "" || (WHATSAPP_VERTICALS as readonly string[]).includes(v),
+    {
+      message: "Categoria (vertical) inválida.",
+    },
+  );
 
 const updateSchema = z.object({
   about: z.string().trim().max(139).optional(),
@@ -54,9 +63,7 @@ const updateSchema = z.object({
     .max(2, "A Meta permite no máximo 2 sites.")
     .optional()
     .refine(
-      (arr) =>
-        !arr ||
-        arr.every((u) => !u || u.startsWith("https://") || u.startsWith("http://")),
+      (arr) => !arr || arr.every((u) => !u || u.startsWith("https://") || u.startsWith("http://")),
       { message: "Sites devem começar com http:// ou https://." },
     ),
   vertical: verticalSchema,
@@ -84,7 +91,11 @@ export const Route = createFileRoute("/api/whatsapp/business-profile")({
           if (profErr) throw new Error(profErr.message);
           const { phoneNumberId, accessToken, apiVersion } = pickMetaCredentials(p);
 
-          const profile = await getWhatsAppBusinessProfileFromMeta({ phoneNumberId, accessToken, apiVersion });
+          const profile = await getWhatsAppBusinessProfileFromMeta({
+            phoneNumberId,
+            accessToken,
+            apiVersion,
+          });
           await logBusinessProfileAction({
             userId,
             phoneNumberId,
@@ -115,9 +126,11 @@ export const Route = createFileRoute("/api/whatsapp/business-profile")({
           if (profErr) throw new Error(profErr.message);
           const { phoneNumberId, accessToken, apiVersion } = pickMetaCredentials(p);
 
-          const oldProfile = await getWhatsAppBusinessProfileFromMeta({ phoneNumberId, accessToken, apiVersion }).catch(
-            () => null,
-          );
+          const oldProfile = await getWhatsAppBusinessProfileFromMeta({
+            phoneNumberId,
+            accessToken,
+            apiVersion,
+          }).catch(() => null);
 
           const payload = buildBusinessProfileUpdatePayload({
             about: body.about,
@@ -140,7 +153,11 @@ export const Route = createFileRoute("/api/whatsapp/business-profile")({
             apiVersion,
             payload,
           });
-          const newProfile = await getWhatsAppBusinessProfileFromMeta({ phoneNumberId, accessToken, apiVersion });
+          const newProfile = await getWhatsAppBusinessProfileFromMeta({
+            phoneNumberId,
+            accessToken,
+            apiVersion,
+          });
 
           await logBusinessProfileAction({
             userId,
@@ -153,7 +170,11 @@ export const Route = createFileRoute("/api/whatsapp/business-profile")({
           });
 
           return json(
-            { success: true, message: "Perfil empresarial atualizado com sucesso.", data: newProfile },
+            {
+              success: true,
+              message: "Perfil empresarial atualizado com sucesso.",
+              data: newProfile,
+            },
             200,
           );
         } catch (e: any) {

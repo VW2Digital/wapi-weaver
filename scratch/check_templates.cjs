@@ -19,7 +19,8 @@ async function main() {
     console.log("STATUS:", row.status);
     console.log("COMPONENTS:");
     try {
-      const comps = typeof row.components === "string" ? JSON.parse(row.components) : row.components;
+      const comps =
+        typeof row.components === "string" ? JSON.parse(row.components) : row.components;
       console.log(JSON.stringify(comps, null, 2));
     } catch {
       console.log(row.components);

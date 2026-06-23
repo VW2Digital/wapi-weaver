@@ -19,7 +19,11 @@ export const Route = createFileRoute("/api/storage/upload")({
             const pathField = form.get("path");
             const fileField = form.get("file");
 
-            if (typeof pathField !== "string" || !pathField.trim() || !(fileField instanceof File)) {
+            if (
+              typeof pathField !== "string" ||
+              !pathField.trim() ||
+              !(fileField instanceof File)
+            ) {
               return new Response(JSON.stringify({ error: "Missing path or file" }), {
                 status: 400,
                 headers: { "Content-Type": "application/json" },

@@ -65,4 +65,3 @@ export function normalizeBusinessProfile(raw: any): WhatsAppBusinessProfile {
     vertical: normalizeOptionalString(data?.vertical),
   };
 }
-

@@ -137,9 +137,9 @@ function CampaignsPage() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {c.message_type} · {new Date(c.created_at).toLocaleString("pt-BR")} ·{" "}
-                      {t.sent}/{t.total} enviadas · {t.delivered} entregues · {t.read} lidas ·{" "}
-                      {t.failed} falharam
+                      {c.message_type} · {new Date(c.created_at).toLocaleString("pt-BR")} · {t.sent}
+                      /{t.total} enviadas · {t.delivered} entregues · {t.read} lidas · {t.failed}{" "}
+                      falharam
                     </p>
                     {c.template_diagnostic?.status === "invalid" && (
                       <p className="mt-1 text-xs text-destructive">

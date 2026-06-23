@@ -67,7 +67,10 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
 
           const body = await r.json().catch(() => ({}));
           if (!r.ok) {
-            return json({ ok: false, error: body?.error?.message ?? "Falha ao enviar mídia" }, r.status || 400);
+            return json(
+              { ok: false, error: body?.error?.message ?? "Falha ao enviar mídia" },
+              r.status || 400,
+            );
           }
 
           return json({ ok: true, data: body }, 200);

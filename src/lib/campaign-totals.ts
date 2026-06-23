@@ -35,4 +35,3 @@ export function normalizeCampaignTotals(totals: RawCampaignTotals | null | undef
     failed,
   };
 }
-

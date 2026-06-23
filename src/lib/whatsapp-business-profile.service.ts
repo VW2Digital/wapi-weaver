@@ -59,7 +59,9 @@ export async function getWhatsAppBusinessProfileFromMeta(params: {
   apiVersion?: string;
 }) {
   const apiVersion = normalizeApiVersion(params.apiVersion);
-  const url = new URL(`https://graph.facebook.com/${apiVersion}/${params.phoneNumberId}/whatsapp_business_profile`);
+  const url = new URL(
+    `https://graph.facebook.com/${apiVersion}/${params.phoneNumberId}/whatsapp_business_profile`,
+  );
   url.searchParams.set(
     "fields",
     "about,address,description,email,profile_picture_url,websites,vertical",
@@ -78,9 +80,11 @@ export async function getWhatsAppBusinessProfileFromMeta(params: {
   return normalizeBusinessProfile(first ?? {});
 }
 
-export function buildBusinessProfileUpdatePayload(input: Partial<WhatsAppBusinessProfile> & {
-  profile_picture_handle?: string | null;
-}) {
+export function buildBusinessProfileUpdatePayload(
+  input: Partial<WhatsAppBusinessProfile> & {
+    profile_picture_handle?: string | null;
+  },
+) {
   const payload: any = { messaging_product: "whatsapp" };
 
   const about = normalizeOptionalString(input.about);

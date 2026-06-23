@@ -43,7 +43,11 @@ const updateSchema = createSchema.extend({
 });
 
 function buildTemplateLookupKey(name?: string | null, language?: string | null) {
-  return `${String(name ?? "").trim().toLowerCase()}::${String(language ?? "").trim().toLowerCase()}`;
+  return `${String(name ?? "")
+    .trim()
+    .toLowerCase()}::${String(language ?? "")
+    .trim()
+    .toLowerCase()}`;
 }
 
 async function attachTemplateDiagnostics(db: any, campaigns: any[]) {
@@ -88,7 +92,9 @@ async function attachTemplateDiagnostics(db: any, campaigns: any[]) {
       return { ...campaign, template_diagnostic: { status: "ok" } };
     }
 
-    const linkedTemplate = campaign.template_id ? templatesById[campaign.template_id] ?? null : null;
+    const linkedTemplate = campaign.template_id
+      ? (templatesById[campaign.template_id] ?? null)
+      : null;
     const payloadName = campaign.payload?.template_name ?? null;
     const payloadLanguage = campaign.payload?.language ?? null;
     const payloadTemplate =
@@ -153,7 +159,9 @@ async function validateTemplateForCampaign(db: any, data: z.infer<typeof createS
   }
 
   if (template.status !== "APPROVED" || !template.meta_template_id) {
-    throw new Error("Esse template ainda não está aprovado na Meta e não pode ser usado em campanha.");
+    throw new Error(
+      "Esse template ainda não está aprovado na Meta e não pode ser usado em campanha.",
+    );
   }
 }
 
@@ -164,16 +172,17 @@ async function fetchEligibleContactsForList(db: any, listId: string) {
     .eq("list_id", listId);
   if (lcErr) throw lcErr;
 
-  const contacts = (lcRows ?? [])
-    .map((r: any) => r.contacts)
-    .filter((c: any) => c && !c.opted_out);
+  const contacts = (lcRows ?? []).map((r: any) => r.contacts).filter((c: any) => c && !c.opted_out);
 
   if (contacts.length === 0) throw new Error("Lista sem contatos válidos");
   return contacts;
 }
 
 async function rebuildCampaignQueue(db: any, context: any, campaignId: string, contacts: any[]) {
-  const { error: deleteErr } = await db.from("campaign_messages").delete().eq("campaign_id", campaignId);
+  const { error: deleteErr } = await db
+    .from("campaign_messages")
+    .delete()
+    .eq("campaign_id", campaignId);
   if (deleteErr) throw deleteErr;
 
   const chunkSize = 500;

@@ -11,9 +11,9 @@ async function main() {
   const credentials = [
     { user: "root", password: "" },
     { user: "root", password: "root" },
-    { user: "wapi_user", password: "S0xbxPfKazBVT8JFy1UEOjIsrjox" }
+    { user: "wapi_user", password: "S0xbxPfKazBVT8JFy1UEOjIsrjox" },
   ];
-  
+
   let conn;
   for (const cred of credentials) {
     try {
@@ -37,15 +37,15 @@ async function main() {
 
   const [rows] = await conn.execute("SHOW DATABASES");
   console.log("DATABASES:", rows);
-  
+
   for (const dbRow of rows) {
     const dbName = dbRow.Database || dbRow.database;
     if (["information_schema", "mysql", "performance_schema", "sys"].includes(dbName)) continue;
-    
+
     await conn.execute(`USE \`${dbName}\``);
     const [tables] = await conn.execute("SHOW TABLES");
     console.log(`Tables in ${dbName}:`, tables);
-    
+
     // Check campaign count
     try {
       const [countRow] = await conn.execute(`SELECT COUNT(*) as cnt FROM \`${dbName}\`.campaigns`);

@@ -11,7 +11,7 @@ const pool = mysql.createPool({
 
 async function main() {
   const [rows] = await pool.execute(
-    "SELECT id, status, error, payload FROM campaign_messages WHERE status = 'failed' ORDER BY failed_at DESC LIMIT 5"
+    "SELECT id, status, error, payload FROM campaign_messages WHERE status = 'failed' ORDER BY failed_at DESC LIMIT 5",
   );
   console.log("LAST 5 FAILED CAMPAIGN MESSAGES:");
   for (const row of rows) {

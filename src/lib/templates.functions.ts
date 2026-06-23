@@ -72,15 +72,17 @@ const createTemplateInput = z.object({
   allow_category_change: z.boolean().optional(),
   cta_url_link_tracking_opted_out: z.boolean().optional(),
   message_send_ttl_seconds: z.number().int().positive().optional(),
-  sub_category: z.enum([
-    "BOOKING_STATUS",
-    "CALL_PERMISSIONS_REQUEST",
-    "FLIGHT_DELAY_AND_GATE_CHANGE_ALERT",
-    "FRAUD_ALERT",
-    "ORDER_DETAILS",
-    "ORDER_STATUS",
-    "RICH_ORDER_STATUS"
-  ]).optional(),
+  sub_category: z
+    .enum([
+      "BOOKING_STATUS",
+      "CALL_PERMISSIONS_REQUEST",
+      "FLIGHT_DELAY_AND_GATE_CHANGE_ALERT",
+      "FRAUD_ALERT",
+      "ORDER_DETAILS",
+      "ORDER_STATUS",
+      "RICH_ORDER_STATUS",
+    ])
+    .optional(),
   display_format: z.enum(["ORDER_DETAILS"]).optional(),
   is_primary_device_delivery_only: z.boolean().optional(),
 });
@@ -119,7 +121,9 @@ function buildMetaComponents(input: CreateTemplateInput) {
   const bodyComp: any = { type: "BODY", text: input.body };
   if (input.body_examples && input.body_examples.length > 0) {
     if (input.parameter_format === "NAMED") {
-      const placeholders = extractTemplatePlaceholders(input.body).filter((token) => !/^\d+$/.test(token));
+      const placeholders = extractTemplatePlaceholders(input.body).filter(
+        (token) => !/^\d+$/.test(token),
+      );
       bodyComp.example = {
         body_text_named_params: placeholders.map((paramName, index) => ({
           param_name: paramName,
@@ -146,7 +150,9 @@ export const createTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const bodyPlaceholders = extractTemplatePlaceholders(data.body);
     if (bodyPlaceholders.length > 0) {
-      const missingExamples = bodyPlaceholders.filter((_, index) => !data.body_examples?.[index]?.trim());
+      const missingExamples = bodyPlaceholders.filter(
+        (_, index) => !data.body_examples?.[index]?.trim(),
+      );
       if (missingExamples.length > 0) {
         throw new Error(
           "Preencha um exemplo para cada variável do corpo do template antes de enviar para a Meta.",
@@ -240,7 +246,9 @@ export const updateTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const bodyPlaceholders = extractTemplatePlaceholders(data.body);
     if (bodyPlaceholders.length > 0) {
-      const missingExamples = bodyPlaceholders.filter((_, index) => !data.body_examples?.[index]?.trim());
+      const missingExamples = bodyPlaceholders.filter(
+        (_, index) => !data.body_examples?.[index]?.trim(),
+      );
       if (missingExamples.length > 0) {
         throw new Error(
           "Preencha um exemplo para cada variável do corpo do template antes de enviar para a Meta.",
@@ -331,7 +339,11 @@ export const updateTemplate = createServerFn({ method: "POST" })
 
 export const deleteTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), deleteMode: z.enum(["single", "all"]).default("single") }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({ id: z.string().uuid(), deleteMode: z.enum(["single", "all"]).default("single") })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { data: tpl } = await context.db
       .from("templates")
@@ -370,7 +382,7 @@ export const deleteTemplate = createServerFn({ method: "POST" })
         }
       }
     }
-    
+
     if (data.deleteMode === "all" && tpl?.name) {
       const { error } = await context.db.from("templates").delete().eq("name", tpl.name);
       if (error) throw error;
@@ -478,7 +490,7 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
       "allow_category_change",
       "cta_url_link_tracking_opted_out",
       "message_send_ttl_seconds",
-      "is_primary_device_delivery_only"
+      "is_primary_device_delivery_only",
     ].join(",");
     let url: string | null =
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=${fields}&limit=200`;
@@ -1007,7 +1019,11 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
 
 export const getMetaTemplateDetails = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid().optional(), meta_template_id: z.string().optional() }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({ id: z.string().uuid().optional(), meta_template_id: z.string().optional() })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     let metaTemplateId = data.meta_template_id;
     if (data.id) {
@@ -1021,7 +1037,11 @@ export const getMetaTemplateDetails = createServerFn({ method: "GET" })
       }
     }
 
-    if (!metaTemplateId || metaTemplateId.startsWith("local_") || metaTemplateId.startsWith("sample_")) {
+    if (
+      !metaTemplateId ||
+      metaTemplateId.startsWith("local_") ||
+      metaTemplateId.startsWith("sample_")
+    ) {
       throw new Error("Este template não possui um ID da Meta ativo.");
     }
 
@@ -1063,12 +1083,15 @@ export const getMetaTemplateDetails = createServerFn({ method: "GET" })
       "rejected_reason",
       "source",
       "status",
-      "sub_category"
+      "sub_category",
     ].join(",");
 
-    const res = await fetch(`https://graph.facebook.com/${apiVersion}/${metaTemplateId}?fields=${fields}`, {
-      headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-    });
+    const res = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${metaTemplateId}?fields=${fields}`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
     const body: any = await res.json();
     if (!res.ok) {
       const friendly = toFriendlyError(body, "Falha ao obter detalhes do template na Meta");
@@ -1086,7 +1109,7 @@ export const listMetaTemplatesDirect = createServerFn({ method: "GET" })
       limit: z.number().int().min(1).max(100).optional(),
       after: z.string().optional(),
       before: z.string().optional(),
-    }).parse
+    }).parse,
   )
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
@@ -1116,7 +1139,7 @@ export const listMetaTemplatesDirect = createServerFn({ method: "GET" })
       "cta_url_link_tracking_opted_out",
       "message_send_ttl_seconds",
       "is_primary_device_delivery_only",
-      "health_status"
+      "health_status",
     ].join(",");
 
     let url = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?fields=${fields}`;

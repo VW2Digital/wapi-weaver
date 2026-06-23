@@ -242,26 +242,56 @@ async function run() {
       }
     };
 
-    await createIndexSafe("CREATE INDEX idx_opportunities_funnel_stage_order ON opportunities(user_id, funnel_id, stage_id, kanban_order)");
-    await createIndexSafe("CREATE INDEX idx_opportunities_status ON opportunities(user_id, status)");
+    await createIndexSafe(
+      "CREATE INDEX idx_opportunities_funnel_stage_order ON opportunities(user_id, funnel_id, stage_id, kanban_order)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opportunities_status ON opportunities(user_id, status)",
+    );
     await createIndexSafe("CREATE INDEX idx_opportunities_owner ON opportunities(owner_user_id)");
-    await createIndexSafe("CREATE INDEX idx_opportunities_primary_contact ON opportunities(primary_contact_id)");
-    await createIndexSafe("CREATE INDEX idx_opportunities_expected_close ON opportunities(expected_close_date)");
-    await createIndexSafe("CREATE INDEX idx_opportunities_last_act ON opportunities(last_activity_at)");
-    await createIndexSafe("CREATE INDEX idx_opportunities_next_act ON opportunities(next_activity_at)");
+    await createIndexSafe(
+      "CREATE INDEX idx_opportunities_primary_contact ON opportunities(primary_contact_id)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opportunities_expected_close ON opportunities(expected_close_date)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opportunities_last_act ON opportunities(last_activity_at)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opportunities_next_act ON opportunities(next_activity_at)",
+    );
     await createIndexSafe("CREATE INDEX idx_opportunities_deleted ON opportunities(deleted_at)");
-    await createIndexSafe("CREATE INDEX idx_opt_contacts_contact ON opportunity_contacts(contact_id)");
-    await createIndexSafe("CREATE INDEX idx_opt_contacts_primary ON opportunity_contacts(opportunity_id, is_primary)");
-    await createIndexSafe("CREATE INDEX idx_stage_history_opp ON opportunity_stage_history(opportunity_id)");
-    await createIndexSafe("CREATE INDEX idx_stage_history_funnel ON opportunity_stage_history(funnel_id)");
-    await createIndexSafe("CREATE INDEX idx_stage_history_moved ON opportunity_stage_history(moved_at)");
-    await createIndexSafe("CREATE INDEX idx_opt_activities_opp ON opportunity_activities(opportunity_id)");
+    await createIndexSafe(
+      "CREATE INDEX idx_opt_contacts_contact ON opportunity_contacts(contact_id)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opt_contacts_primary ON opportunity_contacts(opportunity_id, is_primary)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_stage_history_opp ON opportunity_stage_history(opportunity_id)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_stage_history_funnel ON opportunity_stage_history(funnel_id)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_stage_history_moved ON opportunity_stage_history(moved_at)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opt_activities_opp ON opportunity_activities(opportunity_id)",
+    );
     await createIndexSafe("CREATE INDEX idx_opt_activities_due ON opportunity_activities(due_at)");
-    await createIndexSafe("CREATE INDEX idx_opt_activities_status ON opportunity_activities(status)");
+    await createIndexSafe(
+      "CREATE INDEX idx_opt_activities_status ON opportunity_activities(status)",
+    );
     await createIndexSafe("CREATE INDEX idx_opt_notes_opp ON opportunity_notes(opportunity_id)");
     await createIndexSafe("CREATE INDEX idx_opt_notes_pinned ON opportunity_notes(is_pinned)");
-    await createIndexSafe("CREATE INDEX idx_opt_audit_opp ON opportunity_audit_logs(opportunity_id)");
-    await createIndexSafe("CREATE INDEX idx_opt_audit_created ON opportunity_audit_logs(created_at)");
+    await createIndexSafe(
+      "CREATE INDEX idx_opt_audit_opp ON opportunity_audit_logs(opportunity_id)",
+    );
+    await createIndexSafe(
+      "CREATE INDEX idx_opt_audit_created ON opportunity_audit_logs(created_at)",
+    );
 
     // 3. Seeding for all existing users
     console.log("Retrieving existing users...");
@@ -274,7 +304,7 @@ async function run() {
       // Check if user already has a default funnel
       const existingFunnels = await db.query(
         "SELECT id FROM sales_funnels WHERE user_id = ? AND is_default = TRUE LIMIT 1",
-        [userId]
+        [userId],
       );
 
       let funnelId: string;
@@ -284,35 +314,108 @@ async function run() {
       } else {
         // Insert default funnel
         funnelId = crypto.randomUUID();
-        await db.query(`
+        await db.query(
+          `
           INSERT INTO sales_funnels (id, user_id, name, slug, description, is_default, is_active, sort_order)
           VALUES (?, ?, 'Vendas', 'vendas', 'Funil de vendas padrão', TRUE, TRUE, 0)
-        `, [funnelId, userId]);
+        `,
+          [funnelId, userId],
+        );
         console.log(`Created default funnel: ${funnelId}`);
       }
 
       // Default stages list
       const defaultStages = [
-        { name: "Novo lead", slug: "novo-lead", color: "#3b82f6", probability: 10, is_won: false, is_lost: false, sort: 1 },
-        { name: "Em contato", slug: "em-contato", color: "#a855f7", probability: 25, is_won: false, is_lost: false, sort: 2 },
-        { name: "Qualificação", slug: "qualificacao", color: "#eab308", probability: 50, is_won: false, is_lost: false, sort: 3 },
-        { name: "Proposta enviada", slug: "proposta-enviada", color: "#f97316", probability: 75, is_won: false, is_lost: false, sort: 4 },
-        { name: "Negociação", slug: "negociacao", color: "#06b6d4", probability: 90, is_won: false, is_lost: false, sort: 5 },
-        { name: "Ganho", slug: "ganho", color: "#22c55e", probability: 100, is_won: true, is_lost: false, sort: 6 },
-        { name: "Perdido", slug: "perdido", color: "#ef4444", probability: 0, is_won: false, is_lost: true, sort: 7 },
+        {
+          name: "Novo lead",
+          slug: "novo-lead",
+          color: "#3b82f6",
+          probability: 10,
+          is_won: false,
+          is_lost: false,
+          sort: 1,
+        },
+        {
+          name: "Em contato",
+          slug: "em-contato",
+          color: "#a855f7",
+          probability: 25,
+          is_won: false,
+          is_lost: false,
+          sort: 2,
+        },
+        {
+          name: "Qualificação",
+          slug: "qualificacao",
+          color: "#eab308",
+          probability: 50,
+          is_won: false,
+          is_lost: false,
+          sort: 3,
+        },
+        {
+          name: "Proposta enviada",
+          slug: "proposta-enviada",
+          color: "#f97316",
+          probability: 75,
+          is_won: false,
+          is_lost: false,
+          sort: 4,
+        },
+        {
+          name: "Negociação",
+          slug: "negociacao",
+          color: "#06b6d4",
+          probability: 90,
+          is_won: false,
+          is_lost: false,
+          sort: 5,
+        },
+        {
+          name: "Ganho",
+          slug: "ganho",
+          color: "#22c55e",
+          probability: 100,
+          is_won: true,
+          is_lost: false,
+          sort: 6,
+        },
+        {
+          name: "Perdido",
+          slug: "perdido",
+          color: "#ef4444",
+          probability: 0,
+          is_won: false,
+          is_lost: true,
+          sort: 7,
+        },
       ];
 
       for (const st of defaultStages) {
         const stageExists = await db.query(
           "SELECT id FROM sales_stages WHERE funnel_id = ? AND slug = ? LIMIT 1",
-          [funnelId, st.slug]
+          [funnelId, st.slug],
         );
         if (!stageExists || stageExists.length === 0) {
           const stageId = crypto.randomUUID();
-          await db.query(`
+          await db.query(
+            `
             INSERT INTO sales_stages (id, user_id, funnel_id, name, slug, color, probability_percent, sort_order, is_won_stage, is_lost_stage)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [stageId, userId, funnelId, st.name, st.slug, st.color, st.probability, st.sort, st.is_won, st.is_lost]);
+          `,
+            [
+              stageId,
+              userId,
+              funnelId,
+              st.name,
+              st.slug,
+              st.color,
+              st.probability,
+              st.sort,
+              st.is_won,
+              st.is_lost,
+            ],
+          );
         }
       }
 
@@ -329,14 +432,17 @@ async function run() {
       for (const lr of defaultLostReasons) {
         const reasonExists = await db.query(
           "SELECT id FROM opportunity_lost_reasons WHERE user_id = ? AND name = ? LIMIT 1",
-          [userId, lr.name]
+          [userId, lr.name],
         );
         if (!reasonExists || reasonExists.length === 0) {
           const reasonId = crypto.randomUUID();
-          await db.query(`
+          await db.query(
+            `
             INSERT INTO opportunity_lost_reasons (id, user_id, name, description, sort_order)
             VALUES (?, ?, ?, ?, ?)
-          `, [reasonId, userId, lr.name, lr.desc, lr.sort]);
+          `,
+            [reasonId, userId, lr.name, lr.desc, lr.sort],
+          );
         }
       }
     }

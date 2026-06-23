@@ -179,9 +179,7 @@ function CampaignDetailPage() {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Campanha antiga detectada</AlertTitle>
-            <AlertDescription>
-              {c.template_diagnostic.message}
-            </AlertDescription>
+            <AlertDescription>{c.template_diagnostic.message}</AlertDescription>
           </Alert>
         )}
 

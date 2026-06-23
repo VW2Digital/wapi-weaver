@@ -42,6 +42,12 @@ const ALLOWED_TABLES = new Set([
   "opportunity_notes",
   "opportunity_tags",
   "opportunity_audit_logs",
+  "bot_settings",
+  "bot_steps",
+  "bot_step_options",
+  "bot_conversation_state",
+  "ai_agent_settings",
+  "knowledge_base",
 ]);
 
 // Helper to determine if a table has a user_id column
@@ -73,6 +79,12 @@ function hasUserIdColumn(table: string): boolean {
     "opportunity_notes",
     "opportunity_tags",
     "opportunity_audit_logs",
+    "bot_settings",
+    "bot_steps",
+    "bot_step_options",
+    "bot_conversation_state",
+    "ai_agent_settings",
+    "knowledge_base",
   ].includes(table);
 }
 

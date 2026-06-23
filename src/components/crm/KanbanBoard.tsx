@@ -1,6 +1,15 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Calendar, MessageSquare, AlertCircle, Sparkles, Settings, Plus, MessageCircle } from "lucide-react";
+import {
+  User,
+  Calendar,
+  MessageSquare,
+  AlertCircle,
+  Sparkles,
+  Settings,
+  Plus,
+  MessageCircle,
+} from "lucide-react";
 
 interface Contact {
   id: string;
@@ -46,7 +55,12 @@ interface KanbanBoardProps {
   stages: Stage[];
   opportunities: Opportunity[];
   owners: any[];
-  onMoveOpportunity: (oppId: string, toStageId: string, beforeOppId?: string | null, afterOppId?: string | null) => void;
+  onMoveOpportunity: (
+    oppId: string,
+    toStageId: string,
+    beforeOppId?: string | null,
+    afterOppId?: string | null,
+  ) => void;
   onCardClick: (oppId: string) => void;
   onEditStage?: (stage: Stage) => void;
   onAddStage?: () => void;
@@ -64,7 +78,9 @@ export function KanbanBoard({
   const getOwnerName = (ownerId?: string) => {
     if (!ownerId) return "Sem responsável";
     const found = owners.find((o) => o.id === ownerId);
-    return found?.display_name || found?.full_name || found?.email?.split("@")[0] || "Sem responsável";
+    return (
+      found?.display_name || found?.full_name || found?.email?.split("@")[0] || "Sem responsável"
+    );
   };
 
   const getPriorityColor = (p: string) => {
@@ -85,11 +101,32 @@ export function KanbanBoard({
   const getTemperatureBadge = (t?: string) => {
     switch (t) {
       case "cold":
-        return <Badge variant="outline" className="bg-sky-500/10 text-sky-400 border-sky-500/20 font-normal">Frio</Badge>;
+        return (
+          <Badge
+            variant="outline"
+            className="bg-sky-500/10 text-sky-400 border-sky-500/20 font-normal"
+          >
+            Frio
+          </Badge>
+        );
       case "warm":
-        return <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/20 font-normal">Morno</Badge>;
+        return (
+          <Badge
+            variant="outline"
+            className="bg-orange-500/10 text-orange-400 border-orange-500/20 font-normal"
+          >
+            Morno
+          </Badge>
+        );
       case "hot":
-        return <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 font-normal">Quente</Badge>;
+        return (
+          <Badge
+            variant="outline"
+            className="bg-red-500/10 text-red-400 border-red-500/20 font-normal"
+          >
+            Quente
+          </Badge>
+        );
       default:
         return null;
     }
@@ -141,7 +178,10 @@ export function KanbanBoard({
                   className="w-3 h-3 rounded-full shrink-0"
                   style={{ backgroundColor: stage.color || "#64748b" }}
                 />
-                <span className="font-semibold text-sm tracking-wide truncate max-w-[120px]" title={stage.name}>
+                <span
+                  className="font-semibold text-sm tracking-wide truncate max-w-[120px]"
+                  title={stage.name}
+                >
                   {stage.name}
                 </span>
                 <span className="text-xs text-muted-foreground bg-muted-foreground/10 px-2 py-0.5 rounded-full shrink-0">
@@ -167,7 +207,8 @@ export function KanbanBoard({
             {/* Stage Scrollable Area */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               {stageOpps.map((opp) => {
-                const isOverdue = opp.next_activity_at && new Date(opp.next_activity_at) < new Date();
+                const isOverdue =
+                  opp.next_activity_at && new Date(opp.next_activity_at) < new Date();
 
                 return (
                   <div
@@ -209,7 +250,13 @@ export function KanbanBoard({
                             {/* Avatar */}
                             {(() => {
                               const cf = opp.primary_contact_custom_fields || {};
-                              const avatarUrl = cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image;
+                              const avatarUrl =
+                                cf.avatar_url ||
+                                cf.photo_url ||
+                                cf.photo ||
+                                cf.picture ||
+                                cf.image_url ||
+                                cf.image;
                               if (avatarUrl) {
                                 return (
                                   <img
@@ -235,7 +282,10 @@ export function KanbanBoard({
                               );
                             })()}
 
-                            <span className="text-muted-foreground font-medium truncate max-w-[110px]" title={opp.primary_contact_name}>
+                            <span
+                              className="text-muted-foreground font-medium truncate max-w-[110px]"
+                              title={opp.primary_contact_name}
+                            >
                               {opp.primary_contact_name}
                             </span>
 
@@ -268,19 +318,30 @@ export function KanbanBoard({
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <User className="w-3.5 h-3.5" />
-                        <span className="truncate max-w-[90px]">{getOwnerName(opp.owner_user_id)}</span>
+                        <span className="truncate max-w-[90px]">
+                          {getOwnerName(opp.owner_user_id)}
+                        </span>
                       </div>
 
                       {/* Right side indicators */}
                       <div className="flex items-center gap-2">
                         {opp.next_activity_at && (
-                          <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${isOverdue ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500'}`}>
+                          <div
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${isOverdue ? "bg-red-500/10 text-red-500 border border-red-500/20" : "bg-green-500/10 text-green-500"}`}
+                          >
                             <Calendar className="w-3 h-3" />
-                            <span>{new Date(opp.next_activity_at).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' })}</span>
+                            <span>
+                              {new Date(opp.next_activity_at).toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                              })}
+                            </span>
                           </div>
                         )}
                         {opp.temperature && getTemperatureBadge(opp.temperature)}
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase ${getPriorityColor(opp.priority)}`}>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase ${getPriorityColor(opp.priority)}`}
+                        >
                           {opp.priority}
                         </span>
                       </div>
@@ -301,13 +362,15 @@ export function KanbanBoard({
       })}
 
       {onAddStage && (
-        <div 
+        <div
           onClick={onAddStage}
           className="flex flex-col w-[280px] shrink-0 rounded-2xl border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 bg-muted/5 hover:bg-muted/10 transition-all duration-200 cursor-pointer items-center justify-center p-6 text-center text-muted-foreground hover:text-foreground h-[140px] shrink-0 self-start group"
         >
           <Plus className="w-5 h-5 mb-2 text-muted-foreground group-hover:text-foreground transition-colors" />
           <span className="font-semibold text-sm">Adicionar Etapa</span>
-          <span className="text-[11px] text-muted-foreground/60 mt-1">Crie uma nova coluna no funil</span>
+          <span className="text-[11px] text-muted-foreground/60 mt-1">
+            Crie uma nova coluna no funil
+          </span>
         </div>
       )}
     </div>

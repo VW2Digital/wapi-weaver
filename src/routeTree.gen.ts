@@ -28,8 +28,10 @@ import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCrmRouteImport } from './routes/_app/crm'
 import { Route as AppContactsRouteImport } from './routes/_app/contacts'
 import { Route as AppChatRouteImport } from './routes/_app/chat'
+import { Route as AppBotRouteImport } from './routes/_app/bot'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
+import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
 import { Route as ApiWhatsappMediaUploadRouteImport } from './routes/api/whatsapp/media-upload'
 import { Route as ApiWhatsappMediaRouteImport } from './routes/api/whatsapp/media'
@@ -146,6 +148,11 @@ const AppChatRoute = AppChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBotRoute = AppBotRouteImport.update({
+  id: '/bot',
+  path: '/bot',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBillingRoute = AppBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -154,6 +161,11 @@ const AppBillingRoute = AppBillingRouteImport.update({
 const AppAuditRoute = AppAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAiAgentRoute = AppAiAgentRouteImport.update({
+  id: '/ai-agent',
+  path: '/ai-agent',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
@@ -268,8 +280,10 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
+  '/ai-agent': typeof AppAiAgentRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
+  '/bot': typeof AppBotRoute
   '/chat': typeof AppChatRoute
   '/contacts': typeof AppContactsRoute
   '/crm': typeof AppCrmRoute
@@ -310,8 +324,10 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
+  '/ai-agent': typeof AppAiAgentRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
+  '/bot': typeof AppBotRoute
   '/chat': typeof AppChatRoute
   '/contacts': typeof AppContactsRoute
   '/crm': typeof AppCrmRoute
@@ -354,8 +370,10 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
+  '/_app/ai-agent': typeof AppAiAgentRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/billing': typeof AppBillingRoute
+  '/_app/bot': typeof AppBotRoute
   '/_app/chat': typeof AppChatRoute
   '/_app/contacts': typeof AppContactsRoute
   '/_app/crm': typeof AppCrmRoute
@@ -398,8 +416,10 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/terms'
+    | '/ai-agent'
     | '/audit'
     | '/billing'
+    | '/bot'
     | '/chat'
     | '/contacts'
     | '/crm'
@@ -440,8 +460,10 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/terms'
+    | '/ai-agent'
     | '/audit'
     | '/billing'
+    | '/bot'
     | '/chat'
     | '/contacts'
     | '/crm'
@@ -483,8 +505,10 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/terms'
+    | '/_app/ai-agent'
     | '/_app/audit'
     | '/_app/billing'
+    | '/_app/bot'
     | '/_app/chat'
     | '/_app/contacts'
     | '/_app/crm'
@@ -682,6 +706,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppChatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/bot': {
+      id: '/_app/bot'
+      path: '/bot'
+      fullPath: '/bot'
+      preLoaderRoute: typeof AppBotRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/billing': {
       id: '/_app/billing'
       path: '/billing'
@@ -694,6 +725,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ai-agent': {
+      id: '/_app/ai-agent'
+      path: '/ai-agent'
+      fullPath: '/ai-agent'
+      preLoaderRoute: typeof AppAiAgentRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/campaigns/': {
@@ -840,8 +878,10 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAiAgentRoute: typeof AppAiAgentRoute
   AppAuditRoute: typeof AppAuditRoute
   AppBillingRoute: typeof AppBillingRoute
+  AppBotRoute: typeof AppBotRoute
   AppChatRoute: typeof AppChatRoute
   AppContactsRoute: typeof AppContactsRoute
   AppCrmRoute: typeof AppCrmRoute
@@ -858,8 +898,10 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAiAgentRoute: AppAiAgentRoute,
   AppAuditRoute: AppAuditRoute,
   AppBillingRoute: AppBillingRoute,
+  AppBotRoute: AppBotRoute,
   AppChatRoute: AppChatRoute,
   AppContactsRoute: AppContactsRoute,
   AppCrmRoute: AppCrmRoute,

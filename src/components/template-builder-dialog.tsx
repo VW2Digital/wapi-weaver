@@ -15,7 +15,7 @@ import {
   KeyRound,
   PhoneCall,
   Settings,
-  ChevronDown
+  ChevronDown,
 } from "lucide-react";
 
 import {
@@ -98,11 +98,17 @@ function extractVarCount(text: string) {
 export function TemplateBuilderDialog({
   trigger,
   template,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
 }: {
-  trigger: ReactNode;
+  trigger?: ReactNode;
   template?: any;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = setControlledOpen || setInternalOpen;
   const submitCreate = useServerFn(createTemplate);
   const submitUpdate = useServerFn(updateTemplate);
   const qc = useQueryClient();
@@ -117,7 +123,9 @@ export function TemplateBuilderDialog({
   const [buttons, setButtons] = useState<ButtonState[]>([]);
 
   // Advanced configurations
-  const [parameterFormat, setParameterFormat] = useState<"NAMED" | "POSITIONAL" | "default">("default");
+  const [parameterFormat, setParameterFormat] = useState<"NAMED" | "POSITIONAL" | "default">(
+    "default",
+  );
   const [allowCategoryChange, setAllowCategoryChange] = useState<boolean>(true);
   const [ctaUrlLinkTrackingOptedOut, setCtaUrlLinkTrackingOptedOut] = useState<boolean>(false);
   const [messageSendTtlSeconds, setMessageSendTtlSeconds] = useState<string>("");
@@ -135,7 +143,9 @@ export function TemplateBuilderDialog({
       setParameterFormat(template.parameter_format || "default");
       setAllowCategoryChange(template.allow_category_change !== 0);
       setCtaUrlLinkTrackingOptedOut(template.cta_url_link_tracking_opted_out === 1);
-      setMessageSendTtlSeconds(template.message_send_ttl_seconds ? String(template.message_send_ttl_seconds) : "");
+      setMessageSendTtlSeconds(
+        template.message_send_ttl_seconds ? String(template.message_send_ttl_seconds) : "",
+      );
       setSubCategory(template.sub_category || "default");
       setIsPrimaryDeviceDeliveryOnly(template.is_primary_device_delivery_only === 1);
 
@@ -235,8 +245,10 @@ export function TemplateBuilderDialog({
         parameter_format: parameterFormat === "default" ? undefined : parameterFormat,
         allow_category_change: allowCategoryChange,
         cta_url_link_tracking_opted_out: ctaUrlLinkTrackingOptedOut,
-        message_send_ttl_seconds: messageSendTtlSeconds ? parseInt(messageSendTtlSeconds, 10) : undefined,
-        sub_category: (category === "UTILITY" && subCategory !== "default") ? subCategory : undefined,
+        message_send_ttl_seconds: messageSendTtlSeconds
+          ? parseInt(messageSendTtlSeconds, 10)
+          : undefined,
+        sub_category: category === "UTILITY" && subCategory !== "default" ? subCategory : undefined,
         is_primary_device_delivery_only: isPrimaryDeviceDeliveryOnly,
       };
       if (template?.id) {
@@ -321,7 +333,7 @@ export function TemplateBuilderDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{template ? "Editar template" : "Novo template"}</DialogTitle>
@@ -612,7 +624,10 @@ export function TemplateBuilderDialog({
                               onChange={(e) => updateButton(i, { url: e.target.value } as any)}
                             />
                             <p className="mt-1 text-[10px] text-muted-foreground leading-normal md:col-span-2">
-                              Para tornar o link dinâmico e personalizável ao disparar campanhas, termine a URL com <code>{"{{1}}"}</code> (ex: <code>https://site.com/cupom/{"{{1}}"}</code>). O texto do botão (CTA) é estático na Meta.
+                              Para tornar o link dinâmico e personalizável ao disparar campanhas,
+                              termine a URL com <code>{"{{1}}"}</code> (ex:{" "}
+                              <code>https://site.com/cupom/{"{{1}}"}</code>). O texto do botão (CTA)
+                              é estático na Meta.
                             </p>
                             {b.url.includes("{{1}}") && (
                               <Input
@@ -782,7 +797,10 @@ export function TemplateBuilderDialog({
                     {/* Formato dos Parâmetros */}
                     <div className="space-y-1.5">
                       <Label>Formato dos Parâmetros</Label>
-                      <Select value={parameterFormat} onValueChange={(v: any) => setParameterFormat(v)}>
+                      <Select
+                        value={parameterFormat}
+                        onValueChange={(v: any) => setParameterFormat(v)}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o formato" />
                         </SelectTrigger>
@@ -821,13 +839,27 @@ export function TemplateBuilderDialog({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="default">Nenhuma</SelectItem>
-                          <SelectItem value="BOOKING_STATUS">Status da Reserva (BOOKING_STATUS)</SelectItem>
-                          <SelectItem value="CALL_PERMISSIONS_REQUEST">Permissões de Chamada (CALL_PERMISSIONS_REQUEST)</SelectItem>
-                          <SelectItem value="FLIGHT_DELAY_AND_GATE_CHANGE_ALERT">Aviso de Voo (FLIGHT_DELAY_AND_GATE_CHANGE_ALERT)</SelectItem>
-                          <SelectItem value="FRAUD_ALERT">Alerta de Fraude (FRAUD_ALERT)</SelectItem>
-                          <SelectItem value="ORDER_DETAILS">Detalhes do Pedido (ORDER_DETAILS)</SelectItem>
-                          <SelectItem value="ORDER_STATUS">Status do Pedido (ORDER_STATUS)</SelectItem>
-                          <SelectItem value="RICH_ORDER_STATUS">Status do Pedido Completo (RICH_ORDER_STATUS)</SelectItem>
+                          <SelectItem value="BOOKING_STATUS">
+                            Status da Reserva (BOOKING_STATUS)
+                          </SelectItem>
+                          <SelectItem value="CALL_PERMISSIONS_REQUEST">
+                            Permissões de Chamada (CALL_PERMISSIONS_REQUEST)
+                          </SelectItem>
+                          <SelectItem value="FLIGHT_DELAY_AND_GATE_CHANGE_ALERT">
+                            Aviso de Voo (FLIGHT_DELAY_AND_GATE_CHANGE_ALERT)
+                          </SelectItem>
+                          <SelectItem value="FRAUD_ALERT">
+                            Alerta de Fraude (FRAUD_ALERT)
+                          </SelectItem>
+                          <SelectItem value="ORDER_DETAILS">
+                            Detalhes do Pedido (ORDER_DETAILS)
+                          </SelectItem>
+                          <SelectItem value="ORDER_STATUS">
+                            Status do Pedido (ORDER_STATUS)
+                          </SelectItem>
+                          <SelectItem value="RICH_ORDER_STATUS">
+                            Status do Pedido Completo (RICH_ORDER_STATUS)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-[10px] text-muted-foreground">
@@ -843,9 +875,12 @@ export function TemplateBuilderDialog({
                         onCheckedChange={(checked) => setAllowCategoryChange(!!checked)}
                       />
                       <div className="grid gap-0.5 leading-none">
-                        <span className="text-xs font-semibold">Permitir reclassificação automática</span>
+                        <span className="text-xs font-semibold">
+                          Permitir reclassificação automática
+                        </span>
                         <span className="text-[11px] text-muted-foreground">
-                          Autoriza a Meta a alterar a categoria do template caso divirja da análise interna.
+                          Autoriza a Meta a alterar a categoria do template caso divirja da análise
+                          interna.
                         </span>
                       </div>
                     </label>
@@ -856,7 +891,9 @@ export function TemplateBuilderDialog({
                         onCheckedChange={(checked) => setCtaUrlLinkTrackingOptedOut(!!checked)}
                       />
                       <div className="grid gap-0.5 leading-none">
-                        <span className="text-xs font-semibold">Desativar rastreamento de links CTA</span>
+                        <span className="text-xs font-semibold">
+                          Desativar rastreamento de links CTA
+                        </span>
                         <span className="text-[11px] text-muted-foreground">
                           Remove o rastreamento automático do engajamento em botões do tipo URL.
                         </span>
@@ -869,9 +906,12 @@ export function TemplateBuilderDialog({
                         onCheckedChange={(checked) => setIsPrimaryDeviceDeliveryOnly(!!checked)}
                       />
                       <div className="grid gap-0.5 leading-none">
-                        <span className="text-xs font-semibold">Entrega exclusiva no dispositivo primário</span>
+                        <span className="text-xs font-semibold">
+                          Entrega exclusiva no dispositivo primário
+                        </span>
                         <span className="text-[11px] text-muted-foreground">
-                          Restringe a entrega de mensagens apenas para o smartphone principal do destinatário.
+                          Restringe a entrega de mensagens apenas para o smartphone principal do
+                          destinatário.
                         </span>
                       </div>
                     </label>

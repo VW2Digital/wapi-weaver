@@ -10,7 +10,7 @@ const pool = mysql.createPool({
 
 async function main() {
   const [rows] = await pool.execute(
-    "SELECT id, name, status, created_at, scheduled_at FROM campaigns ORDER BY created_at DESC LIMIT 10"
+    "SELECT id, name, status, created_at, scheduled_at FROM campaigns ORDER BY created_at DESC LIMIT 10",
   );
   console.log("LAST 10 CAMPAIGNS:");
   for (const row of rows) {

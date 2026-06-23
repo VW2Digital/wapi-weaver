@@ -14,9 +14,15 @@ import {
 } from "@/lib/whatsapp-business-profile.shared";
 
 function pickMetaCredentials(p: any) {
-  const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "").toString().trim();
-  const accessToken = (process.env.META_ACCESS_TOKEN || p?.whatsapp_access_token || "").toString().trim();
-  const apiVersion = (process.env.META_GRAPH_API_VERSION || p?.meta_graph_version || "v25.0").toString().trim();
+  const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "")
+    .toString()
+    .trim();
+  const accessToken = (process.env.META_ACCESS_TOKEN || p?.whatsapp_access_token || "")
+    .toString()
+    .trim();
+  const apiVersion = (process.env.META_GRAPH_API_VERSION || p?.meta_graph_version || "v25.0")
+    .toString()
+    .trim();
   if (!phoneNumberId || !accessToken) {
     throw new Error("Credenciais da Meta não configuradas (Phone Number ID / Access Token).");
   }
@@ -28,9 +34,12 @@ const verticalSchema = z
   .trim()
   .optional()
   .transform((v) => (v === "" ? "" : v))
-  .refine((v) => v === undefined || v === "" || (WHATSAPP_VERTICALS as readonly string[]).includes(v), {
-    message: "Categoria (vertical) inválida.",
-  });
+  .refine(
+    (v) => v === undefined || v === "" || (WHATSAPP_VERTICALS as readonly string[]).includes(v),
+    {
+      message: "Categoria (vertical) inválida.",
+    },
+  );
 
 const updateSchema = z.object({
   about: z.string().trim().max(139).optional(),
@@ -42,9 +51,7 @@ const updateSchema = z.object({
     .max(2, "A Meta permite no máximo 2 sites.")
     .optional()
     .refine(
-      (arr) =>
-        !arr ||
-        arr.every((u) => !u || u.startsWith("https://") || u.startsWith("http://")),
+      (arr) => !arr || arr.every((u) => !u || u.startsWith("https://") || u.startsWith("http://")),
       { message: "Sites devem começar com http:// ou https://." },
     ),
   vertical: verticalSchema,
@@ -103,7 +110,11 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
     // Antes: estado atual (para log)
     let oldProfile: any = null;
     try {
-      oldProfile = await getWhatsAppBusinessProfileFromMeta({ phoneNumberId, accessToken, apiVersion });
+      oldProfile = await getWhatsAppBusinessProfileFromMeta({
+        phoneNumberId,
+        accessToken,
+        apiVersion,
+      });
     } catch {
       // best-effort
     }
@@ -121,7 +132,11 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
     // Se nada mudou (apenas messaging_product), não faz POST
     const keys = Object.keys(payload).filter((k) => k !== "messaging_product");
     if (keys.length === 0) {
-      return { success: true, message: "Nada a atualizar.", data: oldProfile ?? normalizeBusinessProfile({}) };
+      return {
+        success: true,
+        message: "Nada a atualizar.",
+        data: oldProfile ?? normalizeBusinessProfile({}),
+      };
     }
 
     try {
@@ -149,7 +164,11 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
         success: true,
       });
 
-      return { success: true, message: "Perfil empresarial atualizado com sucesso.", data: newProfile };
+      return {
+        success: true,
+        message: "Perfil empresarial atualizado com sucesso.",
+        data: newProfile,
+      };
     } catch (e: any) {
       await logBusinessProfileAction({
         userId: context.userId,

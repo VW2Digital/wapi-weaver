@@ -142,7 +142,9 @@ function CRMPage() {
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [tempFilter, setTempFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<"open" | "won" | "lost" | "paused" | "archived">("open");
+  const [statusFilter, setStatusFilter] = useState<"open" | "won" | "lost" | "paused" | "archived">(
+    "open",
+  );
   const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
 
   const { data: opps = [], isLoading: loadingOpps } = useQuery({
@@ -193,8 +195,7 @@ function CRMPage() {
 
   // Stage mutations
   const updateStageMutation = useMutation({
-    mutationFn: (payload: { id: string; data: any }) =>
-      updateStageFn({ data: payload }),
+    mutationFn: (payload: { id: string; data: any }) => updateStageFn({ data: payload }),
     onSuccess: () => {
       toast.success("Etapa atualizada com sucesso!");
       qc.invalidateQueries({ queryKey: ["stages", activeId] });
@@ -205,8 +206,7 @@ function CRMPage() {
   });
 
   const createStageMutation = useMutation({
-    mutationFn: (payload: any) =>
-      addStage({ data: payload }),
+    mutationFn: (payload: any) => addStage({ data: payload }),
     onSuccess: () => {
       toast.success("Etapa criada com sucesso!");
       qc.invalidateQueries({ queryKey: ["stages", activeId] });
@@ -216,8 +216,7 @@ function CRMPage() {
   });
 
   const reorderStagesMutation = useMutation({
-    mutationFn: (payload: any) =>
-      reorderStagesFn({ data: payload }),
+    mutationFn: (payload: any) => reorderStagesFn({ data: payload }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stages", activeId] });
     },
@@ -343,7 +342,9 @@ function CRMPage() {
   const [newOppStageId, setNewOppStageId] = useState("");
   const [newOppContactId, setNewOppContactId] = useState("");
   const [newOppOwnerId, setNewOppOwnerId] = useState("");
-  const [newOppPriority, setNewOppPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
+  const [newOppPriority, setNewOppPriority] = useState<"low" | "medium" | "high" | "urgent">(
+    "medium",
+  );
   const [newOppTemp, setNewOppTemp] = useState<"cold" | "warm" | "hot">("cold");
 
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
@@ -440,7 +441,9 @@ function CRMPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {funnels.map((f: any) => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -448,7 +451,14 @@ function CRMPage() {
 
             {/* Manage Stages */}
             {funnels.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => { setStageManagerOpen(true); setStageView("list"); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStageManagerOpen(true);
+                  setStageView("list");
+                }}
+              >
                 <Settings className="w-4 h-4 mr-2" /> Gerenciar Etapas
               </Button>
             )}
@@ -467,16 +477,29 @@ function CRMPage() {
                 <div className="space-y-4 my-4">
                   <div className="space-y-1.5">
                     <Label>Nome do Funil</Label>
-                    <Input value={newFunnelName} onChange={(e: any) => setNewFunnelName(e.target.value)} placeholder="Ex: Vendas Externas" />
+                    <Input
+                      value={newFunnelName}
+                      onChange={(e: any) => setNewFunnelName(e.target.value)}
+                      placeholder="Ex: Vendas Externas"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Descrição</Label>
-                    <Textarea rows={3} value={newFunnelDesc} onChange={(e: any) => setNewFunnelDesc(e.target.value)} placeholder="Descreva o propósito deste pipeline..." />
+                    <Textarea
+                      rows={3}
+                      value={newFunnelDesc}
+                      onChange={(e: any) => setNewFunnelDesc(e.target.value)}
+                      placeholder="Descreva o propósito deste pipeline..."
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>Cancelar</Button>
-                  <Button onClick={() => funnelMutation.mutate()} disabled={!newFunnelName.trim()}>Criar Funil</Button>
+                  <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => funnelMutation.mutate()} disabled={!newFunnelName.trim()}>
+                    Criar Funil
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -495,11 +518,19 @@ function CRMPage() {
                 <div className="grid grid-cols-2 gap-4 my-4">
                   <div className="col-span-2 space-y-1.5">
                     <Label>Título / Nome do Deal</Label>
-                    <Input value={newOppTitle} onChange={(e) => setNewOppTitle(e.target.value)} placeholder="Ex: Licença Premium - Empresa X" />
+                    <Input
+                      value={newOppTitle}
+                      onChange={(e) => setNewOppTitle(e.target.value)}
+                      placeholder="Ex: Licença Premium - Empresa X"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Valor estimado (BRL)</Label>
-                    <Input type="number" value={newOppValue} onChange={(e) => setNewOppValue(Number(e.target.value))} />
+                    <Input
+                      type="number"
+                      value={newOppValue}
+                      onChange={(e) => setNewOppValue(Number(e.target.value))}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Etapa Inicial</Label>
@@ -509,7 +540,9 @@ function CRMPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {stages.map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -522,7 +555,9 @@ function CRMPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {contacts.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone_e164})</SelectItem>
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} ({c.phone_e164})
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -535,7 +570,9 @@ function CRMPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {owners.map((o: any) => (
-                          <SelectItem key={o.id} value={o.id}>{o.display_name || o.full_name || o.email}</SelectItem>
+                          <SelectItem key={o.id} value={o.id}>
+                            {o.display_name || o.full_name || o.email}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -569,8 +606,12 @@ function CRMPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setNewOppOpen(false)}>Cancelar</Button>
-                  <Button onClick={() => oppMutation.mutate()} disabled={!newOppTitle.trim()}>Criar Oportunidade</Button>
+                  <Button variant="outline" onClick={() => setNewOppOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => oppMutation.mutate()} disabled={!newOppTitle.trim()}>
+                    Criar Oportunidade
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -584,8 +625,12 @@ function CRMPage() {
           <div className="flex items-center gap-3">
             <DollarSign className="w-8 h-8 text-green-500 bg-green-500/10 p-1.5 rounded-full" />
             <div>
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Valor total em aberto</span>
-              <p className="text-lg font-bold text-foreground mt-0.5">{formatCurrency(totalOpenValue)}</p>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Valor total em aberto
+              </span>
+              <p className="text-lg font-bold text-foreground mt-0.5">
+                {formatCurrency(totalOpenValue)}
+              </p>
             </div>
           </div>
         </Card>
@@ -593,7 +638,9 @@ function CRMPage() {
           <div className="flex items-center gap-3">
             <Sparkles className="w-8 h-8 text-primary bg-primary/10 p-1.5 rounded-full" />
             <div>
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Deals abertos</span>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Deals abertos
+              </span>
               <p className="text-lg font-bold text-foreground mt-0.5">{filteredOpps.length}</p>
             </div>
           </div>
@@ -602,8 +649,12 @@ function CRMPage() {
           <div className="flex items-center gap-3">
             <TrendingUp className="w-8 h-8 text-indigo-500 bg-indigo-500/10 p-1.5 rounded-full" />
             <div>
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Taxa de Conversão</span>
-              <p className="text-lg font-bold text-foreground mt-0.5">{(stats?.conversion_rate || 0).toFixed(1)}%</p>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Taxa de Conversão
+              </span>
+              <p className="text-lg font-bold text-foreground mt-0.5">
+                {(stats?.conversion_rate || 0).toFixed(1)}%
+              </p>
             </div>
           </div>
         </Card>
@@ -611,14 +662,19 @@ function CRMPage() {
           <div className="flex items-center gap-3">
             <Award className="w-8 h-8 text-amber-500 bg-amber-500/10 p-1.5 rounded-full" />
             <div>
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Faturamento previsto</span>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Faturamento previsto
+              </span>
               <p className="text-lg font-bold text-foreground mt-0.5">
                 {formatCurrency(
                   stages.reduce((acc: number, s: any) => {
                     const stageOpps = filteredOpps.filter((o: any) => o.stage_id === s.id);
-                    const stageVal = stageOpps.reduce((accVal: number, o: any) => accVal + (Number(o.value) || 0), 0);
+                    const stageVal = stageOpps.reduce(
+                      (accVal: number, o: any) => accVal + (Number(o.value) || 0),
+                      0,
+                    );
                     return acc + stageVal * (Number(s.probability_percent || 0) / 100);
-                  }, 0)
+                  }, 0),
                 )}
               </p>
             </div>
@@ -747,19 +803,27 @@ function CRMPage() {
                   {filteredOpps.map((opp: any) => (
                     <tr key={opp.id} className="hover:bg-muted/10 transition-colors">
                       <td className="p-3 font-medium text-foreground">{opp.title}</td>
-                      <td className="p-3 text-muted-foreground">{opp.primary_contact_name || "-"}</td>
+                      <td className="p-3 text-muted-foreground">
+                        {opp.primary_contact_name || "-"}
+                      </td>
                       <td className="p-3 font-semibold">{formatCurrency(opp.value)}</td>
                       <td className="p-3 text-muted-foreground">
                         {owners.find((o: any) => o.id === opp.owner_user_id)?.display_name || "-"}
                       </td>
                       <td className="p-3">
-                        <Badge variant="outline" className="font-normal capitalize">{opp.priority}</Badge>
+                        <Badge variant="outline" className="font-normal capitalize">
+                          {opp.priority}
+                        </Badge>
                       </td>
                       <td className="p-3">
-                        <Badge variant="outline" className="font-normal capitalize">{opp.temperature || "Frio"}</Badge>
+                        <Badge variant="outline" className="font-normal capitalize">
+                          {opp.temperature || "Frio"}
+                        </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground">
-                        {opp.expected_close_date ? new Date(opp.expected_close_date).toLocaleDateString("pt-BR") : "-"}
+                        {opp.expected_close_date
+                          ? new Date(opp.expected_close_date).toLocaleDateString("pt-BR")
+                          : "-"}
                       </td>
                       <td className="p-3 text-right">
                         <Button size="sm" variant="ghost" onClick={() => setSelectedOppId(opp.id)}>
@@ -802,7 +866,12 @@ function CRMPage() {
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 mr-1" onClick={() => setStageView("list")}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 mr-1"
+                    onClick={() => setStageView("list")}
+                  >
                     <ArrowLeft className="w-4 h-4" />
                   </Button>
                   {editingStage ? "Editar Etapa" : "Nova Etapa"}
@@ -814,7 +883,9 @@ function CRMPage() {
           {stageView === "list" ? (
             <div className="flex-1 flex flex-col min-h-0">
               <div className="flex justify-between items-center my-4 shrink-0">
-                <span className="text-xs text-muted-foreground">Arranje e configure as etapas do seu pipeline.</span>
+                <span className="text-xs text-muted-foreground">
+                  Arranje e configure as etapas do seu pipeline.
+                </span>
                 <Button size="sm" onClick={() => handleOpenStageForm(null)}>
                   <Plus className="w-4 h-4 mr-2" /> Adicionar Etapa
                 </Button>
@@ -823,35 +894,77 @@ function CRMPage() {
               {/* Stages list */}
               <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                 {stages.map((st: any, idx: number) => (
-                  <div key={st.id} className="flex items-center justify-between p-3 bg-muted/20 border border-muted-foreground/10 rounded-xl hover:bg-muted/30 transition-colors">
+                  <div
+                    key={st.id}
+                    className="flex items-center justify-between p-3 bg-muted/20 border border-muted-foreground/10 rounded-xl hover:bg-muted/30 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="w-3.5 h-3.5 rounded-full shrink-0 border border-muted-foreground/10" style={{ backgroundColor: st.color || "#64748b" }} />
+                      <div
+                        className="w-3.5 h-3.5 rounded-full shrink-0 border border-muted-foreground/10"
+                        style={{ backgroundColor: st.color || "#64748b" }}
+                      />
                       <div>
                         <span className="font-semibold text-sm">{st.name}</span>
                         <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
                           <span>Previsão: {Number(st.probability_percent || 0).toFixed(0)}%</span>
-                          {st.is_won_stage && <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 text-[9px] py-0 px-1 font-normal">Ganho</Badge>}
-                          {st.is_lost_stage && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] py-0 px-1 font-normal">Perdido</Badge>}
+                          {st.is_won_stage && (
+                            <Badge
+                              variant="outline"
+                              className="bg-green-500/10 text-green-400 border-green-500/20 text-[9px] py-0 px-1 font-normal"
+                            >
+                              Ganho
+                            </Badge>
+                          )}
+                          {st.is_lost_stage && (
+                            <Badge
+                              variant="outline"
+                              className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] py-0 px-1 font-normal"
+                            >
+                              Perdido
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1">
                       {/* Reorder actions */}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" disabled={idx === 0} onClick={() => handleMoveStage(idx, "up")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveStage(idx, "up")}
+                      >
                         <ChevronUp className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" disabled={idx === stages.length - 1} onClick={() => handleMoveStage(idx, "down")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        disabled={idx === stages.length - 1}
+                        onClick={() => handleMoveStage(idx, "down")}
+                      >
                         <ChevronDown className="w-4 h-4" />
                       </Button>
 
                       {/* Edit actions */}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleOpenStageForm(st)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => handleOpenStageForm(st)}
+                      >
                         <Settings className="w-4 h-4" />
                       </Button>
 
                       {/* Delete actions */}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteStageClick(st)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteStageClick(st)}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -869,14 +982,26 @@ function CRMPage() {
             <div className="flex-1 space-y-4 my-4 overflow-y-auto pr-1">
               <div className="space-y-1.5">
                 <Label>Nome da Etapa</Label>
-                <Input value={stageName} onChange={(e) => setStageName(e.target.value)} placeholder="Ex: Novo Lead, Demonstração, Proposta..." />
+                <Input
+                  value={stageName}
+                  onChange={(e) => setStageName(e.target.value)}
+                  placeholder="Ex: Novo Lead, Demonstração, Proposta..."
+                />
               </div>
 
               <div className="space-y-1.5">
                 <Label>Probabilidade de Fechamento (%)</Label>
-                <Input type="number" min={0} max={100} value={stageProb} onChange={(e) => setStageProb(Math.min(100, Math.max(0, Number(e.target.value))))} />
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={stageProb}
+                  onChange={(e) => setStageProb(Math.min(100, Math.max(0, Number(e.target.value))))}
+                />
                 <span className="text-[11px] text-muted-foreground block">
-                  Usado para calcular a previsão de faturamento ponderada (ex: se o valor for BRL 10.000 e probabilidade for 50%, a previsão de fechamento ponderada será BRL 5.000).
+                  Usado para calcular a previsão de faturamento ponderada (ex: se o valor for BRL
+                  10.000 e probabilidade for 50%, a previsão de fechamento ponderada será BRL
+                  5.000).
                 </span>
               </div>
 
@@ -897,36 +1022,80 @@ function CRMPage() {
                     </button>
                   ))}
                   <div className="flex items-center gap-2 border border-muted-foreground/15 rounded-lg px-2 py-0.5 bg-muted/10">
-                    <Input type="color" className="w-7 h-7 p-0 border-0 cursor-pointer rounded bg-transparent" value={stageColor} onChange={(e) => setStageColor(e.target.value)} />
-                    <span className="text-xs font-mono tracking-tight text-muted-foreground">{stageColor}</span>
+                    <Input
+                      type="color"
+                      className="w-7 h-7 p-0 border-0 cursor-pointer rounded bg-transparent"
+                      value={stageColor}
+                      onChange={(e) => setStageColor(e.target.value)}
+                    />
+                    <span className="text-xs font-mono tracking-tight text-muted-foreground">
+                      {stageColor}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-3 pt-2 border-t border-muted-foreground/10">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Configurações Especiais</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  Configurações Especiais
+                </Label>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2 border border-muted-foreground/10 rounded-xl p-3 bg-muted/5 hover:bg-muted/10 cursor-pointer transition-colors" onClick={() => { setIsWonStage(!isWonStage); if (!isWonStage) setIsLostStage(false); }}>
-                    <input type="checkbox" className="rounded border-muted-foreground/20 text-primary focus:ring-primary pointer-events-none" checked={isWonStage} readOnly />
+                  <div
+                    className="flex items-center gap-2 border border-muted-foreground/10 rounded-xl p-3 bg-muted/5 hover:bg-muted/10 cursor-pointer transition-colors"
+                    onClick={() => {
+                      setIsWonStage(!isWonStage);
+                      if (!isWonStage) setIsLostStage(false);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded border-muted-foreground/20 text-primary focus:ring-primary pointer-events-none"
+                      checked={isWonStage}
+                      readOnly
+                    />
                     <div className="text-left">
                       <p className="text-xs font-semibold text-foreground">Marcar como Ganhos</p>
-                      <p className="text-[10px] text-muted-foreground">Negócios que entrarem nesta etapa são dados como ganhos.</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Negócios que entrarem nesta etapa são dados como ganhos.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 border border-muted-foreground/10 rounded-xl p-3 bg-muted/5 hover:bg-muted/10 cursor-pointer transition-colors" onClick={() => { setIsLostStage(!isLostStage); if (!isLostStage) setIsWonStage(false); }}>
-                    <input type="checkbox" className="rounded border-muted-foreground/20 text-primary focus:ring-primary pointer-events-none" checked={isLostStage} readOnly />
+                  <div
+                    className="flex items-center gap-2 border border-muted-foreground/10 rounded-xl p-3 bg-muted/5 hover:bg-muted/10 cursor-pointer transition-colors"
+                    onClick={() => {
+                      setIsLostStage(!isLostStage);
+                      if (!isLostStage) setIsWonStage(false);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded border-muted-foreground/20 text-primary focus:ring-primary pointer-events-none"
+                      checked={isLostStage}
+                      readOnly
+                    />
                     <div className="text-left">
                       <p className="text-xs font-semibold text-foreground">Marcar como Perdidos</p>
-                      <p className="text-[10px] text-muted-foreground">Negócios que entrarem nesta etapa são dados como perdidos.</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Negócios que entrarem nesta etapa são dados como perdidos.
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStageView("list")}>Cancelar</Button>
-                <Button onClick={handleSaveStage} disabled={!stageName.trim() || createStageMutation.isPending || updateStageMutation.isPending}>
+                <Button variant="outline" onClick={() => setStageView("list")}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSaveStage}
+                  disabled={
+                    !stageName.trim() ||
+                    createStageMutation.isPending ||
+                    updateStageMutation.isPending
+                  }
+                >
                   {editingStage ? "Salvar Alterações" : "Criar Etapa"}
                 </Button>
               </div>
@@ -936,7 +1105,12 @@ function CRMPage() {
       </Dialog>
 
       {/* Dialog: Delete Stage Confirmation with Migration */}
-      <Dialog open={!!stageToDelete} onOpenChange={(open) => { if (!open) setStageToDelete(null); }}>
+      <Dialog
+        open={!!stageToDelete}
+        onOpenChange={(open) => {
+          if (!open) setStageToDelete(null);
+        }}
+      >
         <DialogContent className="max-w-md bg-card border border-muted-foreground/15 rounded-xl p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-500">
@@ -945,8 +1119,9 @@ function CRMPage() {
           </DialogHeader>
           <div className="space-y-4 my-4">
             <span className="text-xs text-muted-foreground block">
-              A etapa <span className="font-bold text-foreground">"{stageToDelete?.name}"</span> possui oportunidades comerciais ativas.
-              Selecione para qual etapa deseja migrar estas oportunidades antes de excluir:
+              A etapa <span className="font-bold text-foreground">"{stageToDelete?.name}"</span>{" "}
+              possui oportunidades comerciais ativas. Selecione para qual etapa deseja migrar estas
+              oportunidades antes de excluir:
             </span>
 
             <div className="space-y-1.5">
@@ -956,16 +1131,26 @@ function CRMPage() {
                   <SelectValue placeholder="Selecione a etapa" />
                 </SelectTrigger>
                 <SelectContent>
-                  {stages.filter((s: any) => s.id !== stageToDelete?.id).map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
+                  {stages
+                    .filter((s: any) => s.id !== stageToDelete?.id)
+                    .map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStageToDelete(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleConfirmDeleteWithMigration} disabled={!migrationStageId || deleteStageMutation.isPending}>
+            <Button variant="outline" onClick={() => setStageToDelete(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteWithMigration}
+              disabled={!migrationStageId || deleteStageMutation.isPending}
+            >
               Migrar e Excluir
             </Button>
           </DialogFooter>

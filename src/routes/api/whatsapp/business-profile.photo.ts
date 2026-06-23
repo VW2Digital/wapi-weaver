@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-import { uploadProfilePictureToMeta, logBusinessProfileAction } from "@/lib/whatsapp-business-profile.service";
+import {
+  uploadProfilePictureToMeta,
+  logBusinessProfileAction,
+} from "@/lib/whatsapp-business-profile.service";
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
@@ -19,9 +22,15 @@ function getAuthUserId(request: Request): { userId: string; role: string } {
 }
 
 function pickMetaCredentials(p: any) {
-  const accessToken = (process.env.META_ACCESS_TOKEN || p?.whatsapp_access_token || "").toString().trim();
-  const apiVersion = (process.env.META_GRAPH_API_VERSION || p?.meta_graph_version || "v25.0").toString().trim();
-  const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "").toString().trim();
+  const accessToken = (process.env.META_ACCESS_TOKEN || p?.whatsapp_access_token || "")
+    .toString()
+    .trim();
+  const apiVersion = (process.env.META_GRAPH_API_VERSION || p?.meta_graph_version || "v25.0")
+    .toString()
+    .trim();
+  const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "")
+    .toString()
+    .trim();
   if (!accessToken) throw new Error("Credenciais da Meta não configuradas (Access Token).");
   return { accessToken, apiVersion, phoneNumberId };
 }
@@ -45,7 +54,9 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
           const { userId } = getAuthUserId(request);
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
-            .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version, whatsapp_app_id")
+            .select(
+              "whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version, whatsapp_app_id",
+            )
             .eq("id", userId)
             .maybeSingle();
           if (profErr) throw new Error(profErr.message);
@@ -54,7 +65,11 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
 
           let appId = String(p?.whatsapp_app_id || process.env.META_APP_ID || "").trim();
           if (!appId) {
-            const { data: settings } = await dbAdmin.from("platform_settings").select("meta_app_id").eq("id", 1).maybeSingle();
+            const { data: settings } = await dbAdmin
+              .from("platform_settings")
+              .select("meta_app_id")
+              .eq("id", 1)
+              .maybeSingle();
             if (settings?.meta_app_id) appId = String(settings.meta_app_id).trim();
           }
 
@@ -68,7 +83,10 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
           const file = form.get("profile_picture");
           if (!file || !(file instanceof File)) {
             return json(
-              { success: false, message: "Envie o arquivo no campo profile_picture (multipart/form-data)." },
+              {
+                success: false,
+                message: "Envie o arquivo no campo profile_picture (multipart/form-data).",
+              },
               400,
             );
           }
@@ -78,7 +96,10 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
           }
           if (file.size > MAX_BYTES) {
             return json(
-              { success: false, message: `Imagem muito grande. Máximo ${Math.floor(MAX_BYTES / (1024 * 1024))}MB.` },
+              {
+                success: false,
+                message: `Imagem muito grande. Máximo ${Math.floor(MAX_BYTES / (1024 * 1024))}MB.`,
+              },
               400,
             );
           }

@@ -101,7 +101,11 @@ export function OpportunityModal({
   const reopenOpp = useServerFn(reopenOpportunity);
 
   // Queries
-  const { data: opportunity, isLoading: loadingOpp, refetch: refetchOppData } = useQuery({
+  const {
+    data: opportunity,
+    isLoading: loadingOpp,
+    refetch: refetchOppData,
+  } = useQuery({
     queryKey: ["opportunity", opportunityId],
     queryFn: () => fetchOpp({ data: { id: opportunityId } }),
     enabled: !!opportunityId,
@@ -156,7 +160,9 @@ export function OpportunityModal({
   // Activities state
   const [actTitle, setActTitle] = useState("");
   const [actDesc, setActDesc] = useState("");
-  const [actType, setActType] = useState<"call" | "email" | "meeting" | "task" | "note" | "whatsapp" | "proposal" | "follow_up" | "other">("task");
+  const [actType, setActType] = useState<
+    "call" | "email" | "meeting" | "task" | "note" | "whatsapp" | "proposal" | "follow_up" | "other"
+  >("task");
   const [actDue, setActDue] = useState("");
 
   // Secondary contact association state
@@ -182,7 +188,7 @@ export function OpportunityModal({
       setExpectedCloseDate(
         opportunity.expected_close_date
           ? new Date(opportunity.expected_close_date).toISOString().split("T")[0]
-          : ""
+          : "",
       );
       setSource(opportunity.source || "");
       setTemperature(opportunity.temperature || "cold");
@@ -388,13 +394,25 @@ export function OpportunityModal({
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-muted-foreground">Status:</span>
                 {opportunity?.status === "open" && (
-                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20">Aberto</Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-blue-500/10 text-blue-400 border-blue-500/20"
+                  >
+                    Aberto
+                  </Badge>
                 )}
                 {opportunity?.status === "won" && (
-                  <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20">Ganho</Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-green-500/10 text-green-400 border-green-500/20"
+                  >
+                    Ganho
+                  </Badge>
                 )}
                 {opportunity?.status === "lost" && (
-                  <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">Perdido</Badge>
+                  <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">
+                    Perdido
+                  </Badge>
                 )}
               </div>
             </div>
@@ -402,10 +420,20 @@ export function OpportunityModal({
           <div className="flex items-center gap-2">
             {opportunity?.status === "open" && (
               <>
-                <Button size="sm" variant="outline" className="text-green-500 hover:text-green-600 hover:bg-green-500/10 border-green-500/30" onClick={() => winMutation.mutate()}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-500 hover:text-green-600 hover:bg-green-500/10 border-green-500/30"
+                  onClick={() => winMutation.mutate()}
+                >
                   Marcar como Ganho
                 </Button>
-                <Button size="sm" variant="outline" className="text-red-500 hover:text-red-600 hover:bg-red-500/10 border-red-500/30" onClick={() => setLostDialogOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-500/10 border-red-500/30"
+                  onClick={() => setLostDialogOpen(true)}
+                >
                   Marcar como Perdido
                 </Button>
               </>
@@ -421,11 +449,34 @@ export function OpportunityModal({
         <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 border-b border-muted-foreground/10 bg-muted/20">
             <TabsList className="bg-transparent border-none p-0 flex gap-4 h-12">
-              <TabsTrigger value="details" className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1">Dados Gerais</TabsTrigger>
-              <TabsTrigger value="contacts" className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1">Contatos</TabsTrigger>
-              <TabsTrigger value="activities" className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1">Atividades</TabsTrigger>
-              <TabsTrigger value="notes" className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1">Notas</TabsTrigger>
-              <TabsTrigger value="timeline" className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 flex items-center gap-1">
+              <TabsTrigger
+                value="details"
+                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1"
+              >
+                Dados Gerais
+              </TabsTrigger>
+              <TabsTrigger
+                value="contacts"
+                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1"
+              >
+                Contatos
+              </TabsTrigger>
+              <TabsTrigger
+                value="activities"
+                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1"
+              >
+                Atividades
+              </TabsTrigger>
+              <TabsTrigger
+                value="notes"
+                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1"
+              >
+                Notas
+              </TabsTrigger>
+              <TabsTrigger
+                value="timeline"
+                className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 flex items-center gap-1"
+              >
                 <History className="w-3.5 h-3.5" /> Histórico / Timeline
               </TabsTrigger>
             </TabsList>
@@ -441,7 +492,11 @@ export function OpportunityModal({
                 </div>
                 <div className="space-y-1.5">
                   <Label>Valor do Negócio (BRL)</Label>
-                  <Input type="number" value={value} onChange={(e) => setValue(Number(e.target.value))} />
+                  <Input
+                    type="number"
+                    value={value}
+                    onChange={(e) => setValue(Number(e.target.value))}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Funil de Vendas</Label>
@@ -451,7 +506,9 @@ export function OpportunityModal({
                     </SelectTrigger>
                     <SelectContent>
                       {funnels.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -463,9 +520,13 @@ export function OpportunityModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {stages.filter((s) => s.funnel_id === funnelId).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
+                      {stages
+                        .filter((s) => s.funnel_id === funnelId)
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -477,14 +538,20 @@ export function OpportunityModal({
                     </SelectTrigger>
                     <SelectContent>
                       {(allContacts ?? []).map((c: any) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone_e164})</SelectItem>
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.phone_e164})
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Nome da Empresa (se houver)</Label>
-                  <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Ex: VW2Digital" />
+                  <Input
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Ex: VW2Digital"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Responsável (Dono)</Label>
@@ -494,23 +561,36 @@ export function OpportunityModal({
                     </SelectTrigger>
                     <SelectContent>
                       {owners.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>{o.display_name || o.full_name || o.email}</SelectItem>
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.display_name || o.full_name || o.email}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Previsão de Fechamento</Label>
-                  <Input type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={expectedCloseDate}
+                    onChange={(e) => setExpectedCloseDate(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Origem (Lead Source)</Label>
-                  <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Ex: Instagram, Indicação, etc." />
+                  <Input
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="Ex: Instagram, Indicação, etc."
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1.5">
                     <Label>Temperatura</Label>
-                    <Select value={temperature || "cold"} onValueChange={(v: any) => setTemperature(v)}>
+                    <Select
+                      value={temperature || "cold"}
+                      onValueChange={(v: any) => setTemperature(v)}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -540,12 +620,21 @@ export function OpportunityModal({
 
               <div className="space-y-1.5">
                 <Label>Tags (separadas por vírgula)</Label>
-                <Input value={tagsStr} onChange={(e) => setTagsStr(e.target.value)} placeholder="Tags..." />
+                <Input
+                  value={tagsStr}
+                  onChange={(e) => setTagsStr(e.target.value)}
+                  placeholder="Tags..."
+                />
               </div>
 
               <div className="space-y-1.5">
                 <Label>Descrição da Oportunidade / Observações</Label>
-                <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva os detalhes comerciais deste deal..." />
+                <Textarea
+                  rows={4}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Descreva os detalhes comerciais deste deal..."
+                />
               </div>
             </TabsContent>
 
@@ -561,13 +650,19 @@ export function OpportunityModal({
                       </SelectTrigger>
                       <SelectContent>
                         {(allContacts ?? []).map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="w-[180px]">
-                    <Input value={addContactRole} onChange={(e) => setAddContactRole(e.target.value)} placeholder="Papel (ex: Decisor)" />
+                    <Input
+                      value={addContactRole}
+                      onChange={(e) => setAddContactRole(e.target.value)}
+                      placeholder="Papel (ex: Decisor)"
+                    />
                   </div>
                   <Button type="button" onClick={handleAddSecondaryContact}>
                     <UserPlus className="w-4 h-4 mr-2" /> Adicionar
@@ -581,23 +676,42 @@ export function OpportunityModal({
                   <div className="flex items-center justify-between p-3 bg-muted/40 border border-muted-foreground/10 rounded-xl">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-primary" />
-                      <span className="font-medium text-sm">{opportunity.primary_contact_name}</span>
-                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Contato Principal</Badge>
+                      <span className="font-medium text-sm">
+                        {opportunity.primary_contact_name}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="bg-primary/10 text-primary border-primary/20"
+                      >
+                        Contato Principal
+                      </Badge>
                     </div>
-                    <span className="text-xs text-muted-foreground">{opportunity.primary_contact_phone}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {opportunity.primary_contact_phone}
+                    </span>
                   </div>
                 )}
 
                 {additionalContacts.map((c) => (
-                  <div key={c.contact_id} className="flex items-center justify-between p-3 bg-card border border-muted-foreground/10 rounded-xl hover:bg-muted/10 transition-colors">
+                  <div
+                    key={c.contact_id}
+                    className="flex items-center justify-between p-3 bg-card border border-muted-foreground/10 rounded-xl hover:bg-muted/10 transition-colors"
+                  >
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-medium">{c.name}</span>
-                      <Badge variant="outline" className="font-normal">{c.role || "Secundário"}</Badge>
+                      <Badge variant="outline" className="font-normal">
+                        {c.role || "Secundário"}
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-muted-foreground">{c.phone_e164}</span>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleRemoveSecondaryContact(c.contact_id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => handleRemoveSecondaryContact(c.contact_id)}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -618,7 +732,11 @@ export function OpportunityModal({
                 <h3 className="font-semibold text-sm">Criar Nova Atividade</h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
-                    <Input value={actTitle} onChange={(e) => setActTitle(e.target.value)} placeholder="Título da atividade/tarefa..." />
+                    <Input
+                      value={actTitle}
+                      onChange={(e) => setActTitle(e.target.value)}
+                      placeholder="Título da atividade/tarefa..."
+                    />
                   </div>
                   <div>
                     <Select value={actType} onValueChange={(v: any) => setActType(v)}>
@@ -640,13 +758,25 @@ export function OpportunityModal({
                 </div>
                 <div className="grid grid-cols-3 gap-3 items-end">
                   <div className="col-span-2">
-                    <Input value={actDesc} onChange={(e) => setActDesc(e.target.value)} placeholder="Descrição curta (opcional)..." />
+                    <Input
+                      value={actDesc}
+                      onChange={(e) => setActDesc(e.target.value)}
+                      placeholder="Descrição curta (opcional)..."
+                    />
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Input type="datetime-local" value={actDue} onChange={(e) => setActDue(e.target.value)} />
+                      <Input
+                        type="datetime-local"
+                        value={actDue}
+                        onChange={(e) => setActDue(e.target.value)}
+                      />
                     </div>
-                    <Button type="button" onClick={() => activityMutation.mutate()} disabled={!actTitle.trim()}>
+                    <Button
+                      type="button"
+                      onClick={() => activityMutation.mutate()}
+                      disabled={!actTitle.trim()}
+                    >
                       Criar
                     </Button>
                   </div>
@@ -656,23 +786,44 @@ export function OpportunityModal({
               <div className="space-y-2">
                 <h4 className="font-semibold text-sm">Atividades Recentes</h4>
                 {(activities ?? []).map((act: any) => (
-                  <div key={act.id} className="flex items-center justify-between p-3 border border-muted-foreground/10 rounded-xl hover:bg-muted/5 transition-colors">
+                  <div
+                    key={act.id}
+                    className="flex items-center justify-between p-3 border border-muted-foreground/10 rounded-xl hover:bg-muted/5 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       {act.status === "pending" ? (
-                        <Button variant="outline" size="icon" className="h-6 w-6 rounded-full hover:bg-success/20" onClick={() => completeActMutation.mutate(act)}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-6 w-6 rounded-full hover:bg-success/20"
+                          onClick={() => completeActMutation.mutate(act)}
+                        >
                           <Check className="w-3.5 h-3.5 text-success opacity-0 hover:opacity-100" />
                         </Button>
                       ) : (
                         <Check className="w-5 h-5 text-success bg-success/10 p-1 rounded-full shrink-0" />
                       )}
                       <div>
-                        <p className={`text-sm font-medium ${act.status === "done" ? 'line-through text-muted-foreground' : ''}`}>{act.title}</p>
+                        <p
+                          className={`text-sm font-medium ${act.status === "done" ? "line-through text-muted-foreground" : ""}`}
+                        >
+                          {act.title}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          Tipo: {act.type} {act.due_at && `· Vence em: ${new Date(act.due_at).toLocaleString("pt-BR")}`}
+                          Tipo: {act.type}{" "}
+                          {act.due_at &&
+                            `· Vence em: ${new Date(act.due_at).toLocaleString("pt-BR")}`}
                         </p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeAct({ data: { id: act.id, opportunity_id: opportunityId } })}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() =>
+                        removeAct({ data: { id: act.id, opportunity_id: opportunityId } })
+                      }
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -691,8 +842,16 @@ export function OpportunityModal({
               <div className="space-y-2">
                 <Label>Escrever Nota Rápida</Label>
                 <div className="flex gap-2">
-                  <Textarea value={newNoteBody} onChange={(e) => setNewNoteBody(e.target.value)} placeholder="Escreva observações ou resumos de reuniões..." />
-                  <Button className="h-auto shrink-0" onClick={() => noteMutation.mutate()} disabled={!newNoteBody.trim()}>
+                  <Textarea
+                    value={newNoteBody}
+                    onChange={(e) => setNewNoteBody(e.target.value)}
+                    placeholder="Escreva observações ou resumos de reuniões..."
+                  />
+                  <Button
+                    className="h-auto shrink-0"
+                    onClick={() => noteMutation.mutate()}
+                    disabled={!newNoteBody.trim()}
+                  >
                     Salvar Nota
                   </Button>
                 </div>
@@ -701,11 +860,22 @@ export function OpportunityModal({
               <div className="space-y-3 mt-4">
                 <h4 className="font-semibold text-sm">Notas Salvas</h4>
                 {(notes ?? []).map((n: any) => (
-                  <div key={n.id} className="p-4 bg-muted/20 border border-muted-foreground/10 rounded-xl relative group">
+                  <div
+                    key={n.id}
+                    className="p-4 bg-muted/20 border border-muted-foreground/10 rounded-xl relative group"
+                  >
                     <p className="text-sm whitespace-pre-wrap text-foreground">{n.body}</p>
                     <div className="flex items-center justify-between mt-3 text-[11px] text-muted-foreground">
-                      <span>Criado por: {n.creator_email || "Sistema"} em {new Date(n.created_at).toLocaleString("pt-BR")}</span>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => removeNoteFn({ data: { id: n.id } })}>
+                      <span>
+                        Criado por: {n.creator_email || "Sistema"} em{" "}
+                        {new Date(n.created_at).toLocaleString("pt-BR")}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        onClick={() => removeNoteFn({ data: { id: n.id } })}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -731,7 +901,7 @@ export function OpportunityModal({
                   if (evt.event_type === "stage_history") {
                     icon = <History className="w-4 h-4 text-blue-500" />;
                     titleStr = `Mapeamento de Etapa`;
-                    bodyStr = `Movido de "${evt.from_stage_name || 'Início'}" para "${evt.to_stage_name}" por ${evt.actor_email || 'Sistema'}`;
+                    bodyStr = `Movido de "${evt.from_stage_name || "Início"}" para "${evt.to_stage_name}" por ${evt.actor_email || "Sistema"}`;
                     if (evt.reason) bodyStr += ` · Motivo: ${evt.reason}`;
                   } else if (evt.event_type === "note") {
                     icon = <FileText className="w-4 h-4 text-amber-500" />;
@@ -740,7 +910,7 @@ export function OpportunityModal({
                   } else if (evt.event_type === "activity") {
                     icon = <Check className="w-4 h-4 text-green-500" />;
                     titleStr = `Atividade: ${evt.title}`;
-                    bodyStr = `Tipo: ${evt.type} · Status: ${evt.status === 'done' ? 'Concluída' : 'Pendente'}`;
+                    bodyStr = `Tipo: ${evt.type} · Status: ${evt.status === "done" ? "Concluída" : "Pendente"}`;
                     if (evt.description) bodyStr += ` · Descrição: ${evt.description}`;
                   }
 
@@ -755,7 +925,9 @@ export function OpportunityModal({
                           {new Date(evt.event_date).toLocaleString("pt-BR")}
                         </span>
                         <h4 className="text-sm font-semibold text-foreground mt-0.5">{titleStr}</h4>
-                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{bodyStr}</p>
+                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                          {bodyStr}
+                        </p>
                       </div>
                     </div>
                   );
@@ -772,12 +944,20 @@ export function OpportunityModal({
         </Tabs>
 
         <DialogFooter className="p-4 border-t border-muted-foreground/10 flex items-center justify-between bg-muted/20">
-          <Button variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => deleteMutation.mutate()}>
+          <Button
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => deleteMutation.mutate()}
+          >
             Excluir Oportunidade
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>Salvar Alterações</Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              Salvar Alterações
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -799,19 +979,32 @@ export function OpportunityModal({
                 </SelectTrigger>
                 <SelectContent>
                   {(lostReasons ?? []).map((r: any) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Detalhes adicionais (opcional)</Label>
-              <Textarea rows={3} value={lostReasonText} onChange={(e) => setLostReasonText(e.target.value)} placeholder="Descreva por que o negócio foi perdido..." />
+              <Textarea
+                rows={3}
+                value={lostReasonText}
+                onChange={(e) => setLostReasonText(e.target.value)}
+                placeholder="Descreva por que o negócio foi perdido..."
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLostDialogOpen(false)}>Voltar</Button>
-            <Button variant="destructive" onClick={() => lostMutation.mutate()} disabled={!selectedLostReasonId}>
+            <Button variant="outline" onClick={() => setLostDialogOpen(false)}>
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => lostMutation.mutate()}
+              disabled={!selectedLostReasonId}
+            >
               Confirmar Perda
             </Button>
           </DialogFooter>

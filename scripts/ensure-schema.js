@@ -40,14 +40,21 @@ async function ensureTableExists(connection, tableName, createSql) {
 
 async function ensureColumnExists(connection, tableName, columnName, columnDefinition) {
   try {
-    const [columns] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\` LIKE ?`, [columnName]);
+    const [columns] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\` LIKE ?`, [
+      columnName,
+    ]);
     if (columns.length === 0) {
       logSchema(`Adicionando coluna ausente \`${columnName}\` na tabela \`${tableName}\`...`);
-      await connection.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${columnDefinition}`);
+      await connection.query(
+        `ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${columnDefinition}`,
+      );
       logSchema(`Coluna \`${columnName}\` criada com sucesso.`);
     }
   } catch (err) {
-    console.error(`[Schema] Erro ao validar coluna \`${columnName}\` em \`${tableName}\`:`, formatDbError(err));
+    console.error(
+      `[Schema] Erro ao validar coluna \`${columnName}\` em \`${tableName}\`:`,
+      formatDbError(err),
+    );
     throw err;
   }
 }
@@ -177,7 +184,9 @@ async function prepareDirectMessagesUniqueIndex(connection) {
       `);
       logSchema(`Backup de duplicados criado em ${backupTableName}.`);
     } else {
-      logSchema(`Tabela de backup ${backupTableName} já existe com dados. Backup adicional ignorado para preservar histórico.`);
+      logSchema(
+        `Tabela de backup ${backupTableName} já existe com dados. Backup adicional ignorado para preservar histórico.`,
+      );
     }
 
     await connection.query(`DROP TEMPORARY TABLE IF EXISTS tmp_direct_messages_ranked`);
@@ -258,10 +267,20 @@ export async function ensureDatabaseSchema() {
   try {
     logSchema("Validando schema do banco...");
 
-    await ensureColumnExists(connection, "profiles", "rate_limit_per_second", "INT NOT NULL DEFAULT 10");
+    await ensureColumnExists(
+      connection,
+      "profiles",
+      "rate_limit_per_second",
+      "INT NOT NULL DEFAULT 10",
+    );
     await ensureColumnExists(connection, "profiles", "whatsapp_verify_token", "VARCHAR(255) NULL");
     await ensureColumnExists(connection, "profiles", "whatsapp_access_token", "TEXT NULL");
-    await ensureColumnExists(connection, "profiles", "whatsapp_phone_number_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(
+      connection,
+      "profiles",
+      "whatsapp_phone_number_id",
+      "VARCHAR(100) NULL",
+    );
     await ensureColumnExists(connection, "profiles", "whatsapp_waba_id", "VARCHAR(100) NULL");
     await ensureColumnExists(connection, "profiles", "whatsapp_business_id", "VARCHAR(100) NULL");
     await ensureColumnExists(connection, "profiles", "whatsapp_business_phone", "VARCHAR(50) NULL");
@@ -405,7 +424,10 @@ export async function ensureDatabaseSchema() {
         MODIFY COLUMN \`type\` ENUM('text', 'reaction', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contacts') NOT NULL DEFAULT 'text'
       `);
     } catch (err) {
-      console.warn("[Schema] Falha ao atualizar enum de direct_messages.type (pode já estar atualizado):", err.message);
+      console.warn(
+        "[Schema] Falha ao atualizar enum de direct_messages.type (pode já estar atualizado):",
+        err.message,
+      );
     }
 
     await ensureTableExists(
@@ -492,13 +514,170 @@ export async function ensureDatabaseSchema() {
       "CREATE INDEX idx_message_tags_user ON message_tags(user_id)",
     );
 
+    // BotFlow Tables
+    await ensureTableExists(
+      connection,
+      "bot_settings",
+      `
+      CREATE TABLE IF NOT EXISTS bot_settings (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        instance_id VARCHAR(50) NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        pause_timeout_minutes INT NOT NULL DEFAULT 60,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_bot_settings_instance (user_id, instance_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "bot_steps",
+      `
+      CREATE TABLE IF NOT EXISTS bot_steps (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        bot_settings_id VARCHAR(36) NOT NULL,
+        step_order INT NOT NULL DEFAULT 1,
+        trigger_type VARCHAR(50) NOT NULL DEFAULT 'keyword',
+        trigger_value VARCHAR(255) NULL,
+        message_type VARCHAR(50) NOT NULL DEFAULT 'text',
+        message_content TEXT NULL,
+        media_caption TEXT NULL,
+        footer_text VARCHAR(255) NULL,
+        buttons_config JSON NULL,
+        next_step_id VARCHAR(36) NULL,
+        delay_seconds INT NOT NULL DEFAULT 0,
+        assign_team_id VARCHAR(36) NULL,
+        assign_user_id VARCHAR(36) NULL,
+        handoff_message TEXT NULL,
+        card_color VARCHAR(50) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (bot_settings_id) REFERENCES bot_settings(id) ON DELETE CASCADE,
+        FOREIGN KEY (next_step_id) REFERENCES bot_steps(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "bot_step_options",
+      `
+      CREATE TABLE IF NOT EXISTS bot_step_options (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        step_id VARCHAR(36) NOT NULL,
+        option_number INT NOT NULL,
+        label VARCHAR(50) NOT NULL,
+        description VARCHAR(255) NULL,
+        next_step_id VARCHAR(36) NULL,
+        assign_team_id VARCHAR(36) NULL,
+        assign_user_id VARCHAR(36) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (step_id) REFERENCES bot_steps(id) ON DELETE CASCADE,
+        FOREIGN KEY (next_step_id) REFERENCES bot_steps(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "bot_conversation_state",
+      `
+      CREATE TABLE IF NOT EXISTS bot_conversation_state (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        contact_number VARCHAR(50) NOT NULL,
+        instance_id VARCHAR(50) NOT NULL,
+        current_step_id VARCHAR(36) NULL,
+        last_interaction DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        is_paused BOOLEAN NOT NULL DEFAULT FALSE,
+        paused_until DATETIME NULL,
+        bot_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (current_step_id) REFERENCES bot_steps(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    // Adiciona colunas que podem não ter sido criadas na v1
+    await ensureColumnExists(connection, "bot_steps", "media_url", "VARCHAR(1024) NULL");
+
+    await ensureIndexExists(
+      connection,
+      "bot_steps",
+      "idx_bot_steps_settings",
+      "CREATE INDEX idx_bot_steps_settings ON bot_steps(bot_settings_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "bot_step_options",
+      "idx_bot_step_options_step",
+      "CREATE INDEX idx_bot_step_options_step ON bot_step_options(step_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "bot_conversation_state",
+      "idx_bot_conv_state_contact",
+      "CREATE INDEX idx_bot_conv_state_contact ON bot_conversation_state(contact_number)",
+    );
+
+    await ensureTableExists(
+      connection,
+      "ai_agent_settings",
+      `
+      CREATE TABLE IF NOT EXISTS ai_agent_settings (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        instance_id VARCHAR(50) NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        api_key VARCHAR(255) NULL,
+        model VARCHAR(50) NOT NULL DEFAULT 'gemini-2.5-flash',
+        system_prompt TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_ai_agent_instance (user_id, instance_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "knowledge_base",
+      `
+      CREATE TABLE IF NOT EXISTS knowledge_base (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        ai_agent_settings_id VARCHAR(36) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (ai_agent_settings_id) REFERENCES ai_agent_settings(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
     logSchema("Schema validado com sucesso.");
   } finally {
     await connection.end();
   }
 }
 
-const isDirectRun = process.argv[1] && new URL(`file://${process.argv[1].replace(/\\/g, "/")}`).href === import.meta.url;
+const isDirectRun =
+  process.argv[1] &&
+  new URL(`file://${process.argv[1].replace(/\\/g, "/")}`).href === import.meta.url;
 
 if (isDirectRun) {
   ensureDatabaseSchema().catch((error) => {

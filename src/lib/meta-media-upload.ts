@@ -35,4 +35,3 @@ export async function uploadMetaMediaViaApi(phoneId: string, file: File) {
 
   return body;
 }
-

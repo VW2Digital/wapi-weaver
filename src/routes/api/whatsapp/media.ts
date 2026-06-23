@@ -83,7 +83,7 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           const headers = new Headers();
           headers.set("Content-Type", mimeType);
           headers.set("Content-Length", String(blob.size));
-          
+
           if (download) {
             const filename = metaBody.filename || `file-${mediaId}`;
             headers.set("Content-Disposition", `attachment; filename="${filename}"`);

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import { processBotFlow } from "@/lib/botflow.functions";
 
 function logInfo(message: string, data?: any) {
   console.log(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
@@ -90,8 +91,10 @@ async function resolveWebhookUser(rawBody: string, signatureHeader: string | nul
 
   const payloadPhoneIds = extractPhoneNumberIds(payload);
   if (payloadPhoneIds.length > 0) {
-    const byPhoneId = verifiedProfiles.filter((profile) =>
-      profile.whatsapp_phone_number_id && payloadPhoneIds.includes(String(profile.whatsapp_phone_number_id)),
+    const byPhoneId = verifiedProfiles.filter(
+      (profile) =>
+        profile.whatsapp_phone_number_id &&
+        payloadPhoneIds.includes(String(profile.whatsapp_phone_number_id)),
     );
 
     if (byPhoneId.length === 1) {
@@ -230,7 +233,9 @@ async function processInboundDirectMessages(value: any, userId: string) {
     if (waId) waIdToName.set(waId, name);
   }
 
-  const phoneNumberId = value?.metadata?.phone_number_id ? String(value.metadata.phone_number_id) : null;
+  const phoneNumberId = value?.metadata?.phone_number_id
+    ? String(value.metadata.phone_number_id)
+    : null;
   const displayPhoneNumber = value?.metadata?.display_phone_number
     ? String(value.metadata.display_phone_number)
     : null;
@@ -289,7 +294,8 @@ async function processInboundDirectMessages(value: any, userId: string) {
     } else if (m.type === "location") {
       body = m.location?.name || `${m.location?.latitude}, ${m.location?.longitude}`;
     } else if (m.type === "contacts") {
-      body = m.contacts?.[0]?.name?.formatted_name || m.contacts?.[0]?.phones?.[0]?.phone || "Contato";
+      body =
+        m.contacts?.[0]?.name?.formatted_name || m.contacts?.[0]?.phones?.[0]?.phone || "Contato";
     } else if (m.type === "button") {
       body = m.button?.text ?? "[Botão]";
     } else if (m.type === "interactive") {
@@ -319,6 +325,11 @@ async function processInboundDirectMessages(value: any, userId: string) {
         metadata: value?.metadata ?? null,
       },
     });
+
+    // 🚀 Chama o motor do BotFlow para processar essa mensagem
+    if (phoneNumberId && body) {
+      await processBotFlow(body, phoneDigits, phoneNumberId, userId);
+    }
   }
 }
 
@@ -417,17 +428,15 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const matchedUserId = resolved.userId;
 
         if (!matchedUserId) {
-          await dbAdmin
-            .from("webhook_events")
-            .insert({
-              source: "whatsapp",
-              raw: {
-                rejected: true,
-                reason: resolved.reason,
-                phone_number_ids: extractPhoneNumberIds(payload),
-                body: rawBody.slice(0, 4000),
-              },
-            });
+          await dbAdmin.from("webhook_events").insert({
+            source: "whatsapp",
+            raw: {
+              rejected: true,
+              reason: resolved.reason,
+              phone_number_ids: extractPhoneNumberIds(payload),
+              body: rawBody.slice(0, 4000),
+            },
+          });
           logError("POST recusado (não foi possível resolver user)", {
             reason: resolved.reason,
             phone_number_ids: extractPhoneNumberIds(payload),
@@ -468,7 +477,10 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
 
               logInfo("POST processado com sucesso", { eventId: evRow?.id ?? null });
             } catch (err: any) {
-              logError("Erro ao processar POST", { error: err?.message, eventId: evRow?.id ?? null });
+              logError("Erro ao processar POST", {
+                error: err?.message,
+                eventId: evRow?.id ?? null,
+              });
             }
           })();
         }, 0);

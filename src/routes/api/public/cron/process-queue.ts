@@ -50,7 +50,11 @@ function extractTemplatePlaceholders(components: any[] = []) {
 }
 
 function buildTemplateLookupKey(name?: string | null, language?: string | null) {
-  return `${String(name ?? "").trim().toLowerCase()}::${String(language ?? "").trim().toLowerCase()}`;
+  return `${String(name ?? "")
+    .trim()
+    .toLowerCase()}::${String(language ?? "")
+    .trim()
+    .toLowerCase()}`;
 }
 
 function assertTemplatePayload(payload: any) {
@@ -124,7 +128,9 @@ export async function processOnce() {
       .from("templates")
       .select("id, name, language, components, parameter_format")
       .in("id", templateIds);
-    templateMap = Object.fromEntries((templates ?? []).map((template: any) => [template.id, template]));
+    templateMap = Object.fromEntries(
+      (templates ?? []).map((template: any) => [template.id, template]),
+    );
   }
 
   const { data: allApprovedTemplates } = await dbAdmin
