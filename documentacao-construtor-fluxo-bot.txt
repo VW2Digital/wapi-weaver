@@ -1,0 +1,358 @@
+═══════════════════════════════════════════════════════════════════
+  DOCUMENTAÇÃO COMPLETA — CONSTRUTOR DE FLUXOS (BOT FLOW BUILDER)
+  Automação → Fluxo do Bot
+═══════════════════════════════════════════════════════════════════
+Versão: Junho/2026
+Plataformas suportadas: WhatsApp (via Evolution API) e Telegram (Bot API)
+Arquivos principais:
+  • src/components/BotPanel.tsx           → painel principal e configurações
+  • src/components/BotFlowCanvas.tsx      → canvas visual (drag, conexões, edição)
+  • src/components/BotFlowSimulator.tsx   → simulador de conversa
+  • src/lib/bot-templates.ts              → templates prontos por segmento
+  • src/hooks/use-bot.ts                  → hook de estado (CRUD do fluxo)
+  • supabase/functions/manage-bot/        → backend (salvar, ativar, resetar)
+  • supabase/functions/generate-bot-flow/ → geração de fluxos por IA
+  • supabase/functions/webhook-evolution/ → executor em produção (PROTEGIDO)
+  • supabase/functions/webhook-telegram/  → executor Telegram (PROTEGIDO)
+
+
+═══════════════════════════════════════════════════════════════════
+  1. VISÃO GERAL
+═══════════════════════════════════════════════════════════════════
+
+O Construtor de Fluxos é um editor visual no estilo "canvas" (similar
+ao n8n / ManyChat) onde o usuário monta a árvore de conversa do bot
+arrastando blocos (steps) e conectando saídas a próximos blocos.
+
+Cada conta tem 1 fluxo ativo por instância (WhatsApp/Telegram). O fluxo
+é composto por uma sequência de STEPS (passos), cada um com um TIPO de
+mensagem e zero ou mais SAÍDAS (botões/opções) que apontam para o
+próximo step pelo campo `next_step_order`.
+
+Dados persistidos em 4 tabelas:
+  • bot_settings              → ativo/inativo, pause_timeout
+  • bot_steps                 → cada bloco (20 colunas)
+  • bot_step_options          → opções de listas
+  • bot_conversation_state    → estado por contato (em qual step está)
+
+
+═══════════════════════════════════════════════════════════════════
+  2. ESTRUTURA DA TELA
+═══════════════════════════════════════════════════════════════════
+
+BotPanel divide a tela em 3 áreas:
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  HEADER  Toggle Ativo/Inativo │ Botões Globais │ Salvar     │
+  ├──────────────┬──────────────────────────────┬──────────────┤
+  │              │                              │              │
+  │   SIDEBAR    │         CANVAS               │  INSPECTOR   │
+  │              │                              │              │
+  │ • Add Step   │   [Step 1] ──► [Step 2]      │  Editar      │
+  │ • Templates  │       └─────► [Step 3]       │  step        │
+  │ • IA Gerar   │              │               │  selecionado │
+  │ • Simulador  │              └──► [Step 4]   │              │
+  │              │                              │              │
+  └──────────────┴──────────────────────────────┴──────────────┘
+
+HEADER (topo):
+  • Switch "Bot Ativo / Pausado"          → toggleBot()
+  • "Tempo de pausa após humano" (min)    → updatePauseTimeout()
+  • Botão "Salvar Fluxo"                  → saveSteps()
+  • Botão "Recriar Instância" (config)    → reset Evolution
+  • Indicador de saving / loading
+
+SIDEBAR esquerdo:
+  • [+ Adicionar Passo] com sub-menu de tipos
+  • Lista de Templates prontos (bot-templates.ts)
+  • [✨ Gerar com IA] → abre dialog que chama generate-bot-flow
+  • [▶ Simulador] → abre BotFlowSimulator
+  • [Importar / Exportar JSON]
+
+CANVAS central:
+  • Pan & zoom (scroll, ctrl+drag)
+  • Cada step é um card colorido (card_color define cor)
+  • Linhas SVG conectam saídas → próximo step
+  • Drag para reposicionar
+  • Duplo-clique para editar
+  • Right-click → duplicar / excluir
+  • Indicador visual do trigger (▶ start, 🔑 keyword, 🔘 button)
+
+INSPECTOR direito (quando step selecionado):
+  • Aba "Mensagem"   → tipo, conteúdo, mídia
+  • Aba "Saídas"     → botões/opções e seus next_step
+  • Aba "Avançado"   → delay, handoff (transferência), cor do card
+
+
+═══════════════════════════════════════════════════════════════════
+  3. TIPOS DE STEP (BLOCOS)
+═══════════════════════════════════════════════════════════════════
+
+Cada step tem um `message_type` que define o componente renderizado
+no canvas e enviado ao WhatsApp/Telegram.
+
+────────────────────────────────────────────────────────────────
+TIPO              USO                              SAÍDAS
+────────────────────────────────────────────────────────────────
+text              Texto simples + emojis          0 ou 1 (next_step)
+image             Imagem + legenda                0 ou 1
+video             Vídeo + legenda                 0 ou 1
+audio             Áudio (OGG Opus)                0 ou 1
+document          PDF / arquivo                   0 ou 1
+list              Lista interativa do WhatsApp    até 10 (options[])
+dynamic_buttons   Botões de resposta rápida       até 3 (buttons_config)
+buttons           Botões CTA (URL/Ligar/Copiar)   ação no celular
+image_buttons     Imagem + botões reply           até 3
+url_buttons       Botões de link                  ação externa
+poll              Enquete WhatsApp                até 12 opções
+pix               Cobrança PIX (chave + valor)    1 (após pagamento)
+────────────────────────────────────────────────────────────────
+
+REGRA DE UI: 2–3 opções → use dynamic_buttons. 4+ opções → use list.
+Nunca colocar numeração (1️⃣ 2️⃣...) no texto — os componentes nativos
+já mostram as opções.
+
+
+═══════════════════════════════════════════════════════════════════
+  4. TRIGGERS (COMO O FLUXO INICIA)
+═══════════════════════════════════════════════════════════════════
+
+Campo `trigger_type` define quando o step é disparado:
+
+  • start    → primeiro contato do lead (única ocorrência no fluxo)
+  • keyword  → palavra-chave digitada (trigger_value = "menu", "preço")
+  • button   → resposta de botão/opção (encadeado, sem keyword)
+
+Regra: SEMPRE existe um step com trigger_type="start". O canvas
+destaca esse step com borda verde.
+
+
+═══════════════════════════════════════════════════════════════════
+  5. CONEXÕES (ROUTING)
+═══════════════════════════════════════════════════════════════════
+
+Existem 3 formas de definir o próximo step:
+
+  a) Campo `next_step` (number | null)
+     → seguir automático após enviar (usado em text/image/video)
+     → null = aguarda input do usuário
+
+  b) Array `options[].next_step_order`
+     → uma rota por opção da lista
+
+  c) Array `buttons_config[].next_step_order`
+     → uma rota por botão reply
+
+CÓDIGOS ESPECIAIS de next_step (sentinelas):
+  •  -999  → HANDOFF (transferir para atendente humano)
+  •  -998  → SILENCIAR bot nesta conversa permanentemente
+  •  -997  → RESETAR (volta ao step 1 / start)
+  •  null  → AGUARDAR resposta do usuário sem timeout
+  •   0    → FIM do fluxo (nenhuma ação)
+
+No canvas, conexões para códigos especiais são desenhadas com cor
+distinta (vermelho = handoff, cinza = silenciar, azul = reset).
+
+
+═══════════════════════════════════════════════════════════════════
+  6. HANDOFF (TRANSFERÊNCIA PARA HUMANO)
+═══════════════════════════════════════════════════════════════════
+
+Qualquer step ou opção pode transferir a conversa. Campos disponíveis:
+
+  • assign_team_id        → time específico (round-robin sticky)
+  • assign_user_id        → usuário específico
+  • assign_instance_id    → outra instância (canal)
+  • target_agent_id       → outro agente de IA
+  • handoff_message       → mensagem mostrada ao lead na transferência
+
+Lógica (em webhook-evolution):
+  1. Trava pg_advisory_xact_lock para evitar dupla atribuição
+  2. Se assign_user_id → atribui direto
+  3. Senão se assign_team_id → escolhe membro disponível (round-robin)
+  4. Senão se assign_instance_id → muda canal de origem
+  5. Pausa o bot por X minutos (bot_settings.pause_timeout_minutes)
+
+
+═══════════════════════════════════════════════════════════════════
+  7. AÇÕES DO CANVAS (BotFlowCanvas.tsx)
+═══════════════════════════════════════════════════════════════════
+
+INTERAÇÕES:
+  • Click vazio       → desseleciona
+  • Click no card     → seleciona (abre Inspector)
+  • Duplo-click       → edição inline do conteúdo
+  • Drag card         → reposiciona (auto-layout opcional)
+  • Drag de saída     → desenha nova conexão para outro step
+  • Click conexão     → highlight + opção de remover
+  • Right-click card  → menu: Duplicar / Excluir / Mudar cor
+  • Ctrl+Z / Ctrl+Y   → undo/redo (use-undo-redo hook)
+  • Delete key        → exclui step selecionado
+  • Ctrl+S            → salva fluxo
+
+VALIDAÇÕES em tempo real:
+  • Step sem conteúdo  → borda amarela
+  • Conexão quebrada (next_step_order inexistente) → linha vermelha
+  • Step órfão (nenhuma rota chega nele e não é start) → ⚠ ícone
+  • Loop infinito sem espera     → aviso no rodapé
+  • Botão sem displayText        → bloqueia salvar
+
+AUTO-LAYOUT:
+  • Botão "Organizar" aplica layout em árvore (BFS a partir do start)
+  • Steps em níveis horizontais por profundidade
+  • Espaçamento: 280px horizontal, 180px vertical
+
+
+═══════════════════════════════════════════════════════════════════
+  8. TEMPLATES PRONTOS (src/lib/bot-templates.ts)
+═══════════════════════════════════════════════════════════════════
+
+Templates por segmento, carregam um fluxo completo de uma vez:
+
+  • Clínica / Saúde         (agendamento + convênios)
+  • Restaurante / Delivery  (cardápio + pedido)
+  • E-commerce              (catálogo + rastreio)
+  • Imobiliária             (busca imóvel + visita)
+  • Salão / Estética        (agendamento + serviços)
+  • Automotivo              (orçamento + revisão)
+  • Educação                (matrícula + cursos)
+  • Suporte SaaS            (ticket + FAQ)
+  • Genérico atendimento    (3 opções básicas)
+
+Cada template já vem com triggers, mensagens, listas, transferências
+e o step final "Falar com atendente". O usuário pode aplicar e editar.
+
+
+═══════════════════════════════════════════════════════════════════
+  9. GERAÇÃO POR IA (✨)
+═══════════════════════════════════════════════════════════════════
+
+Botão "Gerar com IA" abre dialog com textarea livre. Ao confirmar:
+
+  1. Frontend chama edge function `generate-bot-flow` com `description`
+  2. A função usa Lovable AI Gateway (modelo google/gemini-2.5-pro)
+  3. System prompt obriga: 8–25 steps, primeiro com lista/botões,
+     último sempre "Falar com atendente", nada de numeração no texto
+  4. Resposta JSON é validada e sanitizada (tipos permitidos, limites
+     de caracteres em labels, conversão de buttons_config)
+  5. Steps retornam ao canvas — usuário revisa e clica "Salvar"
+
+Erros tratados:
+  • 429 → "Limite excedido, tente em alguns segundos"
+  • 402 → "Créditos insuficientes"
+  • JSON inválido → "IA retornou formato inválido, refaça"
+
+
+═══════════════════════════════════════════════════════════════════
+  10. SIMULADOR (BotFlowSimulator.tsx)
+═══════════════════════════════════════════════════════════════════
+
+Modal com mockup de celular WhatsApp que executa o fluxo localmente
+(sem enviar mensagens reais):
+
+  • Renderiza cada tipo de mensagem como ficaria no app
+  • Clica botões/opções para navegar
+  • Mostra delays (delay_seconds) com indicador "digitando..."
+  • Loga rota percorrida (debug)
+  • Botão "Reiniciar" volta ao start
+  • Detecta códigos especiais (mostra "Transferido para atendente")
+
+Usado para validar o fluxo ANTES de ativar em produção.
+
+
+═══════════════════════════════════════════════════════════════════
+  11. SALVANDO E ATIVANDO
+═══════════════════════════════════════════════════════════════════
+
+FLUXO DE SALVAMENTO (use-bot.ts → saveSteps):
+  1. Frontend monta array de steps com options/buttons_config
+  2. Chama edge function `manage-bot` action="save_steps"
+  3. Backend faz DELETE + INSERT atômico de bot_steps e bot_step_options
+  4. Retorna steps recriados (com novos UUIDs)
+  5. Toast "Fluxo do bot salvo!"
+
+ATIVAÇÃO (toggle no header):
+  • action="activate" / "deactivate"
+  • Atualiza bot_settings.is_active
+  • Webhook só executa o fluxo quando is_active=true
+
+TEMPO DE PAUSA:
+  • Após um humano enviar mensagem, o bot pausa N minutos
+  • Configurável por instância: 5, 15, 30, 60, 120, 240 min
+  • Se lead responde dentro desse tempo, vai para humano (não para bot)
+
+
+═══════════════════════════════════════════════════════════════════
+  12. ESTADO POR CONVERSA
+═══════════════════════════════════════════════════════════════════
+
+Cada contato tem 1 linha em `bot_conversation_state`:
+
+  • current_step_order  → onde está no fluxo
+  • bot_active          → pode ser pausado individualmente
+  • last_interaction_at → para timeout
+  • paused_until        → timestamp de retomada
+  • context_data        → dados coletados (nome, e-mail, etc.)
+
+Ações por conversa (no header da conversa):
+  • "Resetar bot"        → resetConversation()  (volta para step 1)
+  • "Pausar bot aqui"    → toggleBotForConversation(false)
+  • "Reativar bot aqui"  → toggleBotForConversation(true)
+
+
+═══════════════════════════════════════════════════════════════════
+  13. INTEGRAÇÃO COM OUTROS SISTEMAS
+═══════════════════════════════════════════════════════════════════
+
+PRIORIDADE DE RESPOSTA (webhook-evolution):
+  1. Humano respondendo  → pausa bot + IA
+  2. Bot em fluxo ativo  → executa próximo step
+  3. Bot em handoff      → não responde
+  4. Agente de IA        → responde se ativo
+  5. Auto-reply          → cooldown 1h
+  6. Fila/atribuição     → último recurso
+
+CAMPANHAS: campanhas (campaigns) podem disparar um step específico
+do fluxo via `process-campaign` (envio em massa controlado).
+
+AGENTE IA: um step pode passar a conversa para um agente de IA
+específico via `target_agent_id` em option/button.
+
+
+═══════════════════════════════════════════════════════════════════
+  14. LIMITES E BOAS PRÁTICAS
+═══════════════════════════════════════════════════════════════════
+
+LIMITES TÉCNICOS:
+  • ~50 steps por fluxo (recomendado para performance do canvas)
+  • Lista WhatsApp: máx 10 itens, label 24 chars, descrição 72 chars
+  • Botões reply: máx 3 por step, displayText 20 chars
+  • Botões CTA: máx 3 mistos (URL + Call + Copy)
+  • Poll: máx 12 opções
+  • Mídia: 16 MB por arquivo (limite WhatsApp)
+  • delay_seconds: 0–10 (acima disso o WhatsApp pode timeout)
+
+BOAS PRÁTICAS:
+  • Comece sempre com menu (lista ou dynamic_buttons)
+  • Ofereça "Falar com atendente" em todo ramo terminal
+  • Use delay 1–2s para parecer humano
+  • Card_color diferente por categoria (verde=início, vermelho=handoff)
+  • Teste no Simulador antes de ativar
+  • Use "Resetar bot" da conversa quando lead ficar travado
+
+
+═══════════════════════════════════════════════════════════════════
+  15. ARQUIVOS PROTEGIDOS (NÃO EDITAR)
+═══════════════════════════════════════════════════════════════════
+
+Os executores em produção são CRÍTICOS e estão sob proteção:
+  • supabase/functions/webhook-evolution/*
+  • supabase/functions/webhook-telegram/*
+
+Qualquer mudança de comportamento do bot deve ser feita nos campos
+de configuração (bot_steps, bot_settings), nunca no código do webhook.
+
+
+═══════════════════════════════════════════════════════════════════
+  FIM DA DOCUMENTAÇÃO
+═══════════════════════════════════════════════════════════════════

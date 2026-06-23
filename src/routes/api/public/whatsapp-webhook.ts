@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
-import { processBotFlow } from "@/lib/botflow.functions";
+import { processBotFlow } from "@/lib/botflow-executor.server";
 
 function logInfo(message: string, data?: any) {
   console.log(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");

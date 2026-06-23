@@ -570,6 +570,8 @@ CREATE TABLE IF NOT EXISTS bot_steps (
   buttons_config JSON NULL,
   next_step_id VARCHAR(36) NULL,
   delay_seconds INT NOT NULL DEFAULT 0,
+  position_x FLOAT NOT NULL DEFAULT 0,
+  position_y FLOAT NOT NULL DEFAULT 0,
   assign_team_id VARCHAR(36) NULL,
   assign_user_id VARCHAR(36) NULL,
   handoff_message TEXT NULL,

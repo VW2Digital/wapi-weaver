@@ -55,6 +55,7 @@
     "@tanstack/router-plugin": "^1.168.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
+    "@xyflow/react": "^12.11.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
