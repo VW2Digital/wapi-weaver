@@ -1,4 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { getSidebarOrder } from "@/lib/admin.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { db } from "@/integrations/mysql/client";
@@ -38,7 +41,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function useGravatarUrl(email: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
@@ -89,6 +92,38 @@ function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const { isAdmin, loading: rolesLoading } = useRoles();
+
+  const fetchSidebarOrder = useServerFn(getSidebarOrder);
+
+  const { data: sidebarOrderData } = useQuery({
+    queryKey: ["sidebar-order"],
+    queryFn: async () => {
+      const res = await fetchSidebarOrder();
+      return res.order;
+    },
+    staleTime: 60_000,
+  });
+
+  const orderedNav = useMemo(() => {
+    if (!sidebarOrderData) return [...NAV];
+    try {
+      const pathsOrder = JSON.parse(sidebarOrderData) as string[];
+      if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...NAV];
+
+      const navCopy = [...NAV];
+      navCopy.sort((a, b) => {
+        const idxA = pathsOrder.indexOf(a.to);
+        const idxB = pathsOrder.indexOf(b.to);
+        if (idxA === -1 && idxB === -1) return 0;
+        if (idxA === -1) return 1;
+        if (idxB === -1) return -1;
+        return idxA - idxB;
+      });
+      return navCopy;
+    } catch {
+      return [...NAV];
+    }
+  }, [sidebarOrderData]);
 
   useEffect(() => {
     if (!user) {
@@ -180,7 +215,8 @@ function AppLayout() {
         Menu
       </div>
       <nav className="flex-1 space-y-1 px-3 overflow-y-auto">
-        {NAV.map(({ to, label, icon: Icon }) => {
+        {orderedNav.map((item: any) => {
+          const { to, label, icon: Icon } = item;
           const isAdminOnly = ["/users", "/audit", "/webhook-events", "/billing"].includes(to);
           if (isAdminOnly && !isAdmin) return null;
           const active = loc.pathname.startsWith(to);

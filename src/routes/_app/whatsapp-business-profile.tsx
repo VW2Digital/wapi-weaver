@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { db } from "@/integrations/mysql/client";
+import { getProfile } from "@/lib/profile.functions";
 import {
   WHATSAPP_VERTICALS,
   type WhatsAppBusinessProfile,
@@ -57,6 +58,12 @@ function WhatsAppBusinessProfilePage() {
   const qc = useQueryClient();
   const fetchProfile = useServerFn(getWhatsAppBusinessProfile);
   const saveProfile = useServerFn(updateWhatsAppBusinessProfile);
+  const fetchLocalProfile = useServerFn(getProfile);
+
+  const localProfileQuery = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchLocalProfile(),
+  });
 
   const [form, setForm] = useState<FormState>({
     about: "",
@@ -252,6 +259,15 @@ function WhatsAppBusinessProfilePage() {
                   disabled={isLoading}
                   onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
                 />
+                {!localProfileQuery.isLoading && !localProfileQuery.data?.whatsapp_app_id && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-relaxed">
+                    ⚠️ <strong>Meta App ID não configurado.</strong> Preencha o campo App ID nas{" "}
+                    <Link to="/settings" className="underline font-bold text-primary hover:text-primary/80">
+                      Configurações
+                    </Link>{" "}
+                    (Etapa 1) antes de enviar a foto do perfil.
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <Button
                     type="button"

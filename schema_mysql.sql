@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   whatsapp_business_id VARCHAR(100) NULL,
   whatsapp_business_phone VARCHAR(50) NULL,
   whatsapp_app_secret TEXT NULL,
+  whatsapp_app_id VARCHAR(100) NULL,
   meta_graph_version VARCHAR(50) NOT NULL DEFAULT 'v20.0',
   salvy_api_key TEXT NULL,
   api_key TEXT NULL,
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   cron_secret TEXT NULL,
   head_tags TEXT NULL,
   body_tags TEXT NULL,
+  sidebar_order TEXT NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   updated_by VARCHAR(36) NULL,
   FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL

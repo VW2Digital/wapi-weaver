@@ -11,6 +11,7 @@ const credSchema = z.object({
   whatsapp_business_phone: z.string().trim().max(32).nullable().optional(),
   whatsapp_access_token: z.string().trim().max(1024).nullable().optional(),
   whatsapp_app_secret: z.string().trim().max(256).nullable().optional(),
+  whatsapp_app_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_verify_token: z.string().trim().max(128).nullable().optional(),
   rate_limit_per_second: z.number().int().min(1).max(80).optional(),
   meta_graph_version: z

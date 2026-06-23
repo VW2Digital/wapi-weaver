@@ -45,14 +45,14 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
           const { userId } = getAuthUserId(request);
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
-            .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
+            .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version, whatsapp_app_id")
             .eq("id", userId)
             .maybeSingle();
           if (profErr) throw new Error(profErr.message);
           const { accessToken, apiVersion, phoneNumberId } = pickMetaCredentials(p);
           phoneNumberIdForLog = phoneNumberId || null;
 
-          let appId = String(process.env.META_APP_ID || "").trim();
+          let appId = String(p?.whatsapp_app_id || process.env.META_APP_ID || "").trim();
           if (!appId) {
             const { data: settings } = await dbAdmin.from("platform_settings").select("meta_app_id").eq("id", 1).maybeSingle();
             if (settings?.meta_app_id) appId = String(settings.meta_app_id).trim();

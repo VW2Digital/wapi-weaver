@@ -262,3 +262,39 @@ export const deleteSchemaBackup = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+export const getSidebarOrder = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.db
+      .from("platform_settings")
+      .select("sidebar_order")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) throw error;
+    return { order: (data as any)?.sidebar_order ?? null };
+  });
+
+export const updateSidebarOrder = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) => z.object({ order: z.string().nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { error } = await context.db.from("platform_settings").upsert({
+      id: 1,
+      sidebar_order: data.order,
+      updated_at: new Date().toISOString(),
+      updated_by: context.userId,
+    } as never);
+    if (error) throw error;
+
+    await recordAudit({
+      userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
+      action: "platform_settings.update_sidebar_order",
+      entityType: "platform_settings",
+      entityId: "1",
+      metadata: { has_custom_order: !!data.order },
+    });
+    return { ok: true };
+  });

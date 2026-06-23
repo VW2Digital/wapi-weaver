@@ -266,6 +266,7 @@ export async function ensureDatabaseSchema() {
     await ensureColumnExists(connection, "profiles", "whatsapp_business_id", "VARCHAR(100) NULL");
     await ensureColumnExists(connection, "profiles", "whatsapp_business_phone", "VARCHAR(50) NULL");
     await ensureColumnExists(connection, "profiles", "whatsapp_app_secret", "TEXT NULL");
+    await ensureColumnExists(connection, "profiles", "whatsapp_app_id", "VARCHAR(100) NULL");
     await ensureColumnExists(
       connection,
       "profiles",
@@ -294,6 +295,8 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
     );
+
+    await ensureColumnExists(connection, "platform_settings", "sidebar_order", "TEXT NULL");
 
     logSchema("Garantindo linha singleton de platform_settings (id=1)...");
     await connection.query(

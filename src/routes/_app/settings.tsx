@@ -54,6 +54,8 @@ import {
   getSchemaBackup,
   createSchemaBackupNow,
   deleteSchemaBackup,
+  getSidebarOrder,
+  updateSidebarOrder,
 } from "@/lib/admin.functions";
 import { getWebhookHealth, listWebhookEvents } from "@/lib/webhook-health.functions";
 import {
@@ -117,6 +119,14 @@ import {
   Users,
   Smartphone,
   Bot,
+  LayoutDashboard,
+  MessageCircle,
+  ListChecks,
+  UserCog,
+  Kanban,
+  Receipt,
+  ScrollText,
+  Activity,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -494,6 +504,30 @@ function SettingsPage() {
                     />
 
                     <Field
+                      label="Meta App ID (ID do Aplicativo Meta)"
+                      sublabel="(Necessário para Foto de Perfil)"
+                      digitsOnly
+                      value={form.whatsapp_app_id}
+                      onChange={(v) => {
+                        const { error } = validateMetaId(v, "Meta App ID");
+                        setErrors((e) => ({ ...e, whatsapp_app_id: error }));
+                        setForm({ ...form, whatsapp_app_id: v });
+                      }}
+                      placeholder="Ex: 123456789012345"
+                      hint={
+                        "📍 Onde encontrar: developers.facebook.com → Meus Apps → selecione o seu App → copie o ID do aplicativo no topo da página.\n🔒 Necessário para realizar o upload e atualização da imagem de perfil no WhatsApp."
+                      }
+                      success={
+                        validateMetaId(String(form.whatsapp_app_id ?? ""), "Meta App ID").ok
+                          ? `Formato correto · ${String(form.whatsapp_app_id).length} dígitos`
+                          : null
+                      }
+                      error={errors.whatsapp_app_id}
+                      copyLabel="Meta App ID"
+                      metaUrl="https://developers.facebook.com/apps/"
+                    />
+
+                    <Field
                       label="ID da Conta de Negócios (Business ID)"
                       sublabel="(Meta Business ID)"
                       digitsOnly
@@ -728,6 +762,12 @@ function SettingsPage() {
                           "ID da conta WhatsApp Business",
                         );
                         if (err2) nextErrors.whatsapp_waba_id = err2;
+                        
+                        const appIdValue = String(form.whatsapp_app_id ?? "").trim();
+                        if (appIdValue && /\D/.test(appIdValue)) {
+                          nextErrors.whatsapp_app_id = "App ID deve conter apenas dígitos.";
+                        }
+
                         setErrors(nextErrors);
                         if (Object.keys(nextErrors).length > 0) {
                           toast.error("Corrija os erros antes de salvar.");
@@ -739,6 +779,7 @@ function SettingsPage() {
                           whatsapp_business_id: form.whatsapp_business_id,
                           whatsapp_business_phone: form.whatsapp_business_phone,
                           whatsapp_access_token: form.whatsapp_access_token,
+                          whatsapp_app_id: form.whatsapp_app_id || null,
                           rate_limit_per_second: form.rate_limit_per_second,
                         });
                       }}
@@ -1089,6 +1130,8 @@ function SettingsPage() {
         </SetupWizard>
 
         <WebhookHealthCard />
+
+        <AdminPlatformSection />
 
         <Card className="p-6">
           <div className="flex items-start justify-between gap-3">
@@ -1650,14 +1693,79 @@ function ReadOnly({ label, value, onCopy }: { label: string; value: string; onCo
   );
 }
 
+const MENU_ITEMS = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/chat", label: "Chat Direto", icon: MessageCircle },
+  { to: "/contacts", label: "Contatos", icon: Users },
+  { to: "/lists", label: "Listas & Tags", icon: ListChecks },
+  { to: "/templates", label: "Templates", icon: FileText },
+  { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
+  { to: "/campaigns", label: "Campanhas", icon: Send },
+  { to: "/crm", label: "Funil de Vendas", icon: Kanban },
+  { to: "/billing", label: "Faturamento", icon: Receipt },
+  { to: "/users", label: "Usuários", icon: ShieldCheck },
+  { to: "/audit", label: "Auditoria", icon: ScrollText },
+  { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
+];
+
 function AdminPlatformSection() {
   const fetchRoles = useServerFn(getCurrentUserRoles);
   const fetchSettings = useServerFn(getPlatformSettings);
   const saveSettings = useServerFn(updatePlatformSettings);
+  const fetchSidebarOrder = useServerFn(getSidebarOrder);
+  const saveSidebarOrder = useServerFn(updateSidebarOrder);
   const qc = useQueryClient();
 
   const { data: roleData } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
   const isAdmin = roleData?.isAdmin === true;
+
+  const { data: sidebarOrderData } = useQuery({
+    queryKey: ["sidebar-order"],
+    queryFn: () => fetchSidebarOrder(),
+    enabled: isAdmin,
+  });
+
+  const [localNavOrder, setLocalNavOrder] = useState<any[]>([]);
+  const [sidebarOrderCollapsed, toggleSidebarOrderCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_sidebar_order_collapsed",
+    true,
+  );
+  const [savingSidebar, setSavingSidebar] = useState(false);
+
+  useEffect(() => {
+    if (sidebarOrderData) {
+      const order = sidebarOrderData.order;
+      if (order) {
+        try {
+          const parsed = JSON.parse(order) as string[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sorted = [...MENU_ITEMS].sort((a, b) => {
+              const idxA = parsed.indexOf(a.to);
+              const idxB = parsed.indexOf(b.to);
+              if (idxA === -1 && idxB === -1) return 0;
+              if (idxA === -1) return 1;
+              if (idxB === -1) return -1;
+              return idxA - idxB;
+            });
+            setLocalNavOrder(sorted);
+            return;
+          }
+        } catch {}
+      }
+    }
+    setLocalNavOrder([...MENU_ITEMS]);
+  }, [sidebarOrderData]);
+
+  const moveItem = (index: number, direction: "up" | "down") => {
+    const nextIndex = direction === "up" ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= localNavOrder.length) return;
+
+    const updated = [...localNavOrder];
+    const temp = updated[index];
+    updated[index] = updated[nextIndex];
+    updated[nextIndex] = temp;
+    setLocalNavOrder(updated);
+  };
 
   const { data: settings } = useQuery({
     queryKey: ["platform-settings"],
@@ -2043,6 +2151,185 @@ function AdminPlatformSection() {
               <ExportSchemaButton />
             </div>
             <SchemaBackupsHistory />
+          </div>
+
+          <div className="mt-6 border-t pt-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <h3 className="font-display text-base font-semibold flex items-center gap-2">
+                  Organização do Menu Lateral
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Reorganize os itens do menu lateral usando as setas. As alterações afetam todos os usuários da plataforma.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={toggleSidebarOrderCollapsed}
+                aria-expanded={!sidebarOrderCollapsed}
+                aria-label={sidebarOrderCollapsed ? "Expandir seção de menu" : "Recolher seção de menu"}
+                className="shrink-0 gap-1 mt-0.5"
+              >
+                {sidebarOrderCollapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline text-xs">
+                  {sidebarOrderCollapsed ? "Expandir" : "Recolher"}
+                </span>
+              </Button>
+            </div>
+
+            {!sidebarOrderCollapsed && (
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Controles de reordenação */}
+                <div className="space-y-2 rounded-xl border bg-muted/15 p-4">
+                  <div className="text-sm font-semibold mb-3 text-foreground">Reordenar Itens</div>
+                  <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+                    {localNavOrder.map((item, idx) => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={item.to}
+                          className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-all hover:border-primary/20"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="text-left">
+                              <div className="text-sm font-medium text-foreground leading-snug">{item.label}</div>
+                              <div className="text-[10px] text-muted-foreground leading-none">{item.to}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-md"
+                              disabled={idx === 0}
+                              onClick={() => moveItem(idx, "up")}
+                              title="Mover para cima"
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-md"
+                              disabled={idx === localNavOrder.length - 1}
+                              onClick={() => moveItem(idx, "down")}
+                              title="Mover para baixo"
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 pt-4 mt-2 border-t">
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        setSavingSidebar(true);
+                        try {
+                          const paths = localNavOrder.map((item) => item.to);
+                          const res = await saveSidebarOrder({ data: { order: JSON.stringify(paths) } });
+                          if (!res.ok) throw new Error("Erro de resposta do servidor");
+                          toast.success("Ordem do menu lateral salva!");
+                          qc.invalidateQueries({ queryKey: ["sidebar-order"] });
+                        } catch (e: any) {
+                          toast.error(e.message || "Erro ao salvar");
+                        } finally {
+                          setSavingSidebar(false);
+                        }
+                      }}
+                      disabled={savingSidebar}
+                    >
+                      {savingSidebar ? "Salvando..." : "Salvar Nova Ordem"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (!confirm("Deseja restaurar a ordem padrão do menu?")) return;
+                        setSavingSidebar(true);
+                        try {
+                          const res = await saveSidebarOrder({ data: { order: null } });
+                          if (!res.ok) throw new Error("Erro de resposta do servidor");
+                          toast.success("Ordem padrão restaurada!");
+                          setLocalNavOrder([...MENU_ITEMS]);
+                          qc.invalidateQueries({ queryKey: ["sidebar-order"] });
+                        } catch (e: any) {
+                          toast.error(e.message || "Erro ao restaurar");
+                        } finally {
+                          setSavingSidebar(false);
+                        }
+                      }}
+                      disabled={savingSidebar}
+                    >
+                      Restaurar Padrão
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Pré-visualização em tempo real */}
+                <div className="flex flex-col items-center justify-center rounded-xl border bg-card p-6 border-dashed">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-4 self-start">
+                    Visualização em Tempo Real (Preview)
+                  </div>
+
+                  <div className="w-[230px] rounded-xl border bg-sidebar p-3 text-sidebar-foreground shadow-lg flex flex-col text-left">
+                    <div className="flex items-center gap-2 px-3 py-2 mb-3 border-b border-sidebar-border/30">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sidebar-primary">
+                        <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
+                      </div>
+                      <span className="font-display text-xs font-semibold text-sidebar-foreground">
+                        ZapDispatch
+                      </span>
+                    </div>
+
+                    <div className="px-3 pb-1.5 text-[9px] font-medium uppercase tracking-wider text-sidebar-foreground/45">
+                      Menu
+                    </div>
+
+                    <div className="space-y-0.5 max-h-[280px] overflow-y-auto pr-1">
+                      {localNavOrder.map((item, index) => {
+                        const Icon = item.icon;
+                        const active = index === 0;
+                        return (
+                          <div
+                            key={item.to}
+                            className={cn(
+                              "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                              active
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                : "text-sidebar-foreground/75"
+                            )}
+                          >
+                            {active && (
+                              <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
+                            )}
+                            <Icon className={cn("h-3.5 w-3.5", active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/75")} />
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground mt-4 text-center leading-relaxed">
+                    💡 O primeiro item da lista é mostrado como ativo nesta pré-visualização.
+                    <br />
+                    As alterações são aplicadas a todos os usuários após salvar.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex gap-2">
