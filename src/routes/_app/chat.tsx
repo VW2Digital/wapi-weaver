@@ -7,6 +7,7 @@ import {
   getChatMessages,
   sendDirectMessage,
 } from "@/lib/chat.functions";
+import { getProfile, uploadMetaMedia } from "@/lib/profile.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,10 +48,17 @@ import {
   Info,
   ChevronRight,
   ExternalLink,
+  Paperclip,
+  MapPin,
+  Users,
+  Video,
+  Volume2,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { db } from "@/integrations/mysql/client";
 
 export const Route = createFileRoute("/_app/chat")({
   component: ChatPage,
@@ -96,6 +104,37 @@ function ChatPage() {
   const [contactInfoOpen, setContactInfoOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+
+  const [sessionToken, setSessionToken] = useState("");
+  const [pendingMediaType, setPendingMediaType] = useState<"image" | "audio" | "video" | "document" | "sticker" | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+
+  // States for Location Modal
+  const [locLat, setLocLat] = useState("");
+  const [locLng, setLocLng] = useState("");
+  const [locName, setLocName] = useState("");
+  const [locAddress, setLocAddress] = useState("");
+
+  // States for Contact Modal
+  const [contactNameState, setContactNameState] = useState("");
+  const [contactPhoneState, setContactPhoneState] = useState("");
+
+  // Fetch session JWT token on mount
+  useEffect(() => {
+    db.auth.getSession().then(({ data }: any) => {
+      setSessionToken(data.session?.access_token || "");
+    });
+  }, []);
+
+  const fetchLocalProfile = useServerFn(getProfile);
+  const profileQuery = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchLocalProfile(),
+  });
+  const profile = profileQuery.data;
 
   // Queries
   const contactsQuery = useQuery({
@@ -164,12 +203,19 @@ function ChatPage() {
   });
 
   // Mutation para envio de mensagens
-  const sendMutation = useMutation({
+  const sendMutation = useMutation<any, any, any>({
+    box: true,
     mutationFn: async (payload: {
-      type: "text" | "reaction" | "image";
+      type: "text" | "reaction" | "image" | "audio" | "video" | "document" | "sticker" | "location" | "contacts";
       text?: { body: string; preview_url: boolean };
       reaction?: { message_id: string; emoji: string };
-      image?: { id: string };
+      image?: { id?: string; link?: string };
+      audio?: { id?: string; link?: string };
+      video?: { id?: string; link?: string };
+      document?: { id?: string; link?: string; filename?: string };
+      sticker?: { id?: string; link?: string };
+      location?: { latitude: number; longitude: number; name?: string; address?: string };
+      contacts?: any[];
       reply_to_message_id?: string;
     }) => {
       if (!selectedPhone) throw new Error("Nenhum contato selecionado");
@@ -180,6 +226,12 @@ function ChatPage() {
           text: payload.text,
           reaction: payload.reaction,
           image: payload.image,
+          audio: payload.audio,
+          video: payload.video,
+          document: payload.document,
+          sticker: payload.sticker,
+          location: payload.location,
+          contacts: payload.contacts,
           reply_to_message_id: payload.reply_to_message_id,
         },
       });
@@ -196,7 +248,7 @@ function ChatPage() {
     onError: (err: any) => {
       toast.error(err.message || "Erro ao enviar mensagem");
     },
-  });
+  } as any);
 
   const handleSendText = () => {
     if (!typedMessage.trim()) return;
@@ -232,6 +284,140 @@ function ChatPage() {
     });
     setMetaImageId("");
     setIsImageModalOpen(false);
+  };
+
+  const uploadMediaFn = useServerFn(uploadMetaMedia);
+
+  const handleMediaAttachClick = (type: "image" | "audio" | "video" | "document" | "sticker") => {
+    setPendingMediaType(type);
+    if (mediaInputRef.current) {
+      if (type === "image") mediaInputRef.current.accept = "image/*";
+      else if (type === "audio") mediaInputRef.current.accept = "audio/*";
+      else if (type === "video") mediaInputRef.current.accept = "video/*";
+      else if (type === "document") mediaInputRef.current.accept = "*/*";
+      else if (type === "sticker") mediaInputRef.current.accept = "image/webp,image/png";
+      
+      mediaInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingMediaType) return;
+    
+    const phoneId = profile?.whatsapp_phone_number_id;
+    if (!phoneId) {
+      toast.error("ID do número de telefone não configurado. Vá em Configurações.");
+      return;
+    }
+
+    setUploadingMedia(true);
+    const toastId = toast.loading(`Enviando ${pendingMediaType} para a Meta...`);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(",")[1];
+        const res = await uploadMediaFn({
+          data: {
+            phoneId,
+            fileName: file.name,
+            fileType: file.type,
+            fileBase64: base64,
+          },
+        });
+
+        if (!res.ok || !res.data?.id) {
+          throw new Error(res.error || "Falha no upload de mídia na Meta.");
+        }
+
+        const mediaId = res.data.id;
+        
+        const sendRes = await sendMessage({
+          data: {
+            to: selectedPhone,
+            type: pendingMediaType,
+            [pendingMediaType]: pendingMediaType === "document" 
+              ? { id: mediaId, filename: file.name }
+              : { id: mediaId },
+            reply_to_message_id: replyingTo?.id,
+          } as any,
+        });
+
+        if (!sendRes.ok) {
+          throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
+        }
+
+        toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
+        qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
+        setReplyingTo(null);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao realizar upload da mídia.", { id: toastId });
+    } finally {
+      setUploadingMedia(false);
+      setPendingMediaType(null);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleSendLocation = () => {
+    const lat = parseFloat(locLat);
+    const lng = parseFloat(locLng);
+    if (isNaN(lat) || isNaN(lng)) {
+      toast.error("Latitude e Longitude inválidas.");
+      return;
+    }
+
+    sendMutation.mutate({
+      type: "location",
+      location: {
+        latitude: lat,
+        longitude: lng,
+        name: locName.trim() || undefined,
+        address: locAddress.trim() || undefined,
+      },
+      reply_to_message_id: replyingTo?.id,
+    });
+
+    setIsLocationModalOpen(false);
+    setLocLat("");
+    setLocLng("");
+    setLocName("");
+    setLocAddress("");
+  };
+
+  const handleSendContact = () => {
+    if (!contactNameState.trim() || !contactPhoneState.trim()) {
+      toast.error("Preencha Nome e Telefone do contato.");
+      return;
+    }
+
+    const digits = contactPhoneState.replace(/\D/g, "");
+
+    sendMutation.mutate({
+      type: "contacts",
+      contacts: [
+        {
+          name: {
+            formatted_name: contactNameState.trim(),
+            first_name: contactNameState.trim().split(" ")[0],
+          },
+          phones: [
+            {
+              phone: digits,
+              type: "CELL",
+            },
+          ],
+        },
+      ],
+      reply_to_message_id: replyingTo?.id,
+    });
+
+    setIsContactModalOpen(false);
+    setContactNameState("");
+    setContactPhoneState("");
   };
 
   // Processa reações e monta árvore de mensagens
@@ -552,7 +738,14 @@ function ChatPage() {
                                   {replyMessage.direction === "incoming" ? "Contato" : "Você"}
                                 </div>
                                 <div className="truncate font-mono">
-                                  {replyMessage.type === "image" ? "📷 Imagem" : replyMessage.body}
+                                  {replyMessage.type === "image" ? "📷 Imagem" : 
+                                   replyMessage.type === "audio" ? "🎙️ Áudio" : 
+                                   replyMessage.type === "video" ? "🎥 Vídeo" : 
+                                   replyMessage.type === "document" ? "📄 Documento" : 
+                                   replyMessage.type === "sticker" ? "😊 Sticker" : 
+                                   replyMessage.type === "location" ? "📍 Localização" : 
+                                   replyMessage.type === "contacts" ? "👤 Contato" : 
+                                   replyMessage.body}
                                 </div>
                               </button>
                             )}
@@ -568,16 +761,139 @@ function ChatPage() {
                               )}
                             >
                               {msg.type === "image" ? (
-                                <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-2 flex flex-col gap-2">
-                                  <div className="aspect-video w-full rounded-md bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 relative">
-                                    <ImageIcon className="h-8 w-8 text-muted-foreground animate-pulse" />
-                                    <span className="text-[10px] font-mono mt-2 opacity-80">
-                                      ID: {msg.body}
-                                    </span>
+                                <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 flex flex-col gap-1 max-w-sm">
+                                  {sessionToken && msg.body ? (
+                                    <img
+                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                      alt="Imagem"
+                                      className="rounded-md max-h-64 object-contain"
+                                    />
+                                  ) : (
+                                    <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
+                                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                              ) : msg.type === "audio" ? (
+                                <div className="p-1">
+                                  {sessionToken && msg.body ? (
+                                    <audio
+                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                      controls
+                                      className="w-full max-w-[240px] h-9"
+                                    />
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <Volume2 className="h-4 w-4" /> Áudio (ID: {msg.body})
+                                    </div>
+                                  )}
+                                </div>
+                              ) : msg.type === "video" ? (
+                                <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 max-w-sm">
+                                  {sessionToken && msg.body ? (
+                                    <video
+                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                      controls
+                                      className="rounded-md max-h-64 object-contain"
+                                    />
+                                  ) : (
+                                    <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
+                                      <Video className="h-6 w-6 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                              ) : msg.type === "document" ? (
+                                <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm flex items-center gap-3">
+                                  <FileText className="h-8 w-8 text-primary shrink-0" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium truncate text-foreground">
+                                      {msg.body || "Documento"}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground">Documento PDF/Office</p>
                                   </div>
-                                  <span className="text-[10px] opacity-75 text-center font-medium">
-                                    Imagem Meta Graph API
-                                  </span>
+                                  {sessionToken && msg.body && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      asChild
+                                      className="h-8 w-8 shrink-0 rounded-full"
+                                    >
+                                      <a
+                                        href={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}&download=1`}
+                                        download
+                                      >
+                                        <ExternalLink className="h-4 w-4" />
+                                      </a>
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : msg.type === "sticker" ? (
+                                <div className="p-1">
+                                  {sessionToken && msg.body ? (
+                                    <img
+                                      src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
+                                      alt="Sticker"
+                                      className="h-24 w-24 object-contain"
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground font-mono">Sticker (ID: {msg.body})</span>
+                                  )}
+                                </div>
+                              ) : msg.type === "location" ? (
+                                <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-2">
+                                  <div className="flex items-start gap-2.5">
+                                    <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-foreground">
+                                        {msg.location?.name || "Localização"}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground leading-normal">
+                                        {msg.location?.address || `${msg.location?.latitude}, ${msg.location?.longitude}`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full text-xs h-7 gap-1"
+                                    asChild
+                                  >
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${msg.location?.latitude},${msg.location?.longitude}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      <ExternalLink className="h-3 w-3" /> Ver no Google Maps
+                                    </a>
+                                  </Button>
+                                </div>
+                              ) : msg.type === "contacts" ? (
+                                <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                      <User className="h-4 w-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-foreground truncate">
+                                        {msg.contacts?.[0]?.name?.formatted_name || "Contato"}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground font-mono truncate">
+                                        {msg.contacts?.[0]?.phones?.[0]?.phone || "Sem telefone"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {msg.contacts?.[0]?.phones?.[0]?.phone && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="w-full text-xs h-7 gap-1"
+                                      asChild
+                                    >
+                                      <a href={`tel:${msg.contacts[0].phones[0].phone}`}>
+                                        <Phone className="h-3 w-3" /> Ligar para Contato
+                                      </a>
+                                    </Button>
+                                  )}
                                 </div>
                               ) : (
                                 <p className="text-sm whitespace-pre-wrap break-words leading-relaxed select-text">
@@ -692,17 +1008,68 @@ function ChatPage() {
 
                 {/* Área do Input de Texto */}
                 <div className="p-3 flex items-end gap-2">
-                  <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
-                    <DialogTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button
                         size="icon"
                         variant="outline"
-                        title="Enviar imagem por ID do objeto"
-                        className="shrink-0 h-10 w-10 rounded-full"
+                        title="Anexar arquivo ou mídia"
+                        className="shrink-0 h-10 w-10 rounded-full hover:bg-muted"
+                        disabled={uploadingMedia || sendMutation.isPending}
                       >
-                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        {uploadingMedia ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        ) : (
+                          <Paperclip className="h-5 w-5 text-muted-foreground" />
+                        )}
                       </Button>
-                    </DialogTrigger>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48 p-1">
+                      <DropdownMenuItem onClick={() => handleMediaAttachClick("image")}>
+                        <ImageIcon className="h-4 w-4 mr-2 text-blue-500" />
+                        <span>📷 Imagem</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleMediaAttachClick("audio")}>
+                        <Volume2 className="h-4 w-4 mr-2 text-orange-500" />
+                        <span>🎙️ Áudio</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleMediaAttachClick("video")}>
+                        <Video className="h-4 w-4 mr-2 text-red-500" />
+                        <span>🎥 Vídeo</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleMediaAttachClick("document")}>
+                        <FileText className="h-4 w-4 mr-2 text-green-500" />
+                        <span>📄 Documento</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleMediaAttachClick("sticker")}>
+                        <Smile className="h-4 w-4 mr-2 text-yellow-500" />
+                        <span>👾 Sticker</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsLocationModalOpen(true)}>
+                        <MapPin className="h-4 w-4 mr-2 text-rose-500" />
+                        <span>📍 Localização</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsContactModalOpen(true)}>
+                        <Users className="h-4 w-4 mr-2 text-indigo-500" />
+                        <span>👤 Contato</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsImageModalOpen(true)}>
+                        <LinkIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <span>🆔 Imagem por ID</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Hidden file input */}
+                  <input
+                    type="file"
+                    ref={mediaInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {/* Modal de envio de Imagem da Meta por ID */}
+                  <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Enviar Imagem da Meta</DialogTitle>
@@ -731,6 +1098,106 @@ function ChatPage() {
                           disabled={!metaImageId.trim() || sendMutation.isPending}
                         >
                           Enviar Imagem
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Modal de Envio de Localização */}
+                  <Dialog open={isLocationModalOpen} onOpenChange={setIsLocationModalOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Enviar Localização</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="loc-lat">Latitude</Label>
+                            <Input
+                              id="loc-lat"
+                              placeholder="Ex: -23.55052"
+                              value={locLat}
+                              onChange={(e) => setLocLat(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="loc-lng">Longitude</Label>
+                            <Input
+                              id="loc-lng"
+                              placeholder="Ex: -46.633308"
+                              value={locLng}
+                              onChange={(e) => setLocLng(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="loc-name">Nome do Local (Opcional)</Label>
+                          <Input
+                            id="loc-name"
+                            placeholder="Ex: Praça da Sé"
+                            value={locName}
+                            onChange={(e) => setLocName(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="loc-address">Endereço (Opcional)</Label>
+                          <Input
+                            id="loc-address"
+                            placeholder="Ex: Praça da Sé, São Paulo - SP"
+                            value={locAddress}
+                            onChange={(e) => setLocAddress(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsLocationModalOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={handleSendLocation}
+                          disabled={!locLat || !locLng || sendMutation.isPending}
+                        >
+                          Enviar Localização
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Modal de Envio de Contato */}
+                  <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Enviar Contato</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="contact-name">Nome do Contato</Label>
+                          <Input
+                            id="contact-name"
+                            placeholder="Ex: João Silva"
+                            value={contactNameState}
+                            onChange={(e) => setContactNameState(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="contact-phone">Telefone (com DDI/DDD)</Label>
+                          <Input
+                            id="contact-phone"
+                            placeholder="Ex: 5511999999999"
+                            value={contactPhoneState}
+                            onChange={(e) => setContactPhoneState(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsContactModalOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={handleSendContact}
+                          disabled={!contactNameState.trim() || !contactPhoneState.trim() || sendMutation.isPending}
+                        >
+                          Enviar Contato
                         </Button>
                       </DialogFooter>
                     </DialogContent>

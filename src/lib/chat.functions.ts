@@ -6,7 +6,17 @@ import { normalizeWaMessageId } from "@/lib/wa-message-id";
 // Schema de validação para envio de mensagem direta
 const sendMessageInput = z.object({
   to: z.string().trim().min(8).max(20),
-  type: z.enum(["text", "reaction", "image"]),
+  type: z.enum([
+    "text",
+    "reaction",
+    "image",
+    "audio",
+    "video",
+    "document",
+    "sticker",
+    "location",
+    "contacts",
+  ]),
   text: z
     .object({
       body: z.string(),
@@ -21,8 +31,59 @@ const sendMessageInput = z.object({
     .optional(),
   image: z
     .object({
-      id: z.string(),
+      id: z.string().optional(),
+      link: z.string().optional(),
     })
+    .optional(),
+  audio: z
+    .object({
+      id: z.string().optional(),
+      link: z.string().optional(),
+    })
+    .optional(),
+  video: z
+    .object({
+      id: z.string().optional(),
+      link: z.string().optional(),
+    })
+    .optional(),
+  document: z
+    .object({
+      id: z.string().optional(),
+      link: z.string().optional(),
+      filename: z.string().optional(),
+    })
+    .optional(),
+  sticker: z
+    .object({
+      id: z.string().optional(),
+      link: z.string().optional(),
+    })
+    .optional(),
+  location: z
+    .object({
+      latitude: z.number(),
+      longitude: z.number(),
+      name: z.string().optional(),
+      address: z.string().optional(),
+    })
+    .optional(),
+  contacts: z
+    .array(
+      z.object({
+        name: z.object({
+          formatted_name: z.string(),
+          first_name: z.string().optional(),
+          last_name: z.string().optional(),
+        }),
+        phones: z.array(
+          z.object({
+            phone: z.string(),
+            type: z.string().optional(),
+          }),
+        ),
+      }),
+    )
     .optional(),
   reply_to_message_id: z.string().optional(),
 });
@@ -76,7 +137,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
         id: row.wa_message_id || row.id,
         direction: row.direction as "incoming" | "outgoing",
         timestamp: row.created_at,
-        type: row.type as "text" | "reaction" | "image",
+        type: row.type as any,
         body: row.body,
         status: row.status,
         reaction:
@@ -84,6 +145,12 @@ export const getChatMessages = createServerFn({ method: "POST" })
             ? meta?.reaction || { emoji: row.body, message_id: row.reply_to_message_id }
             : null,
         image: row.type === "image" ? meta?.image || { id: row.body } : null,
+        audio: row.type === "audio" ? meta?.audio || { id: row.body } : null,
+        video: row.type === "video" ? meta?.video || { id: row.body } : null,
+        document: row.type === "document" ? meta?.document || { id: row.body } : null,
+        sticker: row.type === "sticker" ? meta?.sticker || { id: row.body } : null,
+        location: row.type === "location" ? meta?.location || meta?.message?.location || null : null,
+        contacts: row.type === "contacts" ? meta?.contacts || meta?.message?.contacts || null : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
       };
     });
@@ -131,9 +198,32 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       };
     } else if (data.type === "image") {
       payload.type = "image";
-      payload.image = {
-        id: data.image?.id || "",
+      payload.image = data.image?.id ? { id: data.image.id } : { link: data.image?.link };
+    } else if (data.type === "audio") {
+      payload.type = "audio";
+      payload.audio = data.audio?.id ? { id: data.audio.id } : { link: data.audio?.link };
+    } else if (data.type === "video") {
+      payload.type = "video";
+      payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };
+    } else if (data.type === "document") {
+      payload.type = "document";
+      payload.document = data.document?.id 
+        ? { id: data.document.id, filename: data.document.filename } 
+        : { link: data.document?.link, filename: data.document?.filename };
+    } else if (data.type === "sticker") {
+      payload.type = "sticker";
+      payload.sticker = data.sticker?.id ? { id: data.sticker.id } : { link: data.sticker?.link };
+    } else if (data.type === "location") {
+      payload.type = "location";
+      payload.location = {
+        latitude: data.location?.latitude,
+        longitude: data.location?.longitude,
+        name: data.location?.name,
+        address: data.location?.address,
       };
+    } else if (data.type === "contacts") {
+      payload.type = "contacts";
+      payload.contacts = data.contacts;
     }
 
     // 3. Envia para a API da Meta
@@ -163,7 +253,19 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     } else if (data.type === "reaction") {
       bodyText = data.reaction?.emoji || "";
     } else if (data.type === "image") {
-      bodyText = data.image?.id || "";
+      bodyText = data.image?.id || data.image?.link || "";
+    } else if (data.type === "audio") {
+      bodyText = data.audio?.id || data.audio?.link || "";
+    } else if (data.type === "video") {
+      bodyText = data.video?.id || data.video?.link || "";
+    } else if (data.type === "document") {
+      bodyText = data.document?.filename || data.document?.id || data.document?.link || "";
+    } else if (data.type === "sticker") {
+      bodyText = data.sticker?.id || data.sticker?.link || "";
+    } else if (data.type === "location") {
+      bodyText = data.location?.name || `${data.location?.latitude}, ${data.location?.longitude}`;
+    } else if (data.type === "contacts") {
+      bodyText = data.contacts?.[0]?.name?.formatted_name || "Contato";
     }
 
     // 4. Registra a mensagem enviada na tabela direct_messages
@@ -180,6 +282,12 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         text: data.text,
         reaction: data.reaction,
         image: data.image,
+        audio: data.audio,
+        video: data.video,
+        document: data.document,
+        sticker: data.sticker,
+        location: data.location,
+        contacts: data.contacts,
       },
     });
 

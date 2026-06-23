@@ -337,7 +337,7 @@ export async function ensureDatabaseSchema() {
         user_id VARCHAR(36) NOT NULL,
         contact_phone VARCHAR(50) NOT NULL,
         direction ENUM('incoming', 'outgoing') NOT NULL,
-        type ENUM('text', 'reaction', 'image') NOT NULL DEFAULT 'text',
+        type ENUM('text', 'reaction', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contacts') NOT NULL DEFAULT 'text',
         body TEXT NOT NULL,
         wa_message_id VARCHAR(255) NULL,
         status ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
@@ -348,6 +348,16 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
     );
+
+    // Garantir enum atualizado para direct_messages.type
+    try {
+      await connection.query(`
+        ALTER TABLE \`direct_messages\` 
+        MODIFY COLUMN \`type\` ENUM('text', 'reaction', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contacts') NOT NULL DEFAULT 'text'
+      `);
+    } catch (err) {
+      console.warn("[Schema] Falha ao atualizar enum de direct_messages.type (pode já estar atualizado):", err.message);
+    }
 
     await ensureTableExists(
       connection,

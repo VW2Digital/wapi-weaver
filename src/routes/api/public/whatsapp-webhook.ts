@@ -256,7 +256,18 @@ async function processInboundDirectMessages(value: any, userId: string) {
     });
 
     let type = m.type ?? "text";
-    if (type !== "text" && type !== "reaction" && type !== "image") {
+    const allowedTypes = new Set([
+      "text",
+      "reaction",
+      "image",
+      "audio",
+      "video",
+      "document",
+      "sticker",
+      "location",
+      "contacts",
+    ]);
+    if (!allowedTypes.has(type)) {
       type = "text";
     }
 
@@ -267,6 +278,18 @@ async function processInboundDirectMessages(value: any, userId: string) {
       body = m.reaction?.emoji ?? "";
     } else if (m.type === "image") {
       body = m.image?.id ?? "";
+    } else if (m.type === "audio") {
+      body = m.audio?.id ?? "";
+    } else if (m.type === "video") {
+      body = m.video?.id ?? "";
+    } else if (m.type === "document") {
+      body = m.document?.id ?? "";
+    } else if (m.type === "sticker") {
+      body = m.sticker?.id ?? "";
+    } else if (m.type === "location") {
+      body = m.location?.name || `${m.location?.latitude}, ${m.location?.longitude}`;
+    } else if (m.type === "contacts") {
+      body = m.contacts?.[0]?.name?.formatted_name || m.contacts?.[0]?.phones?.[0]?.phone || "Contato";
     } else if (m.type === "button") {
       body = m.button?.text ?? "[Botão]";
     } else if (m.type === "interactive") {
