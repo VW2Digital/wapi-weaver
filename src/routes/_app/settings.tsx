@@ -1699,13 +1699,10 @@ const MENU_ITEMS = [
   { to: "/contacts", label: "Contatos", icon: Users },
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
   { to: "/billing", label: "Faturamento", icon: Receipt },
-  { to: "/users", label: "Usuários", icon: ShieldCheck },
-  { to: "/audit", label: "Auditoria", icon: ScrollText },
-  { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
+  { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
 function AdminPlatformSection() {
@@ -2301,6 +2298,48 @@ function AdminPlatformSection() {
                       {localNavOrder.map((item, index) => {
                         const Icon = item.icon;
                         const active = index === 0;
+                        const isSettings = item.to === "/settings";
+
+                        if (isSettings) {
+                          return (
+                            <div key={item.to} className="space-y-0.5">
+                              <div
+                                className={cn(
+                                  "relative flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors text-sidebar-foreground/75"
+                                )}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Icon className="h-3.5 w-3.5 text-sidebar-foreground/75" />
+                                  <span className="truncate">{item.label}</span>
+                                </div>
+                                <ChevronDown className="h-3 w-3 text-sidebar-foreground/45" />
+                              </div>
+                              <div className="pl-4 space-y-0.5 border-l border-sidebar-border/30 ml-4 mt-0.5">
+                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] bg-sidebar-accent text-sidebar-accent-foreground font-medium">
+                                  <Settings className="h-3 w-3 text-sidebar-accent-foreground" />
+                                  <span>Geral</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                                  <UserCog className="h-3 w-3 text-sidebar-foreground/60" />
+                                  <span>Perfil WhatsApp</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                                  <ShieldCheck className="h-3 w-3 text-sidebar-foreground/60" />
+                                  <span>Usuários</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                                  <ScrollText className="h-3 w-3 text-sidebar-foreground/60" />
+                                  <span>Auditoria</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                                  <Activity className="h-3 w-3 text-sidebar-foreground/60" />
+                                  <span>Eventos do Webhook</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div
                             key={item.to}

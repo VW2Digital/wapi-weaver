@@ -16,6 +16,7 @@ import {
   LogOut,
   User as UserIcon,
   ChevronUp,
+  ChevronDown,
   Sun,
   Moon,
   Receipt,
@@ -72,14 +73,22 @@ const NAV = [
   { to: "/contacts", label: "Contatos", icon: Users },
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
 
   { to: "/billing", label: "Faturamento", icon: Receipt },
-  { to: "/users", label: "Usuários", icon: ShieldCheck },
-  { to: "/audit", label: "Auditoria", icon: ScrollText },
-  { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
+  {
+    to: "/settings",
+    label: "Configurações",
+    icon: Settings,
+    children: [
+      { to: "/settings", label: "Geral", icon: Settings },
+      { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
+      { to: "/users", label: "Usuários", icon: ShieldCheck },
+      { to: "/audit", label: "Auditoria", icon: ScrollText },
+      { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
+    ],
+  },
 ] as const;
 
 function AppLayout() {
@@ -92,6 +101,20 @@ function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const { isAdmin, loading: rolesLoading } = useRoles();
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const path = loc.pathname;
+    if (
+      path.startsWith("/settings") ||
+      path.startsWith("/whatsapp-business-profile") ||
+      path.startsWith("/users") ||
+      path.startsWith("/audit") ||
+      path.startsWith("/webhook-events")
+    ) {
+      setOpenMenus((prev) => ({ ...prev, "/settings": true }));
+    }
+  }, [loc.pathname]);
 
   const fetchSidebarOrder = useServerFn(getSidebarOrder);
 
@@ -219,6 +242,74 @@ function AppLayout() {
           const { to, label, icon: Icon } = item;
           const isAdminOnly = ["/users", "/audit", "/webhook-events", "/billing"].includes(to);
           if (isAdminOnly && !isAdmin) return null;
+          
+          const hasChildren = item.children && item.children.length > 0;
+          if (hasChildren) {
+            const visibleChildren = item.children.filter((child: any) => {
+              const isChildAdminOnly = ["/users", "/audit", "/webhook-events"].includes(child.to);
+              return !isChildAdminOnly || isAdmin;
+            });
+            if (visibleChildren.length === 0) return null;
+
+            const isOpen = openMenus[to] || false;
+            const isAnyChildActive = visibleChildren.some((child: any) => loc.pathname.startsWith(child.to));
+
+            return (
+              <div key={to} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setOpenMenus(prev => ({ ...prev, [to]: !prev[to] }))}
+                  className={cn(
+                    "w-full group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
+                    isAnyChildActive
+                      ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
+                        isAnyChildActive ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
+                      )}
+                    />
+                    <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+                      {label}
+                    </span>
+                  </div>
+                  {isOpen ? (
+                    <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-sidebar-foreground/60 shrink-0" />
+                  )}
+                </button>
+                {isOpen && (
+                  <div className="pl-6 space-y-1 border-l border-sidebar-border/60 ml-5 mt-1 transition-all duration-200">
+                    {visibleChildren.map((child: any) => {
+                      const childActive = loc.pathname.startsWith(child.to);
+                      const ChildIcon = child.icon;
+                      return (
+                        <Link
+                          key={child.to}
+                          to={child.to}
+                          className={cn(
+                            "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs transition-all duration-200",
+                            childActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground",
+                          )}
+                        >
+                          <ChildIcon className="h-3.5 w-3.5" />
+                          <span>{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           const active = loc.pathname.startsWith(to);
           return (
             <Link

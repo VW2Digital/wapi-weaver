@@ -58,9 +58,11 @@ function renderText(s?: string, vars?: Record<string, string>) {
 export function WhatsAppPreview({
   components,
   variables,
+  headerMediaUrl,
 }: {
   components: Component[];
   variables?: Record<string, string>;
+  headerMediaUrl?: string;
 }) {
   const header = components.find((c) => c.type === "HEADER");
   const body = components.find((c) => c.type === "BODY");
@@ -68,7 +70,9 @@ export function WhatsAppPreview({
   const buttonsBlock = components.find((c) => c.type === "BUTTONS");
   const buttons = buttonsBlock?.buttons ?? [];
 
-  const headerImage = header?.format === "IMAGE" ? header.example?.header_handle?.[0] : undefined;
+  const headerImage = header?.format === "IMAGE" 
+    ? (headerMediaUrl || header.example?.header_handle?.[0]) 
+    : undefined;
 
   return (
     <div className="rounded-2xl bg-[#e5ddd5] p-4">
@@ -78,7 +82,11 @@ export function WhatsAppPreview({
         )}
         {header?.format === "VIDEO" && (
           <div className="mb-2 flex h-32 w-full items-center justify-center rounded-md bg-neutral-200 text-neutral-600">
-            <Video className="h-8 w-8" />
+            {headerMediaUrl ? (
+              <video src={headerMediaUrl} className="h-full w-full rounded-md object-cover" controls />
+            ) : (
+              <Video className="h-8 w-8" />
+            )}
           </div>
         )}
         {header?.format === "DOCUMENT" && (

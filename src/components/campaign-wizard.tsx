@@ -1,10 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { createCampaign, updateCampaign } from "@/lib/campaigns.functions";
 import { listLists, getListContacts } from "@/lib/lists.functions";
 import { listTemplates } from "@/lib/templates.functions";
+import { getProfile, uploadMetaMedia } from "@/lib/profile.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, Loader2, Upload, Paperclip } from "lucide-react";
 
 function extractTemplatePlaceholders(components: any[] = []) {
   const placeholders: string[] = [];
@@ -56,6 +57,13 @@ export function CampaignWizard({
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const templates = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates() });
 
+  const fetchProfile = useServerFn(getProfile);
+  const profileQuery = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const profile = profileQuery.data;
+
+  const uploadMediaFn = useServerFn(uploadMetaMedia);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [listId, setListId] = useState<string>("");
@@ -69,9 +77,70 @@ export function CampaignWizard({
   const [startNow, setStartNow] = useState(true);
   const [scheduledAt, setScheduledAt] = useState("");
 
+  const [headerMediaSource, setHeaderMediaSource] = useState<"upload" | "url" | "id">("upload");
+  const [headerMediaUrl, setHeaderMediaUrl] = useState("");
+  const [headerMediaId, setHeaderMediaId] = useState("");
+  const [headerDocumentFilename, setHeaderDocumentFilename] = useState("");
+  const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState(false);
+
   const selectedTemplate = (templates.data ?? []).find((t: any) => t.id === templateId);
   const selectedList = (lists.data ?? []).find((l: any) => l.id === listId);
   const listCount = selectedList?.list_contacts?.[0]?.count ?? 0;
+
+  const headerComponent = selectedTemplate?.components?.find((c: any) => c.type === "HEADER");
+  const headerMediaFormat = headerComponent && ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComponent.format)
+    ? headerComponent.format as "IMAGE" | "VIDEO" | "DOCUMENT"
+    : null;
+
+  const handleHeaderFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !headerMediaFormat) return;
+
+    const phoneId = profile?.whatsapp_phone_number_id;
+    if (!phoneId) {
+      toast.error("ID do número de telefone não configurado. Vá em Configurações.");
+      return;
+    }
+
+    setUploadingHeaderMedia(true);
+    const toastId = toast.loading(`Enviando ${headerMediaFormat.toLowerCase()} para a Meta...`);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const res = await uploadMediaFn({
+            data: {
+              phoneId,
+              fileName: file.name,
+              fileType: file.type,
+              fileBase64: base64,
+            },
+          });
+
+          if (!res.ok || !res.data?.id) {
+            throw new Error(res.error || "Falha no upload de mídia na Meta.");
+          }
+
+          setHeaderMediaId(res.data.id);
+          toast.success("Mídia enviada e configurada com sucesso!", { id: toastId });
+        } catch (err: any) {
+          toast.error(err.message || "Erro ao processar upload", { id: toastId });
+        } finally {
+          setUploadingHeaderMedia(false);
+        }
+      };
+      reader.onerror = () => {
+        toast.error("Erro ao ler o arquivo local.", { id: toastId });
+        setUploadingHeaderMedia(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      toast.error(err.message || "Erro no envio de mídia.", { id: toastId });
+      setUploadingHeaderMedia(false);
+    }
+  };
 
   const { data: listContactsData } = useQuery({
     queryKey: ["list-contacts", listId],
@@ -121,6 +190,10 @@ export function CampaignWizard({
       setCaption("");
       setStartNow(true);
       setScheduledAt("");
+      setHeaderMediaSource("upload");
+      setHeaderMediaUrl("");
+      setHeaderMediaId("");
+      setHeaderDocumentFilename("");
       return;
     }
 
@@ -142,6 +215,14 @@ export function CampaignWizard({
         ? new Date(initialCampaign.scheduled_at).toISOString().slice(0, 16)
         : "",
     );
+
+    const p = initialCampaign.payload ?? {};
+    const mediaId = p.header_media_id || p.header_image_id || p.header_video_id || p.header_document_id || "";
+    const mUrl = p.header_media_link || p.header_image_url || p.header_video_url || p.header_document_url || "";
+    setHeaderMediaId(mediaId);
+    setHeaderMediaUrl(mUrl);
+    setHeaderDocumentFilename(p.header_document_filename ?? "");
+    setHeaderMediaSource(mediaId ? "id" : mUrl ? "url" : "upload");
   }, [initialCampaign]);
 
   const mut = useMutation({
@@ -156,6 +237,25 @@ export function CampaignWizard({
         if (selectedTemplate.parameter_format) payload.parameter_format = selectedTemplate.parameter_format;
         const vars = paramValues.map((v) => v.trim());
         if (vars.length) payload.variables = vars;
+
+        const headerComponent = selectedTemplate?.components?.find((c: any) => c.type === "HEADER");
+        if (headerComponent && ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComponent.format)) {
+          if (headerMediaId) {
+            payload.header_media_id = headerMediaId;
+            if (headerComponent.format === "IMAGE") payload.header_image_id = headerMediaId;
+            if (headerComponent.format === "VIDEO") payload.header_video_id = headerMediaId;
+            if (headerComponent.format === "DOCUMENT") payload.header_document_id = headerMediaId;
+          }
+          if (headerMediaUrl) {
+            payload.header_media_link = headerMediaUrl;
+            if (headerComponent.format === "IMAGE") payload.header_image_url = headerMediaUrl;
+            if (headerComponent.format === "VIDEO") payload.header_video_url = headerMediaUrl;
+            if (headerComponent.format === "DOCUMENT") payload.header_document_url = headerMediaUrl;
+          }
+          if (headerComponent.format === "DOCUMENT" && headerDocumentFilename) {
+            payload.header_document_filename = headerDocumentFilename;
+          }
+        }
       } else if (messageType === "text") {
         if (!text.trim()) throw new Error("Texto obrigatório");
         payload.text = text;
@@ -279,6 +379,130 @@ export function CampaignWizard({
                   </Select>
                 </div>
 
+                {headerMediaFormat && (
+                  <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                    <div>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                        Mídia do Cabeçalho ({headerMediaFormat === "IMAGE" ? "Imagem" : headerMediaFormat === "VIDEO" ? "Vídeo" : "Documento"})
+                      </Label>
+                      <div className="flex rounded-md bg-muted p-1 gap-1">
+                        {(["upload", "url", "id"] as const).map((source) => (
+                          <Button
+                            key={source}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={`flex-1 text-xs py-1.5 h-auto ${
+                              headerMediaSource === source
+                                ? "bg-background shadow-sm text-foreground"
+                                : "text-muted-foreground hover:bg-background/50"
+                            }`}
+                            onClick={() => setHeaderMediaSource(source)}
+                          >
+                            {source === "upload"
+                              ? "Upload de arquivo"
+                              : source === "url"
+                              ? "URL pública"
+                              : "ID da Meta"}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {headerMediaSource === "upload" && (
+                      <div className="space-y-3">
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleHeaderFileChange}
+                          accept={
+                            headerMediaFormat === "IMAGE"
+                              ? "image/*"
+                              : headerMediaFormat === "VIDEO"
+                              ? "video/*"
+                              : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+                          }
+                          className="hidden"
+                        />
+                        <div
+                          className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 bg-background/50 hover:bg-background/80 transition-colors cursor-pointer"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          {uploadingHeaderMedia ? (
+                            <div className="flex flex-col items-center space-y-2">
+                              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                              <span className="text-xs text-muted-foreground">Enviando arquivo para a Meta...</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center space-y-2">
+                              <Upload className="h-8 w-8 text-muted-foreground" />
+                              <span className="text-xs font-medium text-foreground">Clique para fazer upload</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {headerMediaFormat === "IMAGE"
+                                  ? "Imagens até 5MB"
+                                  : headerMediaFormat === "VIDEO"
+                                  ? "Vídeos até 16MB"
+                                  : "Documentos até 100MB"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {headerMediaId && (
+                          <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/20 p-2 text-xs text-emerald-500">
+                            <span className="font-semibold">✓</span>
+                            <span className="truncate">
+                              Arquivo enviado. ID da Meta:{" "}
+                              <code className="bg-emerald-500/10 px-1 py-0.5 rounded font-mono">{headerMediaId}</code>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {headerMediaSource === "url" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">URL pública da mídia (HTTPS)</Label>
+                        <Input
+                          value={headerMediaUrl}
+                          onChange={(e) => {
+                            setHeaderMediaUrl(e.target.value);
+                            setHeaderMediaId("");
+                          }}
+                          placeholder="https://sua-empresa.com.br/assets/banner.png"
+                          className="text-xs"
+                        />
+                      </div>
+                    )}
+
+                    {headerMediaSource === "id" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">ID do objeto de mídia na Meta</Label>
+                        <Input
+                          value={headerMediaId}
+                          onChange={(e) => {
+                            setHeaderMediaId(e.target.value);
+                            setHeaderMediaUrl("");
+                          }}
+                          placeholder="Ex: 92837498237498237"
+                          className="text-xs font-mono"
+                        />
+                      </div>
+                    )}
+
+                    {headerMediaFormat === "DOCUMENT" && (
+                      <div className="space-y-1.5 pt-2 border-t border-muted">
+                        <Label className="text-xs">Nome do arquivo do documento (exibido no chat)</Label>
+                        <Input
+                          value={headerDocumentFilename}
+                          onChange={(e) => setHeaderDocumentFilename(e.target.value)}
+                          placeholder="catalogo_produtos.pdf"
+                          className="text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {templatePlaceholders.length > 0 && (
                   <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -327,6 +551,7 @@ export function CampaignWizard({
                     <Label className="mb-2 block">Pré-visualização</Label>
                     <WhatsAppPreview
                       components={(selectedTemplate.components ?? []) as any}
+                      headerMediaUrl={headerMediaUrl || undefined}
                       variables={Object.fromEntries(
                         paramValues
                           .map((v, i) => [templatePlaceholders[i], v.trim()])
@@ -470,7 +695,12 @@ export function CampaignWizard({
           <Button
             disabled={
               (step === 1 && (!name || !listId)) ||
-              (step === 2 && messageType === "template" && !templateId)
+              (step === 2 && (
+                (messageType === "template" && (
+                  !templateId || (headerMediaFormat !== null && !headerMediaId && !headerMediaUrl)
+                )) ||
+                (messageType === "media" && !mediaUrl)
+              ))
             }
             onClick={() => setStep(step + 1)}
           >
