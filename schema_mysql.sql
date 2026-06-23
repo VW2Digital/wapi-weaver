@@ -254,6 +254,7 @@ CREATE INDEX idx_webhook_events_processed ON webhook_events(processed, received_
 CREATE INDEX idx_contacts_user_opted ON contacts(user_id, opted_out);
 CREATE INDEX idx_direct_messages_user_phone ON direct_messages(user_id, contact_phone);
 CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
+CREATE UNIQUE INDEX uq_direct_messages_user_wa_id ON direct_messages(user_id, wa_message_id);
 
 -- Sales Funnels
 CREATE TABLE IF NOT EXISTS sales_funnels (
@@ -488,5 +489,4 @@ CREATE INDEX idx_opt_notes_pinned ON opportunity_notes(is_pinned);
 
 CREATE INDEX idx_opt_audit_opp ON opportunity_audit_logs(opportunity_id);
 CREATE INDEX idx_opt_audit_created ON opportunity_audit_logs(created_at);
-
 

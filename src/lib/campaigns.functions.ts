@@ -38,6 +38,10 @@ const createSchema = z.object({
   start_now: z.boolean().default(true),
 });
 
+const updateSchema = createSchema.extend({
+  id: z.string().uuid(),
+});
+
 function buildTemplateLookupKey(name?: string | null, language?: string | null) {
   return `${String(name ?? "").trim().toLowerCase()}::${String(language ?? "").trim().toLowerCase()}`;
 }
@@ -130,6 +134,62 @@ async function attachTemplateDiagnostics(db: any, campaigns: any[]) {
   });
 }
 
+async function validateTemplateForCampaign(db: any, data: z.infer<typeof createSchema>) {
+  if (data.message_type !== "template") return;
+
+  if (!data.template_id) {
+    throw new Error("Selecione um template aprovado antes de criar a campanha.");
+  }
+
+  const { data: template, error: templateErr } = await db
+    .from("templates")
+    .select("id, name, language, status, meta_template_id")
+    .eq("id", data.template_id)
+    .maybeSingle();
+  if (templateErr) throw templateErr;
+
+  if (!template) {
+    throw new Error("O template selecionado não foi encontrado.");
+  }
+
+  if (template.status !== "APPROVED" || !template.meta_template_id) {
+    throw new Error("Esse template ainda não está aprovado na Meta e não pode ser usado em campanha.");
+  }
+}
+
+async function fetchEligibleContactsForList(db: any, listId: string) {
+  const { data: lcRows, error: lcErr } = await db
+    .from("list_contacts")
+    .select("contact_id, contacts(id, phone_e164, opted_out)")
+    .eq("list_id", listId);
+  if (lcErr) throw lcErr;
+
+  const contacts = (lcRows ?? [])
+    .map((r: any) => r.contacts)
+    .filter((c: any) => c && !c.opted_out);
+
+  if (contacts.length === 0) throw new Error("Lista sem contatos válidos");
+  return contacts;
+}
+
+async function rebuildCampaignQueue(db: any, context: any, campaignId: string, contacts: any[]) {
+  const { error: deleteErr } = await db.from("campaign_messages").delete().eq("campaign_id", campaignId);
+  if (deleteErr) throw deleteErr;
+
+  const chunkSize = 500;
+  for (let i = 0; i < contacts.length; i += chunkSize) {
+    const slice = contacts.slice(i, i + chunkSize).map((c: any) => ({
+      user_id: context.userId,
+      campaign_id: campaignId,
+      contact_id: c.id,
+      to_phone: c.phone_e164,
+      status: "pending" as const,
+    }));
+    const { error: insErr } = await db.from("campaign_messages").insert(slice);
+    if (insErr) throw insErr;
+  }
+}
+
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -177,37 +237,8 @@ export const createCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
-    if (data.message_type === "template") {
-      if (!data.template_id) {
-        throw new Error("Selecione um template aprovado antes de criar a campanha.");
-      }
-
-      const { data: template, error: templateErr } = await context.db
-        .from("templates")
-        .select("id, name, language, status, meta_template_id")
-        .eq("id", data.template_id)
-        .maybeSingle();
-      if (templateErr) throw templateErr;
-
-      if (!template) {
-        throw new Error("O template selecionado não foi encontrado.");
-      }
-
-      if (template.status !== "APPROVED" || !template.meta_template_id) {
-        throw new Error("Esse template ainda não está aprovado na Meta e não pode ser usado em campanha.");
-      }
-    }
-
-    // Fetch contacts from list
-    const { data: lcRows, error: lcErr } = await context.db
-      .from("list_contacts")
-      .select("contact_id, contacts(id, phone_e164, opted_out)")
-      .eq("list_id", data.list_id);
-    if (lcErr) throw lcErr;
-    const contacts = (lcRows ?? [])
-      .map((r: any) => r.contacts)
-      .filter((c: any) => c && !c.opted_out);
-    if (contacts.length === 0) throw new Error("Lista sem contatos válidos");
+    await validateTemplateForCampaign(context.db, data);
+    const contacts = await fetchEligibleContactsForList(context.db, data.list_id);
 
     const status = data.start_now ? "queued" : "draft";
     const { data: campaign, error } = await context.db
@@ -234,19 +265,7 @@ export const createCampaign = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
-    // Create queue rows in chunks
-    const chunkSize = 500;
-    for (let i = 0; i < contacts.length; i += chunkSize) {
-      const slice = contacts.slice(i, i + chunkSize).map((c: any) => ({
-        user_id: context.userId,
-        campaign_id: campaign.id,
-        contact_id: c.id,
-        to_phone: c.phone_e164,
-        status: "pending" as const,
-      }));
-      const { error: insErr } = await context.db.from("campaign_messages").insert(slice);
-      if (insErr) throw insErr;
-    }
+    await rebuildCampaignQueue(context.db, context, campaign.id, contacts);
 
     await recordAudit({
       userId: context.userId,
@@ -255,6 +274,72 @@ export const createCampaign = createServerFn({ method: "POST" })
       entityType: "campaign",
       entityId: campaign.id,
       metadata: { name: data.name, total: contacts.length, message_type: data.message_type },
+    });
+
+    return { campaign, queued: contacts.length };
+  });
+
+export const updateCampaign = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) => updateSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: existing, error: existingErr } = await context.db
+      .from("campaigns")
+      .select("id, name, status")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (!existing) throw new Error("Campanha não encontrada.");
+
+    if (existing.status === "queued" || existing.status === "running") {
+      throw new Error("Não é possível editar uma campanha que já está em andamento.");
+    }
+
+    await validateTemplateForCampaign(context.db, data);
+    const contacts = await fetchEligibleContactsForList(context.db, data.list_id);
+    const status = data.start_now ? "queued" : "draft";
+
+    const { data: campaign, error } = await context.db
+      .from("campaigns")
+      .update({
+        name: data.name,
+        message_type: data.message_type,
+        template_id: data.template_id ?? null,
+        list_id: data.list_id,
+        payload: data.payload,
+        scheduled_at: data.scheduled_at ?? null,
+        status,
+        totals: {
+          total: contacts.length,
+          pending: contacts.length,
+          sent: 0,
+          delivered: 0,
+          read: 0,
+          failed: 0,
+        },
+        started_at: null,
+        finished_at: null,
+      })
+      .eq("id", data.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    await rebuildCampaignQueue(context.db, context, data.id, contacts);
+
+    await recordAudit({
+      userId: context.userId,
+      actorEmail: (context.claims as any)?.email,
+      action: "campaign.update",
+      entityType: "campaign",
+      entityId: data.id,
+      metadata: {
+        previous_name: existing.name,
+        name: data.name,
+        total: contacts.length,
+        message_type: data.message_type,
+        reenqueued: true,
+      },
     });
 
     return { campaign, queued: contacts.length };

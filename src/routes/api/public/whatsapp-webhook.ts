@@ -2,6 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 
+function logInfo(message: string, data?: any) {
+  console.log(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
+}
+
+function logError(message: string, data?: any) {
+  console.error(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
+}
+
 async function verifySignature(rawBody: string, signatureHeader: string | null, appSecret: string) {
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
   const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
@@ -25,6 +33,36 @@ function extractPhoneNumberIds(payload: any): string[] {
 }
 
 async function resolveWebhookUser(rawBody: string, signatureHeader: string | null, payload: any) {
+  const envSecret = process.env.META_APP_SECRET;
+  if (envSecret && (await verifySignature(rawBody, signatureHeader, envSecret))) {
+    const phoneIds = extractPhoneNumberIds(payload);
+    if (phoneIds.length > 0) {
+      const { data: byPhone } = await dbAdmin
+        .from("profiles")
+        .select("id")
+        .in("whatsapp_phone_number_id", phoneIds)
+        .limit(2);
+      if (byPhone && byPhone.length === 1) {
+        return { userId: byPhone[0].id as string, reason: "env_secret_phone_number_id" as const };
+      }
+      if (byPhone && byPhone.length > 1) {
+        return { userId: null, reason: "ambiguous_phone_number_id" as const };
+      }
+    }
+    // Fallback para ambientes single-tenant: se existir apenas 1 perfil com phone_number_id configurado,
+    // assume ele como dono do webhook.
+    const { data: onlyOne } = await dbAdmin
+      .from("profiles")
+      .select("id")
+      .not("whatsapp_phone_number_id", "is", null)
+      .limit(2);
+    if (onlyOne && onlyOne.length === 1) {
+      return { userId: onlyOne[0].id as string, reason: "env_secret_single_profile" as const };
+    }
+
+    return { userId: null, reason: "signature_ok_but_user_unknown" as const };
+  }
+
   const { data: profiles } = await dbAdmin
     .from("profiles")
     .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
@@ -183,10 +221,37 @@ async function processInboundMessages(value: any, userId: string) {
 
 async function processInboundDirectMessages(value: any, userId: string) {
   const messages = value?.messages ?? [];
+  const waContacts = value?.contacts ?? [];
+  const waIdToName = new Map<string, string>();
+  for (const c of waContacts) {
+    const waId = c?.wa_id ? String(c.wa_id) : null;
+    const name = c?.profile?.name ? String(c.profile.name) : "";
+    if (waId) waIdToName.set(waId, name);
+  }
+
+  const phoneNumberId = value?.metadata?.phone_number_id ? String(value.metadata.phone_number_id) : null;
+  const displayPhoneNumber = value?.metadata?.display_phone_number
+    ? String(value.metadata.display_phone_number)
+    : null;
+
   for (const m of messages) {
     const from: string | undefined = m.from;
     if (!from) continue;
     const phoneDigits = from.replace(/\D+/g, "");
+
+    // Garante que o contato exista para o chat renderizar a conversa na lista
+    const contactName = waIdToName.get(phoneDigits) || "";
+    await dbAdmin.from("contacts").upsert({
+      user_id: userId,
+      phone_e164: phoneDigits,
+      name: contactName ? contactName : undefined,
+      source: "whatsapp_inbound",
+      custom_fields: {
+        wa_id: m.from,
+        phone_number_id: phoneNumberId,
+        display_phone_number: displayPhoneNumber,
+      },
+    });
 
     let type = m.type ?? "text";
     if (type !== "text" && type !== "reaction" && type !== "image") {
@@ -200,23 +265,34 @@ async function processInboundDirectMessages(value: any, userId: string) {
       body = m.reaction?.emoji ?? "";
     } else if (m.type === "image") {
       body = m.image?.id ?? "";
+    } else if (m.type === "button") {
+      body = m.button?.text ?? "[Botão]";
+    } else if (m.type === "interactive") {
+      body =
+        m.interactive?.button_reply?.title ??
+        m.interactive?.list_reply?.title ??
+        "[Interação recebida]";
     } else {
       body = `[Mensagem de tipo ${m.type} recebida]`;
     }
 
     const reply_to_message_id = m.context?.message_id ?? null;
 
-    // Salva na tabela direct_messages
-    await dbAdmin.from("direct_messages").insert({
+    // Salva na tabela direct_messages (dedupe por wa_message_id via UNIQUE KEY)
+    await dbAdmin.from("direct_messages").upsert({
       user_id: userId,
       contact_phone: phoneDigits,
       direction: "incoming",
       type,
       body,
       wa_message_id: m.id,
-      status: "read",
+      status: "delivered",
       reply_to_message_id,
-      metadata: m,
+      metadata: {
+        message: m,
+        contacts: waContacts,
+        metadata: value?.metadata ?? null,
+      },
     });
   }
 }
@@ -276,19 +352,42 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
+        logInfo("GET recebido", { mode, hasToken: !!token });
         if (mode !== "subscribe" || !token) return new Response("Bad Request", { status: 400 });
+
+        const envToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+        if (envToken && token === envToken) {
+          logInfo("GET validado (env token)");
+          return new Response(challenge ?? "", { status: 200 });
+        }
+
+        // Fallback (multi-tenant): aceita tokens salvos no profile, para compatibilidade
         const { data: profiles } = await dbAdmin
           .from("profiles")
           .select("id")
           .eq("whatsapp_verify_token", token)
           .limit(1);
-        if (!profiles || profiles.length === 0) return new Response("Forbidden", { status: 403 });
+        if (!profiles || profiles.length === 0) {
+          logInfo("GET recusado (token inválido)");
+          return new Response("Forbidden", { status: 403 });
+        }
+
+        logInfo("GET validado (profile token)");
         return new Response(challenge ?? "", { status: 200 });
       },
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
-        const payload = JSON.parse(rawBody);
+        logInfo("POST recebido", { hasSignature: !!sig, bytes: rawBody.length });
+
+        let payload: any = null;
+        try {
+          payload = JSON.parse(rawBody);
+        } catch (e: any) {
+          logError("POST inválido (JSON parse)", { error: e?.message });
+          return new Response("Bad Request", { status: 400 });
+        }
+
         const resolved = await resolveWebhookUser(rawBody, sig, payload);
         const matchedUserId = resolved.userId;
 
@@ -304,31 +403,50 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 body: rawBody.slice(0, 4000),
               },
             });
+          logError("POST recusado (não foi possível resolver user)", {
+            reason: resolved.reason,
+            phone_number_ids: extractPhoneNumberIds(payload),
+          });
           return new Response("Webhook user could not be resolved", { status: 401 });
         }
+
+        // Salva o payload bruto para debug e processa em seguida
         const { data: evRow } = await dbAdmin
           .from("webhook_events")
           .insert({ source: "whatsapp", raw: payload, user_id: matchedUserId })
           .select("id")
           .single();
 
-        for (const entry of payload.entry ?? []) {
-          for (const change of entry.changes ?? []) {
-            if (change.field === "messages") {
-              await processStatusUpdate(change.value, matchedUserId);
-              await processInboundMessages(change.value, matchedUserId);
-              await processInboundDirectMessages(change.value, matchedUserId);
-            } else if (change.field === "message_template_status_update") {
-              await processTemplateStatusUpdate(change.value, matchedUserId);
-            } else if (change.field === "template_category_update") {
-              await processTemplateCategoryUpdate(change.value, matchedUserId);
-            }
-          }
-        }
+        // Responde rápido para a Meta e processa de forma assíncrona
+        setTimeout(() => {
+          (async () => {
+            try {
+              for (const entry of payload.entry ?? []) {
+                for (const change of entry.changes ?? []) {
+                  if (change.field === "messages") {
+                    await processStatusUpdate(change.value, matchedUserId);
+                    await processInboundMessages(change.value, matchedUserId);
+                    await processInboundDirectMessages(change.value, matchedUserId);
+                  } else if (change.field === "message_template_status_update") {
+                    await processTemplateStatusUpdate(change.value, matchedUserId);
+                  } else if (change.field === "template_category_update") {
+                    await processTemplateCategoryUpdate(change.value, matchedUserId);
+                  } else {
+                    logInfo("Evento ignorado", { field: change.field });
+                  }
+                }
+              }
 
-        if (evRow?.id) {
-          await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
-        }
+              if (evRow?.id) {
+                await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
+              }
+
+              logInfo("POST processado com sucesso", { eventId: evRow?.id ?? null });
+            } catch (err: any) {
+              logError("Erro ao processar POST", { error: err?.message, eventId: evRow?.id ?? null });
+            }
+          })();
+        }, 0);
 
         return new Response("ok", { status: 200 });
       },

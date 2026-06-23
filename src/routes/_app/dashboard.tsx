@@ -6,6 +6,7 @@ import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { cn } from "@/lib/utils";
+import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,11 +89,11 @@ function Dashboard() {
 
   const totals = (c.data ?? []).reduce(
     (acc: { sent: number; delivered: number; read: number; failed: number }, x: any) => {
-      const t = x.totals ?? {};
-      acc.sent += t.sent ?? 0;
-      acc.delivered += t.delivered ?? 0;
-      acc.read += t.read ?? 0;
-      acc.failed += t.failed ?? 0;
+      const t = normalizeCampaignTotals(x.totals);
+      acc.sent += t.sent;
+      acc.delivered += t.delivered;
+      acc.read += t.read;
+      acc.failed += t.failed;
       return acc;
     },
     { sent: 0, delivered: 0, read: 0, failed: 0 },
@@ -148,13 +149,13 @@ function Dashboard() {
   ].filter((d) => d.value > 0);
 
   const barData = (c.data ?? []).slice(0, 8).map((x: any) => {
-    const t = (x.totals ?? {}) as Record<string, number>;
+    const t = normalizeCampaignTotals(x.totals);
     const name = String(x.name ?? "—");
     return {
       name: name.length > 14 ? name.slice(0, 14) + "…" : name,
-      Entregue: t.delivered ?? 0,
-      Lida: t.read ?? 0,
-      Falhou: t.failed ?? 0,
+      Entregue: t.delivered,
+      Lida: t.read,
+      Falhou: t.failed,
     };
   });
 

@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { getCampaign, exportCampaignReport } from "@/lib/campaigns.functions";
 import { toFriendlyError } from "@/lib/meta-errors";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   ArrowLeft,
   RefreshCw,
@@ -16,11 +18,14 @@ import {
   Layers,
   Users,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { CampaignWizard } from "@/components/campaign-wizard";
+import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 
 export const Route = createFileRoute("/_app/campaigns/$id")({ component: CampaignDetailPage });
 
@@ -65,8 +70,10 @@ function formatCampaignError(error: unknown) {
 
 function CampaignDetailPage() {
   const { id } = Route.useParams();
+  const qc = useQueryClient();
   const fetchOne = useServerFn(getCampaign);
   const exportFn = useServerFn(exportCampaignReport);
+  const [openEdit, setOpenEdit] = useState(false);
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["campaign", id],
     queryFn: () => fetchOne({ data: { id } }),
@@ -93,10 +100,9 @@ function CampaignDetailPage() {
     return <p className="p-10 text-muted-foreground">Campanha não encontrada.</p>;
 
   const c = data.campaign;
-  const t = (c.totals ?? {}) as Record<string, number>;
-  const total = t.total ?? 0;
-  const sent = (t.sent ?? 0) + (t.delivered ?? 0) + (t.read ?? 0);
-  const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
+  const t = normalizeCampaignTotals(c.totals);
+  const total = t.total;
+  const pct = total > 0 ? Math.round((t.sent / total) * 100) : 0;
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
 
   return (
@@ -135,11 +141,29 @@ function CampaignDetailPage() {
                 {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
               </span>
             </Button>
+            {(c.status === "failed" || c.status === "cancelled") && (
+              <Button variant="outline" onClick={() => setOpenEdit(true)}>
+                <Pencil className="mr-1 h-4 w-4" /> Editar e reenviar
+              </Button>
+            )}
           </div>
         }
       />
 
       <div className="flex-1 overflow-y-auto space-y-6 p-6">
+        <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+          <DialogContent className="max-w-2xl">
+            <CampaignWizard
+              initialCampaign={c}
+              onDone={() => {
+                setOpenEdit(false);
+                qc.invalidateQueries({ queryKey: ["campaigns"] });
+                qc.invalidateQueries({ queryKey: ["campaign", id] });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
         {c.template_diagnostic?.status === "invalid" && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -208,17 +232,17 @@ function CampaignDetailPage() {
               <p className="text-xs text-muted-foreground">{pct}% concluído</p>
             </div>
             <span className="text-2xl font-semibold tabular-nums">
-              {sent}
+              {t.sent}
               <span className="text-base text-muted-foreground">/{total}</span>
             </span>
           </div>
           <Progress value={pct} className="h-2" />
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <MetricCard label="Enviadas" value={t.sent ?? 0} />
-            <MetricCard label="Entregues" value={t.delivered ?? 0} />
-            <MetricCard label="Lidas" value={t.read ?? 0} />
-            <MetricCard label="Pendentes" value={t.pending ?? 0} />
-            <MetricCard label="Falharam" value={t.failed ?? 0} variant="destructive" />
+            <MetricCard label="Enviadas" value={t.sent} />
+            <MetricCard label="Entregues" value={t.delivered} />
+            <MetricCard label="Lidas" value={t.read} />
+            <MetricCard label="Pendentes" value={t.pending + t.sending} />
+            <MetricCard label="Falharam" value={t.failed} variant="destructive" />
           </div>
         </Card>
 

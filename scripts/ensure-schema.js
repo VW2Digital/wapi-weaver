@@ -113,6 +113,12 @@ export async function ensureDatabaseSchema() {
       "idx_direct_messages_wa_id",
       "CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id)",
     );
+    await ensureIndexExists(
+      connection,
+      "direct_messages",
+      "uq_direct_messages_user_wa_id",
+      "CREATE UNIQUE INDEX uq_direct_messages_user_wa_id ON direct_messages(user_id, wa_message_id)",
+    );
 
     console.log("Schema validado com sucesso.");
   } finally {
