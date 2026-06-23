@@ -611,6 +611,9 @@ export function TemplateBuilderDialog({
                               value={b.url}
                               onChange={(e) => updateButton(i, { url: e.target.value } as any)}
                             />
+                            <p className="mt-1 text-[10px] text-muted-foreground leading-normal md:col-span-2">
+                              Para tornar o link dinâmico e personalizável ao disparar campanhas, termine a URL com <code>{"{{1}}"}</code> (ex: <code>https://site.com/cupom/{"{{1}}"}</code>). O texto do botão (CTA) é estático na Meta.
+                            </p>
                             {b.url.includes("{{1}}") && (
                               <Input
                                 className="md:col-span-2"

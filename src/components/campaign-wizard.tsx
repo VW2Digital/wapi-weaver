@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
-import { ChevronLeft, ChevronRight, Send, Loader2, Upload, Paperclip } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, Loader2, Upload, Paperclip, Info } from "lucide-react";
 
 function extractTemplatePlaceholders(components: any[] = []) {
   const placeholders: { key: string; label: string; token: string }[] = [];
@@ -415,6 +415,36 @@ export function CampaignWizard({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {selectedTemplate && (
+                    (() => {
+                      const templateButtons = selectedTemplate?.components?.find((c: any) => c.type === "BUTTONS")?.buttons ?? [];
+                      const hasButtons = templateButtons.length > 0;
+                      const hasDynamicButtons = templatePlaceholders.some(p => p.key.startsWith("button_"));
+                      if (!hasButtons) return null;
+
+                      return (
+                        <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-500 space-y-1">
+                          <p className="font-semibold flex items-center gap-1.5">
+                            <Info className="h-4 w-4 shrink-0" />
+                            Informação sobre Botões do Template
+                          </p>
+                          <p className="text-muted-foreground leading-normal">
+                            • <strong>Texto do Botão (CTA):</strong> É fixado conforme aprovado na Meta. Para alterá-lo, edite o template na seção <strong>Templates</strong>.
+                          </p>
+                          {!hasDynamicButtons ? (
+                            <p className="text-muted-foreground leading-normal">
+                              • <strong>Link do Botão:</strong> Este template possui links estáticos. Para enviar links dinâmicos e personalizáveis por envio, edite o template na aba <strong>Templates</strong> e configure a URL terminando com <code>{"{{1}}"}</code> (ex: <code>https://site.com/{"{{1}}"}</code>).
+                            </p>
+                          ) : (
+                            <p className="text-muted-foreground leading-normal">
+                              • <strong>Link do Botão:</strong> Este template possui links dinâmicos. Preencha o campo de link dinâmico abaixo para definir a parte personalizada do link (ex: código do cupom ou ID do cliente).
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()
+                  )}
 
                   {headerMediaFormat && (
                     <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
