@@ -52,7 +52,12 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
           const { accessToken, apiVersion, phoneNumberId } = pickMetaCredentials(p);
           phoneNumberIdForLog = phoneNumberId || null;
 
-          const appId = String(process.env.META_APP_ID || "").trim();
+          let appId = String(process.env.META_APP_ID || "").trim();
+          if (!appId) {
+            const { data: settings } = await dbAdmin.from("platform_settings").select("meta_app_id").eq("id", 1).maybeSingle();
+            if (settings?.meta_app_id) appId = String(settings.meta_app_id).trim();
+          }
+
           if (!appId) throw new Error("META_APP_ID não configurado no servidor.");
 
           const form = await request.formData();
