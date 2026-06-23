@@ -17,6 +17,7 @@ import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiQueryRouteImport } from './routes/api/query'
+import { Route as AppWhatsappBusinessProfileRouteImport } from './routes/_app/whatsapp-business-profile'
 import { Route as AppWebhookEventsRouteImport } from './routes/_app/webhook-events'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
@@ -30,6 +31,7 @@ import { Route as AppChatRouteImport } from './routes/_app/chat'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
+import { Route as ApiWhatsappBusinessProfileRouteImport } from './routes/api/whatsapp/business-profile'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
 import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
 import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
@@ -43,6 +45,7 @@ import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
+import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
 
@@ -85,6 +88,12 @@ const ApiQueryRoute = ApiQueryRouteImport.update({
   path: '/api/query',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppWhatsappBusinessProfileRoute =
+  AppWhatsappBusinessProfileRouteImport.update({
+    id: '/whatsapp-business-profile',
+    path: '/whatsapp-business-profile',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppWebhookEventsRoute = AppWebhookEventsRouteImport.update({
   id: '/webhook-events',
   path: '/webhook-events',
@@ -150,6 +159,12 @@ const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
   path: '/campaigns/',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiWhatsappBusinessProfileRoute =
+  ApiWhatsappBusinessProfileRouteImport.update({
+    id: '/api/whatsapp/business-profile',
+    path: '/api/whatsapp/business-profile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
   id: '/api/storage/upload',
   path: '/api/storage/upload',
@@ -216,6 +231,12 @@ const AppCampaignsIdRoute = AppCampaignsIdRouteImport.update({
   path: '/campaigns/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiWhatsappBusinessProfilePhotoRoute =
+  ApiWhatsappBusinessProfilePhotoRouteImport.update({
+    id: '/photo',
+    path: '/photo',
+    getParentRoute: () => ApiWhatsappBusinessProfileRoute,
+  } as any)
 const ApiPublicCronProcessQueueRoute =
   ApiPublicCronProcessQueueRouteImport.update({
     id: '/api/public/cron/process-queue',
@@ -247,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/webhook-events': typeof AppWebhookEventsRoute
+  '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
@@ -261,9 +283,11 @@ export interface FileRoutesByFullPath {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -284,6 +308,7 @@ export interface FileRoutesByTo {
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/webhook-events': typeof AppWebhookEventsRoute
+  '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
@@ -298,9 +323,11 @@ export interface FileRoutesByTo {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/campaigns': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -323,6 +350,7 @@ export interface FileRoutesById {
   '/_app/templates': typeof AppTemplatesRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/webhook-events': typeof AppWebhookEventsRoute
+  '/_app/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
@@ -337,9 +365,11 @@ export interface FileRoutesById {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -362,6 +392,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/webhook-events'
+    | '/whatsapp-business-profile'
     | '/api/query'
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
@@ -376,9 +407,11 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/whatsapp/business-profile'
     | '/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/whatsapp/business-profile/photo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -399,6 +432,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/webhook-events'
+    | '/whatsapp-business-profile'
     | '/api/query'
     | '/campaigns/$id'
     | '/api/admin/schema-dump'
@@ -413,9 +447,11 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/whatsapp/business-profile'
     | '/campaigns'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/whatsapp/business-profile/photo'
   id:
     | '__root__'
     | '/'
@@ -437,6 +473,7 @@ export interface FileRouteTypes {
     | '/_app/templates'
     | '/_app/users'
     | '/_app/webhook-events'
+    | '/_app/whatsapp-business-profile'
     | '/api/query'
     | '/_app/campaigns/$id'
     | '/api/admin/schema-dump'
@@ -451,9 +488,11 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/whatsapp/business-profile'
     | '/_app/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/whatsapp/business-profile/photo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -477,6 +516,7 @@ export interface RootRouteChildren {
   ApiStorageFileRoute: typeof ApiStorageFileRoute
   ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
   ApiStorageUploadRoute: typeof ApiStorageUploadRoute
+  ApiWhatsappBusinessProfileRoute: typeof ApiWhatsappBusinessProfileRouteWithChildren
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
 }
@@ -538,6 +578,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/query'
       preLoaderRoute: typeof ApiQueryRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/whatsapp-business-profile': {
+      id: '/_app/whatsapp-business-profile'
+      path: '/whatsapp-business-profile'
+      fullPath: '/whatsapp-business-profile'
+      preLoaderRoute: typeof AppWhatsappBusinessProfileRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/webhook-events': {
       id: '/_app/webhook-events'
@@ -630,6 +677,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCampaignsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/whatsapp/business-profile': {
+      id: '/api/whatsapp/business-profile'
+      path: '/api/whatsapp/business-profile'
+      fullPath: '/api/whatsapp/business-profile'
+      preLoaderRoute: typeof ApiWhatsappBusinessProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/storage/upload': {
       id: '/api/storage/upload'
       path: '/api/storage/upload'
@@ -721,6 +775,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCampaignsIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/whatsapp/business-profile/photo': {
+      id: '/api/whatsapp/business-profile/photo'
+      path: '/photo'
+      fullPath: '/api/whatsapp/business-profile/photo'
+      preLoaderRoute: typeof ApiWhatsappBusinessProfilePhotoRouteImport
+      parentRoute: typeof ApiWhatsappBusinessProfileRoute
+    }
     '/api/public/cron/process-queue': {
       id: '/api/public/cron/process-queue'
       path: '/api/public/cron/process-queue'
@@ -751,6 +812,7 @@ interface AppRouteChildren {
   AppTemplatesRoute: typeof AppTemplatesRoute
   AppUsersRoute: typeof AppUsersRoute
   AppWebhookEventsRoute: typeof AppWebhookEventsRoute
+  AppWhatsappBusinessProfileRoute: typeof AppWhatsappBusinessProfileRoute
   AppCampaignsIdRoute: typeof AppCampaignsIdRoute
   AppCampaignsIndexRoute: typeof AppCampaignsIndexRoute
 }
@@ -768,11 +830,26 @@ const AppRouteChildren: AppRouteChildren = {
   AppTemplatesRoute: AppTemplatesRoute,
   AppUsersRoute: AppUsersRoute,
   AppWebhookEventsRoute: AppWebhookEventsRoute,
+  AppWhatsappBusinessProfileRoute: AppWhatsappBusinessProfileRoute,
   AppCampaignsIdRoute: AppCampaignsIdRoute,
   AppCampaignsIndexRoute: AppCampaignsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+interface ApiWhatsappBusinessProfileRouteChildren {
+  ApiWhatsappBusinessProfilePhotoRoute: typeof ApiWhatsappBusinessProfilePhotoRoute
+}
+
+const ApiWhatsappBusinessProfileRouteChildren: ApiWhatsappBusinessProfileRouteChildren =
+  {
+    ApiWhatsappBusinessProfilePhotoRoute: ApiWhatsappBusinessProfilePhotoRoute,
+  }
+
+const ApiWhatsappBusinessProfileRouteWithChildren =
+  ApiWhatsappBusinessProfileRoute._addFileChildren(
+    ApiWhatsappBusinessProfileRouteChildren,
+  )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -795,6 +872,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStorageFileRoute: ApiStorageFileRoute,
   ApiStorageRemoveRoute: ApiStorageRemoveRoute,
   ApiStorageUploadRoute: ApiStorageUploadRoute,
+  ApiWhatsappBusinessProfileRoute: ApiWhatsappBusinessProfileRouteWithChildren,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
 }

@@ -69,6 +69,7 @@ const NAV = [
   { to: "/contacts", label: "Contatos", icon: Users },
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
+  { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
 

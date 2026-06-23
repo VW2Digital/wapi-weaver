@@ -318,6 +318,41 @@ export async function ensureDatabaseSchema() {
     `,
     );
 
+    await ensureTableExists(
+      connection,
+      "whatsapp_business_profile_logs",
+      `
+      CREATE TABLE IF NOT EXISTS whatsapp_business_profile_logs (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        phone_number_id VARCHAR(100) NULL,
+        action ENUM('fetch_profile','update_profile','upload_profile_picture','update_profile_picture') NOT NULL,
+        old_data_json JSON NULL,
+        new_data_json JSON NULL,
+        meta_response_json JSON NULL,
+        success BOOLEAN NOT NULL DEFAULT false,
+        error_code VARCHAR(100) NULL,
+        error_message TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
+
+    await ensureIndexExists(
+      connection,
+      "whatsapp_business_profile_logs",
+      "idx_wab_profile_logs_user_created",
+      "CREATE INDEX idx_wab_profile_logs_user_created ON whatsapp_business_profile_logs(user_id, created_at DESC)",
+    );
+    await ensureIndexExists(
+      connection,
+      "whatsapp_business_profile_logs",
+      "idx_wab_profile_logs_phone_created",
+      "CREATE INDEX idx_wab_profile_logs_phone_created ON whatsapp_business_profile_logs(phone_number_id, created_at DESC)",
+    );
+
     await ensureIndexExists(
       connection,
       "direct_messages",

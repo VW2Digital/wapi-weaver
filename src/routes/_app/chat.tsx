@@ -65,6 +65,11 @@ function ChatPage() {
   const contactsQuery = useQuery({
     queryKey: ["chat-contacts"],
     queryFn: () => fetchContacts(),
+    // Importante: contatos podem ser criados via webhook (mensagem recebida),
+    // então precisamos revalidar periodicamente para o chat refletir novas conversas.
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Auto-select contact based on "phone" query parameter

@@ -231,6 +231,22 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS whatsapp_business_profile_logs (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NULL,
+  phone_number_id VARCHAR(100) NULL,
+  action ENUM('fetch_profile','update_profile','upload_profile_picture','update_profile_picture') NOT NULL,
+  old_data_json JSON NULL,
+  new_data_json JSON NULL,
+  meta_response_json JSON NULL,
+  success BOOLEAN NOT NULL DEFAULT false,
+  error_code VARCHAR(100) NULL,
+  error_message TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS direct_messages (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
@@ -251,6 +267,8 @@ CREATE INDEX idx_campaign_messages_wa_msg ON campaign_messages(wa_message_id);
 CREATE INDEX idx_campaign_messages_camp_status ON campaign_messages(campaign_id, status);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
 CREATE INDEX idx_webhook_events_processed ON webhook_events(processed, received_at);
+CREATE INDEX idx_wab_profile_logs_user_created ON whatsapp_business_profile_logs(user_id, created_at DESC);
+CREATE INDEX idx_wab_profile_logs_phone_created ON whatsapp_business_profile_logs(phone_number_id, created_at DESC);
 CREATE INDEX idx_contacts_user_opted ON contacts(user_id, opted_out);
 CREATE INDEX idx_direct_messages_user_phone ON direct_messages(user_id, contact_phone);
 CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
@@ -489,4 +507,3 @@ CREATE INDEX idx_opt_notes_pinned ON opportunity_notes(is_pinned);
 
 CREATE INDEX idx_opt_audit_opp ON opportunity_audit_logs(opportunity_id);
 CREATE INDEX idx_opt_audit_created ON opportunity_audit_logs(created_at);
-
