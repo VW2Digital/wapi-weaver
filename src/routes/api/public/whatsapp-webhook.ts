@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import { normalizeWaMessageId } from "@/lib/wa-message-id";
 
 function logInfo(message: string, data?: any) {
   console.log(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
@@ -122,7 +123,7 @@ const OPT_OUT_KEYWORDS = [
 async function processStatusUpdate(value: any, userId: string) {
   const statuses = value?.statuses ?? [];
   for (const s of statuses) {
-    const waId: string | undefined = s.id;
+    const waId = normalizeWaMessageId(s.id);
     if (!waId) continue;
     const status = s.status;
     const timestamp = s.timestamp
@@ -237,6 +238,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
   for (const m of messages) {
     const from: string | undefined = m.from;
     if (!from) continue;
+    const waMessageId = normalizeWaMessageId(m.id);
     const phoneDigits = from.replace(/\D+/g, "");
 
     // Garante que o contato exista para o chat renderizar a conversa na lista
@@ -285,7 +287,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
       direction: "incoming",
       type,
       body,
-      wa_message_id: m.id,
+      wa_message_id: waMessageId,
       status: "delivered",
       reply_to_message_id,
       metadata: {

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { normalizeWaMessageId } from "@/lib/wa-message-id";
 
 // Schema de validação para envio de mensagem direta
 const sendMessageInput = z.object({
@@ -139,7 +140,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       return { ok: false, error: body?.error?.message ?? "Falha ao enviar mensagem na Meta." };
     }
 
-    const wamid = body?.messages?.[0]?.id || null;
+    const wamid = normalizeWaMessageId(body?.messages?.[0]?.id);
 
     let bodyText = "";
     if (data.type === "text") {
@@ -152,7 +153,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     // 4. Registra a mensagem enviada na tabela direct_messages
     // context.db is user-scoped: user_id is automatically filled in by the query compiler
-    const { error: msgErr } = await context.db.from("direct_messages").insert({
+    const { error: msgErr } = await context.db.from("direct_messages").upsert({
       contact_phone: digits,
       direction: "outgoing",
       type: data.type,
