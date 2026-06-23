@@ -13,6 +13,7 @@ export async function processBotFlow(
   phoneDigits: string,
   phoneNumberId: string,
   userId: string,
+  buttonPayload?: string,
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return;
 
@@ -60,30 +61,76 @@ export async function processBotFlow(
     }
 
     // 3. Find next step
-    // Simplified logic for Phase 1:
-    // Always find a step where trigger_value == messageBody OR trigger_type = 'start' if no state
-
-    const nextStepQuery = dbAdmin
-      .from("bot_steps")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("bot_settings_id", settings.id);
-
     let stepToExecute: any = null;
 
-    // A. Check for global keyword overrides first
-    const { data: keywordSteps } = await dbAdmin
-      .from("bot_steps")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("bot_settings_id", settings.id)
-      .eq("trigger_type", "keyword");
+    // 0. Check if buttonPayload has step routing
+    let targetStepId = "";
+    if (buttonPayload) {
+      if (buttonPayload.startsWith("step:")) {
+        targetStepId = buttonPayload.replace("step:", "");
+      } else {
+        // Fallback for legacy UUIDs or sentinels directly set as ID
+        targetStepId = buttonPayload;
+      }
+    }
 
-    if (keywordSteps && keywordSteps.length > 0) {
-      const matched = keywordSteps.find(
-        (s: any) => s.trigger_value && messageBody.toLowerCase() === s.trigger_value.toLowerCase(),
-      );
-      if (matched) stepToExecute = matched;
+    if (targetStepId) {
+      if (targetStepId === "-999") {
+        // Handoff: Pause the bot
+        const updateData = {
+          current_step_id: null,
+          last_interaction: new Date().toISOString(),
+          is_paused: true,
+          paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        };
+        if (state) {
+          await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
+        } else {
+          await dbAdmin.from("bot_conversation_state").insert({
+            user_id: userId,
+            contact_number: phoneDigits,
+            instance_id: phoneNumberId,
+            ...updateData,
+          });
+        }
+        logInfo("Handoff direto pelo botão clicado");
+        return;
+      } else if (targetStepId === "-997") {
+        // Restart: Find start step
+        const { data: startStep } = await dbAdmin
+          .from("bot_steps")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("bot_settings_id", settings.id)
+          .eq("trigger_type", "start")
+          .maybeSingle();
+        if (startStep) stepToExecute = startStep;
+      } else {
+        // Find the specific step by ID
+        const { data: targetStep } = await dbAdmin
+          .from("bot_steps")
+          .select("*")
+          .eq("id", targetStepId)
+          .maybeSingle();
+        if (targetStep) stepToExecute = targetStep;
+      }
+    }
+
+    // A. Check for global keyword overrides first
+    if (!stepToExecute) {
+      const { data: keywordSteps } = await dbAdmin
+        .from("bot_steps")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("bot_settings_id", settings.id)
+        .eq("trigger_type", "keyword");
+
+      if (keywordSteps && keywordSteps.length > 0) {
+        const matched = keywordSteps.find(
+          (s: any) => s.trigger_value && messageBody.toLowerCase() === s.trigger_value.toLowerCase(),
+        );
+        if (matched) stepToExecute = matched;
+      }
     }
 
     // B. If no keyword, check if there's a queued step in the state

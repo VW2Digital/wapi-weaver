@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, GripVertical } from "lucide-react";
 import { useState, useEffect } from "react";
 
-export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep, steps }: any) {
+export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep, steps, agentName = "Atendente" }: any) {
   const [config, setConfig] = useState<any>({});
 
   useEffect(() => {
@@ -39,14 +39,30 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
         return (
           <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
             <Label className="text-sm font-semibold">Botões Interativos (Até 3)</Label>
-            {buttons.map((btn: any, idx: number) => (
-              <div
-                key={idx}
-                className="flex gap-2 items-center bg-background p-2 border rounded-md"
-              >
-                <div className="flex-1 space-y-2">
+            {buttons.map((btn: any, idx: number) => {
+              const rawId = btn.reply?.id || "";
+              let targetVal = "none";
+              if (rawId.startsWith("step:")) {
+                targetVal = rawId.replace("step:", "");
+              } else if (rawId) {
+                // Suporte legado
+                const isStep = steps.some((s: any) => s.id === rawId);
+                if (isStep) targetVal = rawId;
+                else if (rawId === "-999" || rawId === "-997") targetVal = rawId;
+              }
+
+              return (
+                <div
+                  key={idx}
+                  className="flex gap-1.5 items-center bg-background/50 p-2 border rounded-md"
+                >
+                  <span className="text-xs font-semibold text-muted-foreground w-4 text-center">
+                    {idx + 1}
+                  </span>
+                  
                   <Input
-                    placeholder="Título (ex: Sim)"
+                    placeholder="Título"
+                    className="flex-1 min-w-[70px] text-xs h-8"
                     value={btn.reply?.title || ""}
                     onChange={(e) => {
                       const newBtns = [...buttons];
@@ -58,33 +74,60 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                       updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
                     }}
                   />
-                  <Input
-                    placeholder="ID Retorno (ex: btn_sim)"
-                    value={btn.reply?.id || ""}
-                    onChange={(e) => {
+
+                  <span className="text-muted-foreground select-none text-xs">→</span>
+
+                  <Select
+                    value={targetVal}
+                    onValueChange={(val) => {
                       const newBtns = [...buttons];
                       newBtns[idx] = {
                         ...btn,
                         type: "reply",
-                        reply: { ...btn.reply, id: e.target.value },
+                        reply: { 
+                          ...btn.reply, 
+                          id: val === "none" ? "" : `step:${val}` 
+                        },
                       };
                       updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
                     }}
-                  />
+                  >
+                    <SelectTrigger className="w-[105px] shrink-0 text-xs h-8">
+                      <SelectValue placeholder="Destino..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      <SelectItem value="-999">
+                        <span className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
+                          🤖 {agentName}
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="-997">Reiniciar</SelectItem>
+                      {steps
+                        .filter((s: any) => s.id !== selectedStep.id)
+                        .map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            #{s.step_order}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
+                    onClick={() => {
+                      const newBtns = buttons.filter((_: any, i: number) => i !== idx);
+                      updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive shrink-0"
-                  onClick={() => {
-                    const newBtns = buttons.filter((_: any, i: number) => i !== idx);
-                    updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
             {buttons.length < 3 && (
               <Button
                 variant="outline"

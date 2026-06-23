@@ -277,6 +277,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
     }
 
     let body = "";
+    let buttonPayload = "";
     if (m.type === "text") {
       body = m.text?.body ?? "";
     } else if (m.type === "reaction") {
@@ -298,11 +299,16 @@ async function processInboundDirectMessages(value: any, userId: string) {
         m.contacts?.[0]?.name?.formatted_name || m.contacts?.[0]?.phones?.[0]?.phone || "Contato";
     } else if (m.type === "button") {
       body = m.button?.text ?? "[Botão]";
+      buttonPayload = m.button?.payload ?? "";
     } else if (m.type === "interactive") {
       body =
         m.interactive?.button_reply?.title ??
         m.interactive?.list_reply?.title ??
         "[Interação recebida]";
+      buttonPayload =
+        m.interactive?.button_reply?.id ??
+        m.interactive?.list_reply?.id ??
+        "";
     } else {
       body = `[Mensagem de tipo ${m.type} recebida]`;
     }
@@ -328,7 +334,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
     if (phoneNumberId && body) {
-      await processBotFlow(body, phoneDigits, phoneNumberId, userId);
+      await processBotFlow(body, phoneDigits, phoneNumberId, userId, buttonPayload);
     }
   }
 }

@@ -13,6 +13,7 @@ import {
   listBotSteps,
   saveBotStepsBatch,
 } from "@/lib/botflow.functions";
+import { getProfile } from "@/lib/profile.functions";
 import { toast } from "sonner";
 import { BotFlowCanvas } from "@/components/bot-flow/BotFlowCanvas";
 import { StepInspector } from "@/components/bot-flow/StepInspector";
@@ -48,10 +49,16 @@ function BotPage() {
   const toggleStatusFn = useServerFn(toggleBotStatus);
   const listStepsFn = useServerFn(listBotSteps);
   const saveStepsBatchFn = useServerFn(saveBotStepsBatch);
+  const getProfileFn = useServerFn(getProfile);
 
   const [steps, setSteps] = useState<any[]>([]);
   const [selectedStep, setSelectedStep] = useState<any>(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+
+  const profileQuery = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => getProfileFn(),
+  });
 
   const settingsQuery = useQuery({
     queryKey: ["botSettings"],
@@ -123,7 +130,7 @@ function BotPage() {
     setSelectedStep(null);
   };
 
-  const isSettingsActive = settingsQuery.data?.is_active || false;
+  const isSettingsActive = (settingsQuery.data as any)?.settings?.is_active || (settingsQuery.data as any)?.is_active || false;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -218,6 +225,7 @@ function BotPage() {
             handleUpdateStep={handleUpdateStep}
             handleDeleteStep={handleDeleteStep}
             steps={steps}
+            agentName={profileQuery.data?.display_name || profileQuery.data?.full_name || "Atendente"}
           />
         )}
       </div>

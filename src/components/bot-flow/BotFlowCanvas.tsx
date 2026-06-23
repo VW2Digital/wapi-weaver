@@ -24,8 +24,8 @@ interface BotFlowCanvasProps {
 
 export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanvasProps) {
   const { theme } = useTheme();
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
@@ -92,7 +92,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => onNodeClick(node.data.step)}
+        onNodeClick={(_, node: any) => onNodeClick(node.data?.step)}
         fitView
         colorMode={theme === "dark" ? "dark" : "light"}
       >
