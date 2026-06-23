@@ -28,33 +28,78 @@ fi
 # 1. Carregar variáveis de ambiente ou solicitar interativamente
 echo -e "${YELLOW}[1/8] Validando parâmetros de entrada...${NC}"
 
-if [ -z "${DOMAIN:-}" ]; then
-  read -p "Digite o domínio da aplicação (ex: apioficial.vw2digital.com.br): " DOMAIN
-  if [ -z "$DOMAIN" ]; then
-    echo -e "${RED}Erro: O domínio é obrigatório.${NC}"
-    exit 1
+# Validador de Domínio
+while true; do
+  if [ -z "${DOMAIN:-}" ]; then
+    read -p "Digite o domínio da aplicação: " DOMAIN
   fi
+  DOMAIN=$(echo "$DOMAIN" | xargs)
+  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+    break
+  else
+    echo -e "${RED}Erro: Domínio inválido. Digite um domínio válido.${NC}"
+    DOMAIN=""
+  fi
+done
+
+# Validador de SSL
+while true; do
+  if [ -z "${INSTALL_SSL:-}" ]; then
+    read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
+  fi
+  INSTALL_SSL=$(echo "$INSTALL_SSL" | tr '[:upper:]' '[:lower:]' | xargs)
+  if [[ "$INSTALL_SSL" == "s" || "$INSTALL_SSL" == "n" ]]; then
+    break
+  else
+    echo -e "${RED}Erro: Opção inválida. Responda apenas com 's' ou 'n'.${NC}"
+    INSTALL_SSL=""
+  fi
+done
+
+# Validador de E-mail do SSL
+if [[ "$INSTALL_SSL" == "s" ]]; then
+  while true; do
+    if [ -z "${SSL_EMAIL:-}" ]; then
+      read -p "Digite o e-mail para o SSL: " SSL_EMAIL
+    fi
+    SSL_EMAIL=$(echo "$SSL_EMAIL" | xargs)
+    if [[ "$SSL_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      break
+    else
+      echo -e "${RED}Erro: E-mail inválido. Digite um e-mail válido.${NC}"
+      SSL_EMAIL=""
+    fi
+  done
 fi
 
-if [ -z "${INSTALL_SSL:-}" ]; then
-  read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
-fi
-
-if [ -z "${SSL_EMAIL:-}" ] && { [ "$INSTALL_SSL" = "s" ] || [ "$INSTALL_SSL" = "S" ]; }; then
-  read -p "Digite o e-mail para o SSL (ex: adm@vw2digital.com.br): " SSL_EMAIL
-fi
-
-if [ -z "${DB_PASSWORD:-}" ]; then
-  read -p "Digite a senha desejada para o banco de dados (ex: #VW2Digital2025): " DB_PASSWORD
+# Validador de Senha do BD
+while true; do
+  if [ -z "${DB_PASSWORD:-}" ]; then
+    echo -n "Digite a senha desejada para o banco de dados: "
+    read -s DB_PASSWORD
+    echo "" # Linha em branco após input oculto
+  fi
+  DB_PASSWORD=$(echo "$DB_PASSWORD" | xargs)
   if [ -z "$DB_PASSWORD" ]; then
     echo -e "${RED}Erro: A senha do banco de dados é obrigatória.${NC}"
-    exit 1
+  elif [ ${#DB_PASSWORD} -lt 8 ]; then
+    echo -e "${RED}Erro: A senha deve ter pelo menos 8 caracteres.${NC}"
+    DB_PASSWORD=""
+  elif [[ "$DB_PASSWORD" =~ [[:space:]] ]]; then
+    echo -e "${RED}Erro: A senha não deve conter espaços.${NC}"
+    DB_PASSWORD=""
+  else
+    break
   fi
-fi
+done
 
 echo -e "${GREEN}Parâmetros carregados!${NC}"
 echo "- Domínio: $DOMAIN"
-echo "- Senha do BD: $DB_PASSWORD"
+echo "- SSL: $INSTALL_SSL"
+if [[ "$INSTALL_SSL" == "s" ]]; then
+  echo "- E-mail do SSL: $SSL_EMAIL"
+fi
+echo "- Senha do BD: ********"
 echo ""
 
 # Verificar e configurar swap se necessário (essencial para VPS com pouca memória)
@@ -265,7 +310,7 @@ echo ""
 echo "------------------------------------------------------------------------"
 echo "Credenciais do Banco de Dados Interno:"
 echo "- Usuário: wapi_user"
-echo "- Senha:   ${DB_PASSWORD}"
+echo "- Senha:   ******** (gravada no arquivo .env)"
 echo "------------------------------------------------------------------------"
 echo "Comandos úteis:"
 echo "Ver logs do App: cd /var/www/wapi-weaver && docker compose logs -f app"

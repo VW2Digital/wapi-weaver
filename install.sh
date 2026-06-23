@@ -56,25 +56,79 @@ print_step "[1/7] Coletando parâmetros de configuração..."
 
 # ── Variáveis interativas ───────────────────────────────────────────────────
 
-if [ -z "${DOMAIN:-}" ]; then
-  read -p "Digite o domínio da aplicação (ex: wapi.vw2digital.com.br): " DOMAIN
-  if [ -z "$DOMAIN" ]; then
-    echo -e "${RED}Erro: O domínio é obrigatório.${NC}"
-    exit 1
+# Validador de Domínio
+while true; do
+  if [ -z "${DOMAIN:-}" ]; then
+    read -p "Digite o domínio da aplicação: " DOMAIN
   fi
+  DOMAIN=$(echo "$DOMAIN" | xargs)
+  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+    break
+  else
+    echo -e "${RED}Erro: Domínio inválido. Digite um domínio válido.${NC}"
+    DOMAIN=""
+  fi
+done
+
+# Validador de SSL
+while true; do
+  if [ -z "${INSTALL_SSL:-}" ]; then
+    read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
+  fi
+  INSTALL_SSL=$(echo "$INSTALL_SSL" | tr '[:upper:]' '[:lower:]' | xargs)
+  if [[ "$INSTALL_SSL" == "s" || "$INSTALL_SSL" == "n" ]]; then
+    break
+  else
+    echo -e "${RED}Erro: Opção inválida. Responda apenas com 's' ou 'n'.${NC}"
+    INSTALL_SSL=""
+  fi
+done
+
+# Validador de E-mail do SSL
+if [[ "$INSTALL_SSL" == "s" ]]; then
+  while true; do
+    if [ -z "${SSL_EMAIL:-}" ]; then
+      read -p "Digite o e-mail para o SSL: " SSL_EMAIL
+    fi
+    SSL_EMAIL=$(echo "$SSL_EMAIL" | xargs)
+    if [[ "$SSL_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      break
+    else
+      echo -e "${RED}Erro: E-mail inválido. Digite um e-mail válido.${NC}"
+      SSL_EMAIL=""
+    fi
+  done
 fi
 
-if [ -z "${INSTALL_SSL:-}" ]; then
-  read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
-fi
-
-if [ -z "${SSL_EMAIL:-}" ] && { [ "$INSTALL_SSL" = "s" ] || [ "$INSTALL_SSL" = "S" ]; }; then
-  read -p "Digite o e-mail para o SSL (ex: adm@vw2digital.com.br): " SSL_EMAIL
+# Validador de Senha do BD
+if [ -z "${DB_PASS:-}" ]; then
+  DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+  if [ -n "$DB_PASS_ENV" ]; then
+    DB_PASS="$DB_PASS_ENV"
+  else
+    while true; do
+      echo -n "Digite a senha desejada para o banco de dados: "
+      read -s DB_PASS
+      echo "" # Linha em branco após input oculto
+      DB_PASS=$(echo "$DB_PASS" | xargs)
+      if [ -z "$DB_PASS" ]; then
+        echo -e "${RED}Erro: A senha do banco de dados é obrigatória.${NC}"
+      elif [ ${#DB_PASS} -lt 8 ]; then
+        echo -e "${RED}Erro: A senha deve ter pelo menos 8 caracteres.${NC}"
+        DB_PASS=""
+      elif [[ "$DB_PASS" =~ [[:space:]] ]]; then
+        echo -e "${RED}Erro: A senha não deve conter espaços.${NC}"
+        DB_PASS=""
+      else
+        break
+      fi
+    done
+  fi
 fi
 
 # Define CORS dinamicamente com base no domínio
 CORS_ORIGIN="https://${DOMAIN}"
-if [ "${INSTALL_SSL}" != "s" ] && [ "${INSTALL_SSL}" != "S" ]; then
+if [ "${INSTALL_SSL}" != "s" ]; then
   CORS_ORIGIN="http://${DOMAIN}"
 fi
 
@@ -82,6 +136,7 @@ echo ""
 echo "  Domínio: $DOMAIN"
 echo "  CORS:    $CORS_ORIGIN"
 echo "  SSL:     ${INSTALL_SSL:-n}"
+echo "  Senha do BD: ********"
 echo ""
 print_ok "Parâmetros carregados."
 
@@ -188,10 +243,11 @@ else
 fi
 
 JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-DB_PASS=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
 DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
 
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
+[ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
 [ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
 [ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
 
