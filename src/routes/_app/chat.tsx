@@ -47,6 +47,16 @@ import {
   User,
   Mail,
   Tag,
+  Star,
+  Heart,
+  AlertCircle,
+  Zap,
+  Bookmark,
+  Flag,
+  Briefcase,
+  ShoppingCart,
+  Activity,
+  Shield,
   Info,
   ChevronRight,
   ExternalLink,
@@ -89,6 +99,26 @@ function getAvatarColor(name: string): string {
     .split("")
     .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
   return `hsl(${hash % 360}, 70%, 40%)`;
+}
+
+const TAG_ICONS: Record<string, any> = {
+  Tag, Star, Heart, AlertCircle, Zap, Bookmark, Flag, Briefcase, ShoppingCart, Activity, Shield
+};
+
+function TagBadge({ tag, className, showName = true }: { tag: any; className?: string; showName?: boolean }) {
+  if (!tag) return null;
+  const Icon = TAG_ICONS[tag.icon] || Tag;
+  const color = tag.color || "#8B5CF6";
+  return (
+    <div 
+      className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 border text-[10px] font-medium tracking-wide leading-none", className)} 
+      style={{ backgroundColor: `${color}20`, color: color, borderColor: `${color}40` }}
+      title={tag.name}
+    >
+      <Icon className="h-3 w-3 shrink-0" />
+      {showName && <span className="truncate max-w-[120px]">{tag.name}</span>}
+    </div>
+  );
 }
 
 function ChatPage() {
@@ -148,6 +178,7 @@ function ChatPage() {
   const [newTagName, setNewTagName] = useState("");
   const [selectedColor, setSelectedColor] = useState("#6366f1");
   const [isManageTagsOpen, setIsManageTagsOpen] = useState(false);
+  const [selectedIconName, setSelectedIconName] = useState("Tag");
 
   const PREDEFINED_COLORS = [
     "#6366f1",
@@ -227,7 +258,7 @@ function ChatPage() {
   }, [qc]);
 
   // Tag Handlers
-  const handleCreateTag = async (name: string, color: string) => {
+  const handleCreateTag = async (name: string, color: string, icon: string = "Tag") => {
     const nameTrim = name.trim();
     if (!nameTrim) return null;
     if (nameTrim.length > 20) {
@@ -247,6 +278,7 @@ function ChatPage() {
       id: crypto.randomUUID(),
       name: nameTrim,
       color: color,
+      icon: icon,
     });
 
     if (error) {
@@ -394,10 +426,7 @@ function ChatPage() {
                     onClick={() => handleToggleMessageTag(msg.id, tag.id, isApplied)}
                     className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                      <span className="truncate">{tag.name}</span>
-                    </div>
+                    <TagBadge tag={tag} className="border-transparent bg-transparent px-0" />
                     <span
                       className={cn(
                         "h-4 w-4 rounded border flex items-center justify-center transition-all",
@@ -425,7 +454,7 @@ function ChatPage() {
                     const target = e.currentTarget;
                     const val = target.value.trim();
                     if (!val) return;
-                    const res = await handleCreateTag(val, selectedColor);
+                    const res = await handleCreateTag(val, selectedColor, selectedIconName);
                     if (res?.id) {
                       target.value = "";
                       await handleToggleMessageTag(msg.id, res.id, false);
@@ -434,19 +463,27 @@ function ChatPage() {
                 }}
               />
             </div>
-            <div className="flex justify-between px-1">
-              {PREDEFINED_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={cn(
-                    "h-3 w-3 rounded-full border transition-transform hover:scale-110",
-                    selectedColor === c ? "border-foreground" : "border-transparent",
-                  )}
-                  style={{ backgroundColor: c }}
-                  onClick={() => setSelectedColor(c)}
-                />
-              ))}
+            <div className="flex justify-between items-center px-1">
+              <input
+                type="color"
+                value={selectedColor}
+                onChange={(e) => setSelectedColor(e.target.value)}
+                className="w-5 h-5 p-0 border-0 cursor-pointer rounded overflow-hidden"
+              />
+              <div className="flex gap-1">
+                {PREDEFINED_COLORS.slice(0, 6).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={cn(
+                      "h-3 w-3 rounded-full border transition-transform hover:scale-110",
+                      selectedColor === c ? "border-foreground" : "border-transparent",
+                    )}
+                    style={{ backgroundColor: c }}
+                    onClick={() => setSelectedColor(c)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </DropdownMenuContent>
@@ -953,17 +990,11 @@ function ChatPage() {
                           );
                         }}
                         className={cn(
-                          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] transition-all cursor-pointer font-semibold border",
-                          isActive
-                            ? "text-white border-transparent"
-                            : "bg-muted text-muted-foreground border-transparent hover:bg-muted/85"
+                          "transition-all cursor-pointer hover:scale-105",
+                          isActive ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background rounded-full" : "opacity-60"
                         )}
-                        style={isActive ? { backgroundColor: tag.color } : undefined}
                       >
-                        {!isActive && (
-                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
-                        )}
-                        {tag.name}
+                        <TagBadge tag={tag} />
                       </button>
                     );
                   })
@@ -1043,11 +1074,11 @@ function ChatPage() {
                           return (
                             <div className="flex gap-0.5">
                               {contactTags.map((ct: any) => (
-                                <span
-                                  key={ct.tag_id}
-                                  className="h-1.5 w-1.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: ct.tags?.color || "#8B5CF6" }}
-                                  title={ct.tags?.name}
+                                <TagBadge 
+                                  key={ct.tag_id} 
+                                  tag={ct.tags} 
+                                  showName={false} 
+                                  className="px-1" 
                                 />
                               ))}
                             </div>
@@ -1132,12 +1163,7 @@ function ChatPage() {
                         return (
                           <div className="flex gap-1">
                             {contactTags.map((ct: any) => (
-                              <span
-                                key={ct.tag_id}
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: ct.tags?.color || "#8B5CF6" }}
-                                title={ct.tags?.name}
-                              />
+                              <TagBadge key={ct.tag_id} tag={ct.tags} />
                             ))}
                           </div>
                         );
@@ -1398,14 +1424,14 @@ function ChatPage() {
                                 return (
                                   <div className="flex flex-wrap gap-1 mb-1">
                                     {msgTags.map((mt: any) => (
-                                      <span
-                                        key={mt.tag_id}
-                                        className="text-[8px] font-bold px-1.5 py-0.5 rounded text-white uppercase tracking-wider"
-                                        style={{ color: "#fff", backgroundColor: mt.tags?.color || "#8B5CF6" }}
-                                        title={mt.tags?.name}
-                                      >
-                                        {mt.tags?.name}
-                                      </span>
+                                      <TagBadge 
+                                        key={mt.tag_id} 
+                                        tag={mt.tags} 
+                                        className={cn(
+                                          "shadow-sm", 
+                                          isOutgoing ? "border-primary-foreground/30" : ""
+                                        )} 
+                                      />
                                     ))}
                                   </div>
                                 );
@@ -1866,7 +1892,7 @@ function ChatPage() {
                       
                       <div className="space-y-4 py-2">
                         {/* Criar nova tag */}
-                        <div className="space-y-2 border-b pb-4">
+                        <div className="space-y-3 border-b pb-4">
                           <Label className="text-xs font-semibold">Nova etiqueta</Label>
                           <div className="flex gap-2">
                             <Input
@@ -1879,7 +1905,7 @@ function ChatPage() {
                             <Button
                               onClick={async () => {
                                 if (!newTagName.trim()) return;
-                                const res = await handleCreateTag(newTagName, selectedColor);
+                                const res = await handleCreateTag(newTagName, selectedColor, selectedIconName);
                                 if (res) setNewTagName("");
                               }}
                             >
@@ -1887,20 +1913,50 @@ function ChatPage() {
                             </Button>
                           </div>
                           
-                          {/* Color picker */}
-                          <div className="flex gap-2 justify-between pt-1">
-                            {PREDEFINED_COLORS.map((c) => (
-                              <button
-                                key={c}
-                                type="button"
-                                className={cn(
-                                  "h-6 w-6 rounded-full border-2 transition-transform hover:scale-110",
-                                  selectedColor === c ? "border-foreground" : "border-transparent"
-                                )}
-                                style={{ backgroundColor: c }}
-                                onClick={() => setSelectedColor(c)}
+                          <div className="flex flex-col gap-2">
+                            <Label className="text-xs text-muted-foreground">Cor e Ícone</Label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="color"
+                                value={selectedColor}
+                                onChange={(e) => setSelectedColor(e.target.value)}
+                                className="w-8 h-8 p-0 border-0 cursor-pointer rounded-lg overflow-hidden shrink-0"
                               />
-                            ))}
+                              <div className="flex gap-1.5 flex-wrap">
+                                {PREDEFINED_COLORS.map((c) => (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    className={cn(
+                                      "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110",
+                                      selectedColor === c ? "border-foreground" : "border-transparent"
+                                    )}
+                                    style={{ backgroundColor: c }}
+                                    onClick={() => setSelectedColor(c)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            
+                            {/* Ícone picker */}
+                            <div className="flex gap-2 flex-wrap pt-1">
+                              {Object.keys(TAG_ICONS).map((iconName) => {
+                                const IconComp = TAG_ICONS[iconName];
+                                return (
+                                  <button
+                                    key={iconName}
+                                    type="button"
+                                    onClick={() => setSelectedIconName(iconName)}
+                                    className={cn(
+                                      "h-7 w-7 rounded border flex items-center justify-center transition-colors hover:bg-muted",
+                                      selectedIconName === iconName ? "bg-primary text-primary-foreground border-primary" : "border-transparent text-muted-foreground"
+                                    )}
+                                  >
+                                    <IconComp className="h-4 w-4" />
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
 
@@ -1915,10 +1971,7 @@ function ChatPage() {
                             ) : (
                               (tagsQuery.data ?? []).map((tag: any) => (
                                 <div key={tag.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm">
-                                  <div className="flex items-center gap-2">
-                                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                                    <span className="font-medium">{tag.name}</span>
-                                  </div>
+                                  <TagBadge tag={tag} className="text-xs px-2 py-1" />
                                   <Button
                                     size="icon"
                                     variant="ghost"

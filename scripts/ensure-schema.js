@@ -358,12 +358,14 @@ export async function ensureDatabaseSchema() {
         user_id VARCHAR(36) NOT NULL,
         name VARCHAR(255) NOT NULL,
         color VARCHAR(50) NOT NULL DEFAULT '#8B5CF6',
+        icon VARCHAR(50) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_user_tag (user_id, name),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+    await ensureColumnExists(connection, "tags", "icon", "VARCHAR(50) NULL");
 
     await ensureTableExists(
       connection,
