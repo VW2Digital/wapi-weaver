@@ -91,6 +91,49 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
           // ignore
         }
       }
+
+      // 3. Conexões de listas interativas
+      if (s.message_type === "list" && s.buttons_config) {
+        try {
+          const configObj = typeof s.buttons_config === "string" 
+            ? JSON.parse(s.buttons_config) 
+            : s.buttons_config;
+          const sections = configObj?.action?.sections || [];
+          let itemIdx = 0;
+          sections.forEach((sec: any) => {
+            const rows = sec.rows || [];
+            rows.forEach((row: any) => {
+              const rawId = row.id || "";
+              let targetId = "";
+              if (rawId.startsWith("step:")) {
+                targetId = rawId.replace("step:", "");
+              } else if (rawId) {
+                const isStep = steps.some((step) => step.id === rawId);
+                if (isStep) targetId = rawId;
+              }
+
+              if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+                const targetExists = steps.some((step) => step.id === targetId);
+                if (targetExists) {
+                  newEdges.push({
+                    id: `e-${s.id}-${targetId}-list-${itemIdx}`,
+                    source: s.id,
+                    target: targetId,
+                    type: "smoothstep",
+                    label: row.title || `Item ${itemIdx + 1}`,
+                    style: { stroke: "#0d9488", strokeWidth: 2 }, // Teal color for list items
+                    labelStyle: { fill: "#0d9488", fontWeight: 600, fontSize: 10 },
+                    animated: true,
+                  });
+                }
+              }
+              itemIdx++;
+            });
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
     });
 
     setNodes(newNodes);

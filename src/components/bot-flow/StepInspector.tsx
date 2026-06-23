@@ -173,70 +173,111 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                   }}
                 />
                 <div className="space-y-2 pl-4 border-l-2">
-                  {(sec.rows || []).map((row: any, rowIdx: number) => (
-                    <div key={rowIdx} className="space-y-2 relative">
-                      <Input
-                        placeholder="ID (ex: op_1)"
-                        className="text-xs h-7"
-                        value={row.id || ""}
-                        onChange={(e) => {
-                          const newSecs = [...sections];
-                          newSecs[secIdx].rows[rowIdx].id = e.target.value;
-                          updateConfig({
-                            ...config,
-                            action: { ...config.action, sections: newSecs },
-                          });
-                        }}
-                      />
-                      <Input
-                        placeholder="Título da Linha"
-                        className="text-xs h-7"
-                        value={row.title || ""}
-                        onChange={(e) => {
-                          const newSecs = [...sections];
-                          newSecs[secIdx].rows[rowIdx].title = e.target.value;
-                          updateConfig({
-                            ...config,
-                            action: { ...config.action, sections: newSecs },
-                          });
-                        }}
-                      />
-                      <Input
-                        placeholder="Descrição (Opcional)"
-                        className="text-xs h-7"
-                        value={row.description || ""}
-                        onChange={(e) => {
-                          const newSecs = [...sections];
-                          newSecs[secIdx].rows[rowIdx].description = e.target.value;
-                          updateConfig({
-                            ...config,
-                            action: { ...config.action, sections: newSecs },
-                          });
-                        }}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 absolute -right-2 -top-2 text-destructive"
-                        onClick={() => {
-                          const newSecs = [...sections];
-                          newSecs[secIdx].rows = newSecs[secIdx].rows.filter(
-                            (_: any, i: number) => i !== rowIdx,
-                          );
-                          updateConfig({
-                            ...config,
-                            action: { ...config.action, sections: newSecs },
-                          });
-                        }}
+                  {(sec.rows || []).map((row: any, rowIdx: number) => {
+                    const rawId = row.id || "";
+                    let targetVal = "none";
+                    if (rawId.startsWith("step:")) {
+                      targetVal = rawId.replace("step:", "");
+                    } else if (rawId) {
+                      const isStep = steps.some((s: any) => s.id === rawId);
+                      if (isStep) targetVal = rawId;
+                      else if (rawId === "-999" || rawId === "-997") targetVal = rawId;
+                    }
+
+                    return (
+                      <div
+                        key={rowIdx}
+                        className="flex gap-2 items-center bg-background/50 p-2 border rounded-md relative group"
                       >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex-1 space-y-1 min-w-0">
+                          <Input
+                            placeholder="Título da Linha"
+                            className="text-xs h-7"
+                            value={row.title || ""}
+                            onChange={(e) => {
+                              const newSecs = [...sections];
+                              newSecs[secIdx].rows[rowIdx].title = e.target.value;
+                              updateConfig({
+                                ...config,
+                                action: { ...config.action, sections: newSecs },
+                              });
+                            }}
+                          />
+                          <Input
+                            placeholder="Descrição (Opcional)"
+                            className="text-[10px] h-6"
+                            value={row.description || ""}
+                            onChange={(e) => {
+                              const newSecs = [...sections];
+                              newSecs[secIdx].rows[rowIdx].description = e.target.value;
+                              updateConfig({
+                                ...config,
+                                action: { ...config.action, sections: newSecs },
+                              });
+                            }}
+                          />
+                        </div>
+
+                        <span className="text-muted-foreground select-none text-xs">→</span>
+
+                        <Select
+                          value={targetVal}
+                          onValueChange={(val) => {
+                            const newSecs = [...sections];
+                            newSecs[secIdx].rows[rowIdx].id =
+                              val === "none" ? "" : `step:${val}`;
+                            updateConfig({
+                              ...config,
+                              action: { ...config.action, sections: newSecs },
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="w-[100px] shrink-0 text-[10px] h-7 px-2">
+                            <SelectValue placeholder="Destino..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum</SelectItem>
+                            <SelectItem value="-999">
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
+                                🤖 {agentName}
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="-997">Reiniciar</SelectItem>
+                            {steps
+                              .filter((s: any) => s.id !== selectedStep.id)
+                              .map((s: any) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  #{s.step_order}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10 shrink-0 h-7 w-7"
+                          onClick={() => {
+                            const newSecs = [...sections];
+                            newSecs[secIdx].rows = newSecs[secIdx].rows.filter(
+                              (_: any, i: number) => i !== rowIdx,
+                            );
+                            updateConfig({
+                              ...config,
+                              action: { ...config.action, sections: newSecs },
+                            });
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs w-full"
+                    className="h-7 text-xs w-full mt-1"
                     onClick={() => {
                       const newSecs = [...sections];
                       if (!newSecs[secIdx].rows) newSecs[secIdx].rows = [];

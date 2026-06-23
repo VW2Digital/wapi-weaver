@@ -118,13 +118,28 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
 
-    const { data: settings } = await context.db
+    let { data: settings } = await context.db
       .from("bot_settings")
       .select("id")
       .eq("instance_id", p.whatsapp_phone_number_id)
       .maybeSingle();
 
-    if (!settings) return { ok: false, error: "Settings não encontradas." };
+    if (!settings) {
+      const { data: newSettings, error: createError } = await context.db
+        .from("bot_settings")
+        .insert({
+          id: crypto.randomUUID(),
+          user_id: context.user.id,
+          instance_id: p.whatsapp_phone_number_id,
+          is_active: false,
+          pause_timeout_minutes: 60,
+        })
+        .select("id")
+        .single();
+
+      if (createError) return { ok: false, error: "Não foi possível criar as configurações do bot: " + createError.message };
+      settings = newSettings;
+    }
 
     const incomingIds = data.map(s => s.id).filter(Boolean);
 
@@ -180,13 +195,28 @@ export const saveBotStep = createServerFn({ method: "POST" })
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
 
-    const { data: settings } = await context.db
+    let { data: settings } = await context.db
       .from("bot_settings")
       .select("id")
       .eq("instance_id", p.whatsapp_phone_number_id)
       .maybeSingle();
 
-    if (!settings) return { ok: false, error: "Settings não encontradas." };
+    if (!settings) {
+      const { data: newSettings, error: createError } = await context.db
+        .from("bot_settings")
+        .insert({
+          id: crypto.randomUUID(),
+          user_id: context.user.id,
+          instance_id: p.whatsapp_phone_number_id,
+          is_active: false,
+          pause_timeout_minutes: 60,
+        })
+        .select("id")
+        .single();
+
+      if (createError) return { ok: false, error: "Não foi possível criar as configurações do bot: " + createError.message };
+      settings = newSettings;
+    }
 
     const payload = {
       bot_settings_id: settings.id,
