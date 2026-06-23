@@ -15,6 +15,17 @@ import {
 } from "@/lib/botflow.functions";
 import { toast } from "sonner";
 import { BotFlowCanvas } from "@/components/bot-flow/BotFlowCanvas";
+import { StepInspector } from "@/components/bot-flow/StepInspector";
+import { BOT_TEMPLATES, mapTemplateSteps } from "@/lib/bot-templates";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { BookOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +51,7 @@ function BotPage() {
 
   const [steps, setSteps] = useState<any[]>([]);
   const [selectedStep, setSelectedStep] = useState<any>(null);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
   const settingsQuery = useQuery({
     queryKey: ["botSettings"],
@@ -141,6 +153,49 @@ function BotPage() {
             Adicionar Passo
           </Button>
 
+          <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full" variant="secondary">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Galeria de Templates
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Galeria de Fluxos de Bot</DialogTitle>
+                <DialogDescription>
+                  Selecione um template pronto para carregar no Canvas. 
+                  <br/><strong className="text-destructive">Atenção:</strong> Carregar um template irá APAGAR o fluxo atual não salvo da tela.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {BOT_TEMPLATES.map((template) => (
+                  <Card 
+                    key={template.id} 
+                    className="cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => {
+                      try {
+                        const newSteps = mapTemplateSteps(template.steps);
+                        setSteps(newSteps);
+                        setSelectedStep(null);
+                        setIsGalleryOpen(false);
+                        toast.success(`Template "${template.name}" carregado! Não se esqueça de Salvar.`);
+                      } catch (e) {
+                        toast.error("Erro ao carregar template.");
+                        console.error(e);
+                      }
+                    }}
+                  >
+                    <CardHeader className="p-4">
+                      <CardTitle className="text-base">{template.name}</CardTitle>
+                      <CardDescription className="text-xs">{template.description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <div className="text-xs text-muted-foreground mt-4">
             Dica: Clique em um bloco no painel ao lado para editar suas configurações.
           </div>
@@ -148,121 +203,22 @@ function BotPage() {
 
         {/* CANVAS */}
         <div className="flex-1 relative">
-          <BotFlowCanvas steps={steps} onStepsChange={setSteps} onNodeClick={setSelectedStep} />
+          <BotFlowCanvas 
+            key={steps.length > 0 ? steps[0].id : 'empty'} 
+            steps={steps} 
+            onStepsChange={setSteps} 
+            onNodeClick={setSelectedStep} 
+          />
         </div>
 
         {/* INSPECTOR */}
         {selectedStep && (
-          <div className="w-80 border-l bg-card p-4 flex flex-col overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Editar Passo</h3>
-              <Button variant="ghost" size="icon" onClick={handleDeleteStep}>
-                <Trash2 className="w-4 h-4 text-destructive" />
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Gatilho (Trigger)</Label>
-                <Select
-                  value={selectedStep.trigger_type}
-                  onValueChange={(v) => handleUpdateStep("trigger_type", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="start">Início (Start)</SelectItem>
-                    <SelectItem value="keyword">Palavra-chave</SelectItem>
-                    <SelectItem value="button">Resposta de Botão</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedStep.trigger_type === "keyword" && (
-                <div className="space-y-2">
-                  <Label>Palavra-chave</Label>
-                  <Input
-                    value={selectedStep.trigger_value || ""}
-                    onChange={(e) => handleUpdateStep("trigger_value", e.target.value)}
-                    placeholder="Ex: menu, comprar"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label>Tipo de Mensagem</Label>
-                <Select
-                  value={selectedStep.message_type}
-                  onValueChange={(v) => handleUpdateStep("message_type", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="text">Texto</SelectItem>
-                    <SelectItem value="image">Imagem</SelectItem>
-                    <SelectItem value="video">Vídeo</SelectItem>
-                    <SelectItem value="document">Documento</SelectItem>
-                    <SelectItem value="buttons">Botões</SelectItem>
-                    <SelectItem value="list">Lista</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Conteúdo da Mensagem</Label>
-                <Textarea
-                  value={selectedStep.message_content || ""}
-                  onChange={(e) => handleUpdateStep("message_content", e.target.value)}
-                  className="min-h-[120px]"
-                />
-              </div>
-
-              {(selectedStep.message_type === "buttons" || selectedStep.message_type === "list") && (
-                <div className="space-y-2">
-                  <Label>Configuração (JSON)</Label>
-                  <Textarea
-                    value={
-                      typeof selectedStep.buttons_config === "string"
-                        ? selectedStep.buttons_config
-                        : selectedStep.buttons_config
-                          ? JSON.stringify(selectedStep.buttons_config, null, 2)
-                          : ""
-                    }
-                    onChange={(e) => handleUpdateStep("buttons_config", e.target.value)}
-                    className="min-h-[120px] font-mono text-xs"
-                    placeholder='{"type": "list", "body": {"text": "Selecione..."}}'
-                  />
-                  <div className="text-xs text-muted-foreground mt-1">Insira o JSON compatível com a API do WhatsApp.</div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label>Próximo Passo (Fallback)</Label>
-                <Select
-                  value={selectedStep.next_step_id || "none"}
-                  onValueChange={(v) => handleUpdateStep("next_step_id", v === "none" ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum (Aguarda input)</SelectItem>
-                    <SelectItem value="-999">Transferir p/ Atendente</SelectItem>
-                    <SelectItem value="-997">Reiniciar (Start)</SelectItem>
-                    {steps
-                      .filter((s) => s.id !== selectedStep.id)
-                      .map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          Passo {s.step_order} ({s.trigger_type})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
+          <StepInspector
+            selectedStep={selectedStep}
+            handleUpdateStep={handleUpdateStep}
+            handleDeleteStep={handleDeleteStep}
+            steps={steps}
+          />
         )}
       </div>
     </div>

@@ -142,6 +142,32 @@ export async function processBotFlow(
 
     logInfo("Executando step do bot", { stepId: stepToExecute.id, messageBody });
 
+    // Handoff state info
+    const isHandoff = stepToExecute.next_step_id === "-999";
+    const updateData = {
+      current_step_id: isHandoff ? null : stepToExecute.next_step_id || null,
+      last_interaction: new Date().toISOString(),
+      ...(isHandoff
+        ? {
+            is_paused: true,
+            paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          }
+        : {}),
+    };
+
+    const commitState = async () => {
+      if (state) {
+        await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
+      } else {
+        await dbAdmin.from("bot_conversation_state").insert({
+          user_id: userId,
+          contact_number: phoneDigits,
+          instance_id: phoneNumberId,
+          ...updateData,
+        });
+      }
+    };
+
     // 4. Send the message via Graph API
     // Get access token
     const { data: p } = await dbAdmin
@@ -169,14 +195,68 @@ export async function processBotFlow(
       if (stepToExecute.media_caption && stepToExecute.message_type !== "audio") {
         payload[stepToExecute.message_type].caption = stepToExecute.media_caption;
       }
-    } else if (["button", "buttons", "list", "interactive"].includes(stepToExecute.message_type)) {
+    } else if (
+      ["button", "buttons", "list", "cta_url", "product", "product_list", "catalog_message"].includes(
+        stepToExecute.message_type,
+      )
+    ) {
       payload.type = "interactive";
+      let interactivePayload: any = { type: stepToExecute.message_type === "buttons" ? "button" : stepToExecute.message_type };
+      
       if (stepToExecute.buttons_config) {
-        payload.interactive =
-          typeof stepToExecute.buttons_config === "string"
+        const parsed = typeof stepToExecute.buttons_config === "string"
             ? JSON.parse(stepToExecute.buttons_config)
             : stepToExecute.buttons_config;
+        interactivePayload = { ...interactivePayload, ...parsed };
       }
+
+      if (stepToExecute.message_content && !interactivePayload.body) {
+        interactivePayload.body = { text: stepToExecute.message_content };
+      }
+      if (stepToExecute.footer_text && !interactivePayload.footer) {
+        interactivePayload.footer = { text: stepToExecute.footer_text };
+      }
+      if (interactivePayload.type === "buttons") interactivePayload.type = "button";
+
+      // Suporte a cabeçalho de mídia nativo da Graph API (ex: image + buttons)
+      if (stepToExecute.media_url) {
+        let mediaType = "image";
+        const lowerUrl = stepToExecute.media_url.toLowerCase();
+        if (lowerUrl.endsWith(".mp4")) mediaType = "video";
+        else if (lowerUrl.endsWith(".pdf")) mediaType = "document";
+        else if (lowerUrl.endsWith(".mp3") || lowerUrl.endsWith(".ogg")) mediaType = "audio";
+        
+        if (mediaType !== "audio") {
+          interactivePayload.header = {
+            type: mediaType,
+            [mediaType]: { link: stepToExecute.media_url }
+          };
+        } else {
+          // Para Áudio, a Meta não permite como header. Enviamos uma mensagem de áudio solta antes!
+          try {
+            await fetch(`https://graph.facebook.com/${p.meta_graph_version || "v21.0"}/${phoneNumberId}/messages`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${p.whatsapp_access_token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: phoneDigits,
+                type: "audio",
+                audio: { link: stepToExecute.media_url },
+              }),
+            });
+            // Pequeno delay para a ordem no WhatsApp
+            await new Promise(res => setTimeout(res, 500));
+          } catch (e) {
+            logError("Erro ao enviar audio avulso", e);
+          }
+        }
+      }
+
+      payload.interactive = interactivePayload;
     }
 
     const apiVersion = p.meta_graph_version || "v20.0";
@@ -191,29 +271,7 @@ export async function processBotFlow(
 
     if (r.ok) {
       // 5. Update state
-      const isHandoff = stepToExecute.next_step_id === "-999";
-
-      const updateData = {
-        current_step_id: isHandoff ? null : stepToExecute.next_step_id || null,
-        last_interaction: new Date().toISOString(),
-        ...(isHandoff
-          ? {
-              is_paused: true,
-              paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Pause for 24h on handoff
-            }
-          : {}),
-      };
-
-      if (state) {
-        await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
-      } else {
-        await dbAdmin.from("bot_conversation_state").insert({
-          user_id: userId,
-          contact_number: phoneDigits,
-          instance_id: phoneNumberId,
-          ...updateData,
-        });
-      }
+      await commitState();
     } else {
       const errBody = await r.text();
       logError("Erro ao enviar mensagem do bot", { errBody });

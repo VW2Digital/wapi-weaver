@@ -1,5 +1,14 @@
 import { Handle, Position } from "@xyflow/react";
-import { MessageSquare, Image, MousePointerClick, Play, Hash, List } from "lucide-react";
+import {
+  MessageSquare,
+  Image,
+  MousePointerClick,
+  Play,
+  Hash,
+  List,
+  ShoppingBag,
+  Link,
+} from "lucide-react";
 
 export function CustomNode({ data, selected }: any) {
   const { step } = data;
@@ -18,6 +27,12 @@ export function CustomNode({ data, selected }: any) {
         return <MousePointerClick className="w-4 h-4" />;
       case "list":
         return <List className="w-4 h-4" />;
+      case "cta_url":
+        return <Link className="w-4 h-4" />;
+      case "product":
+      case "product_list":
+      case "catalog_message":
+        return <ShoppingBag className="w-4 h-4" />;
       default:
         return <MessageSquare className="w-4 h-4" />;
     }

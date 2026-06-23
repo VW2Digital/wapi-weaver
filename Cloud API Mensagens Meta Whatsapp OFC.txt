@@ -1,0 +1,542 @@
+Sim, posso te ajudar. Abaixo está uma documentação prática para você passar direto para sua agente de IA implementar no fluxo do bot com a **API oficial Meta WhatsApp Cloud API**.
+
+A Cloud API usa o endpoint de mensagens para enviar texto, mídia, mensagens interativas, listas, botões e produtos. A versão mais recente da Graph API encontrada na documentação da Meta é a **v25.0**, mas você pode manter uma variável `GRAPH_VERSION` para trocar quando necessário. ([Facebook Developers][1])
+
+Regra importante: mensagens livres, como texto, imagem, vídeo, documento, botão, lista e produto, devem ser enviadas dentro da janela de atendimento de 24 horas iniciada quando o cliente manda mensagem. Fora dessa janela, use **template aprovado**. ([Facebook Developers][2])
+
+---
+
+## 1. Configuração base
+
+```env
+GRAPH_VERSION=v25.0
+PHONE_NUMBER_ID=SEU_PHONE_NUMBER_ID
+ACCESS_TOKEN=SEU_TOKEN_PERMANENTE
+CATALOG_ID=SEU_CATALOG_ID
+```
+
+Endpoint padrão:
+
+```http
+POST https://graph.facebook.com/{{GRAPH_VERSION}}/{{PHONE_NUMBER_ID}}/messages
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: application/json
+```
+
+Payload base:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "recipient_type": "individual",
+  "to": "55DDDNUMERO",
+  "type": "TIPO_DA_MENSAGEM"
+}
+```
+
+---
+
+## 2. Enviar texto simples
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "recipient_type": "individual",
+  "to": "55DDDNUMERO",
+  "type": "text",
+  "text": {
+    "preview_url": false,
+    "body": "Olá! Como posso te ajudar?"
+  }
+}
+```
+
+Com prévia de link:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "text",
+  "text": {
+    "preview_url": true,
+    "body": "Veja nosso catálogo: https://seudominio.com/catalogo"
+  }
+}
+```
+
+---
+
+## 3. Responder uma mensagem específica
+
+Use `context.message_id` quando quiser responder a uma mensagem anterior.
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "context": {
+    "message_id": "wamid.ID_DA_MENSAGEM_RECEBIDA"
+  },
+  "type": "text",
+  "text": {
+    "body": "Respondendo sua mensagem acima."
+  }
+}
+```
+
+---
+
+## 4. Enviar imagem
+
+A Meta permite enviar mídia usando `link` ou `id` de mídia. Para arquivos enviados via Media API, o arquivo fica criptografado e persiste por 30 dias. ([Facebook Developers][3])
+
+Por URL pública:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "image",
+  "image": {
+    "link": "https://seudominio.com/imagem.jpg",
+    "caption": "Olha essa novidade!"
+  }
+}
+```
+
+Por ID de mídia:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "image",
+  "image": {
+    "id": "MEDIA_ID",
+    "caption": "Olha essa novidade!"
+  }
+}
+```
+
+---
+
+## 5. Upload de mídia
+
+```http
+POST https://graph.facebook.com/{{GRAPH_VERSION}}/{{PHONE_NUMBER_ID}}/media
+Authorization: Bearer {{ACCESS_TOKEN}}
+Content-Type: multipart/form-data
+```
+
+Form data:
+
+```txt
+messaging_product = whatsapp
+type = image/jpeg
+file = arquivo.jpg
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "MEDIA_ID"
+}
+```
+
+Depois use esse `MEDIA_ID` em imagem, vídeo, áudio ou documento.
+
+---
+
+## 6. Enviar documento
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "document",
+  "document": {
+    "link": "https://seudominio.com/catalogo.pdf",
+    "filename": "catalogo.pdf",
+    "caption": "Segue nosso catálogo em PDF."
+  }
+}
+```
+
+Por ID:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "document",
+  "document": {
+    "id": "MEDIA_ID",
+    "filename": "catalogo.pdf",
+    "caption": "Segue o documento."
+  }
+}
+```
+
+---
+
+## 7. Enviar vídeo
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "video",
+  "video": {
+    "link": "https://seudominio.com/video.mp4",
+    "caption": "Confira esse vídeo."
+  }
+}
+```
+
+---
+
+## 8. Botões dinâmicos
+
+Use quando tiver até **3 opções**. A documentação oficial da Meta informa que mensagens de botão permitem até três respostas predefinidas. ([Facebook Developers][4])
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "interactive",
+  "interactive": {
+    "type": "button",
+    "body": {
+      "text": "Escolha uma opção:"
+    },
+    "footer": {
+      "text": "Atendimento automático"
+    },
+    "action": {
+      "buttons": [
+        {
+          "type": "reply",
+          "reply": {
+            "id": "ver_catalogo",
+            "title": "Ver catálogo"
+          }
+        },
+        {
+          "type": "reply",
+          "reply": {
+            "id": "falar_atendente",
+            "title": "Atendente"
+          }
+        },
+        {
+          "type": "reply",
+          "reply": {
+            "id": "ver_promocoes",
+            "title": "Promoções"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+Regra para sua agente:
+
+```txt
+Se opções <= 3, usar interactive.type = "button".
+Cada botão precisa ter id único.
+O id será usado no webhook para decidir o próximo passo do fluxo.
+```
+
+---
+
+## 9. Lista dinâmica
+
+Use quando tiver muitas opções. A Meta informa que listas interativas suportam até **10 seções**, com até **10 linhas no total**, além de cabeçalho e rodapé opcionais. ([Facebook Developers][5])
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "interactive",
+  "interactive": {
+    "type": "list",
+    "header": {
+      "type": "text",
+      "text": "Menu principal"
+    },
+    "body": {
+      "text": "Escolha uma das opções abaixo:"
+    },
+    "footer": {
+      "text": "Selecione para continuar"
+    },
+    "action": {
+      "button": "Ver opções",
+      "sections": [
+        {
+          "title": "Atendimento",
+          "rows": [
+            {
+              "id": "orcamento",
+              "title": "Fazer orçamento",
+              "description": "Solicitar valores e condições"
+            },
+            {
+              "id": "suporte",
+              "title": "Suporte",
+              "description": "Falar sobre um pedido"
+            }
+          ]
+        },
+        {
+          "title": "Produtos",
+          "rows": [
+            {
+              "id": "catalogo",
+              "title": "Ver catálogo",
+              "description": "Acessar produtos disponíveis"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+Regra para sua agente:
+
+```txt
+Se opções > 3 e <= 10, usar interactive.type = "list".
+O campo rows[].id deve ser salvo como comando interno do bot.
+```
+
+---
+
+## 10. Botão com URL
+
+Use quando quiser mandar um botão que abre link, sem jogar a URL grande no corpo da mensagem. A Meta chama isso de **CTA URL button message**. ([Facebook Developers][6])
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "interactive",
+  "interactive": {
+    "type": "cta_url",
+    "body": {
+      "text": "Clique abaixo para acessar nosso site."
+    },
+    "action": {
+      "name": "cta_url",
+      "parameters": {
+        "display_text": "Acessar site",
+        "url": "https://seudominio.com"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 11. Enviar produto único
+
+Para produtos, o catálogo precisa estar conectado à sua conta do WhatsApp Business. A documentação oficial mostra suporte a mensagens de produto único e multiproduto. ([Facebook Developers][1])
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "interactive",
+  "interactive": {
+    "type": "product",
+    "body": {
+      "text": "Esse é um dos nossos produtos mais vendidos."
+    },
+    "footer": {
+      "text": "Toque para ver detalhes"
+    },
+    "action": {
+      "catalog_id": "CATALOG_ID",
+      "product_retailer_id": "SKU_DO_PRODUTO"
+    }
+  }
+}
+```
+
+---
+
+## 12. Enviar lista de produtos
+
+Mensagens multiproduto podem exibir até **30 produtos** do catálogo, organizados em até **10 seções**. ([Facebook Developers][7])
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "interactive",
+  "interactive": {
+    "type": "product_list",
+    "header": {
+      "type": "text",
+      "text": "Produtos em destaque"
+    },
+    "body": {
+      "text": "Confira algumas opções disponíveis:"
+    },
+    "footer": {
+      "text": "Escolha um produto para ver detalhes"
+    },
+    "action": {
+      "catalog_id": "CATALOG_ID",
+      "sections": [
+        {
+          "title": "Mais vendidos",
+          "product_items": [
+            {
+              "product_retailer_id": "SKU_001"
+            },
+            {
+              "product_retailer_id": "SKU_002"
+            }
+          ]
+        },
+        {
+          "title": "Promoções",
+          "product_items": [
+            {
+              "product_retailer_id": "SKU_003"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 13. Enviar catálogo completo
+
+O tipo `catalog_message` abre o catálogo completo dentro do WhatsApp. O parâmetro `thumbnail_product_retailer_id` é opcional e define qual produto aparece como capa. ([Facebook Developers][8])
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "55DDDNUMERO",
+  "type": "interactive",
+  "interactive": {
+    "type": "catalog_message",
+    "body": {
+      "text": "Confira nosso catálogo completo e escolha seus produtos."
+    },
+    "action": {
+      "name": "catalog_message",
+      "parameters": {
+        "thumbnail_product_retailer_id": "SKU_CAPA"
+      }
+    },
+    "footer": {
+      "text": "Produtos disponíveis no WhatsApp"
+    }
+  }
+}
+```
+
+---
+
+## 14. Receber respostas no webhook
+
+Os webhooks da Meta enviam payloads JSON para o servidor quando o cliente responde, clica em botão, escolhe uma lista ou quando muda o status da mensagem. ([Facebook Developers][9])
+
+Sua agente deve tratar assim:
+
+```js
+const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+if (!message) return;
+
+const from = message.from;
+const type = message.type;
+
+if (type === "text") {
+  const text = message.text.body;
+}
+
+if (type === "interactive") {
+  const interactiveType = message.interactive.type;
+
+  if (interactiveType === "button_reply") {
+    const buttonId = message.interactive.button_reply.id;
+    const buttonTitle = message.interactive.button_reply.title;
+  }
+
+  if (interactiveType === "list_reply") {
+    const rowId = message.interactive.list_reply.id;
+    const rowTitle = message.interactive.list_reply.title;
+  }
+}
+
+if (type === "order") {
+  const catalogId = message.order.catalog_id;
+  const products = message.order.product_items;
+}
+```
+
+---
+
+## 15. Lógica recomendada para sua agente de IA
+
+```txt
+Quando precisar responder o lead:
+
+1. Verificar se a conversa está dentro da janela de 24h.
+2. Se estiver fora da janela, usar template aprovado.
+3. Se for mensagem simples, enviar type="text".
+4. Se tiver arquivo, usar image, video ou document.
+5. Se tiver até 3 opções, usar interactive.type="button".
+6. Se tiver de 4 a 10 opções, usar interactive.type="list".
+7. Se for produto único, usar interactive.type="product".
+8. Se forem vários produtos, usar interactive.type="product_list".
+9. Se quiser abrir o catálogo inteiro, usar interactive.type="catalog_message".
+10. Salvar o ID da mensagem enviada para rastrear status e respostas.
+11. Tratar webhooks por message.type e interactive.type.
+```
+
+---
+
+## 16. Checklist de implementação
+
+Antes de colocar em produção:
+
+```txt
+[ ] Token permanente de System User configurado
+[ ] PHONE_NUMBER_ID correto
+[ ] WABA_ID correto
+[ ] Webhook HTTPS configurado
+[ ] Campo messages inscrito no webhook
+[ ] Verificação GET do webhook funcionando
+[ ] Resposta POST do webhook sempre retorna 200 rápido
+[ ] Catálogo conectado ao WhatsApp Business Account
+[ ] SKUs/product_retailer_id cadastrados corretamente
+[ ] Templates aprovados para mensagens fora da janela de 24h
+[ ] Logs salvos: lead, payload enviado, message_id, status e erro
+```
+
+Para sua agente, o mais importante é implementar uma função única chamada, por exemplo, `sendWhatsAppMessage(payload)`, e cada bloco do bot só monta o JSON correto antes de chamar o endpoint `/messages`.
+
+[1]: https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-phone-number/message-api?utm_source=chatgpt.com "WhatsApp Cloud API - Message API"
+[2]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages?utm_source=chatgpt.com "Service messages - Meta for Developers - Facebook"
+[3]: https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/media/?utm_source=chatgpt.com "Media - Meta for Developers - Facebook"
+[4]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/interactive-reply-buttons-messages?utm_source=chatgpt.com "Interactive reply buttons messages - Meta for Developers"
+[5]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/interactive-list-messages?utm_source=chatgpt.com "Interactive list messages - Meta for Developers - Facebook"
+[6]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/interactive-cta-url-messages?utm_source=chatgpt.com "Interactive Call-to-Action URL Button Messages"
+[7]: https://developers.facebook.com/docs/whatsapp/guides/commerce-guides/share-products-with-customers?locale=pt_BR&utm_source=chatgpt.com "Compartilhar produtos com os clientes - Meta for Developers"
+[8]: https://developers.facebook.com/documentation/business-messaging/whatsapp/catalogs/catalog-messages/?utm_source=chatgpt.com "Catalog messages - Meta for Developers - Facebook"
+[9]: https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages?utm_source=chatgpt.com "messages webhook reference - Meta for Developers"
