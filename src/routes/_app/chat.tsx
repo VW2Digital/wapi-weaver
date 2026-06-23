@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listChatContacts, getChatMessages, sendDirectMessage } from "@/lib/chat.functions";
+import {
+  listChatContacts,
+  getChatContactDetails,
+  getChatMessages,
+  sendDirectMessage,
+} from "@/lib/chat.functions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +41,12 @@ import {
   X,
   MessageCircle,
   Link as LinkIcon,
+  User,
+  Mail,
+  Tag,
+  Info,
+  ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -45,8 +56,32 @@ export const Route = createFileRoute("/_app/chat")({
   component: ChatPage,
 });
 
+/** Extrai a URL de foto de perfil dos custom_fields do contato, seguindo o mesmo padrão do CRM */
+function getContactAvatarUrl(contact: any): string {
+  const cf = contact?.custom_fields;
+  if (!cf || typeof cf !== "object") return "";
+  return (
+    cf.avatar_url ||
+    cf.photo_url ||
+    cf.photo ||
+    cf.picture ||
+    cf.image_url ||
+    cf.image ||
+    ""
+  );
+}
+
+/** Gera uma cor HSL consistente baseada no nome do contato */
+function getAvatarColor(name: string): string {
+  const hash = (name || "")
+    .split("")
+    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+  return `hsl(${hash % 360}, 70%, 40%)`;
+}
+
 function ChatPage() {
   const fetchContacts = useServerFn(listChatContacts);
+  const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
   const qc = useQueryClient();
@@ -58,6 +93,7 @@ function ChatPage() {
   const [previewUrl, setPreviewUrl] = useState(false);
   const [metaImageId, setMetaImageId] = useState("");
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [contactInfoOpen, setContactInfoOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -91,24 +127,29 @@ function ChatPage() {
 
   const selectedPhone = selectedContact?.phone_e164;
 
+  const contactDetailsQuery = useQuery({
+    queryKey: ["chat-contact-details", selectedPhone],
+    queryFn: () => fetchContactDetails({ data: { phone: selectedPhone } }),
+    enabled: !!selectedPhone && contactInfoOpen,
+    staleTime: 10_000,
+  });
+
+  // Atualiza o selectedContact quando abrimos o painel e carregamos dados completos
+  useEffect(() => {
+    if (!contactDetailsQuery.data || !selectedContact) return;
+    setSelectedContact((prev: any) => ({ ...(prev ?? {}), ...(contactDetailsQuery.data as any) }));
+  }, [contactDetailsQuery.data]);
+
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", selectedPhone],
     queryFn: () => fetchMessages({ data: { phone: selectedPhone } }),
     enabled: !!selectedPhone,
+    // Polling nativo do React Query — sem setInterval manual
+    refetchInterval: 4000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
-  // Polling de mensagens a cada 5 segundos
-  useEffect(() => {
-    if (!selectedPhone) return;
-
-    messagesQuery.refetch();
-
-    const interval = setInterval(() => {
-      messagesQuery.refetch();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [selectedPhone]);
 
   // Scroll ao fim ao carregar novas mensagens
   useEffect(() => {
@@ -290,12 +331,8 @@ function ChatPage() {
             ) : (
               filteredContacts.map((c: any) => {
                 const isSelected = selectedContact?.id === c.id;
-                // Gera uma cor de avatar baseada no nome do contato
-                const hash = (c.name ?? "")
-                  .split("")
-                  .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-                const hue = hash % 360;
-                const avatarBg = `hsl(${hue}, 70%, 40%)`;
+                const avatarUrl = getContactAvatarUrl(c);
+                const avatarBg = getAvatarColor(c.name ?? "");
 
                 return (
                   <button
@@ -310,10 +347,28 @@ function ChatPage() {
                     )}
                   >
                     <div
-                      className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0 shadow-inner"
-                      style={{ backgroundColor: avatarBg }}
+                      className="h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 shadow-inner"
+                      style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                     >
-                      {(c.name ?? "C").slice(0, 2).toUpperCase()}
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={c.name ?? "Contato"}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            // Fallback para iniciais se a imagem falhar
+                            const target = e.currentTarget;
+                            const parent = target.parentElement;
+                            if (parent) {
+                              target.style.display = "none";
+                              parent.style.backgroundColor = avatarBg;
+                              parent.textContent = (c.name ?? "C").slice(0, 2).toUpperCase();
+                            }
+                          }}
+                        />
+                      ) : (
+                        (c.name ?? "C").slice(0, 2).toUpperCase()
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-baseline">
@@ -332,13 +387,15 @@ function ChatPage() {
           </div>
         </div>
 
-        {/* Janela de Mensagens */}
+        {/* Janela de Mensagens + Painel de Info */}
         <div
           className={cn(
-            "flex-1 flex flex-col h-full bg-background relative",
+            "flex-1 flex h-full bg-background relative overflow-hidden",
             selectedContact ? "flex" : "hidden md:flex",
           )}
         >
+        {/* Coluna central de mensagens */}
+        <div className="flex-1 flex flex-col h-full min-w-0">
           {selectedContact ? (
             <>
               {/* Header do Chat */}
@@ -353,9 +410,38 @@ function ChatPage() {
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
 
-                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
-                    {(selectedContact.name ?? "C").slice(0, 2).toUpperCase()}
-                  </div>
+                  {(() => {
+                    const avatarUrl = getContactAvatarUrl(selectedContact);
+                    const avatarBg = getAvatarColor(selectedContact.name ?? "");
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setContactInfoOpen((o) => !o)}
+                        title="Ver dados do contato"
+                        className="h-9 w-9 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 ring-2 ring-transparent hover:ring-primary/60 transition-all duration-200 cursor-pointer"
+                        style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                      >
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={selectedContact.name ?? "Contato"}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              const parent = target.parentElement;
+                              if (parent) {
+                                target.style.display = "none";
+                                parent.style.backgroundColor = avatarBg;
+                                parent.textContent = (selectedContact.name ?? "C").slice(0, 2).toUpperCase();
+                              }
+                            }}
+                          />
+                        ) : (
+                          (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
+                        )}
+                      </button>
+                    );
+                  })()}
 
                   <div>
                     <h3 className="font-semibold text-sm truncate text-foreground leading-tight">
@@ -368,19 +454,23 @@ function ChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1.5"
-                    onClick={() => messagesQuery.refetch()}
-                    disabled={messagesQuery.isFetching}
+                  {/* Indicador discreto de sincronização automática */}
+                  <div
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    title="Atualizando automaticamente a cada 4s"
                   >
-                    {messagesQuery.isFetching ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      "Atualizar"
-                    )}
-                  </Button>
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        messagesQuery.isFetching
+                          ? "bg-primary animate-pulse"
+                          : "bg-green-500",
+                      )}
+                    />
+                    <span className="hidden sm:inline">
+                      {messagesQuery.isFetching ? "Sincronizando..." : "Ao vivo"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -703,7 +793,174 @@ function ChatPage() {
             </div>
           )}
         </div>
+
+        {/* Painel lateral de informações do contato */}
+        {selectedContact && (
+          <div
+            className={cn(
+              "h-full border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden shrink-0",
+              contactInfoOpen ? "w-72" : "w-0 border-l-0",
+            )}
+          >
+            {contactInfoOpen && (
+              <div className="flex flex-col h-full w-72">
+                {/* Header do painel */}
+                <div className="flex items-center justify-between p-4 border-b shrink-0">
+                  <span className="font-semibold text-sm">Dados do Contato</span>
+                  <button
+                    onClick={() => setContactInfoOpen(false)}
+                    className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+
+                {/* Conteúdo scrollável */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                  {contactDetailsQuery.isLoading && (
+                    <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Carregando dados completos do contato…
+                    </div>
+                  )}
+                  {/* Avatar grande + nome */}
+                  <div className="flex flex-col items-center gap-3 py-2">
+                    {(() => {
+                      const avatarUrl = getContactAvatarUrl(selectedContact);
+                      const avatarBg = getAvatarColor(selectedContact.name ?? "");
+                      return (
+                        <div
+                          className="h-20 w-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-lg"
+                          style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                        >
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={selectedContact.name ?? ""} className="h-full w-full object-cover" />
+                          ) : (
+                            (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
+                          )}
+                        </div>
+                      );
+                    })()}
+                    <div className="text-center">
+                      <p className="font-semibold text-base leading-tight">{selectedContact.name || "Sem Nome"}</p>
+                      {selectedContact.opted_out && (
+                        <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
+                          Opt-out
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-border" />
+
+                  {/* Campos principais */}
+                  <div className="space-y-3">
+                    {/* Telefone */}
+                    <div className="flex items-start gap-2.5">
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Telefone</p>
+                        <p className="text-sm font-mono break-all">+{selectedContact.phone_e164}</p>
+                      </div>
+                    </div>
+
+                    {/* E-mail */}
+                    {selectedContact.email && (
+                      <div className="flex items-start gap-2.5">
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">E-mail</p>
+                          <p className="text-sm break-all">{selectedContact.email}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Source */}
+                    {selectedContact.source && (
+                      <div className="flex items-start gap-2.5">
+                        <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Origem</p>
+                          <p className="text-sm capitalize">{selectedContact.source.replace(/_/g, " ")}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custom Fields */}
+                  {selectedContact.custom_fields && Object.keys(selectedContact.custom_fields).length > 0 && (() => {
+                    const cf = selectedContact.custom_fields;
+                    const photoKeys = new Set(["avatar_url", "photo_url", "photo", "picture", "image_url", "image"]);
+                    const entries = Object.entries(cf).filter(([k]) => !photoKeys.has(k));
+                    if (entries.length === 0) return null;
+                    return (
+                      <>
+                        <div className="h-px bg-border" />
+                        <div className="space-y-3">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                            <Tag className="h-3 w-3" /> Campos personalizados
+                          </p>
+                          {entries.map(([key, value]) => (
+                            <div key={key} className="flex items-start gap-2.5">
+                              <div className="min-w-0 w-full">
+                                <p className="text-[10px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p>
+                                <p className="text-sm break-all font-mono">
+                                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {/* Metadados do sistema */}
+                  <div className="h-px bg-border" />
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                      <Info className="h-3 w-3" /> Sistema
+                    </p>
+                    {selectedContact.id && (
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] text-muted-foreground capitalize">ID</p>
+                        <p className="text-xs font-mono break-all">{selectedContact.id}</p>
+                      </div>
+                    )}
+                    {selectedContact.created_at && (
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] text-muted-foreground capitalize">Criado em</p>
+                        <p className="text-xs font-mono break-all">{String(selectedContact.created_at)}</p>
+                      </div>
+                    )}
+                    {selectedContact.updated_at && (
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] text-muted-foreground capitalize">Atualizado em</p>
+                        <p className="text-xs font-mono break-all">{String(selectedContact.updated_at)}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Atalhos */}
+                  <div className="h-px bg-border" />
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Ações rápidas</p>
+                    <a
+                      href={`/contacts`}
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg px-3 py-2 transition-colors"
+                    >
+                      <User className="h-4 w-4" />
+                      <span>Ver na lista de contatos</span>
+                      <ExternalLink className="h-3 w-3 ml-auto" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+    </div>
     </div>
   );
 }

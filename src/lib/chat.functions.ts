@@ -33,11 +33,26 @@ export const listChatContacts = createServerFn({ method: "GET" })
     // context.db é scopado ao userId — filtros de user_id são aplicados automaticamente
     const { data: contacts, error } = await context.db
       .from("contacts")
-      .select("id, name, phone_e164")
+      .select("id, name, phone_e164, custom_fields")
       .order("name", { ascending: true });
 
     if (error) throw new Error(error.message);
     return contacts ?? [];
+  });
+
+export const getChatContactDetails = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const phone = data.phone.replace(/\D/g, "");
+    const { data: contact, error } = await context.db
+      .from("contacts")
+      .select("*")
+      .eq("phone_e164", phone)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return contact ?? null;
   });
 
 export const getChatMessages = createServerFn({ method: "POST" })

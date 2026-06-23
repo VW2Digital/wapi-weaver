@@ -124,7 +124,7 @@ function WhatsAppBusinessProfilePage() {
         throw new Error(body?.message || "Falha no upload da foto.");
       }
       setProfilePictureHandle(body.profile_picture_handle);
-      toast.success("Foto enviada. Clique em "Salvar alterações" para aplicar no WhatsApp.");
+      toast.success('Foto enviada. Clique em "Salvar alterações" para aplicar no WhatsApp.');
     } catch (e: any) {
       toast.error(e?.message || "Erro no upload da foto.");
     } finally {
