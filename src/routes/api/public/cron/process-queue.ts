@@ -189,8 +189,9 @@ export async function processOnce() {
         .update({ status: "sending", attempts: (m.attempts ?? 0) + 1 })
         .eq("id", m.id);
 
+      let campaignPayload: any = {};
       try {
-        const campaignPayload = { ...((m as any).campaigns.payload ?? {}) };
+        campaignPayload = { ...((m as any).campaigns.payload ?? {}) };
         let linkedTemplate = (m as any).template;
         if ((m as any).campaigns.message_type === "template" && !linkedTemplate) {
           const resolvedTemplate =
@@ -300,7 +301,7 @@ export async function processOnce() {
               request_payload: {
                 campaign_id: (m as any).campaign_id,
                 to_phone: m.to_phone,
-                campaign_payload,
+                campaign_payload: campaignPayload,
               },
             },
           })

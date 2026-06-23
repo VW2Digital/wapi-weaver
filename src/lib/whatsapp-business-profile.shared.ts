@@ -53,15 +53,16 @@ export function normalizeWebsites(value: unknown): string[] {
 }
 
 export function normalizeBusinessProfile(raw: any): WhatsAppBusinessProfile {
+  const data = raw?.business_profile || raw;
   return {
     messaging_product: "whatsapp",
-    about: normalizeOptionalString(raw?.about),
-    address: normalizeOptionalString(raw?.address),
-    description: normalizeOptionalString(raw?.description),
-    email: normalizeOptionalString(raw?.email),
-    profile_picture_url: normalizeOptionalString(raw?.profile_picture_url),
-    websites: normalizeWebsites(raw?.websites),
-    vertical: normalizeOptionalString(raw?.vertical),
+    about: normalizeOptionalString(data?.about),
+    address: normalizeOptionalString(data?.address),
+    description: normalizeOptionalString(data?.description),
+    email: normalizeOptionalString(data?.email),
+    profile_picture_url: normalizeOptionalString(data?.profile_picture_url),
+    websites: normalizeWebsites(data?.websites),
+    vertical: normalizeOptionalString(data?.vertical),
   };
 }
 
