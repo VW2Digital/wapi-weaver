@@ -354,7 +354,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         \`tags\`.\`created_at\` AS \`t_created_at\`
       FROM \`contact_tags\`
       LEFT JOIN \`tags\` ON \`contact_tags\`.\`tag_id\` = \`tags\`.\`id\`
-      \${whereString}`;
+      ${whereString}`;
     } else if (
       table === "conversation_tags" &&
       (colSelection.includes("tags(") || colSelection.includes("tags(*)"))
@@ -370,7 +370,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         \`tags\`.\`created_at\` AS \`t_created_at\`
       FROM \`conversation_tags\`
       LEFT JOIN \`tags\` ON \`conversation_tags\`.\`tag_id\` = \`tags\`.\`id\`
-      \${whereString}`;
+      ${whereString}`;
     } else if (
       table === "message_tags" &&
       (colSelection.includes("tags(") || colSelection.includes("tags(*)"))
@@ -386,9 +386,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         \`tags\`.\`created_at\` AS \`t_created_at\`
       FROM \`message_tags\`
       LEFT JOIN \`tags\` ON \`message_tags\`.\`tag_id\` = \`tags\`.\`id\`
-      \${whereString}`;
+      ${whereString}`;
     } else {
-      sql = `SELECT \${colSelection} FROM \`\${table}\`\${whereString}`;
+      sql = `SELECT ${colSelection} FROM \`${table}\`${whereString}`;
     }
 
     // Add ORDER BY
