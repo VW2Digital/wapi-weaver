@@ -11,6 +11,7 @@ export const getBotSettings = createServerFn({ method: "GET" })
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id")
+      .eq("id", context.userId)
       .maybeSingle();
 
     if (!p?.whatsapp_phone_number_id)
@@ -50,6 +51,7 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id")
+      .eq("id", context.userId)
       .maybeSingle();
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância configurada." };
@@ -69,6 +71,7 @@ export const listBotSteps = createServerFn({ method: "GET" })
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id")
+      .eq("id", context.userId)
       .maybeSingle();
 
     if (!p?.whatsapp_phone_number_id) return [];
@@ -114,6 +117,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id")
+      .eq("id", context.userId)
       .maybeSingle();
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
@@ -145,21 +149,27 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
 
     // Delete steps not in incoming list
     if (incomingIds.length > 0) {
-      await context.db
+      const { error: deleteError } = await context.db
         .from("bot_steps")
         .delete()
         .eq("bot_settings_id", settings.id)
         .not("id", "in", `(${incomingIds.map(id => `"${id}"`).join(",")})`);
+      if (deleteError) {
+        return { ok: false, error: `Falha ao remover passos antigos: ${deleteError.message}` };
+      }
     } else {
-       await context.db
+      const { error: deleteAllError } = await context.db
         .from("bot_steps")
         .delete()
         .eq("bot_settings_id", settings.id);
+      if (deleteAllError) {
+        return { ok: false, error: `Falha ao limpar passos antigos: ${deleteAllError.message}` };
+      }
     }
 
-    // Upsert remaining
+    // Primeira passada: cria/atualiza os steps SEM next_step_id para não quebrar FK
     for (const step of data) {
-      const payload = {
+      const basePayload = {
         bot_settings_id: settings.id,
         step_order: step.step_order,
         trigger_type: step.trigger_type,
@@ -168,10 +178,16 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         message_content: step.message_content || null,
         media_url: step.media_url || null,
         media_caption: step.media_caption || null,
+        footer_text: step.footer_text || null,
         buttons_config: step.buttons_config || null,
-        next_step_id: step.next_step_id || null,
+        next_step_id: null,
+        delay_seconds: Number(step.delay_seconds || 0),
         position_x: step.position_x || 0,
         position_y: step.position_y || 0,
+        assign_team_id: step.assign_team_id || null,
+        assign_user_id: step.assign_user_id || null,
+        handoff_message: step.handoff_message || null,
+        card_color: step.card_color || null,
       };
 
       if (step.id) {
@@ -182,16 +198,44 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           .maybeSingle();
 
         if (existing?.id) {
-          await context.db.from("bot_steps").update(payload).eq("id", step.id);
+          const { error } = await context.db.from("bot_steps").update(basePayload).eq("id", step.id);
+          if (error) {
+            return { ok: false, error: `Falha ao atualizar passo ${step.step_order}: ${error.message}` };
+          }
         } else {
-          await context.db.from("bot_steps").insert({
+          const { error } = await context.db.from("bot_steps").insert({
             id: step.id,
             user_id: context.userId,
-            ...payload,
+            ...basePayload,
           });
+          if (error) {
+            return { ok: false, error: `Falha ao inserir passo ${step.step_order}: ${error.message}` };
+          }
         }
       } else {
-        await context.db.from("bot_steps").insert({ id: crypto.randomUUID(), user_id: context.userId, ...payload });
+        const { error } = await context.db.from("bot_steps").insert({
+          id: crypto.randomUUID(),
+          user_id: context.userId,
+          ...basePayload,
+        });
+        if (error) {
+          return { ok: false, error: `Falha ao inserir passo ${step.step_order}: ${error.message}` };
+        }
+      }
+    }
+
+    // Segunda passada: resolve links entre steps quando todos já existem
+    for (const step of data) {
+      if (!step.id) continue;
+      const linkPayload = {
+        next_step_id: step.next_step_id || null,
+      };
+      const { error } = await context.db.from("bot_steps").update(linkPayload).eq("id", step.id);
+      if (error) {
+        return {
+          ok: false,
+          error: `Falha ao vincular destino do passo ${step.step_order}: ${error.message}`,
+        };
       }
     }
 
@@ -205,6 +249,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id")
+      .eq("id", context.userId)
       .maybeSingle();
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
@@ -241,8 +286,16 @@ export const saveBotStep = createServerFn({ method: "POST" })
       message_content: data.message_content || null,
       media_url: data.media_url || null,
       media_caption: data.media_caption || null,
+      footer_text: data.footer_text || null,
       buttons_config: data.buttons_config || null,
       next_step_id: data.next_step_id || null,
+      delay_seconds: Number(data.delay_seconds || 0),
+      position_x: data.position_x || 0,
+      position_y: data.position_y || 0,
+      assign_team_id: data.assign_team_id || null,
+      assign_user_id: data.assign_user_id || null,
+      handoff_message: data.handoff_message || null,
+      card_color: data.card_color || null,
     };
 
     let result;

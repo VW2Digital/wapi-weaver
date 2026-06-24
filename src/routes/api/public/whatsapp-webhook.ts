@@ -247,13 +247,27 @@ async function processInboundDirectMessages(value: any, userId: string) {
     const phoneDigits = from.replace(/\D+/g, "");
 
     // Garante que o contato exista para o chat renderizar a conversa na lista
+    // e preserva custom_fields já existentes, como avatar_url.
     const contactName = waIdToName.get(phoneDigits) || "";
+    const { data: existingContact } = await dbAdmin
+      .from("contacts")
+      .select("id, name, custom_fields")
+      .eq("user_id", userId)
+      .eq("phone_e164", phoneDigits)
+      .maybeSingle();
+
+    const existingCustomFields =
+      existingContact?.custom_fields && typeof existingContact.custom_fields === "object"
+        ? { ...(existingContact.custom_fields as Record<string, any>) }
+        : {};
+
     await dbAdmin.from("contacts").upsert({
       user_id: userId,
       phone_e164: phoneDigits,
-      name: contactName ? contactName : undefined,
+      name: contactName || existingContact?.name || undefined,
       source: "whatsapp_inbound",
       custom_fields: {
+        ...existingCustomFields,
         wa_id: m.from,
         phone_number_id: phoneNumberId,
         display_phone_number: displayPhoneNumber,

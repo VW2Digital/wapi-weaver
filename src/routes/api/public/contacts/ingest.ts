@@ -86,6 +86,18 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
             headers: cors,
           });
 
+        const { data: existingContact } = await dbAdmin
+          .from("contacts")
+          .select("id, custom_fields")
+          .eq("user_id", profile.id)
+          .eq("phone_e164", phone)
+          .maybeSingle();
+
+        const mergedCustomFields =
+          existingContact?.custom_fields && typeof existingContact.custom_fields === "object"
+            ? { ...(existingContact.custom_fields as Record<string, any>), ...(parsed.data.custom_fields ?? {}) }
+            : (parsed.data.custom_fields ?? {});
+
         const { data: contact, error } = await dbAdmin
           .from("contacts")
           .upsert(
@@ -94,7 +106,7 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
               phone_e164: phone,
               name: parsed.data.name ?? null,
               email: parsed.data.email ?? null,
-              custom_fields: parsed.data.custom_fields ?? {},
+              custom_fields: mergedCustomFields,
               source: "api",
             },
             { onConflict: "user_id,phone_e164" },

@@ -83,6 +83,18 @@ export const createContact = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const phone = normalizeToE164(data.phone);
     if (!phone) throw new Error("Telefone inválido");
+
+    const { data: existing } = await context.db
+      .from("contacts")
+      .select("id, custom_fields")
+      .eq("phone_e164", phone)
+      .maybeSingle();
+
+    const mergedCustomFields =
+      existing?.custom_fields && typeof existing.custom_fields === "object"
+        ? { ...(existing.custom_fields as Record<string, any>), ...(data.custom_fields ?? {}) }
+        : (data.custom_fields ?? {});
+
     const { data: row, error } = await context.db
       .from("contacts")
       .upsert(
@@ -91,7 +103,7 @@ export const createContact = createServerFn({ method: "POST" })
           phone_e164: phone,
           name: data.name || null,
           email: data.email || null,
-          custom_fields: data.custom_fields ?? {},
+          custom_fields: mergedCustomFields,
           source: "manual",
         },
         { onConflict: "user_id,phone_e164" },
