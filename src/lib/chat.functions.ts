@@ -225,6 +225,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
         contacts:
           row.type === "contacts" ? meta?.contacts || meta?.message?.contacts || null : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
+        metadata: meta,
       };
     });
   });

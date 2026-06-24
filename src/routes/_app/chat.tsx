@@ -75,6 +75,9 @@ import {
   FolderPlus,
   Archive,
   MoreVertical,
+  MessageSquare,
+  Menu,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -1116,6 +1119,122 @@ function ChatPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* Estilos dos Balões estilo WhatsApp */
+        .wa-bubble-outgoing {
+          background-color: var(--primary) !important;
+          color: var(--primary-foreground) !important;
+          border-radius: 8px !important;
+          border-top-right-radius: 0 !important;
+          position: relative !important;
+          margin-right: 8px !important;
+        }
+        .wa-bubble-outgoing::before {
+          content: "";
+          position: absolute;
+          right: -8px;
+          top: 0;
+          width: 8px;
+          height: 13px;
+          background-color: var(--primary);
+          clip-path: polygon(0 0, 0 100%, 100% 0);
+        }
+
+        .wa-bubble-incoming {
+          background-color: var(--card) !important;
+          color: var(--card-foreground) !important;
+          border: 1px solid var(--border) !important;
+          border-radius: 8px !important;
+          border-top-left-radius: 0 !important;
+          position: relative !important;
+          margin-left: 8px !important;
+        }
+        .wa-bubble-incoming::before {
+          content: "";
+          position: absolute;
+          left: -8px;
+          top: 0;
+          width: 8px;
+          height: 13px;
+          background-color: var(--card);
+          clip-path: polygon(100% 0, 100% 100%, 0 0);
+        }
+        .wa-bubble-incoming::after {
+          content: "";
+          position: absolute;
+          left: -8px;
+          top: -1px;
+          width: 8px;
+          height: 14px;
+          background-color: var(--border);
+          z-index: -1;
+          clip-path: polygon(100% 0, 100% 100%, 0 0);
+        }
+
+        .wa-quote-reply-outgoing {
+          background-color: rgba(0, 0, 0, 0.15) !important;
+          border-left: 4px solid currentColor !important;
+          border-radius: 4px !important;
+          opacity: 0.9;
+        }
+        
+        .wa-quote-reply-incoming {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+          border-left: 4px solid #00a884 !important;
+          border-radius: 4px !important;
+        }
+        .light .wa-quote-reply-incoming {
+          background-color: rgba(0, 0, 0, 0.05) !important;
+          border-left: 4px solid #008069 !important;
+        }
+
+        .wa-button-separator-outgoing {
+          border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+        
+        .wa-button-separator-incoming {
+          border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        .light .wa-button-separator-incoming {
+          border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+        }
+        
+        .wa-card-button-outgoing {
+          color: inherit !important;
+          transition: background-color 0.2s;
+          cursor: pointer;
+          font-weight: 600;
+        }
+        .wa-card-button-outgoing:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .wa-card-button-incoming {
+          color: #00a884 !important;
+          transition: background-color 0.2s;
+          cursor: pointer;
+          font-weight: 600;
+        }
+        .light .wa-card-button-incoming {
+          color: #008069 !important;
+        }
+        .wa-card-button-incoming:hover {
+          background-color: rgba(255, 255, 255, 0.05);
+        }
+        .light .wa-card-button-incoming:hover {
+          background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        .wa-timestamp {
+          color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .wa-bubble-incoming .wa-timestamp {
+          color: #8696a0 !important;
+        }
+        .light .wa-bubble-incoming .wa-timestamp {
+          color: #667781 !important;
+        }
+      ` }} />
       <PageHeader
         title="Chat Direto"
         subtitle="Converse diretamente com seus contatos cadastrados."
@@ -1429,7 +1548,7 @@ function ChatPage() {
           </div>
 
           {/* Rodapé: Seletor de DDI + Telefone + Botão Conversar */}
-          <div className="p-3 border-t bg-muted/30 flex items-center gap-2 shrink-0">
+          <div className="p-3 border-t flex items-center gap-2 shrink-0 bg-muted/30">
             <div className="relative shrink-0">
               <select
                 value={countryCode}
@@ -1718,7 +1837,7 @@ function ChatPage() {
                 </div>
 
                 {/* Corpo / Lista de Balões */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/10 relative">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 relative bg-muted/10">
                   {messagesQuery.isLoading ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-background/50">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -1795,235 +1914,372 @@ function ChatPage() {
 
                             {/* Balão em si */}
                             <div className="flex flex-col relative">
-                              {/* Bloco de Resposta */}
-                              {replyMessage && (
-                                <button
-                                  onClick={() => scrollToMessage(replyMessage.id)}
-                                  className={cn(
-                                    "text-left text-xs p-2 rounded-t-xl border-l-4 mb-[-4px] opacity-90 transition-all hover:opacity-100",
-                                    isOutgoing
-                                      ? "bg-primary-foreground/30 border-primary-foreground/75 text-primary-foreground"
-                                      : "bg-muted border-primary text-muted-foreground",
-                                  )}
-                                >
-                                  <div className="font-bold mb-0.5">
-                                    {replyMessage.direction === "incoming" ? "Contato" : "Você"}
-                                  </div>
-                                  <div className="truncate font-mono">
-                                    {replyMessage.type === "image"
-                                      ? "📷 Imagem"
-                                      : replyMessage.type === "audio"
-                                        ? "🎙️ Áudio"
-                                        : replyMessage.type === "video"
-                                          ? "🎥 Vídeo"
-                                          : replyMessage.type === "document"
-                                            ? "📄 Documento"
-                                            : replyMessage.type === "sticker"
-                                              ? "😊 Sticker"
-                                              : replyMessage.type === "location"
-                                                ? "📍 Localização"
-                                                : replyMessage.type === "contacts"
-                                                  ? "👤 Contato"
-                                                  : replyMessage.body}
-                                  </div>
-                                </button>
-                              )}
+                              {(() => {
+                                const payload = msg.metadata?.payload;
+                                const interactive = payload?.interactive;
+                                
+                                // Extract interactive header media
+                                const header = interactive?.header;
+                                let headerMediaUrl = "";
+                                let headerMediaType = "";
+                                let headerText = "";
+                                
+                                if (header) {
+                                  if (header.type === "image" && header.image?.link) {
+                                    headerMediaUrl = header.image.link;
+                                    headerMediaType = "image";
+                                  } else if (header.type === "video" && header.video?.link) {
+                                    headerMediaUrl = header.video.link;
+                                    headerMediaType = "video";
+                                  } else if (header.type === "document" && header.document?.link) {
+                                    headerMediaUrl = header.document.link;
+                                    headerMediaType = "document";
+                                  } else if (header.type === "text" && header.text) {
+                                    headerText = header.text;
+                                  }
+                                }
 
-                              {/* Conteúdo Principal */}
-                              <div
-                                className={cn(
-                                  "p-3 rounded-2xl shadow-sm relative transition-all duration-200",
-                                  isOutgoing
-                                    ? "bg-primary text-primary-foreground rounded-tr-none"
-                                    : "bg-card border text-card-foreground rounded-tl-none",
-                                  replyMessage && "rounded-t-none",
-                                )}
-                              >
-                                {/* Display applied tags in message body */}
-                                {(() => {
-                                  const msgTags = (messageTagsQuery.data ?? []).filter(
-                                    (mt: any) => mt.message_id === msg.id,
-                                  );
-                                  if (msgTags.length === 0) return null;
-                                  return (
-                                    <div className="flex flex-wrap gap-1 mb-1">
-                                      {msgTags.map((mt: any) => (
-                                        <TagBadge
-                                          key={mt.tag_id}
-                                          tag={mt.tags}
+                                // Extract standard message body and type
+                                const type = msg.type || "text";
+                                const bodyText = msg.body || "";
+                                
+                                // Helper to check if string is a URL
+                                const isUrl = (str: string) => {
+                                  if (!str) return false;
+                                  return str.startsWith("http://") || str.startsWith("https://");
+                                };
+
+                                // Format WhatsApp bold, italic, strikethrough in bodyText
+                                const formatMessageText = (text: string) => {
+                                  if (!text) return "";
+                                  let formatted = text;
+                                  // Bold
+                                  formatted = formatted.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+                                  formatted = formatted.replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+                                  // Italic
+                                  formatted = formatted.replace(/__([^_]+)__/g, "<em>$1</em>");
+                                  formatted = formatted.replace(/_([^_]+)_/g, "<em>$1</em>");
+                                  // Strikethrough
+                                  formatted = formatted.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+                                  formatted = formatted.replace(/~([^~]+)~/g, "<del>$1</del>");
+                                  // Code
+                                  formatted = formatted.replace(/`([^`]+)`/g, "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>");
+                                  return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
+                                };
+
+                                // Helper to get media source URL
+                                const getMediaUrl = (urlOrId: string) => {
+                                  if (!urlOrId) return "";
+                                  if (isUrl(urlOrId)) return urlOrId;
+                                  return sessionToken ? `/api/whatsapp/media?id=${urlOrId}&token=${encodeURIComponent(sessionToken)}` : "";
+                                };
+
+                                const hasTopMedia = (headerMediaType === "image" || headerMediaType === "video") || (type === "image" || type === "video");
+                                const hasBottomActions = (interactive?.type === "button" && interactive.action?.buttons) || (interactive?.type === "list") || (interactive?.type === "flow");
+                                const isRichCard = hasTopMedia || hasBottomActions;
+
+                                return (
+                                  <div
+                                    className={cn(
+                                      "shadow-sm relative transition-all duration-200 max-w-sm",
+                                      isOutgoing
+                                        ? "wa-bubble-outgoing"
+                                        : "wa-bubble-incoming",
+                                      isRichCard ? "p-0 rounded-lg" : "p-3",
+                                    )}
+                                  >
+                                    {/* Display applied tags in message body */}
+                                    {(() => {
+                                      const msgTags = (messageTagsQuery.data ?? []).filter(
+                                        (mt: any) => mt.message_id === msg.id,
+                                      );
+                                      if (msgTags.length === 0) return null;
+                                      return (
+                                        <div className={cn("flex flex-wrap gap-1 mb-1.5", isRichCard ? "px-3 pt-3" : "")}>
+                                          {msgTags.map((mt: any) => (
+                                            <TagBadge
+                                              key={mt.tag_id}
+                                              tag={mt.tags}
+                                              className={cn(
+                                                "shadow-sm",
+                                                isOutgoing ? "border-primary-foreground/30 text-white" : "",
+                                              )}
+                                            />
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* Quote reply block inside bubble */}
+                                    {replyMessage && (
+                                      <div className={cn("px-3 pt-3", isRichCard ? "" : "pb-1")}>
+                                        <button
+                                          onClick={() => scrollToMessage(replyMessage.id)}
                                           className={cn(
-                                            "shadow-sm",
-                                            isOutgoing ? "border-primary-foreground/30" : "",
+                                            "w-full text-left text-xs p-2 rounded-md border-l-4 transition-all hover:opacity-100 block",
+                                            isOutgoing ? "wa-quote-reply-outgoing" : "wa-quote-reply-incoming"
                                           )}
-                                        />
-                                      ))}
-                                    </div>
-                                  );
-                                })()}
-                                {msg.type === "image" ? (
-                                  <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 flex flex-col gap-1 max-w-sm">
-                                    {sessionToken && msg.body ? (
-                                      <img
-                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                        alt="Imagem"
-                                        className="rounded-md max-h-64 object-contain"
-                                      />
-                                    ) : (
-                                      <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
-                                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : msg.type === "audio" ? (
-                                  <div className="p-1">
-                                    {sessionToken && msg.body ? (
-                                      <audio
-                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                        controls
-                                        className="w-full max-w-[240px] h-9"
-                                      />
-                                    ) : (
-                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <Volume2 className="h-4 w-4" /> Áudio (ID: {msg.body})
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : msg.type === "video" ? (
-                                  <div className="rounded-lg overflow-hidden border border-muted-foreground/20 bg-background/10 p-1 max-w-sm">
-                                    {sessionToken && msg.body ? (
-                                      <video
-                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                        controls
-                                        className="rounded-md max-h-64 object-contain"
-                                      />
-                                    ) : (
-                                      <div className="aspect-video w-48 rounded-md bg-muted flex items-center justify-center">
-                                        <Video className="h-6 w-6 text-muted-foreground" />
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : msg.type === "document" ? (
-                                  <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm flex items-center gap-3">
-                                    <FileText className="h-8 w-8 text-primary shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-xs font-medium truncate text-foreground">
-                                        {msg.body || "Documento"}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground">
-                                        Documento PDF/Office
-                                      </p>
-                                    </div>
-                                    {sessionToken && msg.body && (
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        asChild
-                                        className="h-8 w-8 shrink-0 rounded-full"
-                                      >
-                                        <a
-                                          href={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}&download=1`}
-                                          download
                                         >
-                                          <ExternalLink className="h-4 w-4" />
-                                        </a>
-                                      </Button>
-                                    )}
-                                  </div>
-                                ) : msg.type === "sticker" ? (
-                                  <div className="p-1">
-                                    {sessionToken && msg.body ? (
-                                      <img
-                                        src={`/api/whatsapp/media?id=${msg.body}&token=${encodeURIComponent(sessionToken)}`}
-                                        alt="Sticker"
-                                        className="h-24 w-24 object-contain"
-                                      />
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground font-mono">
-                                        Sticker (ID: {msg.body})
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : msg.type === "location" ? (
-                                  <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-2">
-                                    <div className="flex items-start gap-2.5">
-                                      <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-foreground">
-                                          {msg.location?.name || "Localização"}
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground leading-normal">
-                                          {msg.location?.address ||
-                                            `${msg.location?.latitude}, ${msg.location?.longitude}`}
-                                        </p>
+                                          <div className="font-bold mb-0.5 text-emerald-400 text-[11px]">
+                                            {replyMessage.direction === "incoming" ? "Contato" : "Você"}
+                                          </div>
+                                          <div className="truncate opacity-80 text-[11px]">
+                                            {replyMessage.type === "image"
+                                              ? "📷 Imagem"
+                                              : replyMessage.type === "audio"
+                                                ? "🎙️ Áudio"
+                                                : replyMessage.type === "video"
+                                                  ? "🎥 Vídeo"
+                                                  : replyMessage.type === "document"
+                                                    ? "📄 Documento"
+                                                    : replyMessage.type === "sticker"
+                                                      ? "😊 Sticker"
+                                                      : replyMessage.type === "location"
+                                                        ? "📍 Localização"
+                                                        : replyMessage.type === "contacts"
+                                                          ? "👤 Contato"
+                                                          : replyMessage.body}
+                                          </div>
+                                        </button>
                                       </div>
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="w-full text-xs h-7 gap-1"
-                                      asChild
-                                    >
-                                      <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${msg.location?.latitude},${msg.location?.longitude}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                      >
-                                        <ExternalLink className="h-3 w-3" /> Ver no Google Maps
-                                      </a>
-                                    </Button>
-                                  </div>
-                                ) : msg.type === "contacts" ? (
-                                  <div className="rounded-lg border border-muted-foreground/20 bg-background/20 p-3 max-w-sm space-y-3">
-                                    <div className="flex items-center gap-3">
-                                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                        <User className="h-4 w-4" />
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-foreground truncate">
-                                          {msg.contacts?.[0]?.name?.formatted_name || "Contato"}
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground font-mono truncate">
-                                          {msg.contacts?.[0]?.phones?.[0]?.phone || "Sem telefone"}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    {msg.contacts?.[0]?.phones?.[0]?.phone && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="w-full text-xs h-7 gap-1"
-                                        asChild
-                                      >
-                                        <a href={`tel:${msg.contacts[0].phones[0].phone}`}>
-                                          <Phone className="h-3 w-3" /> Ligar para Contato
-                                        </a>
-                                      </Button>
                                     )}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm whitespace-pre-wrap break-words leading-relaxed select-text">
-                                    {msg.body}
-                                  </p>
-                                )}
 
-                                {/* Horário + Status */}
-                                <div
-                                  className={cn(
-                                    "flex items-center justify-end gap-1 mt-1 text-[10px] opacity-70",
-                                    isOutgoing
-                                      ? "text-primary-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  <span>
-                                    {new Date(msg.timestamp).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </span>
-                                  {isOutgoing && renderStatus(msg.status)}
-                                </div>
-                              </div>
+                                    <div className="space-y-0.5">
+                                      {/* A. Render Interactive Header Media if present */}
+                                      {headerMediaType === "image" && headerMediaUrl && (
+                                        <div className={cn(
+                                          "w-full overflow-hidden bg-black/10",
+                                          isOutgoing ? "rounded-tl-lg rounded-tr-none" : "rounded-tl-none rounded-tr-lg"
+                                        )}>
+                                          <img src={headerMediaUrl} alt="Header" className="w-full max-h-60 object-cover" />
+                                        </div>
+                                      )}
+                                      {headerMediaType === "video" && headerMediaUrl && (
+                                        <div className={cn(
+                                          "w-full overflow-hidden bg-black/10",
+                                          isOutgoing ? "rounded-tl-lg rounded-tr-none" : "rounded-tl-none rounded-tr-lg"
+                                        )}>
+                                          <video src={headerMediaUrl} controls className="w-full max-h-60 object-cover" />
+                                        </div>
+                                      )}
+                                      {headerMediaType === "document" && headerMediaUrl && (
+                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/10 bg-black/10 p-2 flex items-center gap-2 text-xs">
+                                          <FileText className="h-6 w-6 text-primary shrink-0" />
+                                          <span className="truncate font-medium flex-1">{header.document?.filename || "Documento de Cabeçalho"}</span>
+                                          <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 ml-auto rounded-full" asChild>
+                                            <a href={headerMediaUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-3 w-3" /></a>
+                                          </Button>
+                                        </div>
+                                      )}
+
+                                      {/* B. Render Standard Media Types */}
+                                      {type === "image" && bodyText && (
+                                        <div className={cn(
+                                          "w-full overflow-hidden bg-black/10",
+                                          isOutgoing ? "rounded-lg rounded-tr-none" : "rounded-lg rounded-tl-none"
+                                        )}>
+                                          {getMediaUrl(bodyText) ? (
+                                            <img src={getMediaUrl(bodyText)} alt="Imagem" className="w-full max-h-64 object-cover" />
+                                          ) : (
+                                            <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                                              <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {type === "audio" && bodyText && (
+                                        <div className="p-1">
+                                          {getMediaUrl(bodyText) ? (
+                                            <audio src={getMediaUrl(bodyText)} controls className="w-full max-w-[240px] h-9" />
+                                          ) : (
+                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                              <Volume2 className="h-4 w-4" /> Áudio (ID: {bodyText})
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {type === "video" && bodyText && (
+                                        <div className={cn(
+                                          "w-full overflow-hidden bg-black/10",
+                                          isOutgoing ? "rounded-lg rounded-tr-none" : "rounded-lg rounded-tl-none"
+                                        )}>
+                                          {getMediaUrl(bodyText) ? (
+                                            <video src={getMediaUrl(bodyText)} controls className="w-full max-h-64 object-cover" />
+                                          ) : (
+                                            <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                                              <Video className="h-6 w-6 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {type === "document" && bodyText && (
+                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 flex items-center gap-3">
+                                          <FileText className="h-8 w-8 text-primary shrink-0" />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-medium truncate text-foreground">
+                                              {isUrl(bodyText) ? bodyText.substring(bodyText.lastIndexOf("/") + 1) : bodyText}
+                                            </p>
+                                            <p className="text-[10px] opacity-75">Documento PDF/Office</p>
+                                          </div>
+                                          {getMediaUrl(bodyText) && (
+                                            <Button size="icon" variant="ghost" asChild className="h-8 w-8 shrink-0 rounded-full">
+                                              <a href={getMediaUrl(bodyText)} target="_blank" rel="noreferrer">
+                                                <ExternalLink className="h-4 w-4" />
+                                              </a>
+                                            </Button>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {type === "sticker" && bodyText && (
+                                        <div className="p-1">
+                                          {getMediaUrl(bodyText) ? (
+                                            <img src={getMediaUrl(bodyText)} alt="Sticker" className="h-24 w-24 object-contain" />
+                                          ) : (
+                                            <span className="text-xs text-muted-foreground font-mono">Sticker (ID: {bodyText})</span>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {type === "location" && msg.location && (
+                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-2">
+                                          <div className="flex items-start gap-2.5">
+                                            <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-semibold text-foreground">{msg.location.name || "Localização"}</p>
+                                              <p className="text-[10px] text-muted-foreground leading-normal">
+                                                {msg.location.address || `${msg.location.latitude}, ${msg.location.longitude}`}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <Button size="sm" variant="outline" className="w-full text-xs h-7 gap-1" asChild>
+                                            <a href={`https://www.google.com/maps/search/?api=1&query=${msg.location.latitude},${msg.location.longitude}`} target="_blank" rel="noreferrer">
+                                              <ExternalLink className="h-3 w-3" /> Ver no Google Maps
+                                            </a>
+                                          </Button>
+                                        </div>
+                                      )}
+
+                                      {type === "contacts" && msg.contacts && (
+                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-3">
+                                          <div className="flex items-center gap-3">
+                                            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                              <User className="h-4 w-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-semibold truncate">{msg.contacts[0]?.name?.formatted_name || "Contato"}</p>
+                                              <p className="text-[10px] text-muted-foreground font-mono truncate">{msg.contacts[0]?.phones?.[0]?.phone || "Sem telefone"}</p>
+                                            </div>
+                                          </div>
+                                          {msg.contacts[0]?.phones?.[0]?.phone && (
+                                            <Button size="sm" variant="outline" className="w-full text-xs h-7 gap-1" asChild>
+                                              <a href={`tel:${msg.contacts[0].phones[0].phone}`}><Phone className="h-3 w-3" /> Ligar para Contato</a>
+                                            </Button>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Text block for header text, body, and footer */}
+                                      {((!["image", "audio", "video", "document", "sticker", "location", "contacts"].includes(type) && bodyText) || headerText || interactive?.footer?.text) && (
+                                        <div className="px-3 py-2 space-y-1">
+                                          {headerText && (
+                                            <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
+                                              {headerText}
+                                            </p>
+                                          )}
+                                          {!["image", "audio", "video", "document", "sticker", "location", "contacts"].includes(type) && bodyText && (
+                                            <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
+                                              {formatMessageText(bodyText)}
+                                            </p>
+                                          )}
+                                          {interactive?.footer?.text && (
+                                            <p className="text-[10px] opacity-60">
+                                              {interactive.footer.text}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
+                                      {interactive?.type === "button" && interactive.action?.buttons && (
+                                        <div className="flex flex-col w-full mt-1.5">
+                                          {interactive.action.buttons.map((btn: any, btnIdx: number) => {
+                                            const isLast = btnIdx === interactive.action.buttons.length - 1;
+                                            return (
+                                              <div 
+                                                key={btnIdx}
+                                                className={cn(
+                                                  "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                                  isOutgoing
+                                                    ? "wa-card-button-outgoing wa-button-separator-outgoing"
+                                                    : "wa-card-button-incoming wa-button-separator-incoming",
+                                                  isLast && (isOutgoing ? "rounded-b-lg rounded-br-none" : "rounded-b-lg rounded-bl-none")
+                                                )}
+                                              >
+                                                <MessageSquare className="h-3.5 w-3.5 opacity-60" />
+                                                {btn.reply?.title || "Botão"}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+
+                                      {/* F. Render List selection action */}
+                                      {interactive?.type === "list" && (
+                                        <div className="flex flex-col w-full mt-1.5">
+                                          <div 
+                                            className={cn(
+                                              "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                              isOutgoing
+                                                ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
+                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none"
+                                            )}
+                                          >
+                                            <Menu className="h-3.5 w-3.5 opacity-60" />
+                                            {interactive.action?.button || "Ver Recursos"}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* G. Render Flow CTA action */}
+                                      {interactive?.type === "flow" && (
+                                        <div className="flex flex-col w-full mt-1.5">
+                                          <div 
+                                            className={cn(
+                                              "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                              isOutgoing
+                                                ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
+                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none"
+                                            )}
+                                          >
+                                            <ClipboardList className="h-3.5 w-3.5 opacity-80" />
+                                            {interactive.action?.parameters?.flow_cta || "Preencher Formulário"}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Horário + Status */}
+                                    <div
+                                      className={cn(
+                                        "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-1.5 pr-2.5 pt-0.5",
+                                        !isRichCard && "px-0 pb-0 pt-1"
+                                      )}
+                                    >
+                                      <span>
+                                        {new Date(msg.timestamp).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                      {isOutgoing && renderStatus(msg.status)}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {/* Emojis de Reação Flutuantes */}
                               {msg.reactions && msg.reactions.length > 0 && (
