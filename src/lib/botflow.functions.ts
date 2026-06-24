@@ -4,62 +4,71 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
 
+async function getOrCreateBotSettings(context: any) {
+  const { data: p } = await context.db
+    .from("profiles")
+    .select("whatsapp_phone_number_id")
+    .eq("id", context.userId)
+    .maybeSingle();
+
+  let { data: settings } = await context.db
+    .from("bot_settings")
+    .select("*")
+    .eq("user_id", context.userId)
+    .maybeSingle();
+
+  if (!settings) {
+    const { data: newSettings, error } = await context.db
+      .from("bot_settings")
+      .insert({
+        id: crypto.randomUUID(),
+        user_id: context.userId,
+        instance_id: p?.whatsapp_phone_number_id || null,
+        is_active: false,
+        pause_timeout_minutes: 60,
+      })
+      .select("*")
+      .single();
+
+    if (error) return { ok: false as const, error: error.message };
+    settings = newSettings;
+  } else if (p?.whatsapp_phone_number_id && settings.instance_id !== p.whatsapp_phone_number_id) {
+    const { data: updatedSettings, error } = await context.db
+      .from("bot_settings")
+      .update({ instance_id: p.whatsapp_phone_number_id })
+      .eq("id", settings.id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false as const, error: error.message };
+    settings = updatedSettings;
+  }
+
+  return { ok: true as const, settings, profile: p };
+}
+
 export const getBotSettings = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }: { context: any }) => {
-    // Para simplificar na Fase 1, pega a primeira instância configurada no profile
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (!p?.whatsapp_phone_number_id)
-      return { ok: false, error: "Nenhuma instância WhatsApp configurada no perfil." };
-
-    let { data: settings } = await context.db
-      .from("bot_settings")
-      .select("*")
-      .eq("instance_id", p.whatsapp_phone_number_id)
-      .maybeSingle();
-
-    if (!settings) {
-      // Cria a configuração padrão se não existir
-      const { data: newSettings, error } = await context.db
-        .from("bot_settings")
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: context.userId,
-          instance_id: p.whatsapp_phone_number_id,
-          is_active: false,
-          pause_timeout_minutes: 60,
-        })
-        .select("*")
-        .single();
-
-      if (error) return { ok: false, error: error.message };
-      settings = newSettings;
-    }
-
-    return { ok: true, settings };
+    const result = await getOrCreateBotSettings(context);
+    if (!result.ok) return result;
+    return { ok: true, settings: result.settings };
   });
 
 export const toggleBotStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => z.object({ isActive: z.boolean() }).parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância configurada." };
+    const result = await getOrCreateBotSettings(context);
+    if (!result.ok) return result;
 
     const { error } = await context.db
       .from("bot_settings")
-      .update({ is_active: data.isActive })
-      .eq("instance_id", p.whatsapp_phone_number_id);
+      .update({
+        is_active: data.isActive,
+        instance_id: result.profile?.whatsapp_phone_number_id || result.settings.instance_id || null,
+      })
+      .eq("id", result.settings.id);
 
     if (error) return { ok: false, error: error.message };
     return { ok: true };
@@ -68,26 +77,13 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
 export const listBotSteps = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }: { context: any }) => {
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (!p?.whatsapp_phone_number_id) return [];
-
-    const { data: settings } = await context.db
-      .from("bot_settings")
-      .select("id")
-      .eq("instance_id", p.whatsapp_phone_number_id)
-      .maybeSingle();
-
-    if (!settings) return [];
+    const result = await getOrCreateBotSettings(context);
+    if (!result.ok) return [];
 
     const { data } = await context.db
       .from("bot_steps")
       .select("*")
-      .eq("bot_settings_id", settings.id)
+      .eq("bot_settings_id", result.settings.id)
       .order("step_order", { ascending: true });
 
     return data || [];
@@ -96,8 +92,9 @@ export const listBotSteps = createServerFn({ method: "GET" })
 const saveBotStepInput = z.object({
   id: z.string().optional(),
   step_order: z.number(),
-  trigger_type: z.string(),
-  trigger_value: z.string().optional(),
+  trigger_type: z.string().min(1),
+  trigger_value: z.string().nullable().optional(),
+  condition_operator: z.string().nullable().optional(),
   message_type: z.string().optional(),
   message_content: z.string().optional(),
   media_url: z.string().optional().nullable(),
@@ -114,37 +111,10 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
   .handler(async ({ data, context }: { data: any[]; context: any }) => {
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id")
-      .eq("id", context.userId)
-      .maybeSingle();
+    const result = await getOrCreateBotSettings(context);
+    if (!result.ok) return result;
 
-    if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
-
-    let { data: settings } = await context.db
-      .from("bot_settings")
-      .select("id")
-      .eq("instance_id", p.whatsapp_phone_number_id)
-      .maybeSingle();
-
-    if (!settings) {
-      const { data: newSettings, error: createError } = await context.db
-        .from("bot_settings")
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: context.userId,
-          instance_id: p.whatsapp_phone_number_id,
-          is_active: false,
-          pause_timeout_minutes: 60,
-        })
-        .select("id")
-        .single();
-
-      if (createError) return { ok: false, error: "Não foi possível criar as configurações do bot: " + createError.message };
-      settings = newSettings;
-    }
-
+    const settings = result.settings;
     const incomingIds = data.map(s => s.id).filter(Boolean);
 
     // Delete steps not in incoming list
@@ -246,39 +216,11 @@ export const saveBotStep = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepInput.parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
-
-    let { data: settings } = await context.db
-      .from("bot_settings")
-      .select("id")
-      .eq("instance_id", p.whatsapp_phone_number_id)
-      .maybeSingle();
-
-    if (!settings) {
-      const { data: newSettings, error: createError } = await context.db
-        .from("bot_settings")
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: context.userId,
-          instance_id: p.whatsapp_phone_number_id,
-          is_active: false,
-          pause_timeout_minutes: 60,
-        })
-        .select("id")
-        .single();
-
-      if (createError) return { ok: false, error: "Não foi possível criar as configurações do bot: " + createError.message };
-      settings = newSettings;
-    }
+    const result = await getOrCreateBotSettings(context);
+    if (!result.ok) return result;
 
     const payload = {
-      bot_settings_id: settings.id,
+      bot_settings_id: result.settings.id,
       step_order: data.step_order,
       trigger_type: data.trigger_type,
       trigger_value: data.trigger_value || null,
@@ -298,7 +240,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
       card_color: data.card_color || null,
     };
 
-    let result;
+    let saveResult;
     if (data.id) {
       const { data: existing } = await context.db
         .from("bot_steps")
@@ -307,29 +249,29 @@ export const saveBotStep = createServerFn({ method: "POST" })
         .maybeSingle();
 
       if (existing?.id) {
-        result = await context.db
+        saveResult = await context.db
           .from("bot_steps")
           .update(payload)
           .eq("id", data.id)
           .select("*")
           .single();
       } else {
-        result = await context.db
+        saveResult = await context.db
           .from("bot_steps")
           .insert({ id: data.id, user_id: context.userId, ...payload })
           .select("*")
           .single();
       }
     } else {
-      result = await context.db
+      saveResult = await context.db
         .from("bot_steps")
         .insert({ id: crypto.randomUUID(), user_id: context.userId, ...payload })
         .select("*")
         .single();
     }
 
-    if (result.error) return { ok: false, error: result.error.message };
-    return { ok: true, step: result.data };
+    if (saveResult.error) return { ok: false, error: saveResult.error.message };
+    return { ok: true, step: saveResult.data };
   });
 
 export const deleteBotStep = createServerFn({ method: "POST" })
