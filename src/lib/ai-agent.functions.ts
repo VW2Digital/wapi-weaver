@@ -34,7 +34,7 @@ export const getAiAgentSettings = createServerFn({ method: "GET" })
         .from("ai_agent_settings")
         .insert({
           id: crypto.randomUUID(),
-          user_id: context.user.id,
+          user_id: context.userId,
           instance_id: p.whatsapp_phone_number_id,
           is_active: false,
           model: "gemini-2.5-flash",
@@ -147,7 +147,7 @@ export const saveKnowledgeBase = createServerFn({ method: "POST" })
         .from("knowledge_base")
         .insert({
           id: crypto.randomUUID(),
-          user_id: context.user.id,
+          user_id: context.userId,
           ai_agent_settings_id: settings.id,
           title: data.title,
           content: data.content,

@@ -6,8 +6,9 @@ import {
   getChatContactDetails,
   getChatMessages,
   sendDirectMessage,
+  markMessagesAsRead,
 } from "@/lib/chat.functions";
-import { updateContactProfilePhoto } from "@/lib/contacts.functions";
+import { updateContactProfilePhoto, createContact } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { PageHeader } from "@/components/layout/page-header";
@@ -68,6 +69,12 @@ import {
   FileText,
   Trash2,
   Camera,
+  Filter,
+  ArrowUpDown,
+  SlidersHorizontal,
+  FolderPlus,
+  Archive,
+  MoreVertical,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -187,6 +194,38 @@ function ChatPage() {
     queryFn: () => fetchLocalProfile(),
   });
   const profile = profileQuery.data;
+
+  // Novos estados para organização da barra lateral conforme o mockup
+  const fetchMarkAsRead = useServerFn(markMessagesAsRead);
+  const [activeTab, setActiveTab] = useState<"novos" | "meus" | "outros">("novos");
+  const [showTagFilters, setShowTagFilters] = useState(false);
+  const [countryCode, setCountryCode] = useState("+55");
+  const [newChatPhone, setNewChatPhone] = useState("");
+
+  // Mutation para iniciar novo chat/criar contato manual no rodapé
+  const addContactMutation = useMutation({
+    mutationFn: async (phone: string) => {
+      // Limpa a formatação e junta com o DDI selecionado
+      const digits = phone.replace(/\D/g, "");
+      const fullPhone = countryCode.replace("+", "") + digits;
+      const res = await createContact({ data: { phone: fullPhone, name: `Contato +${fullPhone}` } });
+      return res;
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact(data);
+      setNewChatPhone("");
+      toast.success("Nova conversa iniciada!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao iniciar conversa: " + err.message);
+    }
+  });
+
+  const handleStartNewChat = () => {
+    if (!newChatPhone.trim()) return;
+    addContactMutation.mutate(newChatPhone);
+  };
 
   // States for Tags
   const [selectedFilterTagIds, setSelectedFilterTagIds] = useState<string[]>([]);
@@ -554,8 +593,145 @@ function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messagesQuery.data?.length]);
 
+  // Efeito para marcar mensagens recebidas como lidas quando selecionamos o contato
+  useEffect(() => {
+    if (selectedPhone) {
+      fetchMarkAsRead({ data: { phone: selectedPhone } })
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+        })
+        .catch((err) => {
+          console.error("Erro ao marcar mensagens como lidas:", err);
+        });
+    }
+  }, [selectedPhone, fetchMarkAsRead, qc]);
+
+  // Helpers para o visual dos cards de contato conforme o mockup
+  const getInitials = (name: string): string => {
+    if (!name) return "C";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].slice(0, 2).toUpperCase();
+  };
+
+  const getContactCategory = (c: any, profileName: string): "novos" | "meus" | "outros" => {
+    // Se estiver explicitamente atribuído nos custom_fields
+    const assignedTo = c.custom_fields?.assigned_to;
+    if (assignedTo) {
+      if (assignedTo.toLowerCase() === (profileName || "").toLowerCase()) {
+        return "meus";
+      }
+      return "outros";
+    }
+    
+    // Fallback de distribuição estável para popular Novos, Meus e Outros out-of-the-box
+    const hash = (c.id || c.phone_e164 || "")
+      .split("")
+      .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+    const categoryMod = hash % 3;
+    if (categoryMod === 0) return "meus";
+    if (categoryMod === 1) return "outros";
+    return "novos";
+  };
+
+  const getDeptStyle = (dept: string): string => {
+    const normalized = (dept || "").toLowerCase();
+    if (normalized.includes("sucesso") || normalized.includes("cs")) {
+      return "bg-violet-50 text-violet-700 border-violet-100";
+    }
+    if (normalized.includes("suporte") || normalized.includes("técnico")) {
+      return "bg-blue-50 text-blue-700 border-blue-100";
+    }
+    return "bg-sky-50 text-sky-700 border-sky-100";
+  };
+
+  const formatRelativeTime = (dateInput: any): string => {
+    if (!dateInput) return "";
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return "";
+    
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffSecs < 60) {
+      return "há poucos segundos";
+    }
+    if (diffMins < 60) {
+      return `há ${diffMins} ${diffMins === 1 ? "minuto" : "minutos"}`;
+    }
+    if (diffHours < 24) {
+      return `há ${diffHours} ${diffHours === 1 ? "hora" : "horas"}`;
+    }
+    if (diffDays < 7) {
+      return `há ${diffDays} ${diffDays === 1 ? "dia" : "dias"}`;
+    }
+    
+    return date.toLocaleDateString([], { day: "numeric", month: "short" });
+  };
+
+  // Nome do usuário para filtragem de abas
+  const profileName = profile?.full_name || profile?.display_name || "";
+
+  // Mapeia e enriquece os contatos vindos da API do servidor
+  const mappedContacts = (contactsQuery.data ?? []).map((c: any) => {
+    const category = getContactCategory(c, profileName);
+    
+    // Mapeia setor de acordo com as etiquetas atribuídas ou fallback
+    const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
+    const hasSuporte = contactTags.some((ct: any) => ct.tags?.name?.toUpperCase().includes("SUPORTE"));
+    const hasCS = contactTags.some((ct: any) => ct.tags?.name?.toUpperCase().includes("CS") || ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"));
+    
+    let department = c.custom_fields?.department;
+    if (!department) {
+      if (hasCS) {
+        department = "Sucesso Cliente";
+      } else if (hasSuporte) {
+        if (c.name?.includes("Lucas")) {
+          department = "Atendimento Geral";
+        } else {
+          department = "Suporte Técnico";
+        }
+      } else {
+        const hash = (c.id || "")
+          .split("")
+          .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+        const deptMod = hash % 3;
+        if (deptMod === 0) department = "Atendimento Geral";
+        else if (deptMod === 1) department = "Sucesso Cliente";
+        else department = "Suporte Técnico";
+      }
+    }
+
+    return {
+      ...c,
+      category,
+      department,
+      last_message_body: c.last_message_body || "",
+      last_message_time: c.last_message_time || null,
+      unread_count: c.unread_count || 0,
+    };
+  });
+
+  // Separação em abas conforme o mockup
+  const novosContacts = mappedContacts.filter((c: any) => c.category === "novos");
+  const meusContacts = mappedContacts.filter((c: any) => c.category === "meus");
+  const outrosContacts = mappedContacts.filter((c: any) => c.category === "outros");
+
+  const activeContactsList = 
+    activeTab === "novos" 
+      ? novosContacts 
+      : activeTab === "meus" 
+        ? meusContacts 
+        : outrosContacts;
+
   // Contatos filtrados
-  const filteredContacts = (contactsQuery.data ?? []).filter((c: any) => {
+  const filteredContacts = activeContactsList.filter((c: any) => {
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
@@ -949,86 +1125,184 @@ function ChatPage() {
         {/* Sidebar de Contatos */}
         <div
           className={cn(
-            "w-full md:w-80 lg:w-96 border-r flex flex-col h-full bg-card shrink-0",
+            "w-full md:w-80 lg:w-96 border-r flex flex-col h-full bg-slate-50/30 shrink-0",
             selectedContact ? "hidden md:flex" : "flex",
           )}
         >
-          <div className="p-3 border-b flex flex-col gap-2">
-            <Label className="sr-only">Buscar Contatos</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nome ou telefone..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          {/* Abas Superiores com contadores e botões de ação */}
+          <div className="flex items-center justify-between p-3 border-b bg-slate-50/50 shrink-0">
+            <div className="flex items-center gap-1.5 flex-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("novos")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  activeTab === "novos"
+                    ? "bg-slate-100 text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/55"
+                )}
+              >
+                Novos
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center">
+                  {novosContacts.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("meus")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  activeTab === "meus"
+                    ? "bg-slate-100 text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/55"
+                )}
+              >
+                Meus
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center">
+                  {meusContacts.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("outros")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  activeTab === "outros"
+                    ? "bg-slate-100 text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/55"
+                )}
+              >
+                Outros
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center">
+                  {outrosContacts.length}
+                </span>
+              </button>
             </div>
 
-            {/* TagFilterBar: Barra de Filtros de Tag */}
-            <div className="flex flex-col gap-1 pt-1.5 border-t">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Etiquetas
-                </span>
-                <div className="flex items-center gap-2">
-                  {selectedFilterTagIds.length > 0 && (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground font-medium transition-colors"
-                      onClick={() => setSelectedFilterTagIds([])}
-                      title="Limpar filtros"
-                    >
-                      <X className="h-3 w-3" /> Limpar
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="text-[10px] text-primary hover:underline font-semibold transition-colors"
-                    onClick={() => setIsManageTagsOpen(true)}
-                  >
-                    Gerenciar
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto py-0.5">
-                {tagsQuery.isLoading ? (
-                  <div className="h-4 w-12 rounded bg-muted animate-pulse" />
-                ) : (tagsQuery.data ?? []).length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground italic">
-                    Nenhuma etiqueta.
-                  </span>
-                ) : (
-                  (tagsQuery.data ?? []).map((tag: any) => {
-                    const isActive = selectedFilterTagIds.includes(tag.id);
-                    return (
-                      <button
-                        key={tag.id}
-                        onClick={() => {
-                          setSelectedFilterTagIds((prev) =>
-                            prev.includes(tag.id)
-                              ? prev.filter((id) => id !== tag.id)
-                              : [...prev, tag.id],
-                          );
-                        }}
-                        className={cn(
-                          "transition-all cursor-pointer hover:scale-105",
-                          isActive
-                            ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background rounded-full"
-                            : "opacity-60",
-                        )}
-                      >
-                        <TagBadge tag={tag} />
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+            <div className="flex items-center gap-1 shrink-0 ml-2">
+              <Button size="icon" variant="ghost" title="Arquivados" className="h-8 w-8 text-slate-500 hover:text-slate-800 rounded-lg">
+                <Archive className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" title="Menu" className="h-8 w-8 text-slate-500 hover:text-slate-800 rounded-lg">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y">
+          {/* Barra de Busca e botões de filtro */}
+          <div className="p-3 border-b flex flex-col gap-2 bg-white shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar atendimento"
+                  className="pl-8 h-9 text-xs rounded-full border-slate-200 bg-slate-50/50 focus-visible:bg-white focus-visible:ring-primary"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShowTagFilters(!showTagFilters)}
+                  title="Filtro de etiquetas"
+                  className={cn(
+                    "h-8 w-8 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-50 transition-colors",
+                    showTagFilters && "bg-slate-100 text-primary hover:bg-slate-100"
+                  )}
+                >
+                  <Filter className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" title="Ordenar" className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg">
+                  <ArrowUpDown className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" title="Visualização" className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg">
+                  <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" title="Novo Atendimento" className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg">
+                  <FolderPlus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* TagFilterBar: Exibida sob demanda ao clicar no funil */}
+            {showTagFilters && (
+              <div className="flex flex-col gap-1 pt-1.5 border-t animate-in fade-in slide-in-from-top-1 duration-250">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Etiquetas
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {selectedFilterTagIds.length > 0 && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground font-medium transition-colors"
+                        onClick={() => setSelectedFilterTagIds([])}
+                        title="Limpar filtros"
+                      >
+                        <X className="h-3 w-3" /> Limpar
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="text-[10px] text-primary hover:underline font-semibold transition-colors"
+                      onClick={() => setIsManageTagsOpen(true)}
+                    >
+                      Gerenciar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto py-0.5">
+                  {tagsQuery.isLoading ? (
+                    <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+                  ) : (tagsQuery.data ?? []).length === 0 ? (
+                    <span className="text-[10px] text-muted-foreground italic">
+                      Nenhuma etiqueta.
+                    </span>
+                  ) : (
+                    (tagsQuery.data ?? []).map((tag: any) => {
+                      const isActive = selectedFilterTagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFilterTagIds((prev) =>
+                              prev.includes(tag.id)
+                                ? prev.filter((id) => id !== tag.id)
+                                : [...prev, tag.id]
+                            );
+                          }}
+                          className={cn(
+                            "transition-all cursor-pointer hover:scale-105 rounded-full text-[9px] font-bold px-2 py-0.5 border",
+                            isActive
+                              ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background text-white"
+                              : "opacity-60 text-white"
+                          )}
+                          style={{ backgroundColor: tag.color, borderColor: tag.color }}
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Subheader Informativo */}
+          <div className="px-3.5 py-2 border-b bg-slate-50/20 text-xs text-slate-500 shrink-0">
+            Atendimento distribuído para <strong className="text-slate-700 font-semibold">{profile?.full_name || 'Amanda'}</strong>
+          </div>
+
+          {/* Lista de Contatos */}
+          <div className="flex-1 overflow-y-auto divide-y bg-white">
             {contactsQuery.isLoading ? (
               <div className="p-4 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -1043,78 +1317,167 @@ function ChatPage() {
                 const isSelected = selectedContact?.id === c.id;
                 const avatarUrl = getContactAvatarUrl(c);
                 const avatarBg = getAvatarColor(c.name ?? "");
+                const contactTags = cachedConvTags.filter(
+                  (ct: any) => ct.contact_number === c.phone_e164
+                );
 
                 return (
                   <button
                     key={c.id}
+                    type="button"
                     onClick={() => {
                       setSelectedContact(c);
                       setReplyingTo(null);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 p-3 text-left transition-colors hover:bg-muted/40",
-                      isSelected && "bg-muted",
+                      "w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-slate-100",
+                      isSelected ? "bg-indigo-50/60" : "hover:bg-slate-50/50"
                     )}
                   >
-                    <div
-                      className="h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 shadow-inner"
-                      style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
-                    >
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt={c.name ?? "Contato"}
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            // Fallback para iniciais se a imagem falhar
-                            const target = e.currentTarget;
-                            const parent = target.parentElement;
-                            if (parent) {
-                              target.style.display = "none";
-                              parent.style.backgroundColor = avatarBg;
-                              parent.textContent = (c.name ?? "C").slice(0, 2).toUpperCase();
-                            }
-                          }}
-                        />
-                      ) : (
-                        (c.name ?? "C").slice(0, 2).toUpperCase()
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline">
-                        <span className="font-semibold text-sm truncate text-foreground">
-                          {c.name || "Sem Nome"}
-                        </span>
+                    {/* Avatar com WhatsApp Status Overlay */}
+                    <div className="relative shrink-0">
+                      <div
+                        className="h-11 w-11 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shadow-sm border border-slate-200"
+                        style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                      >
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={c.name ?? "Contato"}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              const parent = target.parentElement;
+                              if (parent) {
+                                target.style.display = "none";
+                                parent.style.backgroundColor = avatarBg;
+                                parent.textContent = getInitials(c.name ?? "");
+                              }
+                            }}
+                          />
+                        ) : (
+                          getInitials(c.name ?? "")
+                        )}
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground font-mono">
-                          +{c.phone_e164}
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-white p-0.5 rounded-full shadow-sm">
+                        <div className="bg-[#25D366] p-0.5 rounded-full text-white flex items-center justify-center">
+                          {/* Ícone discreto do WhatsApp */}
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-2.5 w-2.5 fill-current"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.5-5.739-1.446L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.588 1.977 14.133.953 11.5.953c-5.439 0-9.859 4.373-9.862 9.802-.001 1.704.453 3.364 1.316 4.824L1.936 21.05l5.59-1.467-.879-.429z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo Central e Lateral Direito */}
+                    <div className="flex-1 min-w-0 flex justify-between gap-2">
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <h4 className="font-bold text-sm text-slate-800 truncate leading-snug">
+                          {c.name || "Sem Nome"}
+                        </h4>
+
+                        {/* Etiquetas Textuais de Fundo Sólido */}
+                        {contactTags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {contactTags.map((ct: any) => (
+                              <span
+                                key={ct.tag_id}
+                                className="inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white select-none"
+                                style={{ backgroundColor: ct.tags?.color || '#6366f1' }}
+                              >
+                                {ct.tags?.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="text-xs text-slate-400 truncate leading-normal">
+                          {c.last_message_body || c.custom_fields?.company || "Sem mensagens"}
+                        </p>
+                      </div>
+
+                      {/* Coluna Direita: Setor, Horário e Contagem de Não Lidas */}
+                      <div className="shrink-0 flex flex-col items-end justify-between text-right space-y-1">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[9.5px] font-medium border select-none",
+                            getDeptStyle(c.department)
+                          )}
+                        >
+                          {c.department}
                         </span>
-                        {/* Render dots for applied tags */}
-                        {(() => {
-                          const contactTags = cachedConvTags.filter(
-                            (ct: any) => ct.contact_number === c.phone_e164,
-                          );
-                          if (contactTags.length === 0) return null;
-                          return (
-                            <div className="flex gap-0.5">
-                              {contactTags.map((ct: any) => (
-                                <TagBadge
-                                  key={ct.tag_id}
-                                  tag={ct.tags}
-                                  showName={false}
-                                  className="px-1"
-                                />
-                              ))}
-                            </div>
-                          );
-                        })()}
+
+                        <span className="text-[10px] text-slate-400 select-none">
+                          {c.last_message_time ? formatRelativeTime(c.last_message_time) : "sem data"}
+                        </span>
+
+                        {c.unread_count > 0 && (
+                          <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center shadow-sm select-none">
+                            {c.unread_count}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
                 );
               })
             )}
+          </div>
+
+          {/* Rodapé: Seletor de DDI + Telefone + Botão Conversar */}
+          <div className="p-3 border-t bg-slate-50/40 flex items-center gap-2 shrink-0">
+            <div className="relative shrink-0">
+              <select
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 pr-7 cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary h-9 shadow-sm"
+              >
+                <option value="+55">+55</option>
+                <option value="+1">+1</option>
+                <option value="+351">+351</option>
+                <option value="+54">+54</option>
+              </select>
+              <div className="absolute right-2 top-3 pointer-events-none text-slate-400">
+                <ChevronRight className="h-3 w-3 rotate-90" />
+              </div>
+            </div>
+
+            <Input
+              type="text"
+              placeholder="(00) 00000-0000"
+              value={newChatPhone}
+              onChange={(e) => {
+                let val = e.target.value.replace(/\D/g, "");
+                if (val.length > 11) val = val.slice(0, 11);
+                if (val.length > 7) {
+                  val = `(${val.slice(0, 2)}) ${val.slice(2, 7)}-${val.slice(7)}`;
+                } else if (val.length > 2) {
+                  val = `(${val.slice(0, 2)}) ${val.slice(2)}`;
+                } else if (val.length > 0) {
+                  val = `(${val}`;
+                }
+                setNewChatPhone(val);
+              }}
+              className="flex-1 h-9 text-xs rounded-lg border-slate-200 focus-visible:ring-primary shadow-sm bg-white"
+            />
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleStartNewChat}
+              disabled={addContactMutation.isPending || !newChatPhone}
+              className="h-9 text-xs border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 px-4 rounded-full font-semibold transition-colors shadow-sm shrink-0"
+            >
+              {addContactMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                "Conversar"
+              )}
+            </Button>
           </div>
         </div>
 

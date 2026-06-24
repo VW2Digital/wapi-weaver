@@ -148,7 +148,7 @@ export function CustomNode({ data, selected }: any) {
         return (
           <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2">
             <div className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
-              <span>📋 Menu:</span>
+              <span>Menu:</span>
               <span className="text-foreground italic font-medium">{buttonText}</span>
             </div>
             {sections.map((sec: any, secIdx: number) => (
@@ -192,7 +192,7 @@ export function CustomNode({ data, selected }: any) {
             <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm">
               <span className="font-medium truncate">{buttonText}</span>
               <span className="text-[9px] font-bold text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded">
-                🔗 Link
+                Link
               </span>
             </div>
             {url && (

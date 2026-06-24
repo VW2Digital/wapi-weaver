@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import db from "./db";
 
 // Schema de validação para envio de mensagem direta
 const sendMessageInput = z.object({
@@ -91,14 +92,84 @@ const sendMessageInput = z.object({
 export const listChatContacts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    // context.db é scopado ao userId — filtros de user_id são aplicados automaticamente
-    const { data: contacts, error } = await context.db
-      .from("contacts")
-      .select("id, name, phone_e164, custom_fields")
-      .order("name", { ascending: true });
+    try {
+      // Usamos db.query para uma consulta SQL rica e eficiente contendo a última mensagem, timestamp e contagem de não lidas.
+      const contacts = await db.query(`
+        SELECT 
+          c.id, 
+          c.name, 
+          c.phone_e164, 
+          c.custom_fields,
+          c.email,
+          c.source,
+          c.opted_out,
+          c.created_at,
+          c.updated_at,
+          (
+            SELECT dm.body 
+            FROM direct_messages dm 
+            WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
+            ORDER BY dm.created_at DESC 
+            LIMIT 1
+          ) AS last_message_body,
+          (
+            SELECT dm.created_at 
+            FROM direct_messages dm 
+            WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
+            ORDER BY dm.created_at DESC 
+            LIMIT 1
+          ) AS last_message_time,
+          (
+            SELECT COUNT(*) 
+            FROM direct_messages dm 
+            WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164 
+              AND dm.direction = 'incoming' AND dm.status != 'read'
+          ) AS unread_count
+        FROM contacts c
+        WHERE c.user_id = ?
+        ORDER BY 
+          COALESCE(
+            (
+              SELECT dm.created_at 
+              FROM direct_messages dm 
+              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
+              ORDER BY dm.created_at DESC 
+              LIMIT 1
+            ),
+            c.created_at
+          ) DESC
+      `, [context.userId]);
 
-    if (error) throw new Error(error.message);
-    return contacts ?? [];
+      return (contacts ?? []).map((c: any) => ({
+        ...c,
+        // Garante que o custom_fields seja retornado como objeto parseado, se for string
+        custom_fields: typeof c.custom_fields === 'string' ? JSON.parse(c.custom_fields) : c.custom_fields
+      }));
+    } catch (e: any) {
+      console.error("Erro ao listar contatos com mensagens:", e);
+      throw new Error(e.message || "Erro ao consultar contatos");
+    }
+  });
+
+export const markMessagesAsRead = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const phone = data.phone.replace(/\D/g, "");
+    
+    // Atualiza todas as mensagens recebidas não lidas deste contato para 'read'
+    const { error } = await context.db
+      .from("direct_messages")
+      .update({ status: "read" })
+      .eq("contact_phone", phone)
+      .eq("direction", "incoming")
+      .neq("status", "read");
+      
+    if (error) {
+      console.error("Erro ao marcar mensagens como lidas:", error);
+      throw new Error(error.message);
+    }
+    return { ok: true };
   });
 
 export const getChatContactDetails = createServerFn({ method: "POST" })

@@ -28,7 +28,7 @@ export const getBotSettings = createServerFn({ method: "GET" })
         .from("bot_settings")
         .insert({
           id: crypto.randomUUID(),
-          user_id: context.user.id,
+          user_id: context.userId,
           instance_id: p.whatsapp_phone_number_id,
           is_active: false,
           pause_timeout_minutes: 60,
@@ -129,7 +129,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         .from("bot_settings")
         .insert({
           id: crypto.randomUUID(),
-          user_id: context.user.id,
+          user_id: context.userId,
           instance_id: p.whatsapp_phone_number_id,
           is_active: false,
           pause_timeout_minutes: 60,
@@ -177,7 +177,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
       if (step.id) {
         await context.db.from("bot_steps").update(payload).eq("id", step.id);
       } else {
-        await context.db.from("bot_steps").insert({ id: crypto.randomUUID(), user_id: context.user.id, ...payload });
+        await context.db.from("bot_steps").insert({ id: crypto.randomUUID(), user_id: context.userId, ...payload });
       }
     }
 
@@ -206,7 +206,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
         .from("bot_settings")
         .insert({
           id: crypto.randomUUID(),
-          user_id: context.user.id,
+          user_id: context.userId,
           instance_id: p.whatsapp_phone_number_id,
           is_active: false,
           pause_timeout_minutes: 60,
@@ -242,7 +242,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
     } else {
       result = await context.db
         .from("bot_steps")
-        .insert({ id: crypto.randomUUID(), user_id: context.user.id, ...payload })
+        .insert({ id: crypto.randomUUID(), user_id: context.userId, ...payload })
         .select("*")
         .single();
     }

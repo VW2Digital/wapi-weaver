@@ -100,7 +100,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                       <SelectItem value="-999">
                         <span className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
-                          🤖 {agentName}
+                          {agentName}
                         </span>
                       </SelectItem>
                       <SelectItem value="-997">Reiniciar</SelectItem>
@@ -187,90 +187,92 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                     return (
                       <div
                         key={rowIdx}
-                        className="flex gap-2 items-center bg-background/50 p-2 border rounded-md relative group"
+                        className="space-y-2 bg-background/50 p-2.5 border rounded-md relative"
                       >
-                        <div className="flex-1 space-y-1 min-w-0">
-                          <Input
-                            placeholder="Título da Linha"
-                            className="text-xs h-7"
-                            value={row.title || ""}
-                            onChange={(e) => {
+                        {/* Linha 1: Título */}
+                        <Input
+                          placeholder="Título da Linha"
+                          className="text-xs h-8"
+                          value={row.title || ""}
+                          onChange={(e) => {
+                            const newSecs = [...sections];
+                            newSecs[secIdx].rows[rowIdx].title = e.target.value;
+                            updateConfig({
+                              ...config,
+                              action: { ...config.action, sections: newSecs },
+                            });
+                          }}
+                        />
+
+                        {/* Linha 2: Descrição */}
+                        <Input
+                          placeholder="Descrição (Opcional)"
+                          className="text-xs h-8"
+                          value={row.description || ""}
+                          onChange={(e) => {
+                            const newSecs = [...sections];
+                            newSecs[secIdx].rows[rowIdx].description = e.target.value;
+                            updateConfig({
+                              ...config,
+                              action: { ...config.action, sections: newSecs },
+                            });
+                          }}
+                        />
+
+                        {/* Linha 3: Destino (Select) + Excluir */}
+                        <div className="flex gap-2 items-center">
+                          <Select
+                            value={targetVal}
+                            onValueChange={(val) => {
                               const newSecs = [...sections];
-                              newSecs[secIdx].rows[rowIdx].title = e.target.value;
+                              newSecs[secIdx].rows[rowIdx].id =
+                                val === "none" ? "" : `step:${val}`;
                               updateConfig({
                                 ...config,
                                 action: { ...config.action, sections: newSecs },
                               });
                             }}
-                          />
-                          <Input
-                            placeholder="Descrição (Opcional)"
-                            className="text-[10px] h-6"
-                            value={row.description || ""}
-                            onChange={(e) => {
+                          >
+                            <SelectTrigger className="flex-1 text-xs h-8">
+                              <SelectValue placeholder="Destino..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
+                              <SelectItem value="-999">
+                                <span className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
+                                  {agentName}
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="-997">Reiniciar</SelectItem>
+                              {steps
+                                .filter((s: any) => s.id !== selectedStep.id)
+                                .map((s: any) => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    #{s.step_order}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
+                            onClick={() => {
                               const newSecs = [...sections];
-                              newSecs[secIdx].rows[rowIdx].description = e.target.value;
+                              newSecs[secIdx].rows = newSecs[secIdx].rows.filter(
+                                (_: any, i: number) => i !== rowIdx,
+                              );
                               updateConfig({
                                 ...config,
                                 action: { ...config.action, sections: newSecs },
                               });
                             }}
-                          />
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
-
-                        <span className="text-muted-foreground select-none text-xs">→</span>
-
-                        <Select
-                          value={targetVal}
-                          onValueChange={(val) => {
-                            const newSecs = [...sections];
-                            newSecs[secIdx].rows[rowIdx].id =
-                              val === "none" ? "" : `step:${val}`;
-                            updateConfig({
-                              ...config,
-                              action: { ...config.action, sections: newSecs },
-                            });
-                          }}
-                        >
-                          <SelectTrigger className="w-[100px] shrink-0 text-[10px] h-7 px-2">
-                            <SelectValue placeholder="Destino..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhum</SelectItem>
-                            <SelectItem value="-999">
-                              <span className="flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
-                                🤖 {agentName}
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="-997">Reiniciar</SelectItem>
-                            {steps
-                              .filter((s: any) => s.id !== selectedStep.id)
-                              .map((s: any) => (
-                                <SelectItem key={s.id} value={s.id}>
-                                  #{s.step_order}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:bg-destructive/10 shrink-0 h-7 w-7"
-                          onClick={() => {
-                            const newSecs = [...sections];
-                            newSecs[secIdx].rows = newSecs[secIdx].rows.filter(
-                              (_: any, i: number) => i !== rowIdx,
-                            );
-                            updateConfig({
-                              ...config,
-                              action: { ...config.action, sections: newSecs },
-                            });
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
                       </div>
                     );
                   })}
