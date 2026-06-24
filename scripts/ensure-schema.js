@@ -576,15 +576,20 @@ export async function ensureDatabaseSchema() {
         trigger_value VARCHAR(255) NULL,
         message_type VARCHAR(50) NOT NULL DEFAULT 'text',
         message_content TEXT NULL,
+        media_url VARCHAR(1024) NULL,
         media_caption TEXT NULL,
         footer_text VARCHAR(255) NULL,
         buttons_config JSON NULL,
         next_step_id VARCHAR(36) NULL,
         delay_seconds INT NOT NULL DEFAULT 0,
+        position_x FLOAT NOT NULL DEFAULT 0,
+        position_y FLOAT NOT NULL DEFAULT 0,
         assign_team_id VARCHAR(36) NULL,
         assign_user_id VARCHAR(36) NULL,
         handoff_message TEXT NULL,
         card_color VARCHAR(50) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (bot_settings_id) REFERENCES bot_settings(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -677,6 +682,10 @@ export async function ensureDatabaseSchema() {
 
     // Adiciona colunas que podem não ter sido criadas na v1
     await ensureColumnExists(connection, "bot_steps", "media_url", "VARCHAR(1024) NULL");
+    await ensureColumnExists(connection, "bot_steps", "position_x", "FLOAT NOT NULL DEFAULT 0");
+    await ensureColumnExists(connection, "bot_steps", "position_y", "FLOAT NOT NULL DEFAULT 0");
+    await ensureColumnExists(connection, "bot_steps", "created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
+    await ensureColumnExists(connection, "bot_steps", "updated_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
 
     await ensureIndexExists(
       connection,
