@@ -1,4 +1,5 @@
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import { normalizeWaMessageId } from "@/lib/wa-message-id";
 
 function logInfo(message: string, data?: any) {
   console.log(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
@@ -353,6 +354,7 @@ export async function processBotFlow(
 
     const apiVersion = p.meta_graph_version || "v20.0";
     let isSuccess = false;
+    let waMessageId: string | null = null;
     
     try {
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
@@ -366,6 +368,12 @@ export async function processBotFlow(
 
       if (r.ok) {
         isSuccess = true;
+        try {
+          const responseJson = await r.json();
+          waMessageId = normalizeWaMessageId(responseJson?.messages?.[0]?.id) || null;
+        } catch (e) {
+          // Ignore
+        }
       } else {
         const errBody = await r.text();
         logError("Erro ao enviar mensagem do bot", { errBody });
@@ -373,6 +381,7 @@ export async function processBotFlow(
         if (process.env.NODE_ENV === "development" || p.whatsapp_access_token === "mock_token" || phoneDigits === "5511999999999") {
           logInfo("[DEV MODE] Prosseguindo com a atualização de estado mesmo com erro na Graph API");
           isSuccess = true;
+          waMessageId = "wam.mock_dev_" + Date.now();
         }
       }
     } catch (e: any) {
@@ -381,6 +390,7 @@ export async function processBotFlow(
       if (process.env.NODE_ENV === "development" || p.whatsapp_access_token === "mock_token" || phoneDigits === "5511999999999") {
         logInfo("[DEV MODE] Prosseguindo com a atualização de estado mesmo com falha de rede na Graph API");
         isSuccess = true;
+        waMessageId = "wam.mock_net_dev_" + Date.now();
       } else {
         throw e;
       }
@@ -389,6 +399,35 @@ export async function processBotFlow(
     if (isSuccess) {
       // 5. Update state
       await commitState();
+
+      // 6. Log the outgoing message in direct_messages
+      try {
+        let type = "text";
+        let bodyText = stepToExecute.message_content || "";
+        
+        if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
+          type = stepToExecute.message_type;
+          bodyText = stepToExecute.media_url || "";
+        }
+
+        await dbAdmin.from("direct_messages").insert({
+          user_id: userId,
+          contact_phone: phoneDigits,
+          direction: "outgoing",
+          type,
+          body: bodyText,
+          wa_message_id: waMessageId,
+          status: "sent",
+          metadata: {
+            step_id: stepToExecute.id,
+            bot_triggered: true,
+            payload
+          }
+        });
+        logInfo("Mensagem enviada pelo bot salva em direct_messages", { waMessageId });
+      } catch (logErr: any) {
+        logError("Erro ao gravar mensagem enviada pelo bot em direct_messages", { error: logErr.message });
+      }
     }
   } catch (err: any) {
     logError("Exceção fatal no processBotFlow", { error: err.message });

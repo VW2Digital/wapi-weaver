@@ -28,8 +28,8 @@ globalThis.fetch = async (url: any, options: any) => {
     return {
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ message_id: "wam.mock_out_" + Date.now() }),
-      json: async () => ({ message_id: "wam.mock_out_" + Date.now() })
+      text: async () => JSON.stringify({ messages: [{ id: "wam.mock_out_" + Date.now() }] }),
+      json: async () => ({ messages: [{ id: "wam.mock_out_" + Date.now() }] })
     } as any;
   }
   // Let local webhook requests pass through normally
@@ -220,6 +220,7 @@ async function main() {
     await dbAdmin.from("bot_steps").delete().eq("id", "flow_test_step_success");
     await dbAdmin.from("whatsapp_flow_submissions").delete().eq("user_id", userId).eq("contact_phone", phoneDigits);
     await dbAdmin.from("bot_conversation_state").delete().eq("user_id", userId).eq("contact_number", phoneDigits);
+    await dbAdmin.from("direct_messages").delete().eq("user_id", userId).eq("contact_phone", phoneDigits);
     
     // Restore profile secret
     await dbAdmin
