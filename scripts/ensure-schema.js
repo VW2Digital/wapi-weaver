@@ -522,7 +522,7 @@ export async function ensureDatabaseSchema() {
       CREATE TABLE IF NOT EXISTS bot_settings (
         id VARCHAR(36) NOT NULL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
-        instance_id VARCHAR(50) NOT NULL,
+        instance_id VARCHAR(50) NULL,
         is_active BOOLEAN NOT NULL DEFAULT FALSE,
         pause_timeout_minutes INT NOT NULL DEFAULT 60,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -532,6 +532,36 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+
+    // Migração: garante que instance_id é NULL (era NOT NULL em versões antigas)
+    // sem essa correção, usuários sem WhatsApp configurado não conseguem salvar o fluxo do bot
+    try {
+      const [cols] = await connection.query(
+        `SELECT IS_NULLABLE FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'bot_settings'
+           AND COLUMN_NAME = 'instance_id'
+         LIMIT 1`
+      );
+      if (cols.length > 0) {
+        if (cols[0].IS_NULLABLE === 'NO') {
+          logSchema('Migrando bot_settings.instance_id de NOT NULL para NULL...');
+          await connection.query(
+            `ALTER TABLE bot_settings MODIFY COLUMN instance_id VARCHAR(50) NULL`
+          );
+          logSchema('Migração bot_settings.instance_id concluída.');
+        }
+        // Sempre limpa strings vazias — independente da versão anterior
+        const [updateResult] = await connection.query(
+          `UPDATE bot_settings SET instance_id = NULL WHERE instance_id = ''`
+        );
+        if (Number(updateResult?.affectedRows) > 0) {
+          logSchema(`Limpeza: ${updateResult.affectedRows} registro(s) com instance_id vazio convertidos para NULL.`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Schema] Falha ao migrar bot_settings.instance_id (não crítico):', err.message);
+    }
 
     await ensureTableExists(
       connection,

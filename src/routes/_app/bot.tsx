@@ -92,14 +92,14 @@ function BotPage() {
   const saveBatch = useMutation({
     mutationFn: async (payload: any[]) => {
       const res = await saveStepsBatchFn({ data: payload });
-      if (!res.ok) throw new Error(res.error);
+      if (!res.ok) throw new Error(res.error || "Erro ao salvar o fluxo");
       return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["botSteps"] });
       toast.success("Fluxo salvo com sucesso!");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message || "Erro desconhecido ao salvar"),
   });
 
   const handleAddStep = () => {
@@ -211,7 +211,6 @@ function BotPage() {
         {/* CANVAS */}
         <div className="flex-1 relative">
           <BotFlowCanvas 
-            key={steps.length > 0 ? steps[0].id : 'empty'} 
             steps={steps} 
             onStepsChange={setSteps} 
             onNodeClick={setSelectedStep} 

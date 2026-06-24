@@ -1,9 +1,13 @@
 
-
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
 
+/**
+ * Obtém ou cria o registro bot_settings do usuário logado.
+ * instance_id é NULL quando o usuário ainda não configurou o WhatsApp —
+ * isso é intencional e suportado pelo schema (NULL, não NOT NULL).
+ */
 async function getOrCreateBotSettings(context: any) {
   const { data: p } = await context.db
     .from("profiles")
@@ -11,13 +15,18 @@ async function getOrCreateBotSettings(context: any) {
     .eq("id", context.userId)
     .maybeSingle();
 
-  let { data: settings } = await context.db
+  let { data: settings, error: fetchError } = await context.db
     .from("bot_settings")
     .select("*")
     .eq("user_id", context.userId)
     .maybeSingle();
 
+  if (fetchError) {
+    return { ok: false as const, error: `Erro ao buscar configurações do bot: ${fetchError.message}` };
+  }
+
   if (!settings) {
+    // instance_id pode ser NULL — o schema agora permite isso
     const { data: newSettings, error } = await context.db
       .from("bot_settings")
       .insert({
@@ -30,9 +39,12 @@ async function getOrCreateBotSettings(context: any) {
       .select("*")
       .single();
 
-    if (error) return { ok: false as const, error: error.message };
+    if (error) {
+      return { ok: false as const, error: `Erro ao criar configurações do bot: ${error.message}` };
+    }
     settings = newSettings;
   } else if (p?.whatsapp_phone_number_id && settings.instance_id !== p.whatsapp_phone_number_id) {
+    // Sincroniza instance_id quando o usuário configurou o WhatsApp depois
     const { data: updatedSettings, error } = await context.db
       .from("bot_settings")
       .update({ instance_id: p.whatsapp_phone_number_id })
@@ -64,10 +76,7 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
 
     const { error } = await context.db
       .from("bot_settings")
-      .update({
-        is_active: data.isActive,
-        instance_id: result.profile?.whatsapp_phone_number_id || result.settings.instance_id || null,
-      })
+      .update({ is_active: data.isActive })
       .eq("id", result.settings.id);
 
     if (error) return { ok: false, error: error.message };
@@ -78,17 +87,19 @@ export const listBotSteps = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }: { context: any }) => {
     const result = await getOrCreateBotSettings(context);
-    if (!result.ok) return [];
+    if (!result.ok) throw new Error(result.error || "Falha ao obter configurações do bot");
 
-    const { data } = await context.db
+    const { data, error } = await context.db
       .from("bot_steps")
       .select("*")
       .eq("bot_settings_id", result.settings.id)
       .order("step_order", { ascending: true });
 
+    if (error) throw new Error(`Falha ao carregar passos: ${error.message}`);
     return data || [];
   });
 
+// Validator para um único step
 const saveBotStepInput = z.object({
   id: z.string().optional(),
   step_order: z.number(),
@@ -112,12 +123,12 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
   .handler(async ({ data, context }: { data: any[]; context: any }) => {
     const result = await getOrCreateBotSettings(context);
-    if (!result.ok) return result;
+    if (!result.ok) return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
 
     const settings = result.settings;
     const incomingIds = data.map(s => s.id).filter(Boolean);
 
-    // Delete steps not in incoming list
+    // Remove steps que não estão mais no fluxo
     if (incomingIds.length > 0) {
       const { error: deleteError } = await context.db
         .from("bot_steps")
@@ -137,10 +148,12 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
       }
     }
 
-    // Primeira passada: cria/atualiza os steps SEM next_step_id para não quebrar FK
+    // 1ª passagem: upsert de todos os steps SEM next_step_id (evita FK circular)
     for (const step of data) {
+      const stepId = step.id || crypto.randomUUID();
       const basePayload = {
         bot_settings_id: settings.id,
+        user_id: context.userId,
         step_order: step.step_order,
         trigger_type: step.trigger_type,
         trigger_value: step.trigger_value || null,
@@ -150,7 +163,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         media_caption: step.media_caption || null,
         footer_text: step.footer_text || null,
         buttons_config: step.buttons_config || null,
-        next_step_id: null,
+        next_step_id: null,   // resolve na 2ª passagem
         delay_seconds: Number(step.delay_seconds || 0),
         position_x: step.position_x || 0,
         position_y: step.position_y || 0,
@@ -160,52 +173,33 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         card_color: step.card_color || null,
       };
 
-      if (step.id) {
-        const { data: existing } = await context.db
-          .from("bot_steps")
-          .select("id")
-          .eq("id", step.id)
-          .maybeSingle();
+      // Verifica se o step já existe no banco
+      const { data: existing } = await context.db
+        .from("bot_steps")
+        .select("id")
+        .eq("id", stepId)
+        .maybeSingle();
 
-        if (existing?.id) {
-          const { error } = await context.db.from("bot_steps").update(basePayload).eq("id", step.id);
-          if (error) {
-            return { ok: false, error: `Falha ao atualizar passo ${step.step_order}: ${error.message}` };
-          }
-        } else {
-          const { error } = await context.db.from("bot_steps").insert({
-            id: step.id,
-            user_id: context.userId,
-            ...basePayload,
-          });
-          if (error) {
-            return { ok: false, error: `Falha ao inserir passo ${step.step_order}: ${error.message}` };
-          }
-        }
+      if (existing?.id) {
+        const { error } = await context.db.from("bot_steps").update(basePayload).eq("id", stepId);
+        if (error) return { ok: false, error: `Falha ao atualizar passo ${step.step_order}: ${error.message}` };
       } else {
-        const { error } = await context.db.from("bot_steps").insert({
-          id: crypto.randomUUID(),
-          user_id: context.userId,
-          ...basePayload,
-        });
-        if (error) {
-          return { ok: false, error: `Falha ao inserir passo ${step.step_order}: ${error.message}` };
-        }
+        const { error } = await context.db.from("bot_steps").insert({ id: stepId, ...basePayload });
+        if (error) return { ok: false, error: `Falha ao inserir passo ${step.step_order}: ${error.message}` };
+        // guarda o id gerado no objeto local para a 2ª passagem
+        step.id = stepId;
       }
     }
 
-    // Segunda passada: resolve links entre steps quando todos já existem
+    // 2ª passagem: resolve links next_step_id agora que todos existem
     for (const step of data) {
-      if (!step.id) continue;
-      const linkPayload = {
-        next_step_id: step.next_step_id || null,
-      };
-      const { error } = await context.db.from("bot_steps").update(linkPayload).eq("id", step.id);
+      if (!step.next_step_id) continue;
+      const { error } = await context.db
+        .from("bot_steps")
+        .update({ next_step_id: step.next_step_id })
+        .eq("id", step.id);
       if (error) {
-        return {
-          ok: false,
-          error: `Falha ao vincular destino do passo ${step.step_order}: ${error.message}`,
-        };
+        return { ok: false, error: `Falha ao vincular passo ${step.step_order}: ${error.message}` };
       }
     }
 

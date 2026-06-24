@@ -546,7 +546,7 @@ CREATE INDEX idx_opt_audit_created ON opportunity_audit_logs(created_at);
 CREATE TABLE IF NOT EXISTS bot_settings (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
-  instance_id VARCHAR(50) NOT NULL,
+  instance_id VARCHAR(50) NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
   pause_timeout_minutes INT NOT NULL DEFAULT 60,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -603,7 +603,7 @@ CREATE TABLE IF NOT EXISTS bot_conversation_state (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
   contact_number VARCHAR(50) NOT NULL,
-  instance_id VARCHAR(50) NOT NULL,
+  instance_id VARCHAR(50) NULL,
   current_step_id VARCHAR(36) NULL,
   last_interaction DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_paused BOOLEAN NOT NULL DEFAULT FALSE,
@@ -628,7 +628,7 @@ CREATE INDEX idx_bot_conv_state_contact ON bot_conversation_state(contact_number
 CREATE TABLE IF NOT EXISTS ai_agent_settings (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
-  instance_id VARCHAR(50) NOT NULL,
+  instance_id VARCHAR(50) NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
   api_key VARCHAR(255) NULL,
   model VARCHAR(50) NOT NULL DEFAULT 'gemini-2.5-flash',
