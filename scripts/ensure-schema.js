@@ -585,14 +585,51 @@ export async function ensureDatabaseSchema() {
         assign_user_id VARCHAR(36) NULL,
         handoff_message TEXT NULL,
         card_color VARCHAR(50) NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (bot_settings_id) REFERENCES bot_settings(id) ON DELETE CASCADE,
-        FOREIGN KEY (next_step_id) REFERENCES bot_steps(id) ON DELETE SET NULL
+        FOREIGN KEY (bot_settings_id) REFERENCES bot_settings(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+
+    // Migração: remove as chaves estrangeiras obsoletas de next_step_id
+    // para permitir valores sentinel como -999 (handoff) e -997 (restart)
+    try {
+      const [fksSteps] = await connection.query(
+        `SELECT CONSTRAINT_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'bot_steps'
+           AND COLUMN_NAME = 'next_step_id'
+           AND REFERENCED_TABLE_NAME = 'bot_steps'`
+      );
+      for (const fk of fksSteps) {
+        const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
+        if (fkName) {
+          logSchema(`Migração: Removendo chave estrangeira obsoleta \`${fkName}\` da tabela \`bot_steps\`...`);
+          await connection.query(`ALTER TABLE \`bot_steps\` DROP FOREIGN KEY \`${fkName}\``);
+          logSchema(`Chave estrangeira \`${fkName}\` de \`bot_steps\` removida.`);
+        }
+      }
+
+      const [fksOptions] = await connection.query(
+        `SELECT CONSTRAINT_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'bot_step_options'
+           AND COLUMN_NAME = 'next_step_id'
+           AND REFERENCED_TABLE_NAME = 'bot_steps'`
+      );
+      for (const fk of fksOptions) {
+        const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
+        if (fkName) {
+          logSchema(`Migração: Removendo chave estrangeira obsoleta \`${fkName}\` da tabela \`bot_step_options\`...`);
+          await connection.query(`ALTER TABLE \`bot_step_options\` DROP FOREIGN KEY \`${fkName}\``);
+          logSchema(`Chave estrangeira \`${fkName}\` de \`bot_step_options\` removida.`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Schema] Falha ao migrar/remover chaves estrangeiras de next_step_id (não crítico):', err.message);
+    }
 
     await ensureTableExists(
       connection,
@@ -610,8 +647,7 @@ export async function ensureDatabaseSchema() {
         assign_user_id VARCHAR(36) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (step_id) REFERENCES bot_steps(id) ON DELETE CASCADE,
-        FOREIGN KEY (next_step_id) REFERENCES bot_steps(id) ON DELETE SET NULL
+        FOREIGN KEY (step_id) REFERENCES bot_steps(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
