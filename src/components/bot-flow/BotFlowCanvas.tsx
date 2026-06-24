@@ -54,6 +54,33 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
         }
       }
 
+      // 1b. Conexão de sucesso do WhatsApp Flow
+      if (s.message_type === "whatsapp_flow" && s.buttons_config) {
+        try {
+          const configObj = typeof s.buttons_config === "string"
+            ? JSON.parse(s.buttons_config)
+            : s.buttons_config;
+          const targetId = configObj?.next_step_on_success;
+          if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+            const targetExists = steps.some((step) => step.id === targetId);
+            if (targetExists) {
+              newEdges.push({
+                id: `e-${s.id}-${targetId}-flow-success`,
+                source: s.id,
+                target: targetId,
+                type: "smoothstep",
+                label: "Sucesso ✔",
+                style: { stroke: "#10b981", strokeWidth: 2 },
+                labelStyle: { fill: "#10b981", fontWeight: 600, fontSize: 10 },
+                animated: true,
+              });
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
       // 2. Conexões de botões interativos
       if (s.message_type === "buttons" && s.buttons_config) {
         try {

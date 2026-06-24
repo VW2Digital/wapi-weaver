@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual, randomUUID } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { processBotFlow } from "@/lib/botflow-executor.server";
@@ -315,14 +315,78 @@ async function processInboundDirectMessages(value: any, userId: string) {
       body = m.button?.text ?? "[Botão]";
       buttonPayload = m.button?.payload ?? "";
     } else if (m.type === "interactive") {
-      body =
-        m.interactive?.button_reply?.title ??
-        m.interactive?.list_reply?.title ??
-        "[Interação recebida]";
-      buttonPayload =
-        m.interactive?.button_reply?.id ??
-        m.interactive?.list_reply?.id ??
-        "";
+      let isFlowReply = false;
+      let flowToken = "";
+      let responseJsonObj: any = null;
+
+      if (m.interactive?.type === "nfm_reply" && m.interactive.nfm_reply?.name === "flow") {
+        const responseJsonStr = m.interactive.nfm_reply.response_json;
+        if (responseJsonStr) {
+          try {
+            responseJsonObj = JSON.parse(responseJsonStr);
+            flowToken = responseJsonObj?.flow_token || "";
+            isFlowReply = true;
+            body = "[Formulário Flow Enviado]";
+            
+            // Grava a submissão
+            const submissionId = randomUUID();
+            await dbAdmin.from("whatsapp_flow_submissions").insert({
+              id: submissionId,
+              user_id: userId,
+              contact_phone: phoneDigits,
+              flow_id: responseJsonObj?.wa_flow_response_params?.flow_id || "unknown",
+              flow_token: flowToken,
+              response_json: responseJsonObj,
+            });
+            logInfo("Submissão de Flow registrada com sucesso", { submissionId });
+          } catch (e: any) {
+            logError("Erro ao processar submissão do WhatsApp Flow", e);
+          }
+        }
+      }
+
+      if (!isFlowReply) {
+        body =
+          m.interactive?.button_reply?.title ??
+          m.interactive?.list_reply?.title ??
+          "[Interação recebida]";
+        buttonPayload =
+          m.interactive?.button_reply?.id ??
+          m.interactive?.list_reply?.id ??
+          "";
+      } else {
+        // Para Flow, precisamos obter o next_step_on_success
+        // O flowToken tem o formato "session:<telefone>:<stepId>"
+        let originalStepId = "";
+        if (flowToken && flowToken.startsWith("session:")) {
+          const parts = flowToken.split(":");
+          if (parts.length >= 3) {
+            originalStepId = parts[2];
+          }
+        }
+
+        if (originalStepId) {
+          const { data: step } = await dbAdmin
+            .from("bot_steps")
+            .select("buttons_config")
+            .eq("id", originalStepId)
+            .maybeSingle();
+
+          if (step && step.buttons_config) {
+            try {
+              const configObj = typeof step.buttons_config === "string"
+                ? JSON.parse(step.buttons_config)
+                : step.buttons_config;
+              const nextSuccess = configObj?.next_step_on_success;
+              if (nextSuccess) {
+                buttonPayload = `step:${nextSuccess}`;
+              }
+            } catch (e: any) {
+              logError("Erro ao processar buttons_config do step original do flow", e);
+            }
+          }
+        }
+      }
     } else {
       body = `[Mensagem de tipo ${m.type} recebida]`;
     }

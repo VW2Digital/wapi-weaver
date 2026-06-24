@@ -11,9 +11,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus, GripVertical } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { listWhatsAppFlows } from "@/lib/botflow.functions";
 
 export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep, steps, agentName = "Atendente" }: any) {
   const [config, setConfig] = useState<any>({});
+  
+  const listFlowsFn = useServerFn(listWhatsAppFlows);
+  const flowsQuery = useQuery({
+    queryKey: ["whatsappFlows"],
+    queryFn: () => listFlowsFn(),
+  });
+  const flows = flowsQuery.data?.flows || [];
 
   const getStepTitle = (step: any) => {
     if (!step) return "Passo";
@@ -445,13 +455,136 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
         );
       }
 
+      case "whatsapp_flow": {
+        const flowId = config?.flow_id || "";
+        const flowName = config?.flow_name || "";
+        const flowCta = config?.flow_cta || config?.cta || "Abrir Formulário";
+        const successStepId = config?.next_step_on_success || "";
+
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <Label className="text-sm font-semibold">Configuração do Flow</Label>
+            
+            {/* Seleção do Flow */}
+            <div className="space-y-2">
+              <Label className="text-xs">Selecionar WhatsApp Flow</Label>
+              {flows.length > 0 ? (
+                <Select
+                  value={flowId || "none"}
+                  onValueChange={(val) => {
+                    const selected = flows.find((f: any) => f.flow_id === val);
+                    updateConfig({
+                      ...config,
+                      flow_id: val === "none" ? "" : val,
+                      flow_name: selected ? selected.flow_name : "",
+                    });
+                  }}
+                >
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue placeholder="Escolha o fluxo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum (Digitar ID)</SelectItem>
+                    {flows.map((f: any) => (
+                      <SelectItem key={f.id} value={f.flow_id}>
+                        {f.flow_name} ({f.flow_id})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-[10px] text-muted-foreground italic mb-1">
+                  Nenhum flow importado no painel. Insira o ID manualmente abaixo:
+                </div>
+              )}
+            </div>
+
+            {/* Digitar ID manualmente se necessário */}
+            <div className="space-y-2">
+              <Label className="text-xs">ID do Flow (Meta Business)</Label>
+              <Input
+                placeholder="Ex: 789123456"
+                className="text-xs h-8 font-mono"
+                value={flowId}
+                onChange={(e) => {
+                  updateConfig({
+                    ...config,
+                    flow_id: e.target.value,
+                  });
+                }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Nome do Flow</Label>
+              <Input
+                placeholder="Ex: Cadastro de Cliente"
+                className="text-xs h-8"
+                value={flowName}
+                onChange={(e) => {
+                  updateConfig({
+                    ...config,
+                    flow_name: e.target.value,
+                  });
+                }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Texto do Botão (CTA)</Label>
+              <Input
+                placeholder="Ex: Preencher Cadastro"
+                className="text-xs h-8"
+                value={flowCta}
+                onChange={(e) => {
+                  updateConfig({
+                    ...config,
+                    flow_cta: e.target.value,
+                  });
+                }}
+              />
+            </div>
+
+            {/* Próximo Passo após preenchimento */}
+            <div className="space-y-2 border-t pt-3">
+              <Label className="text-xs font-semibold text-green-600 flex items-center gap-1">
+                <span>Passo de Sucesso (Ao Finalizar)</span>
+              </Label>
+              <Select
+                value={successStepId || "none"}
+                onValueChange={(val) => {
+                  updateConfig({
+                    ...config,
+                    next_step_on_success: val === "none" ? "" : val,
+                  });
+                }}
+              >
+                <SelectTrigger className="text-xs h-8">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum (Terminar fluxo)</SelectItem>
+                  {steps
+                    .filter((s: any) => s.id !== selectedStep.id)
+                    .map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {renderStepTargetItem(s)}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        );
+      }
+
       default:
         return null;
     }
   };
 
   const isMedia = ["image", "video", "audio", "document", "buttons", "list", "cta_url"].includes(selectedStep.message_type);
-  const isInteractive = ["button", "buttons", "list", "cta_url", "product", "product_list", "catalog_message"].includes(
+  const isInteractive = ["button", "buttons", "list", "cta_url", "product", "product_list", "catalog_message", "whatsapp_flow"].includes(
     selectedStep.message_type,
   );
 
@@ -517,6 +650,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
               <SelectItem value="buttons">Botões de Resposta</SelectItem>
               <SelectItem value="list">Lista Dinâmica</SelectItem>
               <SelectItem value="cta_url">Botão de Link (CTA)</SelectItem>
+              <SelectItem value="whatsapp_flow">WhatsApp Flow</SelectItem>
               <SelectItem value="product">Produto Único</SelectItem>
               <SelectItem value="product_list">Lista de Produtos</SelectItem>
               <SelectItem value="catalog_message">Catálogo Completo</SelectItem>

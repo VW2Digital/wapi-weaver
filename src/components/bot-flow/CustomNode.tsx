@@ -11,6 +11,7 @@ import {
   FileText,
   Video,
   Music,
+  FileJson,
 } from "lucide-react";
 
 export function CustomNode({ data, selected }: any) {
@@ -38,6 +39,8 @@ export function CustomNode({ data, selected }: any) {
         return <List className="w-4 h-4 text-teal-500" />;
       case "cta_url":
         return <Link className="w-4 h-4 text-indigo-500" />;
+      case "whatsapp_flow":
+        return <FileJson className="w-4 h-4 text-teal-600" />;
       case "product":
       case "product_list":
       case "catalog_message":
@@ -251,6 +254,31 @@ export function CustomNode({ data, selected }: any) {
             {retailerId && (
               <div>
                 Produto SKU: <span className="font-mono text-foreground">{retailerId}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* WhatsApp Flow Block */}
+      {step.message_type === "whatsapp_flow" && (() => {
+        const flowName = config?.flow_name || "Formulário WhatsApp";
+        const ctaText = config?.flow_cta || config?.cta || "Preencher";
+        const successDest = getTargetLabel(config?.next_step_on_success);
+        return (
+          <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2 text-[10px] text-muted-foreground">
+            <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm text-foreground">
+              <span className="font-medium truncate">{ctaText}</span>
+              <span className="text-[9px] font-bold text-teal-600 bg-teal-500/10 px-1.5 py-0.5 rounded">
+                Flow
+              </span>
+            </div>
+            <div className="truncate px-1">
+              Fluxo: <span className="font-semibold text-foreground">{flowName}</span>
+            </div>
+            {successDest && (
+              <div className="px-1 text-[9px] text-green-600 font-semibold truncate">
+                Sucesso: <span className="font-bold text-foreground">→ {successDest}</span>
               </div>
             )}
           </div>
