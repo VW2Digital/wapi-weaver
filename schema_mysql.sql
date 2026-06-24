@@ -648,3 +648,33 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (ai_agent_settings_id) REFERENCES ai_agent_settings(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------------
+-- WHATSAPP FLOWS
+-- -------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS whatsapp_flows (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  flow_id VARCHAR(100) NOT NULL UNIQUE,
+  flow_name VARCHAR(255) NOT NULL,
+  waba_id VARCHAR(100) NULL,
+  phone_number_id VARCHAR(100) NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'draft',
+  flow_json JSON NULL,
+  endpoint_url VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS whatsapp_flow_submissions (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  contact_phone VARCHAR(50) NOT NULL,
+  flow_id VARCHAR(100) NOT NULL,
+  flow_token VARCHAR(255) NULL,
+  response_json JSON NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -277,3 +277,15 @@ export const deleteBotStep = createServerFn({ method: "POST" })
     if (error) return { ok: false, error: error.message };
     return { ok: true };
   });
+
+export const listWhatsAppFlows = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }: { context: any }) => {
+    const { data, error } = await context.db
+      .from("whatsapp_flows")
+      .select("*")
+      .eq("user_id", context.userId);
+    if (error) return { ok: false as const, error: error.message };
+    return { ok: true as const, flows: data || [] };
+  });
+
