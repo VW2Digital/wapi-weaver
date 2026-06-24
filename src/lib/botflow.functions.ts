@@ -175,7 +175,21 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
       };
 
       if (step.id) {
-        await context.db.from("bot_steps").update(payload).eq("id", step.id);
+        const { data: existing } = await context.db
+          .from("bot_steps")
+          .select("id")
+          .eq("id", step.id)
+          .maybeSingle();
+
+        if (existing?.id) {
+          await context.db.from("bot_steps").update(payload).eq("id", step.id);
+        } else {
+          await context.db.from("bot_steps").insert({
+            id: step.id,
+            user_id: context.userId,
+            ...payload,
+          });
+        }
       } else {
         await context.db.from("bot_steps").insert({ id: crypto.randomUUID(), user_id: context.userId, ...payload });
       }
@@ -233,12 +247,26 @@ export const saveBotStep = createServerFn({ method: "POST" })
 
     let result;
     if (data.id) {
-      result = await context.db
+      const { data: existing } = await context.db
         .from("bot_steps")
-        .update(payload)
+        .select("id")
         .eq("id", data.id)
-        .select("*")
-        .single();
+        .maybeSingle();
+
+      if (existing?.id) {
+        result = await context.db
+          .from("bot_steps")
+          .update(payload)
+          .eq("id", data.id)
+          .select("*")
+          .single();
+      } else {
+        result = await context.db
+          .from("bot_steps")
+          .insert({ id: data.id, user_id: context.userId, ...payload })
+          .select("*")
+          .single();
+      }
     } else {
       result = await context.db
         .from("bot_steps")
