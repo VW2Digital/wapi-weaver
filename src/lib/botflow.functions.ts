@@ -134,10 +134,11 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         .from("bot_steps")
         .delete()
         .eq("bot_settings_id", settings.id)
-        .not("id", "in", `(${incomingIds.map(id => `"${id}"`).join(",")})`);
+        .not("id", "in", incomingIds);
       if (deleteError) {
         return { ok: false, error: `Falha ao remover passos antigos: ${deleteError.message}` };
       }
+
     } else {
       const { error: deleteAllError } = await context.db
         .from("bot_steps")
