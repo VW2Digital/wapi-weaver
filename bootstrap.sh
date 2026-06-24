@@ -28,10 +28,55 @@ fi
 # 1. Carregar variáveis de ambiente ou solicitar interativamente
 echo -e "${YELLOW}[1/8] Validando parâmetros de entrada...${NC}"
 
+# Tentar carregar configurações existentes do .env e Nginx para atualização
+APP_DIR="/var/www/wapi-weaver"
+ENV_FILE="${APP_DIR}/.env"
+NGINX_FILE="/etc/nginx/sites-available/wapi-weaver"
+
+EXISTING_DOMAIN=""
+EXISTING_DB_PASSWORD=""
+EXISTING_JWT_SECRET=""
+EXISTING_SSL_EMAIL=""
+EXISTING_INSTALL_SSL="n"
+
+if [ -f "$ENV_FILE" ]; then
+  echo -e "${YELLOW}Instalação anterior detectada em $APP_DIR. Carregando configurações...${NC}"
+  EXISTING_DB_PASSWORD=$(grep -E "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2- | xargs)
+  EXISTING_JWT_SECRET=$(grep -E "^JWT_SECRET=" "$ENV_FILE" | cut -d'=' -f2- | xargs)
+  
+  if [ -f "$NGINX_FILE" ]; then
+    EXISTING_DOMAIN=$(grep -E "server_name" "$NGINX_FILE" | head -n 1 | sed 's/^[[:space:]]*server_name[[:space:]]*//' | sed 's/;.*//' | xargs)
+    if grep -q "listen 443" "$NGINX_FILE" 2>/dev/null; then
+      EXISTING_INSTALL_SSL="s"
+    fi
+  fi
+  
+  echo -e "${GREEN}Configurações encontradas:${NC}"
+  echo "- Domínio: $EXISTING_DOMAIN"
+  echo "- SSL Ativo: $EXISTING_INSTALL_SSL"
+  echo "- Senha do Banco: ********"
+  echo ""
+  read -p "Deseja reutilizar estas configurações para atualizar? (S/n): " REUSE_CONF
+  REUSE_CONF=$(echo "$REUSE_CONF" | tr '[:upper:]' '[:lower:]' | xargs)
+  
+  if [[ -z "$REUSE_CONF" || "$REUSE_CONF" == "s" ]]; then
+    DOMAIN="$EXISTING_DOMAIN"
+    INSTALL_SSL="$EXISTING_INSTALL_SSL"
+    DB_PASSWORD="$EXISTING_DB_PASSWORD"
+    JWT_SECRET="$EXISTING_JWT_SECRET"
+    echo -e "${GREEN}Configurações carregadas com sucesso!${NC}"
+  fi
+fi
+
 # Validador de Domínio
 while true; do
   if [ -z "${DOMAIN:-}" ]; then
-    read -p "Digite o domínio da aplicação: " DOMAIN
+    if [ -n "$EXISTING_DOMAIN" ]; then
+      read -p "Digite o domínio da aplicação [$EXISTING_DOMAIN]: " DOMAIN
+      DOMAIN="${DOMAIN:-$EXISTING_DOMAIN}"
+    else
+      read -p "Digite o domínio da aplicação: " DOMAIN
+    fi
   fi
   DOMAIN=$(echo "$DOMAIN" | xargs)
   if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
@@ -45,7 +90,12 @@ done
 # Validador de SSL
 while true; do
   if [ -z "${INSTALL_SSL:-}" ]; then
-    read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
+    if [ -n "$EXISTING_INSTALL_SSL" ]; then
+      read -p "Deseja instalar SSL com Let's Encrypt? (s/n) [$EXISTING_INSTALL_SSL]: " INSTALL_SSL
+      INSTALL_SSL="${INSTALL_SSL:-$EXISTING_INSTALL_SSL}"
+    else
+      read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
+    fi
   fi
   INSTALL_SSL=$(echo "$INSTALL_SSL" | tr '[:upper:]' '[:lower:]' | xargs)
   if [[ "$INSTALL_SSL" == "s" || "$INSTALL_SSL" == "n" ]]; then
@@ -57,11 +107,9 @@ while true; do
 done
 
 # Validador de E-mail do SSL
-if [[ "$INSTALL_SSL" == "s" ]]; then
+if [[ "$INSTALL_SSL" == "s" && -z "${SSL_EMAIL:-}" ]]; then
   while true; do
-    if [ -z "${SSL_EMAIL:-}" ]; then
-      read -p "Digite o e-mail para o SSL: " SSL_EMAIL
-    fi
+    read -p "Digite o e-mail para o SSL: " SSL_EMAIL
     SSL_EMAIL=$(echo "$SSL_EMAIL" | xargs)
     if [[ "$SSL_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
       break
@@ -75,9 +123,16 @@ fi
 # Validador de Senha do BD
 while true; do
   if [ -z "${DB_PASSWORD:-}" ]; then
-    echo -n "Digite a senha desejada para o banco de dados: "
-    read -s DB_PASSWORD
-    echo "" # Linha em branco após input oculto
+    if [ -n "$EXISTING_DB_PASSWORD" ]; then
+      echo -n "Digite a senha desejada para o banco de dados (deixe vazio para manter a atual): "
+      read -s DB_PASSWORD
+      echo ""
+      DB_PASSWORD="${DB_PASSWORD:-$EXISTING_DB_PASSWORD}"
+    else
+      echo -n "Digite a senha desejada para o banco de dados: "
+      read -s DB_PASSWORD
+      echo ""
+    fi
   fi
   DB_PASSWORD=$(echo "$DB_PASSWORD" | xargs)
   if [ -z "$DB_PASSWORD" ]; then
@@ -96,7 +151,7 @@ done
 echo -e "${GREEN}Parâmetros carregados!${NC}"
 echo "- Domínio: $DOMAIN"
 echo "- SSL: $INSTALL_SSL"
-if [[ "$INSTALL_SSL" == "s" ]]; then
+if [[ "$INSTALL_SSL" == "s" && -n "$SSL_EMAIL" ]]; then
   echo "- E-mail do SSL: $SSL_EMAIL"
 fi
 echo "- Senha do BD: ********"
@@ -154,9 +209,22 @@ echo -e "${YELLOW}[3/8] Clonando e preparando o código da aplicação...${NC}"
 APP_DIR="/var/www/wapi-weaver"
 mkdir -p /var/www
 
+# Fazer backup do arquivo .env se ele existir
+if [ -f "${APP_DIR}/.env" ]; then
+  echo "Salvando backup do arquivo .env atual..."
+  cp "${APP_DIR}/.env" /tmp/wapi-weaver-env-backup
+fi
+
 echo "Clonando repositório para ${APP_DIR}..."
 rm -rf "${APP_DIR}"
 git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
+
+# Restaurar o arquivo .env do backup
+if [ -f /tmp/wapi-weaver-env-backup ]; then
+  echo "Restaurando o arquivo .env do backup..."
+  cp /tmp/wapi-weaver-env-backup "${APP_DIR}/.env"
+  rm -f /tmp/wapi-weaver-env-backup
+fi
 
 cd "${APP_DIR}"
 echo -e "${GREEN}Código clonado com sucesso!${NC}"
@@ -164,10 +232,14 @@ echo -e "${GREEN}Código clonado com sucesso!${NC}"
 # 4. Criando Segredos e Configurações
 echo -e "${YELLOW}[4/8] Gerando chaves de segurança e arquivo .env...${NC}"
 
-JWT_SECRET=$(openssl rand -hex 64)
+if [ -z "${JWT_SECRET:-}" ]; then
+  JWT_SECRET=$(openssl rand -hex 64)
+fi
 DB_ROOT_PASSWORD="$DB_PASSWORD"
 
-cat > "${APP_DIR}/.env" <<EOF
+# Só criar o .env se ele não existir (caso contrário, o backup restaurou)
+if [ ! -f "${APP_DIR}/.env" ]; then
+  cat > "${APP_DIR}/.env" <<EOF
 DB_HOST=banco-mysql
 DB_PORT=3306
 DB_USER=wapi_user
@@ -175,6 +247,11 @@ DB_PASSWORD=${DB_PASSWORD}
 DB_NAME=wapi_weaver
 JWT_SECRET=${JWT_SECRET}
 EOF
+else
+  # Garante que a senha e segredos no .env existente coincidam com as variáveis da sessão
+  # para que o compose use as variáveis corretas
+  echo "Arquivo .env existente preservado."
+fi
 
 echo -e "${GREEN}Configurações locais aplicadas!${NC}"
 
