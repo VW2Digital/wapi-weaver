@@ -35,7 +35,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
       id: s.id,
       type: "custom",
       position: { x: s.position_x || 0, y: s.position_y || 0 },
-      data: { step: s },
+      data: { step: s, allSteps: steps },
     }));
 
     const newEdges: Edge[] = [];

@@ -639,12 +639,12 @@ function ChatPage() {
   const getDeptStyle = (dept: string): string => {
     const normalized = (dept || "").toLowerCase();
     if (normalized.includes("sucesso") || normalized.includes("cs")) {
-      return "bg-violet-50 text-violet-700 border-violet-100";
+      return "bg-violet-500/10 text-violet-700 border-violet-500/20 dark:text-violet-300";
     }
     if (normalized.includes("suporte") || normalized.includes("técnico")) {
-      return "bg-blue-50 text-blue-700 border-blue-100";
+      return "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:text-blue-300";
     }
-    return "bg-sky-50 text-sky-700 border-sky-100";
+    return "bg-sky-500/10 text-sky-700 border-sky-500/20 dark:text-sky-300";
   };
 
   const formatRelativeTime = (dateInput: any): string => {
@@ -1125,12 +1125,12 @@ function ChatPage() {
         {/* Sidebar de Contatos */}
         <div
           className={cn(
-            "w-full md:w-80 lg:w-96 border-r flex flex-col h-full bg-slate-50/30 shrink-0",
+            "w-full md:w-80 lg:w-96 border-r flex flex-col h-full bg-muted/20 shrink-0",
             selectedContact ? "hidden md:flex" : "flex",
           )}
         >
           {/* Abas Superiores com contadores e botões de ação */}
-          <div className="flex items-center justify-between p-3 border-b bg-slate-50/50 shrink-0">
+          <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-1.5 flex-1">
               <button
                 type="button"
@@ -1138,12 +1138,12 @@ function ChatPage() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "novos"
-                    ? "bg-slate-100 text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/55"
+                    ? "bg-background text-foreground shadow-sm border"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
               >
                 Novos
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                   {novosContacts.length}
                 </span>
               </button>
@@ -1154,12 +1154,12 @@ function ChatPage() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "meus"
-                    ? "bg-slate-100 text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/55"
+                    ? "bg-background text-foreground shadow-sm border"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
               >
                 Meus
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                   {meusContacts.length}
                 </span>
               </button>
@@ -1170,35 +1170,35 @@ function ChatPage() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "outros"
-                    ? "bg-slate-100 text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/55"
+                    ? "bg-background text-foreground shadow-sm border"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
               >
                 Outros
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                   {outrosContacts.length}
                 </span>
               </button>
             </div>
 
             <div className="flex items-center gap-1 shrink-0 ml-2">
-              <Button size="icon" variant="ghost" title="Arquivados" className="h-8 w-8 text-slate-500 hover:text-slate-800 rounded-lg">
+              <Button size="icon" variant="ghost" title="Arquivados" className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg">
                 <Archive className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" title="Menu" className="h-8 w-8 text-slate-500 hover:text-slate-800 rounded-lg">
+              <Button size="icon" variant="ghost" title="Menu" className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
           {/* Barra de Busca e botões de filtro */}
-          <div className="p-3 border-b flex flex-col gap-2 bg-white shrink-0">
+          <div className="p-3 border-b flex flex-col gap-2 bg-background shrink-0">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar atendimento"
-                  className="pl-8 h-9 text-xs rounded-full border-slate-200 bg-slate-50/50 focus-visible:bg-white focus-visible:ring-primary"
+                  className="pl-8 h-9 text-xs rounded-full border-border bg-muted/40 focus-visible:bg-background focus-visible:ring-primary"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -1211,19 +1211,19 @@ function ChatPage() {
                   onClick={() => setShowTagFilters(!showTagFilters)}
                   title="Filtro de etiquetas"
                   className={cn(
-                    "h-8 w-8 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-50 transition-colors",
-                    showTagFilters && "bg-slate-100 text-primary hover:bg-slate-100"
+                    "h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-colors",
+                    showTagFilters && "bg-muted text-primary hover:bg-muted"
                   )}
                 >
                   <Filter className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" title="Ordenar" className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg">
+                <Button size="icon" variant="ghost" title="Ordenar" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg">
                   <ArrowUpDown className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" title="Visualização" className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg">
+                <Button size="icon" variant="ghost" title="Visualização" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg">
                   <SlidersHorizontal className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" title="Novo Atendimento" className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg">
+                <Button size="icon" variant="ghost" title="Novo Atendimento" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg">
                   <FolderPlus className="h-4 w-4" />
                 </Button>
               </div>
@@ -1297,12 +1297,12 @@ function ChatPage() {
           </div>
 
           {/* Subheader Informativo */}
-          <div className="px-3.5 py-2 border-b bg-slate-50/20 text-xs text-slate-500 shrink-0">
-            Atendimento distribuído para <strong className="text-slate-700 font-semibold">{profile?.full_name || 'Amanda'}</strong>
+          <div className="px-3.5 py-2 border-b bg-muted/20 text-xs text-muted-foreground shrink-0">
+            Atendimento distribuído para <strong className="text-foreground font-semibold">{profile?.full_name || 'Amanda'}</strong>
           </div>
 
           {/* Lista de Contatos */}
-          <div className="flex-1 overflow-y-auto divide-y bg-white">
+          <div className="flex-1 overflow-y-auto divide-y bg-background">
             {contactsQuery.isLoading ? (
               <div className="p-4 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -1330,14 +1330,14 @@ function ChatPage() {
                       setReplyingTo(null);
                     }}
                     className={cn(
-                      "w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-slate-100",
-                      isSelected ? "bg-indigo-50/60" : "hover:bg-slate-50/50"
+                      "w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-border",
+                      isSelected ? "bg-primary/10" : "hover:bg-muted/40"
                     )}
                   >
                     {/* Avatar com WhatsApp Status Overlay */}
                     <div className="relative shrink-0">
                       <div
-                        className="h-11 w-11 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shadow-sm border border-slate-200"
+                        className="h-11 w-11 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shadow-sm border border-border"
                         style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                       >
                         {avatarUrl ? (
@@ -1359,8 +1359,8 @@ function ChatPage() {
                           getInitials(c.name ?? "")
                         )}
                       </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-white p-0.5 rounded-full shadow-sm">
-                        <div className="bg-[#25D366] p-0.5 rounded-full text-white flex items-center justify-center">
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-background p-0.5 rounded-full shadow-sm">
+                        <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
                           {/* Ícone discreto do WhatsApp */}
                           <svg
                             viewBox="0 0 24 24"
@@ -1376,7 +1376,7 @@ function ChatPage() {
                     {/* Conteúdo Central e Lateral Direito */}
                     <div className="flex-1 min-w-0 flex justify-between gap-2">
                       <div className="flex-1 min-w-0 space-y-1.5">
-                        <h4 className="font-bold text-sm text-slate-800 truncate leading-snug">
+                        <h4 className="font-bold text-sm text-foreground truncate leading-snug">
                           {c.name || "Sem Nome"}
                         </h4>
 
@@ -1395,7 +1395,7 @@ function ChatPage() {
                           </div>
                         )}
 
-                        <p className="text-xs text-slate-400 truncate leading-normal">
+                        <p className="text-xs text-muted-foreground truncate leading-normal">
                           {c.last_message_body || c.custom_fields?.company || "Sem mensagens"}
                         </p>
                       </div>
@@ -1411,12 +1411,12 @@ function ChatPage() {
                           {c.department}
                         </span>
 
-                        <span className="text-[10px] text-slate-400 select-none">
+                        <span className="text-[10px] text-muted-foreground select-none">
                           {c.last_message_time ? formatRelativeTime(c.last_message_time) : "sem data"}
                         </span>
 
                         {c.unread_count > 0 && (
-                          <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#c21e1e] text-white text-[10px] font-bold flex items-center justify-center shadow-sm select-none">
+                          <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center shadow-sm select-none">
                             {c.unread_count}
                           </span>
                         )}
@@ -1429,19 +1429,19 @@ function ChatPage() {
           </div>
 
           {/* Rodapé: Seletor de DDI + Telefone + Botão Conversar */}
-          <div className="p-3 border-t bg-slate-50/40 flex items-center gap-2 shrink-0">
+          <div className="p-3 border-t bg-muted/30 flex items-center gap-2 shrink-0">
             <div className="relative shrink-0">
               <select
                 value={countryCode}
                 onChange={(e) => setCountryCode(e.target.value)}
-                className="appearance-none bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 pr-7 cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary h-9 shadow-sm"
+                className="appearance-none bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground pr-7 cursor-pointer hover:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-primary h-9 shadow-sm"
               >
                 <option value="+55">+55</option>
                 <option value="+1">+1</option>
                 <option value="+351">+351</option>
                 <option value="+54">+54</option>
               </select>
-              <div className="absolute right-2 top-3 pointer-events-none text-slate-400">
+              <div className="absolute right-2 top-3 pointer-events-none text-muted-foreground">
                 <ChevronRight className="h-3 w-3 rotate-90" />
               </div>
             </div>
@@ -1462,7 +1462,7 @@ function ChatPage() {
                 }
                 setNewChatPhone(val);
               }}
-              className="flex-1 h-9 text-xs rounded-lg border-slate-200 focus-visible:ring-primary shadow-sm bg-white"
+              className="flex-1 h-9 text-xs rounded-lg border-border focus-visible:ring-primary shadow-sm bg-background"
             />
 
             <Button
@@ -1470,7 +1470,7 @@ function ChatPage() {
               variant="outline"
               onClick={handleStartNewChat}
               disabled={addContactMutation.isPending || !newChatPhone}
-              className="h-9 text-xs border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 px-4 rounded-full font-semibold transition-colors shadow-sm shrink-0"
+              className="h-9 text-xs border-primary/30 hover:border-primary/50 text-primary hover:text-primary hover:bg-primary/10 px-4 rounded-full font-semibold transition-colors shadow-sm shrink-0"
             >
               {addContactMutation.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1707,7 +1707,7 @@ function ChatPage() {
                       <span
                         className={cn(
                           "h-1.5 w-1.5 rounded-full",
-                          messagesQuery.isFetching ? "bg-primary animate-pulse" : "bg-green-500",
+                          messagesQuery.isFetching ? "bg-primary animate-pulse" : "bg-emerald-500",
                         )}
                       />
                       <span className="hidden sm:inline">
@@ -2137,31 +2137,31 @@ function ChatPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-48 p-1">
                         <DropdownMenuItem onClick={() => handleMediaAttachClick("image")}>
-                          <ImageIcon className="h-4 w-4 mr-2 text-blue-500" />
+                          <ImageIcon className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
                           <span>Imagem</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMediaAttachClick("audio")}>
-                          <Volume2 className="h-4 w-4 mr-2 text-orange-500" />
+                          <Volume2 className="h-4 w-4 mr-2 text-orange-600 dark:text-orange-400" />
                           <span>Áudio</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMediaAttachClick("video")}>
-                          <Video className="h-4 w-4 mr-2 text-red-500" />
+                          <Video className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
                           <span>Vídeo</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMediaAttachClick("document")}>
-                          <FileText className="h-4 w-4 mr-2 text-green-500" />
+                          <FileText className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" />
                           <span>Documento</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleMediaAttachClick("sticker")}>
-                          <Smile className="h-4 w-4 mr-2 text-yellow-500" />
+                          <Smile className="h-4 w-4 mr-2 text-amber-500 dark:text-amber-400" />
                           <span>Sticker</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setIsLocationModalOpen(true)}>
-                          <MapPin className="h-4 w-4 mr-2 text-rose-500" />
+                          <MapPin className="h-4 w-4 mr-2 text-rose-600 dark:text-rose-400" />
                           <span>Localização</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setIsContactModalOpen(true)}>
-                          <Users className="h-4 w-4 mr-2 text-indigo-500" />
+                          <Users className="h-4 w-4 mr-2 text-indigo-600 dark:text-indigo-400" />
                           <span>Contato</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setIsImageModalOpen(true)}>

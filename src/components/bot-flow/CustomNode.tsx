@@ -59,14 +59,47 @@ export function CustomNode({ data, selected }: any) {
     config = {};
   }
 
+  const getStepTitle = (stepLike: any) => {
+    if (!stepLike) return "Passo";
+    if (stepLike.trigger_type === "start") return "Início";
+    if (stepLike.trigger_type === "keyword" && stepLike.trigger_value) return `Palavra-chave: ${stepLike.trigger_value}`;
+    if (stepLike.trigger_type === "button" && stepLike.trigger_value) return `Botão: ${stepLike.trigger_value}`;
+    const text = String(stepLike.message_content || "").trim();
+    if (text) return text.length > 24 ? `${text.slice(0, 24)}...` : text;
+
+    const typeMap: Record<string, string> = {
+      text: "Mensagem",
+      image: "Imagem",
+      video: "Vídeo",
+      audio: "Áudio",
+      document: "Documento",
+      buttons: "Botões",
+      dynamic_buttons: "Botões",
+      list: "Lista",
+      cta_url: "Link",
+      product: "Produto",
+      product_list: "Produtos",
+      catalog_message: "Catálogo",
+    };
+    return typeMap[stepLike.message_type] || "Passo";
+  };
+
+  const findTargetStep = (targetId: string) => {
+    const steps = data?.allSteps || [];
+    return steps.find((s: any) => s.id === targetId);
+  };
+
   const getTargetLabel = (rawId: string) => {
     if (!rawId) return "";
     if (rawId === "-999") return "Atendente";
     if (rawId === "-997") return "Reiniciar";
     if (rawId.startsWith("step:")) {
-      return `#${rawId.replace("step:", "")}`;
+      const stepId = rawId.replace("step:", "");
+      const targetStep = findTargetStep(stepId);
+      return targetStep ? `#${targetStep.step_order} · ${getStepTitle(targetStep)}` : "Passo vinculado";
     }
-    return `#${rawId}`;
+    const targetStep = findTargetStep(rawId);
+    return targetStep ? `#${targetStep.step_order} · ${getStepTitle(targetStep)}` : "Passo vinculado";
   };
 
   return (

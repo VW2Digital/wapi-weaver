@@ -15,6 +15,41 @@ import { useState, useEffect } from "react";
 export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep, steps, agentName = "Atendente" }: any) {
   const [config, setConfig] = useState<any>({});
 
+  const getStepTitle = (step: any) => {
+    if (!step) return "Passo";
+    if (step.trigger_type === "start") return "Início";
+    if (step.trigger_type === "keyword" && step.trigger_value) return `Palavra-chave: ${step.trigger_value}`;
+    if (step.trigger_type === "button" && step.trigger_value) return `Botão: ${step.trigger_value}`;
+
+    const text = String(step.message_content || "").trim();
+    if (text) {
+      return text.length > 28 ? `${text.slice(0, 28)}...` : text;
+    }
+
+    const typeMap: Record<string, string> = {
+      text: "Mensagem de texto",
+      image: "Imagem",
+      video: "Vídeo",
+      audio: "Áudio",
+      document: "Documento",
+      buttons: "Botões",
+      dynamic_buttons: "Botões dinâmicos",
+      list: "Lista",
+      cta_url: "Botão de link",
+      product: "Produto",
+      product_list: "Lista de produtos",
+      catalog_message: "Catálogo",
+    };
+
+    return typeMap[step.message_type] || "Passo";
+  };
+
+  const getStepOptionLabel = (step: any) => `#${step.step_order} · ${getStepTitle(step)}`;
+
+  const renderStepTargetItem = (step: any) => (
+    <span className="truncate">{getStepOptionLabel(step)}</span>
+  );
+
   useEffect(() => {
     try {
       const parsed =
@@ -92,7 +127,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                       updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
                     }}
                   >
-                    <SelectTrigger className="w-[105px] shrink-0 text-xs h-8">
+                    <SelectTrigger className="w-[220px] shrink-0 text-xs h-8">
                       <SelectValue placeholder="Destino..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -108,7 +143,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                         .filter((s: any) => s.id !== selectedStep.id)
                         .map((s: any) => (
                           <SelectItem key={s.id} value={s.id}>
-                            #{s.step_order}
+                            {renderStepTargetItem(s)}
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -249,7 +284,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                                 .filter((s: any) => s.id !== selectedStep.id)
                                 .map((s: any) => (
                                   <SelectItem key={s.id} value={s.id}>
-                                    #{s.step_order}
+                                    {renderStepTargetItem(s)}
                                   </SelectItem>
                                 ))}
                             </SelectContent>
@@ -555,7 +590,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                 .filter((s: any) => s.id !== selectedStep.id)
                 .map((s: any) => (
                   <SelectItem key={s.id} value={s.id}>
-                    Passo {s.step_order} ({s.trigger_type})
+                    {renderStepTargetItem(s)}
                   </SelectItem>
                 ))}
             </SelectContent>
