@@ -7,10 +7,11 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
   database: process.env.DB_NAME || "wapi_weaver",
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  connectionLimit: 5,
+  queueLimit: 50,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  connectTimeout: 10000,
 });
 
 // Helper to run query and return results

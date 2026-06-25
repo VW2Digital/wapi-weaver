@@ -123,12 +123,21 @@ export const listChatContacts = createServerFn({ method: "GET" })
             ORDER BY dm.created_at DESC 
             LIMIT 1
           ) AS last_message_body,
-          (
-            SELECT dm.created_at 
-            FROM direct_messages dm 
-            WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
-            ORDER BY dm.created_at DESC 
-            LIMIT 1
+          COALESCE(
+            (
+              SELECT dm.created_at 
+              FROM direct_messages dm 
+              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
+              ORDER BY dm.created_at DESC 
+              LIMIT 1
+            ),
+            (
+              SELECT cm.sent_at
+              FROM campaign_messages cm
+              WHERE cm.user_id = c.user_id AND cm.to_phone = c.phone_e164
+              ORDER BY cm.sent_at DESC
+              LIMIT 1
+            )
           ) AS last_message_time,
           GREATEST(
             COALESCE(c.is_unread, 0),
@@ -153,9 +162,15 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN profiles p ON p.id = u.id
         LEFT JOIN sales_stages s ON s.id = c.kanban_stage_id
         WHERE c.user_id = ?
-          AND EXISTS (
-            SELECT 1 FROM direct_messages dm
-            WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
+          AND (
+            EXISTS (
+              SELECT 1 FROM direct_messages dm
+              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
+            )
+            OR EXISTS (
+              SELECT 1 FROM campaign_messages cm
+              WHERE cm.user_id = c.user_id AND cm.to_phone = c.phone_e164
+            )
           )
         ORDER BY 
           c.is_pinned DESC,
@@ -165,6 +180,13 @@ export const listChatContacts = createServerFn({ method: "GET" })
               FROM direct_messages dm 
               WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
               ORDER BY dm.created_at DESC 
+              LIMIT 1
+            ),
+            (
+              SELECT cm.sent_at
+              FROM campaign_messages cm
+              WHERE cm.user_id = c.user_id AND cm.to_phone = c.phone_e164
+              ORDER BY cm.sent_at DESC
               LIMIT 1
             ),
             c.created_at
