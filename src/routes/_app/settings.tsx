@@ -96,6 +96,8 @@ import {
   Trash2,
   ShieldCheck,
   Lock,
+  Eye,
+  EyeOff,
   Monitor,
   Sun,
   Moon,
@@ -243,6 +245,7 @@ function SettingsPage() {
   const registerPhone = useServerFn(registerPhoneNumber);
 
   const [formPin, setFormPin] = useState("");
+  const [showSetupPin, setShowSetupPin] = useState(false);
 
   const registerMainPhoneMut = useMutation({
     mutationFn: async (payload: { phoneId: string; pin: string }) => {
@@ -601,16 +604,42 @@ function SettingsPage() {
                       </p>
                       <div className="flex flex-col sm:flex-row gap-3 items-end">
                         <div className="flex-1 space-y-1.5">
-                          <Label htmlFor="whatsapp_pin_setup">PIN de Segurança (2FA - 6 dígitos)</Label>
-                          <Input
-                            id="whatsapp_pin_setup"
-                            type="password"
-                            placeholder="Ex: 123456"
-                            value={formPin}
-                            onChange={(e) => setFormPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                            className="font-mono text-center tracking-widest text-sm"
-                            maxLength={6}
-                          />
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="whatsapp_pin_setup">PIN de Segurança (2FA - 6 dígitos)</Label>
+                            <button
+                              type="button"
+                              className="text-xs text-primary hover:underline font-medium"
+                              onClick={() => {
+                                const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                                setFormPin(pin);
+                                toast.success(`PIN gerado: ${pin}`);
+                              }}
+                            >
+                              Gerar PIN Aleatório
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <Input
+                              id="whatsapp_pin_setup"
+                              type={showSetupPin ? "text" : "password"}
+                              placeholder="Ex: 123456"
+                              value={formPin}
+                              onChange={(e) => setFormPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                              className="font-mono text-center tracking-widest text-sm pr-10"
+                              maxLength={6}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSetupPin(!showSetupPin)}
+                              className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                            >
+                              {showSetupPin ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         <Button
                           type="button"
@@ -3444,6 +3473,7 @@ function WABASection() {
   const [codeLanguage, setCodeLanguage] = useState("pt_BR");
   const [verificationCode, setVerificationCode] = useState("");
   const [twoFactorPin, setTwoFactorPin] = useState("");
+  const [showOnboardingPin, setShowOnboardingPin] = useState(false);
 
   // Settings Gear states
   const getPhoneSettingsFn = useServerFn(getPhoneSettings);
@@ -3526,6 +3556,7 @@ function WABASection() {
   const [bindPhoneId, setBindPhoneId] = useState("");
   const [bindDisplayPhone, setBindDisplayPhone] = useState("");
   const [bindPin, setBindPin] = useState("");
+  const [showBindPin, setShowBindPin] = useState(false);
 
   const bindAndRegisterMut = useMutation({
     mutationFn: async (payload: { phoneId: string; pin: string }) => {
@@ -4434,15 +4465,41 @@ function WABASection() {
           {onboardingStep === 3 && (
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
-                <Label>Definir PIN de Duas Etapas (6 dígitos)</Label>
-                <Input
-                  type="password"
-                  placeholder="Ex: 123456"
-                  value={twoFactorPin}
-                  onChange={(e) => setTwoFactorPin(e.target.value.replace(/\D/g, ""))}
-                  className="text-center font-mono text-lg tracking-widest"
-                  maxLength={6}
-                />
+                <div className="flex items-center justify-between">
+                  <Label>Definir PIN de Duas Etapas (6 dígitos)</Label>
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline font-medium"
+                    onClick={() => {
+                      const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                      setTwoFactorPin(pin);
+                      toast.success(`PIN gerado: ${pin}`);
+                    }}
+                  >
+                    Gerar PIN Aleatório
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    type={showOnboardingPin ? "text" : "password"}
+                    placeholder="Ex: 123456"
+                    value={twoFactorPin}
+                    onChange={(e) => setTwoFactorPin(e.target.value.replace(/\D/g, ""))}
+                    className="text-center font-mono text-lg tracking-widest pr-10"
+                    maxLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOnboardingPin(!showOnboardingPin)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                  >
+                    {showOnboardingPin ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
                 <p className="text-[11px] text-muted-foreground">
                   Este PIN será registrado como segurança de duas etapas (2FA) para o seu número na
                   Cloud API. Use apenas números.
@@ -4778,18 +4835,44 @@ function WABASection() {
             </div>
 
             <div className="space-y-2 border-t pt-3">
-              <Label htmlFor="bind-pin-field" className="font-semibold text-sm">
-                PIN de Segurança de Duas Etapas (6 dígitos)
-              </Label>
-              <Input
-                id="bind-pin-field"
-                type="password"
-                placeholder="Ex: 123456"
-                value={bindPin}
-                onChange={(e) => setBindPin(e.target.value.replace(/\D/g, ""))}
-                className="text-center font-mono text-lg tracking-widest"
-                maxLength={6}
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="bind-pin-field" className="font-semibold text-sm">
+                  PIN de Segurança de Duas Etapas (6 dígitos)
+                </Label>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline font-medium"
+                  onClick={() => {
+                    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                    setBindPin(pin);
+                    toast.success(`PIN gerado: ${pin}`);
+                  }}
+                >
+                  Gerar PIN Aleatório
+                </button>
+              </div>
+              <div className="relative">
+                <Input
+                  id="bind-pin-field"
+                  type={showBindPin ? "text" : "password"}
+                  placeholder="Ex: 123456"
+                  value={bindPin}
+                  onChange={(e) => setBindPin(e.target.value.replace(/\D/g, ""))}
+                  className="text-center font-mono text-lg tracking-widest pr-10"
+                  maxLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowBindPin(!showBindPin)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                >
+                  {showBindPin ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
               <p className="text-[11px] text-muted-foreground leading-normal font-medium text-amber-600 dark:text-amber-400">
                 💡 O PIN é obrigatório se o número ainda não estiver registrado na Meta.
               </p>

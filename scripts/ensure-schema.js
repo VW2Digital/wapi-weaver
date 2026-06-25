@@ -256,13 +256,30 @@ async function ensureIndexExists(connection, tableName, indexName, definitionSql
 }
 
 export async function ensureDatabaseSchema() {
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT || "3306", 10),
-    user: process.env.DB_USER || "wapi_user",
-    password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
-    database: process.env.DB_NAME || "wapi_weaver",
-  });
+  let connection;
+  const maxAttempts = 20;
+  const delayMs = 3000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      connection = await mysql.createConnection({
+        host: process.env.DB_HOST || "localhost",
+        port: parseInt(process.env.DB_PORT || "3306", 10),
+        user: process.env.DB_USER || "wapi_user",
+        password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+        database: process.env.DB_NAME || "wapi_weaver",
+      });
+      logSchema("Conexão com o banco de dados estabelecida com sucesso.");
+      break;
+    } catch (err) {
+      if (attempt === maxAttempts) {
+        console.error(`[Schema] Não foi possível conectar ao banco de dados após ${maxAttempts} tentativas.`);
+        throw err;
+      }
+      console.warn(`[Schema] Aguardando banco de dados inicializar... (Tentativa ${attempt}/${maxAttempts}). Erro: ${err.message}`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
 
   try {
     logSchema("Validando schema do banco...");

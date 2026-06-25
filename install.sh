@@ -289,7 +289,7 @@ echo ""
 echo "  Aguardando a aplicação inicializar (healthcheck do MySQL pode levar ~30s)..."
 APP_READY=0
 for attempt in $(seq 1 18); do
-  if docker compose ps app 2>/dev/null | grep -Eq "(Up|running)"; then
+  if docker compose ps app 2>/dev/null | grep -Eq "(Up|running)" && ! docker compose ps app 2>/dev/null | grep -qi "restarting"; then
     APP_READY=1
     break
   fi

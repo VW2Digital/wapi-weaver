@@ -312,9 +312,30 @@ docker compose build --no-cache
 docker compose up -d
 
 echo -e "${YELLOW}Aguardando a aplicação inicializar (healthcheck do MySQL)...${NC}"
-sleep 35
-echo -e "${YELLOW}Aplicando validação automática de schema no banco existente...${NC}"
-docker compose exec -T app node scripts/ensure-schema.js
+APP_READY=0
+for attempt in $(seq 1 30); do
+  if docker compose ps app 2>/dev/null | grep -Eq "(Up|running)" && ! docker compose ps app 2>/dev/null | grep -qi "restarting"; then
+    APP_READY=1
+    break
+  fi
+  echo -e "${YELLOW}  App ainda iniciando... tentativa ${attempt}/30${NC}"
+  sleep 5
+done
+
+if [ "$APP_READY" -eq 1 ]; then
+  echo -e "${YELLOW}Aplicando validação automática de schema no banco existente...${NC}"
+  if docker compose exec -T app node scripts/ensure-schema.js; then
+    echo -e "${GREEN}Schema validado com sucesso!${NC}"
+  else
+    echo -e "${RED}Erro: Falha ao validar o schema. Verifique os logs usando: docker compose logs app${NC}"
+    exit 1
+  fi
+else
+  echo -e "${RED}Erro: O container da aplicação não estabilizou a tempo para rodar a validação do schema.${NC}"
+  echo -e "${RED}Verifique os logs usando: docker compose logs app${NC}"
+  exit 1
+fi
+
 echo -e "${GREEN}Containers rodando com sucesso!${NC}"
 
 # 7. Configurando o Servidor Nginx

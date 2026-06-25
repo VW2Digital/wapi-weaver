@@ -52,11 +52,11 @@ import {
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
 
 const STATUS_HEX: Record<string, string> = {
-  pending: "var(--chart-5)",
-  sent: "var(--chart-4)",
-  delivered: "var(--chart-3)",
-  read: "var(--chart-2)",
-  failed: "var(--chart-1)",
+  pending: "#f59e0b", // Amber-500
+  sent: "#3b82f6",    // Blue-500
+  delivered: "#10b981", // Emerald-500
+  read: "#4f46e5",    // Indigo-600
+  failed: "#ef4444",  // Red-500
 };
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
@@ -68,11 +68,11 @@ const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
   failed: "Falhou",
 };
 const STATUS_COLOR: Record<(typeof STATUS_KEYS)[number], string> = {
-  pending: "bg-chart-5",
-  sent: "bg-chart-4",
-  delivered: "bg-chart-3",
-  read: "bg-chart-2",
-  failed: "bg-chart-1",
+  pending: "bg-amber-500",
+  sent: "bg-blue-500",
+  delivered: "bg-emerald-500",
+  read: "bg-indigo-600",
+  failed: "bg-red-500",
 };
 
 function Dashboard() {
@@ -299,7 +299,7 @@ function Dashboard() {
               return (
                 <Card
                   key={s.label}
-                  className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+                  className="col-span-1 sm:col-span-2 lg:col-span-3 flex flex-row items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -339,7 +339,7 @@ function Dashboard() {
             })}
 
             {/* Secondary tiles */}
-            <Card className="col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+            <Card className="col-span-1 sm:col-span-2 lg:col-span-3 flex flex-row items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   Taxa de leitura
@@ -364,7 +364,7 @@ function Dashboard() {
 
             <Card
               className={cn(
-                "col-span-1 sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5",
+                "col-span-1 sm:col-span-2 lg:col-span-3 flex flex-row items-center justify-between gap-3 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5",
                 totals.failed > 0 ? "border-destructive/40" : "",
               )}
             >

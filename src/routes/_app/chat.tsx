@@ -2091,7 +2091,7 @@ function ChatPage() {
                                       {type === "audio" && bodyText && (
                                         <div className="px-1 py-1.5">
                                           {getMediaUrl(bodyText) ? (
-                                            <audio src={getMediaUrl(bodyText)} controls className="w-full max-w-[240px] h-auto min-h-[52px]" />
+                                            <audio src={getMediaUrl(bodyText)} controls className="w-[240px] max-w-full h-10" />
                                           ) : (
                                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                               <Volume2 className="h-4 w-4" /> Áudio (ID: {bodyText})

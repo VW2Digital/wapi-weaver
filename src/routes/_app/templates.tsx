@@ -968,6 +968,14 @@ function TemplatesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TemplateBuilderDialog
+        open={editingTemplate !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingTemplate(null);
+        }}
+        template={editingTemplate === "NEW" ? null : editingTemplate}
+      />
     </div>
   );
 }
