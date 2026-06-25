@@ -110,44 +110,10 @@ export const listChatContacts = createServerFn({ method: "GET" })
           c.kanban_stage_id,
           c.created_at,
           c.updated_at,
-          COALESCE((
-            SELECT bcs.bot_active 
-            FROM bot_conversation_state bcs 
-            WHERE bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164
-            LIMIT 1
-          ), 1) AS bot_active,
-          (
-            SELECT dm.body 
-            FROM direct_messages dm 
-            WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
-            ORDER BY dm.created_at DESC 
-            LIMIT 1
-          ) AS last_message_body,
-          COALESCE(
-            (
-              SELECT dm.created_at 
-              FROM direct_messages dm 
-              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
-              ORDER BY dm.created_at DESC 
-              LIMIT 1
-            ),
-            (
-              SELECT cm.sent_at
-              FROM campaign_messages cm
-              WHERE cm.user_id = c.user_id AND cm.to_phone = c.phone_e164
-              ORDER BY cm.sent_at DESC
-              LIMIT 1
-            )
-          ) AS last_message_time,
-          GREATEST(
-            COALESCE(c.is_unread, 0),
-            (
-              SELECT COUNT(*) 
-              FROM direct_messages dm 
-              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164 
-                AND dm.direction = 'incoming' AND dm.status != 'read'
-            )
-          ) AS unread_count,
+          COALESCE(bcs.bot_active, 1) AS bot_active,
+          last_dm.body AS last_message_body,
+          COALESCE(last_dm.created_at, last_cm.sent_at) AS last_message_time,
+          GREATEST(COALESCE(c.is_unread, 0), COALESCE(unread.cnt, 0)) AS unread_count,
           ca.team_id AS active_team_id,
           ca.agent_id AS active_agent_id,
           t.name AS active_team_name,
@@ -155,6 +121,27 @@ export const listChatContacts = createServerFn({ method: "GET" })
           s.name AS kanban_stage_name,
           s.color AS kanban_stage_color
         FROM contacts c
+        LEFT JOIN bot_conversation_state bcs 
+          ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164
+        LEFT JOIN (
+          SELECT user_id, contact_phone, body, created_at
+          FROM (
+            SELECT user_id, contact_phone, body, created_at,
+                   ROW_NUMBER() OVER(PARTITION BY user_id, contact_phone ORDER BY created_at DESC) as rn
+            FROM direct_messages
+          ) tmp WHERE rn = 1
+        ) last_dm ON last_dm.user_id = c.user_id AND last_dm.contact_phone = c.phone_e164
+        LEFT JOIN (
+          SELECT user_id, contact_phone, COUNT(*) as cnt
+          FROM direct_messages
+          WHERE direction = 'incoming' AND status != 'read'
+          GROUP BY user_id, contact_phone
+        ) unread ON unread.user_id = c.user_id AND unread.contact_phone = c.phone_e164
+        LEFT JOIN (
+          SELECT user_id, to_phone, MAX(sent_at) as sent_at
+          FROM campaign_messages
+          GROUP BY user_id, to_phone
+        ) last_cm ON last_cm.user_id = c.user_id AND last_cm.to_phone = c.phone_e164
         LEFT JOIN conversation_assignments ca 
           ON ca.contact_phone = c.phone_e164 AND ca.user_id = c.user_id AND ca.is_active = true
         LEFT JOIN teams t ON t.id = ca.team_id
@@ -162,35 +149,10 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN profiles p ON p.id = u.id
         LEFT JOIN sales_stages s ON s.id = c.kanban_stage_id
         WHERE c.user_id = ?
-          AND (
-            EXISTS (
-              SELECT 1 FROM direct_messages dm
-              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
-            )
-            OR EXISTS (
-              SELECT 1 FROM campaign_messages cm
-              WHERE cm.user_id = c.user_id AND cm.to_phone = c.phone_e164
-            )
-          )
+          AND (last_dm.created_at IS NOT NULL OR last_cm.sent_at IS NOT NULL)
         ORDER BY 
           c.is_pinned DESC,
-          COALESCE(
-            (
-              SELECT dm.created_at 
-              FROM direct_messages dm 
-              WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164
-              ORDER BY dm.created_at DESC 
-              LIMIT 1
-            ),
-            (
-              SELECT cm.sent_at
-              FROM campaign_messages cm
-              WHERE cm.user_id = c.user_id AND cm.to_phone = c.phone_e164
-              ORDER BY cm.sent_at DESC
-              LIMIT 1
-            ),
-            c.created_at
-          ) DESC
+          COALESCE(last_dm.created_at, last_cm.sent_at, c.created_at) DESC
       `, [context.userId]);
 
       return (contacts ?? []).map((c: any) => ({

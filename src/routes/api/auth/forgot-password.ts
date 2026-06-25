@@ -2,9 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import db from "@/lib/db";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "@/lib/jwt-secret";
 
 export const Route = createFileRoute("/api/auth/forgot-password")({
   server: {
@@ -21,7 +19,7 @@ export const Route = createFileRoute("/api/auth/forgot-password")({
           }
 
           // Fetch user
-          const users = await db.query("SELECT * FROM users WHERE email = ? LIMIT 1", [email]);
+          const users = await db.query("SELECT id, email FROM users WHERE email = ? LIMIT 1", [email]);
           if (users && users.length > 0) {
             const user = users[0];
 

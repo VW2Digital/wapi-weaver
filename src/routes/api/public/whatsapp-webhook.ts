@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual, randomUUID } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import db from "@/lib/db";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 
@@ -177,24 +178,22 @@ async function processStatusUpdate(value: any, userId: string) {
         .eq("user_id", userId);
     }
 
-    const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id)));
-    for (const cid of campaignIds) {
-      const { data: agg } = await dbAdmin
-        .from("campaign_messages")
-        .select("status")
-        .eq("campaign_id", cid)
-        .eq("user_id", userId);
-      if (!agg) continue;
-      const totals: any = {
-        total: agg.length,
-        pending: 0,
-        sent: 0,
-        delivered: 0,
-        read: 0,
-        failed: 0,
-      };
-      for (const r of agg) totals[r.status] = (totals[r.status] ?? 0) + 1;
-      await dbAdmin.from("campaigns").update({ totals }).eq("id", cid).eq("user_id", userId);
+    const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id))).filter(Boolean);
+    if (campaignIds.length > 0) {
+      await db.query(`
+        UPDATE campaigns c
+        SET totals = (
+          SELECT JSON_OBJECT(
+            'total', COUNT(*),
+            'pending', CAST(SUM(status='pending') AS SIGNED),
+            'sent', CAST(SUM(status='sent') AS SIGNED),
+            'delivered', CAST(SUM(status='delivered') AS SIGNED),
+            'read', CAST(SUM(status='read') AS SIGNED),
+            'failed', CAST(SUM(status='failed') AS SIGNED)
+          ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
+        )
+        WHERE c.id IN (?) AND c.user_id = ?
+      `, [userId, campaignIds, userId]);
     }
   }
 }

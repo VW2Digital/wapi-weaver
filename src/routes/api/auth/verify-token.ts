@@ -2,9 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import db from "@/lib/db";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "@/lib/jwt-secret";
 
 export const Route = createFileRoute("/api/auth/verify-token")({
   server: {
@@ -46,7 +44,7 @@ export const Route = createFileRoute("/api/auth/verify-token")({
           }
 
           // Fetch user
-          const users = await db.query("SELECT * FROM users WHERE id = ? LIMIT 1", [decoded.sub]);
+          const users = await db.query("SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1", [decoded.sub]);
           if (!users || users.length === 0) {
             return new Response(JSON.stringify({ error: "Usuário não encontrado." }), {
               status: 400,

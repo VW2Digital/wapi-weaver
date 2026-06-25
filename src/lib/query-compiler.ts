@@ -289,7 +289,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     let colSelection = "*";
     if (select && select !== "*") {
       if (Array.isArray(select)) {
-        colSelection = select.map((c) => `\`${c}\``).join(", ");
+        colSelection = select.map((c) => {
+          if (!/^[a-zA-Z0-9_.*()]+$/.test(c)) throw new Error(`Invalid select column: ${c}`);
+          return c.includes("(") || c.includes("*") ? c : `\`${c}\``;
+        }).join(", ");
       } else if (typeof select === "string") {
         colSelection = select;
       }
@@ -492,7 +495,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           ) {
             try {
               row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
-            } catch (e) {}
+            } catch (e) {
+              console.warn("Failed to parse custom_fields for list_contacts", e);
+            }
           }
         } else {
           row.contacts = null;
@@ -530,7 +535,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         ) {
           try {
             row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
-          } catch (e) {}
+          } catch (e) {
+            console.warn("Failed to parse custom_fields for campaign_messages", e);
+          }
         }
         delete row.c_contact_name;
         delete row.c_contact_email;
@@ -606,7 +613,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
             try {
               row[key] = JSON.parse(val);
-            } catch (e) {}
+            } catch (e) {
+               // Ignorado: string não era JSON válido
+            }
           }
         }
       }
@@ -752,7 +761,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
             try {
               row[key] = JSON.parse(val);
             } catch (e) {
-              // Ignore
+              // Ignorado
             }
           }
         }
@@ -765,6 +774,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
     return { affectedRows: results.totalAffectedRows };
   } else if (action === "update") {
+    if (whereClauses.length === 0) {
+      throw new Error("UPDATE without WHERE filters is not permitted via API");
+    }
     const updateData = preprocessData(table, data);
 
     // Format datetime fields
@@ -799,7 +811,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
               try {
                 row[key] = JSON.parse(val);
               } catch (e) {
-                // Ignore
+                // Ignorado
               }
             }
           }
@@ -810,6 +822,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       return { affectedRows: result.affectedRows };
     }
   } else if (action === "delete") {
+    if (whereClauses.length === 0) {
+      throw new Error("DELETE without WHERE filters is not permitted via API");
+    }
     sql = `DELETE FROM \`${table}\`${whereString}`;
     const result = await db.query(sql, params);
     return { affectedRows: result.affectedRows };

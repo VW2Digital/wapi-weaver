@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { executeQuery } from "@/lib/query-compiler";
-
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "@/lib/jwt-secret";
 
 export const Route = createFileRoute("/api/query")({
   server: {

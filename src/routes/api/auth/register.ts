@@ -4,9 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import db from "@/lib/db";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "@/lib/jwt-secret";
 
 export const Route = createFileRoute("/api/auth/register")({
   server: {

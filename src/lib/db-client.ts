@@ -223,7 +223,7 @@ export class ServerMySQLClient {
       admin: {
         listUsers: async (options?: { page?: number; perPage?: number }) => {
           try {
-            const users = await db.query("SELECT * FROM users");
+            const users = await db.query("SELECT id, email, created_at, updated_at FROM users");
             return {
               data: {
                 users: users.map((u: any) => ({
@@ -243,7 +243,10 @@ export class ServerMySQLClient {
         createUser: async (attributes: any) => {
           try {
             const uid = crypto.randomUUID();
-            const passwordHash = await bcrypt.hash(attributes.password || "password123", 10);
+            if (!attributes.password) {
+              return { data: { user: null }, error: new Error("Password is required") };
+            }
+            const passwordHash = await bcrypt.hash(attributes.password, 10);
             await db.query("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
               uid,
               attributes.email,
@@ -274,7 +277,7 @@ export class ServerMySQLClient {
         },
         getUserById: async (id: string) => {
           try {
-            const results = await db.query("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
+            const results = await db.query("SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1", [id]);
             if (!results || results.length === 0) {
               return { data: { user: null }, error: new Error("User not found") };
             }

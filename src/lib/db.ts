@@ -1,13 +1,17 @@
 import mysql from "mysql2/promise";
 
+if (!process.env.DB_PASSWORD && process.env.NODE_ENV === "production") {
+  throw new Error("[FATAL] DB_PASSWORD is required in production");
+}
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
   port: parseInt(process.env.DB_PORT || "3306", 10),
   user: process.env.DB_USER || "wapi_user",
-  password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+  password: process.env.DB_PASSWORD || "", // empty default for local, real pass in prod
   database: process.env.DB_NAME || "wapi_weaver",
   waitForConnections: true,
-  connectionLimit: 5,
+  connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 5,
   queueLimit: 50,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,

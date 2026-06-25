@@ -10,7 +10,12 @@ export const Route = createFileRoute("/api/public/make-admin")({
           const email = url.searchParams.get("email");
           const secret = url.searchParams.get("secret");
 
-          if (secret !== "vw2admin2026") {
+          const requiredSecret = process.env.MAKE_ADMIN_SECRET;
+          if (!requiredSecret) {
+            return new Response("Endpoint disabled", { status: 403 });
+          }
+
+          if (secret !== requiredSecret) {
             return new Response("Unauthorized", { status: 401 });
           }
 
