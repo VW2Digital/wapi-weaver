@@ -106,15 +106,6 @@ function LoginPage() {
     }
   };
 
-  const google = async () => {
-    setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) toast.error("Falha no login com Google");
-    setBusy(false);
-  };
-
   const sendReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
@@ -189,22 +180,7 @@ function LoginPage() {
             </div>
           ) : (
             <>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-6 w-full"
-                onClick={google}
-                disabled={busy}
-              >
-                Continuar com Google
-              </Button>
-
-              <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-                <div className="h-px flex-1 bg-border" /> ou{" "}
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              <form onSubmit={submit} className="space-y-4">
+              <form onSubmit={submit} className="space-y-4 mt-6">
                 {mode === "signup" && (
                   <div className="space-y-1.5">
                     <Label htmlFor="name">Nome</Label>

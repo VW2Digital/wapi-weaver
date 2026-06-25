@@ -240,6 +240,22 @@ function SettingsPage() {
   const fetchStatus = useServerFn(getTestMessageStatus);
   const qc = useQueryClient();
   const fetchDebugToken = useServerFn(debugAccessToken);
+  const registerPhone = useServerFn(registerPhoneNumber);
+
+  const [formPin, setFormPin] = useState("");
+
+  const registerMainPhoneMut = useMutation({
+    mutationFn: async (payload: { phoneId: string; pin: string }) => {
+      const res = await registerPhone({ data: { phoneId: payload.phoneId, pin: payload.pin } });
+      if (!res.ok) throw new Error(res.error || "Falha ao registrar número na Meta.");
+      return res;
+    },
+    onSuccess: () => {
+      toast.success("Número registrado e ativado com sucesso na Meta!");
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
   const [debugResult, setDebugResult] = useState<any>(null);
 
   const debugTokenMut = useMutation({
@@ -573,6 +589,70 @@ function SettingsPage() {
                       onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })}
                       hint="Recomendamos manter em 20. Altere somente se a sua conta na Meta tiver autorização para limites de velocidade superiores."
                     />
+
+                    <div className="md:col-span-2 border-t pt-4 mt-2 space-y-3">
+                      <h3 className="font-display text-sm font-semibold flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-primary" />
+                        Registrar Número na Meta (Verificação de 2 Fases)
+                      </h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed font-medium">
+                        Se este número ainda não está ativo na Meta Cloud API, insira o PIN de 6 dígitos abaixo para registrá-lo. 
+                        Isso habilitará o envio de mensagens.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-3 items-end">
+                        <div className="flex-1 space-y-1.5">
+                          <Label htmlFor="whatsapp_pin_setup">PIN de Segurança (2FA - 6 dígitos)</Label>
+                          <Input
+                            id="whatsapp_pin_setup"
+                            type="password"
+                            placeholder="Ex: 123456"
+                            value={formPin}
+                            onChange={(e) => setFormPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                            className="font-mono text-center tracking-widest text-sm"
+                            maxLength={6}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            if (!form.whatsapp_phone_number_id) {
+                              toast.error("Preencha o ID do Número de Telefone primeiro.");
+                              return;
+                            }
+                            if (formPin.length !== 6) {
+                              toast.error("O PIN deve ter exatamente 6 dígitos.");
+                              return;
+                            }
+                            saveMut.mutate(
+                              {
+                                whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+                                whatsapp_waba_id: form.whatsapp_waba_id,
+                                whatsapp_business_id: form.whatsapp_business_id,
+                                whatsapp_business_phone: form.whatsapp_business_phone,
+                                whatsapp_access_token: form.whatsapp_access_token,
+                                whatsapp_app_id: form.whatsapp_app_id || null,
+                                rate_limit_per_second: form.rate_limit_per_second,
+                              },
+                              {
+                                onSuccess: () => {
+                                  registerMainPhoneMut.mutate({
+                                    phoneId: form.whatsapp_phone_number_id!,
+                                    pin: formPin,
+                                  });
+                                },
+                              }
+                            );
+                          }}
+                          disabled={registerMainPhoneMut.isPending || saveMut.isPending}
+                        >
+                          {registerMainPhoneMut.isPending ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Registrar Número na Meta
+                        </Button>
+                      </div>
+                    </div>
 
                     <div className="md:col-span-2 space-y-3">
                       <div className="flex items-center justify-between gap-2">
