@@ -33,6 +33,7 @@ import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
+import { Route as ApiWhatsappRegisterRouteImport } from './routes/api/whatsapp/register'
 import { Route as ApiWhatsappMediaUploadRouteImport } from './routes/api/whatsapp/media-upload'
 import { Route as ApiWhatsappMediaRouteImport } from './routes/api/whatsapp/media'
 import { Route as ApiWhatsappBusinessProfileRouteImport } from './routes/api/whatsapp/business-profile'
@@ -173,6 +174,11 @@ const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
   path: '/campaigns/',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiWhatsappRegisterRoute = ApiWhatsappRegisterRouteImport.update({
+  id: '/api/whatsapp/register',
+  path: '/api/whatsapp/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWhatsappMediaUploadRoute = ApiWhatsappMediaUploadRouteImport.update({
   id: '/api/whatsapp/media-upload',
   path: '/api/whatsapp/media-upload',
@@ -312,6 +318,7 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
+  '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -356,6 +363,7 @@ export interface FileRoutesByTo {
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
+  '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/campaigns': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -402,6 +410,7 @@ export interface FileRoutesById {
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
+  '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
@@ -448,6 +457,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
+    | '/api/whatsapp/register'
     | '/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -492,6 +502,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
+    | '/api/whatsapp/register'
     | '/campaigns'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -537,6 +548,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
+    | '/api/whatsapp/register'
     | '/_app/campaigns/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
@@ -567,6 +579,7 @@ export interface RootRouteChildren {
   ApiWhatsappBusinessProfileRoute: typeof ApiWhatsappBusinessProfileRouteWithChildren
   ApiWhatsappMediaRoute: typeof ApiWhatsappMediaRoute
   ApiWhatsappMediaUploadRoute: typeof ApiWhatsappMediaUploadRoute
+  ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
 }
@@ -740,6 +753,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/campaigns/'
       preLoaderRoute: typeof AppCampaignsIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/whatsapp/register': {
+      id: '/api/whatsapp/register'
+      path: '/api/whatsapp/register'
+      fullPath: '/api/whatsapp/register'
+      preLoaderRoute: typeof ApiWhatsappRegisterRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/whatsapp/media-upload': {
       id: '/api/whatsapp/media-upload'
@@ -957,6 +977,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappBusinessProfileRoute: ApiWhatsappBusinessProfileRouteWithChildren,
   ApiWhatsappMediaRoute: ApiWhatsappMediaRoute,
   ApiWhatsappMediaUploadRoute: ApiWhatsappMediaUploadRoute,
+  ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
 }

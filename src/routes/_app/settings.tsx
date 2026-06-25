@@ -3441,6 +3441,38 @@ function WABASection() {
     updateWabaMut.mutate();
   };
 
+  // Vincular e Registrar Número states & mutations
+  const [bindRegisterOpen, setBindRegisterOpen] = useState(false);
+  const [bindPhoneId, setBindPhoneId] = useState("");
+  const [bindDisplayPhone, setBindDisplayPhone] = useState("");
+  const [bindPin, setBindPin] = useState("");
+
+  const bindAndRegisterMut = useMutation({
+    mutationFn: async (payload: { phoneId: string; pin: string }) => {
+      const res = await registerPhone({ data: { phoneId: payload.phoneId, pin: payload.pin } });
+      if (!res.ok) throw new Error(res.error || "Falha ao registrar número na Meta.");
+      return res;
+    },
+    onSuccess: () => {
+      toast.success("Número registrado e ativado com sucesso!");
+      setBindRegisterOpen(false);
+      setBindPin("");
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      // Invalida a lista de telefones se puder
+      const activeWaba = searchId || details?.id || list.find((w) => phonesMap[w.id])?.id;
+      if (activeWaba) loadPhonesMut.mutate(activeWaba);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const justBindMut = useMutation({
+    mutationFn: (payload: { phoneId: string; displayPhone: string }) =>
+      defineActivePhoneMut.mutateAsync(payload),
+    onSuccess: () => {
+      setBindRegisterOpen(false);
+    }
+  });
+
   // Deregister phone states & mutations
   const deregisterPhone = useServerFn(deregisterPhoneNumber);
   const deregisterPhoneMut = useMutation({
@@ -3800,13 +3832,13 @@ function WABASection() {
                 size="sm"
                 variant="outline"
                 className="h-7 text-[10px]"
-                onClick={() =>
-                  defineActivePhoneMut.mutate({
-                    phoneId: ph.id,
-                    displayPhone: ph.display_phone_number.replace(/\D/g, ""),
-                  })
-                }
-                disabled={defineActivePhoneMut.isPending}
+                onClick={() => {
+                  setBindPhoneId(ph.id);
+                  setBindDisplayPhone(ph.display_phone_number.replace(/\D/g, ""));
+                  setBindPin("");
+                  setBindRegisterOpen(true);
+                }}
+                disabled={defineActivePhoneMut.isPending || justBindMut.isPending}
               >
                 Usar Número
               </Button>
@@ -4632,6 +4664,101 @@ function WABASection() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vincular e Registrar Número Dialog */}
+      <Dialog open={bindRegisterOpen} onOpenChange={setBindRegisterOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Vincular Número de Telefone</DialogTitle>
+            <DialogDescription>
+              Selecione o número +{bindDisplayPhone} como ativo na sua plataforma.
+              Se o número ainda não foi registrado na WhatsApp Cloud API, insira o PIN de 2FA para registrá-lo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">ID do Número (Phone Number ID)</Label>
+              <Input
+                value={bindPhoneId}
+                disabled
+                className="bg-muted text-muted-foreground font-mono text-xs cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Número de Telefone</Label>
+              <Input
+                value={`+${bindDisplayPhone}`}
+                disabled
+                className="bg-muted text-muted-foreground font-mono text-xs cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-2 border-t pt-3">
+              <Label htmlFor="bind-pin-field" className="font-semibold text-sm">
+                PIN de Segurança de Duas Etapas (6 dígitos)
+              </Label>
+              <Input
+                id="bind-pin-field"
+                type="password"
+                placeholder="Ex: 123456"
+                value={bindPin}
+                onChange={(e) => setBindPin(e.target.value.replace(/\D/g, ""))}
+                className="text-center font-mono text-lg tracking-widest"
+                maxLength={6}
+              />
+              <p className="text-[11px] text-muted-foreground leading-normal font-medium text-amber-600 dark:text-amber-400">
+                💡 O PIN é obrigatório se o número ainda não estiver registrado na Meta.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 border-t flex flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBindRegisterOpen(false)}
+              className="sm:mr-auto"
+            >
+              Cancelar
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                justBindMut.mutate({
+                  phoneId: bindPhoneId,
+                  displayPhone: bindDisplayPhone,
+                });
+              }}
+              disabled={justBindMut.isPending || bindAndRegisterMut.isPending}
+            >
+              {justBindMut.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Apenas Vincular
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => {
+                if (bindPin.length !== 6) {
+                  toast.error("O PIN deve ter exatamente 6 dígitos.");
+                  return;
+                }
+                bindAndRegisterMut.mutate({
+                  phoneId: bindPhoneId,
+                  pin: bindPin,
+                });
+              }}
+              disabled={bindPin.length !== 6 || bindAndRegisterMut.isPending || justBindMut.isPending}
+            >
+              {bindAndRegisterMut.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Registrar e Vincular
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

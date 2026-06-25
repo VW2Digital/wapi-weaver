@@ -612,7 +612,36 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
 
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao registrar número" };
-    return { ok: true, data: body };
+
+    // Buscar detalhes do número na Meta
+    let displayPhone = "";
+    try {
+      const detailsUrl = `https://graph.facebook.com/${apiVersion}/${data.phoneId}?fields=display_phone_number`;
+      const dr = await fetch(detailsUrl, {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      });
+      const dBody = await dr.json();
+      if (dr.ok && dBody?.display_phone_number) {
+        displayPhone = dBody.display_phone_number.replace(/\D/g, "");
+      }
+    } catch {
+      // ignore
+    }
+
+    // Salvar o número como ativo no banco de dados local
+    const { error: updateErr } = await context.db
+      .from("profiles")
+      .update({
+        whatsapp_phone_number_id: data.phoneId,
+        whatsapp_business_phone: displayPhone || null,
+      })
+      .eq("id", context.userId);
+
+    if (updateErr) {
+      return { ok: false, error: `Número registrado na Meta, mas erro ao salvar na tabela local: ${updateErr.message}` };
+    }
+
+    return { ok: true, success: true, data: body };
   });
 
 export const debugAccessToken = createServerFn({ method: "POST" })
