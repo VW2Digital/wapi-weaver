@@ -8,7 +8,10 @@ export const listTeams = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     try {
       const teams = await db.query(
-        "SELECT * FROM teams WHERE user_id = ? ORDER BY name ASC",
+        `SELECT t.*, (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count
+         FROM teams t 
+         WHERE t.user_id = ? 
+         ORDER BY t.name ASC`,
         [context.userId]
       );
       return teams;
@@ -150,5 +153,125 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
     } catch (e: any) {
       console.error("Erro ao auto-atribuir conversa:", e);
       throw new Error(e.message || "Erro ao auto-atribuir conversa");
+    }
+  });
+
+export const createTeam = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({
+    name: z.string().trim().min(1),
+    description: z.string().trim().nullable(),
+    autoAssignMode: z.enum(['manual', 'round_robin', 'least_busy']).default('manual'),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    try {
+      const teamId = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO teams (id, user_id, name, description, auto_assign_mode)
+         VALUES (?, ?, ?, ?, ?)`,
+        [teamId, context.userId, data.name, data.description, data.autoAssignMode]
+      );
+      return { ok: true, id: teamId };
+    } catch (e: any) {
+      console.error("Erro ao criar equipe:", e);
+      throw new Error(e.message || "Erro ao criar equipe");
+    }
+  });
+
+export const updateTeam = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({
+    id: z.string().min(1),
+    name: z.string().trim().min(1),
+    description: z.string().trim().nullable(),
+    autoAssignMode: z.enum(['manual', 'round_robin', 'least_busy']),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    try {
+      await db.query(
+        `UPDATE teams 
+         SET name = ?, description = ?, auto_assign_mode = ?
+         WHERE id = ? AND user_id = ?`,
+        [data.name, data.description, data.autoAssignMode, data.id, context.userId]
+      );
+      return { ok: true };
+    } catch (e: any) {
+      console.error("Erro ao atualizar equipe:", e);
+      throw new Error(e.message || "Erro ao atualizar equipe");
+    }
+  });
+
+export const deleteTeam = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ id: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    try {
+      await db.query(
+        "DELETE FROM teams WHERE id = ? AND user_id = ?",
+        [data.id, context.userId]
+      );
+      return { ok: true };
+    } catch (e: any) {
+      console.error("Erro ao deletar equipe:", e);
+      throw new Error(e.message || "Erro ao deletar equipe");
+    }
+  });
+
+export const addTeamMember = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({
+    teamId: z.string().min(1),
+    userId: z.string().min(1),
+    role: z.enum(['agent', 'supervisor']).default('agent'),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    try {
+      // Validar se o time pertence ao tenant do usuário logado
+      const team = await db.query(
+        "SELECT 1 FROM teams WHERE id = ? AND user_id = ?",
+        [data.teamId, context.userId]
+      );
+      if (!team || team.length === 0) {
+        throw new Error("Equipe não encontrada ou acesso negado.");
+      }
+
+      const memberId = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO team_members (id, team_id, user_id, role)
+         VALUES (?, ?, ?, ?)`,
+        [memberId, data.teamId, data.userId, data.role]
+      );
+      return { ok: true, id: memberId };
+    } catch (e: any) {
+      console.error("Erro ao adicionar membro à equipe:", e);
+      throw new Error(e.message || "Erro ao adicionar membro");
+    }
+  });
+
+export const removeTeamMember = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({
+    teamId: z.string().min(1),
+    userId: z.string().min(1),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    try {
+      // Validar se o time pertence ao tenant do usuário logado
+      const team = await db.query(
+        "SELECT 1 FROM teams WHERE id = ? AND user_id = ?",
+        [data.teamId, context.userId]
+      );
+      if (!team || team.length === 0) {
+        throw new Error("Equipe não encontrada ou acesso negado.");
+      }
+
+      await db.query(
+        "DELETE FROM team_members WHERE team_id = ? AND user_id = ?",
+        [data.teamId, data.userId]
+      );
+      return { ok: true };
+    } catch (e: any) {
+      console.error("Erro ao remover membro da equipe:", e);
+      throw new Error(e.message || "Erro ao remover membro");
     }
   });

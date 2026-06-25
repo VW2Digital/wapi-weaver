@@ -482,7 +482,7 @@ function ContactsPage() {
                       </td>
                       <td className="p-3 font-mono">
                         +{c.phone_e164}
-                        {c.opted_out && (
+                        {(c.opted_out === 1 || c.opted_out === true) && (
                           <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">
                             opt-out
                           </span>

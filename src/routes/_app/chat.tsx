@@ -8,7 +8,7 @@ import {
   sendDirectMessage,
   markMessagesAsRead,
 } from "@/lib/chat.functions";
-import { updateContactProfilePhoto, createContact } from "@/lib/contacts.functions";
+import { updateContactProfilePhoto, createContact, deleteContact } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
 import {
   listTeams,
@@ -17,6 +17,16 @@ import {
   assignConversation,
   autoAssignConversation,
 } from "@/lib/assignment.functions";
+import {
+  togglePinContact,
+  toggleArchiveContact,
+  updateChatStatus,
+  toggleUnreadContact,
+  setContactKanbanStage,
+  quickSaveContact,
+  toggleBotActive,
+} from "@/lib/chat-actions.functions";
+import { createOpportunity, createActivity } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -44,6 +54,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Send,
@@ -92,11 +107,21 @@ import {
   MessageSquare,
   Menu,
   ClipboardList,
+  Clock,
+  UserCheck,
+  Bot,
+  Package,
+  History,
+  Ban,
+  CornerUpRight,
+  UserPen,
+  Forward,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { db } from "@/integrations/mysql/client";
+import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/chat")({
   component: ChatPage,
@@ -115,6 +140,24 @@ function getAvatarColor(name: string): string {
     .split("")
     .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
   return `hsl(${hash % 360}, 70%, 40%)`;
+}
+
+/** Formata o número de telefone no padrão +XX (XX) XXXXX-XXXX */
+function formatPhone(phone: string): string {
+  if (!phone) return "";
+  const clean = phone.replace(/\D/g, "");
+  if (clean.length === 12 || clean.length === 13) {
+    const ddi = clean.slice(0, 2);
+    const ddd = clean.slice(2, 4);
+    const rest = clean.slice(4);
+    if (rest.length === 9) {
+      return `+${ddi} (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    } else {
+      return `+${ddi} (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    }
+  }
+  if (phone.startsWith("+")) return phone;
+  return `+${phone}`;
 }
 
 const TAG_ICONS: Record<string, any> = {
@@ -165,6 +208,7 @@ function ChatPage() {
   const sendMessage = useServerFn(sendDirectMessage);
   const saveContactProfilePhoto = useServerFn(updateContactProfilePhoto);
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const [selectedContact, setSelectedContact] = useState<any>(null);
 
@@ -193,11 +237,12 @@ function ChatPage() {
   });
 
   const assignMutation = useMutation({
-    mutationFn: async (payload: { teamId: string | null; agentId: string | null }) => {
-      if (!selectedPhone) throw new Error("Nenhum contato selecionado");
+    mutationFn: async (payload: { teamId: string | null; agentId: string | null; contactPhone?: string }) => {
+      const phone = payload.contactPhone || selectedPhone;
+      if (!phone) throw new Error("Nenhum contato selecionado");
       return assignConversation({
         data: {
-          contactPhone: selectedPhone,
+          contactPhone: phone,
           teamId: payload.teamId,
           agentId: payload.agentId,
         },
@@ -213,12 +258,14 @@ function ChatPage() {
   });
 
   const autoAssignMutation = useMutation({
-    mutationFn: async (teamId: string) => {
-      if (!selectedPhone) throw new Error("Nenhum contato selecionado");
+    mutationFn: async (payload: { teamId: string; contactPhone?: string } | string) => {
+      const targetTeamId = typeof payload === "string" ? payload : payload.teamId;
+      const phone = typeof payload === "string" ? selectedPhone : (payload.contactPhone || selectedPhone);
+      if (!phone) throw new Error("Nenhum contato selecionado");
       return autoAssignConversation({
         data: {
-          contactPhone: selectedPhone,
-          teamId,
+          contactPhone: phone,
+          teamId: targetTeamId,
         },
       });
     },
@@ -233,6 +280,462 @@ function ChatPage() {
     onError: (err: any) => {
       toast.error("Erro ao auto-atribuir: " + err.message);
     },
+  });
+
+  // Novos estados para diálogos de ações de chat
+  const [quickSaveContactData, setQuickSaveContactData] = useState<any>(null);
+  const [assigningContactData, setAssigningContactData] = useState<any>(null);
+
+  // Estados para novas ações rápidas
+  const [isQuickOpportunityOpen, setIsQuickOpportunityOpen] = useState(false);
+  const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
+  const [isLeadHistoryOpen, setIsLeadHistoryOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+
+  // States for Quick Opportunity Form
+  const [oppTitle, setOppTitle] = useState("");
+  const [oppValue, setOppValue] = useState(0);
+  const [oppFunnelId, setOppFunnelId] = useState("");
+  const [oppStageId, setOppStageId] = useState("");
+
+  // States for Follow Up Form
+  const [followUpTitle, setFollowUpTitle] = useState("");
+  const [followUpDesc, setFollowUpDesc] = useState("");
+  const [followUpDate, setFollowUpDate] = useState("");
+
+  // Estados para Gerenciar Estoque
+  const [products, setProducts] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const val = localStorage.getItem("inventory:products");
+        if (val) return JSON.parse(val);
+      } catch (e) {}
+    }
+    return [
+      { id: "prod-1", name: "Plano Mensal Weaver", price: 97.00, stock: 9999, isUnlimited: true },
+      { id: "prod-2", name: "Plano Anual Weaver", price: 997.00, stock: 9999, isUnlimited: true },
+      { id: "prod-3", name: "Instalação e Setup VPS", price: 199.00, stock: 15, isUnlimited: false },
+      { id: "prod-4", name: "Consultoria IA Customizada", price: 1500.00, stock: 3, isUnlimited: false },
+    ];
+  });
+
+  const updateProductStock = (id: string, newStock: number) => {
+    setProducts((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, stock: newStock } : p));
+      try {
+        localStorage.setItem("inventory:products", JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+
+  // Pre-fill Follow-up Form when opened
+  useEffect(() => {
+    if (isFollowUpOpen) {
+      setFollowUpTitle("Follow-up de Atendimento");
+      setFollowUpDesc("");
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0); // Default to 9:00 AM tomorrow
+      const tzOffset = tomorrow.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(tomorrow.getTime() - tzOffset)).toISOString().slice(0, 16);
+      setFollowUpDate(localISOTime);
+    }
+  }, [isFollowUpOpen]);
+
+  // Estados para Edição Rápida de Contato
+  const [quickSaveName, setQuickSaveName] = useState("");
+  const [quickSaveEmail, setQuickSaveEmail] = useState("");
+  const [quickSavePhone, setQuickSavePhone] = useState("");
+
+  useEffect(() => {
+    if (quickSaveContactData) {
+      setQuickSaveName(quickSaveContactData.name || "");
+      setQuickSaveEmail(quickSaveContactData.email || "");
+      setQuickSavePhone(quickSaveContactData.phone_e164 || "");
+    }
+  }, [quickSaveContactData]);
+
+  // Estados para Atribuição Rápida de Conversa
+  const [assignDialogTeamId, setAssignDialogTeamId] = useState<string>("");
+  const [assignDialogAgentId, setAssignDialogAgentId] = useState<string>("");
+
+  const assignDialogTeamMembersQuery = useQuery({
+    queryKey: ["team-members", assignDialogTeamId],
+    queryFn: () => fetchTeamMembersFn({ data: { teamId: assignDialogTeamId } }),
+    enabled: !!assignDialogTeamId && assignDialogTeamId !== "none",
+  });
+
+  useEffect(() => {
+    if (assigningContactData) {
+      setAssignDialogTeamId(assigningContactData.active_team_id || "");
+      setAssignDialogAgentId(assigningContactData.active_agent_id || "");
+    }
+  }, [assigningContactData]);
+
+  // Queries para Funis e Etapas do Kanban
+  const salesFunnelsQuery = useQuery({
+    queryKey: ["sales-funnels"],
+    queryFn: async () => {
+      const { data, error } = await db.from("sales_funnels").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const salesStagesQuery = useQuery({
+    queryKey: ["sales-stages"],
+    queryFn: async () => {
+      const { data, error } = await db.from("sales_stages").select("*").order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Pre-fill Opportunity Form when opened
+  useEffect(() => {
+    if (isQuickOpportunityOpen && selectedContact) {
+      setOppTitle(`Oportunidade - ${selectedContact.name || selectedContact.phone_e164}`);
+      setOppValue(0);
+      
+      const defaultFunnel = salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+      if (defaultFunnel) {
+        setOppFunnelId(defaultFunnel.id);
+        const defaultStage = salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) || salesStagesQuery.data?.[0];
+        if (defaultStage) {
+          setOppStageId(defaultStage.id);
+        }
+      }
+    }
+  }, [isQuickOpportunityOpen, selectedContact, salesFunnelsQuery.data, salesStagesQuery.data]);
+
+  const togglePinContactFn = useServerFn(togglePinContact);
+  const toggleArchiveContactFn = useServerFn(toggleArchiveContact);
+  const updateChatStatusFn = useServerFn(updateChatStatus);
+  const toggleUnreadContactFn = useServerFn(toggleUnreadContact);
+  const setContactKanbanStageFn = useServerFn(setContactKanbanStage);
+  const quickSaveContactFn = useServerFn(quickSaveContact);
+  const deleteContactFn = useServerFn(deleteContact);
+
+  const pinMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; isPinned: boolean }) =>
+      togglePinContactFn({ data: payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Alteração de pinagem salva!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro: " + err.message);
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; isArchived: boolean }) =>
+      toggleArchiveContactFn({ data: payload }),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success(variables.isArchived ? "Conversa arquivada!" : "Conversa desarquivada!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro: " + err.message);
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; status: string }) =>
+      updateChatStatusFn({ data: payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Status de atendimento atualizado!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro: " + err.message);
+    },
+  });
+
+  const unreadMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; isUnread: boolean }) =>
+      toggleUnreadContactFn({ data: payload }),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success(variables.isUnread ? "Conversa marcada como não lida!" : "Conversa marcada como lida!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro: " + err.message);
+    },
+  });
+
+  const kanbanStageMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; stageId: string | null }) =>
+      setContactKanbanStageFn({ data: payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Etapa do Kanban atualizada!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro: " + err.message);
+    },
+  });
+
+  const quickSaveMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; name: string; email: string; phone: string }) =>
+      quickSaveContactFn({ data: payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Contato atualizado com sucesso!");
+      setQuickSaveContactData(null);
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao salvar contato: " + err.message);
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (id: string) =>
+      deleteContactFn({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Contato excluído do sistema!");
+      setSelectedContact(null);
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao excluir: " + err.message);
+    },
+  });
+
+  const botActiveMutation = useMutation({
+    mutationFn: async (payload: { contactPhone: string; botActive: boolean }) =>
+      toggleBotActive({ data: payload }),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
+      toast.success(variables.botActive ? "Chatbot ativado para este contato!" : "Chatbot pausado para este contato!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao alterar status do bot: " + err.message);
+    },
+  });
+
+  // Novas Server Functions para CRM
+  const createOpportunityFn = useServerFn(createOpportunity);
+  const createActivityFn = useServerFn(createActivity);
+
+  // Query para buscar as oportunidades ativas do contato
+  const contactOpportunitiesQuery = useQuery({
+    queryKey: ["contact-opportunities", selectedContact?.id],
+    queryFn: async () => {
+      if (!selectedContact?.id) return [];
+      const { data, error } = await db
+        .from("opportunities")
+        .select("*")
+        .eq("primary_contact_id", selectedContact.id)
+        .eq("status", "open")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedContact?.id,
+  });
+
+  // Mutação para criar oportunidade rápida
+  const createOpportunityMutation = useMutation({
+    mutationFn: async (payload: {
+      title: string;
+      value: number;
+      funnel_id: string;
+      stage_id: string;
+      primary_contact_id: string;
+      description?: string;
+    }) => {
+      return createOpportunityFn({ data: payload });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contact-opportunities", selectedContact?.id] });
+      qc.invalidateQueries({ queryKey: ["opportunities"] });
+      // Também atualiza o estágio do contato no Kanban
+      if (oppStageId) {
+        kanbanStageMutation.mutate({
+          contactId: selectedContact.id,
+          stageId: oppStageId,
+        });
+      }
+      toast.success("Oportunidade de venda criada no CRM!");
+      setIsQuickOpportunityOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao criar oportunidade: " + err.message);
+    },
+  });
+
+  // Mutação para agendar follow-up (cria oportunidade padrão se não existir)
+  const followUpMutation = useMutation({
+    mutationFn: async (payload: {
+      title: string;
+      description?: string;
+      due_at: string;
+    }) => {
+      if (!selectedContact?.id) throw new Error("Nenhum contato selecionado");
+
+      let oppId = "";
+      const existingOpps = contactOpportunitiesQuery.data || [];
+      if (existingOpps.length > 0) {
+        oppId = existingOpps[0].id;
+      } else {
+        // Criar oportunidade padrão automática
+        const defaultFunnel = salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+        if (!defaultFunnel) throw new Error("Nenhum funil de vendas cadastrado no CRM");
+
+        const defaultStage = salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) || salesStagesQuery.data?.[0];
+        if (!defaultStage) throw new Error("Nenhuma etapa de vendas cadastrada para este funil");
+
+        const newOpp = await createOpportunityFn({
+          data: {
+            title: `Oportunidade - ${selectedContact.name || selectedContact.phone_e164}`,
+            value: 0,
+            funnel_id: defaultFunnel.id,
+            stage_id: defaultStage.id,
+            primary_contact_id: selectedContact.id,
+          }
+        });
+        oppId = newOpp.id;
+      }
+
+      return createActivityFn({
+        data: {
+          opportunity_id: oppId,
+          contact_id: selectedContact.id,
+          type: "follow_up",
+          title: payload.title,
+          description: payload.description || "",
+          due_at: payload.due_at,
+          status: "pending",
+        }
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contact-opportunities", selectedContact?.id] });
+      qc.invalidateQueries({ queryKey: ["lead-history", selectedContact?.id] });
+      toast.success("Follow-up agendado com sucesso!");
+      setIsFollowUpOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao agendar follow-up: " + err.message);
+    }
+  });
+
+  // Mutação para bloquear/desbloquear contato
+  const blockContactMutation = useMutation({
+    mutationFn: async (payload: { contactId: string; block: boolean }) => {
+      const { data: contact, error: fetchErr } = await db
+        .from("contacts")
+        .select("custom_fields")
+        .eq("id", payload.contactId)
+        .single();
+        
+      if (fetchErr) throw fetchErr;
+
+      const currentCF = contact?.custom_fields || {};
+      const newCF = {
+        ...currentCF,
+        is_blocked: payload.block,
+      };
+
+      const { data, error } = await db
+        .from("contacts")
+        .update({
+          opted_out: payload.block,
+          custom_fields: newCF,
+        })
+        .eq("id", payload.contactId);
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
+      toast.success(variables.block ? "Contato bloqueado!" : "Contato desbloqueado!");
+      setSelectedContact((prev: any) => ({
+        ...prev,
+        opted_out: variables.block,
+        custom_fields: { ...prev?.custom_fields, is_blocked: variables.block },
+      }));
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao atualizar status de bloqueio: " + err.message);
+    },
+  });
+
+  // Query para buscar a linha do tempo histórica do Lead
+  const leadHistoryQuery = useQuery({
+    queryKey: ["lead-history", selectedContact?.id],
+    queryFn: async () => {
+      if (!selectedContact?.id) return [];
+      
+      // 1. Atividades do contato
+      const { data: activities, error: actError } = await db
+        .from("opportunity_activities")
+        .select("*")
+        .eq("contact_id", selectedContact.id)
+        .order("created_at", { ascending: false });
+        
+      if (actError) throw actError;
+
+      // 2. Oportunidades do contato
+      const { data: opps, error: oppError } = await db
+        .from("opportunities")
+        .select("id, title")
+        .eq("primary_contact_id", selectedContact.id);
+
+      if (oppError) throw oppError;
+
+      // 3. Histórico de auditoria do CRM
+      let auditLogs: any[] = [];
+      if (opps && opps.length > 0) {
+        const oppIds = opps.map((o: any) => o.id);
+        const { data: audits, error: auditError } = await db
+          .from("opportunity_audit_logs")
+          .select("*")
+          .in("opportunity_id", oppIds)
+          .order("created_at", { ascending: false });
+        if (auditError) throw auditError;
+        auditLogs = audits || [];
+      }
+
+      // Combinar em uma única timeline ordenada
+      const timeline: any[] = [];
+
+      activities?.forEach((act: any) => {
+        timeline.push({
+          id: act.id,
+          type: "activity",
+          title: act.title,
+          description: act.description,
+          activityType: act.type,
+          status: act.status,
+          date: new Date(act.created_at || act.due_at),
+          due_at: act.due_at,
+        });
+      });
+
+      auditLogs.forEach((log: any) => {
+        timeline.push({
+          id: log.id,
+          type: "audit",
+          title: log.action,
+          old_values: log.old_values,
+          new_values: log.new_values,
+          date: new Date(log.created_at),
+        });
+      });
+
+      timeline.sort((a, b) => b.date.getTime() - a.date.getTime());
+      return timeline;
+    },
+    enabled: !!selectedContact?.id && isLeadHistoryOpen,
   });
 
   useEffect(() => {
@@ -701,6 +1204,15 @@ function ChatPage() {
   }, [selectedPhone, fetchMarkAsRead, qc]);
 
   // Helpers para o visual dos cards de contato conforme o mockup
+  const getSlaWarning = (c: any): boolean => {
+    if (c.unread_count > 0 && c.last_message_time) {
+      const diffMs = Date.now() - new Date(c.last_message_time).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      return diffMins >= 15;
+    }
+    return false;
+  };
+
   const getInitials = (name: string): string => {
     if (!name) return "C";
     const parts = name.trim().split(/\s+/);
@@ -813,6 +1325,7 @@ function ChatPage() {
 
   // Contatos filtrados
   const filteredContacts = activeContactsList.filter((c: any) => {
+    if (c.is_archived) return false;
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
@@ -826,7 +1339,6 @@ function ChatPage() {
 
   // Mutation para envio de mensagens
   const sendMutation = useMutation<any, any, any>({
-    box: true,
     mutationFn: async (payload: {
       type:
         | "text"
@@ -1517,109 +2029,352 @@ function ChatPage() {
                 const contactTags = cachedConvTags.filter(
                   (ct: any) => ct.contact_number === c.phone_e164
                 );
-
                 return (
-                  <button
+                  <div
                     key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedContact(c);
-                      setReplyingTo(null);
-                    }}
                     className={cn(
-                      "w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-border",
+                      "relative group w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-border",
                       isSelected ? "bg-primary/10" : "hover:bg-muted/40"
                     )}
                   >
-                    {/* Avatar com WhatsApp Status Overlay */}
-                    <div className="relative shrink-0">
-                      <div
-                        className="h-11 w-11 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shadow-sm border border-border"
-                        style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
-                      >
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt={c.name ?? "Contato"}
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              const parent = target.parentElement;
-                              if (parent) {
-                                target.style.display = "none";
-                                parent.style.backgroundColor = avatarBg;
-                                parent.textContent = getInitials(c.name ?? "");
-                              }
-                            }}
-                          />
-                        ) : (
-                          getInitials(c.name ?? "")
-                        )}
+                    {/* Clickable Area for Contact Selection */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelectedContact(c);
+                        setReplyingTo(null);
+                      }}
+                      className="flex-1 flex items-start gap-3 min-w-0 cursor-pointer"
+                    >
+                      {/* Avatar */}
+                      <div className="relative shrink-0">
+                        <div
+                          className="h-11 w-11 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shadow-sm border border-border"
+                          style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                        >
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={c.name ?? "Contato"}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  target.style.display = "none";
+                                  parent.style.backgroundColor = avatarBg;
+                                  parent.textContent = getInitials(c.name ?? "");
+                                }
+                              }}
+                            />
+                          ) : (
+                            getInitials(c.name ?? "")
+                          )}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 bg-background p-0.5 rounded-full shadow-sm">
+                          <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-2.5 w-2.5 fill-current"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                            </svg>
+                          </div>
+                        </div>
                       </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-background p-0.5 rounded-full shadow-sm">
-                        <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
-                          {/* Ícone discreto do WhatsApp */}
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-2.5 w-2.5 fill-current"
-                            xmlns="http://www.w3.org/2000/svg"
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        {/* First row: Name and Time */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-emerald-500 shrink-0">
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                              </svg>
+                            </span>
+                            <h4 className="font-bold text-sm text-foreground truncate leading-none">
+                              {c.name || "Sem Nome"}
+                            </h4>
+                            {c.is_pinned === 1 && (
+                              <Bookmark className="h-3.5 w-3.5 text-amber-500 fill-current shrink-0 ml-1" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 text-muted-foreground select-none">
+                            {!c.unread_count && (
+                              <span className="text-emerald-500 shrink-0">
+                                <CheckCheck className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                            <span className="text-[10px]">
+                              {c.last_message_time ? formatRelativeTime(c.last_message_time) : "sem data"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Second row: Last message body */}
+                        <p className="text-xs text-muted-foreground truncate leading-normal">
+                          {c.last_message_body || c.custom_fields?.company || "Sem mensagens"}
+                        </p>
+
+                        {/* Third row: Badges */}
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {/* Status Badge */}
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase border select-none",
+                              c.chat_status === "fechado"
+                                ? "border-gray-500/30 text-gray-500 bg-gray-500/10"
+                                : c.chat_status === "aguardando"
+                                ? "border-amber-500/30 text-amber-500 bg-amber-500/10"
+                                : "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                            )}
                           >
-                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.5-5.739-1.446L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.588 1.977 14.133.953 11.5.953c-5.439 0-9.859 4.373-9.862 9.802-.001 1.704.453 3.364 1.316 4.824L1.936 21.05l5.59-1.467-.879-.429z" />
-                          </svg>
+                            {c.chat_status === "fechado" ? (
+                              <Check className="h-2.5 w-2.5" />
+                            ) : c.chat_status === "aguardando" ? (
+                              <Clock className="h-2.5 w-2.5" />
+                            ) : (
+                              <Activity className="h-2.5 w-2.5" />
+                            )}
+                            {c.chat_status || "aberto"}
+                          </span>
+
+                          {/* SLA Badge */}
+                          {getSlaWarning(c) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase border border-rose-500/30 text-rose-500 bg-rose-500/10 select-none">
+                              <AlertCircle className="h-2.5 w-2.5" />
+                              SLA
+                            </span>
+                          )}
+
+                          {/* Team Badge */}
+                          {c.active_team_name && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase bg-pink-500 text-white select-none">
+                              <Users className="h-2.5 w-2.5" />
+                              {c.active_team_name}
+                            </span>
+                          )}
+
+                          {/* Agent Badge */}
+                          {c.active_agent_name && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase bg-violet-600 text-white select-none">
+                              <User className="h-2.5 w-2.5" />
+                              {c.active_agent_name}
+                            </span>
+                          )}
+
+                          {/* Kanban Badge */}
+                          {(c.kanban_stage_name || c.custom_fields?.company) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase bg-cyan-700 text-white select-none">
+                              <Phone className="h-2.5 w-2.5" />
+                              {c.kanban_stage_name || c.custom_fields?.company}
+                            </span>
+                          )}
+
+                          {/* Textual Tags (legacy) */}
+                          {contactTags.map((ct: any) => (
+                            <span
+                              key={ct.tag_id}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider text-white select-none"
+                              style={{ backgroundColor: ct.tags?.color || '#6366f1' }}
+                            >
+                              {ct.tags?.name}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
 
-                    {/* Conteúdo Central e Lateral Direito */}
-                    <div className="flex-1 min-w-0 flex justify-between gap-2">
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <h4 className="font-bold text-sm text-foreground truncate leading-snug">
-                          {c.name || "Sem Nome"}
-                        </h4>
-
-                        {/* Etiquetas Textuais de Fundo Sólido */}
-                        {contactTags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {contactTags.map((ct: any) => (
-                              <span
-                                key={ct.tag_id}
-                                className="inline-block px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider text-white select-none"
-                                style={{ backgroundColor: ct.tags?.color || '#6366f1' }}
-                              >
-                                {ct.tags?.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        <p className="text-xs text-muted-foreground truncate leading-normal">
-                          {c.last_message_body || c.custom_fields?.company || "Sem mensagens"}
-                        </p>
-                      </div>
-
-                      {/* Coluna Direita: Setor, Horário e Contagem de Não Lidas */}
-                      <div className="shrink-0 flex flex-col items-end justify-between text-right space-y-1">
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded-full text-[9.5px] font-medium border select-none",
-                            getDeptStyle(c.department)
-                          )}
-                        >
-                          {c.department}
+                    {/* Right side unread count & Dropdown menu */}
+                    <div className="shrink-0 flex flex-col items-end justify-between self-stretch pt-0.5">
+                      {c.unread_count > 0 ? (
+                        <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center shadow-sm select-none">
+                          {c.unread_count}
                         </span>
+                      ) : (
+                        <div className="h-5 w-5" />
+                      )}
 
-                        <span className="text-[10px] text-muted-foreground select-none">
-                          {c.last_message_time ? formatRelativeTime(c.last_message_time) : "sem data"}
-                        </span>
+                      {/* Dropdown Menu Trigger on Hover */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted/80">
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-[200px]">
+                            {/* Pin */}
+                            <DropdownMenuItem
+                              onClick={() => pinMutation.mutate({ contactId: c.id, isPinned: c.is_pinned !== 1 })}
+                            >
+                              <Bookmark className="mr-2 h-4 w-4 text-amber-500" />
+                              {c.is_pinned === 1 ? "Desafixar conversa" : "Fixar conversa"}
+                            </DropdownMenuItem>
 
-                        {c.unread_count > 0 && (
-                          <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center shadow-sm select-none">
-                            {c.unread_count}
-                          </span>
-                        )}
+                            {/* Kanban Submenu */}
+                            {salesStagesQuery.data && salesStagesQuery.data.length > 0 && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                                  <span>Kanban</span>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuPortal>
+                                  <DropdownMenuSubContent className="w-[200px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                                    <DropdownMenuItem onClick={() => kanbanStageMutation.mutate({ contactId: c.id, stageId: null })} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                                      <X className="mr-2 h-3.5 w-3.5" />
+                                      <span>Sem funil</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="bg-neutral-800/40" />
+                                    {(salesFunnelsQuery.data ?? []).map((funnel: any) => {
+                                      const funnelStages = salesStagesQuery.data.filter((s: any) => s.funnel_id === funnel.id);
+                                      if (funnelStages.length === 0) return null;
+                                      return (
+                                        <DropdownMenuSub key={funnel.id}>
+                                          <DropdownMenuSubTrigger className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                                            <span className="truncate">{funnel.name}</span>
+                                          </DropdownMenuSubTrigger>
+                                          <DropdownMenuPortal>
+                                            <DropdownMenuSubContent className="w-[180px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                                              {funnelStages.map((stage: any) => (
+                                                <DropdownMenuItem
+                                                  key={stage.id}
+                                                  onClick={() => kanbanStageMutation.mutate({ contactId: c.id, stageId: stage.id })}
+                                                  className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                                                >
+                                                  <span
+                                                    className="h-2 w-2 rounded-full mr-2 shrink-0"
+                                                    style={{ backgroundColor: stage.color || "#8b5cf6" }}
+                                                  />
+                                                  <span className="truncate">{stage.name}</span>
+                                                </DropdownMenuItem>
+                                              ))}
+                                            </DropdownMenuSubContent>
+                                          </DropdownMenuPortal>
+                                        </DropdownMenuSub>
+                                      );
+                                    })}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuPortal>
+                              </DropdownMenuSub>
+                            )}
+
+                            {/* Tags Submenu */}
+                            {tagsQuery.data && tagsQuery.data.length > 0 && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                  <Tag className="mr-2 h-4 w-4" />
+                                  <span>Tags</span>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuPortal>
+                                  <DropdownMenuSubContent className="w-[180px]">
+                                    {tagsQuery.data.map((tag: any) => {
+                                      const isTagged = contactTags.some((ct: any) => ct.tag_id === tag.id);
+                                      return (
+                                        <DropdownMenuItem
+                                          key={tag.id}
+                                          onClick={() => handleToggleConversationTag(c.phone_e164, tag.id, isTagged)}
+                                        >
+                                          {isTagged ? (
+                                            <Check className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+                                          ) : (
+                                            <div className="mr-2 h-3.5 w-3.5" />
+                                          )}
+                                          <span
+                                            className="h-2 w-2 rounded-full mr-2 shrink-0"
+                                            style={{ backgroundColor: tag.color || "#6366f1" }}
+                                          />
+                                          <span className="truncate">{tag.name}</span>
+                                        </DropdownMenuItem>
+                                      );
+                                    })}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuPortal>
+                              </DropdownMenuSub>
+                            )}
+
+                            {/* Status Submenu */}
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <Activity className="mr-2 h-4 w-4" />
+                                <span>Status</span>
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuPortal>
+                                <DropdownMenuSubContent className="w-[150px]">
+                                  <DropdownMenuItem onClick={() => statusMutation.mutate({ contactId: c.id, status: "aberto" })}>
+                                    <Activity className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+                                    <span>Aberto</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => statusMutation.mutate({ contactId: c.id, status: "aguardando" })}>
+                                    <Clock className="mr-2 h-3.5 w-3.5 text-amber-500" />
+                                    <span>Aguardando</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => statusMutation.mutate({ contactId: c.id, status: "fechado" })}>
+                                    <Check className="mr-2 h-3.5 w-3.5 text-gray-500" />
+                                    <span>Fechado</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                              </DropdownMenuPortal>
+                            </DropdownMenuSub>
+
+                            <DropdownMenuSeparator />
+
+                            {/* Editar */}
+                            <DropdownMenuItem onClick={() => setQuickSaveContactData(c)}>
+                              <User className="mr-2 h-4 w-4" />
+                              <span>Salvar contato</span>
+                            </DropdownMenuItem>
+
+                            {/* Atribuir */}
+                            <DropdownMenuItem onClick={() => setAssigningContactData(c)}>
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              <span>Atribuir conversa</span>
+                            </DropdownMenuItem>
+
+                            {/* Não Lida */}
+                            <DropdownMenuItem
+                              onClick={() => unreadMutation.mutate({ contactId: c.id, isUnread: c.is_unread !== 1 })}
+                            >
+                              <Mail className="mr-2 h-4 w-4" />
+                              {c.is_unread === 1 ? "Marcar como lida" : "Marcar como não lida"}
+                            </DropdownMenuItem>
+
+                            {/* Arquivar */}
+                            <DropdownMenuItem
+                              onClick={() => archiveMutation.mutate({ contactId: c.id, isArchived: c.is_archived !== 1 })}
+                            >
+                              <Archive className="mr-2 h-4 w-4" />
+                              {c.is_archived === 1 ? "Desarquivar conversa" : "Arquivar conversa"}
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+
+                            {/* Apagar */}
+                            <DropdownMenuItem
+                              className="text-destructive hover:text-destructive"
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: "Excluir contato?",
+                                  description: `O contato ${c.name || c.phone_e164} será excluído permanentemente.`,
+                                  confirmText: "Excluir",
+                                  destructive: true,
+                                });
+                                if (ok) {
+                                  deleteContactMutation.mutate(c.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Apagar conversa</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -1690,12 +2445,12 @@ function ChatPage() {
             {selectedContact ? (
               <>
                 {/* Header do Chat */}
-                <div className="p-3 border-b flex items-center justify-between bg-card">
+                <div className="px-4 py-3 border-b border-zinc-800 bg-[#0c0a0f] flex items-center justify-between h-[72px] shrink-0">
                   <div className="flex items-center gap-3">
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="md:hidden"
+                      className="md:hidden h-8 w-8 text-zinc-400 hover:text-zinc-200"
                       onClick={() => setSelectedContact(null)}
                     >
                       <ArrowLeft className="h-5 w-5" />
@@ -1709,7 +2464,7 @@ function ChatPage() {
                           type="button"
                           onClick={() => setContactInfoOpen((o) => !o)}
                           title="Ver dados do contato"
-                          className="h-9 w-9 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 ring-2 ring-transparent hover:ring-primary/60 transition-all duration-200 cursor-pointer"
+                          className="h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 border-2 border-amber-400 hover:border-amber-300 transition-all duration-200 cursor-pointer shadow-sm"
                           style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                         >
                           {avatarUrl ? (
@@ -1736,9 +2491,9 @@ function ChatPage() {
                       );
                     })()}
 
-                    <div>
+                    <div className="flex flex-col min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-sm truncate text-foreground leading-tight">
+                        <h3 className="font-bold text-[15px] truncate text-zinc-100 leading-tight">
                           {selectedContact.name || "Sem Nome"}
                         </h3>
                         {/* Render conversation tag pills/dots in header */}
@@ -1756,163 +2511,209 @@ function ChatPage() {
                           );
                         })()}
                       </div>
-                      <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
-                        <Phone className="h-3 w-3 shrink-0" />+{selectedContact.phone_e164}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Conversation Tag Dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 rounded-full hover:bg-muted"
-                          title="Etiquetas da conversa"
-                        >
-                          <Tag className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="p-2 min-w-[200px]" align="end">
-                        {(() => {
-                          const contactTags = cachedConvTags.filter(
-                            (ct: any) => ct.contact_number === selectedContact.phone_e164,
-                          );
-                          return (
-                            <>
-                              {contactTags.length > 0 && (
-                                <div className="border-b pb-1.5 mb-1.5">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
-                                    onClick={() =>
-                                      handleClearConversationTags(selectedContact.phone_e164)
-                                    }
-                                  >
-                                    <X className="h-3 w-3 mr-1.5" /> Limpar etiquetas (
-                                    {contactTags.length})
-                                  </Button>
-                                </div>
-                              )}
-
-                              <div className="max-h-40 overflow-y-auto space-y-1">
-                                {(tagsQuery.data ?? []).length === 0 ? (
-                                  <div className="text-[10px] text-muted-foreground p-1 text-center">
-                                    Nenhuma etiqueta cadastrada.
-                                  </div>
-                                ) : (
-                                  (tagsQuery.data ?? []).map((tag: any) => {
-                                    const isApplied = contactTags.some(
-                                      (ct: any) => ct.tag_id === tag.id,
-                                    );
-                                    return (
-                                      <button
-                                        key={tag.id}
-                                        type="button"
-                                        onClick={() =>
-                                          handleToggleConversationTag(
-                                            selectedContact.phone_e164,
-                                            tag.id,
-                                            isApplied,
-                                          )
-                                        }
-                                        className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span
-                                            className="h-3 w-3 rounded-full"
-                                            style={{ backgroundColor: tag.color }}
-                                          />
-                                          <span className="truncate">{tag.name}</span>
-                                        </div>
-                                        <span
-                                          className={cn(
-                                            "h-4 w-4 rounded border flex items-center justify-center transition-all",
-                                            isApplied
-                                              ? "bg-primary text-primary-foreground border-primary"
-                                              : "border-muted-foreground/30",
-                                          )}
-                                        >
-                                          {isApplied && <Check className="h-3 w-3" />}
-                                        </span>
-                                      </button>
-                                    );
-                                  })
-                                )}
-                              </div>
-
-                              {/* Inline tag creator form */}
-                              <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
-                                <p className="text-[10px] text-muted-foreground px-1 font-semibold">
-                                  Nova etiqueta
-                                </p>
-                                <div className="flex gap-1">
-                                  <Input
-                                    placeholder="Nome..."
-                                    className="h-7 text-xs px-2 flex-1"
-                                    maxLength={20}
-                                    onKeyDown={async (e) => {
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        const target = e.currentTarget;
-                                        const val = target.value.trim();
-                                        if (!val) return;
-                                        const res = await handleCreateTag(val, selectedColor);
-                                        if (res) {
-                                          target.value = "";
-                                          handleToggleConversationTag(
-                                            selectedContact.phone_e164,
-                                            res.id,
-                                            false,
-                                          );
-                                        }
-                                      }
-                                    }}
-                                  />
-                                </div>
-                                <div className="flex justify-between px-1">
-                                  {PREDEFINED_COLORS.slice(0, 8).map((c) => (
-                                    <button
-                                      key={c}
-                                      type="button"
-                                      className={cn(
-                                        "h-3 w-3 rounded-full border transition-transform hover:scale-110",
-                                        selectedColor === c
-                                          ? "border-foreground"
-                                          : "border-transparent",
-                                      )}
-                                      style={{ backgroundColor: c }}
-                                      onClick={() => setSelectedColor(c)}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {/* Indicador discreto de sincronização automática */}
-                    <div
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                      title="Atualizando automaticamente a cada 4s"
-                    >
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full",
-                          messagesQuery.isFetching ? "bg-primary animate-pulse" : "bg-emerald-500",
-                        )}
-                      />
-                      <span className="hidden sm:inline">
-                        {messagesQuery.isFetching ? "Sincronizando..." : "Ao vivo"}
+                      <span className="text-xs text-zinc-400 font-medium leading-normal">
+                        {formatPhone(selectedContact.phone_e164)}
                       </span>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Status Badge Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-neutral-700 bg-neutral-900/50 hover:bg-neutral-900 text-neutral-200 select-none cursor-pointer transition-colors"
+                        >
+                          <span
+                            className={cn(
+                              "h-2 w-2 rounded-full",
+                              selectedContact.chat_status === "fechado"
+                                ? "bg-zinc-500"
+                                : selectedContact.chat_status === "aguardando"
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
+                            )}
+                          />
+                          <span>
+                            {selectedContact.chat_status === "fechado"
+                              ? "Resolvida"
+                              : selectedContact.chat_status === "aguardando"
+                              ? "Pendente"
+                              : "Aberta"}
+                          </span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[150px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                        <DropdownMenuItem
+                          onClick={() => statusMutation.mutate({ contactId: selectedContact.id, status: "aberto" })}
+                          className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            <span>Aberta</span>
+                          </div>
+                          {selectedContact.chat_status === "aberto" && <Check className="h-3.5 w-3.5 text-violet-500" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => statusMutation.mutate({ contactId: selectedContact.id, status: "aguardando" })}
+                          className="flex items-center justify-between cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                            <span>Pendente</span>
+                          </div>
+                          {selectedContact.chat_status === "aguardando" && <Check className="h-3.5 w-3.5 text-violet-500" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => statusMutation.mutate({ contactId: selectedContact.id, status: "fechado" })}
+                          className="flex items-center justify-between cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
+                            <span>Resolvida</span>
+                          </div>
+                          {selectedContact.chat_status === "fechado" && <Check className="h-3.5 w-3.5 text-violet-500" />}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Bot Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        botActiveMutation.mutate({
+                          contactPhone: selectedContact.phone_e164,
+                          botActive: !selectedContact.bot_active,
+                        })
+                      }
+                      className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-neutral-800 text-zinc-400 hover:text-zinc-200 relative"
+                      title={selectedContact.bot_active ? "Desativar Inteligência / Chatbot" : "Ativar Inteligência / Chatbot"}
+                    >
+                      {selectedContact.bot_active ? (
+                        <Bot className="h-5 w-5 text-emerald-500" />
+                      ) : (
+                        <div className="relative h-5 w-5 flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-zinc-400 opacity-60" />
+                          <svg
+                            className="absolute inset-0 h-5 w-5 text-zinc-400 opacity-60"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          >
+                            <line x1="4" y1="4" x2="20" y2="20" />
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Options Dropdown Menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full cursor-pointer hover:bg-neutral-800/80 text-zinc-400 hover:text-zinc-200">
+                          <MoreVertical className="h-5 w-5 text-zinc-400" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[220px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                        <DropdownMenuItem onClick={() => setIsQuickOpportunityOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <Filter className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Oportunidade Rápida</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setAssigningContactData(selectedContact)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <Forward className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Atribuir Conversa</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setQuickSaveContactData(selectedContact)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <UserPen className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Salvar Contato</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setIsInventoryOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <Package className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Gerenciar Estoque</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setIsMessageSearchOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <Search className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Buscar Mensagens</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setIsFollowUpOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <Clock className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Agendar Follow-up</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setIsLeadHistoryOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <History className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Histórico do Lead</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          className={cn(
+                            selectedContact.opted_out
+                              ? "text-emerald-500 hover:text-emerald-500 focus:text-emerald-500 focus:bg-emerald-500/10"
+                              : "text-red-500 hover:text-red-500 focus:text-red-500 focus:bg-red-500/10",
+                            "cursor-pointer"
+                          )}
+                          onClick={async () => {
+                            const isBlocked = selectedContact.opted_out === 1 || selectedContact.opted_out === true;
+                            const ok = await confirm({
+                              title: isBlocked ? "Desbloquear Contato?" : "Bloquear Contato?",
+                              description: isBlocked
+                                ? `Deseja realmente desbloquear o contato ${selectedContact.name || selectedContact.phone_e164}?`
+                                : `Deseja realmente bloquear o contato ${selectedContact.name || selectedContact.phone_e164}?`,
+                              confirmText: isBlocked ? "Desbloquear" : "Bloquear",
+                              destructive: !isBlocked,
+                            });
+                            if (ok) {
+                              blockContactMutation.mutate({
+                                contactId: selectedContact.id,
+                                block: !isBlocked,
+                              });
+                            }
+                          }}
+                        >
+                          <Ban className={cn("mr-2.5 h-4 w-4", selectedContact.opted_out ? "text-emerald-500" : "text-red-500")} />
+                          <span>{selectedContact.opted_out ? "Desbloquear Contato" : "Bloquear Contato"}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
+
+                {/* Message Search Bar */}
+                {isMessageSearchOpen && (
+                  <div className="px-4 py-2.5 bg-neutral-950 border-b border-zinc-800 flex items-center gap-2 animate-in slide-in-from-top duration-200">
+                    <Search className="h-3.5 w-3.5 text-zinc-400" />
+                    <Input
+                      placeholder="Buscar nas mensagens deste chat..."
+                      value={messageSearchQuery}
+                      onChange={(e) => setMessageSearchQuery(e.target.value)}
+                      className="flex-1 h-8 text-xs bg-[#0c0a0f] border-neutral-800 text-zinc-200 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-1"
+                      autoFocus
+                    />
+                    {messageSearchQuery && (
+                      <span className="text-[10px] text-zinc-400 font-semibold px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded">
+                        {displayMessages.filter(m => (m.body || "").toLowerCase().includes(messageSearchQuery.toLowerCase())).length} encontrada(s)
+                      </span>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-zinc-400 hover:text-zinc-200 hover:bg-neutral-800 rounded-full"
+                      onClick={() => {
+                        setMessageSearchQuery("");
+                        setIsMessageSearchOpen(false);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
 
                 {/* Corpo / Lista de Balões */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 relative bg-muted/10">
@@ -2031,6 +2832,20 @@ function ChatPage() {
                                 const formatMessageText = (text: string) => {
                                   if (!text) return "";
                                   let formatted = text;
+                                  
+                                  // Escape HTML characters to prevent XSS before formatting
+                                  formatted = formatted
+                                    .replace(/&/g, "&amp;")
+                                    .replace(/</g, "&lt;")
+                                    .replace(/>/g, "&gt;");
+                                  
+                                  // Highlight message search query if active
+                                  if (messageSearchQuery.trim()) {
+                                    const escapedQuery = messageSearchQuery.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+                                    const regex = new RegExp(`(${escapedQuery})`, "gi");
+                                    formatted = formatted.replace(regex, "<mark class='bg-yellow-500/40 text-yellow-100 px-0.5 rounded'>$1</mark>");
+                                  }
+
                                   // Bold
                                   formatted = formatted.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
                                   formatted = formatted.replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
@@ -2887,7 +3702,7 @@ function ChatPage() {
                         <p className="font-semibold text-base leading-tight">
                           {selectedContact.name || "Sem Nome"}
                         </p>
-                        {selectedContact.opted_out && (
+                        {(selectedContact.opted_out === 1 || selectedContact.opted_out === true) && (
                           <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
                             Opt-out
                           </span>
@@ -3178,6 +3993,517 @@ function ChatPage() {
               )}
             </div>
           )}
+          {/* Diálogos Rápidos de Ações */}
+          <Dialog open={!!quickSaveContactData} onOpenChange={(open) => !open && setQuickSaveContactData(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar Contato Rápido</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="qs-name">Nome</Label>
+                  <Input
+                    id="qs-name"
+                    placeholder="Nome do contato"
+                    value={quickSaveName}
+                    onChange={(e) => setQuickSaveName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="qs-email">E-mail</Label>
+                  <Input
+                    id="qs-email"
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={quickSaveEmail}
+                    onChange={(e) => setQuickSaveEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="qs-phone">Telefone</Label>
+                  <Input
+                    id="qs-phone"
+                    placeholder="Ex: 5511999999999"
+                    value={quickSavePhone}
+                    onChange={(e) => setQuickSavePhone(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setQuickSaveContactData(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!quickSaveName.trim()) {
+                      toast.error("O nome é obrigatório");
+                      return;
+                    }
+                    if (!quickSavePhone.trim()) {
+                      toast.error("O telefone é obrigatório");
+                      return;
+                    }
+                    quickSaveMutation.mutate({
+                      contactId: quickSaveContactData.id,
+                      name: quickSaveName,
+                      email: quickSaveEmail,
+                      phone: quickSavePhone,
+                    });
+                  }}
+                  disabled={quickSaveMutation.isPending}
+                >
+                  {quickSaveMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={!!assigningContactData} onOpenChange={(open) => !open && setAssigningContactData(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Atribuir Conversa</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1">
+                  <Label>Equipe / Setor</Label>
+                  <Select
+                    value={assignDialogTeamId || "none"}
+                    onValueChange={(val) => {
+                      setAssignDialogTeamId(val);
+                      setAssignDialogAgentId("");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem equipe (Não atribuído)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem equipe (Não atribuído)</SelectItem>
+                      {(teamsQuery.data ?? []).map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Agente / Atendente</Label>
+                  <Select
+                    value={assignDialogAgentId || "none"}
+                    onValueChange={setAssignDialogAgentId}
+                    disabled={!assignDialogTeamId || assignDialogTeamId === "none"}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem agente (Fila da equipe)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem agente (Fila da equipe)</SelectItem>
+                      {(assignDialogTeamMembersQuery.data ?? []).map((m: any) => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {m.full_name || m.display_name || m.email || m.user_id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+                <div>
+                  {assignDialogTeamId && assignDialogTeamId !== "none" && (
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => {
+                        autoAssignMutation.mutate({
+                          teamId: assignDialogTeamId,
+                          contactPhone: assigningContactData.phone_e164,
+                        }, {
+                          onSuccess: () => setAssigningContactData(null),
+                        });
+                      }}
+                      disabled={autoAssignMutation.isPending}
+                      className="w-full sm:w-auto"
+                    >
+                      {autoAssignMutation.isPending ? "Auto-atribuindo..." : "Auto-atribuir"}
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setAssigningContactData(null)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const targetTeamId = assignDialogTeamId === "none" || !assignDialogTeamId ? null : assignDialogTeamId;
+                      const targetAgentId = assignDialogAgentId === "none" || !assignDialogAgentId ? null : assignDialogAgentId;
+                      assignMutation.mutate({
+                        teamId: targetTeamId,
+                        agentId: targetAgentId,
+                        contactPhone: assigningContactData.phone_e164,
+                      }, {
+                        onSuccess: () => setAssigningContactData(null),
+                      });
+                    }}
+                    disabled={assignMutation.isPending}
+                  >
+                    {assignMutation.isPending ? "Salvando..." : "Salvar"}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Diálogo de Oportunidade Rápida */}
+          <Dialog open={isQuickOpportunityOpen} onOpenChange={setIsQuickOpportunityOpen}>
+            <DialogContent className="sm:max-w-[450px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+              <DialogHeader>
+                <DialogTitle className="text-zinc-100">Criar Oportunidade Rápida</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Título da Oportunidade</Label>
+                  <Input
+                    placeholder="Ex: Contrato de Licença"
+                    value={oppTitle}
+                    onChange={(e) => setOppTitle(e.target.value)}
+                    className="bg-neutral-900 border-neutral-800 text-zinc-200"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-zinc-400">Valor (R$)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={oppValue}
+                      onChange={(e) => setOppValue(parseFloat(e.target.value) || 0)}
+                      className="bg-neutral-900 border-neutral-800 text-zinc-200"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-zinc-400">Origem</Label>
+                    <Select defaultValue="whatsapp">
+                      <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                        <SelectValue placeholder="Origem" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                        <SelectItem value="whatsapp">WhatsApp Direto</SelectItem>
+                        <SelectItem value="site">Site / Orgânico</SelectItem>
+                        <SelectItem value="indicacao">Indicação</SelectItem>
+                        <SelectItem value="outros">Outros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Funil de Vendas</Label>
+                  <Select
+                    value={oppFunnelId}
+                    onValueChange={(val) => {
+                      setOppFunnelId(val);
+                      const stages = salesStagesQuery.data?.filter((s: any) => s.funnel_id === val);
+                      if (stages && stages.length > 0) {
+                        setOppStageId(stages[0].id);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                      <SelectValue placeholder="Selecione o Funil" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                      {(salesFunnelsQuery.data ?? []).map((f: any) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Etapa do Funil</Label>
+                  <Select
+                    value={oppStageId}
+                    onValueChange={setOppStageId}
+                    disabled={!oppFunnelId}
+                  >
+                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                      <SelectValue placeholder="Selecione a Etapa" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                      {(salesStagesQuery.data ?? [])
+                        .filter((s: any) => s.funnel_id === oppFunnelId)
+                        .map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsQuickOpportunityOpen(false)} className="border-neutral-800 hover:bg-neutral-800 text-zinc-300">
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!oppTitle.trim()) {
+                      toast.error("O título da oportunidade é obrigatório");
+                      return;
+                    }
+                    if (!oppFunnelId || !oppStageId) {
+                      toast.error("Selecione o funil e a etapa");
+                      return;
+                    }
+                    createOpportunityMutation.mutate({
+                      title: oppTitle.trim(),
+                      value: oppValue,
+                      funnel_id: oppFunnelId,
+                      stage_id: oppStageId,
+                      primary_contact_id: selectedContact.id,
+                    });
+                  }}
+                  disabled={createOpportunityMutation.isPending}
+                  className="bg-primary text-primary-foreground hover:bg-primary/95"
+                >
+                  {createOpportunityMutation.isPending ? "Criando..." : "Criar Oportunidade"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Diálogo de Agendar Follow-up */}
+          <Dialog open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
+            <DialogContent className="sm:max-w-[400px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+              <DialogHeader>
+                <DialogTitle className="text-zinc-100">Agendar Novo Follow-up</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Título do Compromisso</Label>
+                  <Input
+                    placeholder="Ex: Ligar para confirmar proposta"
+                    value={followUpTitle}
+                    onChange={(e) => setFollowUpTitle(e.target.value)}
+                    className="bg-neutral-900 border-neutral-800 text-zinc-200"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Data e Hora Limite</Label>
+                  <Input
+                    type="datetime-local"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="bg-neutral-900 border-neutral-800 text-zinc-250 block w-full px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Descrição / Notas</Label>
+                  <Textarea
+                    placeholder="Insira detalhes da ação do follow-up..."
+                    value={followUpDesc}
+                    onChange={(e) => setFollowUpDesc(e.target.value)}
+                    className="bg-neutral-900 border-neutral-800 text-zinc-200 resize-none h-20"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsFollowUpOpen(false)} className="border-neutral-800 hover:bg-neutral-800 text-zinc-300">
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!followUpTitle.trim()) {
+                      toast.error("O título do follow-up é obrigatório");
+                      return;
+                    }
+                    if (!followUpDate) {
+                      toast.error("A data limite é obrigatória");
+                      return;
+                    }
+                    followUpMutation.mutate({
+                      title: followUpTitle.trim(),
+                      description: followUpDesc.trim(),
+                      due_at: followUpDate,
+                    });
+                  }}
+                  disabled={followUpMutation.isPending}
+                >
+                  {followUpMutation.isPending ? "Agendando..." : "Agendar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Diálogo de Histórico do Lead */}
+          <Dialog open={isLeadHistoryOpen} onOpenChange={setIsLeadHistoryOpen}>
+            <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+              <DialogHeader>
+                <DialogTitle className="text-zinc-100">Histórico de Atividades do Lead</DialogTitle>
+              </DialogHeader>
+              
+              <div className="flex-1 overflow-y-auto pr-1 py-2 space-y-4">
+                {leadHistoryQuery.isLoading ? (
+                  <div className="py-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span>Carregando histórico do lead...</span>
+                  </div>
+                ) : (leadHistoryQuery.data ?? []).length === 0 ? (
+                  <div className="py-12 text-center text-zinc-400 text-xs italic">
+                    Nenhuma atividade registrada para este contato no CRM.
+                  </div>
+                ) : (
+                  <div className="relative border-l border-zinc-800 ml-3 pl-5 space-y-5">
+                    {(leadHistoryQuery.data ?? []).map((item: any) => {
+                      const itemDate = new Date(item.date);
+                      return (
+                        <div key={item.id} className="relative group">
+                          {/* Dot indicator */}
+                          <span className={cn(
+                            "absolute -left-[27px] top-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center text-[8px] font-bold text-white shadow-sm select-none",
+                            item.type === "activity"
+                              ? item.status === "done" ? "bg-emerald-500" : "bg-amber-500"
+                              : "bg-indigo-500"
+                          )}>
+                            {item.type === "activity" ? "A" : "U"}
+                          </span>
+                          
+                          <div>
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="font-semibold text-sm text-zinc-200">{item.title}</h4>
+                              <span className="text-[10px] text-zinc-400 select-none">
+                                {itemDate.toLocaleDateString([], { day: "numeric", month: "short" })} - {itemDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            {item.description && (
+                              <p className="text-xs text-zinc-400 mt-1 bg-zinc-900/50 p-2 rounded border border-zinc-900">
+                                {item.description}
+                              </p>
+                            )}
+                            {item.type === "audit" && item.new_values && (
+                              <div className="text-[10px] text-zinc-400 font-mono mt-1 bg-neutral-900 p-1.5 rounded truncate max-w-full">
+                                Modificado: {typeof item.new_values === "object" ? JSON.stringify(item.new_values) : String(item.new_values)}
+                              </div>
+                            )}
+                            {item.type === "activity" && (
+                              <div className="flex gap-2 items-center mt-1.5">
+                                <span className={cn(
+                                  "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
+                                  item.activityType === "follow_up" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
+                                )}>
+                                  {item.activityType}
+                                </span>
+                                <span className={cn(
+                                  "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
+                                  item.status === "done" ? "bg-emerald-500/10 text-emerald-500 border border-emerald-550/20" : "bg-neutral-800 text-zinc-400"
+                                )}>
+                                  {item.status === "done" ? "Concluído" : "Pendente"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <DialogFooter className="mt-4">
+                <Button onClick={() => setIsLeadHistoryOpen(false)} className="bg-primary text-primary-foreground hover:bg-primary/95">
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Diálogo de Gerenciar Estoque */}
+          <Dialog open={isInventoryOpen} onOpenChange={setIsInventoryOpen}>
+            <DialogContent className="sm:max-w-[480px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+              <DialogHeader>
+                <DialogTitle className="text-zinc-100">Gerenciador de Estoque / Catálogo</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-3">
+                  {products.map((prod) => (
+                    <div key={prod.id} className="flex items-center justify-between p-3 rounded-lg border border-neutral-800 bg-neutral-900/50 text-zinc-200">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-sm text-zinc-100">{prod.name}</h4>
+                        <p className="text-xs text-zinc-400 font-semibold mt-0.5">
+                          Preço: R$ {prod.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] text-zinc-400 mt-1">
+                          Estoque: {prod.isUnlimited ? "Ilimitado" : `${prod.stock} un`}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 ml-4">
+                        {!prod.isUnlimited && (
+                          <div className="flex items-center border border-neutral-800 rounded bg-neutral-950">
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-xs hover:bg-neutral-800 transition-colors"
+                              onClick={() => updateProductStock(prod.id, Math.max(0, prod.stock - 1))}
+                            >
+                              -
+                            </button>
+                            <span className="px-2 text-xs font-mono select-none">{prod.stock}</span>
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-xs hover:bg-neutral-800 transition-colors"
+                              onClick={() => updateProductStock(prod.id, prod.stock + 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs gap-1 border-primary/20 hover:border-primary/40 hover:bg-primary/5 text-primary"
+                          onClick={() => {
+                            if (!prod.isUnlimited && prod.stock <= 0) {
+                              toast.error("Produto esgotado no estoque!");
+                              return;
+                            }
+                            
+                            const paymentLink = `http://localhost:8080/admin/links-pagamento`;
+                            const message = `*Catálogo:* Olá! Aqui estão os detalhes do produto:\n\n*${prod.name}*\nPreço: *R$ ${prod.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n\nAdquira agora acessando o link de pagamento seguro:\n${paymentLink}`;
+                            
+                            sendMutation.mutate({
+                              type: "text",
+                              text: {
+                                body: message,
+                                preview_url: true,
+                              }
+                            });
+
+                            if (!prod.isUnlimited) {
+                              updateProductStock(prod.id, prod.stock - 1);
+                            }
+
+                            toast.success("Catálogo do produto enviado para o cliente!");
+                            setIsInventoryOpen(false);
+                          }}
+                        >
+                          <Send className="h-3 w-3" />
+                          Enviar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setIsInventoryOpen(false)} className="border-neutral-800 hover:bg-neutral-800 text-zinc-300">
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

@@ -334,7 +334,7 @@ export function TemplateBuilderDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{template ? "Editar template" : "Novo template"}</DialogTitle>
         </DialogHeader>

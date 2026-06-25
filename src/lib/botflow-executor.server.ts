@@ -167,7 +167,7 @@ export async function processBotFlow(
 
     if (!stepToExecute) {
       logInfo("Nenhum step aplicável. Tentando Agente de IA...", { messageBody });
-      const { processAiAgent } = await import("./ai-agent.functions");
+      const { processAiAgent } = await import("./ai-agent.server");
       const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
       if (!handledByAi) {
         logInfo("IA não lidou com a mensagem (desativada, erro ou sem apiKey).", { messageBody });

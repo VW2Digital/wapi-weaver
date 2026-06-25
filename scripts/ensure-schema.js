@@ -385,6 +385,13 @@ export async function ensureDatabaseSchema() {
     `,
     );
 
+    // Garantir colunas adicionais na tabela contacts
+    await ensureColumnExists(connection, "contacts", "is_pinned", "BOOLEAN NOT NULL DEFAULT false");
+    await ensureColumnExists(connection, "contacts", "is_archived", "BOOLEAN NOT NULL DEFAULT false");
+    await ensureColumnExists(connection, "contacts", "chat_status", "VARCHAR(50) NOT NULL DEFAULT 'aberto'");
+    await ensureColumnExists(connection, "contacts", "is_unread", "BOOLEAN NOT NULL DEFAULT false");
+    await ensureColumnExists(connection, "contacts", "kanban_stage_id", "VARCHAR(36) NULL");
+
     await ensureTableExists(
       connection,
       "tags",
