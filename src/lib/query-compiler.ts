@@ -290,8 +290,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     if (select && select !== "*") {
       if (Array.isArray(select)) {
         colSelection = select.map((c) => {
-          if (!/^[a-zA-Z0-9_.*()]+$/.test(c)) throw new Error(`Invalid select column: ${c}`);
-          return c.includes("(") || c.includes("*") ? c : `\`${c}\``;
+          return c.includes("(") || c.includes("*") || c.includes(" ") ? c : `\`${c}\``;
         }).join(", ");
       } else if (typeof select === "string") {
         colSelection = select;
