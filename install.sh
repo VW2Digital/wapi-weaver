@@ -212,6 +212,12 @@ print_step "[4/7] Preparando código da aplicação em ${APP_DIR}..."
 
 mkdir -p /var/www
 
+# Fazer backup do arquivo .env se ele existir
+if [ -f "${APP_DIR}/.env" ]; then
+  echo "  Salvando backup do arquivo .env atual..."
+  cp "${APP_DIR}/.env" /tmp/wapi-weaver-env-backup
+fi
+
 # Se estamos rodando de dentro do diretório do projeto, copiar. Senão, clonar.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -226,6 +232,13 @@ else
   echo "  Clonando repositório para ${APP_DIR}..."
   rm -rf "${APP_DIR}"
   git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
+fi
+
+# Restaurar o arquivo .env do backup
+if [ -f /tmp/wapi-weaver-env-backup ]; then
+  echo "  Restaurando o arquivo .env do backup..."
+  cp /tmp/wapi-weaver-env-backup "${APP_DIR}/.env"
+  rm -f /tmp/wapi-weaver-env-backup
 fi
 
 print_ok "Código da aplicação pronto."
