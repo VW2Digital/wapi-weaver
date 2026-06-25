@@ -824,6 +824,38 @@ function ChatPage() {
     addContactMutation.mutate(newChatPhone);
   };
 
+  // States and mutations for custom sorting, filtering and new chat dialog
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name" | "unread">("newest");
+  const [filterView, setFilterView] = useState<"all" | "unread" | "bot_paused" | "bot_active" | "archived">("all");
+  const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
+  const [newChatName, setNewChatName] = useState("");
+  const [newChatPhoneDialog, setNewChatPhoneDialog] = useState("");
+
+  const handleCreateContactAndChat = useMutation({
+    mutationFn: async () => {
+      const digits = newChatPhoneDialog.replace(/\D/g, "");
+      const fullPhone = countryCode.replace("+", "") + digits;
+      const res = await createContact({
+        data: {
+          phone: fullPhone,
+          name: newChatName.trim() || `Contato +${fullPhone}`,
+        },
+      });
+      return res;
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact(data);
+      setNewChatName("");
+      setNewChatPhoneDialog("");
+      setIsNewChatDialogOpen(false);
+      toast.success("Nova conversa iniciada!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao iniciar conversa: " + err.message);
+    },
+  });
+
   // States for Tags
   const [selectedFilterTagIds, setSelectedFilterTagIds] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState("");
@@ -1323,9 +1355,21 @@ function ChatPage() {
         ? meusContacts 
         : outrosContacts;
 
-  // Contatos filtrados
-  const filteredContacts = activeContactsList.filter((c: any) => {
-    if (c.is_archived) return false;
+  // Contatos filtrados e ordenados por filtros de visualização e ordenação personalizada
+  const rawFilteredContacts = activeContactsList.filter((c: any) => {
+    // Se o filtro de visualização for "archived", mostramos apenas arquivados.
+    // Caso contrário, ocultamos arquivados por padrão.
+    if (filterView === "archived") {
+      if (!c.is_archived) return false;
+    } else {
+      if (c.is_archived) return false;
+    }
+
+    // Filtros de visualização adicionais
+    if (filterView === "unread" && !c.unread_count && !c.is_unread) return false;
+    if (filterView === "bot_paused" && c.bot_active !== 0 && c.bot_active !== false) return false;
+    if (filterView === "bot_active" && c.bot_active === 0) return false;
+
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
@@ -1335,6 +1379,26 @@ function ChatPage() {
 
     const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
     return contactTags.some((ct: any) => selectedFilterTagIds.includes(ct.tag_id));
+  });
+
+  const filteredContacts = [...rawFilteredContacts].sort((a: any, b: any) => {
+    if (sortBy === "name") {
+      return (a.name || "").localeCompare(b.name || "");
+    }
+    if (sortBy === "unread") {
+      const aUnread = a.unread_count || (a.is_unread ? 1 : 0);
+      const bUnread = b.unread_count || (b.is_unread ? 1 : 0);
+      if (bUnread !== aUnread) return bUnread - aUnread;
+    }
+    if (sortBy === "oldest") {
+      const aTime = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+      const bTime = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+      return aTime - bTime;
+    }
+    // Default: newest
+    const aTime = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+    const bTime = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+    return bTime - aTime;
   });
 
   // Mutation para envio de mensagens
@@ -1926,13 +1990,85 @@ function ChatPage() {
                 >
                   <Filter className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" title="Ordenar" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg">
-                  <ArrowUpDown className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" title="Visualização" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg">
-                  <SlidersHorizontal className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" title="Novo Atendimento" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Ordenar"
+                      className={cn(
+                        "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
+                        sortBy !== "newest" && "bg-muted text-primary hover:bg-muted"
+                      )}
+                    >
+                      <ArrowUpDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => setSortBy("newest")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Mais recentes</span>
+                      {sortBy === "newest" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("oldest")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Mais antigas</span>
+                      {sortBy === "oldest" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("name")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Nome (A-Z)</span>
+                      {sortBy === "name" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("unread")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Não lidas primeiro</span>
+                      {sortBy === "unread" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Visualização"
+                      className={cn(
+                        "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
+                        filterView !== "all" && "bg-muted text-primary hover:bg-muted"
+                      )}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => setFilterView("all")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Todos</span>
+                      {filterView === "all" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterView("unread")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Não lidas</span>
+                      {filterView === "unread" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterView("bot_active")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Chatbot ativo</span>
+                      {filterView === "bot_active" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterView("bot_paused")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Chatbot pausado</span>
+                      {filterView === "bot_paused" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterView("archived")} className="flex items-center justify-between text-xs cursor-pointer">
+                      <span>Arquivados</span>
+                      {filterView === "archived" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setIsNewChatDialogOpen(true)}
+                  title="Novo Atendimento"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg"
+                >
                   <FolderPlus className="h-4 w-4" />
                 </Button>
               </div>
@@ -3637,7 +3773,7 @@ function ChatPage() {
                   <MessageCircle className="h-8 w-8 text-muted-foreground/60" />
                 </div>
                 <div className="text-center max-w-sm space-y-1">
-                  <p className="font-semibold text-foreground">ZapDispatch Chat Direto</p>
+                  <p className="font-semibold text-foreground">VW2 Conversas Chat Direto</p>
                   <p className="text-xs">
                     Selecione um contato na lista à esquerda para carregar o histórico de conversas
                     diretas e enviar novas mensagens.

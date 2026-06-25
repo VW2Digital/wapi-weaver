@@ -2438,7 +2438,7 @@ function AdminPlatformSection() {
                         <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
                       </div>
                       <span className="font-display text-xs font-semibold text-sidebar-foreground">
-                        ZapDispatch
+                        VW2 Conversas
                       </span>
                     </div>
 

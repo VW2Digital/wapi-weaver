@@ -48,13 +48,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Disparador WhatsApp Cloud API" },
+      { title: "VW2 Conversas" },
       {
         name: "description",
         content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",
       },
-      { property: "og:title", content: "Disparador WhatsApp Cloud API" },
-      { name: "twitter:title", content: "Disparador WhatsApp Cloud API" },
+      { property: "og:title", content: "VW2 Conversas" },
+      { name: "twitter:title", content: "VW2 Conversas" },
       {
         property: "og:description",
         content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",

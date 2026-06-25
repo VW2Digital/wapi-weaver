@@ -17,16 +17,16 @@ import { useState } from "react";
 export const Route = createFileRoute("/data-deletion")({
   head: () => ({
     meta: [
-      { title: "Exclusão de Dados do Usuário — ZapDispatch" },
+      { title: "Exclusão de Dados do Usuário — VW2 Conversas" },
       {
         name: "description",
         content:
-          "Solicite a exclusão completa da sua conta e dados pessoais da plataforma ZapDispatch.",
+          "Solicite a exclusão completa da sua conta e dados pessoais da plataforma VW2 Conversas.",
       },
-      { property: "og:title", content: "Exclusão de Dados do Usuário — ZapDispatch" },
+      { property: "og:title", content: "Exclusão de Dados do Usuário — VW2 Conversas" },
       {
         property: "og:description",
-        content: "Solicite a exclusão da sua conta e dados pessoais da ZapDispatch.",
+        content: "Solicite a exclusão da sua conta e dados pessoais da VW2 Conversas.",
       },
       { property: "og:type", content: "website" },
     ],
@@ -45,7 +45,7 @@ function DataDeletionPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <MessageCircle className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display text-base font-semibold">ZapDispatch</span>
+            <span className="font-display text-base font-semibold">VW2 Conversas</span>
           </div>
           <Link to="/login" className="text-sm font-medium text-primary hover:underline">
             Entrar
@@ -186,10 +186,10 @@ function DataDeletionPage() {
               <li>
                 <strong>Por e-mail:</strong> envie um pedido de exclusão para{" "}
                 <a
-                  href="mailto:privacidade@zapdispatch.com.br"
+                  href="mailto:privacidade@vw2conversas.com.br"
                   className="text-primary hover:underline"
                 >
-                  privacidade@zapdispatch.com.br
+                  privacidade@vw2conversas.com.br
                 </a>{" "}
                 com o assunto "Solicitação de exclusão de dados". Inclua o e-mail cadastrado na
                 conta para agilizar o processo.
@@ -214,16 +214,16 @@ function DataDeletionPage() {
                 variant="destructive"
                 onClick={() => {
                   const subject = encodeURIComponent(
-                    "Solicitação de exclusão de dados - ZapDispatch",
+                    "Solicitação de exclusão de dados - VW2 Conversas",
                   );
                   const body = encodeURIComponent(
                     `Olá,\n\n` +
-                      `Solicito a exclusão completa da minha conta e de todos os meus dados pessoais da plataforma ZapDispatch, conforme previsto na LGPD.\n\n` +
+                      `Solicito a exclusão completa da minha conta e de todos os meus dados pessoais da plataforma VW2 Conversas, conforme previsto na LGPD.\n\n` +
                       `E-mail da conta: [adicione aqui]\n\n` +
                       `Motivo (opcional): \n\n` +
                       `Atenciosamente,`,
                   );
-                  window.location.href = `mailto:privacidade@zapdispatch.com.br?subject=${subject}&body=${body}`;
+                  window.location.href = `mailto:privacidade@vw2conversas.com.br?subject=${subject}&body=${body}`;
                   setRequested(true);
                 }}
               >

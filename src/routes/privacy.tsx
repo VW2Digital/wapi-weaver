@@ -15,16 +15,16 @@ import { Card } from "@/components/ui/card";
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Política de Privacidade — ZapDispatch" },
+      { title: "Política de Privacidade — VW2 Conversas" },
       {
         name: "description",
         content:
-          "Política de Privacidade da ZapDispatch. Saiba como coletamos, usamos e protegemos seus dados.",
+          "Política de Privacidade da VW2 Conversas. Saiba como coletamos, usamos e protegemos seus dados.",
       },
-      { property: "og:title", content: "Política de Privacidade — ZapDispatch" },
+      { property: "og:title", content: "Política de Privacidade — VW2 Conversas" },
       {
         property: "og:description",
-        content: "Saiba como a ZapDispatch coleta, usa e protege seus dados pessoais.",
+        content: "Saiba como a VW2 Conversas coleta, usa e protege seus dados pessoais.",
       },
       { property: "og:type", content: "website" },
     ],
@@ -41,7 +41,7 @@ function PrivacyPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <MessageCircle className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display text-base font-semibold">ZapDispatch</span>
+            <span className="font-display text-base font-semibold">VW2 Conversas</span>
           </div>
           <Link to="/login" className="text-sm font-medium text-primary hover:underline">
             Entrar
@@ -62,7 +62,7 @@ function PrivacyPage() {
               <h2 className="font-display text-xl font-semibold">1. Introdução</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A ZapDispatch valoriza a sua privacidade. Esta Política de Privacidade descreve como
+              A VW2 Conversas valoriza a sua privacidade. Esta Política de Privacidade descreve como
               coletamos, usamos, armazenamos e protegemos suas informações pessoais ao utilizar
               nossa plataforma de disparo de mensagens via WhatsApp Cloud API. Ao usar nossos
               serviços, você concorda com as práticas descritas aqui.
@@ -104,7 +104,7 @@ function PrivacyPage() {
               <h2 className="font-display text-xl font-semibold">3. Como Usamos seus Dados</h2>
             </div>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Fornecer, operar e manter a plataforma ZapDispatch funcionando corretamente.</li>
+              <li>Fornecer, operar e manter a plataforma VW2 Conversas funcionando corretamente.</li>
               <li>
                 Processar e enviar mensagens via WhatsApp Cloud API conforme suas configurações de
                 campanha.
@@ -244,10 +244,10 @@ function PrivacyPage() {
               Se tiver dúvidas sobre esta Política de Privacidade ou sobre o tratamento dos seus
               dados, entre em contato pelo e-mail:{" "}
               <a
-                href="mailto:privacidade@zapdispatch.com.br"
+                href="mailto:privacidade@vw2conversas.com.br"
                 className="text-primary hover:underline"
               >
-                privacidade@zapdispatch.com.br
+                privacidade@vw2conversas.com.br
               </a>
             </p>
           </section>

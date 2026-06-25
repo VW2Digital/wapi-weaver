@@ -235,7 +235,7 @@ function AppLayout() {
           <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
         </div>
         <span className="font-display text-base font-semibold text-sidebar-foreground">
-          ZapDispatch
+          VW2 Conversas
         </span>
       </div>
       <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
@@ -437,7 +437,7 @@ function AppLayout() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
             <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
           </div>
-          <span className="font-display text-sm font-semibold">ZapDispatch</span>
+          <span className="font-display text-sm font-semibold">VW2 Conversas</span>
         </div>
       </header>
 
