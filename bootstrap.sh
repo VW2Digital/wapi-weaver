@@ -295,12 +295,15 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=wapi_weaver
       - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - wapi_weaver_uploads:/app/public/uploads
     depends_on:
       banco-mysql:
         condition: service_healthy
 
 volumes:
   mysql_data:
+  wapi_weaver_uploads:
 COMPOSEFILE
 echo -e "${GREEN}Docker-compose gerado!${NC}"
 
