@@ -10,6 +10,13 @@ import {
 } from "@/lib/chat.functions";
 import { updateContactProfilePhoto, createContact } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
+import {
+  listTeams,
+  listTeamMembers,
+  listAllAgents,
+  assignConversation,
+  autoAssignConversation,
+} from "@/lib/assignment.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -25,6 +32,13 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,6 +167,83 @@ function ChatPage() {
   const qc = useQueryClient();
 
   const [selectedContact, setSelectedContact] = useState<any>(null);
+
+  // Atribuição de Atendimentos e Equipes
+  const fetchTeamsFn = useServerFn(listTeams);
+  const fetchTeamMembersFn = useServerFn(listTeamMembers);
+  const fetchAgentsFn = useServerFn(listAllAgents);
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+
+  const teamsQuery = useQuery({
+    queryKey: ["teams"],
+    queryFn: () => fetchTeamsFn(),
+  });
+
+  const agentsQuery = useQuery({
+    queryKey: ["agents"],
+    queryFn: () => fetchAgentsFn(),
+  });
+
+  const teamMembersQuery = useQuery({
+    queryKey: ["team-members", selectedTeamId],
+    queryFn: () => fetchTeamMembersFn({ data: { teamId: selectedTeamId } }),
+    enabled: !!selectedTeamId,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async (payload: { teamId: string | null; agentId: string | null }) => {
+      if (!selectedPhone) throw new Error("Nenhum contato selecionado");
+      return assignConversation({
+        data: {
+          contactPhone: selectedPhone,
+          teamId: payload.teamId,
+          agentId: payload.agentId,
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Atendimento atribuído com sucesso!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao atribuir: " + err.message);
+    },
+  });
+
+  const autoAssignMutation = useMutation({
+    mutationFn: async (teamId: string) => {
+      if (!selectedPhone) throw new Error("Nenhum contato selecionado");
+      return autoAssignConversation({
+        data: {
+          contactPhone: selectedPhone,
+          teamId,
+        },
+      });
+    },
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      if (res.agentId) {
+        toast.success("Auto-atribuição concluída!");
+      } else {
+        toast.warning("Nenhum agente disponível. O chat ficou na fila da equipe.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao auto-atribuir: " + err.message);
+    },
+  });
+
+  useEffect(() => {
+    if (selectedContact) {
+      setSelectedTeamId(selectedContact.active_team_id || "");
+      setSelectedAgentId(selectedContact.active_agent_id || "");
+    } else {
+      setSelectedTeamId("");
+      setSelectedAgentId("");
+    }
+  }, [selectedContact]);
   const [searchQuery, setSearchQuery] = useState("");
   const [typedMessage, setTypedMessage] = useState("");
   const [replyingTo, setReplyingTo] = useState<any>(null);
@@ -619,23 +710,13 @@ function ChatPage() {
     return parts[0].slice(0, 2).toUpperCase();
   };
 
-  const getContactCategory = (c: any, profileName: string): "novos" | "meus" | "outros" => {
-    // Se estiver explicitamente atribuído nos custom_fields
-    const assignedTo = c.custom_fields?.assigned_to;
-    if (assignedTo) {
-      if (assignedTo.toLowerCase() === (profileName || "").toLowerCase()) {
+  const getContactCategory = (c: any, currentUserId: string): "novos" | "meus" | "outros" => {
+    if (c.active_agent_id) {
+      if (c.active_agent_id === currentUserId) {
         return "meus";
       }
       return "outros";
     }
-    
-    // Fallback de distribuição estável para popular Novos, Meus e Outros out-of-the-box
-    const hash = (c.id || c.phone_e164 || "")
-      .split("")
-      .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-    const categoryMod = hash % 3;
-    if (categoryMod === 0) return "meus";
-    if (categoryMod === 1) return "outros";
     return "novos";
   };
 
@@ -678,19 +759,16 @@ function ChatPage() {
     return date.toLocaleDateString([], { day: "numeric", month: "short" });
   };
 
-  // Nome do usuário para filtragem de abas
-  const profileName = profile?.full_name || profile?.display_name || "";
-
   // Mapeia e enriquece os contatos vindos da API do servidor
   const mappedContacts = (contactsQuery.data ?? []).map((c: any) => {
-    const category = getContactCategory(c, profileName);
+    const category = getContactCategory(c, profile?.id || "");
     
-    // Mapeia setor de acordo com as etiquetas atribuídas ou fallback
+    // Mapeia setor de acordo com as etiquetas atribuídas ou equipe real
     const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
     const hasSuporte = contactTags.some((ct: any) => ct.tags?.name?.toUpperCase().includes("SUPORTE"));
     const hasCS = contactTags.some((ct: any) => ct.tags?.name?.toUpperCase().includes("CS") || ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"));
     
-    let department = c.custom_fields?.department;
+    let department = c.active_team_name || c.custom_fields?.department;
     if (!department) {
       if (hasCS) {
         department = "Sucesso Cliente";
@@ -2946,6 +3024,107 @@ function ChatPage() {
                           </>
                         );
                       })()}
+
+                    {/* Painel de Atribuição de Atendimento */}
+                    <div className="h-px bg-border" />
+                    <div className="space-y-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição de Atendimento
+                      </p>
+                      
+                      {/* Dropdown de Equipe */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground">Equipe</label>
+                        <Select
+                          value={selectedTeamId || "unassigned"}
+                          onValueChange={(val) => {
+                            const teamVal = val === "unassigned" ? "" : val;
+                            setSelectedTeamId(teamVal);
+                            setSelectedAgentId(""); // Limpa o agente selecionado ao mudar de equipe
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-muted/30">
+                            <SelectValue placeholder="Sem equipe atribuída" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Sem equipe</SelectItem>
+                            {(teamsQuery.data ?? []).map((t: any) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Dropdown de Agente */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground">Agente</label>
+                        <Select
+                          value={selectedAgentId || "unassigned"}
+                          onValueChange={(val) => {
+                            const agentVal = val === "unassigned" ? "" : val;
+                            setSelectedAgentId(agentVal);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-muted/30">
+                            <SelectValue placeholder="Sem agente atribuído" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Sem agente</SelectItem>
+                            {selectedTeamId ? (
+                              // Se tem equipe selecionada, mostra apenas os membros dela
+                              (teamMembersQuery.data ?? []).map((m: any) => (
+                                <SelectItem key={m.user_id} value={m.user_id}>
+                                  {m.full_name || m.display_name || m.email}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              // Senão, mostra todos os agentes da plataforma
+                              (agentsQuery.data ?? []).map((a: any) => (
+                                <SelectItem key={a.id} value={a.id}>
+                                  {a.full_name || a.display_name || a.email}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Ações */}
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() =>
+                            assignMutation.mutate({
+                              teamId: selectedTeamId ? selectedTeamId : null,
+                              agentId: selectedAgentId ? selectedAgentId : null,
+                            })
+                          }
+                          disabled={assignMutation.isPending}
+                        >
+                          {assignMutation.isPending ? "Salvando..." : "Salvar"}
+                        </Button>
+
+                        {selectedTeamId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            onClick={() => autoAssignMutation.mutate(selectedTeamId)}
+                            disabled={autoAssignMutation.isPending}
+                            title="Auto-atribuir usando Round-Robin"
+                          >
+                            {autoAssignMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              "Auto-atribuir"
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
 
                     {/* Metadados do sistema */}
                     <div className="h-px bg-border" />

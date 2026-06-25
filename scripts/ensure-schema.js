@@ -799,6 +799,62 @@ export async function ensureDatabaseSchema() {
       `,
     );
 
+    // Tabelas de Equipes e Atribuições
+    await ensureTableExists(
+      connection,
+      "teams",
+      `
+      CREATE TABLE IF NOT EXISTS teams (
+        id          VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id     VARCHAR(36) NOT NULL,
+        name        VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        auto_assign_mode ENUM('manual', 'round_robin', 'least_busy') NOT NULL DEFAULT 'manual',
+        created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "team_members",
+      `
+      CREATE TABLE IF NOT EXISTS team_members (
+        id        VARCHAR(36) NOT NULL PRIMARY KEY,
+        team_id   VARCHAR(36) NOT NULL,
+        user_id   VARCHAR(36) NOT NULL,
+        role      ENUM('agent', 'supervisor') NOT NULL DEFAULT 'agent',
+        joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_team_member (team_id, user_id),
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "conversation_assignments",
+      `
+      CREATE TABLE IF NOT EXISTS conversation_assignments (
+        id            VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id       VARCHAR(36) NOT NULL,
+        contact_phone VARCHAR(50) NOT NULL,
+        team_id       VARCHAR(36) NULL,
+        agent_id      VARCHAR(36) NULL,
+        assigned_by   VARCHAR(36) NULL,
+        assigned_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        unassigned_at DATETIME NULL,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
+        FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
     // Insere flows de demonstração iniciais para testes locais
     try {
       const [users] = await connection.query("SELECT id FROM users LIMIT 1");
@@ -811,9 +867,32 @@ export async function ensureDatabaseSchema() {
           `,
           [users[0].id]
         );
+
+        logSchema("Garantindo equipes iniciais de demonstração...");
+        const [existingTeams] = await connection.query("SELECT id FROM teams WHERE user_id = ?", [users[0].id]);
+        if (existingTeams.length === 0) {
+          const supportTeamId = "demo-team-support-id-000000000001";
+          const salesTeamId = "demo-team-sales-id-0000000000002";
+          
+          await connection.query(
+            `INSERT IGNORE INTO teams (id, user_id, name, description, auto_assign_mode)
+             VALUES 
+               (?, ?, 'Suporte Técnico', 'Equipe de suporte e atendimento técnico', 'round_robin'),
+               (?, ?, 'Comercial', 'Equipe de vendas e novos negócios', 'manual')`,
+            [supportTeamId, users[0].id, salesTeamId, users[0].id]
+          );
+
+          await connection.query(
+            `INSERT IGNORE INTO team_members (id, team_id, user_id, role)
+             VALUES 
+               (UUID(), ?, ?, 'supervisor'),
+               (UUID(), ?, ?, 'agent')`,
+            [supportTeamId, users[0].id, salesTeamId, users[0].id]
+          );
+        }
       }
     } catch (err) {
-      console.warn('[Schema] Falha ao inserir flow de demonstração (não crítico):', err.message);
+      console.warn('[Schema] Falha ao inserir dados de demonstração (não crítico):', err.message);
     }
 
     logSchema("Schema validado com sucesso.");

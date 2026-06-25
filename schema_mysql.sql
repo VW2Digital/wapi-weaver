@@ -678,3 +678,48 @@ CREATE TABLE IF NOT EXISTS whatsapp_flow_submissions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------------
+-- MULTI-AGENT TEAMS & CONVERSATION ASSIGNMENTS
+-- -------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS teams (
+  id          VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id     VARCHAR(36) NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  auto_assign_mode ENUM('manual', 'round_robin', 'least_busy') NOT NULL DEFAULT 'manual',
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS team_members (
+  id        VARCHAR(36) NOT NULL PRIMARY KEY,
+  team_id   VARCHAR(36) NOT NULL,
+  user_id   VARCHAR(36) NOT NULL,
+  role      ENUM('agent', 'supervisor') NOT NULL DEFAULT 'agent',
+  joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_team_member (team_id, user_id),
+  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS conversation_assignments (
+  id            VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id       VARCHAR(36) NOT NULL,
+  contact_phone VARCHAR(50) NOT NULL,
+  team_id       VARCHAR(36) NULL,
+  agent_id      VARCHAR(36) NULL,
+  assigned_by   VARCHAR(36) NULL,
+  assigned_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  unassigned_at DATETIME NULL,
+  is_active     BOOLEAN NOT NULL DEFAULT true,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
+  FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_conv_assign_active ON conversation_assignments (user_id, contact_phone, is_active);
+CREATE INDEX idx_conv_assign_team_agent ON conversation_assignments (team_id, agent_id, is_active);
+

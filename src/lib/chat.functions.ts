@@ -124,8 +124,17 @@ export const listChatContacts = createServerFn({ method: "GET" })
             FROM direct_messages dm 
             WHERE dm.user_id = c.user_id AND dm.contact_phone = c.phone_e164 
               AND dm.direction = 'incoming' AND dm.status != 'read'
-          ) AS unread_count
+          ) AS unread_count,
+          ca.team_id AS active_team_id,
+          ca.agent_id AS active_agent_id,
+          t.name AS active_team_name,
+          COALESCE(p.full_name, p.display_name, u.email) AS active_agent_name
         FROM contacts c
+        LEFT JOIN conversation_assignments ca 
+          ON ca.contact_phone = c.phone_e164 AND ca.user_id = c.user_id AND ca.is_active = true
+        LEFT JOIN teams t ON t.id = ca.team_id
+        LEFT JOIN users u ON u.id = ca.agent_id
+        LEFT JOIN profiles p ON p.id = u.id
         WHERE c.user_id = ?
         ORDER BY 
           COALESCE(

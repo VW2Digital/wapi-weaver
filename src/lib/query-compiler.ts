@@ -50,6 +50,9 @@ const ALLOWED_TABLES = new Set([
   "knowledge_base",
   "whatsapp_flows",
   "whatsapp_flow_submissions",
+  "teams",
+  "team_members",
+  "conversation_assignments",
 ]);
 
 // Helper to determine if a table has a user_id column
@@ -89,6 +92,8 @@ function hasUserIdColumn(table: string): boolean {
     "knowledge_base",
     "whatsapp_flows",
     "whatsapp_flow_submissions",
+    "teams",
+    "conversation_assignments",
   ].includes(table);
 }
 
