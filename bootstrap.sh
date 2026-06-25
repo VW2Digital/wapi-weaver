@@ -17,6 +17,12 @@ echo -e "${GREEN}"
 echo "========================================================================"
 echo "    INSTALADOR OFICIAL - WAPI WEAVER (VPS + DOCKER + MYSQL)             "
 echo "========================================================================"
+echo "  Propriedade Intelectual: VW2 Digital. Todos os direitos reservados.   "
+echo "                                                                        "
+echo "  AVISO: Esta aplicação é de propriedade exclusiva da VW2 Digital.      "
+echo "  A empresa NÃO se responsabiliza pelo uso indevido, abusivo ou ilegal   "
+echo "  deste software realizado por terceiros ou clientes.                    "
+echo "========================================================================"
 echo -e "${NC}"
 
 # Verificar se roda como root
