@@ -123,6 +123,37 @@ export const deleteContact = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const updateContact = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        phone: z.string().trim().min(8).max(32),
+        name: z.string().trim().max(120).nullable().optional(),
+        email: z.string().email().max(180).nullable().optional().or(z.literal("")),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const phone = normalizeToE164(data.phone);
+    if (!phone) throw new Error("Telefone inválido");
+
+    const { data: row, error } = await context.db
+      .from("contacts")
+      .update({
+        phone_e164: phone,
+        name: data.name || null,
+        email: data.email || null,
+      })
+      .eq("id", data.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return row;
+  });
+
 const bulkInput = z.object({
   rows: z
     .array(

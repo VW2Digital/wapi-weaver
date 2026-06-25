@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   listContacts,
   createContact,
+  updateContact,
   deleteContact,
   bulkUpsertContacts,
   bulkDeleteContacts,
@@ -46,6 +47,8 @@ import {
   Tag as TagIcon,
   ShieldOff,
   ShieldCheck,
+  Pencil,
+  MessageSquare,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -65,6 +68,7 @@ function ContactsPage() {
   const fetchLists = useServerFn(listLists);
   const fetchTags = useServerFn(listTags);
   const create = useServerFn(createContact);
+  const update = useServerFn(updateContact);
   const del = useServerFn(deleteContact);
   const bulk = useServerFn(bulkUpsertContacts);
   const bulkDel = useServerFn(bulkDeleteContacts);
@@ -80,6 +84,22 @@ function ContactsPage() {
   });
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const tags = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags() });
+
+  const navigate = useNavigate();
+
+  const [editingContact, setEditingContact] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ phone: "", name: "", email: "" });
+
+  const updateMut = useMutation({
+    mutationFn: (d: typeof editForm & { id: string }) => update({ data: d }),
+    onSuccess: () => {
+      toast.success("Contato atualizado");
+      setEditingContact(null);
+      setEditForm({ phone: "", name: "", email: "" });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
@@ -494,14 +514,47 @@ function ContactsPage() {
                         <span className="rounded bg-muted px-2 py-0.5">{c.source ?? "—"}</span>
                       </td>
                       <td className="p-3 text-right">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Excluir"
-                          onClick={() => handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" aria-label="Ações">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditingContact(c);
+                                setEditForm({
+                                  phone: c.phone_e164 || "",
+                                  name: c.name || "",
+                                  email: c.email || "",
+                                });
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar contato
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                navigate({
+                                  to: "/chat",
+                                  search: { phone: c.phone_e164 } as any,
+                                })
+                              }
+                            >
+                              <MessageSquare className="mr-2 h-4 w-4" />
+                              Mandar mensagem
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}
@@ -598,6 +651,57 @@ function ContactsPage() {
               </Button>
               <Button onClick={confirmImport}>Confirmar e Importar</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={editingContact !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setEditingContact(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar contato</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Telefone</Label>
+              <Input
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                placeholder="+55 11 99999-0000"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nome</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-mail</Label>
+              <Input
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <Button
+              onClick={() => {
+                if (editingContact) {
+                  updateMut.mutate({
+                    id: editingContact.id,
+                    ...editForm,
+                  });
+                }
+              }}
+              disabled={updateMut.isPending}
+              className="w-full"
+            >
+              Salvar alterações
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

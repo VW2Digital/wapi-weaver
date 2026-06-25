@@ -2141,10 +2141,6 @@ function ChatPage() {
             )}
           </div>
 
-          {/* Subheader Informativo */}
-          <div className="px-3.5 py-2 border-b bg-muted/20 text-xs text-muted-foreground shrink-0">
-            Atendimento distribuído para <strong className="text-foreground font-semibold">{profile?.full_name || 'Amanda'}</strong>
-          </div>
 
           {/* Lista de Contatos */}
           <div className="flex-1 overflow-y-auto divide-y bg-background">
