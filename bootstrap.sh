@@ -216,6 +216,7 @@ if [ -f "${APP_DIR}/.env" ]; then
 fi
 
 echo "Clonando repositório para ${APP_DIR}..."
+cd /var/www
 rm -rf "${APP_DIR}"
 git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
 
