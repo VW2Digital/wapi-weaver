@@ -1955,7 +1955,16 @@ function ChatPage() {
             </div>
 
             <div className="flex items-center gap-1 shrink-0 ml-2">
-              <Button size="icon" variant="ghost" title="Arquivados" className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg">
+              <Button
+                onClick={() => setFilterView(filterView === "archived" ? "all" : "archived")}
+                size="icon"
+                variant={filterView === "archived" ? "secondary" : "ghost"}
+                title="Arquivados"
+                className={cn(
+                  "h-8 w-8 rounded-lg",
+                  filterView === "archived" ? "text-primary bg-muted" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
                 <Archive className="h-4 w-4" />
               </Button>
               <Button size="icon" variant="ghost" title="Menu" className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg">
