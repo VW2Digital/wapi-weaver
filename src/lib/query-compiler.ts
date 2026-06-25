@@ -26,6 +26,7 @@ const ALLOWED_TABLES = new Set([
   "message_tags",
   "lists",
   "list_contacts",
+  "messages",
   "templates",
   "campaigns",
   "campaign_messages",
