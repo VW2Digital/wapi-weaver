@@ -62,9 +62,9 @@ function BillingPage() {
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
-        <Card className="p-4 flex items-end gap-4">
-          <div className="flex-1 max-w-xs">
-            <Label htmlFor="month">Mês de referência</Label>
+        <Card className="p-4 flex flex-row items-center gap-4 py-3">
+          <div className="max-w-xs space-y-1">
+            <Label htmlFor="month" className="text-xs text-muted-foreground">Mês de referência</Label>
             <MonthPicker value={month} onChange={setMonth} />
           </div>
         </Card>

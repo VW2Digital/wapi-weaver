@@ -134,6 +134,8 @@ import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
+import { useRoles } from "@/hooks/use-roles";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
 
@@ -233,6 +235,7 @@ function usePersistedCollapsedState(key: string, defaultValue = true) {
 }
 
 function SettingsPage() {
+  const { isAdmin } = useRoles();
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
@@ -411,15 +414,65 @@ function SettingsPage() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       <PageHeader
         title="Configurações"
         subtitle="Conecte sua conta do WhatsApp Business em poucos passos. Não se preocupe se nunca fez isso antes — explicamos cada campo."
       />
 
-      <div className="flex-1 space-y-6 overflow-y-auto p-6">
-        <AppearanceCard />
-        <SetupWizard
+      <Tabs defaultValue="meta" className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-6 py-2 border-b bg-muted/10 shrink-0 flex items-center overflow-x-auto gap-2">
+          <TabsList className="flex bg-transparent p-0 gap-1 border-none shadow-none">
+            <TabsTrigger
+              value="meta"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <KeyRound className="h-3.5 w-3.5" /> Conexão Meta (API)
+            </TabsTrigger>
+            <TabsTrigger
+              value="crm"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <Database className="h-3.5 w-3.5" /> Integrações CRM
+            </TabsTrigger>
+            <TabsTrigger
+              value="qrcodes"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <QrCode className="h-3.5 w-3.5" /> QR Codes
+            </TabsTrigger>
+            <TabsTrigger
+              value="waba"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <Phone className="h-3.5 w-3.5" /> Conta WhatsApp (WABA)
+            </TabsTrigger>
+            <TabsTrigger
+              value="advanced"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <Settings className="h-3.5 w-3.5" /> Ferramentas Avançadas
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger
+                value="admin"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" /> Administração
+              </TabsTrigger>
+            )}
+            <TabsTrigger
+              value="general"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <Monitor className="h-3.5 w-3.5" /> Geral & Legal
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <TabsContent value="meta" className="space-y-6 outline-none">
+            <SetupWizard
           credentialsComplete={
             !!(form.whatsapp_phone_number_id && form.whatsapp_waba_id && form.whatsapp_access_token)
           }
@@ -1271,11 +1324,10 @@ function SettingsPage() {
             </>
           )}
         </SetupWizard>
-
         <WebhookHealthCard />
+      </TabsContent>
 
-        <AdminPlatformSection />
-
+      <TabsContent value="crm" className="outline-none">
         <Card className="p-6">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
@@ -1288,63 +1340,44 @@ function SettingsPage() {
                 obrigatório para enviar mensagens.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={toggleCrmCollapsed}
-              aria-expanded={!crmCollapsed}
-              aria-label={crmCollapsed ? "Expandir seção" : "Recolher seção"}
-              className="shrink-0 gap-1"
-            >
-              {crmCollapsed ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronUp className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline text-xs">
-                {crmCollapsed ? "Expandir" : "Recolher"}
-              </span>
-            </Button>
           </div>
-          {!crmCollapsed && (
-            <div className="mt-4 space-y-3">
-              <ReadOnly
-                label="Endereço para envio (POST)"
-                value={ingestUrl}
-                onCopy={() => copy(ingestUrl, "Endpoint")}
-              />
-              <div className="space-y-1.5">
-                <Label>Sua chave de acesso</Label>
-                <div className="flex gap-2">
-                  <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
-                  <Button
-                    variant="outline"
-                    onClick={() => copy(form.api_key ?? "", "API key")}
-                    title="Copiar"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => rotateMut.mutate()}
-                    disabled={rotateMut.isPending}
-                    title="Gerar nova chave (a antiga deixa de funcionar)"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para
-                  sua conta.
-                </p>
+          <div className="mt-4 space-y-3">
+            <ReadOnly
+              label="Endereço para envio (POST)"
+              value={ingestUrl}
+              onCopy={() => copy(ingestUrl, "Endpoint")}
+            />
+            <div className="space-y-1.5">
+              <Label>Sua chave de acesso</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
+                <Button
+                  variant="outline"
+                  onClick={() => copy(form.api_key ?? "", "API key")}
+                  title="Copiar"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => rotateMut.mutate()}
+                  disabled={rotateMut.isPending}
+                  title="Gerar nova chave (a antiga deixa de funcionar)"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
               </div>
-              <details className="rounded-md border bg-muted/30 p-3 text-xs">
-                <summary className="cursor-pointer font-medium text-foreground">
-                  Exemplo técnico para desenvolvedores
-                </summary>
-                <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
-                  {`curl -X POST ${ingestUrl} \\
+              <p className="text-[11px] text-muted-foreground">
+                Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para
+                sua conta.
+              </p>
+            </div>
+            <details className="rounded-md border bg-muted/30 p-3 text-xs">
+              <summary className="cursor-pointer font-medium text-foreground">
+                Exemplo técnico para desenvolvedores
+              </summary>
+              <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
+                {`curl -X POST ${ingestUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${form.api_key ?? "SUA_API_KEY"}" \\
   -d '{
@@ -1354,18 +1387,32 @@ function SettingsPage() {
     "custom_fields": {"empresa": "Acme"},
     "tags": ["lead-quente"]
   }'`}
-                </pre>
-              </details>
-            </div>
-          )}
+              </pre>
+            </details>
+          </div>
         </Card>
+      </TabsContent>
 
+      <TabsContent value="qrcodes" className="outline-none">
         <QRCodeSection />
+      </TabsContent>
 
+      <TabsContent value="waba" className="outline-none">
         <WABASection />
+      </TabsContent>
 
+      <TabsContent value="advanced" className="outline-none">
         <AdvancedToolsSection />
+      </TabsContent>
 
+      {isAdmin && (
+        <TabsContent value="admin" className="outline-none">
+          <AdminPlatformSection />
+        </TabsContent>
+      )}
+
+      <TabsContent value="general" className="space-y-6 outline-none">
+        <AppearanceCard />
         <Card className="p-6">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
@@ -1374,53 +1421,35 @@ function SettingsPage() {
                 Leia nossos termos e saiba como seus dados são tratados.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={toggleLegalCollapsed}
-              aria-expanded={!legalCollapsed}
-              aria-label={legalCollapsed ? "Expandir seção" : "Recolher seção"}
-              className="shrink-0 gap-1"
-            >
-              {legalCollapsed ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronUp className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline text-xs">
-                {legalCollapsed ? "Expandir" : "Recolher"}
-              </span>
-            </Button>
           </div>
-          {!legalCollapsed && (
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Link
-                to="/privacy"
-                className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <Shield className="h-4 w-4 text-primary" />
-                Política de Privacidade
-              </Link>
-              <Link
-                to="/terms"
-                className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <FileText className="h-4 w-4 text-primary" />
-                Termos de Serviço
-              </Link>
-              <Link
-                to="/data-deletion"
-                className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <Trash2 className="h-4 w-4 text-primary" />
-                Exclusão de Dados
-              </Link>
-            </div>
-          )}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Link
+              to="/privacy"
+              className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              <Shield className="h-4 w-4 text-primary" />
+              Política de Privacidade
+            </Link>
+            <Link
+              to="/terms"
+              className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              <FileText className="h-4 w-4 text-primary" />
+              Termos de Serviço
+            </Link>
+            <Link
+              to="/data-deletion"
+              className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              <Trash2 className="h-4 w-4 text-primary" />
+              Exclusão de Dados
+            </Link>
+          </div>
         </Card>
-      </div>
+      </TabsContent>
     </div>
+  </Tabs>
+</div>
   );
 }
 
@@ -1453,7 +1482,7 @@ function SetupWizard({
   const progress = Math.round((doneCount / steps.length) * 100);
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden py-0 gap-0">
       <div className="border-b bg-muted/30 p-6">
         <div className="flex items-center justify-between gap-4">
           <div>

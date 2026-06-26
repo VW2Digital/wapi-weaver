@@ -415,13 +415,13 @@ function AppLayout() {
   );
 
   return (
-    <div className="min-h-dvh bg-background p-3 md:pl-[276px]">
-      <aside className="hidden md:flex flex-col rounded-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm md:fixed md:inset-y-3 md:left-3 md:w-[260px] md:z-30">
+    <div className="h-dvh overflow-hidden bg-background md:pl-[260px] flex flex-col">
+      <aside className="hidden md:flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:fixed md:inset-y-0 md:left-0 md:w-[260px] md:z-30">
         {SidebarBody}
       </aside>
 
       {/* Mobile top bar */}
-      <header className="md:hidden mb-3 flex items-center gap-2 rounded-2xl border bg-card px-3 py-2 shadow-sm">
+      <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button size="icon" variant="ghost" aria-label="Abrir menu">
@@ -441,7 +441,7 @@ function AppLayout() {
         </div>
       </header>
 
-      <main className="rounded-2xl border bg-card shadow-sm overflow-hidden h-[calc(100dvh-1.5rem)] flex flex-col">
+      <main className="flex-1 overflow-hidden flex flex-col">
         <Outlet />
       </main>
     </div>
