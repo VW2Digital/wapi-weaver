@@ -7,7 +7,7 @@ export type RawCampaignTotals = Partial<
  *
  * No banco, cada mensagem tem um único status final ("sent", "delivered", "read", etc),
  * então os contadores não são cumulativos. Para UI, geralmente faz mais sentido:
- * - enviadas = sent + delivered + read
+ * - enviadas = sending + sent + delivered + read
  * - entregues = delivered + read
  * - lidas = read
  */
@@ -23,7 +23,7 @@ export function normalizeCampaignTotals(totals: RawCampaignTotals | null | undef
   const sentOnly = t.sent ?? 0;
 
   const delivered = deliveredOnly + read;
-  const sent = sentOnly + deliveredOnly + read;
+  const sent = sentOnly + deliveredOnly + read + sending;
 
   return {
     total,

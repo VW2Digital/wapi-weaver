@@ -60,17 +60,23 @@ const STATUS_HEX: Record<string, string> = {
 };
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
-const STATUS_LABEL: Record<(typeof STATUS_KEYS)[number], string> = {
+const STATUS_LABEL: Record<string, string> = {
   pending: "Pendente",
+  sending: "Enviando",
   sent: "Enviada",
+  sentOnly: "Enviada",
   delivered: "Entregue",
+  deliveredOnly: "Entregue",
   read: "Lida",
   failed: "Falhou",
 };
-const STATUS_COLOR: Record<(typeof STATUS_KEYS)[number], string> = {
+const STATUS_COLOR: Record<string, string> = {
   pending: "bg-amber-500",
+  sending: "bg-sky-400",
   sent: "bg-blue-500",
+  sentOnly: "bg-blue-500",
   delivered: "bg-emerald-500",
+  deliveredOnly: "bg-emerald-500",
   read: "bg-indigo-600",
   failed: "bg-red-500",
 };
@@ -151,9 +157,12 @@ function Dashboard() {
   const barData = (c.data ?? []).slice(0, 8).map((x: any) => {
     const t = normalizeCampaignTotals(x.totals);
     const name = String(x.name ?? "—");
+    const sentOnly = t.sent - t.delivered;
+    const deliveredOnly = t.delivered - t.read;
     return {
       name: name.length > 14 ? name.slice(0, 14) + "…" : name,
-      Entregue: t.delivered,
+      Enviada: sentOnly,
+      Entregue: deliveredOnly,
       Lida: t.read,
       Falhou: t.failed,
     };
@@ -492,6 +501,12 @@ function Dashboard() {
                       iconType="circle"
                     />
                     <Bar
+                      dataKey="Enviada"
+                      stackId="a"
+                      fill={STATUS_HEX.sent}
+                      radius={[0, 0, 0, 0]}
+                    />
+                    <Bar
                       dataKey="Entregue"
                       stackId="a"
                       fill={STATUS_HEX.delivered}
@@ -528,8 +543,17 @@ function Dashboard() {
             </div>
             <div className="divide-y">
               {(c.data ?? []).map((x: any) => {
-                const t = (x.totals ?? {}) as Record<string, number>;
-                const total = t.total ?? STATUS_KEYS.reduce((s, k) => s + (t[k] ?? 0), 0);
+                const n = normalizeCampaignTotals(x.totals);
+                const total = n.total;
+                const distBar: Record<string, number> = {
+                  pending: n.pending,
+                  sending: n.sending,
+                  sentOnly: n.sent - n.delivered,
+                  deliveredOnly: n.delivered - n.read,
+                  read: n.read,
+                  failed: n.failed,
+                };
+                const distKeys = ["pending", "sending", "sentOnly", "deliveredOnly", "read", "failed"];
                 return (
                   <Link
                     key={x.id}
@@ -545,35 +569,43 @@ function Dashboard() {
                     </div>
                     <div className="col-span-2 md:col-span-4">
                       <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
-                        {STATUS_KEYS.map((k) => {
-                          const v = t[k] ?? 0;
+                        {distKeys.map((k) => {
+                          const v = distBar[k] ?? 0;
                           const pct = total > 0 ? (v / total) * 100 : 0;
                           if (pct === 0) return null;
                           return (
                             <div
                               key={k}
-                              className={STATUS_COLOR[k]}
+                              className={STATUS_COLOR[k] || "bg-muted-foreground"}
                               style={{ width: `${pct}%` }}
-                              title={`${STATUS_LABEL[k]}: ${v}`}
+                              title={`${STATUS_LABEL[k] || k}: ${v}`}
                             />
                           );
                         })}
                       </div>
                     </div>
-                    {STATUS_KEYS.map((k) => (
-                      <div key={k} className="text-right text-sm tabular-nums md:col-span-1">
-                        <span className="md:hidden text-xs text-muted-foreground mr-1">
-                          {STATUS_LABEL[k]}:
-                        </span>
-                        <span
-                          className={
-                            k === "failed" && (t[k] ?? 0) > 0 ? "text-destructive font-medium" : ""
-                          }
-                        >
-                          {t[k] ?? 0}
-                        </span>
-                      </div>
-                    ))}
+                    <div className="text-right text-sm tabular-nums md:col-span-1">
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">Pendente:</span>
+                      {n.pending}
+                    </div>
+                    <div className="text-right text-sm tabular-nums md:col-span-1">
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">Enviada:</span>
+                      {n.sent}
+                    </div>
+                    <div className="text-right text-sm tabular-nums md:col-span-1">
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">Entregue:</span>
+                      {n.delivered}
+                    </div>
+                    <div className="text-right text-sm tabular-nums md:col-span-1">
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">Lida:</span>
+                      {n.read}
+                    </div>
+                    <div className="text-right text-sm tabular-nums md:col-span-1">
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">Falhou:</span>
+                      <span className={n.failed > 0 ? "text-destructive font-medium" : ""}>
+                        {n.failed}
+                      </span>
+                    </div>
                   </Link>
                 );
               })}
@@ -602,11 +634,24 @@ function Dashboard() {
             </div>
             {(c.data ?? []).length > 0 && (
               <div className="flex flex-wrap gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
-                {STATUS_KEYS.map((k) => (
-                  <span key={k} className="inline-flex items-center gap-1.5">
-                    <span className={`h-2 w-3 rounded ${STATUS_COLOR[k]}`} /> {STATUS_LABEL[k]}
-                  </span>
-                ))}
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-3 rounded bg-amber-500" /> Pendente
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-3 rounded bg-sky-400" /> Enviando
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-3 rounded bg-blue-500" /> Enviada
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-3 rounded bg-emerald-500" /> Entregue
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-3 rounded bg-indigo-600" /> Lida
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-3 rounded bg-red-500" /> Falhou
+                </span>
               </div>
             )}
           </Card>

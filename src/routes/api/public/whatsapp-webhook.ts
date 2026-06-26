@@ -189,6 +189,7 @@ async function processStatusUpdate(value: any, userId: string) {
           SELECT JSON_OBJECT(
             'total', COUNT(*),
             'pending', CAST(SUM(status='pending') AS SIGNED),
+            'sending', CAST(SUM(status='sending') AS SIGNED),
             'sent', CAST(SUM(status='sent') AS SIGNED),
             'delivered', CAST(SUM(status='delivered') AS SIGNED),
             'read', CAST(SUM(status='read') AS SIGNED),

@@ -188,6 +188,7 @@ function LoginPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
+                      className="h-10"
                     />
                   </div>
                 )}
@@ -199,6 +200,7 @@ function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="h-10"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -223,6 +225,7 @@ function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="h-10"
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={busy}>
@@ -279,6 +282,7 @@ function LoginPage() {
                         required
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
+                        className="h-10"
                       />
                     </div>
                     <Button type="submit" className="w-full" disabled={forgotBusy}>
