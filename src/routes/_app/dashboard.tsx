@@ -94,18 +94,19 @@ function Dashboard() {
   const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats() });
 
   const totals = (c.data ?? []).reduce(
-    (acc: { sent: number; delivered: number; read: number; failed: number }, x: any) => {
+    (acc: { sent: number; delivered: number; read: number; failed: number; completed: number }, x: any) => {
       const t = normalizeCampaignTotals(x.totals);
       acc.sent += t.sent;
       acc.delivered += t.delivered;
       acc.read += t.read;
       acc.failed += t.failed;
+      acc.completed += t.completed;
       return acc;
     },
-    { sent: 0, delivered: 0, read: 0, failed: 0 },
+    { sent: 0, delivered: 0, read: 0, failed: 0, completed: 0 },
   );
 
-  const deliverRate = totals.sent ? Math.round((totals.delivered / totals.sent) * 100) : 0;
+  const deliverRate = totals.completed ? Math.round((totals.delivered / totals.completed) * 100) : 0;
   const readRate = totals.delivered ? Math.round((totals.read / totals.delivered) * 100) : 0;
 
   function trend(current: number, previous: number) {
@@ -199,7 +200,7 @@ function Dashboard() {
       <div className="flex-1 overflow-y-auto">
         {(() => {
           if (c.isPending) return null;
-          const failureRate = totals.sent ? Math.round((totals.failed / totals.sent) * 100) : 0;
+          const failureRate = totals.completed ? Math.round((totals.failed / totals.completed) * 100) : 0;
           const alerts: { title: string; description: string }[] = [];
           if (totals.failed > 0) {
             alerts.push({
@@ -210,7 +211,7 @@ function Dashboard() {
                   : "Confira as campanhas com falhas para detalhes do erro.",
             });
           }
-          if (totals.sent >= 20 && deliverRate < 70) {
+          if (totals.completed >= 20 && deliverRate < 70) {
             alerts.push({
               title: `Taxa de entrega baixa: ${deliverRate}%`,
               description: "Abaixo de 70%. Revise a qualidade dos números e o template usado.",
@@ -272,7 +273,7 @@ function Dashboard() {
                     )}
                     <p className="mt-2 text-xs text-muted-foreground">
                       {totals.delivered.toLocaleString("pt-BR")} de{" "}
-                      {totals.sent.toLocaleString("pt-BR")} mensagens entregues
+                      {totals.completed.toLocaleString("pt-BR")} mensagens entregues
                     </p>
                   </div>
                   <div className="shrink-0 rounded-xl bg-primary/15 p-2.5 text-primary">

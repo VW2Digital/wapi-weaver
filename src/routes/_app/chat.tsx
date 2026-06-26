@@ -1302,13 +1302,10 @@ function ChatPage() {
   };
 
   const getContactCategory = (c: any, currentUserId: string): "novos" | "meus" | "outros" => {
-    if (c.active_agent_id) {
-      if (c.active_agent_id === currentUserId) {
-        return "meus";
-      }
-      return "outros";
-    }
-    return "novos";
+    if (c.is_unread || (c.unread_count ?? 0) > 0) return "novos";
+    if (c.active_agent_id === currentUserId) return "meus";
+    if (!c.active_agent_id && c.user_id === currentUserId) return "meus";
+    return "outros";
   };
 
   const getDeptStyle = (dept: string): string => {

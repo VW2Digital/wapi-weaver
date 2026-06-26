@@ -100,6 +100,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
         `
         SELECT 
           c.id, 
+          c.user_id,
           c.name, 
           c.phone_e164, 
           c.custom_fields,
@@ -184,6 +185,11 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
     await db.query(
       `UPDATE direct_messages SET status = 'read'
        WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming' AND (status IS NULL OR status != 'read')`,
+      [contactUserId, phone],
+    );
+
+    await db.query(
+      `UPDATE contacts SET is_unread = false WHERE user_id = ? AND phone_e164 = ?`,
       [contactUserId, phone],
     );
 

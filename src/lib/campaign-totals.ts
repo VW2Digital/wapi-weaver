@@ -24,6 +24,7 @@ export function normalizeCampaignTotals(totals: RawCampaignTotals | null | undef
 
   const delivered = deliveredOnly + read;
   const sent = sentOnly + deliveredOnly + read + sending;
+  const completed = sentOnly + deliveredOnly + read + failed;
 
   return {
     total,
@@ -33,5 +34,6 @@ export function normalizeCampaignTotals(totals: RawCampaignTotals | null | undef
     delivered,
     read,
     failed,
+    completed,
   };
 }

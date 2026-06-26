@@ -271,6 +271,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
       phone_e164: phoneDigits,
       name: contactName || existingContact?.name || undefined,
       source: "whatsapp_inbound",
+      is_unread: true,
       custom_fields: {
         ...existingCustomFields,
         wa_id: m.from,
