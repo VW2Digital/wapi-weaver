@@ -172,8 +172,6 @@ function Dashboard() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
-        title="Dashboard"
-        subtitle="Visão geral dos seus disparos via WhatsApp Cloud API."
         action={
           <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
             <Button variant="outline" size="sm" asChild className="w-full justify-center">

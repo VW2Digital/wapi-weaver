@@ -28,7 +28,6 @@ import {
 } from "@/lib/chat-actions.functions";
 import { createOpportunity, createActivity } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
-import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1939,10 +1938,7 @@ function ChatPage() {
       `,
         }}
       />
-      <PageHeader
-        title="Chat Direto"
-        subtitle="Converse diretamente com seus contatos cadastrados."
-      />
+
 
       <div className="flex-1 min-h-0 flex border-t">
         {/* Sidebar de Contatos */}
