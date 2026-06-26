@@ -44,7 +44,10 @@ export const Route = createFileRoute("/api/auth/verify-token")({
           }
 
           // Fetch user
-          const users = await db.query("SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1", [decoded.sub]);
+          const users = await db.query(
+            "SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1",
+            [decoded.sub],
+          );
           if (!users || users.length === 0) {
             return new Response(JSON.stringify({ error: "Usuário não encontrado." }), {
               status: 400,

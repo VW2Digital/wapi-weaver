@@ -178,9 +178,12 @@ async function processStatusUpdate(value: any, userId: string) {
         .eq("user_id", userId);
     }
 
-    const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id))).filter(Boolean);
+    const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id))).filter(
+      Boolean,
+    );
     if (campaignIds.length > 0) {
-      await db.query(`
+      await db.query(
+        `
         UPDATE campaigns c
         SET totals = (
           SELECT JSON_OBJECT(
@@ -193,7 +196,9 @@ async function processStatusUpdate(value: any, userId: string) {
           ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
         )
         WHERE c.id IN (?) AND c.user_id = ?
-      `, [userId, campaignIds, userId]);
+      `,
+        [userId, campaignIds, userId],
+      );
     }
   }
 }
@@ -326,7 +331,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
             flowToken = responseJsonObj?.flow_token || "";
             isFlowReply = true;
             body = "[Formulário Flow Enviado]";
-            
+
             // Grava a submissão
             const submissionId = randomUUID();
             await dbAdmin.from("whatsapp_flow_submissions").insert({
@@ -349,10 +354,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
           m.interactive?.button_reply?.title ??
           m.interactive?.list_reply?.title ??
           "[Interação recebida]";
-        buttonPayload =
-          m.interactive?.button_reply?.id ??
-          m.interactive?.list_reply?.id ??
-          "";
+        buttonPayload = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? "";
       } else {
         // Para Flow, precisamos obter o next_step_on_success
         // O flowToken tem o formato "session:<telefone>:<stepId>"
@@ -373,9 +375,10 @@ async function processInboundDirectMessages(value: any, userId: string) {
 
           if (step && step.buttons_config) {
             try {
-              const configObj = typeof step.buttons_config === "string"
-                ? JSON.parse(step.buttons_config)
-                : step.buttons_config;
+              const configObj =
+                typeof step.buttons_config === "string"
+                  ? JSON.parse(step.buttons_config)
+                  : step.buttons_config;
               const nextSuccess = configObj?.next_step_on_success;
               if (nextSuccess) {
                 buttonPayload = `step:${nextSuccess}`;

@@ -5,7 +5,7 @@ const dbConfig = {
   port: 3306,
   user: "wapi_user",
   password: "S0xbxPfKazBVT8JFy1UEOjIsrjox",
-  database: "wapi_weaver"
+  database: "wapi_weaver",
 };
 
 async function main() {
@@ -14,7 +14,9 @@ async function main() {
     const [users] = await conn.query("SELECT id, email FROM users");
     console.log("Users in local DB:", users);
 
-    const [profiles] = await conn.query("SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles");
+    const [profiles] = await conn.query(
+      "SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles",
+    );
     console.log("Profiles in local DB:", profiles);
   } catch (error) {
     console.error("Error:", error);

@@ -61,8 +61,8 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">1. Aceitação dos Termos</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Ao acessar e utilizar a plataforma VW2 Conversas, você concorda integralmente com estes
-              Termos de Serviço, bem como com nossa{" "}
+              Ao acessar e utilizar a plataforma VW2 Conversas, você concorda integralmente com
+              estes Termos de Serviço, bem como com nossa{" "}
               <Link to="/privacy" className="text-primary hover:underline">
                 Política de Privacidade
               </Link>

@@ -273,10 +273,14 @@ export async function ensureDatabaseSchema() {
       break;
     } catch (err) {
       if (attempt === maxAttempts) {
-        console.error(`[Schema] Não foi possível conectar ao banco de dados após ${maxAttempts} tentativas.`);
+        console.error(
+          `[Schema] Não foi possível conectar ao banco de dados após ${maxAttempts} tentativas.`,
+        );
         throw err;
       }
-      console.warn(`[Schema] Aguardando banco de dados inicializar... (Tentativa ${attempt}/${maxAttempts}). Erro: ${err.message}`);
+      console.warn(
+        `[Schema] Aguardando banco de dados inicializar... (Tentativa ${attempt}/${maxAttempts}). Erro: ${err.message}`,
+      );
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
@@ -387,8 +391,18 @@ export async function ensureDatabaseSchema() {
 
     // Garantir colunas adicionais na tabela contacts
     await ensureColumnExists(connection, "contacts", "is_pinned", "BOOLEAN NOT NULL DEFAULT false");
-    await ensureColumnExists(connection, "contacts", "is_archived", "BOOLEAN NOT NULL DEFAULT false");
-    await ensureColumnExists(connection, "contacts", "chat_status", "VARCHAR(50) NOT NULL DEFAULT 'aberto'");
+    await ensureColumnExists(
+      connection,
+      "contacts",
+      "is_archived",
+      "BOOLEAN NOT NULL DEFAULT false",
+    );
+    await ensureColumnExists(
+      connection,
+      "contacts",
+      "chat_status",
+      "VARCHAR(50) NOT NULL DEFAULT 'aberto'",
+    );
     await ensureColumnExists(connection, "contacts", "is_unread", "BOOLEAN NOT NULL DEFAULT false");
     await ensureColumnExists(connection, "contacts", "kanban_stage_id", "VARCHAR(36) NULL");
 
@@ -565,26 +579,28 @@ export async function ensureDatabaseSchema() {
          WHERE TABLE_SCHEMA = DATABASE()
            AND TABLE_NAME = 'bot_settings'
            AND COLUMN_NAME = 'instance_id'
-         LIMIT 1`
+         LIMIT 1`,
       );
       if (cols.length > 0) {
-        if (cols[0].IS_NULLABLE === 'NO') {
-          logSchema('Migrando bot_settings.instance_id de NOT NULL para NULL...');
+        if (cols[0].IS_NULLABLE === "NO") {
+          logSchema("Migrando bot_settings.instance_id de NOT NULL para NULL...");
           await connection.query(
-            `ALTER TABLE bot_settings MODIFY COLUMN instance_id VARCHAR(50) NULL`
+            `ALTER TABLE bot_settings MODIFY COLUMN instance_id VARCHAR(50) NULL`,
           );
-          logSchema('Migração bot_settings.instance_id concluída.');
+          logSchema("Migração bot_settings.instance_id concluída.");
         }
         // Sempre limpa strings vazias — independente da versão anterior
         const [updateResult] = await connection.query(
-          `UPDATE bot_settings SET instance_id = NULL WHERE instance_id = ''`
+          `UPDATE bot_settings SET instance_id = NULL WHERE instance_id = ''`,
         );
         if (Number(updateResult?.affectedRows) > 0) {
-          logSchema(`Limpeza: ${updateResult.affectedRows} registro(s) com instance_id vazio convertidos para NULL.`);
+          logSchema(
+            `Limpeza: ${updateResult.affectedRows} registro(s) com instance_id vazio convertidos para NULL.`,
+          );
         }
       }
     } catch (err) {
-      console.warn('[Schema] Falha ao migrar bot_settings.instance_id (não crítico):', err.message);
+      console.warn("[Schema] Falha ao migrar bot_settings.instance_id (não crítico):", err.message);
     }
 
     await ensureTableExists(
@@ -629,12 +645,14 @@ export async function ensureDatabaseSchema() {
          WHERE TABLE_SCHEMA = DATABASE()
            AND TABLE_NAME = 'bot_steps'
            AND COLUMN_NAME = 'next_step_id'
-           AND REFERENCED_TABLE_NAME = 'bot_steps'`
+           AND REFERENCED_TABLE_NAME = 'bot_steps'`,
       );
       for (const fk of fksSteps) {
         const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
         if (fkName) {
-          logSchema(`Migração: Removendo chave estrangeira obsoleta \`${fkName}\` da tabela \`bot_steps\`...`);
+          logSchema(
+            `Migração: Removendo chave estrangeira obsoleta \`${fkName}\` da tabela \`bot_steps\`...`,
+          );
           await connection.query(`ALTER TABLE \`bot_steps\` DROP FOREIGN KEY \`${fkName}\``);
           logSchema(`Chave estrangeira \`${fkName}\` de \`bot_steps\` removida.`);
         }
@@ -646,18 +664,23 @@ export async function ensureDatabaseSchema() {
          WHERE TABLE_SCHEMA = DATABASE()
            AND TABLE_NAME = 'bot_step_options'
            AND COLUMN_NAME = 'next_step_id'
-           AND REFERENCED_TABLE_NAME = 'bot_steps'`
+           AND REFERENCED_TABLE_NAME = 'bot_steps'`,
       );
       for (const fk of fksOptions) {
         const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
         if (fkName) {
-          logSchema(`Migração: Removendo chave estrangeira obsoleta \`${fkName}\` da tabela \`bot_step_options\`...`);
+          logSchema(
+            `Migração: Removendo chave estrangeira obsoleta \`${fkName}\` da tabela \`bot_step_options\`...`,
+          );
           await connection.query(`ALTER TABLE \`bot_step_options\` DROP FOREIGN KEY \`${fkName}\``);
           logSchema(`Chave estrangeira \`${fkName}\` de \`bot_step_options\` removida.`);
         }
       }
     } catch (err) {
-      console.warn('[Schema] Falha ao migrar/remover chaves estrangeiras de next_step_id (não crítico):', err.message);
+      console.warn(
+        "[Schema] Falha ao migrar/remover chaves estrangeiras de next_step_id (não crítico):",
+        err.message,
+      );
     }
 
     await ensureTableExists(
@@ -708,8 +731,18 @@ export async function ensureDatabaseSchema() {
     await ensureColumnExists(connection, "bot_steps", "media_url", "VARCHAR(1024) NULL");
     await ensureColumnExists(connection, "bot_steps", "position_x", "FLOAT NOT NULL DEFAULT 0");
     await ensureColumnExists(connection, "bot_steps", "position_y", "FLOAT NOT NULL DEFAULT 0");
-    await ensureColumnExists(connection, "bot_steps", "created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
-    await ensureColumnExists(connection, "bot_steps", "updated_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+    await ensureColumnExists(
+      connection,
+      "bot_steps",
+      "created_at",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    );
+    await ensureColumnExists(
+      connection,
+      "bot_steps",
+      "updated_at",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+    );
 
     await ensureIndexExists(
       connection,
@@ -872,21 +905,23 @@ export async function ensureDatabaseSchema() {
           INSERT IGNORE INTO whatsapp_flows (id, user_id, flow_id, flow_name, status)
           VALUES (UUID(), ?, '789123456', 'Orçamento de Serviços', 'published')
           `,
-          [users[0].id]
+          [users[0].id],
         );
 
         logSchema("Garantindo equipes iniciais de demonstração...");
-        const [existingTeams] = await connection.query("SELECT id FROM teams WHERE user_id = ?", [users[0].id]);
+        const [existingTeams] = await connection.query("SELECT id FROM teams WHERE user_id = ?", [
+          users[0].id,
+        ]);
         if (existingTeams.length === 0) {
           const supportTeamId = "demo-team-support-id-000000000001";
           const salesTeamId = "demo-team-sales-id-0000000000002";
-          
+
           await connection.query(
             `INSERT IGNORE INTO teams (id, user_id, name, description, auto_assign_mode)
              VALUES 
                (?, ?, 'Suporte Técnico', 'Equipe de suporte e atendimento técnico', 'round_robin'),
                (?, ?, 'Comercial', 'Equipe de vendas e novos negócios', 'manual')`,
-            [supportTeamId, users[0].id, salesTeamId, users[0].id]
+            [supportTeamId, users[0].id, salesTeamId, users[0].id],
           );
 
           await connection.query(
@@ -894,12 +929,12 @@ export async function ensureDatabaseSchema() {
              VALUES 
                (UUID(), ?, ?, 'supervisor'),
                (UUID(), ?, ?, 'agent')`,
-            [supportTeamId, users[0].id, salesTeamId, users[0].id]
+            [supportTeamId, users[0].id, salesTeamId, users[0].id],
           );
         }
       }
     } catch (err) {
-      console.warn('[Schema] Falha ao inserir dados de demonstração (não crítico):', err.message);
+      console.warn("[Schema] Falha ao inserir dados de demonstração (não crítico):", err.message);
     }
 
     logSchema("Schema validado com sucesso.");

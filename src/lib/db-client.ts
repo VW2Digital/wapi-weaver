@@ -277,7 +277,10 @@ export class ServerMySQLClient {
         },
         getUserById: async (id: string) => {
           try {
-            const results = await db.query("SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1", [id]);
+            const results = await db.query(
+              "SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1",
+              [id],
+            );
             if (!results || results.length === 0) {
               return { data: { user: null }, error: new Error("User not found") };
             }

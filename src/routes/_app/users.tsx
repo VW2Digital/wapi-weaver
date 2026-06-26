@@ -108,7 +108,11 @@ function UsersPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="px-8 pt-4 border-b bg-muted/10 shrink-0 flex items-center justify-between">
-        <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-[400px]">
+        <Tabs
+          value={activeTab}
+          onValueChange={(val: any) => setActiveTab(val)}
+          className="w-[400px]"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <UsersIcon className="h-4 w-4" /> Usuários
@@ -673,9 +677,7 @@ function AdminTeams() {
                     const assignConfig = getAutoAssignLabel(t.auto_assign_mode);
                     return (
                       <TableRow key={t.id}>
-                        <TableCell className="font-semibold text-foreground">
-                          {t.name}
-                        </TableCell>
+                        <TableCell className="font-semibold text-foreground">{t.name}</TableCell>
                         <TableCell className="text-muted-foreground max-w-xs truncate">
                           {t.description || "—"}
                         </TableCell>
@@ -755,7 +757,13 @@ function TeamFormDialog({
 }) {
   const createTeamFn = useServerFn(createTeam);
   const createMut = useMutation({
-    mutationFn: (payload: { data: { name: string; description: string | null; autoAssignMode: "manual" | "round_robin" | "least_busy" } }) => createTeamFn(payload),
+    mutationFn: (payload: {
+      data: {
+        name: string;
+        description: string | null;
+        autoAssignMode: "manual" | "round_robin" | "least_busy";
+      };
+    }) => createTeamFn(payload),
     onSuccess: () => {
       toast.success("Equipe criada com sucesso!");
       onSuccess();
@@ -768,7 +776,14 @@ function TeamFormDialog({
 
   const updateTeamFn = useServerFn(updateTeam);
   const updateMut = useMutation({
-    mutationFn: (payload: { data: { id: any; name: string; description: string | null; autoAssignMode: "manual" | "round_robin" | "least_busy" } }) => updateTeamFn(payload),
+    mutationFn: (payload: {
+      data: {
+        id: any;
+        name: string;
+        description: string | null;
+        autoAssignMode: "manual" | "round_robin" | "least_busy";
+      };
+    }) => updateTeamFn(payload),
     onSuccess: () => {
       toast.success("Equipe atualizada com sucesso!");
       onSuccess();
@@ -781,7 +796,9 @@ function TeamFormDialog({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [autoAssignMode, setAutoAssignMode] = useState<"manual" | "round_robin" | "least_busy">("manual");
+  const [autoAssignMode, setAutoAssignMode] = useState<"manual" | "round_robin" | "least_busy">(
+    "manual",
+  );
 
   useEffect(() => {
     if (open) {
@@ -858,17 +875,18 @@ function TeamFormDialog({
 
             <div className="space-y-1">
               <Label htmlFor="assign-mode">Modo de atribuição automática</Label>
-              <Select
-                value={autoAssignMode}
-                onValueChange={(val: any) => setAutoAssignMode(val)}
-              >
+              <Select value={autoAssignMode} onValueChange={(val: any) => setAutoAssignMode(val)}>
                 <SelectTrigger id="assign-mode">
                   <SelectValue placeholder="Selecione o modo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">Manual (Agente escolhe/supervisor atribui)</SelectItem>
-                  <SelectItem value="round_robin">Fila automática (Round-Robin / Fila circular)</SelectItem>
-                  <SelectItem value="least_busy">Menor Carga (Least-Busy / Agente mais livre)</SelectItem>
+                  <SelectItem value="round_robin">
+                    Fila automática (Round-Robin / Fila circular)
+                  </SelectItem>
+                  <SelectItem value="least_busy">
+                    Menor Carga (Least-Busy / Agente mais livre)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -905,10 +923,12 @@ function TeamMembersDialog({
   const qc = useQueryClient();
   const fetchMembers = useServerFn(listTeamMembers);
   const fetchUsersFn = useServerFn(listUsers);
-  
+
   const addTeamMemberFn = useServerFn(addTeamMember);
   const addMemberMut = useMutation({
-    mutationFn: (payload: { data: { teamId: any; userId: string; role: "agent" | "supervisor" } }) => addTeamMemberFn(payload),
+    mutationFn: (payload: {
+      data: { teamId: any; userId: string; role: "agent" | "supervisor" };
+    }) => addTeamMemberFn(payload),
     onSuccess: () => {
       toast.success("Membro adicionado!");
       qc.invalidateQueries({ queryKey: ["team-members", team?.id] });
@@ -985,12 +1005,16 @@ function TeamMembersDialog({
             <UsersIcon className="h-5 w-5 text-primary" /> Membros da equipe: {team?.name}
           </DialogTitle>
           <DialogDescription>
-            Defina quais agentes pertencem a este setor e qual a função deles (agente ou supervisor).
+            Defina quais agentes pertencem a este setor e qual a função deles (agente ou
+            supervisor).
           </DialogDescription>
         </DialogHeader>
 
         {/* Form para Adicionar Novo Membro */}
-        <form onSubmit={handleAdd} className="flex gap-3 items-end p-4 bg-muted/30 rounded-lg border">
+        <form
+          onSubmit={handleAdd}
+          className="flex gap-3 items-end p-4 bg-muted/30 rounded-lg border"
+        >
           <div className="flex-1 space-y-1">
             <Label htmlFor="select-user">Agente da Plataforma</Label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>

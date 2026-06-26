@@ -53,10 +53,10 @@ export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard }
 
 const STATUS_HEX: Record<string, string> = {
   pending: "#f59e0b", // Amber-500
-  sent: "#3b82f6",    // Blue-500
+  sent: "#3b82f6", // Blue-500
   delivered: "#10b981", // Emerald-500
-  read: "#4f46e5",    // Indigo-600
-  failed: "#ef4444",  // Red-500
+  read: "#4f46e5", // Indigo-600
+  failed: "#ef4444", // Red-500
 };
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;

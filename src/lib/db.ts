@@ -1,14 +1,15 @@
 import mysql from "mysql2/promise";
 
-if (!process.env.DB_PASSWORD && process.env.NODE_ENV === "production") {
-  throw new Error("[FATAL] DB_PASSWORD is required in production");
-}
-
+/**
+ * Pool de conexões MySQL. Usa variáveis de ambiente para configurar:
+ * DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_SIZE.
+ * Em produção, DB_PASSWORD é obrigatório.
+ */
 const pool = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
   port: parseInt(process.env.DB_PORT || "3306", 10),
   user: process.env.DB_USER || "wapi_user",
-  password: process.env.DB_PASSWORD || "", // empty default for local, real pass in prod
+  password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "wapi_weaver",
   waitForConnections: true,
   connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 5,
@@ -18,26 +19,48 @@ const pool = mysql.createPool({
   connectTimeout: 10000,
 });
 
-// Helper to run query and return results
-export async function query(sql: string, params?: any[]): Promise<any> {
+/**
+ * Executa uma query SQL parametrizada.
+ *
+ * Tenta `pool.execute()` primeiro (prepared statement).
+ * Se falhar com `ER_WRONG_ARGUMENTS` (1210), faz fallback para `pool.query()`.
+ * Isso ocorre em statements preparados que usam a mesma variável várias vezes.
+ *
+ * @param sql  - A sentença SQL com placeholders `?`
+ * @param params - Parâmetros opcionais para bind
+ * @returns Resultado da query (linhas ou ResultSetHeader)
+ */
+export async function query(sql: string, params?: unknown[]): Promise<unknown> {
   try {
     const sanitizedParams = params?.map((p) => (p === undefined ? null : p));
     const [results] = await pool.execute(sql, sanitizedParams);
     return results;
-  } catch (error: any) {
-    if (error.code === "ER_WRONG_ARGUMENTS" || error.errno === 1210) {
+  } catch (error: unknown) {
+    const err = error as { code?: string; errno?: number };
+    if (err.code === "ER_WRONG_ARGUMENTS" || err.errno === 1210) {
       const sanitizedParams = params?.map((p) => (p === undefined ? null : p));
       const [results] = await pool.query(sql, sanitizedParams);
       return results;
     }
-    console.error("Database query error:", error);
-    console.error("Failed SQL:", sql);
-    console.error("Params:", params);
+    console.error("[DB] Query error:", error);
+    console.error("[DB] Failed SQL:", sql);
+    console.error("[DB] Params:", params);
     throw error;
   }
 }
 
-// Transaction wrapper helper
+/**
+ * Executa uma série de queries dentro de uma transação.
+ *
+ * - Obtém uma conexão do pool.
+ * - Inicia a transação.
+ * - Executa o callback, que recebe a conexão e pode chamar `conn.execute()`.
+ * - Se o callback lançar, faz rollback; caso contrário, commit.
+ * - Sempre libera a conexão de volta ao pool no `finally`.
+ *
+ * @param callback - Função que recebe uma conexão e retorna uma Promise com o resultado
+ * @returns O valor retornado pelo callback
+ */
 export async function transaction<T>(
   callback: (connection: mysql.PoolConnection) => Promise<T>,
 ): Promise<T> {

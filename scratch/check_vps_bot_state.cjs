@@ -5,7 +5,7 @@ const vpsDbConfig = {
   port: 3306,
   user: "wapi_user",
   password: "S0xbxPfKazBVT8JFy1UEOjIsrjox",
-  database: "wapi_weaver"
+  database: "wapi_weaver",
 };
 
 async function main() {
@@ -16,7 +16,9 @@ async function main() {
     console.log("Connected successfully.");
 
     // Get user id for vanderleivw2@gmail.com
-    const [users] = await conn.query("SELECT id, email FROM users WHERE email = 'vanderleivw2@gmail.com'");
+    const [users] = await conn.query(
+      "SELECT id, email FROM users WHERE email = 'vanderleivw2@gmail.com'",
+    );
     if (users.length === 0) {
       console.log("User vanderleivw2@gmail.com not found on VPS!");
       return;
@@ -25,7 +27,10 @@ async function main() {
     console.log(`User ID on VPS: ${userId}`);
 
     // Check profiles
-    const [profiles] = await conn.query("SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles WHERE id = ?", [userId]);
+    const [profiles] = await conn.query(
+      "SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles WHERE id = ?",
+      [userId],
+    );
     console.log("Profile details on VPS:", profiles[0]);
 
     // Check bot_settings
@@ -36,7 +41,10 @@ async function main() {
     if (settings.length > 0) {
       const botSettingsId = settings[0].id;
       // Check bot_steps
-      const [steps] = await conn.query("SELECT id, step_order, trigger_type, trigger_value, message_type, message_content FROM bot_steps WHERE bot_settings_id = ? ORDER BY step_order", [botSettingsId]);
+      const [steps] = await conn.query(
+        "SELECT id, step_order, trigger_type, trigger_value, message_type, message_content FROM bot_steps WHERE bot_settings_id = ? ORDER BY step_order",
+        [botSettingsId],
+      );
       console.log(`\n--- bot_steps on VPS (${steps.length} steps) ---`);
       console.log(steps);
     }

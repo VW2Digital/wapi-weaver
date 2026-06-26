@@ -112,8 +112,9 @@ export function TwoFactorSection() {
       </p>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+        <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Carregando...</span>
         </div>
       ) : verified.length > 0 && !enrolling ? (
         <div className="space-y-3">

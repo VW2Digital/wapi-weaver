@@ -29,7 +29,7 @@ globalThis.fetch = async (url: any, options: any) => {
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ messages: [{ id: "wam.mock_out_" + Date.now() }] }),
-      json: async () => ({ messages: [{ id: "wam.mock_out_" + Date.now() }] })
+      json: async () => ({ messages: [{ id: "wam.mock_out_" + Date.now() }] }),
     } as any;
   }
   // Let local webhook requests pass through normally
@@ -41,10 +41,7 @@ async function main() {
 
   try {
     // 1. Get user's bot settings singleton
-    const { data: settings } = await dbAdmin
-      .from("bot_settings")
-      .select("*")
-      .eq("user_id", userId);
+    const { data: settings } = await dbAdmin.from("bot_settings").select("*").eq("user_id", userId);
     if (!settings || settings.length === 0) {
       console.error("Bot settings not found for test user!");
       return;
@@ -53,10 +50,7 @@ async function main() {
 
     // 2. Set up test profile secret in the database to allow webhook signature verification
     console.log("\nSetting up test secret in profile...");
-    await dbAdmin
-      .from("profiles")
-      .update({ whatsapp_app_secret: testSecret })
-      .eq("id", userId);
+    await dbAdmin.from("profiles").update({ whatsapp_app_secret: testSecret }).eq("id", userId);
     console.log("Profile updated.");
 
     // 3. Setup test steps
@@ -78,8 +72,8 @@ async function main() {
       buttons_config: JSON.stringify({
         flow_id: "789123456",
         flow_cta: "Preencher Formulário",
-        next_step_on_success: "flow_test_step_success"
-      })
+        next_step_on_success: "flow_test_step_success",
+      }),
     });
 
     // Step 2: Success step
@@ -91,7 +85,8 @@ async function main() {
       trigger_type: "keyword",
       trigger_value: "flow_test_step_success",
       message_type: "text",
-      message_content: "Muito obrigado! Recebemos sua resposta do Flow e prosseguimos com o atendimento."
+      message_content:
+        "Muito obrigado! Recebemos sua resposta do Flow e prosseguimos com o atendimento.",
     });
     console.log("Steps inserted successfully.");
 
@@ -107,7 +102,7 @@ async function main() {
     // 5. Test outbound message (Simulate contact says "test_flow")
     console.log("\n--- STEP 1: Simulating initial contact message ---");
     await processBotFlow("test_flow", phoneDigits, phoneNumberId, userId);
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
 
     // Verify session state is saved pointing to flow_test_step_1
     const { data: state1 } = await dbAdmin
@@ -137,7 +132,7 @@ async function main() {
                 messaging_product: "whatsapp",
                 metadata: {
                   display_phone_number: "5511999999999",
-                  phone_number_id: "1208698542320885"
+                  phone_number_id: "1208698542320885",
                 },
                 messages: [
                   {
@@ -155,20 +150,20 @@ async function main() {
                           orcamento_estimado: "R$ 450,00",
                           wa_flow_response_params: {
                             flow_id: "789123456",
-                            flow_name: "Orçamento de Serviços"
+                            flow_name: "Orçamento de Serviços",
                           },
-                          flow_token: `session:${phoneDigits}:flow_test_step_1`
-                        })
-                      }
-                    }
-                  }
-                ]
+                          flow_token: `session:${phoneDigits}:flow_test_step_1`,
+                        }),
+                      },
+                    },
+                  },
+                ],
               },
-              field: "messages"
-            }
-          ]
-        }
-      ]
+              field: "messages",
+            },
+          ],
+        },
+      ],
     };
 
     const rawBody = JSON.stringify(webhookPayload);
@@ -179,13 +174,13 @@ async function main() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-hub-signature-256": signature
+        "x-hub-signature-256": signature,
       },
-      body: rawBody
+      body: rawBody,
     });
 
     console.log(`Webhook HTTP status response: ${response.status}`);
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
 
     // Verify submission was recorded
     const { data: submissions } = await dbAdmin
@@ -218,15 +213,24 @@ async function main() {
     console.log("\nCleaning up database...");
     await dbAdmin.from("bot_steps").delete().eq("id", "flow_test_step_1");
     await dbAdmin.from("bot_steps").delete().eq("id", "flow_test_step_success");
-    await dbAdmin.from("whatsapp_flow_submissions").delete().eq("user_id", userId).eq("contact_phone", phoneDigits);
-    await dbAdmin.from("bot_conversation_state").delete().eq("user_id", userId).eq("contact_number", phoneDigits);
-    await dbAdmin.from("direct_messages").delete().eq("user_id", userId).eq("contact_phone", phoneDigits);
-    
-    // Restore profile secret
     await dbAdmin
-      .from("profiles")
-      .update({ whatsapp_app_secret: null })
-      .eq("id", userId);
+      .from("whatsapp_flow_submissions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("contact_phone", phoneDigits);
+    await dbAdmin
+      .from("bot_conversation_state")
+      .delete()
+      .eq("user_id", userId)
+      .eq("contact_number", phoneDigits);
+    await dbAdmin
+      .from("direct_messages")
+      .delete()
+      .eq("user_id", userId)
+      .eq("contact_phone", phoneDigits);
+
+    // Restore profile secret
+    await dbAdmin.from("profiles").update({ whatsapp_app_secret: null }).eq("id", userId);
     console.log("Cleanup complete.");
 
     // Restore fetch

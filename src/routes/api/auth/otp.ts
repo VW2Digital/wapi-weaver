@@ -19,7 +19,9 @@ export const Route = createFileRoute("/api/auth/otp")({
           }
 
           // Fetch user
-          const users = await db.query("SELECT id, email FROM users WHERE email = ? LIMIT 1", [email]);
+          const users = await db.query("SELECT id, email FROM users WHERE email = ? LIMIT 1", [
+            email,
+          ]);
           if (!users || users.length === 0) {
             return new Response(
               JSON.stringify({ error: "Nenhum usuário encontrado com este e-mail." }),

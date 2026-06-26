@@ -1,4 +1,3 @@
-
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
@@ -22,7 +21,10 @@ async function getOrCreateBotSettings(context: any) {
     .maybeSingle();
 
   if (fetchError) {
-    return { ok: false as const, error: `Erro ao buscar configurações do bot: ${fetchError.message}` };
+    return {
+      ok: false as const,
+      error: `Erro ao buscar configurações do bot: ${fetchError.message}`,
+    };
   }
 
   if (!settings) {
@@ -123,10 +125,11 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
   .handler(async ({ data, context }: { data: any[]; context: any }) => {
     const result = await getOrCreateBotSettings(context);
-    if (!result.ok) return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
+    if (!result.ok)
+      return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
 
     const settings = result.settings;
-    const incomingIds = data.map(s => s.id).filter(Boolean);
+    const incomingIds = data.map((s) => s.id).filter(Boolean);
 
     // Remove steps que não estão mais no fluxo
     if (incomingIds.length > 0) {
@@ -138,7 +141,6 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
       if (deleteError) {
         return { ok: false, error: `Falha ao remover passos antigos: ${deleteError.message}` };
       }
-
     } else {
       const { error: deleteAllError } = await context.db
         .from("bot_steps")
@@ -164,7 +166,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         media_caption: step.media_caption || null,
         footer_text: step.footer_text || null,
         buttons_config: step.buttons_config || null,
-        next_step_id: null,   // resolve na 2ª passagem
+        next_step_id: null, // resolve na 2ª passagem
         delay_seconds: Number(step.delay_seconds || 0),
         position_x: step.position_x || 0,
         position_y: step.position_y || 0,
@@ -183,10 +185,18 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
 
       if (existing?.id) {
         const { error } = await context.db.from("bot_steps").update(basePayload).eq("id", stepId);
-        if (error) return { ok: false, error: `Falha ao atualizar passo ${step.step_order}: ${error.message}` };
+        if (error)
+          return {
+            ok: false,
+            error: `Falha ao atualizar passo ${step.step_order}: ${error.message}`,
+          };
       } else {
         const { error } = await context.db.from("bot_steps").insert({ id: stepId, ...basePayload });
-        if (error) return { ok: false, error: `Falha ao inserir passo ${step.step_order}: ${error.message}` };
+        if (error)
+          return {
+            ok: false,
+            error: `Falha ao inserir passo ${step.step_order}: ${error.message}`,
+          };
         // guarda o id gerado no objeto local para a 2ª passagem
         step.id = stepId;
       }
@@ -288,4 +298,3 @@ export const listWhatsAppFlows = createServerFn({ method: "GET" })
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const, flows: data || [] };
   });
-

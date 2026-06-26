@@ -11,7 +11,6 @@ function generateUUID(): string {
   });
 }
 
-// List of allowed tables to query directly
 const ALLOWED_TABLES = new Set([
   "profiles",
   "user_roles",
@@ -56,7 +55,6 @@ const ALLOWED_TABLES = new Set([
   "conversation_assignments",
 ]);
 
-// Helper to determine if a table has a user_id column
 function hasUserIdColumn(table: string): boolean {
   return [
     "user_roles",
@@ -98,8 +96,7 @@ function hasUserIdColumn(table: string): boolean {
   ].includes(table);
 }
 
-// Helper to format ISO dates to MySQL-compatible datetime format
-function formatToMysqlDateTime(val: any): any {
+function formatToMysqlDateTime(val: unknown): unknown {
   if (typeof val !== "string") return val;
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
     const d = new Date(val);
@@ -111,19 +108,16 @@ function formatToMysqlDateTime(val: any): any {
   return val;
 }
 
-// Convert arrays or objects for JSON columns and booleans for MySQL
-function preprocessData(table: string, data: any): any {
+function preprocessData(table: string, data: Record<string, unknown>): Record<string, unknown> {
   if (!data) return data;
   const processed = { ...data };
 
-  // Remove keys with undefined values to prevent MySQL driver bind errors
   for (const key in processed) {
     if (processed[key] === undefined) {
       delete processed[key];
     }
   }
 
-  // Auto-stringify any remaining objects/arrays (excluding Date and Buffer) to prevent MySQL driver bind errors on TEXT/JSON columns
   for (const key in processed) {
     const val = processed[key];
     if (
@@ -136,7 +130,6 @@ function preprocessData(table: string, data: any): any {
     }
   }
 
-  // Handle boolean values (MySQL uses 1/0)
   for (const key in processed) {
     if (processed[key] === "true" || processed[key] === true) {
       processed[key] = 1;
@@ -171,12 +164,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
   const enforceUserRestriction = hasUserIdColumn(table) && !isSenderAdmin;
 
   let sql = "";
-  const params: any[] = [];
+  const params: unknown[] = [];
 
-  // Build WHERE clause
   const whereClauses: string[] = [];
 
-  // Enforce RLS-like filter on user_id
   if (enforceUserRestriction) {
     whereClauses.push("user_id = ?");
     params.push(userId);
@@ -185,11 +176,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     params.push(userId);
   }
 
-  // Parse filters passed from the client
   for (const filter of filters) {
     const { type, column, value, operator } = filter;
 
-    // Safety check on column names
     if (!/^[a-zA-Z0-9_]+$/.test(column)) {
       throw new Error(`Nome de coluna inválido: ${column}`);
     }
@@ -290,23 +279,23 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     let colSelection = "*";
     if (select && select !== "*") {
       if (Array.isArray(select)) {
-        colSelection = select.map((c) => {
-          return c.includes("(") || c.includes("*") || c.includes(" ") ? c : `\`${c}\``;
-        }).join(", ");
+        colSelection = select
+          .map((c: string) => {
+            return c.includes("(") || c.includes("*") || c.includes(" ") ? c : `\`${c}\``;
+          })
+          .join(", ");
       } else if (typeof select === "string") {
         colSelection = select;
       }
     }
 
-    // HEAD mode: just return a COUNT — no data rows
     if (head === true) {
       sql = `SELECT COUNT(*) AS \`_count\` FROM \`${table}\`${whereString}`;
       const countResult = await db.query(sql, params);
-      const totalCount = countResult?.[0]?._count ?? 0;
+      const totalCount = (countResult as any[])?.[0]?._count ?? 0;
       return { _headCount: Number(totalCount) };
     }
 
-    // Translate PostgreSQL relation counts into MySQL subqueries
     if (colSelection.includes("list_contacts(count)")) {
       colSelection = colSelection.replace(
         "list_contacts(count)",
@@ -342,7 +331,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       (colSelection.includes("contacts(") || colSelection.includes("contacts(*)"))
     ) {
       isCampaignMessagesWithContacts = true;
-      // Strip contacts(...) from colSelection and build explicit JOIN columns
       const baseCol = colSelection
         .replace(/,?\s*contacts\([^)]*\)/g, "")
         .trim()
@@ -415,7 +403,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       sql = `SELECT ${colSelection} FROM \`${table}\`${whereString}`;
     }
 
-    // Add ORDER BY
     if (order && order.length > 0) {
       const orderClauses = order.map((o: any) => {
         const dir = o.ascending ? "ASC" : "DESC";
@@ -436,15 +423,13 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       sql += ` ORDER BY ${orderClauses.join(", ")}`;
     }
 
-    // When count:'exact' is requested, run a parallel COUNT query
     let totalCount: number | null = null;
     if (countMode === "exact") {
       const countSql = `SELECT COUNT(*) AS \`_count\` FROM \`${table}\`${whereString}`;
       const countRes = await db.query(countSql, params);
-      totalCount = Number(countRes?.[0]?._count ?? 0);
+      totalCount = Number((countRes as any[])?.[0]?._count ?? 0);
     }
 
-    // Add LIMIT and OFFSET
     if (limit !== undefined && limit !== null) {
       const parsedLimit = parseInt(limit, 10);
       if (Number.isNaN(parsedLimit) || parsedLimit < 0) {
@@ -461,9 +446,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    const results = await db.query(sql, params);
+    const results = (await db.query(sql, params)) as any[];
 
-    // Post-process custom count subqueries back to Supabase-like nested arrays
     if (table === "lists" && Array.isArray(results)) {
       for (const row of results) {
         if ("list_contacts_count" in row) {
@@ -495,8 +479,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           ) {
             try {
               row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
-            } catch (e) {
-              console.warn("Failed to parse custom_fields for list_contacts", e);
+            } catch {
+              // Ignorado
             }
           }
         } else {
@@ -515,7 +499,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    // Post-process campaign_messages JOIN contacts
     if (isCampaignMessagesWithContacts && Array.isArray(results)) {
       for (const row of results) {
         row.contacts =
@@ -535,8 +518,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         ) {
           try {
             row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
-          } catch (e) {
-            console.warn("Failed to parse custom_fields for campaign_messages", e);
+          } catch {
+            // Ignorado
           }
         }
         delete row.c_contact_name;
@@ -545,7 +528,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    // Post-process contact_tags JOIN tags
     if (isContactTagsWithTags && Array.isArray(results)) {
       for (const row of results) {
         if (row.t_id) {
@@ -565,7 +547,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    // Post-process conversation_tags JOIN tags
     if (isConversationTagsWithTags && Array.isArray(results)) {
       for (const row of results) {
         if (row.t_id) {
@@ -585,7 +566,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    // Post-process message_tags JOIN tags
     if (isMessageTagsWithTags && Array.isArray(results)) {
       for (const row of results) {
         if (row.t_id) {
@@ -605,7 +585,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       }
     }
 
-    // Parse JSON columns back to objects/arrays for consistency with Supabase response
     if (Array.isArray(results)) {
       for (const row of results) {
         for (const key in row) {
@@ -613,15 +592,14 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
             try {
               row[key] = JSON.parse(val);
-            } catch (e) {
-               // Ignorado: string não era JSON válido
+            } catch {
+              // Ignorado: string não era JSON válido
             }
           }
         }
       }
     }
 
-    // Return with totalCount if countMode was requested
     if (totalCount !== null) {
       return { _rows: results, _totalCount: totalCount };
     }
@@ -632,18 +610,16 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     const dataList = isArray ? data : [data];
 
     let totalAffectedRows = 0;
-    const insertedIds: any[] = [];
+    const insertedIds: string[] = [];
 
-    const results = await db.transaction(async (conn) => {
+    const results = await db.transaction(async (conn: any) => {
       for (const row of dataList) {
         const insertData = preprocessData(table, row);
 
-        // Preprocess date strings in each row
         for (const key in insertData) {
           insertData[key] = formatToMysqlDateTime(insertData[key]);
         }
 
-        // Generate UUID if not provided
         if (
           !insertData.id &&
           table !== "platform_settings" &&
@@ -655,8 +631,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           insertData.id = generateUUID();
         }
 
-        // Fill user_id from the executing context ONLY when it is absent from the payload.
-        // Never override an explicitly-provided user_id (e.g. webhook inserting on behalf of a matched user).
         if (hasUserIdColumn(table) && !insertData.user_id) {
           insertData.user_id = userId;
         }
@@ -678,7 +652,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           }
         }
 
-        const [res]: any = await (conn as any).execute(sqlQuery, values);
+        const [res]: any = await conn.execute(sqlQuery, values);
         totalAffectedRows += res.affectedRows;
         insertedIds.push(insertData.id || res.insertId);
       }
@@ -690,25 +664,25 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
       let rows: any[] = [];
 
       if (table === "list_contacts" && singleData.list_id && singleData.contact_id) {
-        rows = await db.query(
+        rows = (await db.query(
           `SELECT * FROM \`list_contacts\` WHERE \`list_id\` = ? AND \`contact_id\` = ?`,
           [singleData.list_id, singleData.contact_id],
-        );
+        )) as any[];
       } else if (table === "contact_tags" && singleData.contact_id && singleData.tag_id) {
-        rows = await db.query(
+        rows = (await db.query(
           `SELECT * FROM \`contact_tags\` WHERE \`contact_id\` = ? AND \`tag_id\` = ?`,
           [singleData.contact_id, singleData.tag_id],
-        );
+        )) as any[];
       } else if (table === "conversation_tags" && singleData.contact_number && singleData.tag_id) {
-        rows = await db.query(
+        rows = (await db.query(
           `SELECT * FROM \`conversation_tags\` WHERE \`contact_number\` = ? AND \`tag_id\` = ?`,
           [singleData.contact_number, singleData.tag_id],
-        );
+        )) as any[];
       } else if (table === "message_tags" && singleData.message_id && singleData.tag_id) {
-        rows = await db.query(
+        rows = (await db.query(
           `SELECT * FROM \`message_tags\` WHERE \`message_id\` = ? AND \`tag_id\` = ?`,
           [singleData.message_id, singleData.tag_id],
-        );
+        )) as any[];
       } else {
         let pkCol = "id";
         let pkVal = results.insertedIds[0];
@@ -718,35 +692,36 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
 
         if (pkVal) {
-          rows = await db.query(`SELECT * FROM \`${table}\` WHERE \`${pkCol}\` = ?`, [pkVal]);
+          rows = (await db.query(`SELECT * FROM \`${table}\` WHERE \`${pkCol}\` = ?`, [
+            pkVal,
+          ])) as any[];
 
-          // Fallback: If no rows found, we might have hit a duplicate key during upsert
           if (rows.length === 0) {
             if (table === "contacts" && singleData.phone_e164) {
-              rows = await db.query(
+              rows = (await db.query(
                 `SELECT * FROM \`contacts\` WHERE \`user_id\` = ? AND \`phone_e164\` = ?`,
                 [singleData.user_id || userId, singleData.phone_e164],
-              );
+              )) as any[];
             } else if (table === "tags" && singleData.name) {
-              rows = await db.query(
+              rows = (await db.query(
                 `SELECT * FROM \`tags\` WHERE \`user_id\` = ? AND \`name\` = ?`,
                 [singleData.user_id || userId, singleData.name],
-              );
+              )) as any[];
             } else if (table === "user_roles" && singleData.role) {
-              rows = await db.query(
+              rows = (await db.query(
                 `SELECT * FROM \`user_roles\` WHERE \`user_id\` = ? AND \`role\` = ?`,
                 [singleData.user_id || userId, singleData.role],
-              );
+              )) as any[];
             } else if (table === "salvy_numbers" && singleData.salvy_id) {
-              rows = await db.query(
+              rows = (await db.query(
                 `SELECT * FROM \`salvy_numbers\` WHERE \`user_id\` = ? AND \`salvy_id\` = ?`,
                 [singleData.user_id || userId, singleData.salvy_id],
-              );
+              )) as any[];
             } else if (table === "templates" && singleData.name && singleData.language) {
-              rows = await db.query(
+              rows = (await db.query(
                 `SELECT * FROM \`templates\` WHERE \`user_id\` = ? AND \`name\` = ? AND \`language\` = ?`,
                 [singleData.user_id || userId, singleData.name, singleData.language],
-              );
+              )) as any[];
             }
           }
         }
@@ -754,13 +729,12 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
       if (rows.length > 0) {
         const row = rows[0];
-        // Parse JSON columns back
         for (const key in row) {
           const val = row[key];
           if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
             try {
               row[key] = JSON.parse(val);
-            } catch (e) {
+            } catch {
               // Ignorado
             }
           }
@@ -779,7 +753,6 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     }
     const updateData = preprocessData(table, data);
 
-    // Format datetime fields
     for (const key in updateData) {
       updateData[key] = formatToMysqlDateTime(updateData[key]);
     }
@@ -800,9 +773,11 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
 
     const result = await db.query(sql, allParams);
 
-    // Return the updated rows to satisfy client-side updates (select().single(), etc.)
     try {
-      const updatedRows = await db.query(`SELECT * FROM \`${table}\`${whereString}`, params);
+      const updatedRows = (await db.query(
+        `SELECT * FROM \`${table}\`${whereString}`,
+        params,
+      )) as any[];
       if (Array.isArray(updatedRows)) {
         for (const row of updatedRows) {
           for (const key in row) {
@@ -810,7 +785,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
             if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
               try {
                 row[key] = JSON.parse(val);
-              } catch (e) {
+              } catch {
                 // Ignorado
               }
             }
@@ -818,8 +793,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         }
       }
       return updatedRows;
-    } catch (e) {
-      return { affectedRows: result.affectedRows };
+    } catch {
+      return { affectedRows: (result as any).affectedRows };
     }
   } else if (action === "delete") {
     if (whereClauses.length === 0) {
@@ -827,7 +802,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     }
     sql = `DELETE FROM \`${table}\`${whereString}`;
     const result = await db.query(sql, params);
-    return { affectedRows: result.affectedRows };
+    return { affectedRows: (result as any).affectedRows };
   }
 
   throw new Error(`Ação de consulta não suportada: ${action}`);

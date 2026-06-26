@@ -638,7 +638,10 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
       .eq("id", context.userId);
 
     if (updateErr) {
-      return { ok: false, error: `Número registrado na Meta, mas erro ao salvar na tabela local: ${updateErr.message}` };
+      return {
+        ok: false,
+        error: `Número registrado na Meta, mas erro ao salvar na tabela local: ${updateErr.message}`,
+      };
     }
 
     return { ok: true, success: true, data: body };

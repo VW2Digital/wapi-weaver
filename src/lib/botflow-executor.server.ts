@@ -128,7 +128,8 @@ export async function processBotFlow(
 
       if (keywordSteps && keywordSteps.length > 0) {
         const matched = keywordSteps.find(
-          (s: any) => s.trigger_value && messageBody.toLowerCase() === s.trigger_value.toLowerCase(),
+          (s: any) =>
+            s.trigger_value && messageBody.toLowerCase() === s.trigger_value.toLowerCase(),
         );
         if (matched) stepToExecute = matched;
       }
@@ -174,16 +175,19 @@ export async function processBotFlow(
       }
       // Se a IA respondeu, atualizamos a última interação
       if (handledByAi) {
-         if (state) {
-            await dbAdmin.from("bot_conversation_state").update({ last_interaction: new Date().toISOString() }).eq("id", state.id);
-         } else {
-            await dbAdmin.from("bot_conversation_state").insert({
-              user_id: userId,
-              contact_number: phoneDigits,
-              instance_id: phoneNumberId,
-              last_interaction: new Date().toISOString()
-            });
-         }
+        if (state) {
+          await dbAdmin
+            .from("bot_conversation_state")
+            .update({ last_interaction: new Date().toISOString() })
+            .eq("id", state.id);
+        } else {
+          await dbAdmin.from("bot_conversation_state").insert({
+            user_id: userId,
+            contact_number: phoneDigits,
+            instance_id: phoneNumberId,
+            last_interaction: new Date().toISOString(),
+          });
+        }
       }
       return;
     }
@@ -194,9 +198,11 @@ export async function processBotFlow(
     const isHandoff = stepToExecute.next_step_id === "-999";
     const isFlow = stepToExecute.message_type === "whatsapp_flow";
     const updateData = {
-      current_step_id: isFlow 
-        ? stepToExecute.id 
-        : (isHandoff ? null : stepToExecute.next_step_id || null),
+      current_step_id: isFlow
+        ? stepToExecute.id
+        : isHandoff
+          ? null
+          : stepToExecute.next_step_id || null,
       last_interaction: new Date().toISOString(),
       ...(isHandoff
         ? {
@@ -242,12 +248,13 @@ export async function processBotFlow(
       payload.type = "interactive";
       let flowId = "";
       let flowCta = "Abrir Formulário";
-      
+
       if (stepToExecute.buttons_config) {
         try {
-          const configObj = typeof stepToExecute.buttons_config === "string"
-            ? JSON.parse(stepToExecute.buttons_config)
-            : stepToExecute.buttons_config;
+          const configObj =
+            typeof stepToExecute.buttons_config === "string"
+              ? JSON.parse(stepToExecute.buttons_config)
+              : stepToExecute.buttons_config;
           flowId = configObj?.flow_id || "";
           flowCta = configObj?.flow_cta || configObj?.cta || "Abrir Formulário";
         } catch (e) {
@@ -258,7 +265,7 @@ export async function processBotFlow(
       const interactivePayload: any = {
         type: "flow",
         body: {
-          text: stepToExecute.message_content || "Por favor, preencha o formulário para continuar."
+          text: stepToExecute.message_content || "Por favor, preencha o formulário para continuar.",
         },
         action: {
           name: "flow",
@@ -269,10 +276,10 @@ export async function processBotFlow(
             flow_cta: flowCta,
             flow_action: "navigate",
             flow_action_payload: {
-              screen: "INIT"
-            }
-          }
-        }
+              screen: "INIT",
+            },
+          },
+        },
       };
 
       if (stepToExecute.footer_text) {
@@ -289,15 +296,24 @@ export async function processBotFlow(
         payload[stepToExecute.message_type].caption = stepToExecute.media_caption;
       }
     } else if (
-      ["button", "buttons", "list", "cta_url", "product", "product_list", "catalog_message"].includes(
-        stepToExecute.message_type,
-      )
+      [
+        "button",
+        "buttons",
+        "list",
+        "cta_url",
+        "product",
+        "product_list",
+        "catalog_message",
+      ].includes(stepToExecute.message_type)
     ) {
       payload.type = "interactive";
-      let interactivePayload: any = { type: stepToExecute.message_type === "buttons" ? "button" : stepToExecute.message_type };
-      
+      let interactivePayload: any = {
+        type: stepToExecute.message_type === "buttons" ? "button" : stepToExecute.message_type,
+      };
+
       if (stepToExecute.buttons_config) {
-        const parsed = typeof stepToExecute.buttons_config === "string"
+        const parsed =
+          typeof stepToExecute.buttons_config === "string"
             ? JSON.parse(stepToExecute.buttons_config)
             : stepToExecute.buttons_config;
         interactivePayload = { ...interactivePayload, ...parsed };
@@ -318,31 +334,34 @@ export async function processBotFlow(
         if (lowerUrl.endsWith(".mp4")) mediaType = "video";
         else if (lowerUrl.endsWith(".pdf")) mediaType = "document";
         else if (lowerUrl.endsWith(".mp3") || lowerUrl.endsWith(".ogg")) mediaType = "audio";
-        
+
         if (mediaType !== "audio") {
           interactivePayload.header = {
             type: mediaType,
-            [mediaType]: { link: stepToExecute.media_url }
+            [mediaType]: { link: stepToExecute.media_url },
           };
         } else {
           // Para Áudio, a Meta não permite como header. Enviamos uma mensagem de áudio solta antes!
           try {
-            await fetch(`https://graph.facebook.com/${p.meta_graph_version || "v21.0"}/${phoneNumberId}/messages`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${p.whatsapp_access_token}`,
-                "Content-Type": "application/json",
+            await fetch(
+              `https://graph.facebook.com/${p.meta_graph_version || "v21.0"}/${phoneNumberId}/messages`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${p.whatsapp_access_token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  messaging_product: "whatsapp",
+                  recipient_type: "individual",
+                  to: phoneDigits,
+                  type: "audio",
+                  audio: { link: stepToExecute.media_url },
+                }),
               },
-              body: JSON.stringify({
-                messaging_product: "whatsapp",
-                recipient_type: "individual",
-                to: phoneDigits,
-                type: "audio",
-                audio: { link: stepToExecute.media_url },
-              }),
-            });
+            );
             // Pequeno delay para a ordem no WhatsApp
-            await new Promise(res => setTimeout(res, 500));
+            await new Promise((res) => setTimeout(res, 500));
           } catch (e) {
             logError("Erro ao enviar audio avulso", e);
           }
@@ -355,7 +374,7 @@ export async function processBotFlow(
     const apiVersion = p.meta_graph_version || "v20.0";
     let isSuccess = false;
     let waMessageId: string | null = null;
-    
+
     try {
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
@@ -377,18 +396,30 @@ export async function processBotFlow(
       } else {
         const errBody = await r.text();
         logError("Erro ao enviar mensagem do bot", { errBody });
-        
-        if (process.env.NODE_ENV === "development" || p.whatsapp_access_token === "mock_token" || phoneDigits === "5511999999999") {
-          logInfo("[DEV MODE] Prosseguindo com a atualização de estado mesmo com erro na Graph API");
+
+        if (
+          process.env.NODE_ENV === "development" ||
+          p.whatsapp_access_token === "mock_token" ||
+          phoneDigits === "5511999999999"
+        ) {
+          logInfo(
+            "[DEV MODE] Prosseguindo com a atualização de estado mesmo com erro na Graph API",
+          );
           isSuccess = true;
           waMessageId = "wam.mock_dev_" + Date.now();
         }
       }
     } catch (e: any) {
       logError("Erro de rede ao enviar mensagem do bot", { error: e?.message });
-      
-      if (process.env.NODE_ENV === "development" || p.whatsapp_access_token === "mock_token" || phoneDigits === "5511999999999") {
-        logInfo("[DEV MODE] Prosseguindo com a atualização de estado mesmo com falha de rede na Graph API");
+
+      if (
+        process.env.NODE_ENV === "development" ||
+        p.whatsapp_access_token === "mock_token" ||
+        phoneDigits === "5511999999999"
+      ) {
+        logInfo(
+          "[DEV MODE] Prosseguindo com a atualização de estado mesmo com falha de rede na Graph API",
+        );
         isSuccess = true;
         waMessageId = "wam.mock_net_dev_" + Date.now();
       } else {
@@ -404,7 +435,7 @@ export async function processBotFlow(
       try {
         let type = "text";
         let bodyText = stepToExecute.message_content || "";
-        
+
         if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
           type = stepToExecute.message_type;
           bodyText = stepToExecute.media_url || "";
@@ -421,12 +452,14 @@ export async function processBotFlow(
           metadata: {
             step_id: stepToExecute.id,
             bot_triggered: true,
-            payload
-          }
+            payload,
+          },
         });
         logInfo("Mensagem enviada pelo bot salva em direct_messages", { waMessageId });
       } catch (logErr: any) {
-        logError("Erro ao gravar mensagem enviada pelo bot em direct_messages", { error: logErr.message });
+        logError("Erro ao gravar mensagem enviada pelo bot em direct_messages", {
+          error: logErr.message,
+        });
       }
     }
   } catch (err: any) {

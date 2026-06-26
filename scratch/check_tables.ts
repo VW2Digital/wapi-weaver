@@ -11,7 +11,9 @@ async function main() {
       console.log("First stage:", stages[0]);
     }
 
-    const contacts = await db.query("SELECT id, name, phone_e164, kanban_stage_id, chat_status, opted_out FROM contacts LIMIT 3");
+    const contacts = await db.query(
+      "SELECT id, name, phone_e164, kanban_stage_id, chat_status, opted_out FROM contacts LIMIT 3",
+    );
     console.log("Contacts count:", contacts.length);
     console.log("Contacts:", contacts);
 

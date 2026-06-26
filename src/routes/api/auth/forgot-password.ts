@@ -19,7 +19,9 @@ export const Route = createFileRoute("/api/auth/forgot-password")({
           }
 
           // Fetch user
-          const users = await db.query("SELECT id, email FROM users WHERE email = ? LIMIT 1", [email]);
+          const users = await db.query("SELECT id, email FROM users WHERE email = ? LIMIT 1", [
+            email,
+          ]);
           if (users && users.length > 0) {
             const user = users[0];
 

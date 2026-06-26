@@ -100,7 +100,13 @@ function AuditPage() {
 
         <Card className="p-0 overflow-hidden">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Carregando…</div>
+            <div
+              className="flex min-h-[400px] items-center justify-center gap-3 text-muted-foreground"
+              role="status"
+            >
+              <div className="h-6 w-6 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+              <p className="text-sm">Carregando...</p>
+            </div>
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={ScrollText}

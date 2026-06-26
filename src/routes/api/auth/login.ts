@@ -19,7 +19,10 @@ export const Route = createFileRoute("/api/auth/login")({
           }
 
           // Fetch user
-          const users = await db.query("SELECT id, email, password_hash, created_at FROM users WHERE email = ? LIMIT 1", [email]);
+          const users = await db.query(
+            "SELECT id, email, password_hash, created_at FROM users WHERE email = ? LIMIT 1",
+            [email],
+          );
           if (!users || users.length === 0) {
             return new Response(JSON.stringify({ error: "Invalid email or password" }), {
               status: 400,

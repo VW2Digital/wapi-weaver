@@ -55,9 +55,10 @@ export function CustomNode({ data, selected }: any) {
   // Safely parse buttons_config
   let config: any = {};
   try {
-    config = typeof step.buttons_config === "string"
-      ? JSON.parse(step.buttons_config || "{}")
-      : step.buttons_config || {};
+    config =
+      typeof step.buttons_config === "string"
+        ? JSON.parse(step.buttons_config || "{}")
+        : step.buttons_config || {};
   } catch (e) {
     config = {};
   }
@@ -65,8 +66,10 @@ export function CustomNode({ data, selected }: any) {
   const getStepTitle = (stepLike: any) => {
     if (!stepLike) return "Passo";
     if (stepLike.trigger_type === "start") return "Início";
-    if (stepLike.trigger_type === "keyword" && stepLike.trigger_value) return `Palavra-chave: ${stepLike.trigger_value}`;
-    if (stepLike.trigger_type === "button" && stepLike.trigger_value) return `Botão: ${stepLike.trigger_value}`;
+    if (stepLike.trigger_type === "keyword" && stepLike.trigger_value)
+      return `Palavra-chave: ${stepLike.trigger_value}`;
+    if (stepLike.trigger_type === "button" && stepLike.trigger_value)
+      return `Botão: ${stepLike.trigger_value}`;
     const text = String(stepLike.message_content || "").trim();
     if (text) return text.length > 24 ? `${text.slice(0, 24)}...` : text;
 
@@ -99,10 +102,14 @@ export function CustomNode({ data, selected }: any) {
     if (rawId.startsWith("step:")) {
       const stepId = rawId.replace("step:", "");
       const targetStep = findTargetStep(stepId);
-      return targetStep ? `#${targetStep.step_order} · ${getStepTitle(targetStep)}` : "Passo vinculado";
+      return targetStep
+        ? `#${targetStep.step_order} · ${getStepTitle(targetStep)}`
+        : "Passo vinculado";
     }
     const targetStep = findTargetStep(rawId);
-    return targetStep ? `#${targetStep.step_order} · ${getStepTitle(targetStep)}` : "Passo vinculado";
+    return targetStep
+      ? `#${targetStep.step_order} · ${getStepTitle(targetStep)}`
+      : "Passo vinculado";
   };
 
   return (
@@ -146,144 +153,154 @@ export function CustomNode({ data, selected }: any) {
 
       {/* Message Content */}
       <div className="p-3 text-xs line-clamp-3 text-muted-foreground leading-relaxed">
-        {step.message_content || <span className="italic text-muted-foreground/50">Sem conteúdo de texto...</span>}
+        {step.message_content || (
+          <span className="italic text-muted-foreground/50">Sem conteúdo de texto...</span>
+        )}
       </div>
 
       {/* Interactive Buttons / Quick Replies */}
-      {["buttons", "dynamic_buttons"].includes(step.message_type) && (() => {
-        const buttons = config?.action?.buttons || [];
-        if (buttons.length === 0) return null;
-        return (
-          <div className="px-3 pb-3 space-y-1">
-            {buttons.map((btn: any, idx: number) => {
-              const title = btn.reply?.title || `Botão ${idx + 1}`;
-              const dest = getTargetLabel(btn.reply?.id);
-              return (
-                <div
-                  key={idx}
-                  className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm"
-                >
-                  <span className="font-medium truncate">{title}</span>
-                  {dest && (
-                    <span className="text-[9px] font-bold text-primary bg-primary/10 px-1 py-0.5 rounded ml-1.5">
-                      → {dest}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
+      {["buttons", "dynamic_buttons"].includes(step.message_type) &&
+        (() => {
+          const buttons = config?.action?.buttons || [];
+          if (buttons.length === 0) return null;
+          return (
+            <div className="px-3 pb-3 space-y-1">
+              {buttons.map((btn: any, idx: number) => {
+                const title = btn.reply?.title || `Botão ${idx + 1}`;
+                const dest = getTargetLabel(btn.reply?.id);
+                return (
+                  <div
+                    key={idx}
+                    className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm"
+                  >
+                    <span className="font-medium truncate">{title}</span>
+                    {dest && (
+                      <span className="text-[9px] font-bold text-primary bg-primary/10 px-1 py-0.5 rounded ml-1.5">
+                        → {dest}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
       {/* Interactive List Options */}
-      {step.message_type === "list" && (() => {
-        const sections = config?.action?.sections || [];
-        const buttonText = config?.action?.button || "Ver opções";
-        const hasRows = sections.some((sec: any) => sec.rows?.length > 0);
-        return (
-          <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2">
-            <div className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
-              <span>Menu:</span>
-              <span className="text-foreground italic font-medium">{buttonText}</span>
-            </div>
-            {sections.map((sec: any, secIdx: number) => (
-              <div key={secIdx} className="space-y-1 pl-1">
-                {sec.title && (
-                  <div className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wider mt-1">
-                    {sec.title}
-                  </div>
-                )}
-                {(sec.rows || []).map((row: any, rowIdx: number) => {
-                  const dest = getTargetLabel(row.id);
-                  return (
-                    <div
-                      key={rowIdx}
-                      className="bg-background border border-border/80 rounded px-2 py-0.5 text-[10px] flex items-center justify-between"
-                    >
-                      <span className="font-medium truncate">{row.title || "Item"}</span>
-                      {dest && (
-                        <span className="text-[8px] font-bold text-primary bg-primary/10 px-1 py-0.5 rounded ml-1">
-                          → {dest}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+      {step.message_type === "list" &&
+        (() => {
+          const sections = config?.action?.sections || [];
+          const buttonText = config?.action?.button || "Ver opções";
+          const hasRows = sections.some((sec: any) => sec.rows?.length > 0);
+          return (
+            <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2">
+              <div className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                <span>Menu:</span>
+                <span className="text-foreground italic font-medium">{buttonText}</span>
               </div>
-            ))}
-            {!hasRows && (
-              <div className="text-[10px] text-muted-foreground/50 italic">Sem itens configurados...</div>
-            )}
-          </div>
-        );
-      })()}
+              {sections.map((sec: any, secIdx: number) => (
+                <div key={secIdx} className="space-y-1 pl-1">
+                  {sec.title && (
+                    <div className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wider mt-1">
+                      {sec.title}
+                    </div>
+                  )}
+                  {(sec.rows || []).map((row: any, rowIdx: number) => {
+                    const dest = getTargetLabel(row.id);
+                    return (
+                      <div
+                        key={rowIdx}
+                        className="bg-background border border-border/80 rounded px-2 py-0.5 text-[10px] flex items-center justify-between"
+                      >
+                        <span className="font-medium truncate">{row.title || "Item"}</span>
+                        {dest && (
+                          <span className="text-[8px] font-bold text-primary bg-primary/10 px-1 py-0.5 rounded ml-1">
+                            → {dest}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              {!hasRows && (
+                <div className="text-[10px] text-muted-foreground/50 italic">
+                  Sem itens configurados...
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       {/* CTA URL (Link Button) */}
-      {step.message_type === "cta_url" && (() => {
-        const buttonText = config?.action?.parameters?.display_text || "Acessar Link";
-        const url = config?.action?.parameters?.url || "";
-        return (
-          <div className="px-3 pb-3 space-y-1 border-t border-border/30 pt-2">
-            <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm">
-              <span className="font-medium truncate">{buttonText}</span>
-              <span className="text-[9px] font-bold text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded">
-                Link
-              </span>
-            </div>
-            {url && (
-              <div className="text-[9px] text-muted-foreground truncate px-1 italic">
-                {url}
+      {step.message_type === "cta_url" &&
+        (() => {
+          const buttonText = config?.action?.parameters?.display_text || "Acessar Link";
+          const url = config?.action?.parameters?.url || "";
+          return (
+            <div className="px-3 pb-3 space-y-1 border-t border-border/30 pt-2">
+              <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm">
+                <span className="font-medium truncate">{buttonText}</span>
+                <span className="text-[9px] font-bold text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded">
+                  Link
+                </span>
               </div>
-            )}
-          </div>
-        );
-      })()}
+              {url && (
+                <div className="text-[9px] text-muted-foreground truncate px-1 italic">{url}</div>
+              )}
+            </div>
+          );
+        })()}
 
       {/* Product Card / Catalog Message */}
-      {["product", "product_list", "catalog_message"].includes(step.message_type) && (() => {
-        const catalogId = config?.action?.catalog_id || "";
-        const retailerId = config?.action?.product_retailer_id || config?.action?.parameters?.thumbnail_product_retailer_id || "";
-        return (
-          <div className="px-3 pb-3 text-[10px] border-t border-border/30 pt-2 space-y-0.5 text-muted-foreground">
-            {catalogId && (
-              <div>
-                Catálogo ID: <span className="font-mono text-foreground">{catalogId}</span>
-              </div>
-            )}
-            {retailerId && (
-              <div>
-                Produto SKU: <span className="font-mono text-foreground">{retailerId}</span>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {["product", "product_list", "catalog_message"].includes(step.message_type) &&
+        (() => {
+          const catalogId = config?.action?.catalog_id || "";
+          const retailerId =
+            config?.action?.product_retailer_id ||
+            config?.action?.parameters?.thumbnail_product_retailer_id ||
+            "";
+          return (
+            <div className="px-3 pb-3 text-[10px] border-t border-border/30 pt-2 space-y-0.5 text-muted-foreground">
+              {catalogId && (
+                <div>
+                  Catálogo ID: <span className="font-mono text-foreground">{catalogId}</span>
+                </div>
+              )}
+              {retailerId && (
+                <div>
+                  Produto SKU: <span className="font-mono text-foreground">{retailerId}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       {/* WhatsApp Flow Block */}
-      {step.message_type === "whatsapp_flow" && (() => {
-        const flowName = config?.flow_name || "Formulário WhatsApp";
-        const ctaText = config?.flow_cta || config?.cta || "Preencher";
-        const successDest = getTargetLabel(config?.next_step_on_success);
-        return (
-          <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2 text-[10px] text-muted-foreground">
-            <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm text-foreground">
-              <span className="font-medium truncate">{ctaText}</span>
-              <span className="text-[9px] font-bold text-teal-600 bg-teal-500/10 px-1.5 py-0.5 rounded">
-                Flow
-              </span>
-            </div>
-            <div className="truncate px-1">
-              Fluxo: <span className="font-semibold text-foreground">{flowName}</span>
-            </div>
-            {successDest && (
-              <div className="px-1 text-[9px] text-green-600 font-semibold truncate">
-                Sucesso: <span className="font-bold text-foreground">→ {successDest}</span>
+      {step.message_type === "whatsapp_flow" &&
+        (() => {
+          const flowName = config?.flow_name || "Formulário WhatsApp";
+          const ctaText = config?.flow_cta || config?.cta || "Preencher";
+          const successDest = getTargetLabel(config?.next_step_on_success);
+          return (
+            <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2 text-[10px] text-muted-foreground">
+              <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm text-foreground">
+                <span className="font-medium truncate">{ctaText}</span>
+                <span className="text-[9px] font-bold text-teal-600 bg-teal-500/10 px-1.5 py-0.5 rounded">
+                  Flow
+                </span>
               </div>
-            )}
-          </div>
-        );
-      })()}
+              <div className="truncate px-1">
+                Fluxo: <span className="font-semibold text-foreground">{flowName}</span>
+              </div>
+              {successDest && (
+                <div className="px-1 text-[9px] text-green-600 font-semibold truncate">
+                  Sucesso: <span className="font-bold text-foreground">→ {successDest}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary" />
     </div>

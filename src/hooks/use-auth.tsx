@@ -4,13 +4,13 @@ import { db } from "@/integrations/mysql/client";
 export interface User {
   id: string;
   email?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Session {
   access_token: string;
   user: User;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface AuthCtx {
@@ -26,14 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const { data: sub } = db.auth.onAuthStateChange((_event: string, s: Session | null) => {
-      setSession(s);
+      if (!cancelled) setSession(s);
     });
     db.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-      setSession(data.session);
-      setLoading(false);
+      if (!cancelled) {
+        setSession(data.session);
+        setLoading(false);
+      }
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   return (

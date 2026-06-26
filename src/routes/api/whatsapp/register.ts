@@ -54,7 +54,10 @@ export const Route = createFileRoute("/api/whatsapp/register")({
           const pin = (parsed.pin || parsed.PIN || "").trim();
 
           if (!phoneId) {
-            return json({ success: false, message: "O campo PHONE_NUMBER_ID ou phoneId é obrigatório." }, 400);
+            return json(
+              { success: false, message: "O campo PHONE_NUMBER_ID ou phoneId é obrigatório." },
+              400,
+            );
           }
           if (!pin) {
             return json({ success: false, message: "O campo PIN ou pin é obrigatório." }, 400);
@@ -69,7 +72,13 @@ export const Route = createFileRoute("/api/whatsapp/register")({
 
           if (profErr) throw new Error(profErr.message);
           if (!p?.whatsapp_access_token) {
-            return json({ success: false, message: "Credenciais da Meta (Access Token) não configuradas no sistema." }, 400);
+            return json(
+              {
+                success: false,
+                message: "Credenciais da Meta (Access Token) não configuradas no sistema.",
+              },
+              400,
+            );
           }
 
           const apiVersion = p.meta_graph_version || "v20.0";
@@ -120,15 +129,19 @@ export const Route = createFileRoute("/api/whatsapp/register")({
             .eq("id", userId);
 
           if (updateErr) {
-            throw new Error(`Número registrado na Meta, mas falha ao salvar no banco de dados local: ${updateErr.message}`);
+            throw new Error(
+              `Número registrado na Meta, mas falha ao salvar no banco de dados local: ${updateErr.message}`,
+            );
           }
 
-          return json({
-            success: true,
-            message: "Número registrado e ativado com sucesso!",
-            data: body,
-          }, 200);
-
+          return json(
+            {
+              success: true,
+              message: "Número registrado e ativado com sucesso!",
+              data: body,
+            },
+            200,
+          );
         } catch (e: any) {
           return json(
             { success: false, message: e?.message || "Falha ao processar o registro do número." },

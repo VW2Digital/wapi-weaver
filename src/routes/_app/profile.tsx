@@ -152,7 +152,17 @@ function ProfilePage() {
     }
   }
 
-  if (isLoading) return <div className="p-6 text-muted-foreground">Carregando…</div>;
+  if (isLoading) {
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center gap-3 bg-background text-muted-foreground"
+        role="status"
+      >
+        <div className="h-6 w-6 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+        <p className="text-sm">Carregando perfil...</p>
+      </div>
+    );
+  }
 
   const initials = (form.full_name || form.display_name || user?.email || "?")
     .split(/\s+/)

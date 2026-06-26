@@ -22,7 +22,7 @@ globalThis.fetch = async (url: any, options: any) => {
     ok: true,
     status: 200,
     text: async () => JSON.stringify({ message_id: "wam.mock_id_" + Date.now() }),
-    json: async () => ({ message_id: "wam.mock_id_" + Date.now() })
+    json: async () => ({ message_id: "wam.mock_id_" + Date.now() }),
   } as any;
 };
 
@@ -68,7 +68,7 @@ async function main() {
       phoneDigits,
       phoneNumberId,
       userId,
-      "step:9b9fdf8a-e05b-4ab2-ba83-dd1491645153"
+      "step:9b9fdf8a-e05b-4ab2-ba83-dd1491645153",
     );
 
     await new Promise((resolve) => setTimeout(resolve, 1000));

@@ -10,7 +10,7 @@ let localDbConfig = {
   port: 3306,
   user: "wapi_user",
   password: "S0xbxPfKazBVT8JFy1UEOjIsrjox",
-  database: "wapi_weaver"
+  database: "wapi_weaver",
 };
 
 try {
@@ -41,7 +41,7 @@ const vpsDbConfig = {
   port: 3306,
   user: "wapi_user",
   password: "S0xbxPfKazBVT8JFy1UEOjIsrjox",
-  database: "wapi_weaver"
+  database: "wapi_weaver",
 };
 
 const email = "vanderleivw2@gmail.com";
@@ -76,18 +76,21 @@ async function updateDatabase(config, name) {
       await conn.query("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
         userId,
         email,
-        passwordHash
+        passwordHash,
       ]);
       console.log("User created successfully.");
     }
 
     // Ensure user_roles exists and is admin
-    const [roles] = await conn.query("SELECT id FROM user_roles WHERE user_id = ? AND role = 'admin'", [userId]);
+    const [roles] = await conn.query(
+      "SELECT id FROM user_roles WHERE user_id = ? AND role = 'admin'",
+      [userId],
+    );
     if (roles.length === 0) {
       console.log("Ensuring admin role...");
       await conn.query(
         "INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin') ON DUPLICATE KEY UPDATE role='admin'",
-        [generateUUID(), userId]
+        [generateUUID(), userId],
       );
       console.log("Admin role set.");
     } else {
@@ -101,7 +104,7 @@ async function updateDatabase(config, name) {
       await conn.query("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
         userId,
         email,
-        "Vanderlei Master"
+        "Vanderlei Master",
       ]);
       console.log("Profile created.");
     } else {

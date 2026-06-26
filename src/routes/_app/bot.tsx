@@ -130,7 +130,10 @@ function BotPage() {
     setSelectedStep(null);
   };
 
-  const isSettingsActive = (settingsQuery.data as any)?.settings?.is_active || (settingsQuery.data as any)?.is_active || false;
+  const isSettingsActive =
+    (settingsQuery.data as any)?.settings?.is_active ||
+    (settingsQuery.data as any)?.is_active ||
+    false;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -171,14 +174,16 @@ function BotPage() {
               <DialogHeader>
                 <DialogTitle>Galeria de Fluxos de Bot</DialogTitle>
                 <DialogDescription>
-                  Selecione um template pronto para carregar no Canvas. 
-                  <br/><strong className="text-destructive">Atenção:</strong> Carregar um template irá APAGAR o fluxo atual não salvo da tela.
+                  Selecione um template pronto para carregar no Canvas.
+                  <br />
+                  <strong className="text-destructive">Atenção:</strong> Carregar um template irá
+                  APAGAR o fluxo atual não salvo da tela.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 {BOT_TEMPLATES.map((template) => (
-                  <Card 
-                    key={template.id} 
+                  <Card
+                    key={template.id}
                     className="cursor-pointer hover:border-primary transition-colors"
                     onClick={() => {
                       try {
@@ -186,7 +191,9 @@ function BotPage() {
                         setSteps(newSteps);
                         setSelectedStep(null);
                         setIsGalleryOpen(false);
-                        toast.success(`Template "${template.name}" carregado! Não se esqueça de Salvar.`);
+                        toast.success(
+                          `Template "${template.name}" carregado! Não se esqueça de Salvar.`,
+                        );
                       } catch (e) {
                         toast.error("Erro ao carregar template.");
                         console.error(e);
@@ -210,11 +217,7 @@ function BotPage() {
 
         {/* CANVAS */}
         <div className="flex-1 relative">
-          <BotFlowCanvas 
-            steps={steps} 
-            onStepsChange={setSteps} 
-            onNodeClick={setSelectedStep} 
-          />
+          <BotFlowCanvas steps={steps} onStepsChange={setSteps} onNodeClick={setSelectedStep} />
         </div>
 
         {/* INSPECTOR */}
@@ -224,7 +227,9 @@ function BotPage() {
             handleUpdateStep={handleUpdateStep}
             handleDeleteStep={handleDeleteStep}
             steps={steps}
-            agentName={profileQuery.data?.display_name || profileQuery.data?.full_name || "Atendente"}
+            agentName={
+              profileQuery.data?.display_name || profileQuery.data?.full_name || "Atendente"
+            }
           />
         )}
       </div>

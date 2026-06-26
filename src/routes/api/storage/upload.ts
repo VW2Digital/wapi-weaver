@@ -47,27 +47,49 @@ export const Route = createFileRoute("/api/storage/upload")({
             buffer = Buffer.from(fileData, "base64");
           }
 
-          const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".mp4", ".mp3", ".ogg", ".csv", ".doc", ".docx"]);
+          const ALLOWED_EXTENSIONS = new Set([
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".webp",
+            ".pdf",
+            ".mp4",
+            ".mp3",
+            ".ogg",
+            ".csv",
+            ".doc",
+            ".docx",
+          ]);
           const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
           if (buffer.length > MAX_SIZE_BYTES) {
-            return new Response(JSON.stringify({ error: "File too large (max 20MB)" }), { status: 413, headers: { "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ error: "File too large (max 20MB)" }), {
+              status: 413,
+              headers: { "Content-Type": "application/json" },
+            });
           }
 
           // Safety normalization to prevent directory traversal
           const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, "");
           const ext = path.extname(safePath).toLowerCase();
-          
+
           if (!ALLOWED_EXTENSIONS.has(ext) && ext !== "") {
-            return new Response(JSON.stringify({ error: "File type not allowed" }), { status: 400, headers: { "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ error: "File type not allowed" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
           }
 
           const uploadsRoot = path.resolve(__dirname, "public", "uploads");
           const fullPath = path.resolve(uploadsRoot, safePath);
-          
+
           // Ensure the resolved path is strictly inside the uploads directory
           if (!fullPath.startsWith(uploadsRoot + path.sep) && fullPath !== uploadsRoot) {
-            return new Response(JSON.stringify({ error: "Invalid path" }), { status: 400, headers: { "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ error: "Invalid path" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
           }
 
           const dir = path.dirname(fullPath);

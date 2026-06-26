@@ -94,7 +94,8 @@ export const listChatContacts = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     try {
       // Usamos db.query para uma consulta SQL rica e eficiente contendo a última mensagem, timestamp e contagem de não lidas.
-      const contacts = await db.query(`
+      const contacts = await db.query(
+        `
         SELECT 
           c.id, 
           c.name, 
@@ -153,12 +154,15 @@ export const listChatContacts = createServerFn({ method: "GET" })
         ORDER BY 
           c.is_pinned DESC,
           COALESCE(last_dm.created_at, last_cm.sent_at, c.created_at) DESC
-      `, [context.userId]);
+      `,
+        [context.userId],
+      );
 
       return (contacts ?? []).map((c: any) => ({
         ...c,
         // Garante que o custom_fields seja retornado como objeto parseado, se for string
-        custom_fields: typeof c.custom_fields === 'string' ? JSON.parse(c.custom_fields) : c.custom_fields
+        custom_fields:
+          typeof c.custom_fields === "string" ? JSON.parse(c.custom_fields) : c.custom_fields,
       }));
     } catch (e: any) {
       console.error("Erro ao listar contatos com mensagens:", e);
@@ -171,7 +175,7 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
-    
+
     // Atualiza todas as mensagens recebidas não lidas deste contato para 'read'
     const { error } = await context.db
       .from("direct_messages")
@@ -179,7 +183,7 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
       .eq("contact_phone", phone)
       .eq("direction", "incoming")
       .neq("status", "read");
-      
+
     if (error) {
       console.error("Erro ao marcar mensagens como lidas:", error);
       throw new Error(error.message);

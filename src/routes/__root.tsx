@@ -13,6 +13,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { TrackingTagsInjector } from "@/components/tracking-tags-injector";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 function NotFoundComponent() {
   return (
@@ -112,11 +113,13 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <ConfirmProvider>
-            <Outlet />
-            <Toaster richColors position="top-right" />
-            <TrackingTagsInjector />
-          </ConfirmProvider>
+          <ErrorBoundary>
+            <ConfirmProvider>
+              <Outlet />
+              <Toaster richColors position="top-right" />
+              <TrackingTagsInjector />
+            </ConfirmProvider>
+          </ErrorBoundary>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

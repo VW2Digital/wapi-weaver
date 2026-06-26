@@ -95,7 +95,10 @@ export const Route = createFileRoute("/api/public/contacts/ingest")({
 
         const mergedCustomFields =
           existingContact?.custom_fields && typeof existingContact.custom_fields === "object"
-            ? { ...(existingContact.custom_fields as Record<string, any>), ...(parsed.data.custom_fields ?? {}) }
+            ? {
+                ...(existingContact.custom_fields as Record<string, any>),
+                ...(parsed.data.custom_fields ?? {}),
+              }
             : (parsed.data.custom_fields ?? {});
 
         const { data: contact, error } = await dbAdmin

@@ -95,9 +95,27 @@ function CampaignDetailPage() {
     onError: (e: any) => toast.error(e.message ?? "Falha ao exportar"),
   });
 
-  if (isLoading) return <p className="p-10 text-muted-foreground">Carregando…</p>;
-  if (!data?.campaign)
-    return <p className="p-10 text-muted-foreground">Campanha não encontrada.</p>;
+  if (isLoading) {
+    return (
+      <div
+        className="flex min-h-[400px] items-center justify-center gap-3 text-muted-foreground"
+        role="status"
+      >
+        <div className="h-6 w-6 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+        <p className="text-sm">Carregando campanha...</p>
+      </div>
+    );
+  }
+  if (!data?.campaign) {
+    return (
+      <div
+        className="flex min-h-[400px] items-center justify-center text-muted-foreground"
+        role="alert"
+      >
+        <p className="text-sm">Campanha não encontrada.</p>
+      </div>
+    );
+  }
 
   const c = data.campaign;
   const t = normalizeCampaignTotals(c.totals);

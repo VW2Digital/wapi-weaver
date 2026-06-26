@@ -12,7 +12,7 @@ export const listTeams = createServerFn({ method: "GET" })
          FROM teams t 
          WHERE t.user_id = ? 
          ORDER BY t.name ASC`,
-        [context.userId]
+        [context.userId],
       );
       return teams;
     } catch (e: any) {
@@ -32,7 +32,7 @@ export const listTeamMembers = createServerFn({ method: "POST" })
          JOIN users u ON u.id = tm.user_id
          LEFT JOIN profiles p ON p.id = u.id
          WHERE tm.team_id = ?`,
-        [data.teamId]
+        [data.teamId],
       );
       return members;
     } catch (e: any) {
@@ -49,7 +49,7 @@ export const listAllAgents = createServerFn({ method: "GET" })
         `SELECT p.id, p.full_name, p.display_name, u.email
          FROM profiles p
          JOIN users u ON u.id = p.id
-         ORDER BY COALESCE(p.full_name, p.display_name, u.email) ASC`
+         ORDER BY COALESCE(p.full_name, p.display_name, u.email) ASC`,
       );
       return agents;
     } catch (e: any) {
@@ -76,7 +76,7 @@ export const assignConversation = createServerFn({ method: "POST" })
       if (data.teamId && data.agentId) {
         const members = await db.query(
           "SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?",
-          [data.teamId, data.agentId]
+          [data.teamId, data.agentId],
         );
         if (!members || members.length === 0) {
           throw new Error("O agente informado não pertence a esta equipe.");
@@ -88,7 +88,7 @@ export const assignConversation = createServerFn({ method: "POST" })
         `UPDATE conversation_assignments 
          SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
          WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
-        [userId, phone]
+        [userId, phone],
       );
 
       // 3. Criar nova atribuição ativa (se pelo menos uma equipe ou agente foi especificado)
@@ -98,7 +98,7 @@ export const assignConversation = createServerFn({ method: "POST" })
           `INSERT INTO conversation_assignments 
             (id, user_id, contact_phone, team_id, agent_id, assigned_by)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [assignmentId, userId, phone, data.teamId, data.agentId, userId]
+          [assignmentId, userId, phone, data.teamId, data.agentId, userId],
         );
       }
 
@@ -111,7 +111,9 @@ export const assignConversation = createServerFn({ method: "POST" })
 
 export const autoAssignConversation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ contactPhone: z.string().trim().min(5), teamId: z.string().min(1) }).parse(d))
+  .validator((d) =>
+    z.object({ contactPhone: z.string().trim().min(5), teamId: z.string().min(1) }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     try {
       const phone = data.contactPhone.replace(/\D/g, "");
@@ -127,7 +129,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
          GROUP BY tm.user_id
          ORDER BY active_chats ASC, RAND()
          LIMIT 1`,
-        [userId, data.teamId]
+        [userId, data.teamId],
       );
 
       // Desativa a atribuição anterior
@@ -135,7 +137,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
         `UPDATE conversation_assignments 
          SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
          WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
-        [userId, phone]
+        [userId, phone],
       );
 
       const targetAgentId = agents && agents.length > 0 ? agents[0].agent_id : null;
@@ -146,7 +148,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
         `INSERT INTO conversation_assignments 
           (id, user_id, contact_phone, team_id, agent_id, assigned_by)
          VALUES (?, ?, ?, ?, ?, NULL)`,
-        [assignmentId, userId, phone, data.teamId, targetAgentId]
+        [assignmentId, userId, phone, data.teamId, targetAgentId],
       );
 
       return { ok: true, agentId: targetAgentId };
@@ -158,18 +160,22 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
 
 export const createTeam = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({
-    name: z.string().trim().min(1),
-    description: z.string().trim().nullable(),
-    autoAssignMode: z.enum(['manual', 'round_robin', 'least_busy']).default('manual'),
-  }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        name: z.string().trim().min(1),
+        description: z.string().trim().nullable(),
+        autoAssignMode: z.enum(["manual", "round_robin", "least_busy"]).default("manual"),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     try {
       const teamId = crypto.randomUUID();
       await db.query(
         `INSERT INTO teams (id, user_id, name, description, auto_assign_mode)
          VALUES (?, ?, ?, ?, ?)`,
-        [teamId, context.userId, data.name, data.description, data.autoAssignMode]
+        [teamId, context.userId, data.name, data.description, data.autoAssignMode],
       );
       return { ok: true, id: teamId };
     } catch (e: any) {
@@ -180,19 +186,23 @@ export const createTeam = createServerFn({ method: "POST" })
 
 export const updateTeam = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({
-    id: z.string().min(1),
-    name: z.string().trim().min(1),
-    description: z.string().trim().nullable(),
-    autoAssignMode: z.enum(['manual', 'round_robin', 'least_busy']),
-  }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        id: z.string().min(1),
+        name: z.string().trim().min(1),
+        description: z.string().trim().nullable(),
+        autoAssignMode: z.enum(["manual", "round_robin", "least_busy"]),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     try {
       await db.query(
         `UPDATE teams 
          SET name = ?, description = ?, auto_assign_mode = ?
          WHERE id = ? AND user_id = ?`,
-        [data.name, data.description, data.autoAssignMode, data.id, context.userId]
+        [data.name, data.description, data.autoAssignMode, data.id, context.userId],
       );
       return { ok: true };
     } catch (e: any) {
@@ -206,10 +216,7 @@ export const deleteTeam = createServerFn({ method: "POST" })
   .validator((d) => z.object({ id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     try {
-      await db.query(
-        "DELETE FROM teams WHERE id = ? AND user_id = ?",
-        [data.id, context.userId]
-      );
+      await db.query("DELETE FROM teams WHERE id = ? AND user_id = ?", [data.id, context.userId]);
       return { ok: true };
     } catch (e: any) {
       console.error("Erro ao deletar equipe:", e);
@@ -219,18 +226,22 @@ export const deleteTeam = createServerFn({ method: "POST" })
 
 export const addTeamMember = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({
-    teamId: z.string().min(1),
-    userId: z.string().min(1),
-    role: z.enum(['agent', 'supervisor']).default('agent'),
-  }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        teamId: z.string().min(1),
+        userId: z.string().min(1),
+        role: z.enum(["agent", "supervisor"]).default("agent"),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     try {
       // Validar se o time pertence ao tenant do usuário logado
-      const team = await db.query(
-        "SELECT 1 FROM teams WHERE id = ? AND user_id = ?",
-        [data.teamId, context.userId]
-      );
+      const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND user_id = ?", [
+        data.teamId,
+        context.userId,
+      ]);
       if (!team || team.length === 0) {
         throw new Error("Equipe não encontrada ou acesso negado.");
       }
@@ -239,7 +250,7 @@ export const addTeamMember = createServerFn({ method: "POST" })
       await db.query(
         `INSERT INTO team_members (id, team_id, user_id, role)
          VALUES (?, ?, ?, ?)`,
-        [memberId, data.teamId, data.userId, data.role]
+        [memberId, data.teamId, data.userId, data.role],
       );
       return { ok: true, id: memberId };
     } catch (e: any) {
@@ -250,25 +261,29 @@ export const addTeamMember = createServerFn({ method: "POST" })
 
 export const removeTeamMember = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({
-    teamId: z.string().min(1),
-    userId: z.string().min(1),
-  }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        teamId: z.string().min(1),
+        userId: z.string().min(1),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     try {
       // Validar se o time pertence ao tenant do usuário logado
-      const team = await db.query(
-        "SELECT 1 FROM teams WHERE id = ? AND user_id = ?",
-        [data.teamId, context.userId]
-      );
+      const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND user_id = ?", [
+        data.teamId,
+        context.userId,
+      ]);
       if (!team || team.length === 0) {
         throw new Error("Equipe não encontrada ou acesso negado.");
       }
 
-      await db.query(
-        "DELETE FROM team_members WHERE team_id = ? AND user_id = ?",
-        [data.teamId, data.userId]
-      );
+      await db.query("DELETE FROM team_members WHERE team_id = ? AND user_id = ?", [
+        data.teamId,
+        data.userId,
+      ]);
       return { ok: true };
     } catch (e: any) {
       console.error("Erro ao remover membro da equipe:", e);

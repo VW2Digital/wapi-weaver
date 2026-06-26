@@ -5,7 +5,7 @@ const dbConfigLocal = {
   port: 3306,
   user: "wapi_user",
   password: "S0xbxPfKazBVT8JFy1UEOjIsrjox",
-  database: "wapi_weaver"
+  database: "wapi_weaver",
 };
 
 const userId = "acff3186-4e4a-4242-a7a5-3e519265b244";
@@ -98,7 +98,6 @@ async function run() {
     const [rows] = await conn.query(sql, [userId]);
     console.log("Query completed. Row count:", rows.length);
     console.log("Rows:", rows);
-
   } catch (err) {
     console.error("Error executing query:", err);
   } finally {

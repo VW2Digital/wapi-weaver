@@ -41,7 +41,12 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
     const newEdges: Edge[] = [];
     steps.forEach((s) => {
       // 1. Conexão automática/fallback
-      if (s.next_step_id && s.next_step_id !== "-999" && s.next_step_id !== "-997" && s.next_step_id !== "-998") {
+      if (
+        s.next_step_id &&
+        s.next_step_id !== "-999" &&
+        s.next_step_id !== "-997" &&
+        s.next_step_id !== "-998"
+      ) {
         const targetExists = steps.some((step) => step.id === s.next_step_id);
         if (targetExists) {
           newEdges.push({
@@ -57,9 +62,8 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
       // 1b. Conexão de sucesso do WhatsApp Flow
       if (s.message_type === "whatsapp_flow" && s.buttons_config) {
         try {
-          const configObj = typeof s.buttons_config === "string"
-            ? JSON.parse(s.buttons_config)
-            : s.buttons_config;
+          const configObj =
+            typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
           const targetId = configObj?.next_step_on_success;
           if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
             const targetExists = steps.some((step) => step.id === targetId);
@@ -84,9 +88,8 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
       // 2. Conexões de botões interativos
       if (s.message_type === "buttons" && s.buttons_config) {
         try {
-          const configObj = typeof s.buttons_config === "string" 
-            ? JSON.parse(s.buttons_config) 
-            : s.buttons_config;
+          const configObj =
+            typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
           const buttons = configObj?.action?.buttons || [];
           buttons.forEach((btn: any, btnIdx: number) => {
             const rawId = btn.reply?.id || "";
@@ -122,9 +125,8 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
       // 3. Conexões de listas interativas
       if (s.message_type === "list" && s.buttons_config) {
         try {
-          const configObj = typeof s.buttons_config === "string" 
-            ? JSON.parse(s.buttons_config) 
-            : s.buttons_config;
+          const configObj =
+            typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
           const sections = configObj?.action?.sections || [];
           let itemIdx = 0;
           sections.forEach((sec: any) => {

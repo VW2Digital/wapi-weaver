@@ -237,7 +237,11 @@ function ChatPage() {
   });
 
   const assignMutation = useMutation({
-    mutationFn: async (payload: { teamId: string | null; agentId: string | null; contactPhone?: string }) => {
+    mutationFn: async (payload: {
+      teamId: string | null;
+      agentId: string | null;
+      contactPhone?: string;
+    }) => {
       const phone = payload.contactPhone || selectedPhone;
       if (!phone) throw new Error("Nenhum contato selecionado");
       return assignConversation({
@@ -260,7 +264,8 @@ function ChatPage() {
   const autoAssignMutation = useMutation({
     mutationFn: async (payload: { teamId: string; contactPhone?: string } | string) => {
       const targetTeamId = typeof payload === "string" ? payload : payload.teamId;
-      const phone = typeof payload === "string" ? selectedPhone : (payload.contactPhone || selectedPhone);
+      const phone =
+        typeof payload === "string" ? selectedPhone : payload.contactPhone || selectedPhone;
       if (!phone) throw new Error("Nenhum contato selecionado");
       return autoAssignConversation({
         data: {
@@ -314,10 +319,16 @@ function ChatPage() {
       } catch (e) {}
     }
     return [
-      { id: "prod-1", name: "Plano Mensal Weaver", price: 97.00, stock: 9999, isUnlimited: true },
-      { id: "prod-2", name: "Plano Anual Weaver", price: 997.00, stock: 9999, isUnlimited: true },
-      { id: "prod-3", name: "Instalação e Setup VPS", price: 199.00, stock: 15, isUnlimited: false },
-      { id: "prod-4", name: "Consultoria IA Customizada", price: 1500.00, stock: 3, isUnlimited: false },
+      { id: "prod-1", name: "Plano Mensal Weaver", price: 97.0, stock: 9999, isUnlimited: true },
+      { id: "prod-2", name: "Plano Anual Weaver", price: 997.0, stock: 9999, isUnlimited: true },
+      { id: "prod-3", name: "Instalação e Setup VPS", price: 199.0, stock: 15, isUnlimited: false },
+      {
+        id: "prod-4",
+        name: "Consultoria IA Customizada",
+        price: 1500.0,
+        stock: 3,
+        isUnlimited: false,
+      },
     ];
   });
 
@@ -331,7 +342,6 @@ function ChatPage() {
     });
   };
 
-
   // Pre-fill Follow-up Form when opened
   useEffect(() => {
     if (isFollowUpOpen) {
@@ -341,7 +351,7 @@ function ChatPage() {
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(9, 0, 0, 0); // Default to 9:00 AM tomorrow
       const tzOffset = tomorrow.getTimezoneOffset() * 60000;
-      const localISOTime = (new Date(tomorrow.getTime() - tzOffset)).toISOString().slice(0, 16);
+      const localISOTime = new Date(tomorrow.getTime() - tzOffset).toISOString().slice(0, 16);
       setFollowUpDate(localISOTime);
     }
   }, [isFollowUpOpen]);
@@ -400,11 +410,14 @@ function ChatPage() {
     if (isQuickOpportunityOpen && selectedContact) {
       setOppTitle(`Oportunidade - ${selectedContact.name || selectedContact.phone_e164}`);
       setOppValue(0);
-      
-      const defaultFunnel = salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+
+      const defaultFunnel =
+        salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
       if (defaultFunnel) {
         setOppFunnelId(defaultFunnel.id);
-        const defaultStage = salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) || salesStagesQuery.data?.[0];
+        const defaultStage =
+          salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) ||
+          salesStagesQuery.data?.[0];
         if (defaultStage) {
           setOppStageId(defaultStage.id);
         }
@@ -461,7 +474,9 @@ function ChatPage() {
       toggleUnreadContactFn({ data: payload }),
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-      toast.success(variables.isUnread ? "Conversa marcada como não lida!" : "Conversa marcada como lida!");
+      toast.success(
+        variables.isUnread ? "Conversa marcada como não lida!" : "Conversa marcada como lida!",
+      );
     },
     onError: (err: any) => {
       toast.error("Erro: " + err.message);
@@ -481,8 +496,12 @@ function ChatPage() {
   });
 
   const quickSaveMutation = useMutation({
-    mutationFn: async (payload: { contactId: string; name: string; email: string; phone: string }) =>
-      quickSaveContactFn({ data: payload }),
+    mutationFn: async (payload: {
+      contactId: string;
+      name: string;
+      email: string;
+      phone: string;
+    }) => quickSaveContactFn({ data: payload }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       toast.success("Contato atualizado com sucesso!");
@@ -494,8 +513,7 @@ function ChatPage() {
   });
 
   const deleteContactMutation = useMutation({
-    mutationFn: async (id: string) =>
-      deleteContactFn({ data: { id } }),
+    mutationFn: async (id: string) => deleteContactFn({ data: { id } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       toast.success("Contato excluído do sistema!");
@@ -512,7 +530,11 @@ function ChatPage() {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
-      toast.success(variables.botActive ? "Chatbot ativado para este contato!" : "Chatbot pausado para este contato!");
+      toast.success(
+        variables.botActive
+          ? "Chatbot ativado para este contato!"
+          : "Chatbot pausado para este contato!",
+      );
     },
     onError: (err: any) => {
       toast.error("Erro ao alterar status do bot: " + err.message);
@@ -572,11 +594,7 @@ function ChatPage() {
 
   // Mutação para agendar follow-up (cria oportunidade padrão se não existir)
   const followUpMutation = useMutation({
-    mutationFn: async (payload: {
-      title: string;
-      description?: string;
-      due_at: string;
-    }) => {
+    mutationFn: async (payload: { title: string; description?: string; due_at: string }) => {
       if (!selectedContact?.id) throw new Error("Nenhum contato selecionado");
 
       let oppId = "";
@@ -585,10 +603,13 @@ function ChatPage() {
         oppId = existingOpps[0].id;
       } else {
         // Criar oportunidade padrão automática
-        const defaultFunnel = salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+        const defaultFunnel =
+          salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
         if (!defaultFunnel) throw new Error("Nenhum funil de vendas cadastrado no CRM");
 
-        const defaultStage = salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) || salesStagesQuery.data?.[0];
+        const defaultStage =
+          salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) ||
+          salesStagesQuery.data?.[0];
         if (!defaultStage) throw new Error("Nenhuma etapa de vendas cadastrada para este funil");
 
         const newOpp = await createOpportunityFn({
@@ -598,7 +619,7 @@ function ChatPage() {
             funnel_id: defaultFunnel.id,
             stage_id: defaultStage.id,
             primary_contact_id: selectedContact.id,
-          }
+          },
         });
         oppId = newOpp.id;
       }
@@ -612,7 +633,7 @@ function ChatPage() {
           description: payload.description || "",
           due_at: payload.due_at,
           status: "pending",
-        }
+        },
       });
     },
     onSuccess: () => {
@@ -623,7 +644,7 @@ function ChatPage() {
     },
     onError: (err: any) => {
       toast.error("Erro ao agendar follow-up: " + err.message);
-    }
+    },
   });
 
   // Mutação para bloquear/desbloquear contato
@@ -634,7 +655,7 @@ function ChatPage() {
         .select("custom_fields")
         .eq("id", payload.contactId)
         .single();
-        
+
       if (fetchErr) throw fetchErr;
 
       const currentCF = contact?.custom_fields || {};
@@ -674,14 +695,14 @@ function ChatPage() {
     queryKey: ["lead-history", selectedContact?.id],
     queryFn: async () => {
       if (!selectedContact?.id) return [];
-      
+
       // 1. Atividades do contato
       const { data: activities, error: actError } = await db
         .from("opportunity_activities")
         .select("*")
         .eq("contact_id", selectedContact.id)
         .order("created_at", { ascending: false });
-        
+
       if (actError) throw actError;
 
       // 2. Oportunidades do contato
@@ -805,7 +826,9 @@ function ChatPage() {
       // Limpa a formatação e junta com o DDI selecionado
       const digits = phone.replace(/\D/g, "");
       const fullPhone = countryCode.replace("+", "") + digits;
-      const res = await createContact({ data: { phone: fullPhone, name: `Contato +${fullPhone}` } });
+      const res = await createContact({
+        data: { phone: fullPhone, name: `Contato +${fullPhone}` },
+      });
       return res;
     },
     onSuccess: (data: any) => {
@@ -816,7 +839,7 @@ function ChatPage() {
     },
     onError: (err: any) => {
       toast.error("Erro ao iniciar conversa: " + err.message);
-    }
+    },
   });
 
   const handleStartNewChat = () => {
@@ -826,7 +849,9 @@ function ChatPage() {
 
   // States and mutations for custom sorting, filtering and new chat dialog
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name" | "unread">("newest");
-  const [filterView, setFilterView] = useState<"all" | "unread" | "bot_paused" | "bot_active" | "archived">("all");
+  const [filterView, setFilterView] = useState<
+    "all" | "unread" | "bot_paused" | "bot_active" | "archived"
+  >("all");
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
   const [newChatPhoneDialog, setNewChatPhoneDialog] = useState("");
@@ -895,7 +920,8 @@ function ChatPage() {
       if (error) throw new Error(error.message);
       return data || [];
     },
-    refetchInterval: 5000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
     refetchIntervalInBackground: true,
   });
 
@@ -906,7 +932,8 @@ function ChatPage() {
       if (error) throw new Error(error.message);
       return data || [];
     },
-    refetchInterval: 5000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
     refetchIntervalInBackground: true,
   });
 
@@ -1168,9 +1195,8 @@ function ChatPage() {
   const contactsQuery = useQuery({
     queryKey: ["chat-contacts"],
     queryFn: () => fetchContacts(),
-    // Importante: contatos podem ser criados via webhook (mensagem recebida),
-    // então precisamos revalidar periodicamente para o chat refletir novas conversas.
-    refetchInterval: 5000,
+    staleTime: 3000,
+    refetchInterval: 8000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
@@ -1211,8 +1237,8 @@ function ChatPage() {
     queryKey: ["chat-messages", selectedPhone],
     queryFn: () => fetchMessages({ data: { phone: selectedPhone } }),
     enabled: !!selectedPhone,
-    // Polling nativo do React Query — sem setInterval manual
-    refetchInterval: 4000,
+    staleTime: 3000,
+    refetchInterval: 6000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
@@ -1279,14 +1305,14 @@ function ChatPage() {
     if (!dateInput) return "";
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) return "";
-    
+
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffSecs = Math.floor(diffMs / 1000);
     const diffMins = Math.floor(diffSecs / 60);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
-    
+
     if (diffSecs < 60) {
       return "há poucos segundos";
     }
@@ -1299,19 +1325,25 @@ function ChatPage() {
     if (diffDays < 7) {
       return `há ${diffDays} ${diffDays === 1 ? "dia" : "dias"}`;
     }
-    
+
     return date.toLocaleDateString([], { day: "numeric", month: "short" });
   };
 
   // Mapeia e enriquece os contatos vindos da API do servidor
   const mappedContacts = (contactsQuery.data ?? []).map((c: any) => {
     const category = getContactCategory(c, profile?.id || "");
-    
+
     // Mapeia setor de acordo com as etiquetas atribuídas ou equipe real
     const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
-    const hasSuporte = contactTags.some((ct: any) => ct.tags?.name?.toUpperCase().includes("SUPORTE"));
-    const hasCS = contactTags.some((ct: any) => ct.tags?.name?.toUpperCase().includes("CS") || ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"));
-    
+    const hasSuporte = contactTags.some((ct: any) =>
+      ct.tags?.name?.toUpperCase().includes("SUPORTE"),
+    );
+    const hasCS = contactTags.some(
+      (ct: any) =>
+        ct.tags?.name?.toUpperCase().includes("CS") ||
+        ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"),
+    );
+
     let department = c.active_team_name || c.custom_fields?.department;
     if (!department) {
       if (hasCS) {
@@ -1348,12 +1380,8 @@ function ChatPage() {
   const meusContacts = mappedContacts.filter((c: any) => c.category === "meus");
   const outrosContacts = mappedContacts.filter((c: any) => c.category === "outros");
 
-  const activeContactsList = 
-    activeTab === "novos" 
-      ? novosContacts 
-      : activeTab === "meus" 
-        ? meusContacts 
-        : outrosContacts;
+  const activeContactsList =
+    activeTab === "novos" ? novosContacts : activeTab === "meus" ? meusContacts : outrosContacts;
 
   // Contatos filtrados e ordenados por filtros de visualização e ordenação personalizada
   const rawFilteredContacts = activeContactsList.filter((c: any) => {
@@ -1773,7 +1801,9 @@ function ChatPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         /* Estilos dos Balões estilo WhatsApp */
         .wa-bubble-outgoing {
           background-color: var(--primary) !important;
@@ -1888,7 +1918,9 @@ function ChatPage() {
         .light .wa-bubble-incoming .wa-timestamp {
           color: #667781 !important;
         }
-      ` }} />
+      `,
+        }}
+      />
       <PageHeader
         title="Chat Direto"
         subtitle="Converse diretamente com seus contatos cadastrados."
@@ -1912,7 +1944,7 @@ function ChatPage() {
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "novos"
                     ? "bg-background text-foreground shadow-sm border"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 Novos
@@ -1928,7 +1960,7 @@ function ChatPage() {
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "meus"
                     ? "bg-background text-foreground shadow-sm border"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 Meus
@@ -1944,7 +1976,7 @@ function ChatPage() {
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "outros"
                     ? "bg-background text-foreground shadow-sm border"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 Outros
@@ -1962,12 +1994,19 @@ function ChatPage() {
                 title="Arquivados"
                 className={cn(
                   "h-8 w-8 rounded-lg",
-                  filterView === "archived" ? "text-primary bg-muted" : "text-muted-foreground hover:text-foreground"
+                  filterView === "archived"
+                    ? "text-primary bg-muted"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Archive className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" title="Menu" className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg">
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Menu"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+              >
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </div>
@@ -1994,7 +2033,7 @@ function ChatPage() {
                   title="Filtro de etiquetas"
                   className={cn(
                     "h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-colors",
-                    showTagFilters && "bg-muted text-primary hover:bg-muted"
+                    showTagFilters && "bg-muted text-primary hover:bg-muted",
                   )}
                 >
                   <Filter className="h-4 w-4" />
@@ -2007,26 +2046,38 @@ function ChatPage() {
                       title="Ordenar"
                       className={cn(
                         "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
-                        sortBy !== "newest" && "bg-muted text-primary hover:bg-muted"
+                        sortBy !== "newest" && "bg-muted text-primary hover:bg-muted",
                       )}
                     >
                       <ArrowUpDown className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => setSortBy("newest")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setSortBy("newest")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Mais recentes</span>
                       {sortBy === "newest" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("oldest")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setSortBy("oldest")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Mais antigas</span>
                       {sortBy === "oldest" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("name")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setSortBy("name")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Nome (A-Z)</span>
                       {sortBy === "name" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("unread")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setSortBy("unread")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Não lidas primeiro</span>
                       {sortBy === "unread" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
@@ -2041,30 +2092,45 @@ function ChatPage() {
                       title="Visualização"
                       className={cn(
                         "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
-                        filterView !== "all" && "bg-muted text-primary hover:bg-muted"
+                        filterView !== "all" && "bg-muted text-primary hover:bg-muted",
                       )}
                     >
                       <SlidersHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => setFilterView("all")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("all")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Todos</span>
                       {filterView === "all" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setFilterView("unread")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("unread")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Não lidas</span>
                       {filterView === "unread" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setFilterView("bot_active")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("bot_active")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Chatbot ativo</span>
                       {filterView === "bot_active" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setFilterView("bot_paused")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("bot_paused")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Chatbot pausado</span>
                       {filterView === "bot_paused" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setFilterView("archived")} className="flex items-center justify-between text-xs cursor-pointer">
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("archived")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
                       <span>Arquivados</span>
                       {filterView === "archived" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
@@ -2129,14 +2195,14 @@ function ChatPage() {
                             setSelectedFilterTagIds((prev) =>
                               prev.includes(tag.id)
                                 ? prev.filter((id) => id !== tag.id)
-                                : [...prev, tag.id]
+                                : [...prev, tag.id],
                             );
                           }}
                           className={cn(
                             "transition-all cursor-pointer hover:scale-105 rounded-full text-[9px] font-bold px-2 py-0.5 border",
                             isActive
                               ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background text-white"
-                              : "opacity-60 text-white"
+                              : "opacity-60 text-white",
                           )}
                           style={{ backgroundColor: tag.color, borderColor: tag.color }}
                         >
@@ -2149,7 +2215,6 @@ function ChatPage() {
               </div>
             )}
           </div>
-
 
           {/* Lista de Contatos */}
           <div className="flex-1 overflow-y-auto divide-y bg-background">
@@ -2168,14 +2233,14 @@ function ChatPage() {
                 const avatarUrl = getContactAvatarUrl(c);
                 const avatarBg = getAvatarColor(c.name ?? "");
                 const contactTags = cachedConvTags.filter(
-                  (ct: any) => ct.contact_number === c.phone_e164
+                  (ct: any) => ct.contact_number === c.phone_e164,
                 );
                 return (
                   <div
                     key={c.id}
                     className={cn(
                       "relative group w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-border",
-                      isSelected ? "bg-primary/10" : "hover:bg-muted/40"
+                      isSelected ? "bg-primary/10" : "hover:bg-muted/40",
                     )}
                   >
                     {/* Clickable Area for Contact Selection */}
@@ -2232,7 +2297,11 @@ function ChatPage() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="text-emerald-500 shrink-0">
-                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="h-3.5 w-3.5 fill-current"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
                                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                               </svg>
                             </span>
@@ -2250,7 +2319,9 @@ function ChatPage() {
                               </span>
                             )}
                             <span className="text-[10px]">
-                              {c.last_message_time ? formatRelativeTime(c.last_message_time) : "sem data"}
+                              {c.last_message_time
+                                ? formatRelativeTime(c.last_message_time)
+                                : "sem data"}
                             </span>
                           </div>
                         </div>
@@ -2269,8 +2340,8 @@ function ChatPage() {
                               c.chat_status === "fechado"
                                 ? "border-gray-500/30 text-gray-500 bg-gray-500/10"
                                 : c.chat_status === "aguardando"
-                                ? "border-amber-500/30 text-amber-500 bg-amber-500/10"
-                                : "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                                  ? "border-amber-500/30 text-amber-500 bg-amber-500/10"
+                                  : "border-emerald-500/30 text-emerald-500 bg-emerald-500/10",
                             )}
                           >
                             {c.chat_status === "fechado" ? (
@@ -2320,7 +2391,7 @@ function ChatPage() {
                             <span
                               key={ct.tag_id}
                               className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider text-white select-none"
-                              style={{ backgroundColor: ct.tags?.color || '#6366f1' }}
+                              style={{ backgroundColor: ct.tags?.color || "#6366f1" }}
                             >
                               {ct.tags?.name}
                             </span>
@@ -2343,14 +2414,20 @@ function ChatPage() {
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted/80">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-muted/80"
+                            >
                               <MoreVertical className="h-4 w-4 text-muted-foreground" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-[200px]">
                             {/* Pin */}
                             <DropdownMenuItem
-                              onClick={() => pinMutation.mutate({ contactId: c.id, isPinned: c.is_pinned !== 1 })}
+                              onClick={() =>
+                                pinMutation.mutate({ contactId: c.id, isPinned: c.is_pinned !== 1 })
+                              }
                             >
                               <Bookmark className="mr-2 h-4 w-4 text-amber-500" />
                               {c.is_pinned === 1 ? "Desafixar conversa" : "Fixar conversa"}
@@ -2365,13 +2442,23 @@ function ChatPage() {
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
                                   <DropdownMenuSubContent className="w-[200px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
-                                    <DropdownMenuItem onClick={() => kanbanStageMutation.mutate({ contactId: c.id, stageId: null })} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        kanbanStageMutation.mutate({
+                                          contactId: c.id,
+                                          stageId: null,
+                                        })
+                                      }
+                                      className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                                    >
                                       <X className="mr-2 h-3.5 w-3.5" />
                                       <span>Sem funil</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-neutral-800/40" />
                                     {(salesFunnelsQuery.data ?? []).map((funnel: any) => {
-                                      const funnelStages = salesStagesQuery.data.filter((s: any) => s.funnel_id === funnel.id);
+                                      const funnelStages = salesStagesQuery.data.filter(
+                                        (s: any) => s.funnel_id === funnel.id,
+                                      );
                                       if (funnelStages.length === 0) return null;
                                       return (
                                         <DropdownMenuSub key={funnel.id}>
@@ -2383,12 +2470,19 @@ function ChatPage() {
                                               {funnelStages.map((stage: any) => (
                                                 <DropdownMenuItem
                                                   key={stage.id}
-                                                  onClick={() => kanbanStageMutation.mutate({ contactId: c.id, stageId: stage.id })}
+                                                  onClick={() =>
+                                                    kanbanStageMutation.mutate({
+                                                      contactId: c.id,
+                                                      stageId: stage.id,
+                                                    })
+                                                  }
                                                   className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
                                                 >
                                                   <span
                                                     className="h-2 w-2 rounded-full mr-2 shrink-0"
-                                                    style={{ backgroundColor: stage.color || "#8b5cf6" }}
+                                                    style={{
+                                                      backgroundColor: stage.color || "#8b5cf6",
+                                                    }}
                                                   />
                                                   <span className="truncate">{stage.name}</span>
                                                 </DropdownMenuItem>
@@ -2413,11 +2507,19 @@ function ChatPage() {
                                 <DropdownMenuPortal>
                                   <DropdownMenuSubContent className="w-[180px]">
                                     {tagsQuery.data.map((tag: any) => {
-                                      const isTagged = contactTags.some((ct: any) => ct.tag_id === tag.id);
+                                      const isTagged = contactTags.some(
+                                        (ct: any) => ct.tag_id === tag.id,
+                                      );
                                       return (
                                         <DropdownMenuItem
                                           key={tag.id}
-                                          onClick={() => handleToggleConversationTag(c.phone_e164, tag.id, isTagged)}
+                                          onClick={() =>
+                                            handleToggleConversationTag(
+                                              c.phone_e164,
+                                              tag.id,
+                                              isTagged,
+                                            )
+                                          }
                                         >
                                           {isTagged ? (
                                             <Check className="mr-2 h-3.5 w-3.5 text-emerald-500" />
@@ -2445,15 +2547,30 @@ function ChatPage() {
                               </DropdownMenuSubTrigger>
                               <DropdownMenuPortal>
                                 <DropdownMenuSubContent className="w-[150px]">
-                                  <DropdownMenuItem onClick={() => statusMutation.mutate({ contactId: c.id, status: "aberto" })}>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      statusMutation.mutate({ contactId: c.id, status: "aberto" })
+                                    }
+                                  >
                                     <Activity className="mr-2 h-3.5 w-3.5 text-emerald-500" />
                                     <span>Aberto</span>
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => statusMutation.mutate({ contactId: c.id, status: "aguardando" })}>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      statusMutation.mutate({
+                                        contactId: c.id,
+                                        status: "aguardando",
+                                      })
+                                    }
+                                  >
                                     <Clock className="mr-2 h-3.5 w-3.5 text-amber-500" />
                                     <span>Aguardando</span>
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => statusMutation.mutate({ contactId: c.id, status: "fechado" })}>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      statusMutation.mutate({ contactId: c.id, status: "fechado" })
+                                    }
+                                  >
                                     <Check className="mr-2 h-3.5 w-3.5 text-gray-500" />
                                     <span>Fechado</span>
                                   </DropdownMenuItem>
@@ -2477,7 +2594,12 @@ function ChatPage() {
 
                             {/* Não Lida */}
                             <DropdownMenuItem
-                              onClick={() => unreadMutation.mutate({ contactId: c.id, isUnread: c.is_unread !== 1 })}
+                              onClick={() =>
+                                unreadMutation.mutate({
+                                  contactId: c.id,
+                                  isUnread: c.is_unread !== 1,
+                                })
+                              }
                             >
                               <Mail className="mr-2 h-4 w-4" />
                               {c.is_unread === 1 ? "Marcar como lida" : "Marcar como não lida"}
@@ -2485,7 +2607,12 @@ function ChatPage() {
 
                             {/* Arquivar */}
                             <DropdownMenuItem
-                              onClick={() => archiveMutation.mutate({ contactId: c.id, isArchived: c.is_archived !== 1 })}
+                              onClick={() =>
+                                archiveMutation.mutate({
+                                  contactId: c.id,
+                                  isArchived: c.is_archived !== 1,
+                                })
+                              }
                             >
                               <Archive className="mr-2 h-4 w-4" />
                               {c.is_archived === 1 ? "Desarquivar conversa" : "Arquivar conversa"}
@@ -2672,49 +2799,73 @@ function ChatPage() {
                               selectedContact.chat_status === "fechado"
                                 ? "bg-zinc-500"
                                 : selectedContact.chat_status === "aguardando"
-                                ? "bg-amber-500"
-                                : "bg-emerald-500"
+                                  ? "bg-amber-500"
+                                  : "bg-emerald-500",
                             )}
                           />
                           <span>
                             {selectedContact.chat_status === "fechado"
                               ? "Resolvida"
                               : selectedContact.chat_status === "aguardando"
-                              ? "Pendente"
-                              : "Aberta"}
+                                ? "Pendente"
+                                : "Aberta"}
                           </span>
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-[150px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-[150px] bg-[#0c0a0f] border-neutral-800 text-neutral-200"
+                      >
                         <DropdownMenuItem
-                          onClick={() => statusMutation.mutate({ contactId: selectedContact.id, status: "aberto" })}
+                          onClick={() =>
+                            statusMutation.mutate({
+                              contactId: selectedContact.id,
+                              status: "aberto",
+                            })
+                          }
                           className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
                         >
                           <div className="flex items-center gap-2">
                             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                             <span>Aberta</span>
                           </div>
-                          {selectedContact.chat_status === "aberto" && <Check className="h-3.5 w-3.5 text-violet-500" />}
+                          {selectedContact.chat_status === "aberto" && (
+                            <Check className="h-3.5 w-3.5 text-violet-500" />
+                          )}
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => statusMutation.mutate({ contactId: selectedContact.id, status: "aguardando" })}
+                          onClick={() =>
+                            statusMutation.mutate({
+                              contactId: selectedContact.id,
+                              status: "aguardando",
+                            })
+                          }
                           className="flex items-center justify-between cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                             <span>Pendente</span>
                           </div>
-                          {selectedContact.chat_status === "aguardando" && <Check className="h-3.5 w-3.5 text-violet-500" />}
+                          {selectedContact.chat_status === "aguardando" && (
+                            <Check className="h-3.5 w-3.5 text-violet-500" />
+                          )}
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => statusMutation.mutate({ contactId: selectedContact.id, status: "fechado" })}
+                          onClick={() =>
+                            statusMutation.mutate({
+                              contactId: selectedContact.id,
+                              status: "fechado",
+                            })
+                          }
                           className="flex items-center justify-between cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
                             <span>Resolvida</span>
                           </div>
-                          {selectedContact.chat_status === "fechado" && <Check className="h-3.5 w-3.5 text-violet-500" />}
+                          {selectedContact.chat_status === "fechado" && (
+                            <Check className="h-3.5 w-3.5 text-violet-500" />
+                          )}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -2729,7 +2880,11 @@ function ChatPage() {
                         })
                       }
                       className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-neutral-800 text-zinc-400 hover:text-zinc-200 relative"
-                      title={selectedContact.bot_active ? "Desativar Inteligência / Chatbot" : "Ativar Inteligência / Chatbot"}
+                      title={
+                        selectedContact.bot_active
+                          ? "Desativar Inteligência / Chatbot"
+                          : "Ativar Inteligência / Chatbot"
+                      }
                     >
                       {selectedContact.bot_active ? (
                         <Bot className="h-5 w-5 text-emerald-500" />
@@ -2753,42 +2908,70 @@ function ChatPage() {
                     {/* Options Dropdown Menu */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full cursor-pointer hover:bg-neutral-800/80 text-zinc-400 hover:text-zinc-200">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full cursor-pointer hover:bg-neutral-800/80 text-zinc-400 hover:text-zinc-200"
+                        >
                           <MoreVertical className="h-5 w-5 text-zinc-400" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-[220px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
-                        <DropdownMenuItem onClick={() => setIsQuickOpportunityOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-[220px] bg-[#0c0a0f] border-neutral-800 text-neutral-200"
+                      >
+                        <DropdownMenuItem
+                          onClick={() => setIsQuickOpportunityOpen(true)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <Filter className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Oportunidade Rápida</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setAssigningContactData(selectedContact)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                        <DropdownMenuItem
+                          onClick={() => setAssigningContactData(selectedContact)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <Forward className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Atribuir Conversa</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setQuickSaveContactData(selectedContact)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                        <DropdownMenuItem
+                          onClick={() => setQuickSaveContactData(selectedContact)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <UserPen className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Salvar Contato</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setIsInventoryOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                        <DropdownMenuItem
+                          onClick={() => setIsInventoryOpen(true)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <Package className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Gerenciar Estoque</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setIsMessageSearchOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                        <DropdownMenuItem
+                          onClick={() => setIsMessageSearchOpen(true)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <Search className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Buscar Mensagens</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setIsFollowUpOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                        <DropdownMenuItem
+                          onClick={() => setIsFollowUpOpen(true)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <Clock className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Agendar Follow-up</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setIsLeadHistoryOpen(true)} className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                        <DropdownMenuItem
+                          onClick={() => setIsLeadHistoryOpen(true)}
+                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                        >
                           <History className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Histórico do Lead</span>
                         </DropdownMenuItem>
@@ -2798,10 +2981,11 @@ function ChatPage() {
                             selectedContact.opted_out
                               ? "text-emerald-500 hover:text-emerald-500 focus:text-emerald-500 focus:bg-emerald-500/10"
                               : "text-red-500 hover:text-red-500 focus:text-red-500 focus:bg-red-500/10",
-                            "cursor-pointer"
+                            "cursor-pointer",
                           )}
                           onClick={async () => {
-                            const isBlocked = selectedContact.opted_out === 1 || selectedContact.opted_out === true;
+                            const isBlocked =
+                              selectedContact.opted_out === 1 || selectedContact.opted_out === true;
                             const ok = await confirm({
                               title: isBlocked ? "Desbloquear Contato?" : "Bloquear Contato?",
                               description: isBlocked
@@ -2818,8 +3002,15 @@ function ChatPage() {
                             }
                           }}
                         >
-                          <Ban className={cn("mr-2.5 h-4 w-4", selectedContact.opted_out ? "text-emerald-500" : "text-red-500")} />
-                          <span>{selectedContact.opted_out ? "Desbloquear Contato" : "Bloquear Contato"}</span>
+                          <Ban
+                            className={cn(
+                              "mr-2.5 h-4 w-4",
+                              selectedContact.opted_out ? "text-emerald-500" : "text-red-500",
+                            )}
+                          />
+                          <span>
+                            {selectedContact.opted_out ? "Desbloquear Contato" : "Bloquear Contato"}
+                          </span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -2839,7 +3030,12 @@ function ChatPage() {
                     />
                     {messageSearchQuery && (
                       <span className="text-[10px] text-zinc-400 font-semibold px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded">
-                        {displayMessages.filter(m => (m.body || "").toLowerCase().includes(messageSearchQuery.toLowerCase())).length} encontrada(s)
+                        {
+                          displayMessages.filter((m) =>
+                            (m.body || "").toLowerCase().includes(messageSearchQuery.toLowerCase()),
+                          ).length
+                        }{" "}
+                        encontrada(s)
                       </span>
                     )}
                     <Button
@@ -2937,13 +3133,13 @@ function ChatPage() {
                               {(() => {
                                 const payload = msg.metadata?.payload;
                                 const interactive = payload?.interactive;
-                                
+
                                 // Extract interactive header media
                                 const header = interactive?.header;
                                 let headerMediaUrl = "";
                                 let headerMediaType = "";
                                 let headerText = "";
-                                
+
                                 if (header) {
                                   if (header.type === "image" && header.image?.link) {
                                     headerMediaUrl = header.image.link;
@@ -2962,7 +3158,7 @@ function ChatPage() {
                                 // Extract standard message body and type
                                 const type = msg.type || "text";
                                 const bodyText = msg.body || "";
-                                
+
                                 // Helper to check if string is a URL
                                 const isUrl = (str: string) => {
                                   if (!str) return false;
@@ -2973,23 +3169,35 @@ function ChatPage() {
                                 const formatMessageText = (text: string) => {
                                   if (!text) return "";
                                   let formatted = text;
-                                  
+
                                   // Escape HTML characters to prevent XSS before formatting
                                   formatted = formatted
                                     .replace(/&/g, "&amp;")
                                     .replace(/</g, "&lt;")
                                     .replace(/>/g, "&gt;");
-                                  
+
                                   // Highlight message search query if active
                                   if (messageSearchQuery.trim()) {
-                                    const escapedQuery = messageSearchQuery.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+                                    const escapedQuery = messageSearchQuery.replace(
+                                      /[-\/\\^$*+?.()|[\]{}]/g,
+                                      "\\$&",
+                                    );
                                     const regex = new RegExp(`(${escapedQuery})`, "gi");
-                                    formatted = formatted.replace(regex, "<mark class='bg-yellow-500/40 text-yellow-100 px-0.5 rounded'>$1</mark>");
+                                    formatted = formatted.replace(
+                                      regex,
+                                      "<mark class='bg-yellow-500/40 text-yellow-100 px-0.5 rounded'>$1</mark>",
+                                    );
                                   }
 
                                   // Bold
-                                  formatted = formatted.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-                                  formatted = formatted.replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+                                  formatted = formatted.replace(
+                                    /\*\*([^*]+)\*\*/g,
+                                    "<strong>$1</strong>",
+                                  );
+                                  formatted = formatted.replace(
+                                    /\*([^*]+)\*/g,
+                                    "<strong>$1</strong>",
+                                  );
                                   // Italic
                                   formatted = formatted.replace(/__([^_]+)__/g, "<em>$1</em>");
                                   formatted = formatted.replace(/_([^_]+)_/g, "<em>$1</em>");
@@ -2997,7 +3205,10 @@ function ChatPage() {
                                   formatted = formatted.replace(/~~([^~]+)~~/g, "<del>$1</del>");
                                   formatted = formatted.replace(/~([^~]+)~/g, "<del>$1</del>");
                                   // Code
-                                  formatted = formatted.replace(/`([^`]+)`/g, "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>");
+                                  formatted = formatted.replace(
+                                    /`([^`]+)`/g,
+                                    "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>",
+                                  );
                                   return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
                                 };
 
@@ -3005,20 +3216,27 @@ function ChatPage() {
                                 const getMediaUrl = (urlOrId: string) => {
                                   if (!urlOrId) return "";
                                   if (isUrl(urlOrId)) return urlOrId;
-                                  return sessionToken ? `/api/whatsapp/media?id=${urlOrId}&token=${encodeURIComponent(sessionToken)}` : "";
+                                  return sessionToken
+                                    ? `/api/whatsapp/media?id=${urlOrId}&token=${encodeURIComponent(sessionToken)}`
+                                    : "";
                                 };
 
-                                const hasTopMedia = (headerMediaType === "image" || headerMediaType === "video") || (type === "image" || type === "video");
-                                const hasBottomActions = (interactive?.type === "button" && interactive.action?.buttons) || (interactive?.type === "list") || (interactive?.type === "flow");
+                                const hasTopMedia =
+                                  headerMediaType === "image" ||
+                                  headerMediaType === "video" ||
+                                  type === "image" ||
+                                  type === "video";
+                                const hasBottomActions =
+                                  (interactive?.type === "button" && interactive.action?.buttons) ||
+                                  interactive?.type === "list" ||
+                                  interactive?.type === "flow";
                                 const isRichCard = hasTopMedia || hasBottomActions;
 
                                 return (
                                   <div
                                     className={cn(
                                       "shadow-sm relative transition-all duration-200 max-w-sm",
-                                      isOutgoing
-                                        ? "wa-bubble-outgoing"
-                                        : "wa-bubble-incoming",
+                                      isOutgoing ? "wa-bubble-outgoing" : "wa-bubble-incoming",
                                       isRichCard ? "p-0 rounded-lg" : "p-3",
                                     )}
                                   >
@@ -3029,14 +3247,21 @@ function ChatPage() {
                                       );
                                       if (msgTags.length === 0) return null;
                                       return (
-                                        <div className={cn("flex flex-wrap gap-1 mb-1.5", isRichCard ? "px-3 pt-3" : "")}>
+                                        <div
+                                          className={cn(
+                                            "flex flex-wrap gap-1 mb-1.5",
+                                            isRichCard ? "px-3 pt-3" : "",
+                                          )}
+                                        >
                                           {msgTags.map((mt: any) => (
                                             <TagBadge
                                               key={mt.tag_id}
                                               tag={mt.tags}
                                               className={cn(
                                                 "shadow-sm",
-                                                isOutgoing ? "border-primary-foreground/30 text-white" : "",
+                                                isOutgoing
+                                                  ? "border-primary-foreground/30 text-white"
+                                                  : "",
                                               )}
                                             />
                                           ))}
@@ -3051,11 +3276,15 @@ function ChatPage() {
                                           onClick={() => scrollToMessage(replyMessage.id)}
                                           className={cn(
                                             "w-full text-left text-xs p-2 rounded-md border-l-4 transition-all hover:opacity-100 block",
-                                            isOutgoing ? "wa-quote-reply-outgoing" : "wa-quote-reply-incoming"
+                                            isOutgoing
+                                              ? "wa-quote-reply-outgoing"
+                                              : "wa-quote-reply-incoming",
                                           )}
                                         >
                                           <div className="font-bold mb-0.5 text-emerald-400 text-[11px]">
-                                            {replyMessage.direction === "incoming" ? "Contato" : "Você"}
+                                            {replyMessage.direction === "incoming"
+                                              ? "Contato"
+                                              : "Você"}
                                           </div>
                                           <div className="truncate opacity-80 text-[11px]">
                                             {replyMessage.type === "image"
@@ -3081,39 +3310,76 @@ function ChatPage() {
                                     <div className="space-y-0.5">
                                       {/* A. Render Interactive Header Media if present */}
                                       {headerMediaType === "image" && headerMediaUrl && (
-                                        <div className={cn(
-                                          "w-full overflow-hidden bg-black/10",
-                                          isOutgoing ? "rounded-tl-lg rounded-tr-none" : "rounded-tl-none rounded-tr-lg"
-                                        )}>
-                                          <img src={headerMediaUrl} alt="Header" className="w-full max-h-60 object-cover" />
+                                        <div
+                                          className={cn(
+                                            "w-full overflow-hidden bg-black/10",
+                                            isOutgoing
+                                              ? "rounded-tl-lg rounded-tr-none"
+                                              : "rounded-tl-none rounded-tr-lg",
+                                          )}
+                                        >
+                                          <img
+                                            src={headerMediaUrl}
+                                            alt="Header"
+                                            className="w-full max-h-60 object-cover"
+                                          />
                                         </div>
                                       )}
                                       {headerMediaType === "video" && headerMediaUrl && (
-                                        <div className={cn(
-                                          "w-full overflow-hidden bg-black/10",
-                                          isOutgoing ? "rounded-tl-lg rounded-tr-none" : "rounded-tl-none rounded-tr-lg"
-                                        )}>
-                                          <video src={headerMediaUrl} controls className="w-full max-h-60 object-cover" />
+                                        <div
+                                          className={cn(
+                                            "w-full overflow-hidden bg-black/10",
+                                            isOutgoing
+                                              ? "rounded-tl-lg rounded-tr-none"
+                                              : "rounded-tl-none rounded-tr-lg",
+                                          )}
+                                        >
+                                          <video
+                                            src={headerMediaUrl}
+                                            controls
+                                            className="w-full max-h-60 object-cover"
+                                          />
                                         </div>
                                       )}
                                       {headerMediaType === "document" && headerMediaUrl && (
                                         <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/10 bg-black/10 p-2 flex items-center gap-2 text-xs">
                                           <FileText className="h-6 w-6 text-primary shrink-0" />
-                                          <span className="truncate font-medium flex-1">{header.document?.filename || "Documento de Cabeçalho"}</span>
-                                          <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 ml-auto rounded-full" asChild>
-                                            <a href={headerMediaUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-3 w-3" /></a>
+                                          <span className="truncate font-medium flex-1">
+                                            {header.document?.filename || "Documento de Cabeçalho"}
+                                          </span>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-6 w-6 shrink-0 ml-auto rounded-full"
+                                            asChild
+                                          >
+                                            <a
+                                              href={headerMediaUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                            >
+                                              <ExternalLink className="h-3 w-3" />
+                                            </a>
                                           </Button>
                                         </div>
                                       )}
 
                                       {/* B. Render Standard Media Types */}
                                       {type === "image" && bodyText && (
-                                        <div className={cn(
-                                          "w-full overflow-hidden bg-black/10",
-                                          isOutgoing ? "rounded-lg rounded-tr-none" : "rounded-lg rounded-tl-none"
-                                        )}>
+                                        <div
+                                          className={cn(
+                                            "w-full overflow-hidden bg-black/10",
+                                            isOutgoing
+                                              ? "rounded-lg rounded-tr-none"
+                                              : "rounded-lg rounded-tl-none",
+                                          )}
+                                        >
                                           {getMediaUrl(bodyText) ? (
-                                            <img src={getMediaUrl(bodyText)} alt="Imagem" className="w-full max-h-64 object-cover" />
+                                            <img
+                                              src={getMediaUrl(bodyText)}
+                                              alt="Imagem"
+                                              className="w-full max-h-64 object-cover"
+                                            />
                                           ) : (
                                             <div className="aspect-video w-full bg-muted flex items-center justify-center">
                                               <ImageIcon className="h-6 w-6 text-muted-foreground" />
@@ -3125,7 +3391,11 @@ function ChatPage() {
                                       {type === "audio" && bodyText && (
                                         <div className="px-1 py-1.5">
                                           {getMediaUrl(bodyText) ? (
-                                            <audio src={getMediaUrl(bodyText)} controls className="w-[240px] max-w-full h-10" />
+                                            <audio
+                                              src={getMediaUrl(bodyText)}
+                                              controls
+                                              className="w-[240px] max-w-full h-10"
+                                            />
                                           ) : (
                                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                               <Volume2 className="h-4 w-4" /> Áudio (ID: {bodyText})
@@ -3135,12 +3405,20 @@ function ChatPage() {
                                       )}
 
                                       {type === "video" && bodyText && (
-                                        <div className={cn(
-                                          "w-full overflow-hidden bg-black/10",
-                                          isOutgoing ? "rounded-lg rounded-tr-none" : "rounded-lg rounded-tl-none"
-                                        )}>
+                                        <div
+                                          className={cn(
+                                            "w-full overflow-hidden bg-black/10",
+                                            isOutgoing
+                                              ? "rounded-lg rounded-tr-none"
+                                              : "rounded-lg rounded-tl-none",
+                                          )}
+                                        >
                                           {getMediaUrl(bodyText) ? (
-                                            <video src={getMediaUrl(bodyText)} controls className="w-full max-h-64 object-cover" />
+                                            <video
+                                              src={getMediaUrl(bodyText)}
+                                              controls
+                                              className="w-full max-h-64 object-cover"
+                                            />
                                           ) : (
                                             <div className="aspect-video w-full bg-muted flex items-center justify-center">
                                               <Video className="h-6 w-6 text-muted-foreground" />
@@ -3154,13 +3432,26 @@ function ChatPage() {
                                           <FileText className="h-8 w-8 text-primary shrink-0" />
                                           <div className="min-w-0 flex-1">
                                             <p className="text-xs font-medium truncate text-foreground">
-                                              {isUrl(bodyText) ? bodyText.substring(bodyText.lastIndexOf("/") + 1) : bodyText}
+                                              {isUrl(bodyText)
+                                                ? bodyText.substring(bodyText.lastIndexOf("/") + 1)
+                                                : bodyText}
                                             </p>
-                                            <p className="text-[10px] opacity-75">Documento PDF/Office</p>
+                                            <p className="text-[10px] opacity-75">
+                                              Documento PDF/Office
+                                            </p>
                                           </div>
                                           {getMediaUrl(bodyText) && (
-                                            <Button size="icon" variant="ghost" asChild className="h-8 w-8 shrink-0 rounded-full">
-                                              <a href={getMediaUrl(bodyText)} target="_blank" rel="noreferrer">
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              asChild
+                                              className="h-8 w-8 shrink-0 rounded-full"
+                                            >
+                                              <a
+                                                href={getMediaUrl(bodyText)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                              >
                                                 <ExternalLink className="h-4 w-4" />
                                               </a>
                                             </Button>
@@ -3171,9 +3462,15 @@ function ChatPage() {
                                       {type === "sticker" && bodyText && (
                                         <div className="p-1">
                                           {getMediaUrl(bodyText) ? (
-                                            <img src={getMediaUrl(bodyText)} alt="Sticker" className="h-24 w-24 object-contain" />
+                                            <img
+                                              src={getMediaUrl(bodyText)}
+                                              alt="Sticker"
+                                              className="h-24 w-24 object-contain"
+                                            />
                                           ) : (
-                                            <span className="text-xs text-muted-foreground font-mono">Sticker (ID: {bodyText})</span>
+                                            <span className="text-xs text-muted-foreground font-mono">
+                                              Sticker (ID: {bodyText})
+                                            </span>
                                           )}
                                         </div>
                                       )}
@@ -3183,15 +3480,28 @@ function ChatPage() {
                                           <div className="flex items-start gap-2.5">
                                             <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                                             <div className="min-w-0">
-                                              <p className="text-xs font-semibold text-foreground">{msg.location.name || "Localização"}</p>
+                                              <p className="text-xs font-semibold text-foreground">
+                                                {msg.location.name || "Localização"}
+                                              </p>
                                               <p className="text-[10px] text-muted-foreground leading-normal">
-                                                {msg.location.address || `${msg.location.latitude}, ${msg.location.longitude}`}
+                                                {msg.location.address ||
+                                                  `${msg.location.latitude}, ${msg.location.longitude}`}
                                               </p>
                                             </div>
                                           </div>
-                                          <Button size="sm" variant="outline" className="w-full text-xs h-7 gap-1" asChild>
-                                            <a href={`https://www.google.com/maps/search/?api=1&query=${msg.location.latitude},${msg.location.longitude}`} target="_blank" rel="noreferrer">
-                                              <ExternalLink className="h-3 w-3" /> Ver no Google Maps
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="w-full text-xs h-7 gap-1"
+                                            asChild
+                                          >
+                                            <a
+                                              href={`https://www.google.com/maps/search/?api=1&query=${msg.location.latitude},${msg.location.longitude}`}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                            >
+                                              <ExternalLink className="h-3 w-3" /> Ver no Google
+                                              Maps
                                             </a>
                                           </Button>
                                         </div>
@@ -3204,31 +3514,63 @@ function ChatPage() {
                                               <User className="h-4 w-4" />
                                             </div>
                                             <div className="min-w-0">
-                                              <p className="text-xs font-semibold truncate">{msg.contacts[0]?.name?.formatted_name || "Contato"}</p>
-                                              <p className="text-[10px] text-muted-foreground font-mono truncate">{msg.contacts[0]?.phones?.[0]?.phone || "Sem telefone"}</p>
+                                              <p className="text-xs font-semibold truncate">
+                                                {msg.contacts[0]?.name?.formatted_name || "Contato"}
+                                              </p>
+                                              <p className="text-[10px] text-muted-foreground font-mono truncate">
+                                                {msg.contacts[0]?.phones?.[0]?.phone ||
+                                                  "Sem telefone"}
+                                              </p>
                                             </div>
                                           </div>
                                           {msg.contacts[0]?.phones?.[0]?.phone && (
-                                            <Button size="sm" variant="outline" className="w-full text-xs h-7 gap-1" asChild>
-                                              <a href={`tel:${msg.contacts[0].phones[0].phone}`}><Phone className="h-3 w-3" /> Ligar para Contato</a>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="w-full text-xs h-7 gap-1"
+                                              asChild
+                                            >
+                                              <a href={`tel:${msg.contacts[0].phones[0].phone}`}>
+                                                <Phone className="h-3 w-3" /> Ligar para Contato
+                                              </a>
                                             </Button>
                                           )}
                                         </div>
                                       )}
 
                                       {/* Text block for header text, body, and footer */}
-                                      {((!["image", "audio", "video", "document", "sticker", "location", "contacts"].includes(type) && bodyText) || headerText || interactive?.footer?.text) && (
+                                      {((![
+                                        "image",
+                                        "audio",
+                                        "video",
+                                        "document",
+                                        "sticker",
+                                        "location",
+                                        "contacts",
+                                      ].includes(type) &&
+                                        bodyText) ||
+                                        headerText ||
+                                        interactive?.footer?.text) && (
                                         <div className="px-3 py-2 space-y-1">
                                           {headerText && (
                                             <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
                                               {headerText}
                                             </p>
                                           )}
-                                          {!["image", "audio", "video", "document", "sticker", "location", "contacts"].includes(type) && bodyText && (
-                                            <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
-                                              {formatMessageText(bodyText)}
-                                            </p>
-                                          )}
+                                          {![
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document",
+                                            "sticker",
+                                            "location",
+                                            "contacts",
+                                          ].includes(type) &&
+                                            bodyText && (
+                                              <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
+                                                {formatMessageText(bodyText)}
+                                              </p>
+                                            )}
                                           {interactive?.footer?.text && (
                                             <p className="text-[10px] opacity-60">
                                               {interactive.footer.text}
@@ -3238,38 +3580,45 @@ function ChatPage() {
                                       )}
 
                                       {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
-                                      {interactive?.type === "button" && interactive.action?.buttons && (
-                                        <div className="flex flex-col w-full mt-1.5">
-                                          {interactive.action.buttons.map((btn: any, btnIdx: number) => {
-                                            const isLast = btnIdx === interactive.action.buttons.length - 1;
-                                            return (
-                                              <div 
-                                                key={btnIdx}
-                                                className={cn(
-                                                  "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
-                                                  isOutgoing
-                                                    ? "wa-card-button-outgoing wa-button-separator-outgoing"
-                                                    : "wa-card-button-incoming wa-button-separator-incoming",
-                                                  isLast && (isOutgoing ? "rounded-b-lg rounded-br-none" : "rounded-b-lg rounded-bl-none")
-                                                )}
-                                              >
-                                                <MessageSquare className="h-3.5 w-3.5 opacity-60" />
-                                                {btn.reply?.title || "Botão"}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
+                                      {interactive?.type === "button" &&
+                                        interactive.action?.buttons && (
+                                          <div className="flex flex-col w-full mt-1.5">
+                                            {interactive.action.buttons.map(
+                                              (btn: any, btnIdx: number) => {
+                                                const isLast =
+                                                  btnIdx === interactive.action.buttons.length - 1;
+                                                return (
+                                                  <div
+                                                    key={btnIdx}
+                                                    className={cn(
+                                                      "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                                      isOutgoing
+                                                        ? "wa-card-button-outgoing wa-button-separator-outgoing"
+                                                        : "wa-card-button-incoming wa-button-separator-incoming",
+                                                      isLast &&
+                                                        (isOutgoing
+                                                          ? "rounded-b-lg rounded-br-none"
+                                                          : "rounded-b-lg rounded-bl-none"),
+                                                    )}
+                                                  >
+                                                    <MessageSquare className="h-3.5 w-3.5 opacity-60" />
+                                                    {btn.reply?.title || "Botão"}
+                                                  </div>
+                                                );
+                                              },
+                                            )}
+                                          </div>
+                                        )}
 
                                       {/* F. Render List selection action */}
                                       {interactive?.type === "list" && (
                                         <div className="flex flex-col w-full mt-1.5">
-                                          <div 
+                                          <div
                                             className={cn(
                                               "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
                                               isOutgoing
                                                 ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
-                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none"
+                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
                                             )}
                                           >
                                             <Menu className="h-3.5 w-3.5 opacity-60" />
@@ -3281,16 +3630,17 @@ function ChatPage() {
                                       {/* G. Render Flow CTA action */}
                                       {interactive?.type === "flow" && (
                                         <div className="flex flex-col w-full mt-1.5">
-                                          <div 
+                                          <div
                                             className={cn(
                                               "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
                                               isOutgoing
                                                 ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
-                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none"
+                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
                                             )}
                                           >
                                             <ClipboardList className="h-3.5 w-3.5 opacity-80" />
-                                            {interactive.action?.parameters?.flow_cta || "Preencher Formulário"}
+                                            {interactive.action?.parameters?.flow_cta ||
+                                              "Preencher Formulário"}
                                           </div>
                                         </div>
                                       )}
@@ -3300,7 +3650,7 @@ function ChatPage() {
                                     <div
                                       className={cn(
                                         "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-1.5 pr-2.5 pt-0.5",
-                                        !isRichCard && "px-0 pb-0 pt-1"
+                                        !isRichCard && "px-0 pb-0 pt-1",
                                       )}
                                     >
                                       <span>
@@ -3843,7 +4193,8 @@ function ChatPage() {
                         <p className="font-semibold text-base leading-tight">
                           {selectedContact.name || "Sem Nome"}
                         </p>
-                        {(selectedContact.opted_out === 1 || selectedContact.opted_out === true) && (
+                        {(selectedContact.opted_out === 1 ||
+                          selectedContact.opted_out === true) && (
                           <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
                             Opt-out
                           </span>
@@ -3985,9 +4336,10 @@ function ChatPage() {
                     <div className="h-px bg-border" />
                     <div className="space-y-3">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
-                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição de Atendimento
+                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição
+                        de Atendimento
                       </p>
-                      
+
                       {/* Dropdown de Equipe */}
                       <div className="space-y-1">
                         <label className="text-[10px] text-muted-foreground">Equipe</label>
@@ -4028,21 +4380,19 @@ function ChatPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unassigned">Sem agente</SelectItem>
-                            {selectedTeamId ? (
-                              // Se tem equipe selecionada, mostra apenas os membros dela
-                              (teamMembersQuery.data ?? []).map((m: any) => (
-                                <SelectItem key={m.user_id} value={m.user_id}>
-                                  {m.full_name || m.display_name || m.email}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              // Senão, mostra todos os agentes da plataforma
-                              (agentsQuery.data ?? []).map((a: any) => (
-                                <SelectItem key={a.id} value={a.id}>
-                                  {a.full_name || a.display_name || a.email}
-                                </SelectItem>
-                              ))
-                            )}
+                            {selectedTeamId
+                              ? // Se tem equipe selecionada, mostra apenas os membros dela
+                                (teamMembersQuery.data ?? []).map((m: any) => (
+                                  <SelectItem key={m.user_id} value={m.user_id}>
+                                    {m.full_name || m.display_name || m.email}
+                                  </SelectItem>
+                                ))
+                              : // Senão, mostra todos os agentes da plataforma
+                                (agentsQuery.data ?? []).map((a: any) => (
+                                  <SelectItem key={a.id} value={a.id}>
+                                    {a.full_name || a.display_name || a.email}
+                                  </SelectItem>
+                                ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -4135,7 +4485,10 @@ function ChatPage() {
             </div>
           )}
           {/* Diálogos Rápidos de Ações */}
-          <Dialog open={!!quickSaveContactData} onOpenChange={(open) => !open && setQuickSaveContactData(null)}>
+          <Dialog
+            open={!!quickSaveContactData}
+            onOpenChange={(open) => !open && setQuickSaveContactData(null)}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Editar Contato Rápido</DialogTitle>
@@ -4199,7 +4552,10 @@ function ChatPage() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={!!assigningContactData} onOpenChange={(open) => !open && setAssigningContactData(null)}>
+          <Dialog
+            open={!!assigningContactData}
+            onOpenChange={(open) => !open && setAssigningContactData(null)}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Atribuir Conversa</DialogTitle>
@@ -4256,12 +4612,15 @@ function ChatPage() {
                       variant="outline"
                       type="button"
                       onClick={() => {
-                        autoAssignMutation.mutate({
-                          teamId: assignDialogTeamId,
-                          contactPhone: assigningContactData.phone_e164,
-                        }, {
-                          onSuccess: () => setAssigningContactData(null),
-                        });
+                        autoAssignMutation.mutate(
+                          {
+                            teamId: assignDialogTeamId,
+                            contactPhone: assigningContactData.phone_e164,
+                          },
+                          {
+                            onSuccess: () => setAssigningContactData(null),
+                          },
+                        );
                       }}
                       disabled={autoAssignMutation.isPending}
                       className="w-full sm:w-auto"
@@ -4276,15 +4635,24 @@ function ChatPage() {
                   </Button>
                   <Button
                     onClick={() => {
-                      const targetTeamId = assignDialogTeamId === "none" || !assignDialogTeamId ? null : assignDialogTeamId;
-                      const targetAgentId = assignDialogAgentId === "none" || !assignDialogAgentId ? null : assignDialogAgentId;
-                      assignMutation.mutate({
-                        teamId: targetTeamId,
-                        agentId: targetAgentId,
-                        contactPhone: assigningContactData.phone_e164,
-                      }, {
-                        onSuccess: () => setAssigningContactData(null),
-                      });
+                      const targetTeamId =
+                        assignDialogTeamId === "none" || !assignDialogTeamId
+                          ? null
+                          : assignDialogTeamId;
+                      const targetAgentId =
+                        assignDialogAgentId === "none" || !assignDialogAgentId
+                          ? null
+                          : assignDialogAgentId;
+                      assignMutation.mutate(
+                        {
+                          teamId: targetTeamId,
+                          agentId: targetAgentId,
+                          contactPhone: assigningContactData.phone_e164,
+                        },
+                        {
+                          onSuccess: () => setAssigningContactData(null),
+                        },
+                      );
                     }}
                     disabled={assignMutation.isPending}
                   >
@@ -4365,11 +4733,7 @@ function ChatPage() {
 
                 <div className="space-y-1">
                   <Label className="text-zinc-400">Etapa do Funil</Label>
-                  <Select
-                    value={oppStageId}
-                    onValueChange={setOppStageId}
-                    disabled={!oppFunnelId}
-                  >
+                  <Select value={oppStageId} onValueChange={setOppStageId} disabled={!oppFunnelId}>
                     <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
                       <SelectValue placeholder="Selecione a Etapa" />
                     </SelectTrigger>
@@ -4386,7 +4750,11 @@ function ChatPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsQuickOpportunityOpen(false)} className="border-neutral-800 hover:bg-neutral-800 text-zinc-300">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsQuickOpportunityOpen(false)}
+                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
+                >
                   Cancelar
                 </Button>
                 <Button
@@ -4452,7 +4820,11 @@ function ChatPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsFollowUpOpen(false)} className="border-neutral-800 hover:bg-neutral-800 text-zinc-300">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsFollowUpOpen(false)}
+                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
+                >
                   Cancelar
                 </Button>
                 <Button
@@ -4485,7 +4857,7 @@ function ChatPage() {
               <DialogHeader>
                 <DialogTitle className="text-zinc-100">Histórico de Atividades do Lead</DialogTitle>
               </DialogHeader>
-              
+
               <div className="flex-1 overflow-y-auto pr-1 py-2 space-y-4">
                 {leadHistoryQuery.isLoading ? (
                   <div className="py-8 text-center text-muted-foreground flex flex-col items-center gap-2">
@@ -4503,20 +4875,32 @@ function ChatPage() {
                       return (
                         <div key={item.id} className="relative group">
                           {/* Dot indicator */}
-                          <span className={cn(
-                            "absolute -left-[27px] top-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center text-[8px] font-bold text-white shadow-sm select-none",
-                            item.type === "activity"
-                              ? item.status === "done" ? "bg-emerald-500" : "bg-amber-500"
-                              : "bg-indigo-500"
-                          )}>
+                          <span
+                            className={cn(
+                              "absolute -left-[27px] top-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center text-[8px] font-bold text-white shadow-sm select-none",
+                              item.type === "activity"
+                                ? item.status === "done"
+                                  ? "bg-emerald-500"
+                                  : "bg-amber-500"
+                                : "bg-indigo-500",
+                            )}
+                          >
                             {item.type === "activity" ? "A" : "U"}
                           </span>
-                          
+
                           <div>
                             <div className="flex items-center justify-between gap-2">
                               <h4 className="font-semibold text-sm text-zinc-200">{item.title}</h4>
                               <span className="text-[10px] text-zinc-400 select-none">
-                                {itemDate.toLocaleDateString([], { day: "numeric", month: "short" })} - {itemDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                {itemDate.toLocaleDateString([], {
+                                  day: "numeric",
+                                  month: "short",
+                                })}{" "}
+                                -{" "}
+                                {itemDate.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
                               </span>
                             </div>
                             {item.description && (
@@ -4526,21 +4910,32 @@ function ChatPage() {
                             )}
                             {item.type === "audit" && item.new_values && (
                               <div className="text-[10px] text-zinc-400 font-mono mt-1 bg-neutral-900 p-1.5 rounded truncate max-w-full">
-                                Modificado: {typeof item.new_values === "object" ? JSON.stringify(item.new_values) : String(item.new_values)}
+                                Modificado:{" "}
+                                {typeof item.new_values === "object"
+                                  ? JSON.stringify(item.new_values)
+                                  : String(item.new_values)}
                               </div>
                             )}
                             {item.type === "activity" && (
                               <div className="flex gap-2 items-center mt-1.5">
-                                <span className={cn(
-                                  "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
-                                  item.activityType === "follow_up" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
-                                )}>
+                                <span
+                                  className={cn(
+                                    "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
+                                    item.activityType === "follow_up"
+                                      ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                      : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20",
+                                  )}
+                                >
                                   {item.activityType}
                                 </span>
-                                <span className={cn(
-                                  "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
-                                  item.status === "done" ? "bg-emerald-500/10 text-emerald-500 border border-emerald-550/20" : "bg-neutral-800 text-zinc-400"
-                                )}>
+                                <span
+                                  className={cn(
+                                    "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
+                                    item.status === "done"
+                                      ? "bg-emerald-500/10 text-emerald-500 border border-emerald-550/20"
+                                      : "bg-neutral-800 text-zinc-400",
+                                  )}
+                                >
                                   {item.status === "done" ? "Concluído" : "Pendente"}
                                 </span>
                               </div>
@@ -4553,7 +4948,10 @@ function ChatPage() {
                 )}
               </div>
               <DialogFooter className="mt-4">
-                <Button onClick={() => setIsLeadHistoryOpen(false)} className="bg-primary text-primary-foreground hover:bg-primary/95">
+                <Button
+                  onClick={() => setIsLeadHistoryOpen(false)}
+                  className="bg-primary text-primary-foreground hover:bg-primary/95"
+                >
                   Fechar
                 </Button>
               </DialogFooter>
@@ -4564,16 +4962,22 @@ function ChatPage() {
           <Dialog open={isInventoryOpen} onOpenChange={setIsInventoryOpen}>
             <DialogContent className="sm:max-w-[480px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
               <DialogHeader>
-                <DialogTitle className="text-zinc-100">Gerenciador de Estoque / Catálogo</DialogTitle>
+                <DialogTitle className="text-zinc-100">
+                  Gerenciador de Estoque / Catálogo
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-3">
                   {products.map((prod) => (
-                    <div key={prod.id} className="flex items-center justify-between p-3 rounded-lg border border-neutral-800 bg-neutral-900/50 text-zinc-200">
+                    <div
+                      key={prod.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-neutral-800 bg-neutral-900/50 text-zinc-200"
+                    >
                       <div className="min-w-0 flex-1">
                         <h4 className="font-bold text-sm text-zinc-100">{prod.name}</h4>
                         <p className="text-xs text-zinc-400 font-semibold mt-0.5">
-                          Preço: R$ {prod.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          Preço: R${" "}
+                          {prod.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </p>
                         <p className="text-[10px] text-zinc-400 mt-1">
                           Estoque: {prod.isUnlimited ? "Ilimitado" : `${prod.stock} un`}
@@ -4586,7 +4990,9 @@ function ChatPage() {
                             <button
                               type="button"
                               className="px-2 py-1 text-xs hover:bg-neutral-800 transition-colors"
-                              onClick={() => updateProductStock(prod.id, Math.max(0, prod.stock - 1))}
+                              onClick={() =>
+                                updateProductStock(prod.id, Math.max(0, prod.stock - 1))
+                              }
                             >
                               -
                             </button>
@@ -4600,7 +5006,7 @@ function ChatPage() {
                             </button>
                           </div>
                         )}
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -4610,16 +5016,16 @@ function ChatPage() {
                               toast.error("Produto esgotado no estoque!");
                               return;
                             }
-                            
+
                             const paymentLink = `http://localhost:8080/admin/links-pagamento`;
                             const message = `*Catálogo:* Olá! Aqui estão os detalhes do produto:\n\n*${prod.name}*\nPreço: *R$ ${prod.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n\nAdquira agora acessando o link de pagamento seguro:\n${paymentLink}`;
-                            
+
                             sendMutation.mutate({
                               type: "text",
                               text: {
                                 body: message,
                                 preview_url: true,
-                              }
+                              },
                             });
 
                             if (!prod.isUnlimited) {
@@ -4639,7 +5045,10 @@ function ChatPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={() => setIsInventoryOpen(false)} className="border-neutral-800 hover:bg-neutral-800 text-zinc-300">
+                <Button
+                  onClick={() => setIsInventoryOpen(false)}
+                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
+                >
                   Fechar
                 </Button>
               </DialogFooter>

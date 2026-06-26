@@ -15,9 +15,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listWhatsAppFlows } from "@/lib/botflow.functions";
 
-export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep, steps, agentName = "Atendente" }: any) {
+export function StepInspector({
+  selectedStep,
+  handleUpdateStep,
+  handleDeleteStep,
+  steps,
+  agentName = "Atendente",
+}: any) {
   const [config, setConfig] = useState<any>({});
-  
+
   const listFlowsFn = useServerFn(listWhatsAppFlows);
   const flowsQuery = useQuery({
     queryKey: ["whatsappFlows"],
@@ -28,7 +34,8 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
   const getStepTitle = (step: any) => {
     if (!step) return "Passo";
     if (step.trigger_type === "start") return "Início";
-    if (step.trigger_type === "keyword" && step.trigger_value) return `Palavra-chave: ${step.trigger_value}`;
+    if (step.trigger_type === "keyword" && step.trigger_value)
+      return `Palavra-chave: ${step.trigger_value}`;
     if (step.trigger_type === "button" && step.trigger_value) return `Botão: ${step.trigger_value}`;
 
     const text = String(step.message_content || "").trim();
@@ -104,7 +111,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                   <span className="text-xs font-semibold text-muted-foreground w-4 text-center">
                     {idx + 1}
                   </span>
-                  
+
                   <Input
                     placeholder="Título"
                     className="flex-1 min-w-[70px] text-xs h-8"
@@ -129,9 +136,9 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                       newBtns[idx] = {
                         ...btn,
                         type: "reply",
-                        reply: { 
-                          ...btn.reply, 
-                          id: val === "none" ? "" : `step:${val}` 
+                        reply: {
+                          ...btn.reply,
+                          id: val === "none" ? "" : `step:${val}`,
                         },
                       };
                       updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
@@ -270,8 +277,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
                             value={targetVal}
                             onValueChange={(val) => {
                               const newSecs = [...sections];
-                              newSecs[secIdx].rows[rowIdx].id =
-                                val === "none" ? "" : `step:${val}`;
+                              newSecs[secIdx].rows[rowIdx].id = val === "none" ? "" : `step:${val}`;
                               updateConfig({
                                 ...config,
                                 action: { ...config.action, sections: newSecs },
@@ -464,7 +470,7 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
         return (
           <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
             <Label className="text-sm font-semibold">Configuração do Flow</Label>
-            
+
             {/* Seleção do Flow */}
             <div className="space-y-2">
               <Label className="text-xs">Selecionar WhatsApp Flow</Label>
@@ -583,10 +589,19 @@ export function StepInspector({ selectedStep, handleUpdateStep, handleDeleteStep
     }
   };
 
-  const isMedia = ["image", "video", "audio", "document", "buttons", "list", "cta_url"].includes(selectedStep.message_type);
-  const isInteractive = ["button", "buttons", "list", "cta_url", "product", "product_list", "catalog_message", "whatsapp_flow"].includes(
+  const isMedia = ["image", "video", "audio", "document", "buttons", "list", "cta_url"].includes(
     selectedStep.message_type,
   );
+  const isInteractive = [
+    "button",
+    "buttons",
+    "list",
+    "cta_url",
+    "product",
+    "product_list",
+    "catalog_message",
+    "whatsapp_flow",
+  ].includes(selectedStep.message_type);
 
   return (
     <div className="w-80 border-l bg-card p-4 flex flex-col overflow-y-auto">
