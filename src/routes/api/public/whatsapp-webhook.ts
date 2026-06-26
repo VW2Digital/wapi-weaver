@@ -182,24 +182,26 @@ async function processStatusUpdate(value: any, userId: string) {
       Boolean,
     );
     if (campaignIds.length > 0) {
-      await db.query(
-        `
-        UPDATE campaigns c
-        SET totals = (
-          SELECT JSON_OBJECT(
-            'total', COUNT(*),
-            'pending', CAST(SUM(status='pending') AS SIGNED),
-            'sending', CAST(SUM(status='sending') AS SIGNED),
-            'sent', CAST(SUM(status='sent') AS SIGNED),
-            'delivered', CAST(SUM(status='delivered') AS SIGNED),
-            'read', CAST(SUM(status='read') AS SIGNED),
-            'failed', CAST(SUM(status='failed') AS SIGNED)
-          ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
-        )
-        WHERE c.id IN (?) AND c.user_id = ?
-      `,
-        [userId, campaignIds, userId],
-      );
+      for (const cid of campaignIds) {
+        await db.query(
+          `
+          UPDATE campaigns c
+          SET totals = (
+            SELECT JSON_OBJECT(
+              'total', COUNT(*),
+              'pending', CAST(SUM(status='pending') AS SIGNED),
+              'sending', CAST(SUM(status='sending') AS SIGNED),
+              'sent', CAST(SUM(status='sent') AS SIGNED),
+              'delivered', CAST(SUM(status='delivered') AS SIGNED),
+              'read', CAST(SUM(status='read') AS SIGNED),
+              'failed', CAST(SUM(status='failed') AS SIGNED)
+            ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
+          )
+          WHERE c.id = ? AND c.user_id = ?
+        `,
+          [userId, cid, userId],
+        );
+      }
     }
   }
 }

@@ -228,14 +228,14 @@ function LoginPage() {
                     className="h-10"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={busy}>
+                <Button type="submit" className="w-full h-10" disabled={busy}>
                   {mode === "signin" ? "Entrar" : "Criar conta"}
                 </Button>
                 {mode === "signin" && (
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full"
+                    className="w-full h-10"
                     onClick={async () => {
                       if (!email) {
                         toast.error("Informe seu e-mail para receber o link mágico.");

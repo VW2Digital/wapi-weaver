@@ -67,7 +67,6 @@ function ListsPage() {
 
   const memberIds = new Set((members.data ?? []).map((m: any) => m.contact_id));
   const filteredContacts = (contacts.data ?? [])
-    .filter((c: any) => !memberIds.has(c.id))
     .filter(
       (c: any) =>
         !search ||
@@ -77,7 +76,11 @@ function ListsPage() {
 
   const handleSelectAll = () => {
     const newPicked = new Set(picked);
-    filteredContacts.forEach((c: any) => newPicked.add(c.id));
+    filteredContacts.forEach((c: any) => {
+      if (!memberIds.has(c.id)) {
+        newPicked.add(c.id);
+      }
+    });
     setPicked(newPicked);
   };
 
@@ -334,24 +337,34 @@ function ListsPage() {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                   <div className="mt-2 max-h-72 overflow-auto rounded border">
-                    {filteredContacts.slice(0, 500).map((c: any) => (
-                      <label
-                        key={c.id}
-                        className="flex items-center gap-2 border-b px-2 py-1.5 text-sm last:border-0 hover:bg-muted/30"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={picked.has(c.id)}
-                          onChange={(e) => {
-                            const n = new Set(picked);
-                            e.target.checked ? n.add(c.id) : n.delete(c.id);
-                            setPicked(n);
-                          }}
-                        />
-                        <span className="font-mono">+{c.phone_e164}</span>
-                        <span className="text-muted-foreground">{c.name ?? ""}</span>
-                      </label>
-                    ))}
+                    {filteredContacts.slice(0, 500).map((c: any) => {
+                      const isMember = memberIds.has(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex items-center gap-2 border-b px-2 py-1.5 text-sm last:border-0 hover:bg-muted/30"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isMember || picked.has(c.id)}
+                            disabled={isMember}
+                            onChange={(e) => {
+                              if (isMember) return;
+                              const n = new Set(picked);
+                              e.target.checked ? n.add(c.id) : n.delete(c.id);
+                              setPicked(n);
+                            }}
+                          />
+                          <span className="font-mono">+{c.phone_e164}</span>
+                          <span className="text-muted-foreground">{c.name ?? ""}</span>
+                          {isMember && (
+                            <span className="text-[10px] bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded ml-auto">
+                              Membro
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
                     {filteredContacts.length === 0 && (
                       <p className="p-3 text-xs text-muted-foreground text-center">Nenhum contato disponível.</p>
                     )}

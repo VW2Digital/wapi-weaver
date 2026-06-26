@@ -1,23 +1,26 @@
 import mysql from "mysql2/promise";
 
-/**
- * Pool de conexões MySQL. Usa variáveis de ambiente para configurar:
- * DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_SIZE.
- * Em produção, DB_PASSWORD é obrigatório.
- */
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "3306", 10),
-  user: process.env.DB_USER || "wapi_user",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "wapi_weaver",
-  waitForConnections: true,
-  connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 5,
-  queueLimit: 50,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0,
-  connectTimeout: 10000,
-});
+// Cache do pool global para evitar vazamento de conexões no reload (HMR)
+const globalForDb = global as unknown as { pool: mysql.Pool };
+const pool =
+  globalForDb.pool ||
+  mysql.createPool({
+    host: process.env.DB_HOST || "localhost",
+    port: parseInt(process.env.DB_PORT || "3306", 10),
+    user: process.env.DB_USER || "wapi_user",
+    password: process.env.DB_PASSWORD || "",
+    database: process.env.DB_NAME || "wapi_weaver",
+    waitForConnections: true,
+    connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 5,
+    queueLimit: 50,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0,
+    connectTimeout: 10000,
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.pool = pool;
+}
 
 /**
  * Executa uma query SQL parametrizada.
