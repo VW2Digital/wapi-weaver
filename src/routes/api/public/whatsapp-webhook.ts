@@ -189,12 +189,12 @@ async function processStatusUpdate(value: any, userId: string) {
           SET totals = (
             SELECT JSON_OBJECT(
               'total', COUNT(*),
-              'pending', CAST(SUM(status='pending') AS SIGNED),
-              'sending', CAST(SUM(status='sending') AS SIGNED),
-              'sent', CAST(SUM(status='sent') AS SIGNED),
-              'delivered', CAST(SUM(status='delivered') AS SIGNED),
-              'read', CAST(SUM(status='read') AS SIGNED),
-              'failed', CAST(SUM(status='failed') AS SIGNED)
+              'pending', CAST(COALESCE(SUM(status='pending'), 0) AS SIGNED),
+              'sending', CAST(COALESCE(SUM(status='sending'), 0) AS SIGNED),
+              'sent', CAST(COALESCE(SUM(status='sent'), 0) AS SIGNED),
+              'delivered', CAST(COALESCE(SUM(status='delivered'), 0) AS SIGNED),
+              'read', CAST(COALESCE(SUM(status='read'), 0) AS SIGNED),
+              'failed', CAST(COALESCE(SUM(status='failed'), 0) AS SIGNED)
             ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
           )
           WHERE c.id = ? AND c.user_id = ?

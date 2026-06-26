@@ -205,6 +205,27 @@ export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    // Recalcular totais para todas as campanhas do usuário (exceto rascunhos) antes de listar
+    await db.query(
+      `
+      UPDATE campaigns c
+      SET totals = (
+        SELECT JSON_OBJECT(
+          'total', COUNT(*),
+          'pending', CAST(COALESCE(SUM(status='pending'), 0) AS SIGNED),
+          'sending', CAST(COALESCE(SUM(status='sending'), 0) AS SIGNED),
+          'sent', CAST(COALESCE(SUM(status='sent'), 0) AS SIGNED),
+          'delivered', CAST(COALESCE(SUM(status='delivered'), 0) AS SIGNED),
+          'read', CAST(COALESCE(SUM(status='read'), 0) AS SIGNED),
+          'failed', CAST(COALESCE(SUM(status='failed'), 0) AS SIGNED)
+        ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
+      )
+      WHERE c.user_id = ? AND c.status != 'draft'
+    `,
+      [effectiveUserId, effectiveUserId],
+    );
+
     const data: any[] = (await db.query(
       `SELECT * FROM campaigns WHERE user_id = ? ORDER BY created_at DESC LIMIT 200`,
       [effectiveUserId],
@@ -217,6 +238,27 @@ export const getCampaign = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    // Recalcular totais para a campanha específica antes de detalhar
+    await db.query(
+      `
+      UPDATE campaigns c
+      SET totals = (
+        SELECT JSON_OBJECT(
+          'total', COUNT(*),
+          'pending', CAST(COALESCE(SUM(status='pending'), 0) AS SIGNED),
+          'sending', CAST(COALESCE(SUM(status='sending'), 0) AS SIGNED),
+          'sent', CAST(COALESCE(SUM(status='sent'), 0) AS SIGNED),
+          'delivered', CAST(COALESCE(SUM(status='delivered'), 0) AS SIGNED),
+          'read', CAST(COALESCE(SUM(status='read'), 0) AS SIGNED),
+          'failed', CAST(COALESCE(SUM(status='failed'), 0) AS SIGNED)
+        ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
+      )
+      WHERE c.id = ? AND c.user_id = ?
+    `,
+      [effectiveUserId, data.id, effectiveUserId],
+    );
+
     const campaigns: any[] = (await db.query(
       `SELECT * FROM campaigns WHERE id = ? AND user_id = ? LIMIT 1`,
       [data.id, effectiveUserId],
