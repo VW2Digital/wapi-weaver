@@ -20,12 +20,21 @@ export async function processBotFlow(
 
   try {
     // 1. Check if bot is active for this instance
-    const { data: settings } = await dbAdmin
+    let { data: settings } = await dbAdmin
       .from("bot_settings")
       .select("*")
       .eq("user_id", userId)
       .eq("instance_id", phoneNumberId)
       .maybeSingle();
+
+    if (!settings) {
+      const { data: fallback } = await dbAdmin
+        .from("bot_settings")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      settings = fallback;
+    }
 
     if (!settings || !settings.is_active) {
       logInfo("Bot desativado ou não configurado para a instância", { phoneNumberId });

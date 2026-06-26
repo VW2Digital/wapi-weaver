@@ -8,7 +8,7 @@ import {
   sendDirectMessage,
   markMessagesAsRead,
 } from "@/lib/chat.functions";
-import { updateContactProfilePhoto, createContact, deleteContact } from "@/lib/contacts.functions";
+import { updateContactProfilePhoto, createContact, deleteContact, autoFetchContactPhoto } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
 import {
   listTeams,
@@ -207,6 +207,7 @@ function ChatPage() {
   const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
   const saveContactProfilePhoto = useServerFn(updateContactProfilePhoto);
+  const fetchContactPhoto = useServerFn(autoFetchContactPhoto);
   const qc = useQueryClient();
   const confirm = useConfirm();
 
@@ -1232,6 +1233,26 @@ function ChatPage() {
     if (!contactDetailsQuery.data || !selectedContact) return;
     setSelectedContact((prev: any) => ({ ...(prev ?? {}), ...(contactDetailsQuery.data as any) }));
   }, [contactDetailsQuery.data]);
+
+  // Busca automaticamente a foto de perfil do WhatsApp quando o contato não tem avatar
+  const photoFetchingRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedPhone || !selectedContact?.id) return;
+    if (getContactAvatarUrl(selectedContact)) return;
+    if (photoFetchingRef.current === selectedPhone) return;
+    photoFetchingRef.current = selectedPhone;
+    fetchContactPhoto({ data: { contactId: selectedContact.id, phone: selectedPhone } })
+      .then((result) => {
+        if (result?.photo_url) {
+          setSelectedContact((prev: any) => ({
+            ...(prev ?? {}),
+            custom_fields: { ...(prev?.custom_fields ?? {}), avatar_url: result.photo_url },
+          }));
+          qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+        }
+      })
+      .catch(() => {});
+  }, [selectedPhone, selectedContact?.id]);
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", selectedPhone],

@@ -276,3 +276,41 @@ export const bulkAddTagToContacts = createServerFn({ method: "POST" })
     if (error) throw error;
     return { added: rows.length };
   });
+
+export const autoFetchContactPhoto = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z
+      .object({
+        contactId: z.string().uuid(),
+        phone: z.string().trim().min(8).max(20),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { capturarFotoPerfilLead } = await import("@/lib/profile-photo-scraper");
+    const photoUrl = await capturarFotoPerfilLead(data.phone.replace(/\D/g, ""));
+    if (!photoUrl) return { photo_url: null };
+
+    const { data: contact } = await context.db
+      .from("contacts")
+      .select("id, custom_fields")
+      .eq("id", data.contactId)
+      .maybeSingle();
+
+    if (!contact) return { photo_url: null };
+
+    const currentCustomFields =
+      contact.custom_fields && typeof contact.custom_fields === "object"
+        ? { ...(contact.custom_fields as Record<string, unknown>) }
+        : {};
+
+    currentCustomFields.avatar_url = photoUrl;
+
+    await context.db
+      .from("contacts")
+      .update({ custom_fields: currentCustomFields })
+      .eq("id", data.contactId);
+
+    return { photo_url: photoUrl };
+  });
