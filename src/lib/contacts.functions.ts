@@ -21,13 +21,15 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { data: contact, error: fetchErr } = await context.db
-      .from("contacts")
-      .select("id, custom_fields")
-      .eq("id", data.id)
-      .maybeSingle();
+    const { default: db } = await import("./db");
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    if (fetchErr) throw fetchErr;
+    const contacts = (await db.query(
+      "SELECT id, custom_fields FROM contacts WHERE id = ? AND user_id = ?",
+      [data.id, effectiveUserId],
+    )) as any[];
+    const contact = contacts?.[0];
     if (!contact) throw new Error("Contato não encontrado.");
 
     const currentCustomFields =
@@ -46,15 +48,12 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
       delete currentCustomFields.image;
     }
 
-    const { data: updated, error } = await context.db
-      .from("contacts")
-      .update({ custom_fields: currentCustomFields })
-      .eq("id", data.id)
-      .select("*")
-      .single();
-
-    if (error) throw error;
-    return updated;
+    await db.query("UPDATE contacts SET custom_fields = ? WHERE id = ?", [
+      JSON.stringify(currentCustomFields),
+      data.id,
+    ]);
+    const updated = (await db.query("SELECT * FROM contacts WHERE id = ?", [data.id])) as any[];
+    return updated?.[0];
   });
 
 export const listContacts = createServerFn({ method: "GET" })
@@ -81,45 +80,42 @@ export const createContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => contactInput.parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const phone = normalizeToE164(data.phone);
     if (!phone) throw new Error("Telefone inválido");
 
-    const { data: existing } = await context.db
-      .from("contacts")
-      .select("id, custom_fields")
-      .eq("phone_e164", phone)
-      .maybeSingle();
+    const existing = (await db.query(
+      "SELECT id, custom_fields FROM contacts WHERE user_id = ? AND phone_e164 = ?",
+      [effectiveUserId, phone],
+    )) as any[];
 
     const mergedCustomFields =
-      existing?.custom_fields && typeof existing.custom_fields === "object"
-        ? { ...(existing.custom_fields as Record<string, any>), ...(data.custom_fields ?? {}) }
+      existing?.[0]?.custom_fields && typeof existing[0].custom_fields === "object"
+        ? { ...(existing[0].custom_fields as Record<string, any>), ...(data.custom_fields ?? {}) }
         : (data.custom_fields ?? {});
 
-    const { data: row, error } = await context.db
-      .from("contacts")
-      .upsert(
-        {
-          user_id: context.userId,
-          phone_e164: phone,
-          name: data.name || null,
-          email: data.email || null,
-          custom_fields: mergedCustomFields,
-          source: "manual",
-        },
-        { onConflict: "user_id,phone_e164" },
-      )
-      .select()
-      .single();
-    if (error) throw error;
-    return row;
+    const id = existing?.[0]?.id ?? crypto.randomUUID();
+    await db.query(
+      `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
+       VALUES (?, ?, ?, ?, ?, ?, 'manual')
+       ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
+      [id, effectiveUserId, phone, data.name || null, data.email || null, JSON.stringify(mergedCustomFields)],
+    );
+    const rows = await db.query("SELECT * FROM contacts WHERE id = ?", [id]);
+    return (rows as any[])[0];
   });
 
 export const deleteContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.db.from("contacts").delete().eq("id", data.id);
-    if (error) throw error;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query("DELETE FROM contacts WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
     return { ok: true };
   });
 
@@ -136,22 +132,19 @@ export const updateContact = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const phone = normalizeToE164(data.phone);
     if (!phone) throw new Error("Telefone inválido");
 
-    const { data: row, error } = await context.db
-      .from("contacts")
-      .update({
-        phone_e164: phone,
-        name: data.name || null,
-        email: data.email || null,
-      })
-      .eq("id", data.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return row;
+    await db.query(
+      "UPDATE contacts SET phone_e164 = ?, name = ?, email = ? WHERE id = ? AND user_id = ?",
+      [phone, data.name || null, data.email || null, data.id, effectiveUserId],
+    );
+    const rows = await db.query("SELECT * FROM contacts WHERE id = ?", [data.id]);
+    return (rows as any[])[0];
   });
 
 const bulkInput = z.object({
@@ -172,6 +165,10 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => bulkInput.parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const cleaned: any[] = [];
     let invalid = 0;
     for (const r of data.rows) {
@@ -181,24 +178,28 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
         continue;
       }
       cleaned.push({
-        user_id: context.userId,
+        id: crypto.randomUUID(),
+        user_id: effectiveUserId,
         phone_e164: phone,
         name: r.name?.toString().slice(0, 120) || null,
         email: r.email?.toString().slice(0, 180) || null,
-        custom_fields: r.custom_fields ?? {},
+        custom_fields: JSON.stringify(r.custom_fields ?? {}),
         source: "import",
       });
     }
     if (cleaned.length === 0) return { inserted: 0, invalid };
-    // chunk
     const chunkSize = 500;
     let inserted = 0;
     for (let i = 0; i < cleaned.length; i += chunkSize) {
       const slice = cleaned.slice(i, i + chunkSize);
-      const { error } = await context.db
-        .from("contacts")
-        .upsert(slice, { onConflict: "user_id,phone_e164" });
-      if (error) throw error;
+      const placeholders = slice.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
+      const params = slice.flatMap((r) => [r.id, r.user_id, r.phone_e164, r.name, r.email, r.custom_fields, r.source]);
+      await db.query(
+        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
+         VALUES ${placeholders}
+         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
+        params,
+      );
       inserted += slice.length;
     }
     return { inserted, invalid };
@@ -210,8 +211,14 @@ export const bulkDeleteContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => bulkIdsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.db.from("contacts").delete().in("id", data.ids);
-    if (error) throw error;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const placeholders = data.ids.map(() => "?").join(",");
+    await db.query(
+      `DELETE FROM contacts WHERE id IN (${placeholders}) AND user_id = ?`,
+      [...data.ids, effectiveUserId],
+    );
     return { deleted: data.ids.length };
   });
 
@@ -223,11 +230,14 @@ export const bulkSetOptOut = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.db
-      .from("contacts")
-      .update({ opted_out: data.opted_out })
-      .in("id", data.ids);
-    if (error) throw error;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const placeholders = data.ids.map(() => "?").join(",");
+    await db.query(
+      `UPDATE contacts SET opted_out = ? WHERE id IN (${placeholders}) AND user_id = ?`,
+      [data.opted_out ? 1 : 0, ...data.ids, effectiveUserId],
+    );
     return { updated: data.ids.length };
   });
 
@@ -242,16 +252,22 @@ export const bulkAddContactsToList = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const rows = data.contact_ids.map((cid) => ({
-      list_id: data.list_id,
-      contact_id: cid,
-      user_id: context.userId,
-    }));
-    const { error } = await context.db
-      .from("list_contacts")
-      .upsert(rows, { onConflict: "list_id,contact_id" });
-    if (error) throw error;
-    return { added: rows.length };
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId]);
+    const chunkSize = 500;
+    let added = 0;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
+      await db.query(
+        `INSERT INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders} ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+        chunk.flat(),
+      );
+      added += chunk.length;
+    }
+    return { added };
   });
 
 export const bulkAddTagToContacts = createServerFn({ method: "POST" })
@@ -265,16 +281,22 @@ export const bulkAddTagToContacts = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const rows = data.contact_ids.map((cid) => ({
-      tag_id: data.tag_id,
-      contact_id: cid,
-      user_id: context.userId,
-    }));
-    const { error } = await context.db
-      .from("contact_tags")
-      .upsert(rows, { onConflict: "tag_id,contact_id" });
-    if (error) throw error;
-    return { added: rows.length };
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = data.contact_ids.map((cid) => [data.tag_id, cid, effectiveUserId]);
+    const chunkSize = 500;
+    let added = 0;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
+      await db.query(
+        `INSERT INTO contact_tags (tag_id, contact_id, user_id) VALUES ${placeholders} ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+        chunk.flat(),
+      );
+      added += chunk.length;
+    }
+    return { added };
   });
 
 export const autoFetchContactPhoto = createServerFn({ method: "POST" })
@@ -288,16 +310,19 @@ export const autoFetchContactPhoto = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const { capturarFotoPerfilLead } = await import("@/lib/profile-photo-scraper");
     const photoUrl = await capturarFotoPerfilLead(data.phone.replace(/\D/g, ""));
     if (!photoUrl) return { photo_url: null };
 
-    const { data: contact } = await context.db
-      .from("contacts")
-      .select("id, custom_fields")
-      .eq("id", data.contactId)
-      .maybeSingle();
-
+    const contacts = (await db.query(
+      "SELECT id, custom_fields FROM contacts WHERE id = ? AND user_id = ?",
+      [data.contactId, effectiveUserId],
+    )) as any[];
+    const contact = contacts?.[0];
     if (!contact) return { photo_url: null };
 
     const currentCustomFields =
@@ -307,10 +332,10 @@ export const autoFetchContactPhoto = createServerFn({ method: "POST" })
 
     currentCustomFields.avatar_url = photoUrl;
 
-    await context.db
-      .from("contacts")
-      .update({ custom_fields: currentCustomFields })
-      .eq("id", data.contactId);
+    await db.query("UPDATE contacts SET custom_fields = ? WHERE id = ?", [
+      JSON.stringify(currentCustomFields),
+      data.contactId,
+    ]);
 
     return { photo_url: photoUrl };
   });

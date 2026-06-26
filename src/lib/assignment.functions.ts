@@ -175,10 +175,11 @@ export const createTeam = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const teamId = crypto.randomUUID();
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       await db.query(
         `INSERT INTO teams (id, user_id, name, description, auto_assign_mode)
          VALUES (?, ?, ?, ?, ?)`,
-        [teamId, context.userId, data.name, data.description, data.autoAssignMode],
+        [teamId, effectiveUserId, data.name, data.description, data.autoAssignMode],
       );
       return { ok: true, id: teamId };
     } catch (e: any) {
@@ -201,11 +202,12 @@ export const updateTeam = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       await db.query(
         `UPDATE teams 
          SET name = ?, description = ?, auto_assign_mode = ?
          WHERE id = ? AND user_id = ?`,
-        [data.name, data.description, data.autoAssignMode, data.id, context.userId],
+        [data.name, data.description, data.autoAssignMode, data.id, effectiveUserId],
       );
       return { ok: true };
     } catch (e: any) {
@@ -219,7 +221,8 @@ export const deleteTeam = createServerFn({ method: "POST" })
   .validator((d) => z.object({ id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     try {
-      await db.query("DELETE FROM teams WHERE id = ? AND user_id = ?", [data.id, context.userId]);
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
+      await db.query("DELETE FROM teams WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
       return { ok: true };
     } catch (e: any) {
       console.error("Erro ao deletar equipe:", e);
@@ -240,10 +243,11 @@ export const addTeamMember = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       // Validar se o time pertence ao tenant do usuário logado
       const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND user_id = ?", [
         data.teamId,
-        context.userId,
+        effectiveUserId,
       ]);
       if (!team || team.length === 0) {
         throw new Error("Equipe não encontrada ou acesso negado.");
@@ -274,10 +278,11 @@ export const removeTeamMember = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       // Validar se o time pertence ao tenant do usuário logado
       const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND user_id = ?", [
         data.teamId,
-        context.userId,
+        effectiveUserId,
       ]);
       if (!team || team.length === 0) {
         throw new Error("Equipe não encontrada ou acesso negado.");

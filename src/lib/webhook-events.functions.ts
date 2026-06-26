@@ -7,12 +7,12 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
     limit: Math.min(Math.max(data?.limit ?? 100, 1), 500),
   }))
   .handler(async ({ context, data }) => {
-    const { data: events, error } = await context.db
-      .from("webhook_events")
-      .select("id, source, processed, received_at, raw")
-      .eq("user_id", context.userId)
-      .order("received_at", { ascending: false })
-      .limit(data.limit);
-    if (error) throw new Error(error.message);
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const events = (await db.query(
+      "SELECT id, source, processed, received_at, raw FROM webhook_events WHERE user_id = ? ORDER BY received_at DESC LIMIT ?",
+      [effectiveUserId, data.limit],
+    )) as any[];
     return { events: events ?? [] };
   });

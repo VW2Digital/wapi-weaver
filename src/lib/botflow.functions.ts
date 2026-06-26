@@ -8,54 +8,39 @@ import { z } from "zod";
  * isso é intencional e suportado pelo schema (NULL, não NOT NULL).
  */
 async function getOrCreateBotSettings(context: any) {
-  const { data: p } = await context.db
-    .from("profiles")
-    .select("whatsapp_phone_number_id")
-    .eq("id", context.userId)
-    .maybeSingle();
+  const { resolveEffectiveUserId } = await import("./chat-helpers");
+  const { default: db } = await import("./db");
+  const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-  let { data: settings, error: fetchError } = await context.db
-    .from("bot_settings")
-    .select("*")
-    .eq("user_id", context.userId)
-    .maybeSingle();
+  const profileRows = (await db.query(
+    "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?",
+    [effectiveUserId],
+  )) as any[];
+  const p = profileRows?.[0] ?? null;
 
-  if (fetchError) {
-    return {
-      ok: false as const,
-      error: `Erro ao buscar configurações do bot: ${fetchError.message}`,
-    };
-  }
+  const settingsList = (await db.query(
+    "SELECT * FROM bot_settings WHERE user_id = ?",
+    [effectiveUserId],
+  )) as any[];
+  let settings = settingsList?.[0] ?? null;
 
   if (!settings) {
-    // instance_id pode ser NULL — o schema agora permite isso
-    const { data: newSettings, error } = await context.db
-      .from("bot_settings")
-      .insert({
-        id: crypto.randomUUID(),
-        user_id: context.userId,
-        instance_id: p?.whatsapp_phone_number_id || null,
-        is_active: false,
-        pause_timeout_minutes: 60,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      return { ok: false as const, error: `Erro ao criar configurações do bot: ${error.message}` };
+    const id = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO bot_settings (id, user_id, instance_id, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?)",
+      [id, effectiveUserId, p?.whatsapp_phone_number_id || null, false, 60],
+    );
+    const rows = (await db.query("SELECT * FROM bot_settings WHERE id = ?", [id])) as any[];
+    settings = rows?.[0] ?? null;
+    if (!settings) {
+      return { ok: false as const, error: "Erro ao criar configurações do bot" };
     }
-    settings = newSettings;
   } else if (p?.whatsapp_phone_number_id && settings.instance_id !== p.whatsapp_phone_number_id) {
-    // Sincroniza instance_id quando o usuário configurou o WhatsApp depois
-    const { data: updatedSettings, error } = await context.db
-      .from("bot_settings")
-      .update({ instance_id: p.whatsapp_phone_number_id })
-      .eq("id", settings.id)
-      .select("*")
-      .single();
-
-    if (error) return { ok: false as const, error: error.message };
-    settings = updatedSettings;
+    await db.query("UPDATE bot_settings SET instance_id = ? WHERE id = ?", [
+      p.whatsapp_phone_number_id,
+      settings.id,
+    ]);
+    settings.instance_id = p.whatsapp_phone_number_id;
   }
 
   return { ok: true as const, settings, profile: p };
@@ -73,32 +58,30 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => z.object({ isActive: z.boolean() }).parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
+    const { default: db } = await import("./db");
     const result = await getOrCreateBotSettings(context);
     if (!result.ok) return result;
 
-    const { error } = await context.db
-      .from("bot_settings")
-      .update({ is_active: data.isActive })
-      .eq("id", result.settings.id);
+    await db.query("UPDATE bot_settings SET is_active = ? WHERE id = ?", [
+      data.isActive ? 1 : 0,
+      result.settings.id,
+    ]);
 
-    if (error) return { ok: false, error: error.message };
     return { ok: true };
   });
 
 export const listBotSteps = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }: { context: any }) => {
+    const { default: db } = await import("./db");
     const result = await getOrCreateBotSettings(context);
     if (!result.ok) throw new Error(result.error || "Falha ao obter configurações do bot");
 
-    const { data, error } = await context.db
-      .from("bot_steps")
-      .select("*")
-      .eq("bot_settings_id", result.settings.id)
-      .order("step_order", { ascending: true });
-
-    if (error) throw new Error(`Falha ao carregar passos: ${error.message}`);
-    return data || [];
+    const data = (await db.query(
+      "SELECT * FROM bot_steps WHERE bot_settings_id = ? ORDER BY step_order ASC",
+      [result.settings.id],
+    )) as any[];
+    return data ?? [];
   });
 
 // Validator para um único step
@@ -124,6 +107,10 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
   .handler(async ({ data, context }: { data: any[]; context: any }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const result = await getOrCreateBotSettings(context);
     if (!result.ok)
       return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
@@ -133,30 +120,21 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
 
     // Remove steps que não estão mais no fluxo
     if (incomingIds.length > 0) {
-      const { error: deleteError } = await context.db
-        .from("bot_steps")
-        .delete()
-        .eq("bot_settings_id", settings.id)
-        .not("id", "in", incomingIds);
-      if (deleteError) {
-        return { ok: false, error: `Falha ao remover passos antigos: ${deleteError.message}` };
-      }
+      const placeholders = incomingIds.map(() => "?").join(",");
+      await db.query(
+        `DELETE FROM bot_steps WHERE bot_settings_id = ? AND id NOT IN (${placeholders})`,
+        [settings.id, ...incomingIds],
+      );
     } else {
-      const { error: deleteAllError } = await context.db
-        .from("bot_steps")
-        .delete()
-        .eq("bot_settings_id", settings.id);
-      if (deleteAllError) {
-        return { ok: false, error: `Falha ao limpar passos antigos: ${deleteAllError.message}` };
-      }
+      await db.query("DELETE FROM bot_steps WHERE bot_settings_id = ?", [settings.id]);
     }
 
     // 1ª passagem: upsert de todos os steps SEM next_step_id (evita FK circular)
     for (const step of data) {
       const stepId = step.id || crypto.randomUUID();
-      const basePayload = {
+      const payload = {
         bot_settings_id: settings.id,
-        user_id: context.userId,
+        user_id: effectiveUserId,
         step_order: step.step_order,
         trigger_type: step.trigger_type,
         trigger_value: step.trigger_value || null,
@@ -165,8 +143,8 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         media_url: step.media_url || null,
         media_caption: step.media_caption || null,
         footer_text: step.footer_text || null,
-        buttons_config: step.buttons_config || null,
-        next_step_id: null, // resolve na 2ª passagem
+        buttons_config: step.buttons_config ? JSON.stringify(step.buttons_config) : null,
+        next_step_id: null,
         delay_seconds: Number(step.delay_seconds || 0),
         position_x: step.position_x || 0,
         position_y: step.position_y || 0,
@@ -177,27 +155,41 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
       };
 
       // Verifica se o step já existe no banco
-      const { data: existing } = await context.db
-        .from("bot_steps")
-        .select("id")
-        .eq("id", stepId)
-        .maybeSingle();
+      const existing = (await db.query(
+        "SELECT id FROM bot_steps WHERE id = ?",
+        [stepId],
+      )) as any[];
 
-      if (existing?.id) {
-        const { error } = await context.db.from("bot_steps").update(basePayload).eq("id", stepId);
-        if (error)
-          return {
-            ok: false,
-            error: `Falha ao atualizar passo ${step.step_order}: ${error.message}`,
-          };
+      if (existing?.length > 0) {
+        await db.query(
+          `UPDATE bot_steps SET bot_settings_id = ?, user_id = ?, step_order = ?, trigger_type = ?, trigger_value = ?,
+           message_type = ?, message_content = ?, media_url = ?, media_caption = ?, footer_text = ?,
+           buttons_config = ?, next_step_id = ?, delay_seconds = ?, position_x = ?, position_y = ?,
+           assign_team_id = ?, assign_user_id = ?, handoff_message = ?, card_color = ?
+           WHERE id = ?`,
+          [
+            payload.bot_settings_id, payload.user_id, payload.step_order, payload.trigger_type,
+            payload.trigger_value, payload.message_type, payload.message_content, payload.media_url,
+            payload.media_caption, payload.footer_text, payload.buttons_config, payload.next_step_id,
+            payload.delay_seconds, payload.position_x, payload.position_y, payload.assign_team_id,
+            payload.assign_user_id, payload.handoff_message, payload.card_color, stepId,
+          ],
+        );
       } else {
-        const { error } = await context.db.from("bot_steps").insert({ id: stepId, ...basePayload });
-        if (error)
-          return {
-            ok: false,
-            error: `Falha ao inserir passo ${step.step_order}: ${error.message}`,
-          };
-        // guarda o id gerado no objeto local para a 2ª passagem
+        await db.query(
+          `INSERT INTO bot_steps (id, bot_settings_id, user_id, step_order, trigger_type, trigger_value,
+           message_type, message_content, media_url, media_caption, footer_text, buttons_config,
+           next_step_id, delay_seconds, position_x, position_y, assign_team_id, assign_user_id,
+           handoff_message, card_color)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            stepId, payload.bot_settings_id, payload.user_id, payload.step_order, payload.trigger_type,
+            payload.trigger_value, payload.message_type, payload.message_content, payload.media_url,
+            payload.media_caption, payload.footer_text, payload.buttons_config, payload.next_step_id,
+            payload.delay_seconds, payload.position_x, payload.position_y, payload.assign_team_id,
+            payload.assign_user_id, payload.handoff_message, payload.card_color,
+          ],
+        );
         step.id = stepId;
       }
     }
@@ -205,13 +197,10 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
     // 2ª passagem: resolve links next_step_id agora que todos existem
     for (const step of data) {
       if (!step.next_step_id) continue;
-      const { error } = await context.db
-        .from("bot_steps")
-        .update({ next_step_id: step.next_step_id })
-        .eq("id", step.id);
-      if (error) {
-        return { ok: false, error: `Falha ao vincular passo ${step.step_order}: ${error.message}` };
-      }
+      await db.query("UPDATE bot_steps SET next_step_id = ? WHERE id = ?", [
+        step.next_step_id,
+        step.id,
+      ]);
     }
 
     return { ok: true };
@@ -221,11 +210,16 @@ export const saveBotStep = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepInput.parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const result = await getOrCreateBotSettings(context);
     if (!result.ok) return result;
 
     const payload = {
       bot_settings_id: result.settings.id,
+      user_id: effectiveUserId,
       step_order: data.step_order,
       trigger_type: data.trigger_type,
       trigger_value: data.trigger_value || null,
@@ -234,7 +228,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
       media_url: data.media_url || null,
       media_caption: data.media_caption || null,
       footer_text: data.footer_text || null,
-      buttons_config: data.buttons_config || null,
+      buttons_config: data.buttons_config ? JSON.stringify(data.buttons_config) : null,
       next_step_id: data.next_step_id || null,
       delay_seconds: Number(data.delay_seconds || 0),
       position_x: data.position_x || 0,
@@ -245,56 +239,43 @@ export const saveBotStep = createServerFn({ method: "POST" })
       card_color: data.card_color || null,
     };
 
-    let saveResult;
-    if (data.id) {
-      const { data: existing } = await context.db
-        .from("bot_steps")
-        .select("id")
-        .eq("id", data.id)
-        .maybeSingle();
+    const stepId = data.id || crypto.randomUUID();
+    const existing = (await db.query("SELECT id FROM bot_steps WHERE id = ?", [stepId])) as any[];
+    const cols = Object.keys(payload);
+    const vals = Object.values(payload);
 
-      if (existing?.id) {
-        saveResult = await context.db
-          .from("bot_steps")
-          .update(payload)
-          .eq("id", data.id)
-          .select("*")
-          .single();
-      } else {
-        saveResult = await context.db
-          .from("bot_steps")
-          .insert({ id: data.id, user_id: context.userId, ...payload })
-          .select("*")
-          .single();
-      }
+    if (existing?.length > 0) {
+      const setClause = cols.map((c) => `${c} = ?`).join(", ");
+      await db.query(`UPDATE bot_steps SET ${setClause} WHERE id = ?`, [...vals, stepId]);
     } else {
-      saveResult = await context.db
-        .from("bot_steps")
-        .insert({ id: crypto.randomUUID(), user_id: context.userId, ...payload })
-        .select("*")
-        .single();
+      const placeholders = cols.map(() => "?").join(", ");
+      await db.query(
+        `INSERT INTO bot_steps (id, ${cols.join(", ")}) VALUES (?, ${placeholders})`,
+        [stepId, ...vals],
+      );
     }
 
-    if (saveResult.error) return { ok: false, error: saveResult.error.message };
-    return { ok: true, step: saveResult.data };
+    const rows = (await db.query("SELECT * FROM bot_steps WHERE id = ?", [stepId])) as any[];
+    return { ok: true, step: rows?.[0] ?? null };
   });
 
 export const deleteBotStep = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
-    const { error } = await context.db.from("bot_steps").delete().eq("id", data.id);
-    if (error) return { ok: false, error: error.message };
+    const { default: db } = await import("./db");
+    await db.query("DELETE FROM bot_steps WHERE id = ?", [data.id]);
     return { ok: true };
   });
 
 export const listWhatsAppFlows = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }: { context: any }) => {
-    const { data, error } = await context.db
-      .from("whatsapp_flows")
-      .select("*")
-      .eq("user_id", context.userId);
-    if (error) return { ok: false as const, error: error.message };
-    return { ok: true as const, flows: data || [] };
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const data = (await db.query("SELECT * FROM whatsapp_flows WHERE user_id = ?", [
+      effectiveUserId,
+    ])) as any[];
+    return { ok: true as const, flows: data ?? [] };
   });

@@ -16,6 +16,10 @@ export const getBillingReport = createServerFn({ method: "POST" })
       .parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
     const now = new Date();
     const month =
       data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -23,15 +27,10 @@ export const getBillingReport = createServerFn({ method: "POST" })
     const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
     const end = new Date(Date.UTC(y, m, 1)).toISOString();
 
-    const { data: rows, error } = await context.db
-      .from("campaign_messages")
-      .select(
-        "status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at",
-      )
-      .gte("created_at", start)
-      .lt("created_at", end);
-
-    if (error) throw error;
+    const rows = (await db.query(
+      "SELECT status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at FROM campaign_messages WHERE user_id = ? AND created_at >= ? AND created_at < ?",
+      [effectiveUserId, start, end],
+    )) as any[];
 
     const totals = {
       total_messages: rows?.length ?? 0,

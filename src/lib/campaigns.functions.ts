@@ -439,32 +439,35 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: campaign, error: cErr } = await context.db
-      .from("campaigns")
-      .select("id, name, created_at, status")
-      .eq("id", data.id)
-      .single();
-    if (cErr) throw cErr;
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const campaigns: any[] = (await db.query(
+      `SELECT id, name, created_at, status FROM campaigns WHERE id = ? AND user_id = ? LIMIT 1`,
+      [data.id, effectiveUserId],
+    )) as any[];
+    const campaign = campaigns?.[0];
+    if (!campaign) throw new Error("Campanha não encontrada.");
 
-    // Busca em páginas (Supabase limita a 1000)
+    // Busca em páginas de 1000 registros
     const pageSize = 1000;
-    let from = 0;
+    let offset = 0;
     const all: any[] = [];
     while (true) {
-      const { data: rows, error } = await context.db
-        .from("campaign_messages")
-        .select(
-          "to_phone, status, attempts, wa_message_id, sent_at, delivered_at, read_at, failed_at, error, contact_id, contacts(name, email)",
-        )
-        .eq("campaign_id", data.id)
-        .order("created_at", { ascending: true })
-        .limit(pageSize)
-        .offset(from);
-      if (error) throw error;
+      const rows: any[] = (await db.query(
+        `SELECT cm.to_phone, cm.status, cm.attempts, cm.wa_message_id,
+                cm.sent_at, cm.delivered_at, cm.read_at, cm.failed_at,
+                cm.error, cm.contact_id,
+                c.name AS contact_name, c.email AS contact_email
+         FROM campaign_messages cm
+         LEFT JOIN contacts c ON c.id = cm.contact_id AND c.user_id = cm.user_id
+         WHERE cm.campaign_id = ? AND cm.user_id = ?
+         ORDER BY cm.created_at ASC
+         LIMIT ? OFFSET ?`,
+        [data.id, effectiveUserId, pageSize, offset],
+      )) as any[];
       if (!rows || rows.length === 0) break;
       all.push(...rows);
       if (rows.length < pageSize) break;
-      from += pageSize;
+      offset += pageSize;
     }
 
     const header = [
@@ -482,12 +485,11 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
     ];
     const lines = [header.join(",")];
     for (const r of all) {
-      const contact = (r as any).contacts ?? {};
       lines.push(
         [
           csvEscape(r.to_phone),
-          csvEscape(contact.name),
-          csvEscape(contact.email),
+          csvEscape(r.contact_name),
+          csvEscape(r.contact_email),
           csvEscape(r.status),
           csvEscape(r.attempts),
           csvEscape(r.wa_message_id),

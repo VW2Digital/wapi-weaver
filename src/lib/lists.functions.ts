@@ -5,9 +5,13 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 export const listTags = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db.from("tags").select("*").order("name");
-    if (error) throw error;
-    return data ?? [];
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = await db.query("SELECT * FROM tags WHERE user_id = ? ORDER BY name", [
+      effectiveUserId,
+    ]);
+    return (rows as any[]) ?? [];
   });
 
 export const createTag = createServerFn({ method: "POST" })
@@ -24,33 +28,41 @@ export const createTag = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.db
-      .from("tags")
-      .insert({ user_id: context.userId, name: data.name, color: data.color })
-      .select()
-      .single();
-    if (error) throw error;
-    return row;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const id = crypto.randomUUID();
+    await db.query("INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, ?)", [
+      id,
+      effectiveUserId,
+      data.name,
+      data.color,
+    ]);
+    const rows = await db.query("SELECT * FROM tags WHERE id = ?", [id]);
+    return (rows as any[])[0];
   });
 
 export const deleteTag = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.db.from("tags").delete().eq("id", data.id);
-    if (error) throw error;
+    const { default: db } = await import("./db");
+    await db.query("DELETE FROM tags WHERE id = ?", [data.id]);
     return { ok: true };
   });
 
 export const listLists = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("lists")
-      .select("*, list_contacts(count)")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return data ?? [];
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = await db.query(
+      `SELECT l.*, (SELECT COUNT(*) FROM list_contacts lc WHERE lc.list_id = l.id) AS contact_count
+       FROM lists l WHERE l.user_id = ? ORDER BY l.created_at DESC`,
+      [effectiveUserId],
+    );
+    return (rows as any[]) ?? [];
   });
 
 export const createList = createServerFn({ method: "POST" })
@@ -64,21 +76,26 @@ export const createList = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.db
-      .from("lists")
-      .insert({ user_id: context.userId, name: data.name, description: data.description })
-      .select()
-      .single();
-    if (error) throw error;
-    return row;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const id = crypto.randomUUID();
+    await db.query("INSERT INTO lists (id, user_id, name, description) VALUES (?, ?, ?, ?)", [
+      id,
+      effectiveUserId,
+      data.name,
+      data.description ?? null,
+    ]);
+    const rows = await db.query("SELECT * FROM lists WHERE id = ?", [id]);
+    return (rows as any[])[0];
   });
 
 export const deleteList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.db.from("lists").delete().eq("id", data.id);
-    if (error) throw error;
+    const { default: db } = await import("./db");
+    await db.query("DELETE FROM lists WHERE id = ?", [data.id]);
     return { ok: true };
   });
 
@@ -93,16 +110,22 @@ export const addContactsToList = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const rows = data.contact_ids.map((cid) => ({
-      list_id: data.list_id,
-      contact_id: cid,
-      user_id: context.userId,
-    }));
-    const { error } = await context.db
-      .from("list_contacts")
-      .upsert(rows, { onConflict: "list_id,contact_id" });
-    if (error) throw error;
-    return { added: rows.length };
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId]);
+    const chunkSize = 500;
+    let added = 0;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
+      await db.query(
+        `INSERT INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders} ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+        chunk.flat(),
+      );
+      added += chunk.length;
+    }
+    return { added };
   });
 
 export const removeContactFromList = createServerFn({ method: "POST" })
@@ -111,12 +134,11 @@ export const removeContactFromList = createServerFn({ method: "POST" })
     z.object({ list_id: z.string().uuid(), contact_id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.db
-      .from("list_contacts")
-      .delete()
-      .eq("list_id", data.list_id)
-      .eq("contact_id", data.contact_id);
-    if (error) throw error;
+    const { default: db } = await import("./db");
+    await db.query("DELETE FROM list_contacts WHERE list_id = ? AND contact_id = ?", [
+      data.list_id,
+      data.contact_id,
+    ]);
     return { ok: true };
   });
 
@@ -124,10 +146,10 @@ export const getListContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ list_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.db
-      .from("list_contacts")
-      .select("contact_id, contacts(*)")
-      .eq("list_id", data.list_id);
-    if (error) throw error;
-    return rows ?? [];
+    const { default: db } = await import("./db");
+    const rows = await db.query(
+      "SELECT lc.contact_id, c.* FROM list_contacts lc JOIN contacts c ON lc.contact_id = c.id WHERE lc.list_id = ?",
+      [data.list_id],
+    );
+    return (rows as any[]) ?? [];
   });

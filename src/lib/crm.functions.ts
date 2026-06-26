@@ -89,12 +89,12 @@ async function validateStageBelongsToFunnel(funnelId: string, stageId: string): 
 export const listFunnels = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("sales_funnels")
-      .select("*")
-      .eq("user_id", context.userId)
-      .order("sort_order", { ascending: true });
-    if (error) throw error;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const data = await db.query(
+      "SELECT * FROM sales_funnels WHERE user_id = ? ORDER BY sort_order ASC",
+      [effectiveUserId],
+    );
     return data;
   });
 
@@ -102,6 +102,8 @@ export const createFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => funnelSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const funnelId = crypto.randomUUID();
     const slug = data.name
       .toLowerCase()
@@ -112,7 +114,7 @@ export const createFunnel = createServerFn({ method: "POST" })
       if (data.is_default) {
         // Reset defaults
         await conn.execute("UPDATE sales_funnels SET is_default = FALSE WHERE user_id = ?", [
-          context.userId,
+          effectiveUserId,
         ]);
       }
 
@@ -121,7 +123,7 @@ export const createFunnel = createServerFn({ method: "POST" })
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           funnelId,
-          context.userId,
+          effectiveUserId,
           data.name,
           slug,
           data.description ?? null,
@@ -140,6 +142,8 @@ export const updateFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), data: funnelSchema }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const slug = data.data.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -149,7 +153,7 @@ export const updateFunnel = createServerFn({ method: "POST" })
       // Validate ownership
       const [ownerCheck]: any = await conn.execute(
         "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!ownerCheck || ownerCheck.length === 0) {
         throw new Error("Funil não encontrado ou não autorizado");
@@ -158,7 +162,7 @@ export const updateFunnel = createServerFn({ method: "POST" })
       if (data.data.is_default) {
         await conn.execute(
           "UPDATE sales_funnels SET is_default = FALSE WHERE user_id = ? AND id != ?",
-          [context.userId, data.id],
+          [effectiveUserId, data.id],
         );
       }
 
@@ -186,10 +190,12 @@ export const deleteFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     // Check ownership
     const funnel = await db.query(
       "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
-      [data.id, context.userId],
+      [data.id, effectiveUserId],
     );
     if (!funnel || funnel.length === 0) {
       throw new Error("Funil não encontrado");
@@ -218,13 +224,12 @@ export const listStages = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ funnel_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: stages, error } = await context.db
-      .from("sales_stages")
-      .select("*")
-      .eq("funnel_id", data.funnel_id)
-      .eq("user_id", context.userId)
-      .order("sort_order", { ascending: true });
-    if (error) throw error;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const stages = await db.query(
+      "SELECT * FROM sales_stages WHERE funnel_id = ? AND user_id = ? ORDER BY sort_order ASC",
+      [data.funnel_id, effectiveUserId],
+    );
     return stages;
   });
 
@@ -232,6 +237,8 @@ export const createStage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => stageSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const stageId = crypto.randomUUID();
     const slug = data.name
       .toLowerCase()
@@ -242,7 +249,7 @@ export const createStage = createServerFn({ method: "POST" })
       // Validate funnel ownership
       const [funnelCheck]: any = await conn.execute(
         "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.funnel_id, context.userId],
+        [data.funnel_id, effectiveUserId],
       );
       if (!funnelCheck || funnelCheck.length === 0) {
         throw new Error("Funil de destino inválido");
@@ -253,7 +260,7 @@ export const createStage = createServerFn({ method: "POST" })
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           stageId,
-          context.userId,
+          effectiveUserId,
           data.funnel_id,
           data.name,
           slug,
@@ -276,6 +283,8 @@ export const updateStage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), data: stageSchema }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const slug = data.data.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -285,7 +294,7 @@ export const updateStage = createServerFn({ method: "POST" })
       // Validate ownership
       const [ownerCheck]: any = await conn.execute(
         "SELECT id FROM sales_stages WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!ownerCheck || ownerCheck.length === 0) {
         throw new Error("Etapa não encontrada");
@@ -325,11 +334,13 @@ export const deleteStage = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate ownership
       const [stage]: any = await conn.execute(
         "SELECT id, funnel_id FROM sales_stages WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!stage || stage.length === 0) {
         throw new Error("Etapa não encontrada");
@@ -381,11 +392,13 @@ export const reorderStages = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate ownership of the funnel
       const [funnelCheck]: any = await conn.execute(
         "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.funnel_id, context.userId],
+        [data.funnel_id, effectiveUserId],
       );
       if (!funnelCheck || funnelCheck.length === 0) {
         throw new Error("Funil não encontrado");
@@ -421,6 +434,8 @@ export const listOpportunities = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     let queryStr = `
       SELECT o.*, 
              c.name AS primary_contact_name, 
@@ -431,7 +446,7 @@ export const listOpportunities = createServerFn({ method: "GET" })
       LEFT JOIN contacts c ON o.primary_contact_id = c.id
       WHERE o.user_id = ? AND o.funnel_id = ? AND o.deleted_at IS NULL
     `;
-    const params: any[] = [context.userId, data.funnel_id];
+    const params: any[] = [effectiveUserId, data.funnel_id];
 
     if (data.stage_id) {
       queryStr += " AND o.stage_id = ?";
@@ -501,6 +516,8 @@ export const getOpportunity = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     // Get primary opportunity details
     const rows = await db.query(
       `
@@ -520,7 +537,7 @@ export const getOpportunity = createServerFn({ method: "GET" })
       WHERE o.id = ? AND o.user_id = ? AND o.deleted_at IS NULL
       LIMIT 1
     `,
-      [data.id, context.userId],
+      [data.id, effectiveUserId],
     );
 
     if (!rows || rows.length === 0) {
@@ -568,6 +585,8 @@ export const createOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => opportunitySchema.parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const oppId = crypto.randomUUID();
 
     await db.transaction(async (conn) => {
@@ -592,14 +611,14 @@ export const createOpportunity = createServerFn({ method: "POST" })
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           oppId,
-          context.userId,
+          effectiveUserId,
           data.funnel_id,
           data.stage_id,
           data.title,
           data.description ?? null,
           data.primary_contact_id ?? null,
           data.company_name ?? null,
-          data.owner_user_id ?? context.userId,
+          data.owner_user_id ?? effectiveUserId,
           context.userId,
           data.value,
           data.currency ?? "BRL",
@@ -617,7 +636,7 @@ export const createOpportunity = createServerFn({ method: "POST" })
           `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
            VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)
            ON DUPLICATE KEY UPDATE is_primary = TRUE`,
-          [context.userId, oppId, data.primary_contact_id],
+          [effectiveUserId, oppId, data.primary_contact_id],
         );
       }
 
@@ -628,7 +647,7 @@ export const createOpportunity = createServerFn({ method: "POST" })
             `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
              VALUES (UUID(), ?, ?, ?, ?, FALSE)
              ON DUPLICATE KEY UPDATE role = VALUES(role), is_primary = FALSE`,
-            [context.userId, oppId, ac.contact_id, ac.role ?? null],
+            [effectiveUserId, oppId, ac.contact_id, ac.role ?? null],
           );
         }
       }
@@ -639,7 +658,7 @@ export const createOpportunity = createServerFn({ method: "POST" })
           // Find or create tag
           const [tag]: any = await conn.execute(
             "SELECT id FROM tags WHERE user_id = ? AND name = ? LIMIT 1",
-            [context.userId, tagName],
+            [effectiveUserId, tagName],
           );
           let tagId: string;
           if (tag && tag.length > 0) {
@@ -648,12 +667,12 @@ export const createOpportunity = createServerFn({ method: "POST" })
             tagId = crypto.randomUUID();
             await conn.execute(
               "INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, '#8B5CF6')",
-              [tagId, context.userId, tagName],
+              [tagId, effectiveUserId, tagName],
             );
           }
           await conn.execute(
             "INSERT INTO opportunity_tags (opportunity_id, tag_id, user_id) VALUES (?, ?, ?)",
-            [oppId, tagId, context.userId],
+            [oppId, tagId, effectiveUserId],
           );
         }
       }
@@ -672,11 +691,13 @@ export const updateOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), data: opportunitySchema }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate owner
       const [oppCheck]: any = await conn.execute(
         "SELECT * FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!oppCheck || oppCheck.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -702,7 +723,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
           data.data.stage_id,
           data.data.primary_contact_id ?? null,
           data.data.company_name ?? null,
-          data.data.owner_user_id ?? context.userId,
+          data.data.owner_user_id ?? effectiveUserId,
           data.data.value,
           data.data.currency ?? "BRL",
           data.data.expected_close_date ?? null,
@@ -723,7 +744,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
         await conn.execute(
           `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
            VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)`,
-          [context.userId, data.id, data.data.primary_contact_id],
+          [effectiveUserId, data.id, data.data.primary_contact_id],
         );
       }
 
@@ -737,7 +758,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
           await conn.execute(
             `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
              VALUES (UUID(), ?, ?, ?, ?, FALSE)`,
-            [context.userId, data.id, ac.contact_id, ac.role ?? null],
+            [effectiveUserId, data.id, ac.contact_id, ac.role ?? null],
           );
         }
       }
@@ -748,7 +769,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
         for (const tagName of data.data.tags) {
           const [tag]: any = await conn.execute(
             "SELECT id FROM tags WHERE user_id = ? AND name = ? LIMIT 1",
-            [context.userId, tagName],
+            [effectiveUserId, tagName],
           );
           let tagId: string;
           if (tag && tag.length > 0) {
@@ -757,12 +778,12 @@ export const updateOpportunity = createServerFn({ method: "POST" })
             tagId = crypto.randomUUID();
             await conn.execute(
               "INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, '#8B5CF6')",
-              [tagId, context.userId, tagName],
+              [tagId, effectiveUserId, tagName],
             );
           }
           await conn.execute(
             "INSERT INTO opportunity_tags (opportunity_id, tag_id, user_id) VALUES (?, ?, ?)",
-            [data.id, tagId, context.userId],
+            [data.id, tagId, effectiveUserId],
           );
         }
       }
@@ -778,10 +799,12 @@ export const deleteOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     // Soft delete
     await db.query(
       "UPDATE opportunities SET deleted_at = NOW(), updated_by_user_id = ? WHERE id = ? AND user_id = ?",
-      [context.userId, data.id, context.userId],
+      [context.userId, data.id, effectiveUserId],
     );
 
     // Audit log
@@ -811,11 +834,13 @@ export const moveOpportunity = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     return await db.transaction(async (conn) => {
       // Find opportunity with lock (using plain SELECT first for simplicity, or SELECT ... FOR UPDATE)
       const [oppRows]: any = await conn.execute(
         "SELECT * FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!oppRows || oppRows.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -827,7 +852,7 @@ export const moveOpportunity = createServerFn({ method: "POST" })
       // Find target stage
       const [stageRows]: any = await conn.execute(
         "SELECT * FROM sales_stages WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.to_stage_id, context.userId],
+        [data.to_stage_id, effectiveUserId],
       );
       if (!stageRows || stageRows.length === 0) {
         throw new Error("Etapa de destino inválida");
@@ -917,7 +942,7 @@ export const moveOpportunity = createServerFn({ method: "POST" })
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           historyId,
-          context.userId,
+          effectiveUserId,
           data.id,
           opportunity.funnel_id,
           oldStageId,
@@ -953,11 +978,13 @@ export const markOpportunityWon = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Get opportunity funnel
       const [opps]: any = await conn.execute(
         "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -985,7 +1012,7 @@ export const markOpportunityWon = createServerFn({ method: "POST" })
         `INSERT INTO opportunity_stage_history (id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status)
          VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, 'won')`,
         [
-          context.userId,
+          effectiveUserId,
           data.id,
           opportunity.funnel_id,
           opportunity.stage_id,
@@ -1021,10 +1048,12 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       const [opps]: any = await conn.execute(
         "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -1063,7 +1092,7 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
         `INSERT INTO opportunity_stage_history (id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status, reason)
          VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, 'lost', ?)`,
         [
-          context.userId,
+          effectiveUserId,
           data.id,
           opportunity.funnel_id,
           opportunity.stage_id,
@@ -1094,10 +1123,12 @@ export const reopenOpportunity = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), target_stage_id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       const [opps]: any = await conn.execute(
         "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -1118,7 +1149,7 @@ export const reopenOpportunity = createServerFn({ method: "POST" })
         `INSERT INTO opportunity_stage_history (id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status)
          VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, 'open')`,
         [
-          context.userId,
+          effectiveUserId,
           data.id,
           opportunity.funnel_id,
           opportunity.stage_id,
@@ -1154,10 +1185,12 @@ export const changeOpportunityFunnel = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       const [opps]: any = await conn.execute(
         "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -1206,12 +1239,14 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const newId = crypto.randomUUID();
 
     await db.transaction(async (conn) => {
       const [opps]: any = await conn.execute(
         "SELECT * FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
@@ -1234,7 +1269,7 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
         [
           newId,
-          context.userId,
+          effectiveUserId,
           o.funnel_id,
           o.stage_id,
           `${o.title} (Cópia)`,
@@ -1262,7 +1297,7 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
         await conn.execute(
           `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
            VALUES (UUID(), ?, ?, ?, ?, ?)`,
-          [context.userId, newId, c.contact_id, c.role, c.is_primary],
+          [effectiveUserId, newId, c.contact_id, c.role, c.is_primary],
         );
       }
 
@@ -1274,7 +1309,7 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
       for (const t of tags) {
         await conn.execute(
           "INSERT INTO opportunity_tags (opportunity_id, tag_id, user_id) VALUES (?, ?, ?)",
-          [newId, t.tag_id, context.userId],
+          [newId, t.tag_id, effectiveUserId],
         );
       }
 
@@ -1316,13 +1351,15 @@ export const listActivities = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const rows = await db.query(
       `SELECT a.*, c.name AS contact_name
        FROM opportunity_activities a
        LEFT JOIN contacts c ON a.contact_id = c.id
        WHERE a.opportunity_id = ? AND a.user_id = ? AND a.deleted_at IS NULL
        ORDER BY a.created_at DESC`,
-      [data.opportunity_id, context.userId],
+      [data.opportunity_id, effectiveUserId],
     );
     return rows;
   });
@@ -1331,6 +1368,8 @@ export const createActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => activitySchema.parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const actId = crypto.randomUUID();
 
     await db.transaction(async (conn) => {
@@ -1341,10 +1380,10 @@ export const createActivity = createServerFn({ method: "POST" })
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           actId,
-          context.userId,
+          effectiveUserId,
           data.opportunity_id,
           data.contact_id ?? null,
-          data.assigned_to_user_id ?? context.userId,
+          data.assigned_to_user_id ?? effectiveUserId,
           context.userId,
           data.type,
           data.title,
@@ -1366,11 +1405,13 @@ export const updateActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), data: activitySchema }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate owner
       const [checks]: any = await conn.execute(
         "SELECT id FROM opportunity_activities WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       if (!checks || checks.length === 0) {
         throw new Error("Atividade não encontrada");
@@ -1383,7 +1424,7 @@ export const updateActivity = createServerFn({ method: "POST" })
          WHERE id = ?`,
         [
           data.data.contact_id ?? null,
-          data.data.assigned_to_user_id ?? context.userId,
+          data.data.assigned_to_user_id ?? effectiveUserId,
           data.data.type,
           data.data.title,
           data.data.description ?? null,
@@ -1406,10 +1447,12 @@ export const deleteActivity = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), opportunity_id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       await conn.execute(
         "UPDATE opportunity_activities SET deleted_at = NOW() WHERE id = ? AND user_id = ?",
-        [data.id, context.userId],
+        [data.id, effectiveUserId],
       );
       await updateOpportunityActivityTimestamps(conn, data.opportunity_id);
     });
@@ -1449,13 +1492,15 @@ export const listNotes = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const rows = await db.query(
       `SELECT n.*, u.email AS creator_email
        FROM opportunity_notes n
        LEFT JOIN users u ON n.user_id_creator = u.id
        WHERE n.opportunity_id = ? AND n.user_id = ? AND n.deleted_at IS NULL
        ORDER BY n.is_pinned DESC, n.created_at DESC`,
-      [data.opportunity_id, context.userId],
+      [data.opportunity_id, effectiveUserId],
     );
     return rows;
   });
@@ -1472,13 +1517,15 @@ export const createNote = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const noteId = crypto.randomUUID();
     await db.query(
       `INSERT INTO opportunity_notes (id, user_id, opportunity_id, user_id_creator, body, is_pinned)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
         noteId,
-        context.userId,
+        effectiveUserId,
         data.opportunity_id,
         context.userId,
         data.body,
@@ -1500,11 +1547,13 @@ export const updateNote = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.query(
       `UPDATE opportunity_notes
        SET body = ?, is_pinned = ?
        WHERE id = ? AND user_id = ?`,
-      [data.body, data.is_pinned ? 1 : 0, data.id, context.userId],
+      [data.body, data.is_pinned ? 1 : 0, data.id, effectiveUserId],
     );
     return { ok: true };
   });
@@ -1513,9 +1562,11 @@ export const deleteNote = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.query("UPDATE opportunity_notes SET deleted_at = NOW() WHERE id = ? AND user_id = ?", [
       data.id,
-      context.userId,
+      effectiveUserId,
     ]);
     return { ok: true };
   });
@@ -1528,6 +1579,8 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     // 1. Get Stage changes
     const stageHistory = await db.query(
       `SELECT h.moved_at AS event_date, 'stage_history' AS event_type, 
@@ -1540,7 +1593,7 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
        LEFT JOIN users u ON h.moved_by_user_id = u.id
        WHERE h.opportunity_id = ? AND h.user_id = ?
        ORDER BY h.moved_at DESC`,
-      [data.opportunity_id, context.userId],
+      [data.opportunity_id, effectiveUserId],
     );
 
     // 2. Get Notes
@@ -1551,7 +1604,7 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
        FROM opportunity_notes n
        LEFT JOIN users u ON n.user_id_creator = u.id
        WHERE n.opportunity_id = ? AND n.user_id = ? AND n.deleted_at IS NULL`,
-      [data.opportunity_id, context.userId],
+      [data.opportunity_id, effectiveUserId],
     );
 
     // 3. Get Activities
@@ -1562,7 +1615,7 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
        FROM opportunity_activities a
        LEFT JOIN users u ON a.created_by_user_id = u.id
        WHERE a.opportunity_id = ? AND a.user_id = ? AND a.deleted_at IS NULL`,
-      [data.opportunity_id, context.userId],
+      [data.opportunity_id, effectiveUserId],
     );
 
     // Merge and sort timeline
@@ -1585,7 +1638,9 @@ export const getCRMStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ funnel_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const userId = context.userId;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const userId = effectiveUserId;
 
     // 1. Total opportunities count & values (grouped by status)
     const statusSummary = await db.query(
@@ -1655,9 +1710,11 @@ export const getCRMStats = createServerFn({ method: "GET" })
 export const listLostReasons = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const rows = await db.query(
       "SELECT * FROM opportunity_lost_reasons WHERE user_id = ? AND is_active = TRUE ORDER BY sort_order ASC",
-      [context.userId],
+      [effectiveUserId],
     );
     return rows;
   });
