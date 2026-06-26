@@ -44,6 +44,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { SidebarProvider, Sidebar, SidebarRail } from "@/components/ui/sidebar";
 import { useEffect, useMemo, useState } from "react";
 
 function useGravatarUrl(email: string | null | undefined) {
@@ -235,19 +236,19 @@ function AppLayout() {
     router.navigate({ to: "/login", replace: true });
   };
   const SidebarBody = (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-6 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary">
+    <div className="flex h-full flex-col overflow-x-hidden">
+      <div className="flex items-center gap-2 px-6 py-5 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary shrink-0">
           <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
         </div>
-        <span className="font-display text-base font-semibold text-sidebar-foreground">
+        <span className="font-display text-base font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
           VW2 Conversas
         </span>
       </div>
-      <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60">
+      <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
         Menu
       </div>
-      <nav className="flex-1 space-y-1 px-3 overflow-y-auto">
+      <nav className="flex-1 space-y-1 px-3 overflow-y-auto group-data-[collapsible=icon]:px-1.5">
         {orderedNav.map((item: any) => {
           const { to, label, icon: Icon } = item;
           const isAdminOnly = ["/users", "/audit", "/webhook-events", "/billing"].includes(to);
@@ -272,33 +273,33 @@ function AppLayout() {
                   type="button"
                   onClick={() => setOpenMenus((prev) => ({ ...prev, [to]: !prev[to] }))}
                   className={cn(
-                    "w-full group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
+                    "w-full group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
                     isAnyChildActive
                       ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
                   )}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 group-data-[collapsible=icon]:gap-0">
                     <Icon
                       className={cn(
-                        "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
+                        "h-4 w-4 transition-transform duration-200 group-hover:scale-110 shrink-0",
                         isAnyChildActive
                           ? "text-sidebar-accent-foreground"
                           : "text-sidebar-foreground/70",
                       )}
                     />
-                    <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+                    <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-data-[collapsible=icon]:hidden">
                       {label}
                     </span>
                   </div>
                   {isOpen ? (
-                    <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0" />
+                    <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-sidebar-foreground/60 shrink-0" />
+                    <ChevronDown className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
                   )}
                 </button>
                 {isOpen && (
-                  <div className="pl-6 space-y-1 border-l border-sidebar-border/60 ml-5 mt-1 transition-all duration-200">
+                  <div className="pl-6 space-y-1 border-l border-sidebar-border/60 ml-5 mt-1 transition-all duration-200 group-data-[collapsible=icon]:hidden">
                     {visibleChildren.map((child: any) => {
                       const childActive = loc.pathname.startsWith(child.to);
                       const ChildIcon = child.icon;
@@ -330,48 +331,48 @@ function AppLayout() {
               key={to}
               to={to}
               className={cn(
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
                 active
                   ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
               )}
             >
               {active && (
-                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200" />
+                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200 group-data-[collapsible=icon]:hidden" />
               )}
               <Icon
                 className={cn(
-                  "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
+                  "h-4 w-4 transition-transform duration-200 group-hover:scale-110 shrink-0",
                   active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
                 )}
               />
-              <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+              <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-data-[collapsible=icon]:hidden">
                 {label}
               </span>
             </Link>
           );
         })}
       </nav>
-      <div className="m-3 mt-4 border-t border-sidebar-border pt-3">
+      <div className="m-3 mt-4 border-t border-sidebar-border pt-3 group-data-[collapsible=icon]:m-1 group-data-[collapsible=icon]:px-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               aria-label="Abrir menu do usuário"
-              className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors"
+              className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
             >
-              <Avatar className="h-9 w-9">
+              <Avatar className="h-9 w-9 shrink-0">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
                 <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
                   {(user.email ?? "?").slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                 <div className="text-sm font-medium truncate text-sidebar-foreground">
                   {user.email?.split("@")[0]}
                 </div>
                 <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
               </div>
-              <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0" />
+              <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="end" className="w-64">
@@ -421,35 +422,38 @@ function AppLayout() {
   );
 
   return (
-    <div className="h-dvh overflow-hidden bg-background md:pl-[260px] flex flex-col">
-      <aside className="hidden md:flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:fixed md:inset-y-0 md:left-0 md:w-[260px] md:z-30">
+    <SidebarProvider>
+      <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         {SidebarBody}
-      </aside>
+        <SidebarRail />
+      </Sidebar>
 
-      {/* Mobile top bar */}
-      <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button size="icon" variant="ghost" aria-label="Abrir menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[280px] bg-sidebar p-0 text-sidebar-foreground">
-            <SheetTitle className="sr-only">Menu</SheetTitle>
-            {SidebarBody}
-          </SheetContent>
-        </Sheet>
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-            <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
+      <div className="h-dvh overflow-hidden bg-background flex flex-col flex-1">
+        {/* Mobile top bar */}
+        <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="Abrir menu">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[280px] bg-sidebar p-0 text-sidebar-foreground">
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              {SidebarBody}
+            </SheetContent>
+          </Sheet>
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
+              <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
+            </div>
+            <span className="font-display text-sm font-semibold">VW2 Conversas</span>
           </div>
-          <span className="font-display text-sm font-semibold">VW2 Conversas</span>
-        </div>
-      </header>
+        </header>
 
-      <main className="flex-1 overflow-hidden flex flex-col">
-        <Outlet />
-      </main>
-    </div>
+        <main className="flex-1 overflow-hidden flex flex-col">
+          <Outlet />
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }
