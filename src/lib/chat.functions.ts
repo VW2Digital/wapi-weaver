@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import crypto from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import { resolveContactUserId } from "./chat-helpers";
 import db from "./db";
 
 // Schema de validação para envio de mensagem direta
@@ -149,13 +151,13 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN users u ON u.id = ca.agent_id
         LEFT JOIN profiles p ON p.id = u.id
         LEFT JOIN sales_stages s ON s.id = c.kanban_stage_id
-        WHERE c.user_id = ?
+        WHERE (c.user_id = ? OR (ca.agent_id = ? AND ca.is_active = true))
           AND (last_dm.created_at IS NOT NULL OR last_cm.sent_at IS NOT NULL)
         ORDER BY 
           c.is_pinned DESC,
           COALESCE(last_dm.created_at, last_cm.sent_at, c.created_at) DESC
       `,
-        [context.userId],
+        [context.userId, context.userId],
       );
 
       return (contacts ?? []).map((c: any) => ({
@@ -176,18 +178,15 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
 
-    // Atualiza todas as mensagens recebidas não lidas deste contato para 'read'
-    const { error } = await context.db
-      .from("direct_messages")
-      .update({ status: "read" })
-      .eq("contact_phone", phone)
-      .eq("direction", "incoming")
-      .neq("status", "read");
+    const contactUserId = await resolveContactUserId(phone, context.userId);
+    if (!contactUserId) return { ok: true };
 
-    if (error) {
-      console.error("Erro ao marcar mensagens como lidas:", error);
-      throw new Error(error.message);
-    }
+    await db.query(
+      `UPDATE direct_messages SET status = 'read'
+       WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming' AND (status IS NULL OR status != 'read')`,
+      [contactUserId, phone],
+    );
+
     return { ok: true };
   });
 
@@ -196,21 +195,22 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
-    const { data: contact, error } = await context.db
-      .from("contacts")
-      .select("*")
-      .eq("phone_e164", phone)
-      .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    const contactUserId = await resolveContactUserId(phone, context.userId);
+    if (!contactUserId) return null;
+
+    const contacts: any[] = (await db.query(
+      `SELECT * FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
+      [contactUserId, phone],
+    )) as any[];
+    const contact = contacts?.[0] ?? null;
 
     if (contact) {
-      const { data: botState } = await context.db
-        .from("bot_conversation_state")
-        .select("bot_active")
-        .eq("contact_number", phone)
-        .maybeSingle();
-      contact.bot_active = botState ? !!botState.bot_active : true;
+      const botStates: any[] = (await db.query(
+        `SELECT bot_active FROM bot_conversation_state WHERE user_id = ? AND contact_number = ? LIMIT 1`,
+        [contactUserId, phone],
+      )) as any[];
+      contact.bot_active = botStates?.[0] ? !!botStates[0].bot_active : true;
     }
 
     return contact ?? null;
@@ -222,14 +222,15 @@ export const getChatMessages = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
 
-    // context.db auto-scopes by user_id — no need to add .eq("user_id", ...) manually
-    const { data: messages, error } = await context.db
-      .from("direct_messages")
-      .select("*")
-      .eq("contact_phone", phone)
-      .order("created_at", { ascending: true });
+    const contactUserId = await resolveContactUserId(phone, context.userId);
+    if (!contactUserId) return [];
 
-    if (error) throw new Error(error.message);
+    const messages: any[] = (await db.query(
+      `SELECT * FROM direct_messages
+       WHERE user_id = ? AND contact_phone = ?
+       ORDER BY created_at ASC`,
+      [contactUserId, phone],
+    )) as any[];
 
     return (messages ?? []).map((row: any) => {
       const meta = row.metadata as any;
@@ -263,18 +264,26 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => sendMessageInput.parse(d))
   .handler(async ({ data, context }) => {
-    // 1. Busca credenciais do perfil (scoped to the authenticated user)
-    const { data: p, error: profErr } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
-      .maybeSingle();
-
-    if (profErr || !p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
-      return { ok: false, error: "Credenciais de API não configuradas em Configurações." };
-    }
-
     const digits = data.to.replace(/\D/g, "");
     if (digits.length < 8) return { ok: false, error: "Número do destinatário inválido." };
+
+    // Resolve o user_id dono do contato (suporta atribuição)
+    const contactUserId = await resolveContactUserId(digits, context.userId);
+    if (!contactUserId) {
+      return { ok: false, error: "Não autorizado: contato não encontrado ou não atribuído a você." };
+    }
+
+    // 1. Busca credenciais do perfil do dono do contato (bypass auto-scope)
+    const profiles: any[] = (await db.query(
+      `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
+       FROM profiles WHERE id = ? LIMIT 1`,
+      [contactUserId],
+    )) as any[];
+    const p = profiles?.[0];
+
+    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais de API não configuradas em Configurações." };
+    }
 
     // 2. Reconstrói o payload de envio conforme especificações do cURL
     const payload: any = {
@@ -371,43 +380,47 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       bodyText = data.contacts?.[0]?.name?.formatted_name || "Contato";
     }
 
-    // 4. Registra a mensagem enviada na tabela direct_messages
-    // context.db is user-scoped: user_id is automatically filled in by the query compiler
-    const { error: msgErr } = await context.db.from("direct_messages").upsert({
-      contact_phone: digits,
-      direction: "outgoing",
-      type: data.type,
-      body: bodyText,
-      wa_message_id: wamid,
-      status: "sent",
-      reply_to_message_id: data.reply_to_message_id || null,
-      metadata: {
-        text: data.text,
-        reaction: data.reaction,
-        image: data.image,
-        audio: data.audio,
-        video: data.video,
-        document: data.document,
-        sticker: data.sticker,
-        location: data.location,
-        contacts: data.contacts,
-      },
-    });
-
-    if (msgErr) throw new Error(msgErr.message);
+    // 4. Registra a mensagem enviada na tabela direct_messages (bypass auto-scope)
+    const metadata = {
+      text: data.text,
+      reaction: data.reaction,
+      image: data.image,
+      audio: data.audio,
+      video: data.video,
+      document: data.document,
+      sticker: data.sticker,
+      location: data.location,
+      contacts: data.contacts,
+    };
+    const msgId = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO direct_messages (id, user_id, contact_phone, direction, type, body, wa_message_id, status, reply_to_message_id, metadata)
+       VALUES (?, ?, ?, 'outgoing', ?, ?, ?, 'sent', ?, ?)
+       ON DUPLICATE KEY UPDATE
+         status = VALUES(status),
+         body = VALUES(body),
+         metadata = VALUES(metadata)`,
+      [
+        msgId,
+        contactUserId,
+        digits,
+        data.type,
+        bodyText,
+        wamid,
+        data.reply_to_message_id || null,
+        JSON.stringify(metadata),
+      ],
+    );
 
     // 5. PAUSA O BOT (Fase 1 do BotFlow)
     // Quando um humano envia mensagem, o bot entra em pausa automática por padrão.
-    // Vamos setar paused_until para +60 minutos (fallback genérico)
     const pausedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    await context.db
-      .from("bot_conversation_state")
-      .update({
-        is_paused: true,
-        paused_until: pausedUntil,
-      })
-      .eq("contact_number", digits)
-      .eq("instance_id", p.whatsapp_phone_number_id);
+    await db.query(
+      `UPDATE bot_conversation_state
+       SET is_paused = true, paused_until = ?
+       WHERE user_id = ? AND contact_number = ? AND instance_id = ?`,
+      [pausedUntil, contactUserId, digits, p.whatsapp_phone_number_id],
+    );
 
     return { ok: true, wamid, body };
   });

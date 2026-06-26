@@ -2,7 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import crypto from "crypto";
+import { resolveContactUserId, resolveContactUserIdById } from "./chat-helpers";
 import db from "./db";
+
+async function requireContactAccess(
+  contactId: string,
+  userId: string,
+): Promise<{ userId: string; phone: string } | null> {
+  const resolved = await resolveContactUserIdById(contactId, userId);
+  if (!resolved) return null;
+  return resolved;
+}
 
 // 1. Alternar Pin
 export const togglePinContact = createServerFn({ method: "POST" })
@@ -10,10 +20,12 @@ export const togglePinContact = createServerFn({ method: "POST" })
   .validator((d) => z.object({ contactId: z.string().min(1), isPinned: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     try {
+      const access = await requireContactAccess(data.contactId, context.userId);
+      if (!access) throw new Error("Contato não encontrado ou não atribuído a você.");
       await db.query("UPDATE contacts SET is_pinned = ? WHERE id = ? AND user_id = ?", [
         data.isPinned ? 1 : 0,
         data.contactId,
-        context.userId,
+        access.userId,
       ]);
       return { ok: true };
     } catch (e: any) {
@@ -28,10 +40,12 @@ export const toggleArchiveContact = createServerFn({ method: "POST" })
   .validator((d) => z.object({ contactId: z.string().min(1), isArchived: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     try {
+      const access = await requireContactAccess(data.contactId, context.userId);
+      if (!access) throw new Error("Contato não encontrado ou não atribuído a você.");
       await db.query("UPDATE contacts SET is_archived = ? WHERE id = ? AND user_id = ?", [
         data.isArchived ? 1 : 0,
         data.contactId,
-        context.userId,
+        access.userId,
       ]);
       return { ok: true };
     } catch (e: any) {
@@ -46,10 +60,12 @@ export const updateChatStatus = createServerFn({ method: "POST" })
   .validator((d) => z.object({ contactId: z.string().min(1), status: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     try {
+      const access = await requireContactAccess(data.contactId, context.userId);
+      if (!access) throw new Error("Contato não encontrado ou não atribuído a você.");
       await db.query("UPDATE contacts SET chat_status = ? WHERE id = ? AND user_id = ?", [
         data.status,
         data.contactId,
-        context.userId,
+        access.userId,
       ]);
       return { ok: true };
     } catch (e: any) {
@@ -64,10 +80,12 @@ export const toggleUnreadContact = createServerFn({ method: "POST" })
   .validator((d) => z.object({ contactId: z.string().min(1), isUnread: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     try {
+      const access = await requireContactAccess(data.contactId, context.userId);
+      if (!access) throw new Error("Contato não encontrado ou não atribuído a você.");
       await db.query("UPDATE contacts SET is_unread = ? WHERE id = ? AND user_id = ?", [
         data.isUnread ? 1 : 0,
         data.contactId,
-        context.userId,
+        access.userId,
       ]);
       return { ok: true };
     } catch (e: any) {
@@ -84,12 +102,13 @@ export const setContactKanbanStage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      // Validar se o stage pertence ao tenant
+      const access = await requireContactAccess(data.contactId, context.userId);
+      if (!access) throw new Error("Contato não encontrado ou não atribuído a você.");
       if (data.stageId) {
-        const stage = await db.query("SELECT 1 FROM sales_stages WHERE id = ? AND user_id = ?", [
-          data.stageId,
-          context.userId,
-        ]);
+        const stage = await db.query(
+          "SELECT 1 FROM sales_stages WHERE id = ? AND user_id = ?",
+          [data.stageId, access.userId],
+        );
         if (!stage || stage.length === 0) {
           throw new Error("Etapa do funil inválida.");
         }
@@ -98,7 +117,7 @@ export const setContactKanbanStage = createServerFn({ method: "POST" })
       await db.query("UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND user_id = ?", [
         data.stageId,
         data.contactId,
-        context.userId,
+        access.userId,
       ]);
       return { ok: true };
     } catch (e: any) {
@@ -124,10 +143,12 @@ export const quickSaveContact = createServerFn({ method: "POST" })
     try {
       const phoneDigits = data.phone.replace(/\D/g, "");
 
-      // Validar se o telefone já existe em outro contato do mesmo usuário
+      const access = await requireContactAccess(data.contactId, context.userId);
+      if (!access) throw new Error("Contato não encontrado ou não atribuído a você.");
+
       const existing = await db.query(
         "SELECT id FROM contacts WHERE user_id = ? AND phone_e164 = ? AND id != ?",
-        [context.userId, phoneDigits, data.contactId],
+        [access.userId, phoneDigits, data.contactId],
       );
       if (existing && existing.length > 0) {
         throw new Error("Já existe outro contato cadastrado com este número de telefone.");
@@ -135,7 +156,7 @@ export const quickSaveContact = createServerFn({ method: "POST" })
 
       await db.query(
         "UPDATE contacts SET name = ?, email = ?, phone_e164 = ? WHERE id = ? AND user_id = ?",
-        [data.name, data.email || null, phoneDigits, data.contactId, context.userId],
+        [data.name, data.email || null, phoneDigits, data.contactId, access.userId],
       );
       return { ok: true };
     } catch (e: any) {
@@ -152,10 +173,12 @@ export const toggleBotActive = createServerFn({ method: "POST" })
     try {
       const digits = data.contactPhone.replace(/\D/g, "");
 
-      // Obter ou criar o estado do bot para essa conversa
+      const contactUserId = await resolveContactUserId(digits, context.userId);
+      if (!contactUserId) throw new Error("Contato não encontrado ou não atribuído a você.");
+
       const [existing] = await db.query(
         "SELECT id FROM bot_conversation_state WHERE user_id = ? AND contact_number = ?",
-        [context.userId, digits],
+        [contactUserId, digits],
       );
 
       if (existing) {
@@ -164,18 +187,16 @@ export const toggleBotActive = createServerFn({ method: "POST" })
           [data.botActive ? 1 : 0, data.botActive ? 0 : 1, existing.id],
         );
       } else {
-        // Criar uma nova linha de estado
         const id = crypto.randomUUID();
-        // Buscar instance_id das configurações do bot ou WhatsApp
         const [settings] = await db.query(
           "SELECT instance_id FROM bot_settings WHERE user_id = ? LIMIT 1",
-          [context.userId],
+          [contactUserId],
         );
         const instanceId = settings?.instance_id || "default";
 
         await db.query(
           "INSERT INTO bot_conversation_state (id, user_id, contact_number, instance_id, bot_active, is_paused) VALUES (?, ?, ?, ?, ?, ?)",
-          [id, context.userId, digits, instanceId, data.botActive ? 1 : 0, data.botActive ? 0 : 1],
+          [id, contactUserId, digits, instanceId, data.botActive ? 1 : 0, data.botActive ? 0 : 1],
         );
       }
       return { ok: true };
