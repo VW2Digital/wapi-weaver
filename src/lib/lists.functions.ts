@@ -198,3 +198,90 @@ export const getListContacts = createServerFn({ method: "POST" })
     }
     return rows ?? [];
   });
+
+export const importCsvToList = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        list_id: z.string().uuid(),
+        contacts: z.array(
+          z.object({
+            name: z.string().trim().max(120).nullable().optional(),
+            phone: z.string().trim().min(1).max(32),
+            email: z.string().trim().max(180).nullable().optional(),
+          })
+        ),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const { normalizeToE164 } = await import("@/lib/phone");
+    const crypto = await import("crypto");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const importedIds: string[] = [];
+
+    const existing = (await db.query(
+      "SELECT id, phone_e164 FROM contacts WHERE user_id = ?",
+      [effectiveUserId]
+    )) as { id: string; phone_e164: string }[];
+
+    const phoneToIdMap = new Map<string, string>();
+    for (const r of existing) {
+      phoneToIdMap.set(r.phone_e164, r.id);
+    }
+
+    const contactsToInsert: any[] = [];
+
+    for (const c of data.contacts) {
+      const phoneE164 = normalizeToE164(c.phone);
+      if (!phoneE164) continue;
+
+      let contactId = phoneToIdMap.get(phoneE164);
+      if (!contactId) {
+        contactId = crypto.randomUUID();
+        phoneToIdMap.set(phoneE164, contactId);
+        contactsToInsert.push([
+          contactId,
+          effectiveUserId,
+          c.name || null,
+          phoneE164,
+          c.email || null,
+          null, // custom_fields
+          "csv_import", // source
+          0, // opted_out
+        ]);
+      }
+      importedIds.push(contactId);
+    }
+
+    // Inserir novos contatos em chunks de 100
+    const insertChunkSize = 100;
+    for (let i = 0; i < contactsToInsert.length; i += insertChunkSize) {
+      const chunk = contactsToInsert.slice(i, i + insertChunkSize);
+      const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
+      await db.query(
+        `INSERT INTO contacts (id, user_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}`,
+        chunk.flat()
+      );
+    }
+
+    // Associar os contatos à lista (list_contacts)
+    if (importedIds.length > 0) {
+      const assocValues = importedIds.map((cid) => [data.list_id, cid, effectiveUserId]);
+      const assocChunkSize = 500;
+      for (let i = 0; i < assocValues.length; i += assocChunkSize) {
+        const chunk = assocValues.slice(i, i + assocChunkSize);
+        const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
+        await db.query(
+          `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders}`,
+          chunk.flat()
+        );
+      }
+    }
+
+    return { importedCount: data.contacts.length, newContactsCount: contactsToInsert.length };
+  });

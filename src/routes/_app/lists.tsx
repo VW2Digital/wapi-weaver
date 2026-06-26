@@ -11,6 +11,7 @@ import {
   deleteTag,
   getListContacts,
   removeContactFromList,
+  importCsvToList,
 } from "@/lib/lists.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { PageHeader } from "@/components/layout/page-header";
@@ -44,6 +45,7 @@ function ListsPage() {
   const addToList = useServerFn(addContactsToList);
   const getMembers = useServerFn(getListContacts);
   const rmMember = useServerFn(removeContactFromList);
+  const importCsv = useServerFn(importCsvToList);
   const qc = useQueryClient();
   const confirm = useConfirm();
 
@@ -62,6 +64,104 @@ function ListsPage() {
     queryFn: () => getMembers({ data: { list_id: selectedList!.id } }),
     enabled: !!selectedList,
   });
+
+  const memberIds = new Set((members.data ?? []).map((m: any) => m.contact_id));
+  const filteredContacts = (contacts.data ?? [])
+    .filter((c: any) => !memberIds.has(c.id))
+    .filter(
+      (c: any) =>
+        !search ||
+        c.phone_e164.includes(search) ||
+        c.name?.toLowerCase().includes(search.toLowerCase()),
+    );
+
+  const handleSelectAll = () => {
+    const newPicked = new Set(picked);
+    filteredContacts.forEach((c: any) => newPicked.add(c.id));
+    setPicked(newPicked);
+  };
+
+  const handleClear = () => {
+    setPicked(new Set());
+  };
+
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedList) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split(/\r?\n/);
+      const parsedContacts: any[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const sep = line.includes(";") ? ";" : ",";
+        const cols = line.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ""));
+
+        if (i === 0 && (
+          line.toLowerCase().includes("phone") ||
+          line.toLowerCase().includes("telefone") ||
+          line.toLowerCase().includes("name") ||
+          line.toLowerCase().includes("nome") ||
+          line.toLowerCase().includes("email") ||
+          line.toLowerCase().includes("e-mail")
+        )) {
+          continue;
+        }
+
+        let phone = "";
+        let name = "";
+        let email = "";
+
+        if (cols.length >= 1) {
+          const col0Clean = cols[0].replace(/\D+/g, "");
+          const col1Clean = cols.length > 1 ? cols[1].replace(/\D+/g, "") : "";
+
+          if (col0Clean.length >= 8 && (!col1Clean || col0Clean.length > col1Clean.length)) {
+            phone = cols[0];
+            name = cols.length > 1 ? cols[1] : "";
+            email = cols.length > 2 ? cols[2] : "";
+          } else if (cols.length > 1 && col1Clean.length >= 8) {
+            name = cols[0];
+            phone = cols[1];
+            email = cols.length > 2 ? cols[2] : "";
+          } else {
+            phone = cols[0];
+            if (cols.length > 1) name = cols[1];
+            if (cols.length > 2) email = cols[2];
+          }
+        }
+
+        if (phone.replace(/\D+/g, "").length >= 8) {
+          parsedContacts.push({ phone, name: name || null, email: email || null });
+        }
+      }
+
+      if (parsedContacts.length === 0) {
+        toast.error("Nenhum contato válido encontrado no arquivo CSV.");
+        return;
+      }
+
+      try {
+        const res = await importCsv({ data: { list_id: selectedList.id, contacts: parsedContacts } });
+        toast.success(`${res.importedCount} contatos processados (${res.newContactsCount} novos adicionados)`);
+        qc.invalidateQueries({ queryKey: ["lists"] });
+        qc.invalidateQueries({ queryKey: ["contacts"] });
+        qc.invalidateQueries({ queryKey: ["list-members", selectedList.id] });
+      } catch (error: any) {
+        toast.error("Erro ao importar CSV: " + error.message);
+      }
+    };
+
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -182,12 +282,51 @@ function ListsPage() {
 
           {selectedList && (
             <Card className="p-4">
-              <h3 className="font-display text-base font-semibold">
-                {selectedList.name} — membros
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-base font-semibold">
+                  {selectedList.name} — membros
+                </h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    id="csv-upload-input"
+                    className="hidden"
+                    onChange={handleCsvUpload}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => document.getElementById("csv-upload-input")?.click()}
+                  >
+                    Importar CSV
+                  </Button>
+                </div>
+              </div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <div>
-                  <Label>Buscar contatos para adicionar</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Buscar contatos para adicionar</Label>
+                    {filteredContacts.length > 0 && (
+                      <div className="flex gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={handleSelectAll}
+                          className="text-primary hover:underline"
+                        >
+                          Marcar todos
+                        </button>
+                        <span className="text-muted-foreground">|</span>
+                        <button
+                          type="button"
+                          onClick={handleClear}
+                          className="text-muted-foreground hover:underline"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <Input
                     className="mt-1"
                     placeholder="Telefone ou nome…"
@@ -195,33 +334,33 @@ function ListsPage() {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                   <div className="mt-2 max-h-72 overflow-auto rounded border">
-                    {(contacts.data ?? [])
-                      .filter(
-                        (c: any) =>
-                          !search ||
-                          c.phone_e164.includes(search) ||
-                          c.name?.toLowerCase().includes(search.toLowerCase()),
-                      )
-                      .slice(0, 50)
-                      .map((c: any) => (
-                        <label
-                          key={c.id}
-                          className="flex items-center gap-2 border-b px-2 py-1.5 text-sm last:border-0 hover:bg-muted/30"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={picked.has(c.id)}
-                            onChange={(e) => {
-                              const n = new Set(picked);
-                              e.target.checked ? n.add(c.id) : n.delete(c.id);
-                              setPicked(n);
-                            }}
-                          />
-                          <span className="font-mono">+{c.phone_e164}</span>
-                          <span className="text-muted-foreground">{c.name ?? ""}</span>
-                        </label>
-                      ))}
+                    {filteredContacts.slice(0, 500).map((c: any) => (
+                      <label
+                        key={c.id}
+                        className="flex items-center gap-2 border-b px-2 py-1.5 text-sm last:border-0 hover:bg-muted/30"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={picked.has(c.id)}
+                          onChange={(e) => {
+                            const n = new Set(picked);
+                            e.target.checked ? n.add(c.id) : n.delete(c.id);
+                            setPicked(n);
+                          }}
+                        />
+                        <span className="font-mono">+{c.phone_e164}</span>
+                        <span className="text-muted-foreground">{c.name ?? ""}</span>
+                      </label>
+                    ))}
+                    {filteredContacts.length === 0 && (
+                      <p className="p-3 text-xs text-muted-foreground text-center">Nenhum contato disponível.</p>
+                    )}
                   </div>
+                  {filteredContacts.length > 500 && (
+                    <p className="mt-1 text-xs text-muted-foreground text-center">
+                      Exibindo 500 de {filteredContacts.length} contatos. Refine a busca.
+                    </p>
+                  )}
                   <Button
                     className="mt-2 w-full"
                     disabled={picked.size === 0}
