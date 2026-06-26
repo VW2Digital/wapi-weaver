@@ -1,5 +1,16 @@
 import db from "./db";
 
+export async function resolveEffectiveUserId(currentUserId: string): Promise<string> {
+  const rows: any[] = (await db.query(
+    `SELECT t.user_id FROM team_members tm
+     JOIN teams t ON t.id = tm.team_id
+     WHERE tm.user_id = ?
+     LIMIT 1`,
+    [currentUserId],
+  )) as any[];
+  return rows?.[0]?.user_id ?? currentUserId;
+}
+
 export async function resolveContactUserId(
   phone: string,
   currentUserId: string,

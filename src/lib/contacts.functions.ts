@@ -60,16 +60,16 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
 export const listContacts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const PAGE = 1000;
     const all: any[] = [];
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await context.db
-        .from("contacts")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(PAGE)
-        .offset(from);
-      if (error) throw error;
+      const data: any[] = (await db.query(
+        `SELECT * FROM contacts WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [effectiveUserId, PAGE, from],
+      )) as any[];
       if (!data || data.length === 0) break;
       all.push(...data);
       if (data.length < PAGE) break;

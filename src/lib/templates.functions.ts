@@ -443,25 +443,28 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
 export const listTemplates = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("templates")
-      .select("*")
-      .eq("status", "APPROVED")
-      .order("name");
-    if (error) throw error;
-    return (data ?? []).filter(
-      (template: any) =>
-        template.meta_template_id &&
-        !String(template.meta_template_id).startsWith("local_") &&
-        !String(template.meta_template_id).startsWith("sample_"),
-    );
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const data: any[] = (await db.query(
+      `SELECT * FROM templates WHERE user_id = ? AND status = 'APPROVED' AND meta_template_id IS NOT NULL
+       AND meta_template_id NOT LIKE 'local_%' AND meta_template_id NOT LIKE 'sample_%'
+       ORDER BY name`,
+      [effectiveUserId],
+    )) as any[];
+    return data ?? [];
   });
 
 export const listAllTemplates = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db.from("templates").select("*").order("name");
-    if (error) throw error;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const data: any[] = (await db.query(
+      `SELECT * FROM templates WHERE user_id = ? ORDER BY name`,
+      [effectiveUserId],
+    )) as any[];
     return data ?? [];
   });
 

@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { resolveEffectiveUserId } from "./chat-helpers";
+import db from "./db";
 import { recordAudit } from "./audit.functions";
 
 const payloadSchema = z.object({
@@ -202,12 +204,11 @@ async function rebuildCampaignQueue(db: any, context: any, campaignId: string, c
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("campaigns")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) throw error;
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const data: any[] = (await db.query(
+      `SELECT * FROM campaigns WHERE user_id = ? ORDER BY created_at DESC LIMIT 200`,
+      [effectiveUserId],
+    )) as any[];
     return attachTemplateDiagnostics(context.db, data ?? []);
   });
 
@@ -215,28 +216,29 @@ export const getCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: campaign, error } = await context.db
-      .from("campaigns")
-      .select("*")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (error) throw error;
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const campaigns: any[] = (await db.query(
+      `SELECT * FROM campaigns WHERE id = ? AND user_id = ? LIMIT 1`,
+      [data.id, effectiveUserId],
+    )) as any[];
+    const campaign = campaigns?.[0] ?? null;
     if (!campaign) return { campaign: null, messages: [], template: null };
-    const { data: messages } = await context.db
-      .from("campaign_messages")
-      .select("*, contacts(name)")
-      .eq("campaign_id", data.id)
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const messages: any[] = (await db.query(
+      `SELECT cm.*, c.name AS contact_name FROM campaign_messages cm
+       LEFT JOIN contacts c ON c.phone_e164 = cm.to_phone AND c.user_id = cm.user_id
+       WHERE cm.campaign_id = ? AND cm.user_id = ?
+       ORDER BY cm.created_at DESC LIMIT 500`,
+      [data.id, effectiveUserId],
+    )) as any[];
 
     let template = null;
     if (campaign.template_id) {
-      const { data: t } = await context.db
-        .from("templates")
-        .select("id, name, language, components, status, meta_template_id")
-        .eq("id", campaign.template_id)
-        .maybeSingle();
-      template = t;
+      const templates: any[] = (await db.query(
+        `SELECT id, name, language, components, status, meta_template_id FROM templates
+         WHERE id = ? AND user_id = ? LIMIT 1`,
+        [campaign.template_id, effectiveUserId],
+      )) as any[];
+      template = templates?.[0] ?? null;
     }
     const [campaignWithDiagnostics] = await attachTemplateDiagnostics(context.db, [campaign]);
     return { campaign: campaignWithDiagnostics, messages: messages ?? [], template };
