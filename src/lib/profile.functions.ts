@@ -39,7 +39,8 @@ export const getProfile = createServerFn({ method: "GET" })
       .eq("id", context.userId)
       .maybeSingle();
     if (error) throw error;
-    return data;
+    // Garante que sempre retorne ao menos o id, mesmo sem profile row
+    return data ?? { id: context.userId };
   });
 
 export const updateProfile = createServerFn({ method: "POST" })

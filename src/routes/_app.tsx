@@ -124,17 +124,15 @@ function AppLayout() {
 
   const { data: sidebarOrderData } = useQuery({
     queryKey: ["sidebar-order"],
-    queryFn: async () => {
-      const res = await fetchSidebarOrder();
-      return res.order;
-    },
+    queryFn: () => fetchSidebarOrder(),
     staleTime: 60_000,
   });
 
   const orderedNav = useMemo(() => {
-    if (!sidebarOrderData) return [...NAV];
+    const raw = sidebarOrderData?.order;
+    if (!raw) return [...NAV];
     try {
-      const pathsOrder = JSON.parse(sidebarOrderData) as string[];
+      const pathsOrder = JSON.parse(raw) as string[];
       if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...NAV];
 
       const navCopy = [...NAV];

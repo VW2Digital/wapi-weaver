@@ -2,17 +2,20 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import db from "./db";
+import { resolveEffectiveUserId } from "./chat-helpers";
+import crypto from "crypto";
 
 export const listTeams = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     try {
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       const teams = await db.query(
         `SELECT t.*, (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count
          FROM teams t 
          WHERE t.user_id = ? 
          ORDER BY t.name ASC`,
-        [context.userId],
+        [effectiveUserId],
       );
       return teams;
     } catch (e: any) {
@@ -70,7 +73,7 @@ export const assignConversation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const phone = data.contactPhone.replace(/\D/g, "");
-      const { userId } = context;
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
       // 1. Validar associação do agente com a equipe se ambos forem informados
       if (data.teamId && data.agentId) {
@@ -88,7 +91,7 @@ export const assignConversation = createServerFn({ method: "POST" })
         `UPDATE conversation_assignments 
          SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
          WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
-        [userId, phone],
+        [effectiveUserId, phone],
       );
 
       // 3. Criar nova atribuição ativa (se pelo menos uma equipe ou agente foi especificado)
@@ -98,7 +101,7 @@ export const assignConversation = createServerFn({ method: "POST" })
           `INSERT INTO conversation_assignments 
             (id, user_id, contact_phone, team_id, agent_id, assigned_by)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [assignmentId, userId, phone, data.teamId, data.agentId, userId],
+          [assignmentId, effectiveUserId, phone, data.teamId, data.agentId, context.userId],
         );
       }
 
@@ -117,7 +120,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const phone = data.contactPhone.replace(/\D/g, "");
-      const { userId } = context;
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
       // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos
       const agents = await db.query(
@@ -129,7 +132,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
          GROUP BY tm.user_id
          ORDER BY active_chats ASC, RAND()
          LIMIT 1`,
-        [userId, data.teamId],
+        [effectiveUserId, data.teamId],
       );
 
       // Desativa a atribuição anterior
@@ -137,7 +140,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
         `UPDATE conversation_assignments 
          SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
          WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
-        [userId, phone],
+        [effectiveUserId, phone],
       );
 
       const targetAgentId = agents && agents.length > 0 ? agents[0].agent_id : null;
@@ -148,7 +151,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
         `INSERT INTO conversation_assignments 
           (id, user_id, contact_phone, team_id, agent_id, assigned_by)
          VALUES (?, ?, ?, ?, ?, NULL)`,
-        [assignmentId, userId, phone, data.teamId, targetAgentId],
+        [assignmentId, effectiveUserId, phone, data.teamId, targetAgentId],
       );
 
       return { ok: true, agentId: targetAgentId };

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import db from "./db";
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
   const { data, error } = await ctx.supabase
@@ -67,6 +68,12 @@ export const createUser = createServerFn({ method: "POST" })
     if (data.role === "admin") {
       await dbAdmin.from("user_roles").insert({ user_id: uid, role: "admin" } as never);
     }
+    // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
+    await db.query(
+      `INSERT IGNORE INTO profiles (id, email, display_name, full_name)
+       VALUES (?, ?, ?, ?)`,
+      [uid, data.email, data.display_name ?? null, data.display_name ?? null],
+    );
     return { ok: true, id: uid };
   });
 
