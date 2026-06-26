@@ -1026,7 +1026,7 @@ function InfoSection() {
 
   const [open, setOpen] = useState(false);
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden py-0 gap-0 shadow-none">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
