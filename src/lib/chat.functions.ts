@@ -3,7 +3,6 @@ import { z } from "zod";
 import crypto from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
-import { resolveContactUserId } from "./chat-helpers";
 import db from "./db";
 
 // Schema de validação para envio de mensagem direta
@@ -95,7 +94,8 @@ export const listChatContacts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     try {
-      // Usamos db.query para uma consulta SQL rica e eficiente contendo a última mensagem, timestamp e contagem de não lidas.
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       const contacts = await db.query(
         `
         SELECT 
@@ -152,18 +152,17 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN users u ON u.id = ca.agent_id
         LEFT JOIN profiles p ON p.id = u.id
         LEFT JOIN sales_stages s ON s.id = c.kanban_stage_id
-        WHERE (c.user_id = ? OR (ca.agent_id = ? AND ca.is_active = true))
+        WHERE c.user_id = ?
           AND (last_dm.created_at IS NOT NULL OR last_cm.sent_at IS NOT NULL)
         ORDER BY 
           c.is_pinned DESC,
           COALESCE(last_dm.created_at, last_cm.sent_at, c.created_at) DESC
       `,
-        [context.userId, context.userId],
+        [effectiveUserId],
       );
 
       return (contacts ?? []).map((c: any) => ({
         ...c,
-        // Garante que o custom_fields seja retornado como objeto parseado, se for string
         custom_fields:
           typeof c.custom_fields === "string" ? JSON.parse(c.custom_fields) : c.custom_fields,
       }));
@@ -178,19 +177,18 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
-
-    const contactUserId = await resolveContactUserId(phone, context.userId);
-    if (!contactUserId) return { ok: true };
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     await db.query(
       `UPDATE direct_messages SET status = 'read'
        WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming' AND (status IS NULL OR status != 'read')`,
-      [contactUserId, phone],
+      [effectiveUserId, phone],
     );
 
     await db.query(
       `UPDATE contacts SET is_unread = false WHERE user_id = ? AND phone_e164 = ?`,
-      [contactUserId, phone],
+      [effectiveUserId, phone],
     );
 
     return { ok: true };
@@ -201,20 +199,19 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
-
-    const contactUserId = await resolveContactUserId(phone, context.userId);
-    if (!contactUserId) return null;
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     const contacts: any[] = (await db.query(
       `SELECT * FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
-      [contactUserId, phone],
+      [effectiveUserId, phone],
     )) as any[];
     const contact = contacts?.[0] ?? null;
 
     if (contact) {
       const botStates: any[] = (await db.query(
         `SELECT bot_active FROM bot_conversation_state WHERE user_id = ? AND contact_number = ? LIMIT 1`,
-        [contactUserId, phone],
+        [effectiveUserId, phone],
       )) as any[];
       contact.bot_active = botStates?.[0] ? !!botStates[0].bot_active : true;
     }
@@ -227,15 +224,14 @@ export const getChatMessages = createServerFn({ method: "POST" })
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const phone = data.phone.replace(/\D/g, "");
-
-    const contactUserId = await resolveContactUserId(phone, context.userId);
-    if (!contactUserId) return [];
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     const messages: any[] = (await db.query(
       `SELECT * FROM direct_messages
        WHERE user_id = ? AND contact_phone = ?
        ORDER BY created_at ASC`,
-      [contactUserId, phone],
+      [effectiveUserId, phone],
     )) as any[];
 
     return (messages ?? []).map((row: any) => {
@@ -273,17 +269,14 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     const digits = data.to.replace(/\D/g, "");
     if (digits.length < 8) return { ok: false, error: "Número do destinatário inválido." };
 
-    // Resolve o user_id dono do contato (suporta atribuição)
-    const contactUserId = await resolveContactUserId(digits, context.userId);
-    if (!contactUserId) {
-      return { ok: false, error: "Não autorizado: contato não encontrado ou não atribuído a você." };
-    }
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    // 1. Busca credenciais do perfil do dono do contato (bypass auto-scope)
+    // Busca credenciais do perfil do dono do WhatsApp
     const profiles: any[] = (await db.query(
       `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
        FROM profiles WHERE id = ? LIMIT 1`,
-      [contactUserId],
+      [effectiveUserId],
     )) as any[];
     const p = profiles?.[0];
 
@@ -408,7 +401,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
          metadata = VALUES(metadata)`,
       [
         msgId,
-        contactUserId,
+        effectiveUserId,
         digits,
         data.type,
         bodyText,
@@ -425,7 +418,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       `UPDATE bot_conversation_state
        SET is_paused = true, paused_until = ?
        WHERE user_id = ? AND contact_number = ? AND instance_id = ?`,
-      [pausedUntil, contactUserId, digits, p.whatsapp_phone_number_id],
+      [pausedUntil, effectiveUserId, digits, p.whatsapp_phone_number_id],
     );
 
     return { ok: true, wamid, body };
