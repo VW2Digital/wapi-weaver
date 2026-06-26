@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 export type BotTemplate = {
   id: string;
   name: string;

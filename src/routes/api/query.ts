@@ -27,8 +27,11 @@ export const Route = createFileRoute("/api/query")({
             });
           }
 
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(decoded.sub);
+
           const query = await request.json();
-          const results = await executeQuery(query, decoded.sub, decoded.role || "user");
+          const results = await executeQuery(query, effectiveUserId, decoded.role || "user");
 
           return new Response(JSON.stringify({ data: results, error: null }), {
             status: 200,

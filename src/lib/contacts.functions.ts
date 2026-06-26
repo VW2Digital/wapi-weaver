@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeToE164 } from "@/lib/phone";
+import crypto from "crypto";
 
 const contactInput = z.object({
   phone: z.string().trim().min(8).max(32),
@@ -255,14 +256,14 @@ export const bulkAddContactsToList = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    const rows = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId]);
+    const values = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId]);
     const chunkSize = 500;
     let added = 0;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
+    for (let i = 0; i < values.length; i += chunkSize) {
+      const chunk = values.slice(i, i + chunkSize);
       const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
       await db.query(
-        `INSERT INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders} ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+        `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders}`,
         chunk.flat(),
       );
       added += chunk.length;
@@ -284,14 +285,14 @@ export const bulkAddTagToContacts = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    const rows = data.contact_ids.map((cid) => [data.tag_id, cid, effectiveUserId]);
+    const values = data.contact_ids.map((cid) => [data.tag_id, cid, effectiveUserId]);
     const chunkSize = 500;
     let added = 0;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
+    for (let i = 0; i < values.length; i += chunkSize) {
+      const chunk = values.slice(i, i + chunkSize);
       const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
       await db.query(
-        `INSERT INTO contact_tags (tag_id, contact_id, user_id) VALUES ${placeholders} ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+        `INSERT IGNORE INTO contact_tags (tag_id, contact_id, user_id) VALUES ${placeholders}`,
         chunk.flat(),
       );
       added += chunk.length;

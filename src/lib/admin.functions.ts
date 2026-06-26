@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { recordAudit } from "./audit.functions";
+import crypto from "crypto";
 
 export const getCurrentUserRoles = createServerFn({ method: "GET" })
   .middleware([requireAuth])

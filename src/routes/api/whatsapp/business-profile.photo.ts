@@ -52,12 +52,14 @@ export const Route = createFileRoute("/api/whatsapp/business-profile/photo")({
         let phoneNumberIdForLog: string | null = null;
         try {
           const { userId } = getAuthUserId(request);
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(userId);
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
             .select(
               "whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version, whatsapp_app_id",
             )
-            .eq("id", userId)
+            .eq("id", effectiveUserId)
             .maybeSingle();
           if (profErr) throw new Error(profErr.message);
           const { accessToken, apiVersion, phoneNumberId } = pickMetaCredentials(p);

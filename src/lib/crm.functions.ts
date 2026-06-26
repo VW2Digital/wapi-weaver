@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import db from "./db";
+import crypto from "crypto";
 
 // Schemas
 const funnelSchema = z.object({

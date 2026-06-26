@@ -83,10 +83,13 @@ export const Route = createFileRoute("/api/whatsapp/business-profile")({
       GET: async ({ request }) => {
         try {
           const { userId } = getAuthUserId(request);
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(userId);
+
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
             .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
-            .eq("id", userId)
+            .eq("id", effectiveUserId)
             .maybeSingle();
           if (profErr) throw new Error(profErr.message);
           const { phoneNumberId, accessToken, apiVersion } = pickMetaCredentials(p);
@@ -116,12 +119,15 @@ export const Route = createFileRoute("/api/whatsapp/business-profile")({
       PUT: async ({ request }) => {
         try {
           const { userId } = getAuthUserId(request);
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(userId);
+
           const body = updateSchema.parse(await request.json());
 
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
             .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
-            .eq("id", userId)
+            .eq("id", effectiveUserId)
             .maybeSingle();
           if (profErr) throw new Error(profErr.message);
           const { phoneNumberId, accessToken, apiVersion } = pickMetaCredentials(p);

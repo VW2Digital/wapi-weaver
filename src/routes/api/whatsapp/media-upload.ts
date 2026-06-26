@@ -30,6 +30,9 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
       POST: async ({ request }) => {
         try {
           const userId = getAuthUserId(request);
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(userId);
+
           const form = await request.formData();
           const phoneId = String(form.get("phoneId") || "").trim();
           const file = form.get("file");
@@ -41,7 +44,7 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
             .select("whatsapp_access_token, meta_graph_version")
-            .eq("id", userId)
+            .eq("id", effectiveUserId)
             .maybeSingle();
 
           if (profErr) {

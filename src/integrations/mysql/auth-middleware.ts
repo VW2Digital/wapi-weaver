@@ -35,8 +35,11 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
       throw new Error("Não autorizado: payload do token inválido");
     }
 
-    // Cria cliente MySQL scopado ao usuário autenticado
-    const db = new ServerMySQLClient(decoded.sub, decoded.role || "user");
+    const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(decoded.sub);
+
+    // Cria cliente MySQL scopado ao inquilino master (effectiveUserId)
+    const db = new ServerMySQLClient(effectiveUserId, decoded.role || "user");
 
     return next({
       context: {

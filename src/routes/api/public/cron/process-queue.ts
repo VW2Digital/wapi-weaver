@@ -341,22 +341,30 @@ export async function processOnce() {
     }
 
     // Recompute campaign totals + maybe mark done
+    const { default: db } = await import("@/lib/db");
     for (const cid of campIds) {
-      const { data: agg } = await dbAdmin
-        .from("campaign_messages")
-        .select("status")
-        .eq("campaign_id", cid);
-      if (!agg) continue;
+      const rows = (await db.query(
+        "SELECT status, COUNT(*) as count FROM campaign_messages WHERE campaign_id = ? GROUP BY status",
+        [cid]
+      )) as any[];
+
       const totals = {
-        total: agg.length,
+        total: 0,
         pending: 0,
         sent: 0,
         delivered: 0,
         read: 0,
         failed: 0,
       } as any;
-      for (const r of agg) totals[r.status] = (totals[r.status] ?? 0) + 1;
-      const remaining = totals.pending + agg.filter((r: any) => r.status === "sending").length;
+
+      for (const row of rows ?? []) {
+        const status = row.status;
+        const count = Number(row.count || 0);
+        totals[status] = count;
+        totals.total += count;
+      }
+
+      const remaining = (totals.pending || 0) + (totals.sending || 0);
       const updates: any = { totals };
       if (remaining === 0) {
         updates.status = totals.failed === totals.total ? "failed" : "done";

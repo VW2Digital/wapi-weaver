@@ -35,11 +35,14 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             return new Response("Missing media id parameter", { status: 400 });
           }
 
-          // 1. Fetch user credentials from DB
+          // 1. Fetch user credentials from DB (using effectiveUserId)
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(userId);
+
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
             .select("whatsapp_access_token, meta_graph_version")
-            .eq("id", userId)
+            .eq("id", effectiveUserId)
             .maybeSingle();
 
           if (profErr || !p?.whatsapp_access_token) {

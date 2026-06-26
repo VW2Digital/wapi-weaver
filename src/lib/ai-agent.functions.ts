@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
+import crypto from "crypto";
 
 function logInfo(message: string, data?: any) {
   console.log(`[ai-agent] ${message}`, data ? JSON.stringify(data) : "");

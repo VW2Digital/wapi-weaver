@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
+import crypto from "crypto";
 
 /**
  * Obtém ou cria o registro bot_settings do usuário logado.

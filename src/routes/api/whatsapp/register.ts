@@ -63,11 +63,14 @@ export const Route = createFileRoute("/api/whatsapp/register")({
             return json({ success: false, message: "O campo PIN ou pin é obrigatório." }, 400);
           }
 
-          // 3. Buscar credenciais da Meta do perfil do usuário
+          // 3. Buscar credenciais da Meta do perfil do usuário (usando effectiveUserId)
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const effectiveUserId = await resolveEffectiveUserId(userId);
+
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
             .select("whatsapp_access_token, meta_graph_version")
-            .eq("id", userId)
+            .eq("id", effectiveUserId)
             .maybeSingle();
 
           if (profErr) throw new Error(profErr.message);
@@ -126,7 +129,7 @@ export const Route = createFileRoute("/api/whatsapp/register")({
               whatsapp_phone_number_id: phoneId,
               whatsapp_business_phone: displayPhone || null,
             })
-            .eq("id", userId);
+            .eq("id", effectiveUserId);
 
           if (updateErr) {
             throw new Error(

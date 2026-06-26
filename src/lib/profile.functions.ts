@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
+import crypto from "crypto";
 
 const credSchema = z.object({
   whatsapp_phone_number_id: z.string().trim().max(64).nullable().optional(),
