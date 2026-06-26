@@ -413,7 +413,9 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     // 5. PAUSA O BOT (Fase 1 do BotFlow)
     // Quando um humano envia mensagem, o bot entra em pausa automática por padrão.
-    const pausedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const pausedUntil = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
     await db.query(
       `UPDATE bot_conversation_state
        SET is_paused = true, paused_until = ?
