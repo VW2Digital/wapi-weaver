@@ -299,6 +299,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar, setSidebarWidth, state } = useSidebar();
   const dragging = React.useRef(false);
+  const hasDragged = React.useRef(false);
   const dragData = React.useRef({ startX: 0, initialWidth: 0 });
 
   const handlePointerDown = React.useCallback(
@@ -307,6 +308,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
       dragging.current = true;
+      hasDragged.current = false;
 
       dragData.current.startX = e.clientX;
       const container = (e.target as HTMLElement)
@@ -322,6 +324,9 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     (e: React.PointerEvent<HTMLButtonElement>) => {
       if (!dragging.current) return;
       const delta = e.clientX - dragData.current.startX;
+      if (Math.abs(delta) > 4) {
+        hasDragged.current = true;
+      }
       const newWidth = Math.max(
         SIDEBAR_WIDTH_MIN,
         Math.min(SIDEBAR_WIDTH_MAX, dragData.current.initialWidth + delta),
@@ -335,13 +340,25 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     dragging.current = false;
   }, []);
 
+  const handleClick = React.useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (hasDragged.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      toggleSidebar();
+    },
+    [toggleSidebar],
+  );
+
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
       aria-label="Toggle Sidebar"
       tabIndex={-1}
-      onClick={toggleSidebar}
+      onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
