@@ -3166,11 +3166,10 @@ function ChatPage() {
                       } else if (date.toDateString() === yesterday.toDateString()) {
                         return "Ontem";
                       } else {
-                        return date.toLocaleDateString("pt-BR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        });
+                        const day = String(date.getDate()).padStart(2, "0");
+                        const month = String(date.getMonth() + 1).padStart(2, "0");
+                        const year = date.getFullYear();
+                        return `${day}/${month}/${year}`;
                       }
                     };
 
@@ -3205,7 +3204,7 @@ function ChatPage() {
                           <div key={msg.id} className="w-full flex flex-col">
                             {showDateSeparator && (
                               <div className="flex w-full justify-center my-3 select-none">
-                                <div className="bg-card text-card-foreground border border-border/80 px-3 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shadow-xs">
+                                <div className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-3.5 py-1 rounded-full text-[10px] font-medium text-muted-foreground shadow-xs">
                                   {formatDateSeparator(msg.timestamp)}
                                 </div>
                               </div>
@@ -3213,8 +3212,8 @@ function ChatPage() {
 
                             {msg.type === "system" ? (
                               <div className="flex w-full justify-center my-2 select-none">
-                                <div className="bg-violet-600/5 dark:bg-violet-600/10 border border-violet-500/10 px-3.5 py-1.5 rounded-xl text-[11px] text-muted-foreground text-center max-w-[85%] shadow-xs flex items-center gap-1.5 font-medium">
-                                  <UserCheck className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                                <div className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-3.5 py-1.5 rounded-full text-[11px] text-muted-foreground text-center max-w-[85%] shadow-xs flex items-center gap-1.5 font-normal">
+                                  <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                   <span>{msg.body}</span>
                                 </div>
                               </div>

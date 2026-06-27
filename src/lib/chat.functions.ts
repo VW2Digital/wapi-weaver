@@ -281,18 +281,24 @@ export const getChatMessages = createServerFn({ method: "POST" })
 
     const formattedAssignments = (assignments ?? []).map((a: any) => {
       let body = "";
-      if (a.team_name && a.agent_name) {
-        body = `Conversa atribuída para a equipe "${a.team_name}" e agente "${a.agent_name}"`;
-      } else if (a.team_name) {
-        body = `Conversa atribuída para a equipe "${a.team_name}"`;
-      } else if (a.agent_name) {
-        body = `Conversa atribuída para o agente "${a.agent_name}"`;
-      } else {
-        body = `Conversa desalocada de equipe/agente`;
-      }
+      const teamLabel = a.team_name ? ` (${a.team_name.toUpperCase()})` : "";
 
       if (a.assigned_by_name) {
-        body += ` por ${a.assigned_by_name}`;
+        if (a.agent_name) {
+          body = `${a.assigned_by_name} atribuiu conversa a ${a.agent_name}${teamLabel}`;
+        } else if (a.team_name) {
+          body = `${a.assigned_by_name} atribuiu conversa à equipe ${a.team_name.toUpperCase()}`;
+        } else {
+          body = `${a.assigned_by_name} removeu a atribuição da conversa`;
+        }
+      } else {
+        if (a.agent_name) {
+          body = `Conversa atribuída a ${a.agent_name}${teamLabel}`;
+        } else if (a.team_name) {
+          body = `Conversa atribuída à equipe ${a.team_name.toUpperCase()}`;
+        } else {
+          body = `Conversa desalocada`;
+        }
       }
 
       return {
