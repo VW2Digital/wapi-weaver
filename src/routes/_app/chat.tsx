@@ -3153,38 +3153,79 @@ function ChatPage() {
 
                 {/* Corpo / Lista de Balões */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 relative bg-muted/10">
-                  {messagesQuery.isLoading ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span>Carregando conversa...</span>
-                      </div>
-                    </div>
-                  ) : displayMessages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-6 gap-2">
-                      <MessageCircle className="h-10 w-10 text-muted-foreground/50 animate-bounce" />
-                      <p className="font-semibold">Nenhuma mensagem neste chat</p>
-                      <p className="text-xs max-w-xs">
-                        Envie uma mensagem abaixo para iniciar a conversa direta oficial do
-                        WhatsApp.
-                      </p>
-                    </div>
-                  ) : (
-                    displayMessages.map((msg: any) => {
-                      const isOutgoing = msg.direction === "outgoing";
-                      const replyMsgId = msg.context?.message_id;
-                      const replyMessage =
-                        replyMsgId && displayMessages.find((m: any) => m.id === replyMsgId);
+                  {(() => {
+                    let lastDateStr = "";
+                    const formatDateSeparator = (dateInput: any) => {
+                      const date = new Date(dateInput);
+                      const today = new Date();
+                      const yesterday = new Date();
+                      yesterday.setDate(today.getDate() - 1);
 
-                      return (
-                        <div
-                          key={msg.id}
-                          id={`msg-${msg.id}`}
-                          className={cn(
-                            "flex w-full flex-col group transition-all duration-300 rounded-lg p-1",
-                            isOutgoing ? "items-end" : "items-start",
-                          )}
-                        >
+                      if (date.toDateString() === today.toDateString()) {
+                        return "Hoje";
+                      } else if (date.toDateString() === yesterday.toDateString()) {
+                        return "Ontem";
+                      } else {
+                        return date.toLocaleDateString("pt-BR", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        });
+                      }
+                    };
+
+                    return messagesQuery.isLoading ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <span>Carregando conversa...</span>
+                        </div>
+                      </div>
+                    ) : displayMessages.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-6 gap-2">
+                        <MessageCircle className="h-10 w-10 text-muted-foreground/50 animate-bounce" />
+                        <p className="font-semibold">Nenhuma mensagem neste chat</p>
+                        <p className="text-xs max-w-xs">
+                          Envie uma mensagem abaixo para iniciar a conversa direta oficial do
+                          WhatsApp.
+                        </p>
+                      </div>
+                    ) : (
+                      displayMessages.map((msg: any) => {
+                        const isOutgoing = msg.direction === "outgoing";
+                        const replyMsgId = msg.context?.message_id;
+                        const replyMessage =
+                          replyMsgId && displayMessages.find((m: any) => m.id === replyMsgId);
+
+                        const msgDateStr = new Date(msg.timestamp).toDateString();
+                        const showDateSeparator = msgDateStr !== lastDateStr;
+                        lastDateStr = msgDateStr;
+
+                        return (
+                          <div key={msg.id} className="w-full flex flex-col">
+                            {showDateSeparator && (
+                              <div className="flex w-full justify-center my-3 select-none">
+                                <div className="bg-card text-card-foreground border border-border/80 px-3 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shadow-xs">
+                                  {formatDateSeparator(msg.timestamp)}
+                                </div>
+                              </div>
+                            )}
+
+                            {msg.type === "system" ? (
+                              <div className="flex w-full justify-center my-2 select-none">
+                                <div className="bg-violet-600/5 dark:bg-violet-600/10 border border-violet-500/10 px-3.5 py-1.5 rounded-xl text-[11px] text-muted-foreground text-center max-w-[85%] shadow-xs flex items-center gap-1.5 font-medium">
+                                  <UserCheck className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                                  <span>{msg.body}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                id={`msg-${msg.id}`}
+                                className={cn(
+                                  "flex w-full flex-col group transition-all duration-300 rounded-lg p-1",
+                                  isOutgoing ? "items-end" : "items-start",
+                                )}
+                              >
                           {/* Container do Balão + Ações */}
                           <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
                             {/* Ações Rápidas (Lado esquerdo para outgoing, lado direito para incoming) */}
@@ -3826,9 +3867,12 @@ function ChatPage() {
                             )}
                           </div>
                         </div>
-                      );
-                    })
-                  )}
+                      )}
+                    </div>
+                  );
+                })
+              )
+            })()}
                   <div ref={messagesEndRef} />
                 </div>
 

@@ -234,7 +234,25 @@ export const getChatMessages = createServerFn({ method: "POST" })
       [effectiveUserId, phone],
     )) as any[];
 
-    return (messages ?? []).map((row: any) => {
+    const assignments: any[] = (await db.query(
+      `SELECT 
+        ca.id,
+        ca.assigned_at,
+        t.name as team_name,
+        COALESCE(p_agent.full_name, p_agent.display_name, u_agent.email) as agent_name,
+        COALESCE(p_by.full_name, p_by.display_name, u_by.email) as assigned_by_name
+       FROM conversation_assignments ca
+       LEFT JOIN teams t ON t.id = ca.team_id
+       LEFT JOIN users u_agent ON u_agent.id = ca.agent_id
+       LEFT JOIN profiles p_agent ON p_agent.id = u_agent.id
+       LEFT JOIN users u_by ON u_by.id = ca.assigned_by
+       LEFT JOIN profiles p_by ON p_by.id = u_by.id
+       WHERE ca.user_id = ? AND ca.contact_phone = ?
+       ORDER BY ca.assigned_at ASC`,
+      [effectiveUserId, phone],
+    )) as any[];
+
+    const formattedMessages = (messages ?? []).map((row: any) => {
       const meta = row.metadata as any;
       return {
         id: row.wa_message_id || row.id,
@@ -260,6 +278,50 @@ export const getChatMessages = createServerFn({ method: "POST" })
         metadata: meta,
       };
     });
+
+    const formattedAssignments = (assignments ?? []).map((a: any) => {
+      let body = "";
+      if (a.team_name && a.agent_name) {
+        body = `Conversa atribuída para a equipe "${a.team_name}" e agente "${a.agent_name}"`;
+      } else if (a.team_name) {
+        body = `Conversa atribuída para a equipe "${a.team_name}"`;
+      } else if (a.agent_name) {
+        body = `Conversa atribuída para o agente "${a.agent_name}"`;
+      } else {
+        body = `Conversa desalocada de equipe/agente`;
+      }
+
+      if (a.assigned_by_name) {
+        body += ` por ${a.assigned_by_name}`;
+      }
+
+      return {
+        id: `assign-${a.id}`,
+        direction: "incoming" as const,
+        timestamp: a.assigned_at,
+        type: "system" as const,
+        body: body,
+        status: null,
+        reaction: null,
+        image: null,
+        audio: null,
+        video: null,
+        document: null,
+        sticker: null,
+        location: null,
+        contacts: null,
+        context: null,
+        metadata: null,
+      };
+    });
+
+    const allMessages = [...formattedMessages, ...formattedAssignments].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeA - timeB;
+    });
+
+    return allMessages;
   });
 
 export const sendDirectMessage = createServerFn({ method: "POST" })
