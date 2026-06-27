@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { SeoHead } from "@/components/seo";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -35,6 +36,11 @@ export const Route = createFileRoute("/privacy")({
 function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
+      <SeoHead
+        title="Política de Privacidade"
+        description="Política de Privacidade da VW2 Conversas. Saiba como coletamos, usamos e protegemos seus dados."
+        canonical="https://vw2conversas.com.br/privacy"
+      />
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">

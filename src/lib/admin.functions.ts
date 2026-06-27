@@ -23,7 +23,7 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
     const { data, error } = await context.db
       .from("platform_settings")
       .select(
-        "meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret",
+        "meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret, seo_title, seo_description",
       )
       .eq("id", 1)
       .maybeSingle();
@@ -36,7 +36,9 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
       meta_app_secret_set: !!data.meta_app_secret,
       head_tags: (data as any).head_tags ?? "",
       body_tags: (data as any).body_tags ?? "",
-      cron_secret: (data as any).cron_secret ?? "", // admin pode ver para configurar no pg_cron
+      cron_secret: (data as any).cron_secret ?? "",
+      seo_title: (data as any)?.seo_title ?? "",
+      seo_description: (data as any)?.seo_description ?? "",
       updated_at: data.updated_at,
     };
   });
@@ -61,6 +63,8 @@ const settingsSchema = z.object({
     .max(10)
     .regex(/^v\d+\.\d+$/, "Formato deve ser vXX.X")
     .optional(),
+  seo_title: z.string().max(128).optional(),
+  seo_description: z.string().max(320).optional(),
   head_tags: z.string().max(20000).optional(),
   body_tags: z.string().max(20000).optional(),
   cron_secret: z
@@ -86,6 +90,8 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
     if (data.meta_config_id !== undefined && data.meta_config_id !== "")
       update.meta_config_id = data.meta_config_id;
     if (data.meta_graph_version) update.meta_graph_version = data.meta_graph_version;
+    if (data.seo_title !== undefined) update.seo_title = data.seo_title || null;
+    if (data.seo_description !== undefined) update.seo_description = data.seo_description || null;
     if (data.head_tags !== undefined)
       update.head_tags = data.head_tags === "" ? null : data.head_tags;
     if (data.body_tags !== undefined)
@@ -111,6 +117,25 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+// Público (sem auth) — retorna seo_title e seo_description para injetar no head.
+export const getSeoSettings = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { dbAdmin } = await import("@/integrations/mysql/client.server");
+    const { data, error } = await dbAdmin
+      .from("platform_settings")
+      .select("seo_title, seo_description")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) return { seo_title: "", seo_description: "" };
+    return {
+      seo_title: (data as any)?.seo_title ?? "",
+      seo_description: (data as any)?.seo_description ?? "",
+    };
+  } catch {
+    return { seo_title: "", seo_description: "" };
+  }
+});
 
 // Público (sem auth) — retorna apenas head_tags/body_tags para injetar em todas as páginas.
 // Usa o cliente admin para contornar RLS, mas só expõe esses dois campos.

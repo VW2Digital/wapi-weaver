@@ -13,6 +13,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { SeoHead } from "@/components/seo";
 
 export const Route = createFileRoute("/data-deletion")({
   head: () => ({
@@ -39,6 +40,11 @@ function DataDeletionPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SeoHead
+        title="Exclusão de Dados do Usuário"
+        description="Solicite a exclusão completa da sua conta e dados pessoais da plataforma VW2 Conversas."
+        canonical="https://vw2conversas.com.br/data-deletion"
+      />
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">

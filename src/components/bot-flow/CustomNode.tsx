@@ -14,6 +14,19 @@ import {
   FileJson,
 } from "lucide-react";
 
+const getMediaType = (url: string, type: string) => {
+  if (["image", "video", "audio", "document"].includes(type)) return type;
+  const cleanUrl = (url || "").toLowerCase().split("?")[0];
+  if (cleanUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)$/)) return "image";
+  if (cleanUrl.match(/\.(mp4|webm|ogg|mov|3gp)$/)) return "video";
+  if (cleanUrl.match(/\.(mp3|wav|ogg|aac|m4a)$/)) return "audio";
+  if (cleanUrl.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/)) return "document";
+  if (url.includes("images.unsplash.com") || url.includes("img") || url.includes("image")) return "image";
+  if (url.includes("video")) return "video";
+  if (url.includes("audio")) return "audio";
+  return "link";
+};
+
 export function CustomNode({ data, selected }: any) {
   const { step } = data;
 
@@ -66,9 +79,13 @@ export function CustomNode({ data, selected }: any) {
   const getStepTitle = (stepLike: any) => {
     if (!stepLike) return "Passo";
     if (stepLike.trigger_type === "start") return "Início";
-    if (stepLike.trigger_type === "keyword" && stepLike.trigger_value)
+
+    const isUUID = (val: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    if (stepLike.trigger_type === "keyword" && stepLike.trigger_value && !isUUID(stepLike.trigger_value))
       return `Palavra-chave: ${stepLike.trigger_value}`;
-    if (stepLike.trigger_type === "button" && stepLike.trigger_value)
+    if (stepLike.trigger_type === "button" && stepLike.trigger_value && !isUUID(stepLike.trigger_value))
       return `Botão: ${stepLike.trigger_value}`;
     const text = String(stepLike.message_content || "").trim();
     if (text) return text.length > 24 ? `${text.slice(0, 24)}...` : text;
@@ -127,13 +144,18 @@ export function CustomNode({ data, selected }: any) {
         <div className="flex items-center gap-2 font-medium text-xs">
           {getTypeIcon()}
           <span>
-            {step.trigger_type === "start"
-              ? "Início"
-              : step.trigger_type === "keyword"
-                ? `Keyword: ${step.trigger_value}`
-                : step.trigger_type === "button"
-                  ? `Botão: ${step.trigger_value}`
-                  : "Passo"}
+            {(() => {
+              if (step.trigger_type === "start") return "Início";
+              const isUUID = (val: string) =>
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+              if (step.trigger_type === "keyword") {
+                return isUUID(step.trigger_value) ? "Palavra-chave" : `Keyword: ${step.trigger_value}`;
+              }
+              if (step.trigger_type === "button") {
+                return isUUID(step.trigger_value) ? "Botão" : `Botão: ${step.trigger_value}`;
+              }
+              return "Passo";
+            })()}
           </span>
         </div>
         <span className="text-[10px] font-bold text-muted-foreground bg-muted-foreground/10 px-1.5 py-0.5 rounded">
@@ -141,13 +163,67 @@ export function CustomNode({ data, selected }: any) {
         </span>
       </div>
 
-      {/* Media Indicator */}
+      {/* Media Indicator / Thumbnail Preview */}
       {step.media_url && (
-        <div className="mx-3 mt-3 px-2 py-1 text-[11px] bg-muted/40 border border-border/60 rounded flex items-center gap-1.5 truncate text-muted-foreground">
-          <span className="font-semibold uppercase text-[9px] bg-primary/10 text-primary px-1 rounded">
-            {step.message_type}
-          </span>
-          <span className="truncate">{step.media_url}</span>
+        <div className="mx-3 mt-3 border rounded-lg overflow-hidden bg-muted/20 relative group">
+          {(() => {
+            const mediaType = getMediaType(step.media_url, step.message_type);
+
+            if (mediaType === "image") {
+              return (
+                <img
+                  src={step.media_url}
+                  alt="Preview"
+                  className="w-full h-24 object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              );
+            }
+            if (mediaType === "video") {
+              return (
+                <div className="relative w-full h-24 bg-black/10 dark:bg-black/40 flex items-center justify-center">
+                  <video
+                    src={step.media_url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                    <Video className="w-6 h-6 text-white drop-shadow-md" />
+                  </div>
+                </div>
+              );
+            }
+            if (mediaType === "audio") {
+              return (
+                <div className="p-2 flex items-center gap-1.5 bg-purple-500/5 text-purple-600 dark:text-purple-400">
+                  <Music className="w-4 h-4 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-semibold truncate">Mensagem de Áudio</div>
+                    <div className="text-[8px] text-muted-foreground truncate">{step.media_url.split("/").pop()}</div>
+                  </div>
+                </div>
+              );
+            }
+            if (mediaType === "document") {
+              return (
+                <div className="p-2 flex items-center gap-1.5 bg-blue-500/5 text-blue-600 dark:text-blue-400">
+                  <FileText className="w-4 h-4 shrink-0 text-red-500" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-semibold truncate">Documento PDF / Arquivo</div>
+                    <div className="text-[8px] text-muted-foreground truncate">{step.media_url.split("/").pop()}</div>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div className="p-1.5 text-[10px] truncate text-muted-foreground">
+                {step.media_url}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -237,8 +313,9 @@ export function CustomNode({ data, selected }: any) {
         (() => {
           const buttonText = config?.action?.parameters?.display_text || "Acessar Link";
           const url = config?.action?.parameters?.url || "";
+          const linkType = url ? getMediaType(url, "link") : "link";
           return (
-            <div className="px-3 pb-3 space-y-1 border-t border-border/30 pt-2">
+            <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2">
               <div className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm">
                 <span className="font-medium truncate">{buttonText}</span>
                 <span className="text-[9px] font-bold text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded">
@@ -246,7 +323,58 @@ export function CustomNode({ data, selected }: any) {
                 </span>
               </div>
               {url && (
-                <div className="text-[9px] text-muted-foreground truncate px-1 italic">{url}</div>
+                <div className="border rounded-lg overflow-hidden bg-muted/20 relative group">
+                  {linkType === "image" && (
+                    <img
+                      src={url}
+                      alt="Preview"
+                      className="w-full h-24 object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  )}
+                  {linkType === "video" && (
+                    <div className="relative w-full h-24 bg-black/10 dark:bg-black/40 flex items-center justify-center">
+                      <video
+                        src={url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                        <Video className="w-6 h-6 text-white drop-shadow-md" />
+                      </div>
+                    </div>
+                  )}
+                  {linkType === "audio" && (
+                    <div className="p-2 flex items-center gap-1.5 bg-purple-500/5 text-purple-600 dark:text-purple-400">
+                      <Music className="w-4 h-4 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-semibold truncate">Link de Áudio</div>
+                        <div className="text-[8px] text-muted-foreground truncate">{url.split("/").pop()}</div>
+                      </div>
+                    </div>
+                  )}
+                  {linkType === "document" && (
+                    <div className="p-2 flex items-center gap-1.5 bg-blue-500/5 text-blue-600 dark:text-blue-400">
+                      <FileText className="w-4 h-4 shrink-0 text-red-500" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-semibold truncate">Link de Arquivo</div>
+                        <div className="text-[8px] text-muted-foreground truncate">{url.split("/").pop()}</div>
+                      </div>
+                    </div>
+                  )}
+                  {linkType === "link" && (
+                    <div className="p-2 flex items-center gap-1.5 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400">
+                      <Link className="w-4 h-4 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-semibold truncate">Pré-visualização do Link</div>
+                        <div className="text-[8px] text-muted-foreground truncate">{url}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           );

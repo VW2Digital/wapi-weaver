@@ -61,7 +61,21 @@ import {
   ChevronDown,
   ArrowLeft,
   AlertTriangle,
+  MoreVertical,
+  Check,
 } from "lucide-react";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const PRESET_COLORS = [
   "#3b82f6", // Blue
@@ -430,46 +444,115 @@ function CRMPage() {
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <PageHeader
         title="Funis de Venda"
-        subtitle="Gerencie suas oportunidades comerciais e pipeline de vendas de forma visual."
         action={
-          <div className="flex items-center gap-3">
-            {/* Funnel Selector */}
-            {funnels.length > 0 && (
-              <Select value={activeId} onValueChange={handleFunnelChange}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {funnels.map((f: any) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+          <div className="flex items-center gap-2">
+            {/* Desktop Actions */}
+            <div className="hidden md:flex items-center gap-2">
+              {/* Funnel Selector */}
+              {funnels.length > 0 && (
+                <Select value={activeId} onValueChange={handleFunnelChange}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funnels.map((f: any) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
-            {/* Manage Stages */}
-            {funnels.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setStageManagerOpen(true);
-                  setStageView("list");
-                }}
-              >
-                <Settings className="w-4 h-4 mr-2" /> Gerenciar Etapas
-              </Button>
-            )}
-
-            {/* Add Funnel */}
-            <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Novo Funil
+              {/* Manage Stages */}
+              {funnels.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStageManagerOpen(true);
+                    setStageView("list");
+                  }}
+                >
+                  <Settings className="w-4 h-4 mr-2" /> Gerenciar Etapas
                 </Button>
-              </DialogTrigger>
+              )}
+
+              <Button variant="outline" size="sm" onClick={() => setNewFunnelOpen(true)}>
+                Novo Funil
+              </Button>
+
+              <Button size="sm" onClick={() => setNewOppOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Nova Oportunidade
+              </Button>
+            </div>
+
+            {/* Mobile Actions Dropdown */}
+            <div className="flex md:hidden items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9">
+                    <MoreVertical className="h-4.5 w-4.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                  {funnels.length > 0 && (
+                    <>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                          <Filter className="h-4 w-4" />
+                          <span>Selecionar Funil</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuPortal>
+                          <DropdownMenuSubContent className="bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                            {funnels.map((f: any) => (
+                              <DropdownMenuItem
+                                key={f.id}
+                                onClick={() => handleFunnelChange(f.id)}
+                                className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                              >
+                                <span>{f.name}</span>
+                                {activeId === f.id && <Check className="h-4 w-4 text-violet-500" />}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuSub>
+                      <DropdownMenuSeparator className="bg-neutral-800" />
+                    </>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setNewOppOpen(true)}
+                    className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Nova Oportunidade</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setNewFunnelOpen(true)}
+                    className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Novo Funil</span>
+                  </DropdownMenuItem>
+                  {funnels.length > 0 && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setStageManagerOpen(true);
+                        setStageView("list");
+                      }}
+                      className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Gerenciar Etapas</span>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Render dialogs outside of triggers */}
+            <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
               <DialogContent className="max-w-md bg-card border border-muted-foreground/15 rounded-xl p-6">
                 <DialogHeader>
                   <DialogTitle>Criar Novo Funil de Vendas</DialogTitle>
@@ -504,13 +587,7 @@ function CRMPage() {
               </DialogContent>
             </Dialog>
 
-            {/* Add Opportunity */}
             <Dialog open={newOppOpen} onOpenChange={setNewOppOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="mr-2 h-4 w-4" /> Nova Oportunidade
-                </Button>
-              </DialogTrigger>
               <DialogContent className="max-w-lg bg-card border border-muted-foreground/15 rounded-xl p-6">
                 <DialogHeader>
                   <DialogTitle>Nova Oportunidade Comercial</DialogTitle>
@@ -620,8 +697,8 @@ function CRMPage() {
       />
 
       {/* Top metrics bar */}
-      <div className="grid grid-cols-4 gap-4 px-6 py-4 border-b border-muted-foreground/10 bg-muted/10 shrink-0">
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10">
+      <div className="flex gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-muted-foreground/10 bg-muted/10 shrink-0 overflow-x-auto no-scrollbar">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
             <DollarSign className="w-8 h-8 text-green-500 bg-green-500/10 p-1.5 rounded-full" />
             <div>
@@ -634,7 +711,7 @@ function CRMPage() {
             </div>
           </div>
         </Card>
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
             <Sparkles className="w-8 h-8 text-primary bg-primary/10 p-1.5 rounded-full" />
             <div>
@@ -645,7 +722,7 @@ function CRMPage() {
             </div>
           </div>
         </Card>
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
             <TrendingUp className="w-8 h-8 text-indigo-500 bg-indigo-500/10 p-1.5 rounded-full" />
             <div>
@@ -658,7 +735,7 @@ function CRMPage() {
             </div>
           </div>
         </Card>
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
             <Award className="w-8 h-8 text-amber-500 bg-amber-500/10 p-1.5 rounded-full" />
             <div>
@@ -683,75 +760,77 @@ function CRMPage() {
       </div>
 
       {/* Filter and control bar */}
-      <div className="flex items-center justify-between gap-4 px-6 py-3 border-b border-muted-foreground/10 bg-card shrink-0">
-        <div className="flex items-center gap-3 flex-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-muted-foreground/10 bg-card shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 w-full">
           {/* Search */}
-          <div className="relative max-w-sm flex-1">
+          <div className="relative w-full sm:max-w-xs md:max-w-sm">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              className="pl-9 h-9"
+              className="pl-9 h-9 w-full"
               placeholder="Buscar por título ou contato…"
               value={search}
               onChange={(e: any) => setSearch(e.target.value)}
             />
           </div>
 
-          {/* Temperature */}
-          <div className="w-[120px]">
-            <Select value={tempFilter} onValueChange={setTempFilter}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Temperatura" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                <SelectItem value="cold">❄️ Frio</SelectItem>
-                <SelectItem value="warm">🔥 Morno</SelectItem>
-                <SelectItem value="hot">⚡ Quente</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Priority */}
-          <div className="w-[120px]">
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Prioridade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                <SelectItem value="low">Baixa</SelectItem>
-                <SelectItem value="medium">Média</SelectItem>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="urgent">Urgente</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Status */}
-          {viewMode === "table" && (
-            <div className="w-[120px]">
-              <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Status" />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Temperature */}
+            <div className="flex-1 sm:w-[120px] sm:flex-none">
+              <Select value={tempFilter} onValueChange={setTempFilter}>
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder="Temperatura" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="open">Abertas</SelectItem>
-                  <SelectItem value="won">Ganhos</SelectItem>
-                  <SelectItem value="lost">Perdidos</SelectItem>
-                  <SelectItem value="paused">Pausados</SelectItem>
-                  <SelectItem value="archived">Arquivados</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="cold">❄️ Frio</SelectItem>
+                  <SelectItem value="warm">🔥 Morno</SelectItem>
+                  <SelectItem value="hot">⚡ Quente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          )}
+
+            {/* Priority */}
+            <div className="flex-1 sm:w-[120px] sm:flex-none">
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder="Prioridade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="urgent">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            {viewMode === "table" && (
+              <div className="flex-1 sm:w-[120px] sm:flex-none">
+                <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Abertas</SelectItem>
+                    <SelectItem value="won">Ganhos</SelectItem>
+                    <SelectItem value="lost">Perdidos</SelectItem>
+                    <SelectItem value="paused">Pausados</SelectItem>
+                    <SelectItem value="archived">Arquivados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* View toggles */}
-        <div className="flex border border-muted-foreground/10 rounded-lg p-0.5 overflow-hidden">
+        <div className="flex w-full md:w-auto border border-muted-foreground/10 rounded-lg p-0.5 overflow-hidden">
           <Button
             size="sm"
             variant={viewMode === "kanban" ? "default" : "ghost"}
-            className="h-8 rounded-md px-3"
+            className="flex-1 md:flex-none h-8 rounded-md px-3"
             onClick={() => setViewMode("kanban")}
           >
             <Kanban className="w-4 h-4 mr-2" /> Kanban
@@ -759,7 +838,7 @@ function CRMPage() {
           <Button
             size="sm"
             variant={viewMode === "table" ? "default" : "ghost"}
-            className="h-8 rounded-md px-3"
+            className="flex-1 md:flex-none h-8 rounded-md px-3"
             onClick={() => setViewMode("table")}
           >
             <Table className="w-4 h-4 mr-2" /> Tabela

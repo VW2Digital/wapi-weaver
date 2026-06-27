@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   head_tags TEXT NULL,
   body_tags TEXT NULL,
   sidebar_order TEXT NULL,
+  seo_title VARCHAR(128) NULL,
+  seo_description VARCHAR(320) NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   updated_by VARCHAR(36) NULL,
   FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL

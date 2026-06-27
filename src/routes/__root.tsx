@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   Outlet,
   createRootRouteWithContext,
@@ -6,6 +6,8 @@ import {
   Scripts,
   Link,
 } from "@tanstack/react-router";
+import { HelmetProvider } from "react-helmet-async";
+import { useServerFn } from "@tanstack/react-start";
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
@@ -14,6 +16,16 @@ import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { TrackingTagsInjector } from "@/components/tracking-tags-injector";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { SeoHead } from "@/components/seo";
+import { getSeoSettings } from "@/lib/admin.functions";
+import {
+  SITE_NAME,
+  SITE_DEFAULT_DESCRIPTION,
+  SITE_DEFAULT_OG_IMAGE,
+  SITE_URL,
+  jsonLdOrganization,
+  jsonLdWebsite,
+} from "@/lib/seo";
 
 function NotFoundComponent() {
   return (
@@ -107,21 +119,40 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function RootSeoProvider() {
+  const fetchSeo = useServerFn(getSeoSettings);
+  const { data: seo } = useQuery({
+    queryKey: ["seo-settings"],
+    queryFn: () => fetchSeo(),
+    staleTime: 60_000,
+  });
+  return (
+    <SeoHead
+      title={seo?.seo_title || undefined}
+      description={seo?.seo_description || undefined}
+      jsonLd={[jsonLdOrganization(), jsonLdWebsite()]}
+    />
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <ErrorBoundary>
-            <ConfirmProvider>
-              <Outlet />
-              <Toaster richColors position="top-right" />
-              <TrackingTagsInjector />
-            </ConfirmProvider>
-          </ErrorBoundary>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <ErrorBoundary>
+              <ConfirmProvider>
+                <RootSeoProvider />
+                <Outlet />
+                <Toaster richColors position="top-right" />
+                <TrackingTagsInjector />
+              </ConfirmProvider>
+            </ErrorBoundary>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 }

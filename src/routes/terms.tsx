@@ -10,6 +10,7 @@ import {
   Mail,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { SeoHead } from "@/components/seo";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -34,6 +35,11 @@ export const Route = createFileRoute("/terms")({
 function TermsPage() {
   return (
     <div className="min-h-screen bg-background">
+      <SeoHead
+        title="Termos de Serviço"
+        description="Termos de Serviço da VW2 Conversas. Leia as regras e condições de uso da nossa plataforma."
+        canonical="https://vw2conversas.com.br/terms"
+      />
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">

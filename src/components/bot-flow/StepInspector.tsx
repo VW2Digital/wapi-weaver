@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, GripVertical } from "lucide-react";
+import { Trash2, Plus, GripVertical, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -21,6 +21,7 @@ export function StepInspector({
   handleDeleteStep,
   steps,
   agentName = "Atendente",
+  onClose,
 }: any) {
   const [config, setConfig] = useState<any>({});
 
@@ -34,9 +35,14 @@ export function StepInspector({
   const getStepTitle = (step: any) => {
     if (!step) return "Passo";
     if (step.trigger_type === "start") return "Início";
-    if (step.trigger_type === "keyword" && step.trigger_value)
+
+    const isUUID = (val: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    if (step.trigger_type === "keyword" && step.trigger_value && !isUUID(step.trigger_value))
       return `Palavra-chave: ${step.trigger_value}`;
-    if (step.trigger_type === "button" && step.trigger_value) return `Botão: ${step.trigger_value}`;
+    if (step.trigger_type === "button" && step.trigger_value && !isUUID(step.trigger_value))
+      return `Botão: ${step.trigger_value}`;
 
     const text = String(step.message_content || "").trim();
     if (text) {
@@ -144,7 +150,7 @@ export function StepInspector({
                       updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
                     }}
                   >
-                    <SelectTrigger className="w-[220px] shrink-0 text-xs h-8">
+                    <SelectTrigger className="flex-1 min-w-[120px] text-xs h-8">
                       <SelectValue placeholder="Destino..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -604,15 +610,17 @@ export function StepInspector({
   ].includes(selectedStep.message_type);
 
   return (
-    <div className="w-80 border-l bg-card p-4 flex flex-col overflow-y-auto">
-      <div className="flex items-center justify-between mb-4">
+    <div className="w-[400px] shrink-0 border-l bg-card flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b">
         <h3 className="font-semibold">Editar Passo</h3>
-        <Button variant="ghost" size="icon" onClick={handleDeleteStep}>
-          <Trash2 className="w-4 h-4 text-destructive" />
-        </Button>
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} title="Fechar Painel">
+            <X className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
-      <div className="space-y-4 pb-12">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="space-y-2">
           <Label>Gatilho (Trigger)</Label>
           <Select
@@ -745,6 +753,17 @@ export function StepInspector({
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="p-4 border-t bg-muted/10 shrink-0">
+        <Button
+          variant="destructive"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={handleDeleteStep}
+        >
+          <Trash2 className="w-4 h-4" />
+          Excluir Passo
+        </Button>
       </div>
     </div>
   );

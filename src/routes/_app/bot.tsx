@@ -230,6 +230,7 @@ function BotPage() {
             agentName={
               profileQuery.data?.display_name || profileQuery.data?.full_name || "Atendente"
             }
+            onClose={() => setSelectedStep(null)}
           />
         )}
       </div>

@@ -1988,6 +1988,8 @@ function AdminPlatformSection() {
   const [headTags, setHeadTags] = useState("");
   const [bodyTags, setBodyTags] = useState("");
   const [cronSecret, setCronSecret] = useState("");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
   const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
     "zapdispatch_settings_admin_platform_collapsed",
     true,
@@ -1998,6 +2000,10 @@ function AdminPlatformSection() {
   );
   const [cronCollapsed, toggleCronCollapsed] = usePersistedCollapsedState(
     "zapdispatch_settings_cron_secret_collapsed",
+    true,
+  );
+  const [seoCollapsed, toggleSeoCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_seo_collapsed",
     true,
   );
   const [credsCollapsed, toggleCredsCollapsed] = usePersistedCollapsedState(
@@ -2013,6 +2019,8 @@ function AdminPlatformSection() {
       setHeadTags((settings as any).head_tags ?? "");
       setBodyTags((settings as any).body_tags ?? "");
       setCronSecret((settings as any).cron_secret ?? "");
+      setSeoTitle((settings as any).seo_title ?? "");
+      setSeoDescription((settings as any).seo_description ?? "");
       setAppSecret("");
     }
   }, [settings]);
@@ -2343,6 +2351,83 @@ function AdminPlatformSection() {
                   <code className="text-[10px]">x-cron-secret</code> em cada chamada do cron.
                 </p>
               </>
+            )}
+          </div>
+
+          <div className="mt-6 border-t pt-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <h3 className="font-display text-base font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> SEO (meta tags globais)
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Define o título e a descrição padrão usados na &lt;title&gt; e meta description de
+                  toda a plataforma. Útil para aparecer bem nas pesquisas do Google.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={toggleSeoCollapsed}
+                aria-expanded={!seoCollapsed}
+                aria-label={seoCollapsed ? "Expandir SEO" : "Recolher SEO"}
+                className="shrink-0 gap-1 mt-0.5"
+              >
+                {seoCollapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline text-xs">
+                  {seoCollapsed ? "Expandir" : "Recolher"}
+                </span>
+              </Button>
+            </div>
+            {!seoCollapsed && (
+              <div className="mt-4 grid gap-4">
+                <div className="space-y-1.5">
+                  <Label>Título padrão (SEO)</Label>
+                  <Input
+                    value={seoTitle}
+                    onChange={(e) => setSeoTitle(e.target.value)}
+                    placeholder="VW2 Conversas"
+                    maxLength={128}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Será exibido na aba do navegador e nos resultados de busca (Google). Máximo de
+                    128 caracteres.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Descrição padrão (SEO)</Label>
+                  <Textarea
+                    rows={3}
+                    value={seoDescription}
+                    onChange={(e) => setSeoDescription(e.target.value)}
+                    placeholder="Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta."
+                    maxLength={320}
+                    className="text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Aparece logo abaixo do título nos resultados de busca. Máximo de 320 caracteres.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={mut.isPending}
+                    onClick={() => {
+                      mut.mutate({
+                        seo_title: seoTitle || null,
+                        seo_description: seoDescription || null,
+                      });
+                    }}
+                  >
+                    {mut.isPending ? "Salvando…" : "Salvar SEO"}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
 

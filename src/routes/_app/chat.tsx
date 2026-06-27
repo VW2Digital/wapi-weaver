@@ -1263,6 +1263,70 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
+  // Função para reproduzir um som amigável de notificação
+  const playNotificationSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Tom 1 (G5 agudo rápido)
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5
+      gain1.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+      osc1.start(audioCtx.currentTime);
+      osc1.stop(audioCtx.currentTime + 0.12);
+
+      // Tom 2 (A5 mais agudo, curto delay)
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08); // A5
+      gain2.gain.setValueAtTime(0.12, audioCtx.currentTime + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+      osc2.start(audioCtx.currentTime + 0.08);
+      osc2.stop(audioCtx.currentTime + 0.25);
+    } catch (err) {
+      console.warn("AudioContext bloqueado ou não suportado:", err);
+    }
+  };
+
+  // Notificação sonora para novas mensagens recebidas
+  const prevMessagesLengthRef = useRef<number>(0);
+  const prevSelectedPhoneRef = useRef<string | undefined>(undefined);
+  const prevUnreadSumRef = useRef<number>(0);
+
+  useEffect(() => {
+    // 1. Notificação para novas mensagens no chat aberto ativo
+    if (selectedPhone) {
+      const incomingMsgs = (messagesQuery.data ?? []).filter((m: any) => m.direction === "incoming");
+      
+      if (prevSelectedPhoneRef.current !== selectedPhone) {
+        prevSelectedPhoneRef.current = selectedPhone;
+        prevMessagesLengthRef.current = incomingMsgs.length;
+      } else {
+        if (incomingMsgs.length > prevMessagesLengthRef.current) {
+          playNotificationSound();
+        }
+        prevMessagesLengthRef.current = incomingMsgs.length;
+      }
+    }
+
+    // 2. Notificação para novas mensagens em outros contatos da lista
+    const currentUnreadSum = (contactsQuery.data ?? []).reduce(
+      (acc: number, c: any) => acc + (c.unread_count || 0),
+      0,
+    );
+    if (currentUnreadSum > prevUnreadSumRef.current) {
+      playNotificationSound();
+    }
+    prevUnreadSumRef.current = currentUnreadSum;
+  }, [messagesQuery.data, contactsQuery.data, selectedPhone]);
+
   // Scroll ao fim ao carregar novas mensagens
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2728,11 +2792,11 @@ function ChatPage() {
               <>
                 {/* Header do Chat */}
                 <div className="px-4 py-3 border-b border-zinc-800 bg-[#0c0a0f] flex items-center justify-between h-[72px] shrink-0">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="md:hidden h-8 w-8 text-zinc-400 hover:text-zinc-200"
+                      className="md:hidden h-8 w-8 text-zinc-400 hover:text-zinc-200 shrink-0"
                       onClick={() => setSelectedContact(null)}
                     >
                       <ArrowLeft className="h-5 w-5" />
@@ -2773,8 +2837,8 @@ function ChatPage() {
                       );
                     })()}
 
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
                         <h3 className="font-bold text-[15px] truncate text-zinc-100 leading-tight">
                           {selectedContact.name || "Sem Nome"}
                         </h3>
@@ -2785,7 +2849,7 @@ function ChatPage() {
                           );
                           if (contactTags.length === 0) return null;
                           return (
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 shrink-0">
                               {contactTags.map((ct: any) => (
                                 <TagBadge key={ct.tag_id} tag={ct.tags} />
                               ))}
@@ -2793,7 +2857,7 @@ function ChatPage() {
                           );
                         })()}
                       </div>
-                      <span className="text-xs text-zinc-400 font-medium leading-normal">
+                      <span className="text-xs text-zinc-400 font-medium leading-normal truncate whitespace-nowrap">
                         {formatPhone(selectedContact.phone_e164)}
                       </span>
                     </div>
@@ -4152,11 +4216,11 @@ function ChatPage() {
             )}
           </div>
 
-          {/* Painel lateral de informações do contato */}
           {selectedContact && (
             <div
               className={cn(
                 "h-full border-l bg-card flex flex-col transition-all duration-300 ease-in-out overflow-hidden shrink-0",
+                "absolute md:relative right-0 top-0 z-20 shadow-xl md:shadow-none",
                 contactInfoOpen ? "w-72" : "w-0 border-l-0",
               )}
             >
