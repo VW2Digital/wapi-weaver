@@ -16,6 +16,7 @@ import {
   listAllAgents,
   assignConversation,
   autoAssignConversation,
+  selfAssignConversation,
 } from "@/lib/assignment.functions";
 import {
   togglePinContact,
@@ -284,6 +285,26 @@ function ChatPage() {
     },
     onError: (err: any) => {
       toast.error("Erro ao auto-atribuir: " + err.message);
+    },
+  });
+
+  const selfAssignMutation = useMutation({
+    mutationFn: async (payload: { teamId: string; contactPhone?: string }) => {
+      const phone = payload.contactPhone || selectedPhone;
+      if (!phone) throw new Error("Nenhum contato selecionado");
+      return selfAssignConversation({
+        data: {
+          contactPhone: phone,
+          teamId: payload.teamId,
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      toast.success("Conversa atribuída a você!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao atribuir a você: " + err.message);
     },
   });
 
@@ -2791,12 +2812,12 @@ function ChatPage() {
             {selectedContact ? (
               <>
                 {/* Header do Chat */}
-                <div className="px-4 py-3 border-b border-zinc-800 bg-[#0c0a0f] flex items-center justify-between h-[72px] shrink-0">
+                <div className="px-4 py-3 border-b border-border bg-card flex items-center justify-between h-[72px] shrink-0">
                   <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="md:hidden h-8 w-8 text-zinc-400 hover:text-zinc-200 shrink-0"
+                      className="md:hidden h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
                       onClick={() => setSelectedContact(null)}
                     >
                       <ArrowLeft className="h-5 w-5" />
@@ -2839,7 +2860,7 @@ function ChatPage() {
 
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">
-                        <h3 className="font-bold text-[15px] truncate text-zinc-100 leading-tight">
+                        <h3 className="font-bold text-[15px] truncate text-foreground leading-tight">
                           {selectedContact.name || "Sem Nome"}
                         </h3>
                         {/* Render conversation tag pills/dots in header */}
@@ -2857,7 +2878,7 @@ function ChatPage() {
                           );
                         })()}
                       </div>
-                      <span className="text-xs text-zinc-400 font-medium leading-normal truncate whitespace-nowrap">
+                      <span className="text-xs text-muted-foreground font-medium leading-normal truncate whitespace-nowrap">
                         {formatPhone(selectedContact.phone_e164)}
                       </span>
                     </div>
@@ -2869,7 +2890,7 @@ function ChatPage() {
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-neutral-700 bg-neutral-900/50 hover:bg-neutral-900 text-neutral-200 select-none cursor-pointer transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-border bg-background hover:bg-accent text-foreground select-none cursor-pointer transition-colors"
                         >
                           <span
                             className={cn(
@@ -2892,7 +2913,7 @@ function ChatPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align="end"
-                        className="w-[150px] bg-[#0c0a0f] border-neutral-800 text-neutral-200"
+                        className="w-[150px] bg-popover border-border text-popover-foreground"
                       >
                         <DropdownMenuItem
                           onClick={() =>
@@ -2901,7 +2922,7 @@ function ChatPage() {
                               status: "aberto",
                             })
                           }
-                          className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="flex items-center justify-between cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -4491,6 +4512,30 @@ function ChatPage() {
                           {assignMutation.isPending ? "Salvando..." : "Salvar"}
                         </Button>
 
+                        {selectedTeamId &&
+                          (teamMembersQuery.data ?? []).some(
+                            (m: any) => m.user_id === profile?.id,
+                          ) && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 text-xs"
+                              onClick={() =>
+                                selfAssignMutation.mutate({ teamId: selectedTeamId })
+                              }
+                              disabled={selfAssignMutation.isPending}
+                              title="Atribuir a mim"
+                            >
+                              {selfAssignMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserCheck className="h-3 w-3 mr-1" /> Atribuir a mim
+                                </>
+                              )}
+                            </Button>
+                          )}
+
                         {selectedTeamId && (
                           <Button
                             size="sm"
@@ -4498,7 +4543,7 @@ function ChatPage() {
                             className="h-8 text-xs"
                             onClick={() => autoAssignMutation.mutate(selectedTeamId)}
                             disabled={autoAssignMutation.isPending}
-                            title="Auto-atribuir usando Round-Robin"
+                            title="Auto-atribuir para o agente menos ocupado"
                           >
                             {autoAssignMutation.isPending ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
@@ -4684,27 +4729,57 @@ function ChatPage() {
                 </div>
               </div>
               <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
-                <div>
+                <div className="flex flex-col sm:flex-row gap-2">
                   {assignDialogTeamId && assignDialogTeamId !== "none" && (
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => {
-                        autoAssignMutation.mutate(
-                          {
-                            teamId: assignDialogTeamId,
-                            contactPhone: assigningContactData.phone_e164,
-                          },
-                          {
-                            onSuccess: () => setAssigningContactData(null),
-                          },
-                        );
-                      }}
-                      disabled={autoAssignMutation.isPending}
-                      className="w-full sm:w-auto"
-                    >
-                      {autoAssignMutation.isPending ? "Auto-atribuindo..." : "Auto-atribuir"}
-                    </Button>
+                    <>
+                      {(assignDialogTeamMembersQuery.data ?? []).some(
+                        (m: any) => m.user_id === profile?.id,
+                      ) && (
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={() => {
+                            selfAssignMutation.mutate(
+                              {
+                                teamId: assignDialogTeamId,
+                                contactPhone: assigningContactData.phone_e164,
+                              },
+                              {
+                                onSuccess: () => setAssigningContactData(null),
+                              },
+                            );
+                          }}
+                          disabled={selfAssignMutation.isPending}
+                          className="w-full sm:w-auto"
+                        >
+                          {selfAssignMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <UserCheck className="h-3 w-3 mr-1" />
+                          )}
+                          Atribuir a mim
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          autoAssignMutation.mutate(
+                            {
+                              teamId: assignDialogTeamId,
+                              contactPhone: assigningContactData.phone_e164,
+                            },
+                            {
+                              onSuccess: () => setAssigningContactData(null),
+                            },
+                          );
+                        }}
+                        disabled={autoAssignMutation.isPending}
+                        className="w-full sm:w-auto"
+                      >
+                        {autoAssignMutation.isPending ? "Auto-atribuindo..." : "Auto-atribuir"}
+                      </Button>
+                    </>
                   )}
                 </div>
                 <div className="flex gap-2 justify-end">

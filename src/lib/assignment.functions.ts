@@ -122,17 +122,19 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
       const phone = data.contactPhone.replace(/\D/g, "");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-      // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos
+      // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos,
+      // excluindo o dono do tenant (administrador) para não atribuir a ele
       const agents = await db.query(
         `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
          FROM team_members tm
          LEFT JOIN conversation_assignments ca 
            ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
          WHERE tm.team_id = ?
+           AND tm.user_id != ?
          GROUP BY tm.user_id
          ORDER BY active_chats ASC, RAND()
          LIMIT 1`,
-        [effectiveUserId, data.teamId],
+        [effectiveUserId, data.teamId, effectiveUserId],
       );
 
       // Desativa a atribuição anterior
@@ -146,18 +148,61 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
       const targetAgentId = agents && agents.length > 0 ? agents[0].agent_id : null;
       const assignmentId = crypto.randomUUID();
 
-      // Cria a nova atribuição (ao time + agente selecionado via round-robin, se disponível)
+      // Cria a nova atribuição (ao time + agente selecionado, se disponível)
       await db.query(
         `INSERT INTO conversation_assignments 
           (id, user_id, contact_phone, team_id, agent_id, assigned_by)
-         VALUES (?, ?, ?, ?, ?, NULL)`,
-        [assignmentId, effectiveUserId, phone, data.teamId, targetAgentId],
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [assignmentId, effectiveUserId, phone, data.teamId, targetAgentId, context.userId],
       );
 
       return { ok: true, agentId: targetAgentId };
     } catch (e: any) {
       console.error("Erro ao auto-atribuir conversa:", e);
       throw new Error(e.message || "Erro ao auto-atribuir conversa");
+    }
+  });
+
+export const selfAssignConversation = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z.object({ contactPhone: z.string().trim().min(5), teamId: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    try {
+      const phone = data.contactPhone.replace(/\D/g, "");
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+      // Verifica se o usuário atual é membro da equipe
+      const member = await db.query(
+        "SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?",
+        [data.teamId, context.userId],
+      );
+      if (!member || member.length === 0) {
+        throw new Error("Você não é membro desta equipe.");
+      }
+
+      // Desativa a atribuição anterior
+      await db.query(
+        `UPDATE conversation_assignments 
+         SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
+         WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
+        [effectiveUserId, phone],
+      );
+
+      // Cria nova atribuição com o próprio usuário como agente
+      const assignmentId = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO conversation_assignments 
+          (id, user_id, contact_phone, team_id, agent_id, assigned_by)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [assignmentId, effectiveUserId, phone, data.teamId, context.userId, context.userId],
+      );
+
+      return { ok: true };
+    } catch (e: any) {
+      console.error("Erro ao auto-atribuir-se à conversa:", e);
+      throw new Error(e.message || "Erro ao auto-atribuir-se à conversa");
     }
   });
 

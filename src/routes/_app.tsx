@@ -355,17 +355,7 @@ function AppLayout() {
           );
         })}
       </nav>
-      {/* Download App APK Button */}
-      <div className="mx-3 mt-2 group-data-[collapsible=icon]:hidden">
-        <a
-          href="/vw2-conversas.apk"
-          download="vw2-conversas.apk"
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-600/10 text-violet-400 hover:bg-violet-600/20 text-xs font-semibold transition-all border border-violet-500/20 cursor-pointer w-full justify-center"
-        >
-          <Download className="h-3.5 w-3.5" />
-          <span>Baixar App Android</span>
-        </a>
-      </div>
+
       <div className="m-3 mt-4 border-t border-sidebar-border pt-3 group-data-[collapsible=icon]:m-1 group-data-[collapsible=icon]:px-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
