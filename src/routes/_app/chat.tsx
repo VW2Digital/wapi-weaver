@@ -4727,44 +4727,19 @@ function ChatPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {assignDialogTeamId && assignDialogTeamId !== "none" && (
-                    <>
-                      {(assignDialogTeamMembersQuery.data ?? []).some(
-                        (m: any) => m.user_id === profile?.id,
-                      ) && (
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          onClick={() => {
-                            selfAssignMutation.mutate(
-                              {
-                                teamId: assignDialogTeamId,
-                                contactPhone: assigningContactData.phone_e164,
-                              },
-                              {
-                                onSuccess: () => setAssigningContactData(null),
-                              },
-                            );
-                          }}
-                          disabled={selfAssignMutation.isPending}
-                          className="w-full sm:w-auto"
-                        >
-                          {selfAssignMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          ) : (
-                            <UserCheck className="h-3 w-3 mr-1" />
-                          )}
-                          Atribuir a mim
-                        </Button>
-                      )}
+
+                {/* Ações Rápidas de Atribuição */}
+                {assignDialogTeamId && assignDialogTeamId !== "none" && (
+                  <div className="flex gap-2 pt-2">
+                    {(assignDialogTeamMembersQuery.data ?? []).some(
+                      (m: any) => m.user_id === profile?.id,
+                    ) && (
                       <Button
-                        variant="outline"
+                        variant="secondary"
+                        size="sm"
                         type="button"
                         onClick={() => {
-                          autoAssignMutation.mutate(
+                          selfAssignMutation.mutate(
                             {
                               teamId: assignDialogTeamId,
                               contactPhone: assigningContactData.phone_e164,
@@ -4774,44 +4749,74 @@ function ChatPage() {
                             },
                           );
                         }}
-                        disabled={autoAssignMutation.isPending}
-                        className="w-full sm:w-auto"
+                        disabled={selfAssignMutation.isPending}
+                        className="flex-1 text-xs"
                       >
-                        {autoAssignMutation.isPending ? "Auto-atribuindo..." : "Auto-atribuir"}
+                        {selfAssignMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        ) : (
+                          <UserCheck className="h-3.5 w-3.5 mr-1.5" />
+                        )}
+                        Atribuir a mim
                       </Button>
-                    </>
-                  )}
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setAssigningContactData(null)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      const targetTeamId =
-                        assignDialogTeamId === "none" || !assignDialogTeamId
-                          ? null
-                          : assignDialogTeamId;
-                      const targetAgentId =
-                        assignDialogAgentId === "none" || !assignDialogAgentId
-                          ? null
-                          : assignDialogAgentId;
-                      assignMutation.mutate(
-                        {
-                          teamId: targetTeamId,
-                          agentId: targetAgentId,
-                          contactPhone: assigningContactData.phone_e164,
-                        },
-                        {
-                          onSuccess: () => setAssigningContactData(null),
-                        },
-                      );
-                    }}
-                    disabled={assignMutation.isPending}
-                  >
-                    {assignMutation.isPending ? "Salvando..." : "Salvar"}
-                  </Button>
-                </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => {
+                        autoAssignMutation.mutate(
+                          {
+                            teamId: assignDialogTeamId,
+                            contactPhone: assigningContactData.phone_e164,
+                          },
+                          {
+                            onSuccess: () => setAssigningContactData(null),
+                          },
+                        );
+                      }}
+                      disabled={autoAssignMutation.isPending}
+                      className="flex-1 text-xs"
+                    >
+                      {autoAssignMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      ) : (
+                        <UserCheck className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Auto-atribuir
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <DialogFooter className="flex gap-2 justify-end pt-4 border-t border-sidebar-border">
+                <Button variant="outline" onClick={() => setAssigningContactData(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    const targetTeamId =
+                      assignDialogTeamId === "none" || !assignDialogTeamId
+                        ? null
+                        : assignDialogTeamId;
+                    const targetAgentId =
+                      assignDialogAgentId === "none" || !assignDialogAgentId
+                        ? null
+                        : assignDialogAgentId;
+                    assignMutation.mutate(
+                      {
+                        teamId: targetTeamId,
+                        agentId: targetAgentId,
+                        contactPhone: assigningContactData.phone_e164,
+                      },
+                      {
+                        onSuccess: () => setAssigningContactData(null),
+                      },
+                    );
+                  }}
+                  disabled={assignMutation.isPending}
+                >
+                  {assignMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

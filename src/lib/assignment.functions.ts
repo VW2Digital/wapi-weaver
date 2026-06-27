@@ -123,18 +123,17 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
       // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos,
-      // excluindo o dono do tenant (administrador) para não atribuir a ele
+      // incluindo todos os agentes cadastrados na equipe
       const agents = await db.query(
         `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
          FROM team_members tm
          LEFT JOIN conversation_assignments ca 
            ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
          WHERE tm.team_id = ?
-           AND tm.user_id != ?
          GROUP BY tm.user_id
          ORDER BY active_chats ASC, RAND()
          LIMIT 1`,
-        [effectiveUserId, data.teamId, effectiveUserId],
+        [effectiveUserId, data.teamId],
       );
 
       // Desativa a atribuição anterior
@@ -173,12 +172,13 @@ export const selfAssignConversation = createServerFn({ method: "POST" })
       const phone = data.contactPhone.replace(/\D/g, "");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-      // Verifica se o usuário atual é membro da equipe
+      // Verifica se o usuário atual é membro da equipe (administrador tem permissão bypass)
       const member = await db.query(
         "SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?",
         [data.teamId, context.userId],
       );
-      if (!member || member.length === 0) {
+      const isAdmin = context.userId === effectiveUserId;
+      if (!isAdmin && (!member || member.length === 0)) {
         throw new Error("Você não é membro desta equipe.");
       }
 
