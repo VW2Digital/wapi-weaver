@@ -1726,3 +1726,119 @@ export const listOwners = createServerFn({ method: "GET" })
     const rows = await db.query("SELECT id, email, display_name, full_name FROM profiles");
     return rows;
   });
+
+const bulkAssignInput = z.object({
+  contactIds: z.array(z.string().uuid()),
+  funnelId: z.string().uuid(),
+  stageId: z.string().uuid(),
+});
+
+export const bulkAssignToKanban = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => bulkAssignInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    await db.transaction(async (conn) => {
+      // Validate funnel & stage
+      if (!(await validateStageBelongsToFunnel(data.funnelId, data.stageId))) {
+        throw new Error("Etapa selecionada não pertence ao funil informado");
+      }
+
+      for (const contactId of data.contactIds) {
+        // 1. Check if contact has an active opportunity in this funnel
+        const [existing]: any = await conn.execute(
+          `SELECT id FROM opportunities 
+           WHERE user_id = ? AND primary_contact_id = ? AND funnel_id = ? AND deleted_at IS NULL
+           LIMIT 1`,
+          [effectiveUserId, contactId, data.funnelId],
+        );
+
+        const oppRow = existing?.[0];
+
+        if (oppRow) {
+          // Update existing opportunity stage
+          const oppId = oppRow.id;
+          
+          // Get old values for auditing
+          const [oldRow]: any = await conn.execute(
+            "SELECT stage_id FROM opportunities WHERE id = ?",
+            [oppId]
+          );
+          
+          await conn.execute(
+            `UPDATE opportunities 
+             SET stage_id = ?, updated_at = CURRENT_TIMESTAMP()
+             WHERE id = ?`,
+            [data.stageId, oppId],
+          );
+
+          await logAudit(
+            conn,
+            context.userId,
+            oppId,
+            "update_stage",
+            { stage_id: oldRow?.[0]?.stage_id },
+            { stage_id: data.stageId },
+          );
+        } else {
+          // Create new opportunity
+          const oppId = crypto.randomUUID();
+          
+          // Fetch contact details to make a nice title
+          const [contactRow]: any = await conn.execute(
+            "SELECT name, phone_e164 FROM contacts WHERE id = ? LIMIT 1",
+            [contactId],
+          );
+          const contact = contactRow?.[0];
+          const name = contact?.name || contact?.phone_e164 || "Contato";
+          const title = `Oportunidade - ${name}`;
+
+          // Calculate kanban order
+          const [maxOrderRow]: any = await conn.execute(
+            "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
+            [data.stageId],
+          );
+          const maxOrder = maxOrderRow?.[0]?.max_order ? parseFloat(maxOrderRow[0].max_order) : 0.0;
+          const kanbanOrder = maxOrder + 1000.0;
+
+          await conn.execute(
+            `INSERT INTO opportunities (
+               id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', ?)`,
+            [
+              oppId,
+              effectiveUserId,
+              data.funnelId,
+              data.stageId,
+              title,
+              contactId,
+              effectiveUserId,
+              context.userId,
+              kanbanOrder,
+            ],
+          );
+
+          // Save primary contact association in pivot table
+          await conn.execute(
+            `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
+             VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)
+             ON DUPLICATE KEY UPDATE is_primary = TRUE`,
+            [effectiveUserId, oppId, contactId],
+          );
+
+          await logAudit(
+            conn,
+            context.userId,
+            oppId,
+            "create",
+            null,
+            { funnel_id: data.funnelId, stage_id: data.stageId, title },
+          );
+        }
+      }
+    });
+
+    return { ok: true };
+  });

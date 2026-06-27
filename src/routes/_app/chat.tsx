@@ -27,7 +27,7 @@ import {
   quickSaveContact,
   toggleBotActive,
 } from "@/lib/chat-actions.functions";
-import { createOpportunity, createActivity } from "@/lib/crm.functions";
+import { createOpportunity, createActivity, bulkAssignToKanban } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -565,6 +565,7 @@ function ChatPage() {
   // Novas Server Functions para CRM
   const createOpportunityFn = useServerFn(createOpportunity);
   const createActivityFn = useServerFn(createActivity);
+  const bulkAssignToKanbanFn = useServerFn(bulkAssignToKanban);
 
   // Query para buscar as oportunidades ativas do contato
   const contactOpportunitiesQuery = useQuery({
@@ -610,6 +611,22 @@ function ChatPage() {
     },
     onError: (err: any) => {
       toast.error("Erro ao criar oportunidade: " + err.message);
+    },
+  });
+
+  const bulkAssignMutation = useMutation({
+    mutationFn: (payload: { contactIds: string[]; funnelId: string; stageId: string }) =>
+      bulkAssignToKanbanFn({ data: payload }),
+    onSuccess: () => {
+      toast.success("Contatos adicionados ao funil com sucesso!");
+      setIsSelectionMode(false);
+      setSelectedContactIds([]);
+      setIsBulkFunnelDialogOpen(false);
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Falha ao adicionar contatos ao funil.");
     },
   });
 
@@ -790,6 +807,11 @@ function ChatPage() {
     }
   }, [selectedContact]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [isBulkFunnelDialogOpen, setIsBulkFunnelDialogOpen] = useState(false);
+  const [bulkFunnelId, setBulkFunnelId] = useState("");
+  const [bulkStageId, setBulkStageId] = useState("");
   const [typedMessage, setTypedMessage] = useState("");
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState(false);
@@ -2239,6 +2261,22 @@ function ChatPage() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    setSelectedContactIds([]);
+                  }}
+                  title="Seleção em massa"
+                  className={cn(
+                    "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
+                    isSelectionMode && "bg-muted text-primary hover:bg-muted",
+                  )}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  size="icon"
+                  variant="ghost"
                   onClick={() => setIsNewChatDialogOpen(true)}
                   title="Novo Atendimento"
                   className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg"
@@ -2247,6 +2285,69 @@ function ChatPage() {
                 </Button>
               </div>
             </div>
+
+            {isSelectionMode && (
+              <div className="flex items-center justify-between bg-muted/60 p-2.5 rounded-lg border text-xs gap-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px] px-2"
+                    onClick={() => {
+                      if (selectedContactIds.length === filteredContacts.length) {
+                        setSelectedContactIds([]);
+                      } else {
+                        setSelectedContactIds(filteredContacts.map((c: any) => c.id));
+                      }
+                    }}
+                  >
+                    {selectedContactIds.length === filteredContacts.length
+                      ? "Desmarcar Todos"
+                      : "Selecionar Todos"}
+                  </Button>
+                  <span className="font-semibold text-muted-foreground text-[10px]">
+                    {selectedContactIds.length} selecionado(s)
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-7 text-[10px] px-2.5 bg-violet-600 hover:bg-violet-700 text-white font-medium"
+                    disabled={selectedContactIds.length === 0}
+                    onClick={() => {
+                      // Set default funnel and stage
+                      const defaultFunnel =
+                        salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+                      if (defaultFunnel) {
+                        setBulkFunnelId(defaultFunnel.id);
+                        const defaultStage =
+                          salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) ||
+                          salesStagesQuery.data?.[0];
+                        if (defaultStage) {
+                          setBulkStageId(defaultStage.id);
+                        }
+                      }
+                      setIsBulkFunnelDialogOpen(true);
+                    }}
+                  >
+                    Enviar p/ Funil
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-[10px] px-1.5 hover:bg-muted"
+                    onClick={() => {
+                      setIsSelectionMode(false);
+                      setSelectedContactIds([]);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* TagFilterBar: Exibida sob demanda ao clicar no funil */}
             {showTagFilters && (
@@ -2347,11 +2448,39 @@ function ChatPage() {
                       role="button"
                       tabIndex={0}
                       onClick={() => {
-                        setSelectedContact(c);
-                        setReplyingTo(null);
+                        if (isSelectionMode) {
+                          setSelectedContactIds((prev) =>
+                            prev.includes(c.id)
+                              ? prev.filter((id) => id !== c.id)
+                              : [...prev, c.id],
+                          );
+                        } else {
+                          setSelectedContact(c);
+                          setReplyingTo(null);
+                        }
                       }}
                       className="flex-1 flex items-start gap-3 min-w-0 cursor-pointer"
                     >
+                      {/* Checkbox para modo de seleção */}
+                      {isSelectionMode && (
+                        <div
+                          className="shrink-0 flex items-center justify-center mt-3 mr-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedContactIds.includes(c.id)}
+                            onChange={() => {
+                              setSelectedContactIds((prev) =>
+                                prev.includes(c.id)
+                                  ? prev.filter((id) => id !== c.id)
+                                  : [...prev, c.id],
+                              );
+                            }}
+                            className="h-4.5 w-4.5 rounded border-input text-violet-600 focus:ring-violet-500 cursor-pointer"
+                          />
+                        </div>
+                      )}
                       {/* Avatar */}
                       <div className="relative shrink-0">
                         <div
@@ -5251,6 +5380,88 @@ function ChatPage() {
                   className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
                 >
                   Fechar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Diálogo de Atribuição em Massa de Funil */}
+          <Dialog open={isBulkFunnelDialogOpen} onOpenChange={setIsBulkFunnelDialogOpen}>
+            <DialogContent className="sm:max-w-[450px] bg-card border-border text-card-foreground">
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Enviar Contatos para o Funil</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-xs text-muted-foreground">
+                  Você está enviando {selectedContactIds.length} contato(s) selecionado(s) para o funil e etapa abaixo.
+                </p>
+
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Funil de Vendas</Label>
+                  <Select
+                    value={bulkFunnelId}
+                    onValueChange={(val) => {
+                      setBulkFunnelId(val);
+                      const stages = salesStagesQuery.data?.filter((s: any) => s.funnel_id === val);
+                      if (stages && stages.length > 0) {
+                        setBulkStageId(stages[0].id);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                      <SelectValue placeholder="Selecione o Funil" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                      {(salesFunnelsQuery.data ?? []).map((f: any) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-zinc-400">Etapa do Funil</Label>
+                  <Select value={bulkStageId} onValueChange={setBulkStageId} disabled={!bulkFunnelId}>
+                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                      <SelectValue placeholder="Selecione a Etapa" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                      {(salesStagesQuery.data ?? [])
+                        .filter((s: any) => s.funnel_id === bulkFunnelId)
+                        .map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkFunnelDialogOpen(false)}
+                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!bulkFunnelId || !bulkStageId) {
+                      toast.error("Por favor, selecione o funil e a etapa.");
+                      return;
+                    }
+                    bulkAssignMutation.mutate({
+                      contactIds: selectedContactIds,
+                      funnelId: bulkFunnelId,
+                      stageId: bulkStageId,
+                    });
+                  }}
+                  disabled={bulkAssignMutation.isPending}
+                >
+                  {bulkAssignMutation.isPending ? "Processando..." : "Confirmar Envio"}
                 </Button>
               </DialogFooter>
             </DialogContent>
