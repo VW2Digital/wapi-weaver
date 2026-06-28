@@ -9,6 +9,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -373,24 +379,24 @@ export function OpportunityModal({
 
   if (loadingOpp) {
     return (
-      <Dialog open={!!opportunityId} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl h-[85vh] flex items-center justify-center">
+      <Sheet open={!!opportunityId} onOpenChange={onClose}>
+        <SheetContent className="w-full data-[side=right]:sm:max-w-5xl h-full flex items-center justify-center">
           <span className="text-muted-foreground text-sm">Carregando dados da oportunidade...</span>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     );
   }
 
   return (
-    <Dialog open={!!opportunityId} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden bg-card border border-muted-foreground/15 rounded-2xl shadow-xl">
-        <DialogHeader className="p-6 border-b border-muted-foreground/10 flex flex-row items-center justify-between">
+    <Sheet open={!!opportunityId} onOpenChange={onClose}>
+      <SheetContent showCloseButton={false} className="w-full data-[side=right]:sm:max-w-5xl h-full flex flex-col p-0 overflow-hidden bg-card border-l border-muted-foreground/15 gap-0">
+        <SheetHeader className="p-6 border-b border-muted-foreground/10 flex flex-row items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Briefcase className="w-5 h-5 text-primary" />
             <div>
-              <DialogTitle className="text-lg font-bold tracking-tight">
+              <SheetTitle className="text-lg font-bold tracking-tight">
                 {opportunity?.title || "Detalhes da Oportunidade"}
-              </DialogTitle>
+              </SheetTitle>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-muted-foreground">Status:</span>
                 {opportunity?.status === "open" && (
@@ -444,7 +450,7 @@ export function OpportunityModal({
               </Button>
             )}
           </div>
-        </DialogHeader>
+        </SheetHeader>
 
         <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 border-b border-muted-foreground/10 bg-muted/20">
@@ -576,7 +582,7 @@ export function OpportunityModal({
                     onChange={(e) => setExpectedCloseDate(e.target.value)}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 col-span-2">
                   <Label>Origem (Lead Source)</Label>
                   <Input
                     value={source}
@@ -584,37 +590,35 @@ export function OpportunityModal({
                     placeholder="Ex: Instagram, Indicação, etc."
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label>Temperatura</Label>
-                    <Select
-                      value={temperature || "cold"}
-                      onValueChange={(v: any) => setTemperature(v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cold">Frio</SelectItem>
-                        <SelectItem value="warm">Morno</SelectItem>
-                        <SelectItem value="hot">Quente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Prioridade</Label>
-                    <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Baixa</SelectItem>
-                        <SelectItem value="medium">Média</SelectItem>
-                        <SelectItem value="high">Alta</SelectItem>
-                        <SelectItem value="urgent">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-1.5">
+                  <Label>Temperatura</Label>
+                  <Select
+                    value={temperature || "cold"}
+                    onValueChange={(v: any) => setTemperature(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cold">Frio</SelectItem>
+                      <SelectItem value="warm">Morno</SelectItem>
+                      <SelectItem value="hot">Quente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Prioridade</Label>
+                  <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Baixa</SelectItem>
+                      <SelectItem value="medium">Média</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="urgent">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -943,7 +947,7 @@ export function OpportunityModal({
           </div>
         </Tabs>
 
-        <DialogFooter className="p-4 border-t border-muted-foreground/10 flex items-center justify-between bg-muted/20">
+        <div className="p-4 border-t border-muted-foreground/10 flex items-center justify-between bg-muted/20 shrink-0">
           <Button
             variant="ghost"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -959,8 +963,8 @@ export function OpportunityModal({
               Salvar Alterações
             </Button>
           </div>
-        </DialogFooter>
-      </DialogContent>
+        </div>
+      </SheetContent>
 
       {/* Lost Reason Dialog */}
       <Dialog open={lostDialogOpen} onOpenChange={setLostDialogOpen}>
@@ -1010,6 +1014,6 @@ export function OpportunityModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Dialog>
+    </Sheet>
   );
 }

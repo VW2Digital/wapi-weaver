@@ -8,7 +8,8 @@ import crypto from "crypto";
  * instance_id é NULL quando o usuário ainda não configurou o WhatsApp —
  * isso é intencional e suportado pelo schema (NULL, não NOT NULL).
  */
-async function getOrCreateBotSettings(context: any) {
+async function getOrCreateBotSettings(context: any, channelInput?: string) {
+  const channel = channelInput || "whatsapp";
   const { resolveEffectiveUserId } = await import("./chat-helpers");
   const { default: db } = await import("./db");
   const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -20,23 +21,23 @@ async function getOrCreateBotSettings(context: any) {
   const p = profileRows?.[0] ?? null;
 
   const settingsList = (await db.query(
-    "SELECT * FROM bot_settings WHERE user_id = ?",
-    [effectiveUserId],
+    "SELECT * FROM bot_settings WHERE user_id = ? AND channel = ?",
+    [effectiveUserId, channel],
   )) as any[];
   let settings = settingsList?.[0] ?? null;
 
   if (!settings) {
     const id = crypto.randomUUID();
     await db.query(
-      "INSERT INTO bot_settings (id, user_id, instance_id, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?)",
-      [id, effectiveUserId, p?.whatsapp_phone_number_id || null, false, 60],
+      "INSERT INTO bot_settings (id, user_id, instance_id, channel, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?, ?)",
+      [id, effectiveUserId, channel === "whatsapp" ? p?.whatsapp_phone_number_id || null : null, channel, false, 60],
     );
     const rows = (await db.query("SELECT * FROM bot_settings WHERE id = ?", [id])) as any[];
     settings = rows?.[0] ?? null;
     if (!settings) {
       return { ok: false as const, error: "Erro ao criar configurações do bot" };
     }
-  } else if (p?.whatsapp_phone_number_id && settings.instance_id !== p.whatsapp_phone_number_id) {
+  } else if (channel === "whatsapp" && p?.whatsapp_phone_number_id && settings.instance_id !== p.whatsapp_phone_number_id) {
     await db.query("UPDATE bot_settings SET instance_id = ? WHERE id = ?", [
       p.whatsapp_phone_number_id,
       settings.id,
@@ -49,18 +50,19 @@ async function getOrCreateBotSettings(context: any) {
 
 export const getBotSettings = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async ({ context }: { context: any }) => {
-    const result = await getOrCreateBotSettings(context);
+  .validator((d: any) => z.object({ channel: z.string().optional() }).optional().parse(d))
+  .handler(async ({ data, context }: { data?: { channel?: string }; context: any }) => {
+    const result = await getOrCreateBotSettings(context, data?.channel);
     if (!result.ok) return result;
     return { ok: true, settings: result.settings };
   });
 
 export const toggleBotStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ isActive: z.boolean() }).parse(d))
+  .validator((d: any) => z.object({ isActive: z.boolean(), channel: z.string().optional() }).parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
     const { default: db } = await import("./db");
-    const result = await getOrCreateBotSettings(context);
+    const result = await getOrCreateBotSettings(context, data.channel);
     if (!result.ok) return result;
 
     await db.query("UPDATE bot_settings SET is_active = ? WHERE id = ?", [
@@ -73,16 +75,17 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
 
 export const listBotSteps = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async ({ context }: { context: any }) => {
+  .validator((d: any) => z.object({ channel: z.string().optional() }).optional().parse(d))
+  .handler(async ({ data, context }: { data?: { channel?: string }; context: any }) => {
     const { default: db } = await import("./db");
-    const result = await getOrCreateBotSettings(context);
+    const result = await getOrCreateBotSettings(context, data?.channel);
     if (!result.ok) throw new Error(result.error || "Falha ao obter configurações do bot");
 
-    const data = (await db.query(
+    const steps = (await db.query(
       "SELECT * FROM bot_steps WHERE bot_settings_id = ? ORDER BY step_order ASC",
       [result.settings.id],
     )) as any[];
-    return data ?? [];
+    return steps ?? [];
   });
 
 // Validator para um único step
@@ -102,22 +105,25 @@ const saveBotStepInput = z.object({
   position_y: z.number().optional().default(0),
 });
 
-const saveBotStepsBatchInput = z.array(saveBotStepInput);
+const saveBotStepsBatchInput = z.object({
+  channel: z.string().optional(),
+  steps: z.array(saveBotStepInput)
+});
 
 export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
-  .handler(async ({ data, context }: { data: any[]; context: any }) => {
+  .handler(async ({ data, context }: { data: { channel?: string; steps: any[] }; context: any }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const result = await getOrCreateBotSettings(context);
+    const result = await getOrCreateBotSettings(context, data.channel);
     if (!result.ok)
       return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
 
     const settings = result.settings;
-    const incomingIds = data.map((s) => s.id).filter(Boolean);
+    const incomingIds = data.steps.map((s) => s.id).filter(Boolean);
 
     // Remove steps que não estão mais no fluxo
     if (incomingIds.length > 0) {
@@ -131,7 +137,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
     }
 
     // 1ª passagem: upsert de todos os steps SEM next_step_id (evita FK circular)
-    for (const step of data) {
+    for (const step of data.steps) {
       const stepId = step.id || crypto.randomUUID();
       const payload = {
         bot_settings_id: settings.id,
@@ -196,7 +202,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
     }
 
     // 2ª passagem: resolve links next_step_id agora que todos existem
-    for (const step of data) {
+    for (const step of data.steps) {
       if (!step.next_step_id) continue;
       await db.query("UPDATE bot_steps SET next_step_id = ? WHERE id = ?", [
         step.next_step_id,

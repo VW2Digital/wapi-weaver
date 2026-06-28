@@ -38,6 +38,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
   Trash2,
   Upload,
   Plus,
@@ -317,18 +324,18 @@ function ContactsPage() {
               <Upload className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">Importar CSV/XLSX</span>
             </Button>
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger asChild>
                 <Button className="w-full justify-center">
                   <Plus className="mr-2 h-4 w-4 shrink-0" />
                   <span className="truncate">Novo contato</span>
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Novo contato</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3">
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+                <SheetHeader className="mb-4">
+                  <SheetTitle>Novo contato</SheetTitle>
+                </SheetHeader>
+                <div className="space-y-3 flex-1">
                   <div className="space-y-1.5">
                     <Label>Telefone</Label>
                     <Input
@@ -351,6 +358,8 @@ function ContactsPage() {
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                     />
                   </div>
+                </div>
+                <div className="pt-4 border-t mt-auto">
                   <Button
                     onClick={() => createMut.mutate(form)}
                     disabled={createMut.isPending}
@@ -359,8 +368,8 @@ function ContactsPage() {
                     Adicionar
                   </Button>
                 </div>
-              </DialogContent>
-            </Dialog>
+              </SheetContent>
+            </Sheet>
           </div>
         }
       />
@@ -655,17 +664,17 @@ function ContactsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <Sheet
         open={editingContact !== null}
         onOpenChange={(isOpen) => {
           if (!isOpen) setEditingContact(null);
         }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar contato</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
+        <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle>Editar contato</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-3 flex-1">
             <div className="space-y-1.5">
               <Label>Telefone</Label>
               <Input
@@ -688,6 +697,8 @@ function ContactsPage() {
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               />
             </div>
+          </div>
+          <div className="pt-4 border-t mt-auto">
             <Button
               onClick={() => {
                 if (editingContact) {
@@ -703,8 +714,8 @@ function ContactsPage() {
               Salvar alterações
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

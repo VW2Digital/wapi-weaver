@@ -19,13 +19,13 @@ import { BotFlowCanvas } from "@/components/bot-flow/BotFlowCanvas";
 import { StepInspector } from "@/components/bot-flow/StepInspector";
 import { BOT_TEMPLATES, mapTemplateSteps } from "@/lib/bot-templates";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { BookOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ function BotPage() {
   const saveStepsBatchFn = useServerFn(saveBotStepsBatch);
   const getProfileFn = useServerFn(getProfile);
 
+  const [selectedChannel, setSelectedChannel] = useState<string>("whatsapp");
   const [steps, setSteps] = useState<any[]>([]);
   const [selectedStep, setSelectedStep] = useState<any>(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -61,13 +62,13 @@ function BotPage() {
   });
 
   const settingsQuery = useQuery({
-    queryKey: ["botSettings"],
-    queryFn: () => getSettingsFn(),
+    queryKey: ["botSettings", selectedChannel],
+    queryFn: () => getSettingsFn({ data: { channel: selectedChannel } }),
   });
 
   const stepsQuery = useQuery({
-    queryKey: ["botSteps"],
-    queryFn: () => listStepsFn(),
+    queryKey: ["botSteps", selectedChannel],
+    queryFn: () => listStepsFn({ data: { channel: selectedChannel } }),
   });
 
   useEffect(() => {
@@ -78,12 +79,12 @@ function BotPage() {
 
   const toggleStatus = useMutation({
     mutationFn: async (isActive: boolean) => {
-      const res = await toggleStatusFn({ data: { isActive } });
+      const res = await toggleStatusFn({ data: { isActive, channel: selectedChannel } });
       if (!res.ok) throw new Error(res.error);
       return res;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["botSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["botSettings", selectedChannel] });
       toast.success("Status do bot atualizado");
     },
     onError: (err) => toast.error(err.message),
@@ -91,12 +92,12 @@ function BotPage() {
 
   const saveBatch = useMutation({
     mutationFn: async (payload: any[]) => {
-      const res = await saveStepsBatchFn({ data: payload });
+      const res = await saveStepsBatchFn({ data: { channel: selectedChannel, steps: payload } });
       if (!res.ok) throw new Error(res.error || "Erro ao salvar o fluxo");
       return res;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["botSteps"] });
+      queryClient.invalidateQueries({ queryKey: ["botSteps", selectedChannel] });
       toast.success("Fluxo salvo com sucesso!");
     },
     onError: (err: any) => toast.error(err.message || "Erro desconhecido ao salvar"),
@@ -138,9 +139,27 @@ function BotPage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <div className="flex-none px-6 py-4 border-b bg-card flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Construtor de Fluxo</h1>
-          <p className="text-sm text-muted-foreground">Arraste e solte para criar seu bot</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold">Construtor de Fluxo</h1>
+            <p className="text-sm text-muted-foreground">Arraste e solte para criar seu bot</p>
+          </div>
+          <Select
+            value={selectedChannel}
+            onValueChange={(val) => {
+              setSelectedChannel(val);
+              setSelectedStep(null);
+            }}
+          >
+            <SelectTrigger className="w-48 ml-4">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="whatsapp">WhatsApp</SelectItem>
+              <SelectItem value="instagram">Instagram</SelectItem>
+              <SelectItem value="messenger">Messenger</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
@@ -163,24 +182,24 @@ function BotPage() {
             Adicionar Passo
           </Button>
 
-          <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
-            <DialogTrigger asChild>
+          <Sheet open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+            <SheetTrigger asChild>
               <Button className="w-full" variant="secondary">
                 <BookOpen className="w-4 h-4 mr-2" />
                 Galeria de Templates
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Galeria de Fluxos de Bot</DialogTitle>
-                <DialogDescription>
+            </SheetTrigger>
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Galeria de Fluxos de Bot</SheetTitle>
+                <SheetDescription>
                   Selecione um template pronto para carregar no Canvas.
                   <br />
                   <strong className="text-destructive">Atenção:</strong> Carregar um template irá
                   APAGAR o fluxo atual não salvo da tela.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                </SheetDescription>
+              </SheetHeader>
+              <div className="grid grid-cols-1 gap-4 mt-4">
                 {BOT_TEMPLATES.map((template) => (
                   <Card
                     key={template.id}
@@ -207,8 +226,8 @@ function BotPage() {
                   </Card>
                 ))}
               </div>
-            </DialogContent>
-          </Dialog>
+            </SheetContent>
+          </Sheet>
 
           <div className="text-xs text-muted-foreground mt-4">
             Dica: Clique em um bloco no painel ao lado para editar suas configurações.

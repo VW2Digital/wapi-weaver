@@ -43,6 +43,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -2161,14 +2167,155 @@ function ChatPage() {
               >
                 <Archive className="h-4 w-4" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                title="Menu"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    title="Menu"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem
+                    onClick={() => setShowTagFilters(!showTagFilters)}
+                    className="flex items-center gap-2 text-xs cursor-pointer"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    <span>Filtro de etiquetas</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="flex items-center gap-2 text-xs cursor-pointer">
+                      <ArrowUpDown className="h-3.5 w-3.5" />
+                      <span>Ordenar conversas</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("newest")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Mais recentes</span>
+                          {sortBy === "newest" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("oldest")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Mais antigas</span>
+                          {sortBy === "oldest" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("name")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Nome (A-Z)</span>
+                          {sortBy === "name" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("unread")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Não lidas primeiro</span>
+                          {sortBy === "unread" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="flex items-center gap-2 text-xs cursor-pointer">
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      <span>Filtrar por canal/status</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("all")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Todos</span>
+                          {filterView === "all" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("unread")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Não lidas</span>
+                          {filterView === "unread" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("bot_active")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Chatbot ativo</span>
+                          {filterView === "bot_active" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("bot_paused")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Chatbot pausado</span>
+                          {filterView === "bot_paused" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("archived")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Arquivados</span>
+                          {filterView === "archived" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("whatsapp")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>WhatsApp</span>
+                          {filterView === "whatsapp" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("instagram")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Instagram</span>
+                          {filterView === "instagram" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterView("messenger")}
+                          className="flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span>Messenger</span>
+                          {filterView === "messenger" && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setIsSelectionMode(!isSelectionMode);
+                      setSelectedContactIds([]);
+                    }}
+                    className="flex items-center gap-2 text-xs cursor-pointer"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    <span>Seleção em massa</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuItem
+                    onClick={() => setIsNewChatDialogOpen(true)}
+                    className="flex items-center gap-2 text-xs cursor-pointer text-primary focus:text-primary"
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" />
+                    <span>Novo Atendimento</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -2183,167 +2330,6 @@ function ChatPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-              </div>
-
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setShowTagFilters(!showTagFilters)}
-                  title="Filtro de etiquetas"
-                  className={cn(
-                    "h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-colors",
-                    showTagFilters && "bg-muted text-primary hover:bg-muted",
-                  )}
-                >
-                  <Filter className="h-4 w-4" />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Ordenar"
-                      className={cn(
-                        "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
-                        sortBy !== "newest" && "bg-muted text-primary hover:bg-muted",
-                      )}
-                    >
-                      <ArrowUpDown className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      onClick={() => setSortBy("newest")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Mais recentes</span>
-                      {sortBy === "newest" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setSortBy("oldest")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Mais antigas</span>
-                      {sortBy === "oldest" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setSortBy("name")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Nome (A-Z)</span>
-                      {sortBy === "name" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setSortBy("unread")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Não lidas primeiro</span>
-                      {sortBy === "unread" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Visualização"
-                      className={cn(
-                        "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
-                        filterView !== "all" && "bg-muted text-primary hover:bg-muted",
-                      )}
-                    >
-                      <SlidersHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("all")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Todos</span>
-                      {filterView === "all" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("unread")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Não lidas</span>
-                      {filterView === "unread" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("bot_active")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Chatbot ativo</span>
-                      {filterView === "bot_active" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("bot_paused")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Chatbot pausado</span>
-                      {filterView === "bot_paused" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("archived")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Arquivados</span>
-                      {filterView === "archived" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("whatsapp")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Canal: WhatsApp</span>
-                      {filterView === "whatsapp" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("instagram")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Canal: Instagram</span>
-                      {filterView === "instagram" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setFilterView("messenger")}
-                      className="flex items-center justify-between text-xs cursor-pointer"
-                    >
-                      <span>Canal: Messenger</span>
-                      {filterView === "messenger" && <Check className="h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setIsSelectionMode(!isSelectionMode);
-                    setSelectedContactIds([]);
-                  }}
-                  title="Seleção em massa"
-                  className={cn(
-                    "h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg",
-                    isSelectionMode && "bg-muted text-primary hover:bg-muted",
-                  )}
-                >
-                  <ClipboardList className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setIsNewChatDialogOpen(true)}
-                  title="Novo Atendimento"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg"
-                >
-                  <FolderPlus className="h-4 w-4" />
-                </Button>
               </div>
             </div>
 
@@ -2714,7 +2700,7 @@ function ChatPage() {
                                   <span>Kanban</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                  <DropdownMenuSubContent className="w-[200px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+                                  <DropdownMenuSubContent className="w-[200px]">
                                     <DropdownMenuItem
                                       onClick={() =>
                                         kanbanStageMutation.mutate({
@@ -2722,12 +2708,12 @@ function ChatPage() {
                                           stageId: null,
                                         })
                                       }
-                                      className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                                      className="cursor-pointer"
                                     >
                                       <X className="mr-2 h-3.5 w-3.5" />
                                       <span>Sem funil</span>
                                     </DropdownMenuItem>
-                                    <DropdownMenuSeparator className="bg-neutral-800/40" />
+                                    <DropdownMenuSeparator />
                                     {(salesFunnelsQuery.data ?? []).map((funnel: any) => {
                                       const funnelStages = salesStagesQuery.data.filter(
                                         (s: any) => s.funnel_id === funnel.id,
@@ -2735,11 +2721,11 @@ function ChatPage() {
                                       if (funnelStages.length === 0) return null;
                                       return (
                                         <DropdownMenuSub key={funnel.id}>
-                                          <DropdownMenuSubTrigger className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                                          <DropdownMenuSubTrigger className="cursor-pointer">
                                             <span className="truncate">{funnel.name}</span>
                                           </DropdownMenuSubTrigger>
                                           <DropdownMenuPortal>
-                                            <DropdownMenuSubContent className="w-[180px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+                                            <DropdownMenuSubContent className="w-[180px]">
                                               {funnelStages.map((stage: any) => (
                                                 <DropdownMenuItem
                                                   key={stage.id}
@@ -2749,7 +2735,7 @@ function ChatPage() {
                                                       stageId: stage.id,
                                                     })
                                                   }
-                                                  className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                                                  className="cursor-pointer"
                                                 >
                                                   <span
                                                     className="h-2 w-2 rounded-full mr-2 shrink-0"
@@ -3191,11 +3177,11 @@ function ChatPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align="end"
-                        className="w-[220px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200"
+                        className="w-[220px]"
                       >
                         <DropdownMenuItem
                           onClick={() => setIsQuickOpportunityOpen(true)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <Filter className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Oportunidade Rápida</span>
@@ -3203,7 +3189,7 @@ function ChatPage() {
 
                         <DropdownMenuItem
                           onClick={() => setAssigningContactData(selectedContact)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <Forward className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Atribuir Conversa</span>
@@ -3211,7 +3197,7 @@ function ChatPage() {
 
                         <DropdownMenuItem
                           onClick={() => setQuickSaveContactData(selectedContact)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <UserPen className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Salvar Contato</span>
@@ -3219,7 +3205,7 @@ function ChatPage() {
 
                         <DropdownMenuItem
                           onClick={() => setIsInventoryOpen(true)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <Package className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Gerenciar Estoque</span>
@@ -3227,7 +3213,7 @@ function ChatPage() {
 
                         <DropdownMenuItem
                           onClick={() => setIsMessageSearchOpen(true)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <Search className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Buscar Mensagens</span>
@@ -3235,7 +3221,7 @@ function ChatPage() {
 
                         <DropdownMenuItem
                           onClick={() => setIsFollowUpOpen(true)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <Clock className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Agendar Follow-up</span>
@@ -3243,7 +3229,7 @@ function ChatPage() {
 
                         <DropdownMenuItem
                           onClick={() => setIsLeadHistoryOpen(true)}
-                          className="cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          className="cursor-pointer"
                         >
                           <History className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Histórico do Lead</span>
@@ -4274,14 +4260,14 @@ function ChatPage() {
                       </DialogContent>
                     </Dialog>
 
-                    {/* Dialog de Gerenciamento de Etiquetas */}
-                    <Dialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen}>
-                      <DialogContent className="max-w-md">
-                        <DialogHeader>
-                          <DialogTitle>Gerenciar Etiquetas</DialogTitle>
-                        </DialogHeader>
+                    {/* Drawer de Gerenciamento de Etiquetas */}
+                    <Sheet open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen}>
+                      <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+                        <SheetHeader className="mb-4">
+                          <SheetTitle>Gerenciar Etiquetas</SheetTitle>
+                        </SheetHeader>
 
-                        <div className="space-y-4 py-2">
+                        <div className="space-y-4 py-2 flex-1">
                           {/* Criar nova tag */}
                           <div className="space-y-3 border-b pb-4">
                             <Label className="text-xs font-semibold">Nova etiqueta</Label>
@@ -4393,8 +4379,8 @@ function ChatPage() {
                             </div>
                           </div>
                         </div>
-                      </DialogContent>
-                    </Dialog>
+                      </SheetContent>
+                    </Sheet>
 
                     <Button
                       size="icon"
@@ -4825,15 +4811,15 @@ function ChatPage() {
             </div>
           )}
           {/* Diálogos Rápidos de Ações */}
-          <Dialog
+          <Sheet
             open={!!quickSaveContactData}
             onOpenChange={(open) => !open && setQuickSaveContactData(null)}
           >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Editar Contato Rápido</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Editar Contato Rápido</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 py-2 flex-1">
                 <div className="space-y-1">
                   <Label htmlFor="qs-name">Nome</Label>
                   <Input
@@ -4863,7 +4849,7 @@ function ChatPage() {
                   />
                 </div>
               </div>
-              <DialogFooter>
+              <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
                 <Button variant="outline" onClick={() => setQuickSaveContactData(null)}>
                   Cancelar
                 </Button>
@@ -4888,19 +4874,19 @@ function ChatPage() {
                 >
                   {quickSaveMutation.isPending ? "Salvando..." : "Salvar"}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
 
-          <Dialog
+          <Sheet
             open={!!assigningContactData}
             onOpenChange={(open) => !open && setAssigningContactData(null)}
           >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Atribuir Conversa</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Atribuir Conversa</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 py-2 flex-1">
                 <div className="space-y-1">
                   <Label>Equipe / Setor</Label>
                   <Select
@@ -5005,7 +4991,7 @@ function ChatPage() {
                   </div>
                 )}
               </div>
-              <DialogFooter className="flex gap-2 justify-end pt-4 border-t border-sidebar-border">
+              <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
                 <Button variant="outline" onClick={() => setAssigningContactData(null)}>
                   Cancelar
                 </Button>
@@ -5034,44 +5020,43 @@ function ChatPage() {
                 >
                   {assignMutation.isPending ? "Salvando..." : "Salvar"}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
 
           {/* Diálogo de Oportunidade Rápida */}
-          <Dialog open={isQuickOpportunityOpen} onOpenChange={setIsQuickOpportunityOpen}>
-            <DialogContent className="sm:max-w-[450px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-              <DialogHeader>
-                <DialogTitle className="text-zinc-100">Criar Oportunidade Rápida</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+          {/* Drawer de Oportunidade Rápida */}
+          <Sheet open={isQuickOpportunityOpen} onOpenChange={setIsQuickOpportunityOpen}>
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Criar Oportunidade Rápida</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 py-2 flex-1">
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Título da Oportunidade</Label>
+                  <Label>Título da Oportunidade</Label>
                   <Input
                     placeholder="Ex: Contrato de Licença"
                     value={oppTitle}
                     onChange={(e) => setOppTitle(e.target.value)}
-                    className="bg-neutral-900 border-neutral-800 text-zinc-200"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <Label className="text-zinc-400">Valor (R$)</Label>
+                    <Label>Valor (R$)</Label>
                     <Input
                       type="number"
                       min={0}
                       value={oppValue}
                       onChange={(e) => setOppValue(parseFloat(e.target.value) || 0)}
-                      className="bg-neutral-900 border-neutral-800 text-zinc-200"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-zinc-400">Origem</Label>
+                    <Label>Origem</Label>
                     <Select defaultValue="whatsapp">
-                      <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                      <SelectTrigger>
                         <SelectValue placeholder="Origem" />
                       </SelectTrigger>
-                      <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                      <SelectContent>
                         <SelectItem value="whatsapp">WhatsApp Direto</SelectItem>
                         <SelectItem value="site">Site / Orgânico</SelectItem>
                         <SelectItem value="indicacao">Indicação</SelectItem>
@@ -5082,7 +5067,7 @@ function ChatPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Funil de Vendas</Label>
+                  <Label>Funil de Vendas</Label>
                   <Select
                     value={oppFunnelId}
                     onValueChange={(val) => {
@@ -5093,10 +5078,10 @@ function ChatPage() {
                       }
                     }}
                   >
-                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                    <SelectTrigger>
                       <SelectValue placeholder="Selecione o Funil" />
                     </SelectTrigger>
-                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                    <SelectContent>
                       {(salesFunnelsQuery.data ?? []).map((f: any) => (
                         <SelectItem key={f.id} value={f.id}>
                           {f.name}
@@ -5107,12 +5092,12 @@ function ChatPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Etapa do Funil</Label>
+                  <Label>Etapa do Funil</Label>
                   <Select value={oppStageId} onValueChange={setOppStageId} disabled={!oppFunnelId}>
-                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                    <SelectTrigger>
                       <SelectValue placeholder="Selecione a Etapa" />
                     </SelectTrigger>
-                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                    <SelectContent>
                       {(salesStagesQuery.data ?? [])
                         .filter((s: any) => s.funnel_id === oppFunnelId)
                         .map((s: any) => (
@@ -5124,11 +5109,10 @@ function ChatPage() {
                   </Select>
                 </div>
               </div>
-              <DialogFooter>
+              <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
                 <Button
                   variant="outline"
                   onClick={() => setIsQuickOpportunityOpen(false)}
-                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
                 >
                   Cancelar
                 </Button>
@@ -5151,54 +5135,51 @@ function ChatPage() {
                     });
                   }}
                   disabled={createOpportunityMutation.isPending}
-                  className="bg-primary text-primary-foreground hover:bg-primary/95"
                 >
                   {createOpportunityMutation.isPending ? "Criando..." : "Criar Oportunidade"}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
 
-          {/* Diálogo de Agendar Follow-up */}
-          <Dialog open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
-            <DialogContent className="sm:max-w-[400px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-              <DialogHeader>
-                <DialogTitle className="text-zinc-100">Agendar Novo Follow-up</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+          {/* Drawer de Agendar Follow-up */}
+          <Sheet open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Agendar Novo Follow-up</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 py-2 flex-1">
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Título do Compromisso</Label>
+                  <Label>Título do Compromisso</Label>
                   <Input
                     placeholder="Ex: Ligar para confirmar proposta"
                     value={followUpTitle}
                     onChange={(e) => setFollowUpTitle(e.target.value)}
-                    className="bg-neutral-900 border-neutral-800 text-zinc-200"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Data e Hora Limite</Label>
+                  <Label>Data e Hora Limite</Label>
                   <Input
                     type="datetime-local"
                     value={followUpDate}
                     onChange={(e) => setFollowUpDate(e.target.value)}
-                    className="bg-neutral-900 border-neutral-800 text-zinc-250 block w-full px-3 py-2 text-sm"
+                    className="block w-full px-3 py-2 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Descrição / Notas</Label>
+                  <Label>Descrição / Notas</Label>
                   <Textarea
                     placeholder="Insira detalhes da ação do follow-up..."
                     value={followUpDesc}
                     onChange={(e) => setFollowUpDesc(e.target.value)}
-                    className="bg-neutral-900 border-neutral-800 text-zinc-200 resize-none h-20"
+                    className="resize-none h-20"
                   />
                 </div>
               </div>
-              <DialogFooter>
+              <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
                 <Button
                   variant="outline"
                   onClick={() => setIsFollowUpOpen(false)}
-                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
                 >
                   Cancelar
                 </Button>
@@ -5222,16 +5203,16 @@ function ChatPage() {
                 >
                   {followUpMutation.isPending ? "Agendando..." : "Agendar"}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
 
-          {/* Diálogo de Histórico do Lead */}
-          <Dialog open={isLeadHistoryOpen} onOpenChange={setIsLeadHistoryOpen}>
-            <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-              <DialogHeader>
-                <DialogTitle className="text-zinc-100">Histórico de Atividades do Lead</DialogTitle>
-              </DialogHeader>
+          {/* Drawer de Histórico do Lead */}
+          <Sheet open={isLeadHistoryOpen} onOpenChange={setIsLeadHistoryOpen}>
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Histórico de Atividades do Lead</SheetTitle>
+              </SheetHeader>
 
               <div className="flex-1 overflow-y-auto pr-1 py-2 space-y-4">
                 {leadHistoryQuery.isLoading ? (
@@ -5322,26 +5303,24 @@ function ChatPage() {
                   </div>
                 )}
               </div>
-              <DialogFooter className="mt-4">
+              <div className="mt-4 pt-4 border-t">
                 <Button
                   onClick={() => setIsLeadHistoryOpen(false)}
-                  className="bg-primary text-primary-foreground hover:bg-primary/95"
+                  className="w-full"
                 >
                   Fechar
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
 
-          {/* Diálogo de Gerenciar Estoque */}
-          <Dialog open={isInventoryOpen} onOpenChange={setIsInventoryOpen}>
-            <DialogContent className="sm:max-w-[480px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-              <DialogHeader>
-                <DialogTitle className="text-zinc-100">
-                  Gerenciador de Estoque / Catálogo
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+          {/* Drawer de Gerenciar Estoque */}
+          <Sheet open={isInventoryOpen} onOpenChange={setIsInventoryOpen}>
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Gerenciador de Estoque / Catálogo</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 py-2 flex-1">
                 <div className="space-y-3">
                   {products.map((prod) => (
                     <div
@@ -5419,30 +5398,30 @@ function ChatPage() {
                   ))}
                 </div>
               </div>
-              <DialogFooter>
+              <div className="mt-4 pt-4 border-t">
                 <Button
                   onClick={() => setIsInventoryOpen(false)}
-                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
+                  className="w-full"
                 >
                   Fechar
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
 
-          {/* Diálogo de Atribuição em Massa de Funil */}
-          <Dialog open={isBulkFunnelDialogOpen} onOpenChange={setIsBulkFunnelDialogOpen}>
-            <DialogContent className="sm:max-w-[450px] bg-card border-border text-card-foreground">
-              <DialogHeader>
-                <DialogTitle className="text-foreground">Enviar Contatos para o Funil</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+          {/* Drawer de Atribuição em Massa de Funil */}
+          <Sheet open={isBulkFunnelDialogOpen} onOpenChange={setIsBulkFunnelDialogOpen}>
+            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>Enviar Contatos para o Funil</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 py-2 flex-1">
                 <p className="text-xs text-muted-foreground">
                   Você está enviando {selectedContactIds.length} contato(s) selecionado(s) para o funil e etapa abaixo.
                 </p>
 
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Funil de Vendas</Label>
+                  <Label>Funil de Vendas</Label>
                   <Select
                     value={bulkFunnelId}
                     onValueChange={(val) => {
@@ -5453,10 +5432,10 @@ function ChatPage() {
                       }
                     }}
                   >
-                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                    <SelectTrigger>
                       <SelectValue placeholder="Selecione o Funil" />
                     </SelectTrigger>
-                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                    <SelectContent>
                       {(salesFunnelsQuery.data ?? []).map((f: any) => (
                         <SelectItem key={f.id} value={f.id}>
                           {f.name}
@@ -5467,12 +5446,12 @@ function ChatPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-zinc-400">Etapa do Funil</Label>
+                  <Label>Etapa do Funil</Label>
                   <Select value={bulkStageId} onValueChange={setBulkStageId} disabled={!bulkFunnelId}>
-                    <SelectTrigger className="bg-neutral-900 border-neutral-800 text-zinc-200">
+                    <SelectTrigger>
                       <SelectValue placeholder="Selecione a Etapa" />
                     </SelectTrigger>
-                    <SelectContent className="bg-neutral-950 border-neutral-800 text-zinc-200">
+                    <SelectContent>
                       {(salesStagesQuery.data ?? [])
                         .filter((s: any) => s.funnel_id === bulkFunnelId)
                         .map((s: any) => (
@@ -5484,11 +5463,10 @@ function ChatPage() {
                   </Select>
                 </div>
               </div>
-              <DialogFooter>
+              <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
                 <Button
                   variant="outline"
                   onClick={() => setIsBulkFunnelDialogOpen(false)}
-                  className="border-neutral-800 hover:bg-neutral-800 text-zinc-300"
                 >
                   Cancelar
                 </Button>
@@ -5508,9 +5486,9 @@ function ChatPage() {
                 >
                   {bulkAssignMutation.isPending ? "Processando..." : "Confirmar Envio"}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </div>
