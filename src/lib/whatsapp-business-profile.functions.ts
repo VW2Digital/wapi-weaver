@@ -12,6 +12,7 @@ import {
   normalizeBusinessProfile,
   normalizeWebsites,
 } from "@/lib/whatsapp-business-profile.shared";
+import db from "./db";
 
 function pickMetaCredentials(p: any) {
   const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "")
@@ -61,10 +62,14 @@ const updateSchema = z.object({
 export const getWhatsAppBusinessProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
-      .maybeSingle();
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const rows: any = await db.query(
+      "SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version FROM profiles WHERE id = ? LIMIT 1",
+      [effectiveUserId]
+    );
+    const p = rows?.[0];
 
     const { phoneNumberId, accessToken, apiVersion } = pickMetaCredentials(p);
 
@@ -100,10 +105,14 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => updateSchema.parse(d))
   .handler(async ({ context, data }) => {
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
-      .maybeSingle();
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const rows: any = await db.query(
+      "SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version FROM profiles WHERE id = ? LIMIT 1",
+      [effectiveUserId]
+    );
+    const p = rows?.[0];
 
     const { phoneNumberId, accessToken, apiVersion } = pickMetaCredentials(p);
 
