@@ -148,6 +148,9 @@ function formatPhone(phone: string): string {
   if (phone.startsWith("ig_")) {
     return "@" + phone.slice(3);
   }
+  if (phone.startsWith("fb_")) {
+    return "@fb_" + phone.slice(3);
+  }
   const clean = phone.replace(/\D/g, "");
   if (clean.length === 12 || clean.length === 13) {
     const ddi = clean.slice(0, 2);
@@ -161,6 +164,36 @@ function formatPhone(phone: string): string {
   }
   if (phone.startsWith("+")) return phone;
   return `+${phone}`;
+}
+
+function ChannelBadge({ channel, className = "h-2.5 w-2.5" }: { channel: string; className?: string }) {
+  if (channel === "instagram") {
+    return (
+      <div className="bg-pink-600 p-0.5 rounded-full text-white flex items-center justify-center">
+        <svg viewBox="0 0 24 24" className={`${className} fill-none stroke-current stroke-2`} xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+        </svg>
+      </div>
+    );
+  }
+  if (channel === "messenger") {
+    return (
+      <div className="bg-blue-600 p-0.5 rounded-full text-white flex items-center justify-center">
+        <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.914 1.453 5.508 3.738 7.18v3.743c0 .285.31.464.556.32l4.137-2.42c.504.07 1.02.11 1.569.11 5.523 0 10-4.146 10-9.26C22 6.144 17.523 2 12 2zm1.096 12.062l-2.616-2.79-5.1 2.79 5.6-5.95 2.616 2.79 5.1-2.79-5.6 5.95z" />
+        </svg>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
+      <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+      </svg>
+    </div>
+  );
 }
 
 const TAG_ICONS: Record<string, any> = {
@@ -896,7 +929,7 @@ function ChatPage() {
   // States and mutations for custom sorting, filtering and new chat dialog
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name" | "unread">("newest");
   const [filterView, setFilterView] = useState<
-    "all" | "unread" | "bot_paused" | "bot_active" | "archived"
+    "all" | "unread" | "bot_paused" | "bot_active" | "archived" | "whatsapp" | "instagram" | "messenger"
   >("all");
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
@@ -1524,6 +1557,9 @@ function ChatPage() {
     if (filterView === "unread" && !c.unread_count && !c.is_unread) return false;
     if (filterView === "bot_paused" && c.bot_active !== 0 && c.bot_active !== false) return false;
     if (filterView === "bot_active" && c.bot_active === 0) return false;
+    if (filterView === "whatsapp" && c.channel !== "whatsapp") return false;
+    if (filterView === "instagram" && c.channel !== "instagram") return false;
+    if (filterView === "messenger" && c.channel !== "messenger") return false;
 
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
@@ -2258,6 +2294,28 @@ function ChatPage() {
                       <span>Arquivados</span>
                       {filterView === "archived" && <Check className="h-3.5 w-3.5" />}
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("whatsapp")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
+                      <span>Canal: WhatsApp</span>
+                      {filterView === "whatsapp" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("instagram")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
+                      <span>Canal: Instagram</span>
+                      {filterView === "instagram" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setFilterView("messenger")}
+                      className="flex items-center justify-between text-xs cursor-pointer"
+                    >
+                      <span>Canal: Messenger</span>
+                      {filterView === "messenger" && <Check className="h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -2510,15 +2568,7 @@ function ChatPage() {
                           )}
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 bg-background p-0.5 rounded-full shadow-sm">
-                          <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-2.5 w-2.5 fill-current"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                            </svg>
-                          </div>
+                          <ChannelBadge channel={c.channel} />
                         </div>
                       </div>
 
@@ -2527,15 +2577,7 @@ function ChatPage() {
                         {/* First row: Name and Time */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-emerald-500 shrink-0">
-                              <svg
-                                viewBox="0 0 24 24"
-                                className="h-3.5 w-3.5 fill-current"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                              </svg>
-                            </span>
+                            <ChannelBadge channel={c.channel} className="h-3.5 w-3.5" />
                             <h4 className="font-bold text-sm text-foreground truncate leading-none">
                               {c.name || "Sem Nome"}
                             </h4>

@@ -1484,3 +1484,49 @@ export const disconnectInstagramAccount = createServerFn({ method: "POST" })
     ]);
     return { ok: true };
   });
+
+export const listFacebookPages = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    const rows = await db.query(
+      "SELECT * FROM facebook_pages WHERE user_id = ? ORDER BY created_at DESC",
+      [context.userId],
+    );
+    return rows;
+  });
+
+export const connectFacebookPage = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) =>
+    z
+      .object({
+        page_id: z.string().trim().min(5),
+        page_name: z.string().trim().min(1),
+        page_access_token: z.string().trim().min(20),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
+    const id = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO facebook_pages (id, user_id, page_id, page_name, page_access_token, status, webhook_subscribed)
+       VALUES (?, ?, ?, ?, ?, 'active', 1)
+       ON DUPLICATE KEY UPDATE page_name = VALUES(page_name), page_access_token = VALUES(page_access_token), status = 'active', webhook_subscribed = 1`,
+      [id, context.userId, data.page_id, data.page_name, data.page_access_token],
+    );
+    return { ok: true };
+  });
+
+export const disconnectFacebookPage = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
+    await db.query("DELETE FROM facebook_pages WHERE id = ? AND user_id = ?", [
+      data.id,
+      context.userId,
+    ]);
+    return { ok: true };
+  });

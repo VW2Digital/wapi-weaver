@@ -940,9 +940,46 @@ export async function ensureDatabaseSchema() {
 
     await ensureTableExists(
       connection,
+      "facebook_pages",
+      `
+      CREATE TABLE IF NOT EXISTS facebook_pages (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        workspace_id VARCHAR(36) NULL,
+        user_id VARCHAR(36) NOT NULL,
+        page_id VARCHAR(64) NOT NULL UNIQUE,
+        page_name VARCHAR(255) NULL,
+        page_access_token TEXT NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'active',
+        permissions_json TEXT NULL,
+        token_expires_at VARCHAR(64) NULL,
+        webhook_subscribed BOOLEAN NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
       "instagram_webhook_events",
       `
       CREATE TABLE IF NOT EXISTS instagram_webhook_events (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        raw JSON NOT NULL,
+        processed BOOLEAN NOT NULL DEFAULT FALSE,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "facebook_webhook_events",
+      `
+      CREATE TABLE IF NOT EXISTS facebook_webhook_events (
         id VARCHAR(36) NOT NULL PRIMARY KEY,
         user_id VARCHAR(36) NULL,
         raw JSON NOT NULL,
@@ -961,12 +998,71 @@ export async function ensureDatabaseSchema() {
       logSchema("Índice idx_instagram_accounts_user adicionado.");
     } catch (e) {}
 
+    // Índice para busca por user_id em facebook_pages
+    try {
+      await connection.query(
+        `CREATE INDEX idx_facebook_pages_user ON facebook_pages(user_id)`,
+      );
+      logSchema("Índice idx_facebook_pages_user adicionado.");
+    } catch (e) {}
+
+    // Atualização de ENUM da coluna channel nas tabelas existentes para suportar 'messenger'
+    try {
+      await connection.query(
+        `ALTER TABLE contacts MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
+      );
+      logSchema("ENUM da coluna contacts.channel atualizado para incluir 'messenger'.");
+    } catch (e) {}
+
+    try {
+      await connection.query(
+        `ALTER TABLE direct_messages MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
+      );
+      logSchema("ENUM da coluna direct_messages.channel atualizado para incluir 'messenger'.");
+    } catch (e) {}
+
+    try {
+      await connection.query(
+        `ALTER TABLE bot_conversation_state MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
+      );
+      logSchema("ENUM da coluna bot_conversation_state.channel atualizado para incluir 'messenger'.");
+    } catch (e) {}
+
+    try {
+      await connection.query(
+        `ALTER TABLE bot_settings MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
+      );
+      logSchema("ENUM da coluna bot_settings.channel atualizado para incluir 'messenger'.");
+    } catch (e) {}
+
+    // Criar índices recomendados de otimização para o canal Messenger
+    try {
+      await connection.query(
+        `CREATE INDEX idx_contacts_channel_external ON contacts(channel, external_contact_id)`,
+      );
+      logSchema("Índice idx_contacts_channel_external adicionado a contacts.");
+    } catch (e) {}
+
+    try {
+      await connection.query(
+        `CREATE INDEX idx_dm_channel_provider ON direct_messages(channel, provider_account_id)`,
+      );
+      logSchema("Índice idx_dm_channel_provider adicionado a direct_messages.");
+    } catch (e) {}
+
+    try {
+      await connection.query(
+        `CREATE INDEX idx_contacts_user_channel ON contacts(user_id, channel)`,
+      );
+      logSchema("Índice idx_contacts_user_channel adicionado a contacts.");
+    } catch (e) {}
+
     // Columns to contacts
     await ensureColumnExists(
       connection,
       "contacts",
       "channel",
-      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -986,7 +1082,7 @@ export async function ensureDatabaseSchema() {
       connection,
       "direct_messages",
       "channel",
-      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -1012,7 +1108,7 @@ export async function ensureDatabaseSchema() {
       connection,
       "bot_conversation_state",
       "channel",
-      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -1047,7 +1143,7 @@ export async function ensureDatabaseSchema() {
       connection,
       "bot_settings",
       "channel",
-      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,

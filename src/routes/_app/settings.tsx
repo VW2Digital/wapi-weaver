@@ -46,6 +46,9 @@ import {
   listInstagramAccounts,
   connectInstagramAccount,
   disconnectInstagramAccount,
+  listFacebookPages,
+  connectFacebookPage,
+  disconnectFacebookPage,
 } from "@/lib/profile.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import {
@@ -133,6 +136,7 @@ import {
   Receipt,
   ScrollText,
   Activity,
+  Facebook,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -466,6 +470,12 @@ function SettingsPage() {
               className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
             >
               <MessageSquare className="h-3.5 w-3.5" /> Conta Instagram
+            </TabsTrigger>
+            <TabsTrigger
+              value="facebook"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <Facebook className="h-3.5 w-3.5" /> Página Facebook (Messenger)
             </TabsTrigger>
             <TabsTrigger
               value="advanced"
@@ -1452,6 +1462,10 @@ function SettingsPage() {
 
           <TabsContent value="instagram" className="outline-none">
             <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
+          </TabsContent>
+
+          <TabsContent value="facebook" className="outline-none">
+            <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
           </TabsContent>
 
           <TabsContent value="advanced" className="outline-none">
@@ -6078,11 +6092,6 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const igWebhookUrl = `${origin}/api/public/instagram-webhook`;
 
-  const copy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copiado`);
-  };
-
   const credentialsComplete = !!(accounts && accounts.length > 0);
   const webhookComplete = !!(form.whatsapp_verify_token && form.whatsapp_app_secret);
 
@@ -6098,71 +6107,71 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
             {step === 0 && (
               <div className="space-y-6">
                 <Card className="p-6">
-                  <div className="flex items-start gap-3 mb-6">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                      1
-                    </div>
-                    <div>
-                      <h2 className="font-display text-lg font-semibold">Passo 1: Conectar sua Conta Profissional do Instagram</h2>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Insira as credenciais geradas na sua aplicação Meta Developers para o canal do Instagram.
-                      </p>
-                    </div>
-                  </div>
-
                   <form onSubmit={handleConnect} className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <h2 className="font-display text-lg font-semibold">Passo 1: Conectar sua Conta Profissional do Instagram</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Insira as credenciais geradas na sua aplicação Meta Developers para o canal do Instagram.
+                    </p>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="ig_user_id">ID da Conta Profissional do Instagram (Instagram Business Account ID)</Label>
                         <Input
                           id="ig_user_id"
+                          placeholder="Ex: 17841400293049"
                           value={igUserId}
                           onChange={(e) => setIgUserId(e.target.value)}
-                          placeholder="Ex: 178414000000000"
                         />
                       </div>
+
                       <div className="space-y-1.5">
-                        <Label htmlFor="username">Username do Perfil (Sem @)</Label>
+                        <Label htmlFor="username">Nome de Usuário (@username)</Label>
                         <Input
                           id="username"
+                          placeholder="Ex: minhaloja"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
-                          placeholder="Ex: minha_empresa"
                         />
                       </div>
                     </div>
+
                     <div className="space-y-1.5">
-                      <Label htmlFor="access_token">Access Token da Página (Meta Graph Token)</Label>
+                      <Label htmlFor="access_token">Token de Acesso do Usuário do Sistema (Page Access Token)</Label>
                       <Textarea
                         id="access_token"
+                        rows={3}
+                        placeholder="EAA..."
                         value={accessToken}
                         onChange={(e) => setAccessToken(e.target.value)}
-                        placeholder="Cole o Access Token de longa duração da Meta aqui"
-                        rows={3}
                       />
                     </div>
+
                     <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Conectando..." : "Conectar Conta"}
+                      {isSubmitting ? "Conectando..." : "Conectar Canal"}
                     </Button>
                   </form>
                 </Card>
 
                 <Card className="p-6">
-                  <h3 className="text-base font-semibold mb-4">Contas Conectadas</h3>
+                  <h3 className="font-display text-base font-semibold mb-4">Canais Conectados</h3>
                   {isLoading ? (
-                    <p className="text-sm text-muted-foreground">Carregando...</p>
+                    <div className="text-sm text-muted-foreground">Carregando canais...</div>
                   ) : !accounts || accounts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhuma conta conectada ainda.</p>
+                    <div className="text-sm text-muted-foreground">Nenhuma conta conectada ainda.</div>
                   ) : (
-                    <div className="divide-y">
+                    <div className="divide-y divide-border">
                       {accounts.map((acc: any) => (
-                        <div key={acc.id} className="flex justify-between items-center py-3">
+                        <div key={acc.id} className="flex items-center justify-between py-3">
                           <div>
-                            <p className="font-medium text-sm">@{acc.username}</p>
+                            <p className="font-semibold text-sm">@{acc.username}</p>
                             <p className="text-xs text-muted-foreground">ID: {acc.ig_user_id}</p>
                           </div>
-                          <Button variant="destructive" size="sm" onClick={() => handleDisconnect(acc.id)}>
-                            Desconectar
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDisconnect(acc.id)}
+                          >
+                            Remover
                           </Button>
                         </div>
                       ))}
@@ -6174,24 +6183,32 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
 
             {step === 1 && (
               <Card className="p-6 space-y-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                    2
-                  </div>
-                  <div>
-                    <h2 className="font-display text-lg font-semibold">Passo 2: Configurar o Webhook no Painel da Meta</h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Configure a Meta para enviar mensagens do Instagram em tempo real para a sua plataforma.
-                    </p>
-                  </div>
+                <div>
+                  <h2 className="font-display text-lg font-semibold">Passo 2: Configurar Webhook no Facebook Developers</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure a Meta para enviar mensagens do Instagram em tempo real para a sua plataforma.
+                  </p>
                 </div>
 
                 <div className="space-y-4">
-                  <ReadOnly
-                    label="1. Callback URL (URL de Destino)"
-                    value={igWebhookUrl}
-                    onCopy={() => copy(igWebhookUrl, "Callback URL")}
-                  />
+                  <div className="space-y-1.5">
+                    <Label>1. URL de Callback</Label>
+                    <div className="flex gap-2">
+                      <Input readOnly value={igWebhookUrl} />
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(igWebhookUrl);
+                          toast.success("Copiado!");
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      No Painel Meta do Aplicativo (Instagram &gt; Webhook), cole esta URL de Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
+                    </p>
+                  </div>
 
                   <div className="space-y-1.5">
                     <Label>2. Verify Token (Token de Verificação do Webhook)</Label>
@@ -6233,6 +6250,231 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                 <h2 className="text-lg font-semibold">Tudo configurado!</h2>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
                   Sua conta do Instagram está configurada e pronta para receber DMs e responder utilizando a engine de atendimento automático ou chat manual.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+      </SetupWizard>
+    </div>
+  );
+}
+
+function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: any; saveMut: any }) {
+  const fetchFb = useServerFn(listFacebookPages);
+  const connectFb = useServerFn(connectFacebookPage);
+  const disconnectFb = useServerFn(disconnectFacebookPage);
+  const qc = useQueryClient();
+
+  const [pageId, setPageId] = useState("");
+  const [pageName, setPageName] = useState("");
+  const [pageAccessToken, setPageAccessToken] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: pages, isLoading } = useQuery({
+    queryKey: ["facebook-pages"],
+    queryFn: () => fetchFb(),
+  });
+
+  const handleConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pageId || !pageName || !pageAccessToken) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await connectFb({
+        data: {
+          page_id: pageId,
+          page_name: pageName,
+          page_access_token: pageAccessToken,
+        },
+      });
+      toast.success("Página do Facebook conectada com sucesso!");
+      setPageId("");
+      setPageName("");
+      setPageAccessToken("");
+      qc.invalidateQueries({ queryKey: ["facebook-pages"] });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao conectar página");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm("Deseja realmente desconectar esta página do Facebook?")) return;
+    try {
+      await disconnectFb({ data: { id } });
+      toast.success("Página desconectada.");
+      qc.invalidateQueries({ queryKey: ["facebook-pages"] });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao desconectar");
+    }
+  };
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const fbWebhookUrl = `${origin}/api/public/facebook-webhook`;
+
+  const credentialsComplete = !!(pages && pages.length > 0);
+  const webhookComplete = !!(form.whatsapp_verify_token && form.whatsapp_app_secret);
+
+  return (
+    <div className="space-y-6">
+      <SetupWizard
+        credentialsComplete={credentialsComplete}
+        webhookComplete={webhookComplete}
+        testComplete={credentialsComplete && webhookComplete}
+      >
+        {(step) => (
+          <>
+            {step === 0 && (
+              <div className="space-y-6">
+                <Card className="p-6">
+                  <form onSubmit={handleConnect} className="space-y-4">
+                    <h2 className="font-display text-lg font-semibold">Passo 1: Conectar sua Página do Facebook</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Insira as credenciais geradas na sua aplicação Meta Developers para a Página do Facebook.
+                    </p>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="page_id">ID da Página do Facebook (Page ID)</Label>
+                        <Input
+                          id="page_id"
+                          placeholder="Ex: 10482930293049"
+                          value={pageId}
+                          onChange={(e) => setPageId(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="page_name">Nome da Página (Exibição)</Label>
+                        <Input
+                          id="page_name"
+                          placeholder="Ex: Minha Empresa"
+                          value={pageName}
+                          onChange={(e) => setPageName(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="page_access_token">Token de Acesso da Página (Page Access Token)</Label>
+                      <Textarea
+                        id="page_access_token"
+                        rows={3}
+                        placeholder="EAA..."
+                        value={pageAccessToken}
+                        onChange={(e) => setPageAccessToken(e.target.value)}
+                      />
+                    </div>
+
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? "Conectando..." : "Conectar Página"}
+                    </Button>
+                  </form>
+                </Card>
+
+                <Card className="p-6">
+                  <h3 className="font-display text-base font-semibold mb-4">Páginas Conectadas</h3>
+                  {isLoading ? (
+                    <div className="text-sm text-muted-foreground">Carregando páginas...</div>
+                  ) : !pages || pages.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Nenhuma página conectada ainda.</div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {pages.map((p: any) => (
+                        <div key={p.id} className="flex items-center justify-between py-3">
+                          <div>
+                            <p className="font-semibold text-sm">{p.page_name}</p>
+                            <p className="text-xs text-muted-foreground">Page ID: {p.page_id}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDisconnect(p.id)}
+                          >
+                            Remover
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )}
+
+            {step === 1 && (
+              <Card className="p-6 space-y-6">
+                <div>
+                  <h2 className="font-display text-lg font-semibold">Passo 2: Configurar Webhook no Facebook</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure a Meta para enviar mensagens do Messenger em tempo real para a sua plataforma.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label>1. URL de Callback</Label>
+                    <div className="flex gap-2">
+                      <Input readOnly value={fbWebhookUrl} />
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(fbWebhookUrl);
+                          toast.success("Copiado!");
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      No Painel Meta do Aplicativo (Messenger &gt; Webhook), cole esta URL de Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>2. Verify Token (Token de Verificação)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={form.whatsapp_verify_token ?? ""}
+                        onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })}
+                        placeholder="Insira o seu Verify Token"
+                      />
+                      <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>3. App Secret (Chave Secreta do Aplicativo)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        value={form.whatsapp_app_secret ?? ""}
+                        onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
+                        placeholder="Insira o App Secret"
+                      />
+                      <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {step === 2 && (
+              <Card className="p-6 text-center space-y-4">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
+                  <Check className="h-6 w-6" />
+                </div>
+                <h2 className="text-lg font-semibold">Tudo configurado!</h2>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  Sua página do Facebook está configurada e pronta para receber mensagens via Messenger e responder utilizando a engine de atendimento automático ou chat manual.
                 </p>
               </Card>
             )}

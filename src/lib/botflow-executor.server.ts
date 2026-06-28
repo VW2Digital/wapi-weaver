@@ -15,7 +15,7 @@ export async function processBotFlow(
   phoneNumberId: string,
   userId: string,
   buttonPayload?: string,
-  channel: "whatsapp" | "instagram" = "whatsapp",
+  channel: "whatsapp" | "instagram" | "messenger" = "whatsapp",
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return;
 
@@ -291,6 +291,43 @@ export async function processBotFlow(
       } else {
         const errText = await r.text();
         logError("Erro ao enviar mensagem no Instagram", errText);
+      }
+    } else if (channel === "messenger") {
+      const { data: page } = await dbAdmin
+        .from("facebook_pages")
+        .select("page_access_token")
+        .eq("page_id", phoneNumberId)
+        .maybeSingle();
+
+      if (!page || !page.page_access_token) {
+        logError("Acesso ao Facebook Messenger não configurado ou token expirado");
+        return;
+      }
+
+      const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
+      const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
+
+      const payload = {
+        recipient: { id: fbRecipientId },
+        message: { text: stepToExecute.message_content || "" },
+      };
+
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${page.page_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (r.ok) {
+        isSuccess = true;
+        const resJson = await r.json();
+        providerMsgId = resJson?.message_id || null;
+      } else {
+        const errText = await r.text();
+        logError("Erro ao enviar mensagem no Facebook Messenger", errText);
       }
     }
 

@@ -212,14 +212,19 @@ export async function processOnce() {
     const delayMs = Math.max(20, Math.floor(1000 / (profile.rate_limit_per_second || 20)));
 
     for (const m of msgs) {
-      // Pular contatos do Instagram (disparo em massa proibido)
-      if ((m as any)?.contacts?.channel === "instagram" || String(m.to_phone).startsWith("ig_")) {
+      // Pular contatos do Instagram e Messenger (disparo em massa proibido)
+      if (
+        (m as any)?.contacts?.channel === "instagram" ||
+        (m as any)?.contacts?.channel === "messenger" ||
+        String(m.to_phone).startsWith("ig_") ||
+        String(m.to_phone).startsWith("fb_")
+      ) {
         await dbAdmin
           .from("campaign_messages")
           .update({
             status: "failed",
             failed_at: new Date().toISOString(),
-            error: { message: "Instagram não é permitido em campanhas de disparo em massa." },
+            error: { message: "Instagram/Messenger não são permitidos em campanhas de disparo em massa." },
           })
           .eq("id", m.id);
         processed++;

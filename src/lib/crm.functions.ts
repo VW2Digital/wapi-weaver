@@ -935,6 +935,14 @@ export const moveOpportunity = createServerFn({ method: "POST" })
         [data.to_stage_id, newOrder, newStatus, closedAt, context.userId, data.id],
       );
 
+      // Sincronizar o campo kanban_stage_id no contato principal correspondente
+      if (opportunity.primary_contact_id) {
+        await conn.execute(
+          "UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND user_id = ?",
+          [data.to_stage_id, opportunity.primary_contact_id, effectiveUserId]
+        );
+      }
+
       // Save to stage history
       const historyId = crypto.randomUUID();
       await conn.execute(

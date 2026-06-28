@@ -89,21 +89,97 @@ export const setContactKanbanStage = createServerFn({ method: "POST" })
     try {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
-      if (data.stageId) {
-        const stage = await db.query(
-          "SELECT 1 FROM sales_stages WHERE id = ? AND user_id = ?",
-          [data.stageId, effectiveUserId],
-        );
-        if (!stage || stage.length === 0) {
-          throw new Error("Etapa do funil inválida.");
-        }
-      }
 
-      await db.query("UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND user_id = ?", [
-        data.stageId,
-        data.contactId,
-        effectiveUserId,
-      ]);
+      await db.transaction(async (conn) => {
+        // 1. Atualizar o campo kanban_stage_id no contato
+        await conn.execute(
+          "UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND user_id = ?",
+          [data.stageId, data.contactId, effectiveUserId]
+        );
+
+        if (data.stageId) {
+          // 2. Buscar o funnel_id associado a essa etapa
+          const [stages]: any = await conn.execute(
+            "SELECT funnel_id FROM sales_stages WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
+            [data.stageId, effectiveUserId]
+          );
+          if (!stages || stages.length === 0) {
+            throw new Error("Etapa do funil inválida ou não encontrada.");
+          }
+          const funnelId = stages[0].funnel_id;
+
+          // 3. Verificar se o contato já possui uma oportunidade aberta neste funil
+          const [existing]: any = await conn.execute(
+            `SELECT id FROM opportunities 
+             WHERE user_id = ? AND primary_contact_id = ? AND funnel_id = ? AND status = 'open' AND deleted_at IS NULL
+             LIMIT 1`,
+            [effectiveUserId, data.contactId, funnelId]
+          );
+
+          if (existing && existing.length > 0) {
+            // Atualizar a etapa da oportunidade existente
+            const oppId = existing[0].id;
+            await conn.execute(
+              "UPDATE opportunities SET stage_id = ?, updated_at = CURRENT_TIMESTAMP() WHERE id = ?",
+              [data.stageId, oppId]
+            );
+          } else {
+            // Criar uma nova oportunidade no CRM
+            const oppId = crypto.randomUUID();
+
+            // Obter detalhes do contato para gerar o título
+            const [contacts]: any = await conn.execute(
+              "SELECT name, phone_e164 FROM contacts WHERE id = ? LIMIT 1",
+              [data.contactId]
+            );
+            const contactName = contacts?.[0]?.name || contacts?.[0]?.phone_e164 || "Contato";
+            const title = `Oportunidade - ${contactName}`;
+
+            // Calcular ordem no Kanban
+            const [maxOrderRow]: any = await conn.execute(
+              "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
+              [data.stageId]
+            );
+            const maxOrder = maxOrderRow?.[0]?.max_order ? parseFloat(maxOrderRow[0].max_order) : 0.0;
+            const kanbanOrder = maxOrder + 1000.0;
+
+            // Inserir oportunidade
+            await conn.execute(
+              `INSERT INTO opportunities (
+                 id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', ?)`,
+              [
+                oppId,
+                effectiveUserId,
+                funnelId,
+                data.stageId,
+                title,
+                data.contactId,
+                effectiveUserId,
+                context.userId,
+                kanbanOrder,
+              ]
+            );
+
+            // Associar na tabela pivot opportunity_contacts
+            await conn.execute(
+              `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
+               VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)
+               ON DUPLICATE KEY UPDATE is_primary = TRUE`,
+              [effectiveUserId, oppId, data.contactId]
+            );
+          }
+        } else {
+          // 4. Se a etapa for nula (Sem funil), arquivar/marcar como deletada as oportunidades abertas do contato
+          await conn.execute(
+            `UPDATE opportunities 
+             SET deleted_at = CURRENT_TIMESTAMP()
+             WHERE user_id = ? AND primary_contact_id = ? AND status = 'open' AND deleted_at IS NULL`,
+            [effectiveUserId, data.contactId]
+          );
+        }
+      });
+
       return { ok: true };
     } catch (e: any) {
       console.error("Erro ao salvar etapa do Kanban:", e);

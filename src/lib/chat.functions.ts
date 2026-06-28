@@ -176,7 +176,7 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const phone = data.phone.startsWith("ig_") ? data.phone : data.phone.replace(/\D/g, "");
+    const phone = data.phone.startsWith("ig_") || data.phone.startsWith("fb_") ? data.phone : data.phone.replace(/\D/g, "");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -198,7 +198,7 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const phone = data.phone.startsWith("ig_") ? data.phone : data.phone.replace(/\D/g, "");
+    const phone = data.phone.startsWith("ig_") || data.phone.startsWith("fb_") ? data.phone : data.phone.replace(/\D/g, "");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -223,7 +223,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const phone = data.phone.startsWith("ig_") ? data.phone : data.phone.replace(/\D/g, "");
+    const phone = data.phone.startsWith("ig_") || data.phone.startsWith("fb_") ? data.phone : data.phone.replace(/\D/g, "");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -335,7 +335,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
   .validator((d) => sendMessageInput.parse(d))
   .handler(async ({ data, context }) => {
     const isInstagram = data.to.startsWith("ig_");
-    const digits = isInstagram ? data.to : data.to.replace(/\D/g, "");
+    const isMessenger = data.to.startsWith("fb_");
+    const digits = (isInstagram || isMessenger) ? data.to : data.to.replace(/\D/g, "");
     if (digits.length < 5) return { ok: false, error: "Identificador do destinatário inválido." };
 
     const { resolveEffectiveUserId } = await import("./chat-helpers");
@@ -455,6 +456,52 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       wamid = body?.message_id || null;
+    } else if (isMessenger) {
+      // 1. Busca página do Facebook conectada
+      const fbPages = (await db.query(
+        `SELECT page_id, page_access_token FROM facebook_pages WHERE user_id = ? AND status = 'active' LIMIT 1`,
+        [effectiveUserId],
+      )) as any[];
+      const page = fbPages?.[0];
+
+      if (!page) {
+        return { ok: false, error: "Nenhuma página do Facebook conectada." };
+      }
+
+      // 2. Busca o external_contact_id
+      const contacts = (await db.query(
+        `SELECT external_contact_id FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
+        [effectiveUserId, digits],
+      )) as any[];
+      const externalId = contacts?.[0]?.external_contact_id;
+      if (!externalId) {
+        return { ok: false, error: "Contato do Messenger sem external_contact_id." };
+      }
+
+      const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
+      const payload = {
+        recipient: { id: externalId },
+        message: { text: data.text?.body || "" },
+      };
+
+      const r = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${page.page_id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${page.page_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      body = await r.json();
+      if (!r.ok) {
+        return { ok: false, error: body?.error?.message ?? "Falha ao enviar mensagem no Messenger." };
+      }
+
+      wamid = body?.message_id || null;
     } else {
       // Envio via WhatsApp
       const apiVersion = p.meta_graph_version || "v20.0";
@@ -528,8 +575,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         wamid,
         data.reply_to_message_id || null,
         JSON.stringify(metadata),
-        isInstagram ? "instagram" : "whatsapp",
-        isInstagram ? digits : (p?.whatsapp_phone_number_id || null),
+        isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp",
+        isInstagram ? digits : isMessenger ? (digits.startsWith("fb_") ? digits.slice(3) : digits) : (p?.whatsapp_phone_number_id || null),
       ],
     );
 
@@ -541,7 +588,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       `UPDATE bot_conversation_state
        SET is_paused = true, paused_until = ?
        WHERE user_id = ? AND contact_number = ? AND channel = ?`,
-      [pausedUntil, effectiveUserId, digits, isInstagram ? "instagram" : "whatsapp"],
+      [pausedUntil, effectiveUserId, digits, isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp"],
     );
 
     return { ok: true, wamid, body };
