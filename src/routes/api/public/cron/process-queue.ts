@@ -145,11 +145,11 @@ export async function processOnce() {
     ]),
   );
 
-  // Pick up to BATCH pending messages for active campaigns
+  // Pick up to BATCH pending messages for active campaigns (exclui Instagram)
   const { data: messages, error } = await dbAdmin
     .from("campaign_messages")
     .select(
-      "id, user_id, campaign_id, to_phone, contact_id, attempts, contacts(name, custom_fields)",
+      "id, user_id, campaign_id, to_phone, contact_id, attempts, contacts(name, custom_fields, channel)",
     )
     .eq("status", "pending")
     .in("campaign_id", activeCampIds)
@@ -212,6 +212,20 @@ export async function processOnce() {
     const delayMs = Math.max(20, Math.floor(1000 / (profile.rate_limit_per_second || 20)));
 
     for (const m of msgs) {
+      // Pular contatos do Instagram (disparo em massa proibido)
+      if ((m as any)?.contacts?.channel === "instagram" || String(m.to_phone).startsWith("ig_")) {
+        await dbAdmin
+          .from("campaign_messages")
+          .update({
+            status: "failed",
+            failed_at: new Date().toISOString(),
+            error: { message: "Instagram não é permitido em campanhas de disparo em massa." },
+          })
+          .eq("id", m.id);
+        processed++;
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
       // mark sending
       await dbAdmin
         .from("campaign_messages")

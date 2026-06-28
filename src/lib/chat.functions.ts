@@ -5,9 +5,8 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import db from "./db";
 
-// Schema de validação para envio de mensagem direta
 const sendMessageInput = z.object({
-  to: z.string().trim().min(8).max(20),
+  to: z.string().trim().min(8).max(40),
   type: z.enum([
     "text",
     "reaction",
@@ -112,6 +111,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
           c.chat_status,
           c.is_unread,
           c.kanban_stage_id,
+          c.channel,
           c.created_at,
           c.updated_at,
           COALESCE(bcs.bot_active, 1) AS bot_active,
@@ -126,7 +126,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
           s.color AS kanban_stage_color
         FROM contacts c
         LEFT JOIN bot_conversation_state bcs 
-          ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164
+          ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164 AND bcs.channel = c.channel
         LEFT JOIN (
           SELECT user_id, contact_phone, body, created_at
           FROM (
@@ -176,7 +176,7 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const phone = data.phone.replace(/\D/g, "");
+    const phone = data.phone.startsWith("ig_") ? data.phone : data.phone.replace(/\D/g, "");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -198,7 +198,7 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const phone = data.phone.replace(/\D/g, "");
+    const phone = data.phone.startsWith("ig_") ? data.phone : data.phone.replace(/\D/g, "");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -210,8 +210,8 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
 
     if (contact) {
       const botStates: any[] = (await db.query(
-        `SELECT bot_active FROM bot_conversation_state WHERE user_id = ? AND contact_number = ? LIMIT 1`,
-        [effectiveUserId, phone],
+        `SELECT bot_active FROM bot_conversation_state WHERE user_id = ? AND contact_number = ? AND channel = ? LIMIT 1`,
+        [effectiveUserId, phone, contact.channel],
       )) as any[];
       contact.bot_active = botStates?.[0] ? !!botStates[0].bot_active : true;
     }
@@ -223,7 +223,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
-    const phone = data.phone.replace(/\D/g, "");
+    const phone = data.phone.startsWith("ig_") ? data.phone : data.phone.replace(/\D/g, "");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -334,8 +334,9 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => sendMessageInput.parse(d))
   .handler(async ({ data, context }) => {
-    const digits = data.to.replace(/\D/g, "");
-    if (digits.length < 8) return { ok: false, error: "Número do destinatário inválido." };
+    const isInstagram = data.to.startsWith("ig_");
+    const digits = isInstagram ? data.to : data.to.replace(/\D/g, "");
+    if (digits.length < 5) return { ok: false, error: "Identificador do destinatário inválido." };
 
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -405,26 +406,77 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       payload.contacts = data.contacts;
     }
 
-    // 3. Envia para a API da Meta
-    const apiVersion = p.meta_graph_version || "v20.0";
-    const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
-          "Content-Type": "application/json",
+    let wamid: string | null = null;
+    let body: any = null;
+
+    if (isInstagram) {
+      // 1. Busca conta do Instagram conectada
+      const igAccounts = (await db.query(
+        `SELECT ig_user_id, access_token FROM instagram_accounts WHERE user_id = ? AND status = 'active' LIMIT 1`,
+        [effectiveUserId],
+      )) as any[];
+      const account = igAccounts?.[0];
+
+      if (!account) {
+        return { ok: false, error: "Nenhuma conta profissional do Instagram conectada." };
+      }
+
+      // 2. Busca o external_contact_id
+      const contacts = (await db.query(
+        `SELECT external_contact_id FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
+        [effectiveUserId, digits],
+      )) as any[];
+      const externalId = contacts?.[0]?.external_contact_id;
+      if (!externalId) {
+        return { ok: false, error: "Contato do Instagram sem external_contact_id." };
+      }
+
+      const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
+      const payload = {
+        recipient: { id: externalId },
+        message: { text: data.text?.body || "" },
+      };
+
+      const r = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${account.ig_user_id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${account.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      },
-    );
+      );
 
-    const body = await r.json();
-    if (!r.ok) {
-      return { ok: false, error: body?.error?.message ?? "Falha ao enviar mensagem na Meta." };
+      body = await r.json();
+      if (!r.ok) {
+        return { ok: false, error: body?.error?.message ?? "Falha ao enviar DM no Instagram." };
+      }
+
+      wamid = body?.message_id || null;
+    } else {
+      // Envio via WhatsApp
+      const apiVersion = p.meta_graph_version || "v20.0";
+      const r = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${p.whatsapp_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      body = await r.json();
+      if (!r.ok) {
+        return { ok: false, error: body?.error?.message ?? "Falha ao enviar mensagem na Meta." };
+      }
+
+      wamid = normalizeWaMessageId(body?.messages?.[0]?.id);
     }
-
-    const wamid = normalizeWaMessageId(body?.messages?.[0]?.id);
 
     let bodyText = "";
     if (data.type === "text") {
@@ -461,8 +513,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     };
     const msgId = crypto.randomUUID();
     await db.query(
-      `INSERT INTO direct_messages (id, user_id, contact_phone, direction, type, body, wa_message_id, status, reply_to_message_id, metadata)
-       VALUES (?, ?, ?, 'outgoing', ?, ?, ?, 'sent', ?, ?)
+      `INSERT INTO direct_messages (id, user_id, contact_phone, direction, type, body, wa_message_id, status, reply_to_message_id, metadata, channel, provider_account_id)
+       VALUES (?, ?, ?, 'outgoing', ?, ?, ?, 'sent', ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          status = VALUES(status),
          body = VALUES(body),
@@ -476,19 +528,20 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         wamid,
         data.reply_to_message_id || null,
         JSON.stringify(metadata),
+        isInstagram ? "instagram" : "whatsapp",
+        isInstagram ? digits : (p?.whatsapp_phone_number_id || null),
       ],
     );
 
     // 5. PAUSA O BOT (Fase 1 do BotFlow)
-    // Quando um humano envia mensagem, o bot entra em pausa automática por padrão.
     const d = new Date(Date.now() + 60 * 60 * 1000);
     const pad = (n: number) => String(n).padStart(2, "0");
     const pausedUntil = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
     await db.query(
       `UPDATE bot_conversation_state
        SET is_paused = true, paused_until = ?
-       WHERE user_id = ? AND contact_number = ? AND instance_id = ?`,
-      [pausedUntil, effectiveUserId, digits, p.whatsapp_phone_number_id],
+       WHERE user_id = ? AND contact_number = ? AND channel = ?`,
+      [pausedUntil, effectiveUserId, digits, isInstagram ? "instagram" : "whatsapp"],
     );
 
     return { ok: true, wamid, body };

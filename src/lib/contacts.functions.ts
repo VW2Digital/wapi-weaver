@@ -88,25 +88,37 @@ export const createContact = createServerFn({ method: "POST" })
     const phone = normalizeToE164(data.phone);
     if (!phone) throw new Error("Telefone inválido");
 
-    const existing = (await db.query(
-      "SELECT id, custom_fields FROM contacts WHERE user_id = ? AND phone_e164 = ?",
-      [effectiveUserId, phone],
-    )) as any[];
+    return await db.transaction(async (conn) => {
+      const [existing]: any = await conn.execute(
+        "SELECT id, custom_fields FROM contacts WHERE user_id = ? AND phone_e164 = ? FOR UPDATE",
+        [effectiveUserId, phone],
+      );
 
-    const mergedCustomFields =
-      existing?.[0]?.custom_fields && typeof existing[0].custom_fields === "object"
-        ? { ...(existing[0].custom_fields as Record<string, any>), ...(data.custom_fields ?? {}) }
-        : (data.custom_fields ?? {});
+      const mergedCustomFields =
+        existing?.[0]?.custom_fields && typeof existing[0].custom_fields === "object"
+          ? {
+              ...(existing[0].custom_fields as Record<string, any>),
+              ...(data.custom_fields ?? {}),
+            }
+          : (data.custom_fields ?? {});
 
-    const id = existing?.[0]?.id ?? crypto.randomUUID();
-    await db.query(
-      `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
-       VALUES (?, ?, ?, ?, ?, ?, 'manual')
-       ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
-      [id, effectiveUserId, phone, data.name || null, data.email || null, JSON.stringify(mergedCustomFields)],
-    );
-    const rows = await db.query("SELECT * FROM contacts WHERE id = ?", [id]);
-    return (rows as any[])[0];
+      const id = existing?.[0]?.id ?? crypto.randomUUID();
+      await conn.execute(
+        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
+         VALUES (?, ?, ?, ?, ?, ?, 'manual')
+         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
+        [
+          id,
+          effectiveUserId,
+          phone,
+          data.name || null,
+          data.email || null,
+          JSON.stringify(mergedCustomFields),
+        ],
+      );
+      const [rows]: any = await conn.execute("SELECT * FROM contacts WHERE id = ?", [id]);
+      return rows[0];
+    });
   });
 
 export const deleteContact = createServerFn({ method: "POST" })
@@ -116,8 +128,31 @@ export const deleteContact = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    await db.query("DELETE FROM contacts WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
-    return { ok: true };
+
+    return await db.transaction(async (conn) => {
+      const [contacts]: any = await conn.execute(
+        "SELECT phone_e164 FROM contacts WHERE id = ? AND user_id = ?",
+        [data.id, effectiveUserId],
+      );
+      const contact = contacts?.[0];
+
+      if (contact) {
+        await conn.execute(
+          "DELETE FROM conversation_assignments WHERE contact_phone = ? AND user_id = ?",
+          [contact.phone_e164, effectiveUserId],
+        );
+        await conn.execute(
+          "DELETE FROM conversation_tags WHERE contact_number = ? AND user_id = ?",
+          [contact.phone_e164, effectiveUserId],
+        );
+      }
+
+      await conn.execute("DELETE FROM contacts WHERE id = ? AND user_id = ?", [
+        data.id,
+        effectiveUserId,
+      ]);
+      return { ok: true };
+    });
   });
 
 export const updateContact = createServerFn({ method: "POST" })

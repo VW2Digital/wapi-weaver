@@ -145,6 +145,9 @@ function getAvatarColor(name: string): string {
 /** Formata o número de telefone no padrão +XX (XX) XXXXX-XXXX */
 function formatPhone(phone: string): string {
   if (!phone) return "";
+  if (phone.startsWith("ig_")) {
+    return "@" + phone.slice(3);
+  }
   const clean = phone.replace(/\D/g, "");
   if (clean.length === 12 || clean.length === 13) {
     const ddi = clean.slice(0, 2);

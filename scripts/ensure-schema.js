@@ -918,6 +918,177 @@ export async function ensureDatabaseSchema() {
       `,
     );
 
+    // Instagram and Bot Flow Updates
+    await ensureTableExists(
+      connection,
+      "instagram_accounts",
+      `
+      CREATE TABLE IF NOT EXISTS instagram_accounts (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        ig_user_id VARCHAR(100) NOT NULL UNIQUE,
+        username VARCHAR(100) NULL,
+        access_token TEXT NOT NULL,
+        token_expires_at DATETIME NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "instagram_webhook_events",
+      `
+      CREATE TABLE IF NOT EXISTS instagram_webhook_events (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        raw JSON NOT NULL,
+        processed BOOLEAN NOT NULL DEFAULT FALSE,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+
+    // Índice para busca por user_id em instagram_accounts
+    try {
+      await connection.query(
+        `CREATE INDEX idx_instagram_accounts_user ON instagram_accounts(user_id)`,
+      );
+      logSchema("Índice idx_instagram_accounts_user adicionado.");
+    } catch (e) {}
+
+    // Columns to contacts
+    await ensureColumnExists(
+      connection,
+      "contacts",
+      "channel",
+      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+    );
+    await ensureColumnExists(
+      connection,
+      "contacts",
+      "external_contact_id",
+      "VARCHAR(255) NULL",
+    );
+    try {
+      await connection.query(
+        `ALTER TABLE contacts ADD UNIQUE KEY uq_contact_channel_external (user_id, channel, external_contact_id)`,
+      );
+      logSchema("Única restrição uq_contact_channel_external adicionada a contacts.");
+    } catch (e) {}
+
+    // Columns to direct_messages
+    await ensureColumnExists(
+      connection,
+      "direct_messages",
+      "channel",
+      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+    );
+    await ensureColumnExists(
+      connection,
+      "direct_messages",
+      "provider_message_id",
+      "VARCHAR(255) NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "direct_messages",
+      "provider_account_id",
+      "VARCHAR(255) NULL",
+    );
+    try {
+      await connection.query(
+        `ALTER TABLE direct_messages ADD UNIQUE KEY uq_dm_channel_msg (user_id, channel, provider_message_id)`,
+      );
+      logSchema("Única restrição uq_dm_channel_msg adicionada a direct_messages.");
+    } catch (e) {}
+
+    // Columns to bot_conversation_state
+    await ensureColumnExists(
+      connection,
+      "bot_conversation_state",
+      "channel",
+      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+    );
+    await ensureColumnExists(
+      connection,
+      "bot_conversation_state",
+      "provider_account_id",
+      "VARCHAR(255) NULL",
+    );
+    // Adiciona channel à unique key para isolar WhatsApp de Instagram
+    try {
+      await connection.query(
+        `ALTER TABLE bot_conversation_state DROP INDEX uq_bot_conv_state`,
+      );
+      logSchema("Índice uq_bot_conv_state antigo removido de bot_conversation_state.");
+    } catch (e) {}
+    try {
+      await connection.query(
+        `ALTER TABLE bot_conversation_state ADD UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id, channel)`,
+      );
+      logSchema("Nova unique key uq_bot_conv_state (com channel) adicionada.");
+    } catch (e) {
+      logSchema("Aviso: não foi possível recriar uq_bot_conv_state (pode já existir).");
+    }
+
+    // Columns to bot_settings (Flows)
+    await ensureColumnExists(
+      connection,
+      "bot_settings",
+      "name",
+      "VARCHAR(150) NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "bot_settings",
+      "channel",
+      "ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'",
+    );
+    await ensureColumnExists(
+      connection,
+      "bot_settings",
+      "priority",
+      "INT NOT NULL DEFAULT 0",
+    );
+    // Adiciona channel à unique key para permitir fluxos separados por canal
+    try {
+      await connection.query(
+        `ALTER TABLE bot_settings DROP INDEX uq_bot_settings_instance`,
+      );
+      logSchema("Índice uq_bot_settings_instance antigo removido de bot_settings.");
+    } catch (e) {}
+    try {
+      await connection.query(
+        `ALTER TABLE bot_settings ADD UNIQUE KEY uq_bot_settings_instance (user_id, instance_id, channel)`,
+      );
+      logSchema("Nova unique key uq_bot_settings_instance (com channel) adicionada.");
+    } catch (e) {
+      logSchema("Aviso: não foi possível recriar uq_bot_settings_instance (pode já existir).");
+    }
+    await ensureColumnExists(
+      connection,
+      "bot_settings",
+      "trigger_type",
+      "VARCHAR(50) NOT NULL DEFAULT 'start'",
+    );
+    await ensureColumnExists(
+      connection,
+      "bot_settings",
+      "trigger_value",
+      "VARCHAR(255) NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "bot_settings",
+      "is_default",
+      "BOOLEAN NOT NULL DEFAULT FALSE",
+    );
+
     // Insere flows de demonstração iniciais para testes locais
     try {
       const [users] = await connection.query("SELECT id FROM users LIMIT 1");

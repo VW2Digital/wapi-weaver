@@ -97,12 +97,16 @@ export const sendTestMessage = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
       .object({
-        to: z.string().trim().min(8).max(20),
+        to: z.string().trim().min(5).max(40),
         text: z.string().trim().min(1).max(1000).optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const isInstagram = data.to.startsWith("ig_");
+    if (isInstagram) {
+      return { ok: false, error: "Teste de envio não suportado para Instagram. Use o chat para testar." };
+    }
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
@@ -144,8 +148,11 @@ export const sendTestMessage = createServerFn({ method: "POST" })
  */
 export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ to: z.string().trim().min(8).max(20) }).parse(d))
+  .inputValidator((d) => z.object({ to: z.string().trim().min(5).max(40) }).parse(d))
   .handler(async ({ data, context }) => {
+    if (data.to.startsWith("ig_")) {
+      return { ok: false, error: "Hello World não suportado para Instagram. Use o chat para testar." };
+    }
     const { data: p } = await context.db
       .from("profiles")
       .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
@@ -1430,4 +1437,50 @@ export const getSolutionAccessToken = createServerFn({ method: "POST" })
         error: body?.error?.message ?? "Falha ao obter token de acesso da solução",
       };
     return { ok: true, data: body };
+  });
+
+export const listInstagramAccounts = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    const rows = await db.query(
+      "SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY created_at DESC",
+      [context.userId],
+    );
+    return rows;
+  });
+
+export const connectInstagramAccount = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) =>
+    z
+      .object({
+        ig_user_id: z.string().trim().min(5),
+        username: z.string().trim().min(1),
+        access_token: z.string().trim().min(20),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
+    const id = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, access_token, status)
+       VALUES (?, ?, ?, ?, ?, 'active')
+       ON DUPLICATE KEY UPDATE username = VALUES(username), access_token = VALUES(access_token), status = 'active'`,
+      [id, context.userId, data.ig_user_id, data.username, data.access_token],
+    );
+    return { ok: true };
+  });
+
+export const disconnectInstagramAccount = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
+    await db.query("DELETE FROM instagram_accounts WHERE id = ? AND user_id = ?", [
+      data.id,
+      context.userId,
+    ]);
+    return { ok: true };
   });

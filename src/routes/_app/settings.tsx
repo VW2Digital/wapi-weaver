@@ -43,6 +43,9 @@ import {
   acceptSolutionDeactivation,
   rejectSolutionDeactivation,
   getSolutionAccessToken,
+  listInstagramAccounts,
+  connectInstagramAccount,
+  disconnectInstagramAccount,
 } from "@/lib/profile.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import {
@@ -123,6 +126,7 @@ import {
   Bot,
   LayoutDashboard,
   MessageCircle,
+  MessageSquare,
   ListChecks,
   UserCog,
   Kanban,
@@ -456,6 +460,12 @@ function SettingsPage() {
               className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
             >
               <Phone className="h-3.5 w-3.5" /> Conta WhatsApp (WABA)
+            </TabsTrigger>
+            <TabsTrigger
+              value="instagram"
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
+            >
+              <MessageSquare className="h-3.5 w-3.5" /> Conta Instagram
             </TabsTrigger>
             <TabsTrigger
               value="advanced"
@@ -1438,6 +1448,10 @@ function SettingsPage() {
 
           <TabsContent value="waba" className="outline-none">
             <WABASection />
+          </TabsContent>
+
+          <TabsContent value="instagram" className="outline-none">
+            <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
           </TabsContent>
 
           <TabsContent value="advanced" className="outline-none">
@@ -6004,5 +6018,227 @@ function AdvancedToolsSection() {
         </div>
       )}
     </Card>
+  );
+}
+
+function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: any; saveMut: any }) {
+  const fetchIg = useServerFn(listInstagramAccounts);
+  const connectIg = useServerFn(connectInstagramAccount);
+  const disconnectIg = useServerFn(disconnectInstagramAccount);
+  const qc = useQueryClient();
+
+  const [igUserId, setIgUserId] = useState("");
+  const [username, setUsername] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: accounts, isLoading } = useQuery({
+    queryKey: ["instagram-accounts"],
+    queryFn: () => fetchIg(),
+  });
+
+  const handleConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!igUserId || !username || !accessToken) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await connectIg({
+        data: {
+          ig_user_id: igUserId,
+          username: username,
+          access_token: accessToken,
+        },
+      });
+      toast.success("Conta do Instagram conectada com sucesso!");
+      setIgUserId("");
+      setUsername("");
+      setAccessToken("");
+      qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao conectar conta");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm("Deseja realmente desconectar esta conta do Instagram?")) return;
+    try {
+      await disconnectIg({ data: { id } });
+      toast.success("Conta desconectada.");
+      qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao desconectar");
+    }
+  };
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const igWebhookUrl = `${origin}/api/public/instagram-webhook`;
+
+  const copy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copiado`);
+  };
+
+  const credentialsComplete = !!(accounts && accounts.length > 0);
+  const webhookComplete = !!(form.whatsapp_verify_token && form.whatsapp_app_secret);
+
+  return (
+    <div className="space-y-6">
+      <SetupWizard
+        credentialsComplete={credentialsComplete}
+        webhookComplete={webhookComplete}
+        testComplete={credentialsComplete && webhookComplete}
+      >
+        {(step) => (
+          <>
+            {step === 0 && (
+              <div className="space-y-6">
+                <Card className="p-6">
+                  <div className="flex items-start gap-3 mb-6">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                      1
+                    </div>
+                    <div>
+                      <h2 className="font-display text-lg font-semibold">Passo 1: Conectar sua Conta Profissional do Instagram</h2>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Insira as credenciais geradas na sua aplicação Meta Developers para o canal do Instagram.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleConnect} className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="ig_user_id">ID da Conta Profissional do Instagram (Instagram Business Account ID)</Label>
+                        <Input
+                          id="ig_user_id"
+                          value={igUserId}
+                          onChange={(e) => setIgUserId(e.target.value)}
+                          placeholder="Ex: 178414000000000"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="username">Username do Perfil (Sem @)</Label>
+                        <Input
+                          id="username"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          placeholder="Ex: minha_empresa"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="access_token">Access Token da Página (Meta Graph Token)</Label>
+                      <Textarea
+                        id="access_token"
+                        value={accessToken}
+                        onChange={(e) => setAccessToken(e.target.value)}
+                        placeholder="Cole o Access Token de longa duração da Meta aqui"
+                        rows={3}
+                      />
+                    </div>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? "Conectando..." : "Conectar Conta"}
+                    </Button>
+                  </form>
+                </Card>
+
+                <Card className="p-6">
+                  <h3 className="text-base font-semibold mb-4">Contas Conectadas</h3>
+                  {isLoading ? (
+                    <p className="text-sm text-muted-foreground">Carregando...</p>
+                  ) : !accounts || accounts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma conta conectada ainda.</p>
+                  ) : (
+                    <div className="divide-y">
+                      {accounts.map((acc: any) => (
+                        <div key={acc.id} className="flex justify-between items-center py-3">
+                          <div>
+                            <p className="font-medium text-sm">@{acc.username}</p>
+                            <p className="text-xs text-muted-foreground">ID: {acc.ig_user_id}</p>
+                          </div>
+                          <Button variant="destructive" size="sm" onClick={() => handleDisconnect(acc.id)}>
+                            Desconectar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )}
+
+            {step === 1 && (
+              <Card className="p-6 space-y-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                    2
+                  </div>
+                  <div>
+                    <h2 className="font-display text-lg font-semibold">Passo 2: Configurar o Webhook no Painel da Meta</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Configure a Meta para enviar mensagens do Instagram em tempo real para a sua plataforma.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <ReadOnly
+                    label="1. Callback URL (URL de Destino)"
+                    value={igWebhookUrl}
+                    onCopy={() => copy(igWebhookUrl, "Callback URL")}
+                  />
+
+                  <div className="space-y-1.5">
+                    <Label>2. Verify Token (Token de Verificação do Webhook)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={form.whatsapp_verify_token ?? ""}
+                        onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })}
+                        placeholder="Insira o seu Verify Token"
+                      />
+                      <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>3. App Secret (Chave Secreta do Aplicativo)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        value={form.whatsapp_app_secret ?? ""}
+                        onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
+                        placeholder="Insira o App Secret"
+                      />
+                      <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {step === 2 && (
+              <Card className="p-6 text-center space-y-4">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
+                  <Check className="h-6 w-6" />
+                </div>
+                <h2 className="text-lg font-semibold">Tudo configurado!</h2>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  Sua conta do Instagram está configurada e pronta para receber DMs e responder utilizando a engine de atendimento automático ou chat manual.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+      </SetupWizard>
+    </div>
   );
 }

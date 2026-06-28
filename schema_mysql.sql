@@ -127,6 +127,8 @@ CREATE TABLE IF NOT EXISTS contacts (
   email VARCHAR(255) NULL,
   source VARCHAR(255) NULL,
   opted_out BOOLEAN NOT NULL DEFAULT false,
+  channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp',
+  external_contact_id VARCHAR(255) NULL,
   custom_fields JSON NULL,
   is_pinned BOOLEAN NOT NULL DEFAULT false,
   is_archived BOOLEAN NOT NULL DEFAULT false,
@@ -136,6 +138,7 @@ CREATE TABLE IF NOT EXISTS contacts (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_contact (user_id, phone_e164),
+  UNIQUE KEY uq_contact_channel_external (user_id, channel, external_contact_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -270,6 +273,9 @@ CREATE TABLE IF NOT EXISTS direct_messages (
   wa_message_id VARCHAR(255) NULL,
   status ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
   reply_to_message_id VARCHAR(255) NULL,
+  channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp',
+  provider_message_id VARCHAR(255) NULL,
+  provider_account_id VARCHAR(255) NULL,
   metadata JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -311,6 +317,7 @@ CREATE INDEX idx_contacts_user_opted ON contacts(user_id, opted_out);
 CREATE INDEX idx_direct_messages_user_phone ON direct_messages(user_id, contact_phone);
 CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
 CREATE UNIQUE INDEX uq_direct_messages_user_wa_id ON direct_messages(user_id, wa_message_id);
+CREATE UNIQUE INDEX uq_dm_channel_msg ON direct_messages(user_id, channel, provider_message_id);
 
 -- Sales Funnels
 CREATE TABLE IF NOT EXISTS sales_funnels (
@@ -556,9 +563,15 @@ CREATE TABLE IF NOT EXISTS bot_settings (
   instance_id VARCHAR(50) NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
   pause_timeout_minutes INT NOT NULL DEFAULT 60,
+  name VARCHAR(150) NULL,
+  channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp',
+  priority INT NOT NULL DEFAULT 0,
+  trigger_type VARCHAR(50) NOT NULL DEFAULT 'start',
+  trigger_value VARCHAR(255) NULL,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_bot_settings_instance (user_id, instance_id),
+  UNIQUE KEY uq_bot_settings_instance (user_id, instance_id, channel),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -614,9 +627,11 @@ CREATE TABLE IF NOT EXISTS bot_conversation_state (
   is_paused BOOLEAN NOT NULL DEFAULT FALSE,
   paused_until DATETIME NULL,
   bot_active BOOLEAN NOT NULL DEFAULT TRUE,
+  channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp',
+  provider_account_id VARCHAR(255) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id),
+  UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id, channel),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (current_step_id) REFERENCES bot_steps(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -625,6 +640,58 @@ CREATE TABLE IF NOT EXISTS bot_conversation_state (
 CREATE INDEX idx_bot_steps_settings ON bot_steps(bot_settings_id);
 CREATE INDEX idx_bot_step_options_step ON bot_step_options(step_id);
 CREATE INDEX idx_bot_conv_state_contact ON bot_conversation_state(contact_number);
+
+-- -------------------------------------------------------------------
+-- INSTAGRAM MESSAGING (Phase 2)
+-- -------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS instagram_accounts (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  ig_user_id VARCHAR(100) NOT NULL UNIQUE,
+  username VARCHAR(100) NULL,
+  access_token TEXT NOT NULL,
+  token_expires_at DATETIME NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'active',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_instagram_accounts_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS instagram_webhook_events (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NULL,
+  raw JSON NOT NULL,
+  processed BOOLEAN NOT NULL DEFAULT FALSE,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Instagram columns for contacts (added by ensure-schema.js)
+-- channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'
+-- external_contact_id VARCHAR(255) NULL
+-- UNIQUE KEY uq_contact_channel_external (user_id, channel, external_contact_id)
+
+-- Instagram columns for direct_messages (added by ensure-schema.js)
+-- channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'
+-- provider_message_id VARCHAR(255) NULL
+-- provider_account_id VARCHAR(255) NULL
+-- UNIQUE KEY uq_dm_channel_msg (user_id, channel, provider_message_id)
+
+-- Instagram columns for bot_conversation_state (added by ensure-schema.js)
+-- channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'
+-- provider_account_id VARCHAR(255) NULL
+-- UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id, channel)
+
+-- Instagram columns for bot_settings (added by ensure-schema.js)
+-- name VARCHAR(150) NULL
+-- channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp'
+-- priority INT NOT NULL DEFAULT 0
+-- trigger_type VARCHAR(50) NOT NULL DEFAULT 'start'
+-- trigger_value VARCHAR(255) NULL
+-- is_default BOOLEAN NOT NULL DEFAULT FALSE
+-- UNIQUE KEY uq_bot_settings_instance (user_id, instance_id, channel)
 
 -- -------------------------------------------------------------------
 -- AGENTE DE IA E RAG (Phase 3)

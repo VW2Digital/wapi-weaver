@@ -118,6 +118,16 @@ export const addContactsToList = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    // Verificar se algum contato é do Instagram (proibido em listas/campanhas)
+    const instagramContacts: any[] = (await db.query(
+      `SELECT id FROM contacts WHERE id IN (${data.contact_ids.map(() => "?").join(",")}) AND channel = 'instagram' AND user_id = ?`,
+      [...data.contact_ids, effectiveUserId],
+    )) as any[];
+    if (instagramContacts.length > 0) {
+      throw new Error("Contatos do Instagram não podem ser adicionados a listas de disparo.");
+    }
+
     const values = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId]);
     const chunkSize = 500;
     let added = 0;

@@ -170,11 +170,13 @@ async function validateTemplateForCampaign(db: any, data: z.infer<typeof createS
 async function fetchEligibleContactsForList(db: any, listId: string) {
   const { data: lcRows, error: lcErr } = await db
     .from("list_contacts")
-    .select("contact_id, contacts(id, phone_e164, opted_out)")
+    .select("contact_id, contacts(id, phone_e164, opted_out, channel)")
     .eq("list_id", listId);
   if (lcErr) throw lcErr;
 
-  const contacts = (lcRows ?? []).map((r: any) => r.contacts).filter((c: any) => c && !c.opted_out);
+  const contacts = (lcRows ?? [])
+    .map((r: any) => r.contacts)
+    .filter((c: any) => c && !c.opted_out && c.channel !== "instagram");
 
   if (contacts.length === 0) throw new Error("Lista sem contatos válidos");
   return contacts;

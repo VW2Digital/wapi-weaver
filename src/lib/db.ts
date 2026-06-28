@@ -33,17 +33,17 @@ if (process.env.NODE_ENV !== "production") {
  * @param params - Parâmetros opcionais para bind
  * @returns Resultado da query (linhas ou ResultSetHeader)
  */
-export async function query(sql: string, params?: unknown[]): Promise<any> {
+export async function query<T = any>(sql: string, params?: unknown[]): Promise<T> {
   try {
     const sanitizedParams = params?.map((p) => (p === undefined ? null : p)) as any;
     const [results] = await pool.execute(sql, sanitizedParams);
-    return results;
+    return results as T;
   } catch (error: unknown) {
     const err = error as { code?: string; errno?: number };
     if (err.code === "ER_WRONG_ARGUMENTS" || err.errno === 1210) {
       const sanitizedParams = params?.map((p) => (p === undefined ? null : p)) as any;
       const [results] = await pool.query(sql, sanitizedParams);
-      return results;
+      return results as T;
     }
     console.error("[DB] Query error:", error);
     console.error("[DB] Failed SQL:", sql);

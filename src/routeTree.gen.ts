@@ -43,6 +43,7 @@ import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
 import { Route as ApiSitemapXmlRouteImport } from './routes/api/sitemap.xml'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 import { Route as ApiPublicMakeAdminRouteImport } from './routes/api/public/make-admin'
+import { Route as ApiPublicInstagramWebhookRouteImport } from './routes/api/public/instagram-webhook'
 import { Route as ApiAuthVerifyTokenRouteImport } from './routes/api/auth/verify-token'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
@@ -227,6 +228,12 @@ const ApiPublicMakeAdminRoute = ApiPublicMakeAdminRouteImport.update({
   path: '/api/public/make-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicInstagramWebhookRoute =
+  ApiPublicInstagramWebhookRouteImport.update({
+    id: '/api/public/instagram-webhook',
+    path: '/api/public/instagram-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthVerifyTokenRoute = ApiAuthVerifyTokenRouteImport.update({
   id: '/api/auth/verify-token',
   path: '/api/auth/verify-token',
@@ -316,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -362,6 +370,7 @@ export interface FileRoutesByTo {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -410,6 +419,7 @@ export interface FileRoutesById {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -458,6 +468,7 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/public/instagram-webhook'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -504,6 +515,7 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/public/instagram-webhook'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -551,6 +563,7 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/public/instagram-webhook'
     | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -583,6 +596,7 @@ export interface RootRouteChildren {
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiAuthVerifyTokenRoute: typeof ApiAuthVerifyTokenRoute
+  ApiPublicInstagramWebhookRoute: typeof ApiPublicInstagramWebhookRoute
   ApiPublicMakeAdminRoute: typeof ApiPublicMakeAdminRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiSitemapXmlRoute: typeof ApiSitemapXmlRoute
@@ -837,6 +851,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMakeAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/instagram-webhook': {
+      id: '/api/public/instagram-webhook'
+      path: '/api/public/instagram-webhook'
+      fullPath: '/api/public/instagram-webhook'
+      preLoaderRoute: typeof ApiPublicInstagramWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/verify-token': {
       id: '/api/auth/verify-token'
       path: '/api/auth/verify-token'
@@ -989,6 +1010,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiAuthVerifyTokenRoute: ApiAuthVerifyTokenRoute,
+  ApiPublicInstagramWebhookRoute: ApiPublicInstagramWebhookRoute,
   ApiPublicMakeAdminRoute: ApiPublicMakeAdminRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiSitemapXmlRoute: ApiSitemapXmlRoute,
