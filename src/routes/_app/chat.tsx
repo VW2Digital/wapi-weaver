@@ -2714,7 +2714,7 @@ function ChatPage() {
                                   <span>Kanban</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                  <DropdownMenuSubContent className="w-[200px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                                  <DropdownMenuSubContent className="w-[200px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
                                     <DropdownMenuItem
                                       onClick={() =>
                                         kanbanStageMutation.mutate({
@@ -2739,7 +2739,7 @@ function ChatPage() {
                                             <span className="truncate">{funnel.name}</span>
                                           </DropdownMenuSubTrigger>
                                           <DropdownMenuPortal>
-                                            <DropdownMenuSubContent className="w-[180px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                                            <DropdownMenuSubContent className="w-[180px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
                                               {funnelStages.map((stage: any) => (
                                                 <DropdownMenuItem
                                                   key={stage.id}
@@ -3191,7 +3191,7 @@ function ChatPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align="end"
-                        className="w-[220px] bg-[#0c0a0f] border-neutral-800 text-neutral-200"
+                        className="w-[220px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200"
                       >
                         <DropdownMenuItem
                           onClick={() => setIsQuickOpportunityOpen(true)}
@@ -3298,7 +3298,7 @@ function ChatPage() {
                       placeholder="Buscar nas mensagens deste chat..."
                       value={messageSearchQuery}
                       onChange={(e) => setMessageSearchQuery(e.target.value)}
-                      className="flex-1 h-8 text-xs bg-[#0c0a0f] border-neutral-800 text-zinc-200 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-1"
+                      className="flex-1 h-8 text-xs bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-zinc-800 dark:text-zinc-200 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-1"
                       autoFocus
                     />
                     {messageSearchQuery && (
@@ -5040,7 +5040,7 @@ function ChatPage() {
 
           {/* Diálogo de Oportunidade Rápida */}
           <Dialog open={isQuickOpportunityOpen} onOpenChange={setIsQuickOpportunityOpen}>
-            <DialogContent className="sm:max-w-[450px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+            <DialogContent className="sm:max-w-[450px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
               <DialogHeader>
                 <DialogTitle className="text-zinc-100">Criar Oportunidade Rápida</DialogTitle>
               </DialogHeader>
@@ -5161,7 +5161,7 @@ function ChatPage() {
 
           {/* Diálogo de Agendar Follow-up */}
           <Dialog open={isFollowUpOpen} onOpenChange={setIsFollowUpOpen}>
-            <DialogContent className="sm:max-w-[400px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+            <DialogContent className="sm:max-w-[400px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
               <DialogHeader>
                 <DialogTitle className="text-zinc-100">Agendar Novo Follow-up</DialogTitle>
               </DialogHeader>
@@ -5228,7 +5228,7 @@ function ChatPage() {
 
           {/* Diálogo de Histórico do Lead */}
           <Dialog open={isLeadHistoryOpen} onOpenChange={setIsLeadHistoryOpen}>
-            <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+            <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
               <DialogHeader>
                 <DialogTitle className="text-zinc-100">Histórico de Atividades do Lead</DialogTitle>
               </DialogHeader>
@@ -5335,7 +5335,7 @@ function ChatPage() {
 
           {/* Diálogo de Gerenciar Estoque */}
           <Dialog open={isInventoryOpen} onOpenChange={setIsInventoryOpen}>
-            <DialogContent className="sm:max-w-[480px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+            <DialogContent className="sm:max-w-[480px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
               <DialogHeader>
                 <DialogTitle className="text-zinc-100">
                   Gerenciador de Estoque / Catálogo

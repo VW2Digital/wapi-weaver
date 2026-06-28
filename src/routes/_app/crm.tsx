@@ -495,7 +495,7 @@ function CRMPage() {
                     <MoreVertical className="h-4.5 w-4.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[200px] bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                <DropdownMenuContent align="end" className="w-[200px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
                   {funnels.length > 0 && (
                     <>
                       <DropdownMenuSub>
@@ -504,7 +504,7 @@ function CRMPage() {
                           <span>Selecionar Funil</span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuPortal>
-                          <DropdownMenuSubContent className="bg-[#0c0a0f] border-neutral-800 text-neutral-200">
+                          <DropdownMenuSubContent className="bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
                             {funnels.map((f: any) => (
                               <DropdownMenuItem
                                 key={f.id}
