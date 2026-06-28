@@ -159,5 +159,5 @@ export const deleteKnowledgeBase = createServerFn({ method: "POST" })
   .handler(async ({ data, context }: { data: any; context: any }) => {
     const { default: db } = await import("./db");
     await db.query("DELETE FROM knowledge_base WHERE id = ?", [data.id]);
-    return { ok: true };
+    return { ok: true, error: undefined as string | undefined };
   });

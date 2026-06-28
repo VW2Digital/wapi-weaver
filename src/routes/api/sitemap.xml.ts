@@ -26,16 +26,18 @@ ${urls}
 
 export const Route = createFileRoute("/api/sitemap/xml")({
   server: {
-    GET: async () => {
-      const baseUrl = SITE_URL;
-      const xml = buildSitemapXml(baseUrl);
-      return new Response(xml, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/xml; charset=utf-8",
-          "Cache-Control": "public, max-age=3600, s-maxage=3600",
-        },
-      });
+    handlers: {
+      GET: async () => {
+        const baseUrl = SITE_URL;
+        const xml = buildSitemapXml(baseUrl);
+        return new Response(xml, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8",
+            "Cache-Control": "public, max-age=3600, s-maxage=3600",
+          },
+        });
+      },
     },
   },
 });

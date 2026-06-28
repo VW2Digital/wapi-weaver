@@ -712,7 +712,7 @@ export async function ensureDatabaseSchema() {
         id VARCHAR(36) NOT NULL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
         contact_number VARCHAR(50) NOT NULL,
-        instance_id VARCHAR(50) NOT NULL,
+        instance_id VARCHAR(50) NULL,
         current_step_id VARCHAR(36) NULL,
         last_interaction DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         is_paused BOOLEAN NOT NULL DEFAULT FALSE,
@@ -726,6 +726,29 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+
+    // Migração: garante que bot_conversation_state.instance_id é NULL (era NOT NULL em versões antigas)
+    try {
+      const [cols] = await connection.query(
+        `SELECT IS_NULLABLE FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'bot_conversation_state'
+           AND COLUMN_NAME = 'instance_id'
+         LIMIT 1`,
+      );
+      if (cols.length > 0 && cols[0].IS_NULLABLE === "NO") {
+        logSchema("Migrando bot_conversation_state.instance_id de NOT NULL para NULL...");
+        await connection.query(
+          `ALTER TABLE bot_conversation_state MODIFY COLUMN instance_id VARCHAR(50) NULL`,
+        );
+        logSchema("Migração bot_conversation_state.instance_id concluída.");
+      }
+    } catch (err) {
+      console.warn(
+        "[Schema] Falha ao migrar bot_conversation_state.instance_id (não crítico):",
+        err.message,
+      );
+    }
 
     // Adiciona colunas que podem não ter sido criadas na v1
     await ensureColumnExists(connection, "bot_steps", "media_url", "VARCHAR(1024) NULL");
