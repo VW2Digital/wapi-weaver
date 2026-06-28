@@ -51,6 +51,10 @@ async function ensureColumnExists(connection, tableName, columnName, columnDefin
       logSchema(`Coluna \`${columnName}\` criada com sucesso.`);
     }
   } catch (err) {
+    if (err.code === "ER_DUP_FIELDNAME" || err.errno === 1060) {
+      logSchema(`Coluna \`${columnName}\` já existe na tabela \`${tableName}\` (tratado via ER_DUP_FIELDNAME).`);
+      return;
+    }
     console.error(
       `[Schema] Erro ao validar coluna \`${columnName}\` em \`${tableName}\`:`,
       formatDbError(err),
