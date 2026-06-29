@@ -55,11 +55,14 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* Custom Branded Colors */
-  --color-color1: #0f0ef9;
-  --color-color2: #3828fb;
-  --color-color3: #6043fc;
-  --color-color4: #895dfe;
-  --color-color5: #b177ff;
+  --color-color1: #FF424E;
+  --color-color2: #FF5B4F;
+  --color-color3: #FF7451;
+  --color-color4: #FF8D52;
+  --color-color5: #FFA554;
+
+  /* Custom Brand Gradients */
+  --background-image-brand-gradient: linear-gradient(135deg, #FF424E 0%, #FFA554 100%);
 }
 
 :root {
@@ -70,14 +73,14 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #3828fb;
+  --primary: #FF424E;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
-  --secondary-foreground: #3828fb;
+  --secondary-foreground: #FF424E;
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
-  --accent-foreground: #3828fb;
+  --accent-foreground: #FF424E;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.62 0.14 158);
@@ -87,17 +90,17 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: #0f0ef9;
-  --chart-2: #3828fb;
-  --chart-3: #6043fc;
-  --chart-4: #895dfe;
-  --chart-5: #b177ff;
+  --chart-1: #FF424E;
+  --chart-2: #FF5B4F;
+  --chart-3: #FF7451;
+  --chart-4: #FF8D52;
+  --chart-5: #FFA554;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #3828fb;
+  --sidebar-primary: #FF424E;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: #3828fb;
+  --sidebar-accent-foreground: #FF424E;
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
@@ -109,7 +112,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #6043fc;
+  --primary: #FF7451;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -126,14 +129,14 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: #0f0ef9;
-  --chart-2: #3828fb;
-  --chart-3: #6043fc;
-  --chart-4: #895dfe;
-  --chart-5: #b177ff;
+  --chart-1: #FF424E;
+  --chart-2: #FF5B4F;
+  --chart-3: #FF7451;
+  --chart-4: #FF8D52;
+  --chart-5: #FFA554;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #6043fc;
+  --sidebar-primary: #FF7451;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -224,14 +227,24 @@
 }
 
 /* Custom class selectors matching the color palette */
-.color1 { color: #0f0ef9; }
-.color2 { color: #3828fb; }
-.color3 { color: #6043fc; }
-.color4 { color: #895dfe; }
-.color5 { color: #b177ff; }
+.color1 { color: #FF424E; }
+.color2 { color: #FF5B4F; }
+.color3 { color: #FF7451; }
+.color4 { color: #FF8D52; }
+.color5 { color: #FFA554; }
 
-.bg-color1 { background-color: #0f0ef9; }
-.bg-color2 { background-color: #3828fb; }
-.bg-color3 { background-color: #6043fc; }
-.bg-color4 { background-color: #895dfe; }
-.bg-color5 { background-color: #b177ff; }
+.bg-color1 { background-color: #FF424E; }
+.bg-color2 { background-color: #FF5B4F; }
+.bg-color3 { background-color: #FF7451; }
+.bg-color4 { background-color: #FF8D52; }
+.bg-color5 { background-color: #FFA554; }
+
+.bg-brand-gradient {
+  background: linear-gradient(135deg, #FF424E 0%, #FFA554 100%);
+}
+
+.text-brand-gradient {
+  background: linear-gradient(135deg, #FF424E 0%, #FFA554 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
