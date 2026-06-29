@@ -43,6 +43,8 @@ export function StepInspector({
       return `Palavra-chave: ${step.trigger_value}`;
     if (step.trigger_type === "button" && step.trigger_value && !isUUID(step.trigger_value))
       return `Botão: ${step.trigger_value}`;
+    if (step.trigger_type === "inactivity")
+      return `Inatividade: ${step.trigger_value || "30"}m`;
 
     const text = String(step.message_content || "").trim();
     if (text) {
@@ -630,10 +632,10 @@ export function StepInspector({
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
               <SelectItem value="start">Início (Start)</SelectItem>
               <SelectItem value="keyword">Palavra-chave</SelectItem>
               <SelectItem value="button">Resposta de Botão / Lista</SelectItem>
+              <SelectItem value="inactivity">Inatividade</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -651,6 +653,19 @@ export function StepInspector({
               placeholder={
                 selectedStep.trigger_type === "keyword" ? "Ex: menu, comprar" : "Ex: btn_sim, op_1"
               }
+            />
+          </div>
+        )}
+
+        {selectedStep.trigger_type === "inactivity" && (
+          <div className="space-y-2">
+            <Label>Tempo Limite de Inatividade (Minutos)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={selectedStep.trigger_value || "30"}
+              onChange={(e) => handleUpdateStep("trigger_value", e.target.value)}
+              placeholder="Ex: 30"
             />
           </div>
         )}

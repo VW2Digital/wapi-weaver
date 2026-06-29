@@ -105,6 +105,68 @@ export async function processOnce() {
     .not("scheduled_at", "is", null)
     .lte("scheduled_at", new Date().toISOString());
 
+  // 0c. Processar inatividade de bots (Timeout)
+  try {
+    const { data: activeConversations } = await dbAdmin
+      .from("bot_conversation_state")
+      .select("*")
+      .not("current_step_id", "is", null)
+      .eq("is_paused", false);
+
+    if (activeConversations && activeConversations.length > 0) {
+      const currentStepIds = activeConversations.map((c: any) => c.current_step_id);
+      
+      const { data: currentSteps } = await dbAdmin
+        .from("bot_steps")
+        .select("id, next_step_id")
+        .in("id", currentStepIds);
+
+      if (currentSteps && currentSteps.length > 0) {
+        const nextStepIds = currentSteps.map((s: any) => s.next_step_id).filter(Boolean);
+        
+        if (nextStepIds.length > 0) {
+          const { data: inactivitySteps } = await dbAdmin
+            .from("bot_steps")
+            .select("*")
+            .eq("trigger_type", "inactivity")
+            .in("id", nextStepIds);
+
+          if (inactivitySteps && inactivitySteps.length > 0) {
+            const inactivityMap = Object.fromEntries(
+              inactivitySteps.map((s: any) => [s.id, s])
+            );
+
+            for (const conv of activeConversations) {
+              const currentStep = currentSteps.find((s: any) => s.id === conv.current_step_id);
+              if (!currentStep || !currentStep.next_step_id) continue;
+
+              const inactivityStep = inactivityMap[currentStep.next_step_id];
+              if (!inactivityStep) continue;
+
+              const timeoutMinutes = parseInt(inactivityStep.trigger_value || "30", 10);
+              const lastInt = new Date(conv.last_interaction);
+              const minutesPassed = (Date.now() - lastInt.getTime()) / (60 * 1000);
+
+              if (minutesPassed >= timeoutMinutes) {
+                console.log(`[Queue] Inatividade de bot detectada para ${conv.contact_number} (passados ${minutesPassed.toFixed(1)}m, limite ${timeoutMinutes}m)`);
+                const { executeInactivityStep } = await import("@/lib/botflow-executor.server");
+                await executeInactivityStep(
+                  inactivityStep,
+                  conv.contact_number,
+                  conv.instance_id,
+                  conv.user_id,
+                  conv.channel
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[Queue] Erro ao processar inatividade de bots:", err);
+  }
+
   // Fetch active campaigns first
   const { data: activeCampaigns } = await dbAdmin
     .from("campaigns")

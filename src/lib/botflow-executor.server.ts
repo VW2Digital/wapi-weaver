@@ -355,3 +355,167 @@ export async function processBotFlow(
     logError("Exceção fatal no processBotFlow", { error: err.message });
   }
 }
+
+export async function executeInactivityStep(
+  stepToExecute: any,
+  phoneDigits: string,
+  phoneNumberId: string,
+  userId: string,
+  channel: "whatsapp" | "instagram" | "messenger" = "whatsapp",
+) {
+  if (!phoneNumberId || !phoneDigits || !userId) return;
+
+  try {
+    let isSuccess = false;
+    let providerMsgId: string | null = null;
+
+    if (channel === "whatsapp") {
+      const { data: p } = await dbAdmin
+        .from("profiles")
+        .select("whatsapp_access_token, meta_graph_version")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (!p || !p.whatsapp_access_token) return;
+
+      const payload: any = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: phoneDigits,
+      };
+
+      if (!stepToExecute.message_type || stepToExecute.message_type === "text") {
+        payload.type = "text";
+        payload.text = { body: stepToExecute.message_content || "" };
+      } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
+        payload.type = stepToExecute.message_type;
+        payload[stepToExecute.message_type] = { link: stepToExecute.media_url || "" };
+      }
+
+      const apiVersion = p.meta_graph_version || "v20.0";
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (r.ok) {
+        isSuccess = true;
+        const resJson = await r.json();
+        providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || null;
+      }
+    } else if (channel === "instagram") {
+      const { data: igAcc } = await dbAdmin
+        .from("instagram_accounts")
+        .select("access_token")
+        .eq("ig_user_id", phoneNumberId)
+        .maybeSingle();
+
+      if (!igAcc || !igAcc.access_token) {
+        logError("Acesso ao Instagram não configurado ou token expirado");
+        return;
+      }
+
+      const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
+      const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
+
+      const payload = {
+        recipient: { id: igRecipientId },
+        message: { text: stepToExecute.message_content || "" },
+      };
+
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${igAcc.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (r.ok) {
+        isSuccess = true;
+        const resJson = await r.json();
+        providerMsgId = resJson?.message_id || null;
+      } else {
+        const errText = await r.text();
+        logError("Erro ao enviar mensagem no Instagram", errText);
+      }
+    } else if (channel === "messenger") {
+      const { data: page } = await dbAdmin
+        .from("facebook_pages")
+        .select("page_access_token")
+        .eq("page_id", phoneNumberId)
+        .maybeSingle();
+
+      if (!page || !page.page_access_token) {
+        logError("Acesso ao Facebook Messenger não configurado ou token expirado");
+        return;
+      }
+
+      const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
+      const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
+
+      const payload = {
+        recipient: { id: fbRecipientId },
+        message: { text: stepToExecute.message_content || "" },
+      };
+
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${page.page_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (r.ok) {
+        isSuccess = true;
+        const resJson = await r.json();
+        providerMsgId = resJson?.message_id || null;
+      } else {
+        const errText = await r.text();
+        logError("Erro ao enviar mensagem no Facebook Messenger", errText);
+      }
+    }
+
+    if (isSuccess) {
+      await dbAdmin.from("bot_conversation_state").upsert(
+        {
+          user_id: userId,
+          contact_number: phoneDigits,
+          instance_id: phoneNumberId,
+          channel,
+          current_step_id: null,
+          last_interaction: new Date().toISOString(),
+        },
+        { onConflict: "user_id,contact_number,instance_id,channel" },
+      );
+
+      await dbAdmin.from("direct_messages").insert({
+        user_id: userId,
+        contact_phone: phoneDigits,
+        direction: "outgoing",
+        type: "text",
+        body: stepToExecute.message_content || "",
+        channel,
+        provider_message_id: providerMsgId,
+        provider_account_id: phoneNumberId,
+        status: "sent",
+        metadata: {
+          step_id: stepToExecute.id,
+          bot_triggered: true,
+          is_inactivity_trigger: true,
+        },
+      });
+      logInfo("Mensagem de inatividade enviada e salva", { providerMsgId });
+    }
+  } catch (err: any) {
+    logError("Exceção fatal no executeInactivityStep", { error: err.message });
+  }
+}
+

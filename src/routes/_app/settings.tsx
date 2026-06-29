@@ -1973,7 +1973,7 @@ function AdminPlatformSection() {
       const order = sidebarOrderData.order;
       if (order) {
         try {
-          const parsed = JSON.parse(order) as string[];
+          const parsed = typeof order === "string" ? JSON.parse(order) as string[] : order as string[];
           if (Array.isArray(parsed) && parsed.length > 0) {
             const sorted = [...MENU_ITEMS].sort((a, b) => {
               const idxA = parsed.indexOf(a.to);

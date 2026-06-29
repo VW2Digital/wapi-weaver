@@ -154,7 +154,7 @@ function AppLayout() {
     const raw = sidebarOrderData?.order;
     if (!raw) return [...NAV];
     try {
-      const pathsOrder = JSON.parse(raw) as string[];
+      const pathsOrder = typeof raw === "string" ? JSON.parse(raw) as string[] : raw as string[];
       if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...NAV];
 
       const navCopy = [...NAV];
