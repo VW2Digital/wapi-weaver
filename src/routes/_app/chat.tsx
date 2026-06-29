@@ -65,6 +65,7 @@ import {
   DropdownMenuPortal,
   DropdownMenuSubContent,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Send,
