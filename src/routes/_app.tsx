@@ -83,7 +83,6 @@ const NAV = [
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
   { to: "/bot", label: "Bot de Fluxo", icon: Bot },
   { to: "/ai-agent", label: "Agente de IA", icon: BrainCircuit },
-
   { to: "/billing", label: "Faturamento", icon: Receipt },
   {
     to: "/settings",
