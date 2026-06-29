@@ -632,6 +632,7 @@ export function StepInspector({
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
+            <SelectContent>
               <SelectItem value="start">Início (Start)</SelectItem>
               <SelectItem value="keyword">Palavra-chave</SelectItem>
               <SelectItem value="button">Resposta de Botão / Lista</SelectItem>
