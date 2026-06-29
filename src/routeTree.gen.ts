@@ -24,6 +24,7 @@ import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
+import { Route as AppGroupsRouteImport } from './routes/_app/groups'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCrmRouteImport } from './routes/_app/crm'
 import { Route as AppContactsRouteImport } from './routes/_app/contacts'
@@ -36,6 +37,7 @@ import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.i
 import { Route as ApiWhatsappRegisterRouteImport } from './routes/api/whatsapp/register'
 import { Route as ApiWhatsappMediaUploadRouteImport } from './routes/api/whatsapp/media-upload'
 import { Route as ApiWhatsappMediaRouteImport } from './routes/api/whatsapp/media'
+import { Route as ApiWhatsappGroupsRouteImport } from './routes/api/whatsapp/groups'
 import { Route as ApiWhatsappBusinessProfileRouteImport } from './routes/api/whatsapp/business-profile'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
 import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
@@ -132,6 +134,11 @@ const AppListsRoute = AppListsRouteImport.update({
   path: '/lists',
   getParentRoute: () => AppRoute,
 } as any)
+const AppGroupsRoute = AppGroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -190,6 +197,11 @@ const ApiWhatsappMediaUploadRoute = ApiWhatsappMediaUploadRouteImport.update({
 const ApiWhatsappMediaRoute = ApiWhatsappMediaRouteImport.update({
   id: '/api/whatsapp/media',
   path: '/api/whatsapp/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWhatsappGroupsRoute = ApiWhatsappGroupsRouteImport.update({
+  id: '/api/whatsapp/groups',
+  path: '/api/whatsapp/groups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWhatsappBusinessProfileRoute =
@@ -314,6 +326,7 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof AppContactsRoute
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
+  '/groups': typeof AppGroupsRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -339,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
+  '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
@@ -362,6 +376,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof AppContactsRoute
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
+  '/groups': typeof AppGroupsRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -387,6 +402,7 @@ export interface FileRoutesByTo {
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
+  '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
@@ -412,6 +428,7 @@ export interface FileRoutesById {
   '/_app/contacts': typeof AppContactsRoute
   '/_app/crm': typeof AppCrmRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/groups': typeof AppGroupsRoute
   '/_app/lists': typeof AppListsRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -437,6 +454,7 @@ export interface FileRoutesById {
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
+  '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
@@ -462,6 +480,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/crm'
     | '/dashboard'
+    | '/groups'
     | '/lists'
     | '/profile'
     | '/settings'
@@ -487,6 +506,7 @@ export interface FileRouteTypes {
     | '/api/storage/remove'
     | '/api/storage/upload'
     | '/api/whatsapp/business-profile'
+    | '/api/whatsapp/groups'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
@@ -510,6 +530,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/crm'
     | '/dashboard'
+    | '/groups'
     | '/lists'
     | '/profile'
     | '/settings'
@@ -535,6 +556,7 @@ export interface FileRouteTypes {
     | '/api/storage/remove'
     | '/api/storage/upload'
     | '/api/whatsapp/business-profile'
+    | '/api/whatsapp/groups'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
@@ -559,6 +581,7 @@ export interface FileRouteTypes {
     | '/_app/contacts'
     | '/_app/crm'
     | '/_app/dashboard'
+    | '/_app/groups'
     | '/_app/lists'
     | '/_app/profile'
     | '/_app/settings'
@@ -584,6 +607,7 @@ export interface FileRouteTypes {
     | '/api/storage/remove'
     | '/api/storage/upload'
     | '/api/whatsapp/business-profile'
+    | '/api/whatsapp/groups'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
@@ -618,6 +642,7 @@ export interface RootRouteChildren {
   ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
   ApiStorageUploadRoute: typeof ApiStorageUploadRoute
   ApiWhatsappBusinessProfileRoute: typeof ApiWhatsappBusinessProfileRouteWithChildren
+  ApiWhatsappGroupsRoute: typeof ApiWhatsappGroupsRoute
   ApiWhatsappMediaRoute: typeof ApiWhatsappMediaRoute
   ApiWhatsappMediaUploadRoute: typeof ApiWhatsappMediaUploadRoute
   ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
@@ -732,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppListsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/groups': {
+      id: '/_app/groups'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof AppGroupsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -814,6 +846,13 @@ declare module '@tanstack/react-router' {
       path: '/api/whatsapp/media'
       fullPath: '/api/whatsapp/media'
       preLoaderRoute: typeof ApiWhatsappMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/whatsapp/groups': {
+      id: '/api/whatsapp/groups'
+      path: '/api/whatsapp/groups'
+      fullPath: '/api/whatsapp/groups'
+      preLoaderRoute: typeof ApiWhatsappGroupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/whatsapp/business-profile': {
@@ -968,6 +1007,7 @@ interface AppRouteChildren {
   AppContactsRoute: typeof AppContactsRoute
   AppCrmRoute: typeof AppCrmRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppGroupsRoute: typeof AppGroupsRoute
   AppListsRoute: typeof AppListsRoute
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -988,6 +1028,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppContactsRoute: AppContactsRoute,
   AppCrmRoute: AppCrmRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppGroupsRoute: AppGroupsRoute,
   AppListsRoute: AppListsRoute,
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRoute,
@@ -1040,6 +1081,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStorageRemoveRoute: ApiStorageRemoveRoute,
   ApiStorageUploadRoute: ApiStorageUploadRoute,
   ApiWhatsappBusinessProfileRoute: ApiWhatsappBusinessProfileRouteWithChildren,
+  ApiWhatsappGroupsRoute: ApiWhatsappGroupsRoute,
   ApiWhatsappMediaRoute: ApiWhatsappMediaRoute,
   ApiWhatsappMediaUploadRoute: ApiWhatsappMediaUploadRoute,
   ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,

@@ -250,6 +250,13 @@ async function processInboundDirectMessages(value: any, userId: string) {
   for (const m of messages) {
     const from: string | undefined = m.from;
     if (!from) continue;
+
+    const isGroupMessage = m.recipient_type === "group" || Boolean(m.group_id);
+    if (isGroupMessage) {
+      await handleWhatsAppGroupMessage(m, waIdToName, userId, value, phoneNumberId);
+      continue;
+    }
+
     const waMessageId = normalizeWaMessageId(m.id);
     const phoneDigits = from.replace(/\D+/g, "");
 
@@ -469,6 +476,134 @@ async function processTemplateCategoryUpdate(value: any, userId: string) {
     .eq("meta_template_id", metaId)
     .eq("user_id", userId);
 }
+
+async function handleWhatsAppGroupMessage(
+  m: any,
+  waIdToName: Map<string, string>,
+  userId: string,
+  rawPayload: any,
+  phoneNumberId: string
+) {
+  if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
+    logInfo("Mensagem de grupo ignorada pois WHATSAPP_GROUPS_ENABLED não é true");
+    return;
+  }
+
+  const groupId = m.group_id || (m.recipient_type === "group" ? m.from : null);
+  if (!groupId) return;
+
+  const senderWaId = m.from; // O participante
+  const senderName = waIdToName.get(senderWaId) || "Participante";
+
+  // 1. Encontrar ou criar o grupo no banco
+  const { data: existingGroup } = await dbAdmin
+    .from("whatsapp_groups")
+    .select("*")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  let group = existingGroup;
+  if (!group) {
+    const newGroupId = randomUUID();
+    const groupName = m.group_name || `Grupo WhatsApp (${groupId.split("@")[0]})`;
+    const newGroup = {
+      id: newGroupId,
+      user_id: userId,
+      instance_id: phoneNumberId,
+      group_id: groupId,
+      name: groupName,
+      status: "active",
+    };
+    await dbAdmin.from("whatsapp_groups").insert(newGroup);
+    group = newGroup;
+  }
+
+  // 2. Garantir que o contato virtual do grupo exista na tabela contacts (com canal 'whatsapp_group')
+  const { data: existingContact } = await dbAdmin
+    .from("contacts")
+    .select("id, name")
+    .eq("user_id", userId)
+    .eq("phone_e164", groupId)
+    .maybeSingle();
+
+  if (!existingContact) {
+    await dbAdmin.from("contacts").insert({
+      id: randomUUID(),
+      user_id: userId,
+      phone_e164: groupId,
+      name: group.name,
+      source: "whatsapp_group",
+      channel: "whatsapp_group",
+      is_unread: true,
+      chat_status: "aberto",
+    });
+  } else {
+    await dbAdmin.from("contacts").update({ is_unread: true }).eq("id", existingContact.id);
+  }
+
+  // 3. Atualizar/inserir o participante na tabela whatsapp_group_participants
+  const { data: existingParticipant } = await dbAdmin
+    .from("whatsapp_group_participants")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("group_id", groupId)
+    .eq("wa_id", senderWaId)
+    .maybeSingle();
+
+  if (!existingParticipant) {
+    await dbAdmin.from("whatsapp_group_participants").insert({
+      id: randomUUID(),
+      user_id: userId,
+      group_id: groupId,
+      wa_id: senderWaId,
+      name: senderName,
+      status: "active",
+    });
+  } else {
+    await dbAdmin.from("whatsapp_group_participants").update({
+      name: senderName,
+      status: "active",
+    }).eq("id", existingParticipant.id);
+  }
+
+  // 4. Salvar a mensagem na tabela direct_messages
+  const waMessageId = normalizeWaMessageId(m.id);
+  let type = m.type ?? "text";
+  let body = "";
+  if (m.type === "text") {
+    body = m.text?.body ?? "";
+  } else {
+    body = `[Mensagem de tipo ${m.type} recebida]`;
+  }
+
+  const reply_to_message_id = m.context?.message_id ?? null;
+
+  await dbAdmin.from("direct_messages").upsert({
+    id: randomUUID(),
+    user_id: userId,
+    contact_phone: groupId, // A conversa é vinculada ao ID do grupo
+    direction: "incoming",
+    type,
+    body,
+    wa_message_id: waMessageId,
+    status: "delivered",
+    reply_to_message_id,
+    channel: "whatsapp_group",
+    provider_account_id: phoneNumberId,
+    sender_wa_id: senderWaId,
+    sender_name: senderName,
+    recipient_type: "group",
+    external_group_id: groupId,
+    raw_payload: rawPayload,
+  }, { onConflict: "wa_message_id" });
+
+  // 🚀 Chama o motor do BotFlow para processar essa mensagem do grupo (se habilitado)
+  if (process.env.WHATSAPP_GROUPS_ENABLED === "true" && phoneNumberId && body) {
+    await processBotFlow(body, groupId, phoneNumberId, userId, undefined, "whatsapp_group");
+  }
+}
+
 
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
   server: {

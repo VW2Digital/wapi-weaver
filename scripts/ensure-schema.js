@@ -1216,6 +1216,63 @@ export async function ensureDatabaseSchema() {
       "BOOLEAN NOT NULL DEFAULT FALSE",
     );
 
+    // --- MIGRATIONS PARA WHATSAPP GRUPOS ---
+    logSchema("Iniciando migrações do WhatsApp Grupos...");
+    try {
+      await connection.query("ALTER TABLE contacts MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'");
+      await connection.query("ALTER TABLE direct_messages MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'");
+    } catch (e) {
+      logSchema("Erro ao converter colunas channel para VARCHAR: " + e.message);
+    }
+    
+    await ensureColumnExists(connection, "direct_messages", "sender_wa_id", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "direct_messages", "sender_name", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "direct_messages", "recipient_type", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "direct_messages", "external_group_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "direct_messages", "raw_payload", "JSON NULL");
+
+    await ensureTableExists(
+      connection,
+      "whatsapp_groups",
+      `
+      CREATE TABLE whatsapp_groups (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        instance_id VARCHAR(100) NULL,
+        group_id VARCHAR(100) NOT NULL UNIQUE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        invite_link TEXT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        error_message TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `
+    );
+
+    await ensureTableExists(
+      connection,
+      "whatsapp_group_participants",
+      `
+      CREATE TABLE whatsapp_group_participants (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        group_id VARCHAR(100) NOT NULL,
+        wa_id VARCHAR(50) NOT NULL,
+        name VARCHAR(255) NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        joined_at DATETIME NULL,
+        left_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `
+    );
+    logSchema("Migrações do WhatsApp Grupos concluídas.");
+
     // Insere flows de demonstração iniciais para testes locais
     try {
       const [users] = await connection.query("SELECT id FROM users LIMIT 1");

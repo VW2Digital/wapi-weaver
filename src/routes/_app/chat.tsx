@@ -8,6 +8,7 @@ import {
   sendDirectMessage,
   markMessagesAsRead,
 } from "@/lib/chat.functions";
+import { sendGroupMessage } from "@/lib/groups.functions";
 import { updateContactProfilePhoto, createContact, deleteContact, autoFetchContactPhoto } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
 import {
@@ -125,7 +126,7 @@ import {
   UserPen,
   Forward,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { db } from "@/integrations/mysql/client";
@@ -195,6 +196,15 @@ function ChannelBadge({ channel, className = "h-2.5 w-2.5" }: { channel: string;
       </div>
     );
   }
+  if (channel === "whatsapp_group") {
+    return (
+      <div className="bg-indigo-600 p-0.5 rounded-full text-white flex items-center justify-center" title="Grupo de WhatsApp">
+        <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
+          <path d="M17 11c.966 0 1.75-.784 1.75-1.75S17.966 7.5 17 7.5s-1.75.784-1.75 1.75.784 1.75 1.75 1.75zm-10 0c.966 0 1.75-.784 1.75-1.75S7.966 7.5 7 7.5 5.25 8.284 5.25 9.25 6.034 11 7 11zm5 .5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5-2.5 1.12-2.5 2.5 1.12 2.5 2.5 2.5zm5 2.5c-1.1 0-2.03.63-2.5 1.54-.47-.91-1.4-1.54-2.5-1.54s-2.03.63-2.5 1.54c-.47-.91-1.4-1.54-2.5-1.54-1.66 0-3 1.34-3 3v1h16v-1c0-1.66-1.34-3-3-3zm-10 0c-.8 0-1.5.3-2.05.8-.18-.48-.45-.9-.8-1.25.75-.85 1.83-1.35 3.05-1.35.53 0 1.03.1 1.5.3-.65.65-1.1 1.5-1.1 2.5zm10 0c0-1-.45-1.85-1.1-2.5.47-.2.97-.3 1.5-.3 1.22 0 2.3.5 3.05 1.35-.35.35-.62.77-.8 1.25-.55-.5-1.25-.8-2.05-.8z"/>
+        </svg>
+      </div>
+    );
+  }
   return (
     <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
       <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
@@ -250,6 +260,7 @@ function ChatPage() {
   const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
+  const sendGroupMsg = useServerFn(sendGroupMessage);
   const saveContactProfilePhoto = useServerFn(updateContactProfilePhoto);
   const fetchContactPhoto = useServerFn(autoFetchContactPhoto);
   const qc = useQueryClient();
@@ -902,6 +913,7 @@ function ChatPage() {
 
   // Novos estados para organização da barra lateral conforme o mockup
   const fetchMarkAsRead = useServerFn(markMessagesAsRead);
+  const [mainTab, setMainTab] = useState<"conversas" | "grupos">("conversas");
   const [activeTab, setActiveTab] = useState<"novos" | "meus" | "outros">("novos");
   const [showTagFilters, setShowTagFilters] = useState(false);
   const [countryCode, setCountryCode] = useState("+55");
@@ -1296,9 +1308,16 @@ function ChatPage() {
       if (searchPhone) {
         const cleanedSearchPhone = searchPhone.replace(/\D/g, "");
         const found = contactsQuery.data.find(
-          (c: any) => c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone,
+          (c: any) =>
+            c.phone_e164 === searchPhone ||
+            c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone,
         );
         if (found) {
+          if (found.channel === "whatsapp_group") {
+            setMainTab("grupos");
+          } else {
+            setMainTab("conversas");
+          }
           setSelectedContact(found);
         }
       }
@@ -1497,9 +1516,23 @@ function ChatPage() {
     return date.toLocaleDateString([], { day: "numeric", month: "short" });
   };
 
+  const unreadConversas = useMemo(() => {
+    return (contactsQuery.data ?? [])
+      .filter((c: any) => c.channel !== "whatsapp_group")
+      .reduce((acc: number, c: any) => acc + (c.unread_count || 0), 0);
+  }, [contactsQuery.data]);
+
+  const unreadGrupos = useMemo(() => {
+    return (contactsQuery.data ?? [])
+      .filter((c: any) => c.channel === "whatsapp_group")
+      .reduce((acc: number, c: any) => acc + (c.unread_count || 0), 0);
+  }, [contactsQuery.data]);
+
   // Mapeia e enriquece os contatos vindos da API do servidor
-  const mappedContacts = (contactsQuery.data ?? []).map((c: any) => {
-    const category = getContactCategory(c, profile?.id || "");
+  const mappedContacts = (contactsQuery.data ?? [])
+    .filter((c: any) => mainTab === "grupos" ? c.channel === "whatsapp_group" : c.channel !== "whatsapp_group")
+    .map((c: any) => {
+      const category = getContactCategory(c, profile?.id || "");
 
     // Mapeia setor de acordo com as etiquetas atribuídas ou equipe real
     const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
@@ -1568,6 +1601,7 @@ function ChatPage() {
     if (filterView === "whatsapp" && c.channel !== "whatsapp") return false;
     if (filterView === "instagram" && c.channel !== "instagram") return false;
     if (filterView === "messenger" && c.channel !== "messenger") return false;
+    if (filterView === "whatsapp_group" && c.channel !== "whatsapp_group") return false;
 
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
@@ -1625,6 +1659,19 @@ function ChatPage() {
       reply_to_message_id?: string;
     }) => {
       if (!selectedPhone) throw new Error("Nenhum contato selecionado");
+      if (selectedContact?.channel === "whatsapp_group") {
+        const bodyText = payload.type === "text" ? payload.text?.body : `[Mídia não suportada em grupos via painel]`;
+        const res = await sendGroupMsg({
+          data: {
+            groupId: selectedPhone,
+            body: bodyText || "",
+          },
+        });
+        if (!res.success) {
+          throw new Error(res.error?.message || "Falha ao enviar mensagem para o grupo");
+        }
+        return res;
+      }
       const res = await sendMessage({
         data: {
           to: selectedPhone,
@@ -2102,6 +2149,46 @@ function ChatPage() {
             selectedContact ? "hidden md:flex" : "flex",
           )}
         >
+          {/* Divisão Principal: Conversas vs Grupos */}
+          <div className="flex border-b border-border bg-card shrink-0 select-none">
+            <button
+              type="button"
+              onClick={() => setMainTab("conversas")}
+              className={cn(
+                "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
+                mainTab === "conversas"
+                  ? "border-[#FF424E] text-[#FF424E] bg-muted/10"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+              )}
+            >
+              <MessageCircle className="h-4 w-4" />
+              Conversas
+              {unreadConversas > 0 && (
+                <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-violet-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
+                  {unreadConversas > 99 ? "99+" : unreadConversas}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainTab("grupos")}
+              className={cn(
+                "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
+                mainTab === "grupos"
+                  ? "border-[#FF424E] text-[#FF424E] bg-muted/10"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Grupos
+              {unreadGrupos > 0 && (
+                <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-violet-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
+                  {unreadGrupos > 99 ? "99+" : unreadGrupos}
+                </span>
+              )}
+            </button>
+          </div>
+
           {/* Abas Superiores com contadores e botões de ação */}
           <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-1.5 flex-1">
@@ -2569,6 +2656,11 @@ function ChatPage() {
                             <h4 className="font-bold text-sm text-foreground truncate leading-none">
                               {c.name || "Sem Nome"}
                             </h4>
+                            {c.channel === "whatsapp_group" && (
+                              <span className="bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase shrink-0">
+                                Grupo
+                              </span>
+                            )}
                             {c.is_pinned === 1 && (
                               <Bookmark className="h-3.5 w-3.5 text-amber-500 fill-current shrink-0 ml-1" />
                             )}
@@ -3541,6 +3633,11 @@ function ChatPage() {
                                       isRichCard ? "p-0 rounded-lg" : "p-3",
                                     )}
                                   >
+                                    {!isOutgoing && selectedContact?.channel === "whatsapp_group" && msg.sender_name && (
+                                      <p className="text-[10px] font-extrabold text-indigo-500 mb-0.5 px-3 pt-1 select-none">
+                                        {msg.sender_name}
+                                      </p>
+                                    )}
                                     {/* Display applied tags in message body */}
                                     {(() => {
                                       const msgTags = (messageTagsQuery.data ?? []).filter(

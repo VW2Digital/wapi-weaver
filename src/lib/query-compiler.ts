@@ -53,6 +53,8 @@ const ALLOWED_TABLES = new Set([
   "teams",
   "team_members",
   "conversation_assignments",
+  "whatsapp_groups",
+  "whatsapp_group_participants",
 ]);
 
 function hasUserIdColumn(table: string): boolean {
@@ -93,6 +95,8 @@ function hasUserIdColumn(table: string): boolean {
     "whatsapp_flow_submissions",
     "teams",
     "conversation_assignments",
+    "whatsapp_groups",
+    "whatsapp_group_participants",
   ].includes(table);
 }
 

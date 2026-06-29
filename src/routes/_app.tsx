@@ -76,6 +76,7 @@ export const Route = createFileRoute("/_app")({ component: AppLayout });
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat Direto", icon: MessageCircle },
+  { to: "/groups", label: "WhatsApp Grupos", icon: Users },
   { to: "/contacts", label: "Contatos", icon: Users },
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },

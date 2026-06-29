@@ -15,7 +15,7 @@ export async function processBotFlow(
   phoneNumberId: string,
   userId: string,
   buttonPayload?: string,
-  channel: "whatsapp" | "instagram" | "messenger" = "whatsapp",
+  channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" = "whatsapp",
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return;
 
@@ -217,7 +217,7 @@ export async function processBotFlow(
     let isSuccess = false;
     let providerMsgId: string | null = null;
 
-    if (channel === "whatsapp") {
+    if (channel === "whatsapp" || channel === "whatsapp_group") {
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
@@ -228,7 +228,7 @@ export async function processBotFlow(
 
       const payload: any = {
         messaging_product: "whatsapp",
-        recipient_type: "individual",
+        recipient_type: channel === "whatsapp_group" ? "group" : "individual",
         to: phoneDigits,
       };
 
@@ -348,6 +348,8 @@ export async function processBotFlow(
           step_id: stepToExecute.id,
           bot_triggered: true,
         },
+        recipient_type: channel === "whatsapp_group" ? "group" : "individual",
+        external_group_id: channel === "whatsapp_group" ? phoneDigits : null,
       });
       logInfo("Mensagem enviada pelo bot salva no banco", { providerMsgId });
     }
