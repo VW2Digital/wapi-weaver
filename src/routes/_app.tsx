@@ -156,14 +156,22 @@ function AppLayout() {
       const pathsOrder = typeof raw === "string" ? JSON.parse(raw) as string[] : raw as string[];
       if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...NAV];
 
+      const navDefaults = NAV.map((item, idx) => ({ to: item.to, defaultIdx: idx }));
       const navCopy = [...NAV];
       navCopy.sort((a, b) => {
         const idxA = pathsOrder.indexOf(a.to);
         const idxB = pathsOrder.indexOf(b.to);
-        if (idxA === -1 && idxB === -1) return 0;
+        // Both are in saved order — sort by saved position
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        // Both are NOT in saved order — preserve NAV default order
+        if (idxA === -1 && idxB === -1) {
+          const defA = navDefaults.find(n => n.to === a.to)?.defaultIdx ?? 999;
+          const defB = navDefaults.find(n => n.to === b.to)?.defaultIdx ?? 999;
+          return defA - defB;
+        }
+        // One is in saved order, the other is not — put unsaved after saved
         if (idxA === -1) return 1;
-        if (idxB === -1) return -1;
-        return idxA - idxB;
+        return -1;
       });
       return navCopy;
     } catch {
