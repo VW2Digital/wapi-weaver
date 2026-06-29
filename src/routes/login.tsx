@@ -146,7 +146,7 @@ function LoginPage() {
           </p>
         </div>
         <p className="text-xs text-sidebar-foreground/50">
-          100% via WhatsApp Cloud API da Meta. Sem chip, sem instância.
+          100% integrado às APIs oficiais da Meta. WhatsApp, Instagram, Messenger e IA.
         </p>
       </div>
 
@@ -234,37 +234,7 @@ function LoginPage() {
                 <Button type="submit" className="w-full h-10" disabled={busy}>
                   {mode === "signin" ? "Entrar" : "Criar conta"}
                 </Button>
-                {mode === "signin" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-10"
-                    onClick={async () => {
-                      if (!email) {
-                        toast.error("Informe seu e-mail para receber o link mágico.");
-                        return;
-                      }
-                      setBusy(true);
-                      try {
-                        const { error } = await db.auth.signInWithOtp({
-                          email,
-                          options: {
-                            emailRedirectTo: `${window.location.origin}/dashboard`,
-                          },
-                        });
-                        if (error) throw error;
-                        toast.success("Link mágico enviado! Verifique sua caixa de entrada.");
-                      } catch (e: any) {
-                        toast.error(e.message ?? "Falha ao enviar link mágico");
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                    disabled={busy}
-                  >
-                    Entrar com Link Mágico (sem senha)
-                  </Button>
-                )}
+
               </form>
 
               <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
