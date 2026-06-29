@@ -56,6 +56,8 @@ function AiAgentPage() {
 
   const [isKbDialogOpen, setIsKbDialogOpen] = useState(false);
   const [editingKb, setEditingKb] = useState<any>(null);
+  const [isActive, setIsActive] = useState<boolean>(false);
+  const [model, setModel] = useState<string>("gemini-2.5-flash");
 
   const settingsQuery = useQuery({
     queryKey: ["aiSettings"],
@@ -111,9 +113,9 @@ function AiAgentPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     saveSettings.mutate({
-      is_active: fd.get("is_active") === "on",
+      is_active: isActive,
       api_key: fd.get("api_key") || null,
-      model: fd.get("model"),
+      model: model,
       system_prompt: fd.get("system_prompt"),
     });
   };
@@ -130,6 +132,13 @@ function AiAgentPage() {
 
   const settings = settingsQuery.data?.settings;
   const kbDocs = kbQuery.data || [];
+
+  useEffect(() => {
+    if (settings) {
+      setIsActive(!!settings.is_active);
+      setModel(settings.model || "gemini-2.5-flash");
+    }
+  }, [settings]);
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -166,7 +175,7 @@ function AiAgentPage() {
                       Se ligado, a IA responderá quando o BotFlow não souber o que dizer.
                     </p>
                   </div>
-                  <Switch name="is_active" defaultChecked={settings?.is_active} />
+                  <Switch checked={isActive} onCheckedChange={setIsActive} />
                 </div>
 
                 <div className="space-y-2">
@@ -187,7 +196,7 @@ function AiAgentPage() {
 
                 <div className="space-y-2">
                   <Label>Modelo de IA</Label>
-                  <Select name="model" defaultValue={settings?.model || "gemini-2.5-flash"}>
+                  <Select value={model} onValueChange={setModel}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o modelo" />
                     </SelectTrigger>

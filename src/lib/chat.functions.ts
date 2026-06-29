@@ -255,7 +255,8 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const formattedMessages = (messages ?? []).map((row: any) => {
       const meta = row.metadata as any;
       return {
-        id: row.wa_message_id || row.id,
+        id: row.id,
+        wa_message_id: row.wa_message_id,
         direction: row.direction as "incoming" | "outgoing",
         timestamp: row.created_at,
         type: row.type as any,

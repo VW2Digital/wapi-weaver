@@ -28,8 +28,8 @@ export const getAiAgentSettings = createServerFn({ method: "GET" })
       return { ok: false, error: "Nenhuma instância WhatsApp configurada no perfil." };
 
     const settingsList = (await db.query(
-      "SELECT * FROM ai_agent_settings WHERE instance_id = ?",
-      [p.whatsapp_phone_number_id],
+      "SELECT * FROM ai_agent_settings WHERE instance_id = ? AND user_id = ?",
+      [p.whatsapp_phone_number_id, effectiveUserId],
     )) as any[];
     let settings = settingsList?.[0] ?? null;
 
@@ -72,8 +72,8 @@ export const saveAiAgentSettings = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
 
     await db.query(
-      "UPDATE ai_agent_settings SET is_active = ?, api_key = ?, model = ?, system_prompt = ? WHERE instance_id = ?",
-      [data.is_active ? 1 : 0, data.api_key || null, data.model, data.system_prompt || null, p.whatsapp_phone_number_id],
+      "UPDATE ai_agent_settings SET is_active = ?, api_key = ?, model = ?, system_prompt = ? WHERE instance_id = ? AND user_id = ?",
+      [data.is_active ? 1 : 0, data.api_key || null, data.model, data.system_prompt || null, p.whatsapp_phone_number_id, effectiveUserId],
     );
 
     return { ok: true };
@@ -95,15 +95,15 @@ export const getKnowledgeBase = createServerFn({ method: "GET" })
     if (!p?.whatsapp_phone_number_id) return [];
 
     const settingsList = (await db.query(
-      "SELECT id FROM ai_agent_settings WHERE instance_id = ?",
-      [p.whatsapp_phone_number_id],
+      "SELECT id FROM ai_agent_settings WHERE instance_id = ? AND user_id = ?",
+      [p.whatsapp_phone_number_id, effectiveUserId],
     )) as any[];
     const settings = settingsList?.[0];
     if (!settings) return [];
 
     const data = (await db.query(
-      "SELECT * FROM knowledge_base WHERE ai_agent_settings_id = ? ORDER BY created_at DESC",
-      [settings.id],
+      "SELECT * FROM knowledge_base WHERE ai_agent_settings_id = ? AND user_id = ? ORDER BY created_at DESC",
+      [settings.id, effectiveUserId],
     )) as any[];
     return data ?? [];
   });
@@ -131,17 +131,18 @@ export const saveKnowledgeBase = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
 
     const settingsList = (await db.query(
-      "SELECT id FROM ai_agent_settings WHERE instance_id = ?",
-      [p.whatsapp_phone_number_id],
+      "SELECT id FROM ai_agent_settings WHERE instance_id = ? AND user_id = ?",
+      [p.whatsapp_phone_number_id, effectiveUserId],
     )) as any[];
     const settings = settingsList?.[0];
     if (!settings) return { ok: false, error: "Settings não encontradas." };
 
     if (data.id) {
-      await db.query("UPDATE knowledge_base SET title = ?, content = ? WHERE id = ?", [
+      await db.query("UPDATE knowledge_base SET title = ?, content = ? WHERE id = ? AND user_id = ?", [
         data.title,
         data.content,
         data.id,
+        effectiveUserId
       ]);
     } else {
       await db.query(
@@ -158,6 +159,8 @@ export const deleteKnowledgeBase = createServerFn({ method: "POST" })
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: any; context: any }) => {
     const { default: db } = await import("./db");
-    await db.query("DELETE FROM knowledge_base WHERE id = ?", [data.id]);
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query("DELETE FROM knowledge_base WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
     return { ok: true, error: undefined as string | undefined };
   });

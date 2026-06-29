@@ -1136,6 +1136,33 @@ export async function ensureDatabaseSchema() {
       logSchema("Aviso: não foi possível recriar uq_bot_conv_state (pode já existir).");
     }
 
+    await ensureColumnExists(
+      connection,
+      "templates",
+      "display_format",
+      "VARCHAR(20) NULL",
+    );
+
+    // Alter ENUM channel values for messenger support
+    try {
+      await connection.query("ALTER TABLE contacts MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'");
+      logSchema("Atualizado ENUM da coluna channel na tabela contacts para incluir 'messenger'.");
+    } catch (e) {
+      logSchema(`Aviso: não foi possível alterar ENUM channel na tabela contacts: ${e.message}`);
+    }
+    try {
+      await connection.query("ALTER TABLE direct_messages MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'");
+      logSchema("Atualizado ENUM da coluna channel na tabela direct_messages para incluir 'messenger'.");
+    } catch (e) {
+      logSchema(`Aviso: não foi possível alterar ENUM channel na tabela direct_messages: ${e.message}`);
+    }
+    try {
+      await connection.query("ALTER TABLE bot_conversation_state MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'");
+      logSchema("Atualizado ENUM da coluna channel na tabela bot_conversation_state para incluir 'messenger'.");
+    } catch (e) {
+      logSchema(`Aviso: não foi possível alterar ENUM channel na tabela bot_conversation_state: ${e.message}`);
+    }
+
     // Columns to bot_settings (Flows)
     await ensureColumnExists(
       connection,

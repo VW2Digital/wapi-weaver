@@ -72,7 +72,7 @@ export const assignConversation = createServerFn({ method: "POST" })
   .validator((d) => assignInput.parse(d))
   .handler(async ({ data, context }) => {
     try {
-      const phone = data.contactPhone.replace(/\D/g, "");
+      const phone = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
       // 1. Validar associação do agente com a equipe se ambos forem informados
@@ -119,7 +119,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      const phone = data.contactPhone.replace(/\D/g, "");
+      const phone = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
       // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos,
@@ -169,7 +169,7 @@ export const selfAssignConversation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      const phone = data.contactPhone.replace(/\D/g, "");
+      const phone = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
       // Verifica se o usuário atual é membro da equipe (administrador tem permissão bypass)

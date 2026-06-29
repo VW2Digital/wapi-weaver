@@ -201,7 +201,7 @@ export const quickSaveContact = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      const phoneDigits = data.phone.replace(/\D/g, "");
+      const phoneDigits = data.phone.startsWith("ig_") || data.phone.startsWith("fb_") ? data.phone : data.phone.replace(/\D/g, "");
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
@@ -229,7 +229,7 @@ export const toggleBotActive = createServerFn({ method: "POST" })
   .validator((d) => z.object({ contactPhone: z.string().min(5), botActive: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     try {
-      const digits = data.contactPhone.replace(/\D/g, "");
+      const digits = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
 

@@ -47,8 +47,10 @@ export const deleteTag = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
-    await db.query("DELETE FROM tags WHERE id = ?", [data.id]);
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query("DELETE FROM tags WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
     return { ok: true };
   });
 
@@ -99,8 +101,10 @@ export const deleteList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
-    await db.query("DELETE FROM lists WHERE id = ?", [data.id]);
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query("DELETE FROM lists WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
     return { ok: true };
   });
 
@@ -118,6 +122,15 @@ export const addContactsToList = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    // Verificar se a lista pertence ao usuário
+    const [list] = (await db.query(
+      "SELECT 1 FROM lists WHERE id = ? AND user_id = ?",
+      [data.list_id, effectiveUserId],
+    )) as any[];
+    if (!list) {
+      throw new Error("Lista não encontrada ou sem permissão.");
+    }
 
     // Verificar se algum contato é do Instagram (proibido em listas/campanhas)
     const instagramContacts: any[] = (await db.query(
@@ -149,10 +162,13 @@ export const removeContactFromList = createServerFn({ method: "POST" })
     z.object({ list_id: z.string().uuid(), contact_id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
-    await db.query("DELETE FROM list_contacts WHERE list_id = ? AND contact_id = ?", [
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query("DELETE FROM list_contacts WHERE list_id = ? AND contact_id = ? AND user_id = ?", [
       data.list_id,
       data.contact_id,
+      effectiveUserId,
     ]);
     return { ok: true };
   });
@@ -161,7 +177,9 @@ export const getListContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ list_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const rows = (await db.query(
       `SELECT
         lc.list_id, lc.contact_id, lc.user_id, lc.added_at,
@@ -171,8 +189,8 @@ export const getListContacts = createServerFn({ method: "POST" })
         c.created_at AS c_created_at, c.updated_at AS c_updated_at
       FROM list_contacts lc
       JOIN contacts c ON lc.contact_id = c.id
-      WHERE lc.list_id = ?`,
-      [data.list_id],
+      WHERE lc.list_id = ? AND lc.user_id = ?`,
+      [data.list_id, effectiveUserId],
     )) as any[];
     for (const row of rows ?? []) {
       if (row.c_id) {
@@ -231,6 +249,15 @@ export const importCsvToList = createServerFn({ method: "POST" })
     const { normalizeToE164 } = await import("@/lib/phone");
     const crypto = await import("crypto");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    // Verificar se a lista pertence ao usuário
+    const [list] = (await db.query(
+      "SELECT 1 FROM lists WHERE id = ? AND user_id = ?",
+      [data.list_id, effectiveUserId],
+    )) as any[];
+    if (!list) {
+      throw new Error("Lista não encontrada ou sem permissão.");
+    }
 
     const importedIds: string[] = [];
 

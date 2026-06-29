@@ -103,6 +103,12 @@ const saveBotStepInput = z.object({
   next_step_id: z.string().optional().nullable(),
   position_x: z.number().optional().default(0),
   position_y: z.number().optional().default(0),
+  footer_text: z.string().optional().nullable(),
+  delay_seconds: z.number().optional().nullable(),
+  assign_team_id: z.string().optional().nullable(),
+  assign_user_id: z.string().optional().nullable(),
+  handoff_message: z.string().optional().nullable(),
+  card_color: z.string().optional().nullable(),
 });
 
 const saveBotStepsBatchInput = z.object({

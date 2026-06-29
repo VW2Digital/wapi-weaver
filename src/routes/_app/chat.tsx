@@ -94,6 +94,7 @@ import {
   Activity,
   Shield,
   Info,
+  ChevronDown,
   ChevronRight,
   ExternalLink,
   Paperclip,
