@@ -1,4 +1,4 @@
-export const SITE_NAME = "VW2 Conversas";
+export const SITE_NAME = "Bliv";
 export const SITE_DEFAULT_DESCRIPTION =
   "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.";
 export const SITE_URL = process.env.SITE_URL || "http://localhost:8080";
@@ -27,7 +27,7 @@ export function jsonLdOrganization() {
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer support",
-      email: "suporte@vw2conversas.com.br",
+      email: "suporte@bliv.com.br",
     },
     sameAs: [],
   };

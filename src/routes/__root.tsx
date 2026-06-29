@@ -61,13 +61,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "VW2 Conversas" },
+      { title: "Bliv" },
       {
         name: "description",
         content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",
       },
-      { property: "og:title", content: "VW2 Conversas" },
-      { name: "twitter:title", content: "VW2 Conversas" },
+      { property: "og:title", content: "Bliv" },
+      { name: "twitter:title", content: "Bliv" },
       {
         property: "og:description",
         content: "Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta.",

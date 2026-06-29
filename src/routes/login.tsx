@@ -131,7 +131,7 @@ function LoginPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
             <MessageCircle className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="font-display text-lg font-semibold">VW2 Conversas</span>
+          <span className="font-display text-lg font-semibold">Bliv</span>
         </div>
         <div className="space-y-4">
           <h1 className="font-display text-4xl font-semibold leading-tight">

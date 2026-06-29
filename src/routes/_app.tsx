@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getSidebarOrder } from "@/lib/admin.functions";
+import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { db } from "@/integrations/mysql/client";
@@ -109,6 +110,24 @@ function AppLayout() {
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const { isAdmin, loading: rolesLoading } = useRoles();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+
+  const fetchContacts = useServerFn(listChatContacts);
+  const contactsQuery = useQuery({
+    queryKey: ["chat-contacts"],
+    queryFn: () => fetchContacts(),
+    enabled: !loading && !!user,
+    staleTime: 5000,
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+  });
+
+  const totalUnread = useMemo(() => {
+    if (!contactsQuery.data) return 0;
+    return (contactsQuery.data ?? []).reduce(
+      (acc: number, c: any) => acc + (c.unread_count || 0),
+      0
+    );
+  }, [contactsQuery.data]);
 
   useEffect(() => {
     const path = loc.pathname;
@@ -244,7 +263,7 @@ function AppLayout() {
           <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
         </div>
         <span className="font-display text-base font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-          VW2 Conversas
+          Bliv
         </span>
       </div>
       <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
@@ -342,15 +361,25 @@ function AppLayout() {
               {active && (
                 <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200 group-data-[collapsible=icon]:hidden" />
               )}
-              <Icon
-                className={cn(
-                  "h-4 w-4 transition-transform duration-200 group-hover:scale-110 shrink-0",
-                  active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
+              <div className="relative flex items-center justify-center shrink-0">
+                <Icon
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
+                    active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
+                  )}
+                />
+                {to === "/chat" && totalUnread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 h-2 w-2 rounded-full bg-[#FF424E] border border-sidebar group-data-[collapsible=icon]:block hidden animate-pulse" />
                 )}
-              />
+              </div>
               <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-data-[collapsible=icon]:hidden">
                 {label}
               </span>
+              {to === "/chat" && totalUnread > 0 && (
+                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF424E] px-1.5 text-[10px] font-bold text-white group-data-[collapsible=icon]:hidden animate-pulse">
+                  {totalUnread}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -451,7 +480,7 @@ function AppLayout() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
               <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
-            <span className="font-display text-sm font-semibold">VW2 Conversas</span>
+            <span className="font-display text-sm font-semibold">Bliv</span>
           </div>
         </header>
 

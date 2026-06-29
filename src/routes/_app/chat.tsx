@@ -382,8 +382,8 @@ function ChatPage() {
       } catch (e) {}
     }
     return [
-      { id: "prod-1", name: "Plano Mensal Weaver", price: 97.0, stock: 9999, isUnlimited: true },
-      { id: "prod-2", name: "Plano Anual Weaver", price: 997.0, stock: 9999, isUnlimited: true },
+      { id: "prod-1", name: "Plano Mensal Bliv", price: 97.0, stock: 9999, isUnlimited: true },
+      { id: "prod-2", name: "Plano Anual Bliv", price: 997.0, stock: 9999, isUnlimited: true },
       { id: "prod-3", name: "Instalação e Setup VPS", price: 199.0, stock: 15, isUnlimited: false },
       {
         id: "prod-4",
@@ -4430,7 +4430,7 @@ function ChatPage() {
                   <MessageCircle className="h-8 w-8 text-muted-foreground/60" />
                 </div>
                 <div className="text-center max-w-sm space-y-1">
-                  <p className="font-semibold text-foreground">VW2 Conversas Chat Direto</p>
+                  <p className="font-semibold text-foreground">Bliv Chat Direto</p>
                   <p className="text-xs">
                     Selecione um contato na lista à esquerda para carregar o histórico de conversas
                     diretas e enviar novas mensagens.
@@ -4638,124 +4638,117 @@ function ChatPage() {
                     <div className="h-px bg-border" />
                     <div className="space-y-3">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
-                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição
-                        de Atendimento
+                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição de Atendimento
                       </p>
 
-                      {/* Dropdown de Equipe */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-muted-foreground">Equipe</label>
-                        <Select
-                          value={selectedTeamId || "unassigned"}
-                          onValueChange={(val) => {
-                            const teamVal = val === "unassigned" ? "" : val;
-                            setSelectedTeamId(teamVal);
-                            setSelectedAgentId(""); // Limpa o agente selecionado ao mudar de equipe
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-muted/30">
-                            <SelectValue placeholder="Sem equipe atribuída" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unassigned">Sem equipe</SelectItem>
-                            {(teamsQuery.data ?? []).map((t: any) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Dropdown de Agente */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-muted-foreground">Agente</label>
-                        <Select
-                          value={selectedAgentId || "unassigned"}
-                          onValueChange={(val) => {
-                            const agentVal = val === "unassigned" ? "" : val;
-                            setSelectedAgentId(agentVal);
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-muted/30">
-                            <SelectValue placeholder="Sem agente atribuído" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unassigned">Sem agente</SelectItem>
-                            {selectedTeamId
-                              ? // Se tem equipe selecionada, mostra apenas os membros dela
-                                (teamMembersQuery.data ?? []).map((m: any) => (
-                                  <SelectItem key={m.user_id} value={m.user_id}>
-                                    {m.full_name || m.display_name || m.email}
-                                  </SelectItem>
-                                ))
-                              : // Senão, mostra todos os agentes da plataforma
-                                (agentsQuery.data ?? []).map((a: any) => (
-                                  <SelectItem key={a.id} value={a.id}>
-                                    {a.full_name || a.display_name || a.email}
-                                  </SelectItem>
-                                ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Ações */}
-                      <div className="flex gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          className="flex-1 h-8 text-xs"
-                          onClick={() =>
-                            assignMutation.mutate({
-                              teamId: selectedTeamId ? selectedTeamId : null,
-                              agentId: selectedAgentId ? selectedAgentId : null,
-                            })
-                          }
-                          disabled={assignMutation.isPending}
-                        >
-                          {assignMutation.isPending ? "Salvando..." : "Salvar"}
-                        </Button>
-
-                        {selectedTeamId &&
-                          (teamMembersQuery.data ?? []).some(
-                            (m: any) => m.user_id === profile?.id,
-                          ) && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="h-8 text-xs"
-                              onClick={() =>
-                                selfAssignMutation.mutate({ teamId: selectedTeamId })
-                              }
-                              disabled={selfAssignMutation.isPending}
-                              title="Atribuir a mim"
-                            >
-                              {selfAssignMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <>
-                                  <UserCheck className="h-3 w-3 mr-1" /> Atribuir a mim
-                                </>
-                              )}
-                            </Button>
-                          )}
-
-                        {selectedTeamId && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
-                            size="sm"
                             variant="outline"
-                            className="h-8 text-xs"
-                            onClick={() => autoAssignMutation.mutate(selectedTeamId)}
-                            disabled={autoAssignMutation.isPending}
-                            title="Auto-atribuir para o agente menos ocupado"
+                            className="w-full h-9 justify-between text-xs bg-muted/20 hover:bg-muted/40"
                           >
-                            {autoAssignMutation.isPending ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              "Auto-atribuir"
-                            )}
+                            <span className="truncate">
+                              {selectedContact?.active_team_name || selectedContact?.active_agent_name
+                                ? `${selectedContact.active_team_name ? `Equipe: ${selectedContact.active_team_name}` : ""} ${selectedContact.active_agent_name ? `(${selectedContact.active_agent_name})` : ""}`
+                                : "Sem atribuição"}
+                            </span>
+                            <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-1" />
                           </Button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-[240px] max-h-[350px] overflow-y-auto" align="end">
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Ações rápidas</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            className="text-xs cursor-pointer gap-2"
+                            onClick={() => selfAssignMutation.mutate({ teamId: selectedTeamId || "" })}
+                            disabled={selfAssignMutation.isPending}
+                          >
+                            <UserCheck className="h-3.5 w-3.5" />
+                            Atribuir a mim
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            className="text-xs cursor-pointer gap-2"
+                            onClick={() => {
+                              const targetTeam = selectedTeamId || selectedContact?.active_team_id || (teamsQuery.data?.[0]?.id);
+                              if (targetTeam) {
+                                autoAssignMutation.mutate(targetTeam);
+                              } else {
+                                toast.error("Por favor, selecione uma equipe primeiro.");
+                              }
+                            }}
+                            disabled={autoAssignMutation.isPending}
+                          >
+                            <Activity className="h-3.5 w-3.5" />
+                            Auto-atribuir
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Remover Atribuição</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            className="text-xs cursor-pointer text-destructive hover:text-destructive gap-2"
+                            onClick={() =>
+                              assignMutation.mutate({
+                                teamId: null,
+                                agentId: null,
+                              })
+                            }
+                            disabled={assignMutation.isPending}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Limpar atribuição
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Selecionar Equipe</DropdownMenuLabel>
+                          {(teamsQuery.data ?? []).map((t: any) => {
+                            const isCurrentTeam = (selectedContact?.active_team_id === t.id) || (selectedTeamId === t.id);
+                            return (
+                              <DropdownMenuItem
+                                key={t.id}
+                                className={cn("text-xs cursor-pointer justify-between", isCurrentTeam && "bg-accent font-medium")}
+                                onClick={() => {
+                                  setSelectedTeamId(t.id);
+                                  assignMutation.mutate({
+                                    teamId: t.id,
+                                    agentId: null,
+                                  });
+                                }}
+                              >
+                                <span>{t.name}</span>
+                                {isCurrentTeam && <Check className="h-3.5 w-3.5 text-primary" />}
+                              </DropdownMenuItem>
+                            );
+                          })}
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Selecionar Agente</DropdownMenuLabel>
+                          {((selectedTeamId || selectedContact?.active_team_id)
+                            ? (teamMembersQuery.data ?? [])
+                            : (agentsQuery.data ?? [])
+                          ).map((a: any) => {
+                            const agentId = a.user_id || a.id;
+                            const isCurrentAgent = selectedContact?.active_agent_id === agentId;
+                            return (
+                              <DropdownMenuItem
+                                key={agentId}
+                                className={cn("text-xs cursor-pointer justify-between", isCurrentAgent && "bg-accent font-medium")}
+                                onClick={() =>
+                                  assignMutation.mutate({
+                                    teamId: selectedTeamId || selectedContact?.active_team_id || null,
+                                    agentId: agentId,
+                                  })
+                                }
+                              >
+                                <span className="truncate">{a.full_name || a.display_name || a.email}</span>
+                                {isCurrentAgent && <Check className="h-3.5 w-3.5 text-primary" />}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
 
                     {/* Metadados do sistema */}

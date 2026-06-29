@@ -2419,7 +2419,7 @@ function AdminPlatformSection() {
                   <Input
                     value={seoTitle}
                     onChange={(e) => setSeoTitle(e.target.value)}
-                    placeholder="VW2 Conversas"
+                    placeholder="Bliv"
                     maxLength={128}
                   />
                   <p className="text-[11px] text-muted-foreground">
@@ -2619,7 +2619,7 @@ function AdminPlatformSection() {
                         <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
                       </div>
                       <span className="font-display text-xs font-semibold text-sidebar-foreground">
-                        VW2 Conversas
+                        Bliv
                       </span>
                     </div>
 
