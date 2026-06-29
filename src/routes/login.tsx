@@ -11,12 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
 import { MfaChallenge } from "@/components/mfa/mfa-challenge";
+import { useTheme } from "@/hooks/use-theme";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -128,18 +130,19 @@ function LoginPage() {
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="hidden bg-sidebar p-12 text-sidebar-foreground lg:flex lg:flex-col lg:justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-            <MessageCircle className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img
+            src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+            alt="Bliv Logo"
+            className="h-10 w-10 object-contain rounded-lg shadow-sm"
+          />
           <span className="font-display text-lg font-semibold">Bliv</span>
         </div>
         <div className="space-y-4">
           <h1 className="font-display text-4xl font-semibold leading-tight">
-            Dispare mensagens em escala com a API oficial do WhatsApp.
+            Sua operação omnichannel com WhatsApp, Instagram, Messenger e IA.
           </h1>
           <p className="text-sidebar-foreground/70">
-            Contatos, listas, templates aprovados, fila de envio e webhooks de status — tudo em um
-            painel.
+            Integre WhatsApp, Instagram e Messenger em um único painel, crie campanhas de disparo em massa, monitore métricas, construa fluxos de bots e escale atendimentos com agentes de IA ilimitados.
           </p>
         </div>
         <p className="text-xs text-sidebar-foreground/50">

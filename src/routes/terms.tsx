@@ -15,16 +15,16 @@ import { SeoHead } from "@/components/seo";
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Termos de Serviço — VW2 Conversas" },
+      { title: "Termos de Serviço — Bliv" },
       {
         name: "description",
         content:
-          "Termos de Serviço da VW2 Conversas. Leia as regras e condições de uso da nossa plataforma.",
+          "Termos de Serviço da Bliv. Leia as regras e condições de uso da nossa plataforma.",
       },
-      { property: "og:title", content: "Termos de Serviço — VW2 Conversas" },
+      { property: "og:title", content: "Termos de Serviço — Bliv" },
       {
         property: "og:description",
-        content: "Regras e condições de uso da plataforma VW2 Conversas.",
+        content: "Regras e condições de uso da plataforma Bliv.",
       },
       { property: "og:type", content: "website" },
     ],
@@ -37,8 +37,8 @@ function TermsPage() {
     <div className="min-h-screen bg-background">
       <SeoHead
         title="Termos de Serviço"
-        description="Termos de Serviço da VW2 Conversas. Leia as regras e condições de uso da nossa plataforma."
-        canonical="https://vw2conversas.com.br/terms"
+        description="Termos de Serviço da Bliv. Leia as regras e condições de uso da nossa plataforma."
+        canonical="https://bliv.com.br/terms"
       />
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
@@ -46,7 +46,7 @@ function TermsPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <MessageCircle className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display text-base font-semibold">VW2 Conversas</span>
+            <span className="font-display text-base font-semibold">Bliv</span>
           </div>
           <Link to="/login" className="text-sm font-medium text-primary hover:underline">
             Entrar
@@ -67,7 +67,7 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">1. Aceitação dos Termos</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Ao acessar e utilizar a plataforma VW2 Conversas, você concorda integralmente com
+              Ao acessar e utilizar a plataforma Bliv, você concorda integralmente com
               estes Termos de Serviço, bem como com nossa{" "}
               <Link to="/privacy" className="text-primary hover:underline">
                 Política de Privacidade
@@ -83,7 +83,7 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">2. Descrição do Serviço</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A VW2 Conversas é uma plataforma de gerenciamento e disparo de mensagens via WhatsApp
+              A Bliv é uma plataforma de gerenciamento e disparo de mensagens via WhatsApp
               Cloud API oficial da Meta. Nossos serviços incluem:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -155,7 +155,7 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">5. Pagamentos e Reembolsos</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A VW2 Conversas pode oferecer planos pagos no futuro. Quando isso ocorrer:
+              A Bliv pode oferecer planos pagos no futuro. Quando isso ocorrer:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
               <li>
@@ -182,7 +182,7 @@ function TermsPage() {
               </h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A VW2 Conversas atua como intermediadora tecnológica entre você e a WhatsApp Cloud API
+              A Bliv atua como intermediadora tecnológica entre você e a WhatsApp Cloud API
               da Meta. Não somos responsáveis por:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -248,8 +248,8 @@ function TermsPage() {
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
               Para dúvidas sobre estes Termos de Serviço, entre em contato pelo e-mail:{" "}
-              <a href="mailto:legal@vw2conversas.com.br" className="text-primary hover:underline">
-                legal@vw2conversas.com.br
+              <a href="mailto:legal@bliv.com.br" className="text-primary hover:underline">
+                legal@bliv.com.br
               </a>
             </p>
           </section>

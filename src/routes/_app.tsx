@@ -259,9 +259,11 @@ function AppLayout() {
   const SidebarBody = (
     <div className="flex h-full flex-col overflow-x-hidden">
       <div className="flex items-center gap-2 px-6 py-5 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary shrink-0">
-          <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
-        </div>
+        <img
+          src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+          alt="Bliv Logo"
+          className="h-9 w-9 object-contain rounded-lg shrink-0 shadow-sm"
+        />
         <span className="font-display text-base font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
           Bliv
         </span>
@@ -477,9 +479,11 @@ function AppLayout() {
             </SheetContent>
           </Sheet>
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-              <MessageCircle className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
+            <img
+              src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+              alt="Bliv Logo"
+              className="h-8 w-8 object-contain rounded-lg shadow-sm"
+            />
             <span className="font-display text-sm font-semibold">Bliv</span>
           </div>
         </header>

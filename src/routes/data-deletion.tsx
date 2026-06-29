@@ -18,16 +18,16 @@ import { SeoHead } from "@/components/seo";
 export const Route = createFileRoute("/data-deletion")({
   head: () => ({
     meta: [
-      { title: "Exclusão de Dados do Usuário — VW2 Conversas" },
+      { title: "Exclusão de Dados do Usuário — Bliv" },
       {
         name: "description",
         content:
-          "Solicite a exclusão completa da sua conta e dados pessoais da plataforma VW2 Conversas.",
+          "Solicite a exclusão completa da sua conta e dados pessoais da plataforma Bliv.",
       },
-      { property: "og:title", content: "Exclusão de Dados do Usuário — VW2 Conversas" },
+      { property: "og:title", content: "Exclusão de Dados do Usuário — Bliv" },
       {
         property: "og:description",
-        content: "Solicite a exclusão da sua conta e dados pessoais da VW2 Conversas.",
+        content: "Solicite a exclusão da sua conta e dados pessoais da Bliv.",
       },
       { property: "og:type", content: "website" },
     ],
@@ -42,8 +42,8 @@ function DataDeletionPage() {
     <div className="min-h-screen bg-background">
       <SeoHead
         title="Exclusão de Dados do Usuário"
-        description="Solicite a exclusão completa da sua conta e dados pessoais da plataforma VW2 Conversas."
-        canonical="https://vw2conversas.com.br/data-deletion"
+        description="Solicite a exclusão completa da sua conta e dados pessoais da plataforma Bliv."
+        canonical="https://bliv.com.br/data-deletion"
       />
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
@@ -51,7 +51,7 @@ function DataDeletionPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <MessageCircle className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display text-base font-semibold">VW2 Conversas</span>
+            <span className="font-display text-base font-semibold">Bliv</span>
           </div>
           <Link to="/login" className="text-sm font-medium text-primary hover:underline">
             Entrar
@@ -192,10 +192,10 @@ function DataDeletionPage() {
               <li>
                 <strong>Por e-mail:</strong> envie um pedido de exclusão para{" "}
                 <a
-                  href="mailto:privacidade@vw2conversas.com.br"
+                  href="mailto:privacidade@bliv.com.br"
                   className="text-primary hover:underline"
                 >
-                  privacidade@vw2conversas.com.br
+                  privacidade@bliv.com.br
                 </a>{" "}
                 com o assunto "Solicitação de exclusão de dados". Inclua o e-mail cadastrado na
                 conta para agilizar o processo.
@@ -220,16 +220,16 @@ function DataDeletionPage() {
                 variant="destructive"
                 onClick={() => {
                   const subject = encodeURIComponent(
-                    "Solicitação de exclusão de dados - VW2 Conversas",
+                    "Solicitação de exclusão de dados - Bliv",
                   );
                   const body = encodeURIComponent(
                     `Olá,\n\n` +
-                      `Solicito a exclusão completa da minha conta e de todos os meus dados pessoais da plataforma VW2 Conversas, conforme previsto na LGPD.\n\n` +
+                      `Solicito a exclusão completa da minha conta e de todos os meus dados pessoais da plataforma Bliv, conforme previsto na LGPD.\n\n` +
                       `E-mail da conta: [adicione aqui]\n\n` +
                       `Motivo (opcional): \n\n` +
                       `Atenciosamente,`,
                   );
-                  window.location.href = `mailto:privacidade@vw2conversas.com.br?subject=${subject}&body=${body}`;
+                  window.location.href = `mailto:privacidade@bliv.com.br?subject=${subject}&body=${body}`;
                   setRequested(true);
                 }}
               >
