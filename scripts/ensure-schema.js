@@ -1275,40 +1275,76 @@ export async function ensureDatabaseSchema() {
 
     // Insere flows de demonstração iniciais para testes locais
     try {
-      const [users] = await connection.query("SELECT id FROM users LIMIT 1");
+      const [users] = await connection.query("SELECT id FROM users");
       if (users.length > 0) {
-        logSchema("Garantindo flows iniciais de demonstração...");
-        await connection.query(
-          `
-          INSERT IGNORE INTO whatsapp_flows (id, user_id, flow_id, flow_name, status)
-          VALUES (UUID(), ?, '789123456', 'Orçamento de Serviços', 'published')
-          `,
-          [users[0].id],
-        );
-
-        logSchema("Garantindo equipes iniciais de demonstração...");
-        const [existingTeams] = await connection.query("SELECT id FROM teams WHERE user_id = ?", [
-          users[0].id,
-        ]);
-        if (existingTeams.length === 0) {
-          const supportTeamId = "demo-team-support-id-000000000001";
-          const salesTeamId = "demo-team-sales-id-0000000000002";
-
+        for (const u of users) {
+          logSchema(`Garantindo flows iniciais de demonstração para o usuário ${u.id}...`);
           await connection.query(
-            `INSERT IGNORE INTO teams (id, user_id, name, description, auto_assign_mode)
-             VALUES 
-               (?, ?, 'Suporte Técnico', 'Equipe de suporte e atendimento técnico', 'round_robin'),
-               (?, ?, 'Comercial', 'Equipe de vendas e novos negócios', 'manual')`,
-            [supportTeamId, users[0].id, salesTeamId, users[0].id],
+            `
+            INSERT IGNORE INTO whatsapp_flows (id, user_id, flow_id, flow_name, status)
+            VALUES (UUID(), ?, '789123456', 'Orçamento de Serviços', 'published')
+            `,
+            [u.id],
           );
 
-          await connection.query(
-            `INSERT IGNORE INTO team_members (id, team_id, user_id, role)
-             VALUES 
-               (UUID(), ?, ?, 'supervisor'),
-               (UUID(), ?, ?, 'agent')`,
-            [supportTeamId, users[0].id, salesTeamId, users[0].id],
-          );
+          logSchema(`Garantindo equipes iniciais de demonstração para o usuário ${u.id}...`);
+          const [existingTeams] = await connection.query("SELECT id FROM teams WHERE user_id = ?", [
+            u.id,
+          ]);
+          if (existingTeams.length === 0) {
+            const supportTeamId = `demo-team-support-${u.id.substring(0, 8)}`;
+            const salesTeamId = `demo-team-sales-${u.id.substring(0, 8)}`;
+
+            await connection.query(
+              `INSERT IGNORE INTO teams (id, user_id, name, description, auto_assign_mode)
+               VALUES 
+                 (?, ?, 'Suporte Técnico', 'Equipe de suporte e atendimento técnico', 'round_robin'),
+                 (?, ?, 'Comercial', 'Equipe de vendas e novos negócios', 'manual')`,
+              [supportTeamId, u.id, salesTeamId, u.id],
+            );
+
+            await connection.query(
+              `INSERT IGNORE INTO team_members (id, team_id, user_id, role)
+               VALUES 
+                 (UUID(), ?, ?, 'supervisor'),
+                 (UUID(), ?, ?, 'agent')`,
+              [supportTeamId, u.id, salesTeamId, u.id],
+            );
+          }
+
+          // Seeding de Grupo WhatsApp de Demonstração
+          const demoGroupId = "120363999999999999@g.us";
+          const [existingGroups] = await connection.query("SELECT 1 FROM whatsapp_groups WHERE group_id = ? AND user_id = ?", [demoGroupId, u.id]);
+          if (existingGroups.length === 0) {
+            logSchema(`Garantindo grupo fictício de demonstração para o usuário ${u.id}...`);
+            const newGroupRecordId = `demo-group-${u.id.substring(0, 8)}`;
+            await connection.query(
+              `INSERT IGNORE INTO whatsapp_groups (id, user_id, instance_id, group_id, name, description, invite_link, status)
+               VALUES (?, ?, 'demo-instance', ?, 'Grupo de Testes Bliv', 'Grupo de demonstração para testes de mensageria.', 'https://chat.whatsapp.com/demo-invite-link', 'active')`,
+              [newGroupRecordId, u.id, demoGroupId]
+            );
+
+            await connection.query(
+              `INSERT IGNORE INTO contacts (id, user_id, phone_e164, name, source, channel, chat_status, is_unread)
+               VALUES (UUID(), ?, ?, 'Grupo de Testes Bliv', 'whatsapp_group', 'whatsapp_group', 'aberto', false)
+               ON DUPLICATE KEY UPDATE name = VALUES(name), channel = 'whatsapp_group'`,
+              [u.id, demoGroupId]
+            );
+
+            await connection.query(
+              `INSERT IGNORE INTO whatsapp_group_participants (id, user_id, group_id, wa_id, name, status)
+               VALUES 
+                 (UUID(), ?, ?, '5511999999999', 'Renato (Suporte)', 'active'),
+                 (UUID(), ?, ?, '5511888888888', 'Maria (Comercial)', 'active')`,
+              [u.id, demoGroupId, u.id, demoGroupId]
+            );
+
+            await connection.query(
+              `INSERT IGNORE INTO direct_messages (id, user_id, contact_phone, direction, type, body, status, channel, sender_wa_id, sender_name, recipient_type, external_group_id)
+               VALUES (UUID(), ?, ?, 'incoming', 'text', 'Olá pessoal, este é o nosso grupo de testes!', 'delivered', 'whatsapp_group', '5511999999999', 'Renato (Suporte)', 'group', ?)`,
+              [u.id, demoGroupId, demoGroupId]
+            );
+          }
         }
       }
     } catch (err) {

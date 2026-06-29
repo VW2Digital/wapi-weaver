@@ -66,11 +66,9 @@ if [ -f "$ENV_FILE" ]; then
   REUSE_CONF=$(echo "$REUSE_CONF" | tr '[:upper:]' '[:lower:]' | xargs)
   
   if [[ -z "$REUSE_CONF" || "$REUSE_CONF" == "s" ]]; then
-    DOMAIN="$EXISTING_DOMAIN"
-    INSTALL_SSL="$EXISTING_INSTALL_SSL"
     DB_PASSWORD="$EXISTING_DB_PASSWORD"
     JWT_SECRET="$EXISTING_JWT_SECRET"
-    echo -e "${GREEN}Configurações carregadas com sucesso!${NC}"
+    echo -e "${GREEN}Configurações base (Banco/JWT) carregadas. O domínio e SSL serão confirmados a seguir.${NC}"
   fi
 fi
 

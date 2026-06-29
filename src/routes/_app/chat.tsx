@@ -2164,7 +2164,7 @@ function ChatPage() {
               <MessageCircle className="h-4 w-4" />
               Conversas
               {unreadConversas > 0 && (
-                <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-violet-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                   {unreadConversas > 99 ? "99+" : unreadConversas}
                 </span>
               )}
@@ -2182,7 +2182,7 @@ function ChatPage() {
               <Users className="h-4 w-4" />
               Grupos
               {unreadGrupos > 0 && (
-                <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-violet-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                   {unreadGrupos > 99 ? "99+" : unreadGrupos}
                 </span>
               )}
