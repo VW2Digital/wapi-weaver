@@ -274,49 +274,7 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {(() => {
-          if (c.isPending) return null;
-          const failureRate = totals.completed ? Math.round((totals.failed / totals.completed) * 100) : 0;
-          const alerts: { title: string; description: string }[] = [];
-          if (totals.failed > 0) {
-            alerts.push({
-              title: `${totals.failed.toLocaleString("pt-BR")} ${totals.failed === 1 ? "mensagem falhou" : "mensagens falharam"}`,
-              description:
-                failureRate >= 5
-                  ? `Taxa de falha de ${failureRate}% — verifique credenciais do WhatsApp Cloud, número e status dos templates.`
-                  : "Confira as campanhas com falhas para detalhes do erro.",
-            });
-          }
-          if (totals.completed >= 20 && deliverRate < 70) {
-            alerts.push({
-              title: `Taxa de entrega baixa: ${deliverRate}%`,
-              description: "Abaixo de 70%. Revise a qualidade dos números e o template usado.",
-            });
-          }
-          if (alerts.length === 0) return null;
-          return (
-            <div className="space-y-2 px-4 pt-4 sm:px-6 sm:pt-6">
-              {alerts
-                .filter((a) => !dismissedAlerts.includes(a.title))
-                .map((a) => (
-                  <Alert key={a.title} variant="destructive" className="relative pr-10">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>{a.title}</AlertTitle>
-                    <AlertDescription>{a.description}</AlertDescription>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-4 right-4 h-6 w-6 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => setDismissedAlerts((prev) => [...prev, a.title])}
-                      aria-label="Fechar aviso"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </Alert>
-                ))}
-            </div>
-          );
-        })()}
+
 
         <section aria-labelledby="bento-heading" className="p-4 sm:p-6">
           <h2 id="bento-heading" className="sr-only">
