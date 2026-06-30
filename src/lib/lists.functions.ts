@@ -54,6 +54,32 @@ export const deleteTag = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const updateTag = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(40),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query(
+      "UPDATE tags SET name = ?, color = COALESCE(?, color) WHERE id = ? AND user_id = ?",
+      [data.name, data.color ?? null, data.id, effectiveUserId],
+    );
+    const rows = await db.query("SELECT * FROM tags WHERE id = ?", [data.id]);
+    return (rows as any[])[0];
+  });
+
 export const listLists = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -106,6 +132,29 @@ export const deleteList = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.query("DELETE FROM lists WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
     return { ok: true };
+  });
+
+export const updateList = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(80),
+        description: z.string().trim().max(280).nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query(
+      "UPDATE lists SET name = ?, description = ? WHERE id = ? AND user_id = ?",
+      [data.name, data.description ?? null, data.id, effectiveUserId],
+    );
+    const rows = await db.query("SELECT * FROM lists WHERE id = ?", [data.id]);
+    return (rows as any[])[0];
   });
 
 export const addContactsToList = createServerFn({ method: "POST" })
@@ -301,7 +350,8 @@ export const importCsvToList = createServerFn({ method: "POST" })
       const chunk = contactsToInsert.slice(i, i + insertChunkSize);
       const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
       await db.query(
-        `INSERT INTO contacts (id, user_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}`,
+        `INSERT INTO contacts (id, user_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}
+         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)`,
         chunk.flat()
       );
     }

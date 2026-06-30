@@ -58,14 +58,16 @@ async function logAudit(
   action: string,
   oldValues: any,
   newValues: any,
+  actorId?: string,
 ) {
   const auditId = crypto.randomUUID();
   await connection.execute(
-    `INSERT INTO opportunity_audit_logs (id, user_id, opportunity_id, action, old_values, new_values)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO opportunity_audit_logs (id, user_id, user_id_actor, opportunity_id, action, old_values, new_values)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       auditId,
       userId,
+      actorId ?? userId,
       opportunityId,
       action,
       oldValues ? JSON.stringify(oldValues) : null,
@@ -228,7 +230,7 @@ export const listStages = createServerFn({ method: "GET" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const stages = await db.query(
-      "SELECT * FROM sales_stages WHERE funnel_id = ? AND user_id = ? ORDER BY sort_order ASC",
+      "SELECT * FROM sales_stages WHERE funnel_id = ? AND user_id = ? AND deleted_at IS NULL AND is_active = TRUE ORDER BY sort_order ASC",
       [data.funnel_id, effectiveUserId],
     );
     return stages;

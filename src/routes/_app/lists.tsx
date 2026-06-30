@@ -5,10 +5,12 @@ import {
   listLists,
   createList,
   deleteList,
+  updateList,
   addContactsToList,
   listTags,
   createTag,
   deleteTag,
+  updateTag,
   getListContacts,
   removeContactFromList,
   importCsvToList,
@@ -26,7 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, X, ListChecks, Tags } from "lucide-react";
+import { Plus, Trash2, X, ListChecks, Tags, Pencil } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -40,8 +42,10 @@ function ListsPage() {
   const fetchContacts = useServerFn(listContacts);
   const newList = useServerFn(createList);
   const rmList = useServerFn(deleteList);
+  const editList = useServerFn(updateList);
   const newTag = useServerFn(createTag);
   const rmTag = useServerFn(deleteTag);
+  const editTag = useServerFn(updateTag);
   const addToList = useServerFn(addContactsToList);
   const getMembers = useServerFn(getListContacts);
   const rmMember = useServerFn(removeContactFromList);
@@ -56,6 +60,8 @@ function ListsPage() {
   const [listForm, setListForm] = useState({ name: "", description: "" });
   const [tagForm, setTagForm] = useState({ name: "", color: "#25D366" });
   const [selectedList, setSelectedList] = useState<any>(null);
+  const [editingList, setEditingList] = useState<any>(null);
+  const [editingTag, setEditingTag] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -250,6 +256,16 @@ function ListsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingList({ id: l.id, name: l.name, description: l.description ?? "" });
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
                     onClick={async (e) => {
                       e.stopPropagation();
                       const ok = await confirm({
@@ -282,6 +298,46 @@ function ListsPage() {
               )}
             </div>
           </Card>
+
+          {/* Dialog de edição de lista */}
+          <Dialog open={!!editingList} onOpenChange={(o) => { if (!o) setEditingList(null); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar lista</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label>Nome</Label>
+                  <Input
+                    value={editingList?.name ?? ""}
+                    onChange={(e) => setEditingList((p: any) => ({ ...p, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>Descrição</Label>
+                  <Input
+                    value={editingList?.description ?? ""}
+                    onChange={(e) => setEditingList((p: any) => ({ ...p, description: e.target.value }))}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      await editList({ data: editingList });
+                      toast.success("Lista atualizada");
+                      setEditingList(null);
+                      qc.invalidateQueries({ queryKey: ["lists"] });
+                    } catch (e: any) {
+                      toast.error(e.message);
+                    }
+                  }}
+                >
+                  Salvar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {selectedList && (
             <Card className="p-4">
@@ -452,35 +508,78 @@ function ListsPage() {
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {(tags.data ?? []).map((t: any) => (
-                <span
-                  key={t.id}
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-white"
-                  style={{ background: t.color }}
-                >
-                  {t.name}
-                  <button
-                    aria-label={`Remover tag ${t.name}`}
-                    onClick={async () => {
-                      const ok = await confirm({
-                        title: "Remover tag?",
-                        description: (
-                          <>
-                            A tag <strong>{t.name}</strong> será removida de todos os contatos.
-                          </>
-                        ),
-                        destructive: true,
-                        confirmText: "Remover",
-                      });
-                      if (!ok) return;
-                      await rmTag({ data: { id: t.id } });
-                      qc.invalidateQueries({ queryKey: ["tags"] });
-                    }}
+              {(tags.data ?? []).map((t: any) =>
+                editingTag?.id === t.id ? (
+                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
+                    <input
+                      type="color"
+                      className="h-5 w-5 rounded-full border-none p-0 cursor-pointer"
+                      value={editingTag.color}
+                      onChange={(e) => setEditingTag((p: any) => ({ ...p, color: e.target.value }))}
+                    />
+                    <Input
+                      className="h-6 text-xs px-1 w-28 border-none bg-transparent focus-visible:ring-0"
+                      value={editingTag.name}
+                      onChange={(e) => setEditingTag((p: any) => ({ ...p, name: e.target.value }))}
+                      onKeyDown={async (e) => {
+                        if (e.key === "Enter") {
+                          await editTag({ data: editingTag });
+                          setEditingTag(null);
+                          qc.invalidateQueries({ queryKey: ["tags"] });
+                        } else if (e.key === "Escape") {
+                          setEditingTag(null);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={async () => {
+                        await editTag({ data: editingTag });
+                        setEditingTag(null);
+                        qc.invalidateQueries({ queryKey: ["tags"] });
+                      }}
+                    >
+                      <span className="text-xs">✓</span>
+                    </button>
+                    <button onClick={() => setEditingTag(null)}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ) : (
+                  <span
+                    key={t.id}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-white"
+                    style={{ background: t.color }}
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
+                    <button
+                      aria-label={`Editar tag ${t.name}`}
+                      onClick={() => setEditingTag({ id: t.id, name: t.name, color: t.color })}
+                    >
+                      {t.name}
+                    </button>
+                    <button
+                      aria-label={`Remover tag ${t.name}`}
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "Remover tag?",
+                          description: (
+                            <>
+                              A tag <strong>{t.name}</strong> será removida de todos os contatos.
+                            </>
+                          ),
+                          destructive: true,
+                          confirmText: "Remover",
+                        });
+                        if (!ok) return;
+                        await rmTag({ data: { id: t.id } });
+                        qc.invalidateQueries({ queryKey: ["tags"] });
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ),
+              )}
               {(tags.data ?? []).length === 0 && (
                 <EmptyState
                   icon={Tags}

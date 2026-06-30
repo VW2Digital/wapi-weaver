@@ -237,7 +237,11 @@ export async function processBotFlow(
         payload.text = { body: stepToExecute.message_content || "" };
       } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
         payload.type = stepToExecute.message_type;
-        payload[stepToExecute.message_type] = { link: stepToExecute.media_url || "" };
+        const mediaObj: any = { link: stepToExecute.media_url || "" };
+        if (stepToExecute.media_caption && ["image", "video", "document"].includes(stepToExecute.message_type)) {
+          mediaObj.caption = stepToExecute.media_caption;
+        }
+        payload[stepToExecute.message_type] = mediaObj;
       }
 
       const apiVersion = p.meta_graph_version || "v20.0";
@@ -391,7 +395,11 @@ export async function executeInactivityStep(
         payload.text = { body: stepToExecute.message_content || "" };
       } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
         payload.type = stepToExecute.message_type;
-        payload[stepToExecute.message_type] = { link: stepToExecute.media_url || "" };
+        const mediaObj: any = { link: stepToExecute.media_url || "" };
+        if (stepToExecute.media_caption && ["image", "video", "document"].includes(stepToExecute.message_type)) {
+          mediaObj.caption = stepToExecute.media_caption;
+        }
+        payload[stepToExecute.message_type] = mediaObj;
       }
 
       const apiVersion = p.meta_graph_version || "v20.0";

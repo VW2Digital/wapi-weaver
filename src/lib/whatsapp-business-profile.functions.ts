@@ -46,7 +46,7 @@ const updateSchema = z.object({
   about: z.string().trim().max(139).optional(),
   address: z.string().trim().max(256).optional(),
   description: z.string().trim().max(512).optional(),
-  email: z.string().trim().email("E-mail inválido").max(128).optional(),
+  email: z.string().trim().max(128).email("E-mail inválido").optional().or(z.literal("")),
   websites: z
     .array(z.string().trim().max(256))
     .max(2, "A Meta permite no máximo 2 sites.")

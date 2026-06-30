@@ -10,7 +10,7 @@ const credSchema = z.object({
   whatsapp_waba_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_business_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_business_phone: z.string().trim().max(32).nullable().optional(),
-  whatsapp_access_token: z.string().trim().max(1024).nullable().optional(),
+  whatsapp_access_token: z.string().trim().nullable().optional(),
   whatsapp_app_secret: z.string().trim().max(256).nullable().optional(),
   whatsapp_app_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_verify_token: z.string().trim().max(128).nullable().optional(),
@@ -48,8 +48,24 @@ export const updateProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => credSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.db.from("profiles").update(data).eq("id", context.userId);
-    if (error) throw error;
+    const { default: db } = await import("./db");
+
+    // Construir dinamicamente apenas os campos enviados
+    const fields = Object.entries(data).filter(([, v]) => v !== undefined);
+    if (fields.length === 0) return { ok: true };
+
+    const cols = fields.map(([k]) => `\`${k}\``).join(", ");
+    const vals = fields.map(([, v]) => v);
+    const placeholders = fields.map(() => "?").join(", ");
+    const updates = fields.map(([k]) => `\`${k}\` = VALUES(\`${k}\`)`).join(", ");
+
+    // UPSERT: garante que mesmo usuários sem row na tabela profiles terão seus dados salvos
+    await db.query(
+      `INSERT INTO profiles (id, ${cols}) VALUES (?, ${placeholders})
+       ON DUPLICATE KEY UPDATE ${updates}`,
+      [context.userId, ...vals],
+    );
+
     return { ok: true };
   });
 

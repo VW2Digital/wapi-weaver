@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS lists (
   name VARCHAR(255) NOT NULL,
   description TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -178,7 +179,7 @@ CREATE TABLE IF NOT EXISTS templates (
   name VARCHAR(255) NOT NULL,
   language VARCHAR(50) NOT NULL,
   category VARCHAR(50) NULL,
-  status ENUM('APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED') NOT NULL DEFAULT 'PENDING',
+  status ENUM('APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED', 'IN_APPEAL', 'PENDING_DELETION', 'DELETED') NOT NULL DEFAULT 'PENDING',
   components JSON NULL,
   parameter_format VARCHAR(20) NULL,
   allow_category_change BOOLEAN NOT NULL DEFAULT TRUE,
@@ -565,7 +566,7 @@ CREATE TABLE IF NOT EXISTS bot_settings (
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
   pause_timeout_minutes INT NOT NULL DEFAULT 60,
   name VARCHAR(150) NULL,
-  channel ENUM('whatsapp', 'instagram') NOT NULL DEFAULT 'whatsapp',
+  channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp',
   priority INT NOT NULL DEFAULT 0,
   trigger_type VARCHAR(50) NOT NULL DEFAULT 'start',
   trigger_value VARCHAR(255) NULL,

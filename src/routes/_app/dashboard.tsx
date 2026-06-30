@@ -123,7 +123,7 @@ function Dashboard() {
     const list: { id: string; type: "success" | "error" | "info"; title: string; desc: string; date?: string }[] = [];
 
     // 1. Campaign dispatch completions
-    const completedCampaigns = (c.data ?? []).filter((x: any) => x.status === "completed" || x.status === "sent");
+    const completedCampaigns = (c.data ?? []).filter((x: any) => x.status === "done");
     completedCampaigns.forEach((x: any) => {
       const t = normalizeCampaignTotals(x.totals);
       list.push({
@@ -152,7 +152,7 @@ function Dashboard() {
     });
 
     // 3. New conversations (unread messages)
-    const unreadCount = (ct.data ?? []).filter((x: any) => x.is_unread || (x.unread_count ?? 0) > 0).length;
+    const unreadCount = (ct.data ?? []).filter((x: any) => x.is_unread).length;
     if (unreadCount > 0) {
       list.push({
         id: "new-chats-unread",

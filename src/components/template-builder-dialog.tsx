@@ -171,7 +171,12 @@ export function TemplateBuilderDialog({
       const bodyComp = comps.find((c: any) => c.type === "BODY");
       if (bodyComp) {
         setBody(bodyComp.text || "");
-        setBodyExamples(bodyComp.example?.body_text?.[0] || []);
+        const named = bodyComp.example?.body_text_named_params;
+        if (named) {
+          setBodyExamples(named.map((p: any) => p.example ?? ""));
+        } else {
+          setBodyExamples(bodyComp.example?.body_text?.[0] || []);
+        }
       } else {
         setBody("");
         setBodyExamples([]);

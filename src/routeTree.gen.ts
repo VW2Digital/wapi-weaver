@@ -27,12 +27,12 @@ import { Route as AppListsRouteImport } from './routes/_app/lists'
 import { Route as AppGroupsRouteImport } from './routes/_app/groups'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCrmRouteImport } from './routes/_app/crm'
-import { Route as AppContactsRouteImport } from './routes/_app/contacts'
 import { Route as AppChatRouteImport } from './routes/_app/chat'
 import { Route as AppBotRouteImport } from './routes/_app/bot'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
+import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts.index'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
 import { Route as ApiWhatsappRegisterRouteImport } from './routes/api/whatsapp/register'
 import { Route as ApiWhatsappMediaUploadRouteImport } from './routes/api/whatsapp/media-upload'
@@ -54,6 +54,7 @@ import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
+import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
@@ -149,11 +150,6 @@ const AppCrmRoute = AppCrmRouteImport.update({
   path: '/crm',
   getParentRoute: () => AppRoute,
 } as any)
-const AppContactsRoute = AppContactsRouteImport.update({
-  id: '/contacts',
-  path: '/contacts',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppChatRoute = AppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -177,6 +173,11 @@ const AppAuditRoute = AppAuditRouteImport.update({
 const AppAiAgentRoute = AppAiAgentRouteImport.update({
   id: '/ai-agent',
   path: '/ai-agent',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppContactsIndexRoute = AppContactsIndexRouteImport.update({
+  id: '/contacts/',
+  path: '/contacts/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
@@ -288,6 +289,11 @@ const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
   path: '/api/admin/schema-dump',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppContactsIdRoute = AppContactsIdRouteImport.update({
+  id: '/contacts/$id',
+  path: '/contacts/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCampaignsIdRoute = AppCampaignsIdRouteImport.update({
   id: '/campaigns/$id',
   path: '/campaigns/$id',
@@ -323,7 +329,6 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AppBillingRoute
   '/bot': typeof AppBotRoute
   '/chat': typeof AppChatRoute
-  '/contacts': typeof AppContactsRoute
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/groups': typeof AppGroupsRoute
@@ -336,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
+  '/contacts/$id': typeof AppContactsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -357,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
+  '/contacts/': typeof AppContactsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
@@ -373,7 +380,6 @@ export interface FileRoutesByTo {
   '/billing': typeof AppBillingRoute
   '/bot': typeof AppBotRoute
   '/chat': typeof AppChatRoute
-  '/contacts': typeof AppContactsRoute
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/groups': typeof AppGroupsRoute
@@ -386,6 +392,7 @@ export interface FileRoutesByTo {
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
+  '/contacts/$id': typeof AppContactsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -407,6 +414,7 @@ export interface FileRoutesByTo {
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/campaigns': typeof AppCampaignsIndexRoute
+  '/contacts': typeof AppContactsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
@@ -425,7 +433,6 @@ export interface FileRoutesById {
   '/_app/billing': typeof AppBillingRoute
   '/_app/bot': typeof AppBotRoute
   '/_app/chat': typeof AppChatRoute
-  '/_app/contacts': typeof AppContactsRoute
   '/_app/crm': typeof AppCrmRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/groups': typeof AppGroupsRoute
@@ -438,6 +445,7 @@ export interface FileRoutesById {
   '/_app/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
+  '/_app/contacts/$id': typeof AppContactsIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -459,6 +467,7 @@ export interface FileRoutesById {
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
+  '/_app/contacts/': typeof AppContactsIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
@@ -477,7 +486,6 @@ export interface FileRouteTypes {
     | '/billing'
     | '/bot'
     | '/chat'
-    | '/contacts'
     | '/crm'
     | '/dashboard'
     | '/groups'
@@ -490,6 +498,7 @@ export interface FileRouteTypes {
     | '/whatsapp-business-profile'
     | '/api/query'
     | '/campaigns/$id'
+    | '/contacts/$id'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -511,6 +520,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
     | '/campaigns/'
+    | '/contacts/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
@@ -527,7 +537,6 @@ export interface FileRouteTypes {
     | '/billing'
     | '/bot'
     | '/chat'
-    | '/contacts'
     | '/crm'
     | '/dashboard'
     | '/groups'
@@ -540,6 +549,7 @@ export interface FileRouteTypes {
     | '/whatsapp-business-profile'
     | '/api/query'
     | '/campaigns/$id'
+    | '/contacts/$id'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -561,6 +571,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
     | '/campaigns'
+    | '/contacts'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
@@ -578,7 +589,6 @@ export interface FileRouteTypes {
     | '/_app/billing'
     | '/_app/bot'
     | '/_app/chat'
-    | '/_app/contacts'
     | '/_app/crm'
     | '/_app/dashboard'
     | '/_app/groups'
@@ -591,6 +601,7 @@ export interface FileRouteTypes {
     | '/_app/whatsapp-business-profile'
     | '/api/query'
     | '/_app/campaigns/$id'
+    | '/_app/contacts/$id'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -612,6 +623,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
     | '/_app/campaigns/'
+    | '/_app/contacts/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
@@ -778,13 +790,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCrmRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/contacts': {
-      id: '/_app/contacts'
-      path: '/contacts'
-      fullPath: '/contacts'
-      preLoaderRoute: typeof AppContactsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/chat': {
       id: '/_app/chat'
       path: '/chat'
@@ -818,6 +823,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-agent'
       fullPath: '/ai-agent'
       preLoaderRoute: typeof AppAiAgentRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/contacts/': {
+      id: '/_app/contacts/'
+      path: '/contacts'
+      fullPath: '/contacts/'
+      preLoaderRoute: typeof AppContactsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/campaigns/': {
@@ -967,6 +979,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSchemaDumpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/contacts/$id': {
+      id: '/_app/contacts/$id'
+      path: '/contacts/$id'
+      fullPath: '/contacts/$id'
+      preLoaderRoute: typeof AppContactsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/campaigns/$id': {
       id: '/_app/campaigns/$id'
       path: '/campaigns/$id'
@@ -1004,7 +1023,6 @@ interface AppRouteChildren {
   AppBillingRoute: typeof AppBillingRoute
   AppBotRoute: typeof AppBotRoute
   AppChatRoute: typeof AppChatRoute
-  AppContactsRoute: typeof AppContactsRoute
   AppCrmRoute: typeof AppCrmRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppGroupsRoute: typeof AppGroupsRoute
@@ -1016,7 +1034,9 @@ interface AppRouteChildren {
   AppWebhookEventsRoute: typeof AppWebhookEventsRoute
   AppWhatsappBusinessProfileRoute: typeof AppWhatsappBusinessProfileRoute
   AppCampaignsIdRoute: typeof AppCampaignsIdRoute
+  AppContactsIdRoute: typeof AppContactsIdRoute
   AppCampaignsIndexRoute: typeof AppCampaignsIndexRoute
+  AppContactsIndexRoute: typeof AppContactsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1025,7 +1045,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppBillingRoute: AppBillingRoute,
   AppBotRoute: AppBotRoute,
   AppChatRoute: AppChatRoute,
-  AppContactsRoute: AppContactsRoute,
   AppCrmRoute: AppCrmRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppGroupsRoute: AppGroupsRoute,
@@ -1037,7 +1056,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppWebhookEventsRoute: AppWebhookEventsRoute,
   AppWhatsappBusinessProfileRoute: AppWhatsappBusinessProfileRoute,
   AppCampaignsIdRoute: AppCampaignsIdRoute,
+  AppContactsIdRoute: AppContactsIdRoute,
   AppCampaignsIndexRoute: AppCampaignsIndexRoute,
+  AppContactsIndexRoute: AppContactsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

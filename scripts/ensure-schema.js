@@ -1231,6 +1231,14 @@ export async function ensureDatabaseSchema() {
     await ensureColumnExists(connection, "direct_messages", "external_group_id", "VARCHAR(100) NULL");
     await ensureColumnExists(connection, "direct_messages", "raw_payload", "JSON NULL");
 
+    // Adicionar updated_at à tabela lists (para rastrear edições)
+    await ensureColumnExists(
+      connection,
+      "lists",
+      "updated_at",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+    );
+
     await ensureTableExists(
       connection,
       "whatsapp_groups",

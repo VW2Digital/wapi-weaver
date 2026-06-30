@@ -296,7 +296,7 @@ function CampaignDetailPage() {
                   {data.messages.map((m: any) => (
                     <tr key={m.id} className="border-t hover:bg-muted/30">
                       <td className="p-3 text-xs">
-                        {m.contacts?.name || <span className="text-muted-foreground">—</span>}
+                        {m.contact_name || <span className="text-muted-foreground">—</span>}
                       </td>
                       <td className="p-3 font-mono text-xs">+{m.to_phone}</td>
                       <td className="p-3">{MSG_STATUS[m.status] ?? m.status}</td>

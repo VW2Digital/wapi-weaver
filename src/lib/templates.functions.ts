@@ -99,6 +99,27 @@ function extractTemplatePlaceholders(text: string) {
   return placeholders;
 }
 
+/**
+ * Normaliza o status retornado pela API da Meta para o ENUM do banco.
+ * A Meta pode retornar valores em minúsculo ('approved'), com sufixos extras
+ * ('IN_APPEAL', 'PENDING_DELETION', 'DELETED') ou outros valores inesperados.
+ */
+function normalizeTemplateStatus(rawStatus: string | undefined | null, fallback = "PENDING"): string {
+  if (!rawStatus) return fallback;
+  const upper = rawStatus.toUpperCase();
+  const STATUS_MAP: Record<string, string> = {
+    APPROVED: "APPROVED",
+    PENDING: "PENDING",
+    REJECTED: "REJECTED",
+    PAUSED: "PAUSED",
+    DISABLED: "DISABLED",
+    IN_APPEAL: "IN_APPEAL",
+    PENDING_DELETION: "PENDING_DELETION",
+    DELETED: "DELETED",
+  };
+  return STATUS_MAP[upper] ?? fallback;
+}
+
 function buildMetaComponents(input: CreateTemplateInput) {
   const components: any[] = [];
   if (input.header.format !== "NONE") {
@@ -203,7 +224,7 @@ export const createTemplate = createServerFn({ method: "POST" })
           `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
         );
       }
-      status = body.status ?? "PENDING";
+      status = normalizeTemplateStatus(body.status, "PENDING");
       meta_template_id = body.id ?? null;
     }
 
@@ -222,7 +243,7 @@ export const createTemplate = createServerFn({ method: "POST" })
           cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
           message_send_ttl_seconds: data.message_send_ttl_seconds,
           sub_category: data.sub_category,
-          display_format: data.display_format,
+          ...(data.display_format ? { display_format: data.display_format } : {}),
           is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
           meta_template_id: meta_template_id ?? `local_${data.name}_${data.language}`,
           synced_at: new Date().toISOString(),
@@ -310,7 +331,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
           `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
         );
       }
-      status = body.status ?? status;
+      status = normalizeTemplateStatus(body.status, status);
     }
 
     const { data: row, error } = await context.db
@@ -326,10 +347,10 @@ export const updateTemplate = createServerFn({ method: "POST" })
         cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
         message_send_ttl_seconds: data.message_send_ttl_seconds,
         sub_category: data.sub_category,
-        display_format: data.display_format,
-        is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
-        meta_template_id,
-        synced_at: new Date().toISOString(),
+          ...(data.display_format ? { display_format: data.display_format } : { display_format: tpl.display_format }),
+          is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
+          meta_template_id,
+          synced_at: new Date().toISOString(),
       })
       .eq("id", data.id)
       .select()
@@ -1003,7 +1024,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       );
     }
 
-    const status = body.status ?? "PENDING";
+    const status = normalizeTemplateStatus(body.status, "PENDING");
     const meta_template_id = body.id ?? null;
 
     // 4. Atualiza no banco com o ID e status da Meta

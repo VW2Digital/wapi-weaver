@@ -27,13 +27,22 @@ export const getBillingReport = createServerFn({ method: "POST" })
     const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
     const end = new Date(Date.UTC(y, m, 1)).toISOString();
 
-    const rows = (await db.query(
+    // Mensagens de campanha (com dados de cobrança detalhados)
+    const campaignRows = (await db.query(
       "SELECT status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at FROM campaign_messages WHERE user_id = ? AND created_at >= ? AND created_at < ?",
       [effectiveUserId, start, end],
     )) as any[];
 
+    // Mensagens de chat direto (também geram custos na API da Meta)
+    const directRows = (await db.query(
+      "SELECT status, created_at FROM direct_messages WHERE user_id = ? AND direction = 'outgoing' AND created_at >= ? AND created_at < ?",
+      [effectiveUserId, start, end],
+    )) as any[];
+
     const totals = {
-      total_messages: rows?.length ?? 0,
+      total_messages: (campaignRows?.length ?? 0) + (directRows?.length ?? 0),
+      campaign_messages: campaignRows?.length ?? 0,
+      direct_messages: directRows?.length ?? 0,
       sent: 0,
       delivered: 0,
       read: 0,
@@ -47,7 +56,7 @@ export const getBillingReport = createServerFn({ method: "POST" })
     const conversationsByCategory = new Map<string, Set<string>>();
     const allConversations = new Set<string>();
 
-    for (const r of rows ?? []) {
+    for (const r of campaignRows ?? []) {
       if (r.status === "sent") totals.sent++;
       else if (r.status === "delivered") totals.delivered++;
       else if (r.status === "read") totals.read++;
@@ -65,6 +74,14 @@ export const getBillingReport = createServerFn({ method: "POST" })
         if (!conversationsByCategory.has(cat)) conversationsByCategory.set(cat, new Set());
         conversationsByCategory.get(cat)!.add(r.conversation_id);
       }
+    }
+
+    // Contabilizar mensagens diretas nos totais de status
+    for (const r of directRows ?? []) {
+      if (r.status === "sent") totals.sent++;
+      else if (r.status === "delivered") totals.delivered++;
+      else if (r.status === "read") totals.read++;
+      else if (r.status === "failed") totals.failed++;
     }
 
     for (const [cat, set] of conversationsByCategory) {

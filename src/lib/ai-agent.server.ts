@@ -42,7 +42,8 @@ export async function processAiAgent(
     const { data: kbDocs } = await dbAdmin
       .from("knowledge_base")
       .select("title, content")
-      .eq("ai_agent_settings_id", settings.id);
+      .eq("ai_agent_settings_id", settings.id)
+      .eq("user_id", userId);
 
     // 3. Assemble Prompt
     let fullPrompt = settings.system_prompt || "Você é um assistente virtual útil.";

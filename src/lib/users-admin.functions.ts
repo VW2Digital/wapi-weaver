@@ -32,6 +32,21 @@ export const listUsers = createServerFn({ method: "GET" })
       arr.push(r.role);
       rolesMap.set(r.user_id, arr);
     });
+
+    // Buscar display_name e full_name dos perfis MySQL
+    const uids = usersData.users.map((u: any) => u.id);
+    let profilesMap = new Map<string, { display_name: string | null; full_name: string | null }>();
+    if (uids.length > 0) {
+      const placeholders = uids.map(() => "?").join(",");
+      const profiles = (await db.query(
+        `SELECT id, display_name, full_name FROM profiles WHERE id IN (${placeholders})`,
+        uids,
+      )) as any[];
+      for (const p of profiles ?? []) {
+        profilesMap.set(p.id, { display_name: p.display_name, full_name: p.full_name });
+      }
+    }
+
     return {
       users: usersData.users.map((u: any) => ({
         id: u.id,
@@ -40,6 +55,8 @@ export const listUsers = createServerFn({ method: "GET" })
         last_sign_in_at: u.last_sign_in_at ?? null,
         confirmed: !!u.email_confirmed_at,
         roles: rolesMap.get(u.id) ?? [],
+        display_name: profilesMap.get(u.id)?.display_name ?? null,
+        full_name: profilesMap.get(u.id)?.full_name ?? null,
       })),
     };
   });
@@ -122,6 +139,24 @@ export const deleteUser = createServerFn({ method: "POST" })
     if (data.user_id === context.userId) throw new Error("Você não pode excluir a si mesmo.");
     const { error } = await dbAdmin.auth.admin.deleteUser(data.user_id);
     if (error) throw error;
+    return { ok: true };
+  });
+
+const updateProfileSchema = z.object({
+  user_id: z.string().uuid(),
+  display_name: z.string().trim().max(100).nullable().optional(),
+  full_name: z.string().trim().max(150).nullable().optional(),
+});
+
+export const updateUserProfile = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) => updateProfileSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    await db.query(
+      "UPDATE profiles SET display_name = ?, full_name = ? WHERE id = ?",
+      [data.display_name ?? null, data.full_name ?? null, data.user_id],
+    );
     return { ok: true };
   });
 
