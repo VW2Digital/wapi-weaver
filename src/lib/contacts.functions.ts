@@ -338,9 +338,9 @@ export const getContactDetail = createServerFn({ method: "GET" })
     if (oppIds.length > 0) {
       const placeholders = oppIds.map(() => "?").join(",");
       notes = (await db.query(
-        `SELECT n.*, u.full_name AS creator_name
+        `SELECT n.*, COALESCE(p.display_name, p.full_name) AS creator_name
          FROM opportunity_notes n
-         LEFT JOIN users u ON u.id = n.user_id_creator
+         LEFT JOIN profiles p ON p.id = n.user_id_creator
          WHERE n.opportunity_id IN (${placeholders}) AND n.deleted_at IS NULL
          ORDER BY n.created_at DESC LIMIT 100`,
         oppIds,
@@ -428,9 +428,9 @@ export const addContactNote = createServerFn({ method: "POST" })
     );
 
     const note = (await db.query(
-      `SELECT n.*, u.full_name AS creator_name
+      `SELECT n.*, COALESCE(p.display_name, p.full_name) AS creator_name
        FROM opportunity_notes n
-       LEFT JOIN users u ON u.id = n.user_id_creator
+       LEFT JOIN profiles p ON p.id = n.user_id_creator
        WHERE n.id = ? LIMIT 1`,
       [noteId],
     )) as any[];

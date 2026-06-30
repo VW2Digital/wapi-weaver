@@ -448,13 +448,13 @@ function Dashboard() {
             <p className="mt-1 mb-2 text-xs text-muted-foreground">
               Status agregado de todas as campanhas
             </p>
-            <div className="h-64">
+            <div className="w-full" style={{ height: "256px" }}>
               {pieData.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   Sem dados ainda
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={256}>
                   <PieChart>
                     <Pie
                       data={pieData}
@@ -498,13 +498,13 @@ function Dashboard() {
             <p className="mt-1 mb-2 text-xs text-muted-foreground">
               Top {barData.length} campanhas mais recentes
             </p>
-            <div className="h-64">
+            <div className="w-full" style={{ height: "256px" }}>
               {barData.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   Sem campanhas ainda
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={256}>
                   <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                     <XAxis
