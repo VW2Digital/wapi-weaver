@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getSidebarOrder } from "@/lib/admin.functions";
+import { getSidebarOrder, getLicenseStatus } from "@/lib/admin.functions";
 import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -111,6 +111,16 @@ function AppLayout() {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   const fetchContacts = useServerFn(listChatContacts);
+  const fetchLicenseStatus = useServerFn(getLicenseStatus);
+
+  const licenseQuery = useQuery({
+    queryKey: ["license-status"],
+    queryFn: () => fetchLicenseStatus(),
+    enabled: !loading && !!user,
+    staleTime: 30000,
+  });
+
+  const isAccessAllowed = licenseQuery.data?.isAccessAllowed !== false;
   const contactsQuery = useQuery({
     queryKey: ["chat-contacts"],
     queryFn: () => fetchContacts(),
@@ -236,7 +246,7 @@ function AppLayout() {
     }
   }, [mfaOk, router]);
 
-  if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
+  if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading) || (user && licenseQuery.isLoading)) {
     return (
       <div
         className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background text-muted-foreground"
@@ -496,7 +506,31 @@ function AppLayout() {
         </header>
 
         <main className="flex-1 overflow-hidden flex flex-col">
-          <Outlet />
+          {!isAccessAllowed && loc.pathname !== "/settings" ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
+              <div className="h-16 w-16 bg-destructive/10 text-destructive flex items-center justify-center rounded-full mb-6">
+                <ShieldAlert className="h-8 w-8 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-2">
+                Acesso Bloqueado — Sem Licença Ativa
+              </h2>
+              <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                Sua instalação está sem uma licença ativa válida. O envio de mensagens e o uso da plataforma foram suspensos. Por favor, insira uma licença válida nas configurações ou entre em contato com o suporte para regularizar.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <Button asChild variant="default" className="w-full sm:w-auto cursor-pointer">
+                  <Link to="/settings">Ir para Configurações</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebd56] text-white border-none shadow-sm hover:text-white cursor-pointer">
+                  <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20a%20minha%20licen%C3%A7a%20do%20sistema." target="_blank" rel="noopener noreferrer">
+                    Falar com o Suporte
+                  </a>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
     </SidebarProvider>

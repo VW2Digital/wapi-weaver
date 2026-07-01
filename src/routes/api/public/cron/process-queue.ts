@@ -70,6 +70,13 @@ function assertTemplatePayload(payload: any) {
 }
 
 export async function processOnce() {
+  const { checkLicense } = await import("@/lib/license-verifier");
+  const isLicenseValid = await checkLicense(undefined, false);
+  if (!isLicenseValid) {
+    console.warn("[Queue] Queue processing suspended due to invalid or missing license.");
+    return { processed: 0 };
+  }
+
   // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
   const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
   await dbAdmin

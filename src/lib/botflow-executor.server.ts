@@ -19,6 +19,13 @@ export async function processBotFlow(
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return;
 
+  const { checkLicense } = await import("@/lib/license-verifier");
+  const isLicenseValid = await checkLicense(undefined, false);
+  if (!isLicenseValid) {
+    logError("Processamento de fluxo de bot abortado por licença inválida ou ausente.");
+    return;
+  }
+
   try {
     // 1. Localizar todos os fluxos (bot_settings) ativos para o canal
     let { data: flows } = await dbAdmin
