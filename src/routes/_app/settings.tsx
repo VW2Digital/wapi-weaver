@@ -319,6 +319,7 @@ function SettingsPage() {
     "zapdispatch_settings_legal_collapsed",
     true,
   );
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) setForm(profile);
@@ -433,129 +434,257 @@ function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <PageHeader
-        title="Configurações"
-        subtitle="Conecte sua conta do WhatsApp Business em poucos passos. Não se preocupe se nunca fez isso antes — explicamos cada campo."
-      />
+      {activeSection === null ? (
+        <>
+          <PageHeader
+            title="Configurações"
+            subtitle="Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma."
+          />
 
-      <Tabs defaultValue="meta" orientation="vertical" className="flex-1 flex flex-row w-full h-full overflow-hidden">
-        {/* Left Sidebar Navigation Menu structured by sections */}
-        <div className="w-[280px] shrink-0 border-r bg-muted/5 flex flex-col overflow-y-auto">
-          <TabsList className="flex flex-col bg-transparent p-6 gap-8 border-none shadow-none items-stretch h-full justify-start w-full">
-            {/* Section: CONEXÕES & APIS */}
-            <div className="space-y-3 w-full">
-              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/70 uppercase">
-                Conexões & APIs
+          <div className="flex-1 overflow-y-auto p-6 w-full space-y-8">
+            {/* AJUDA & DOCUMENTAÇÃO */}
+            <div className="space-y-3">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5" /> Ajuda & Documentação
               </h4>
-              <div className="flex flex-col gap-2.5 w-full">
-                <TabsTrigger
-                  value="meta"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+              <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+                <a
+                  href="/docs"
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer animate-in fade-in"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <KeyRound className="h-4 w-4" /> Conexão Meta
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
-                <TabsTrigger
-                  value="waba"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Phone className="h-4 w-4" /> WhatsApp (WABA)
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
-                <TabsTrigger
-                  value="instagram"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <MessageSquare className="h-4 w-4" /> Instagram
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
-                <TabsTrigger
-                  value="facebook"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Facebook className="h-4 w-4" /> Facebook
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Guias de Configuração</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Tutoriais passo a passo para conectar canais, webhooks e APIs.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </a>
               </div>
             </div>
 
-            {/* Section: INTEGRAÇÕES & EXTRA */}
-            <div className="space-y-3 w-full">
-              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/70 uppercase">
-                Integrações & Extra
+            {/* CONEXÕES & APIS */}
+            <div className="space-y-3">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
+                <KeyRound className="h-3.5 w-3.5" /> Conexões & APIs
               </h4>
-              <div className="flex flex-col gap-2.5 w-full">
-                <TabsTrigger
-                  value="crm"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+              <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+                {/* Conexão Meta */}
+                <button
+                  onClick={() => setActiveSection("meta")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <Database className="h-4 w-4" /> Integrações CRM
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
-                <TabsTrigger
-                  value="qrcodes"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <KeyRound className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-semibold text-sm text-foreground">Conexão Meta</h5>
+                        <Badge variant="secondary" className={cn("text-[10px] border-none font-semibold", form.whatsapp_access_token ? "bg-success/15 text-success hover:bg-success/20" : "bg-muted text-muted-foreground")}>
+                          {form.whatsapp_access_token ? "Configurado" : "Pendente"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">Configurações de aplicativo, credenciais e webhook da Meta.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* WhatsApp WABA */}
+                <button
+                  onClick={() => setActiveSection("waba")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <QrCode className="h-4 w-4" /> QR Codes
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Phone className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-semibold text-sm text-foreground">WhatsApp (WABA)</h5>
+                        <Badge variant="secondary" className={cn("text-[10px] border-none font-semibold", form.whatsapp_phone_number_id ? "bg-success/15 text-success hover:bg-success/20" : "bg-muted text-muted-foreground")}>
+                          {form.whatsapp_phone_number_id ? "Configurado" : "Pendente"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">Gerenciamento de instâncias, templates e permissões de chamadas.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* Instagram */}
+                <button
+                  onClick={() => setActiveSection("instagram")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <MessageSquare className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Instagram</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Integração de mensagens diretas e automação para Instagram.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* Facebook */}
+                <button
+                  onClick={() => setActiveSection("facebook")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Facebook className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Facebook</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Conexão de páginas para atendimento via Facebook Messenger.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
             </div>
 
-            {/* Section: CONFIGURAÇÕES GERAIS */}
-            <div className="space-y-3 w-full">
-              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/70 uppercase">
-                Configurações Gerais
+            {/* INTEGRAÇÕES & EXTRA */}
+            <div className="space-y-3">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
+                <Database className="h-3.5 w-3.5" /> Integrações & Extra
               </h4>
-              <div className="flex flex-col gap-2.5 w-full">
-                <TabsTrigger
-                  value="advanced"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+              <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+                {/* CRM */}
+                <button
+                  onClick={() => setActiveSection("crm")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <Settings className="h-4 w-4" /> Ferramentas Avançadas
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
-                <TabsTrigger
-                  value="general"
-                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Database className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Integrações CRM</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Conexão com plataformas externas e Webhook de Entrada.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* QR Codes */}
+                <button
+                  onClick={() => setActiveSection("qrcodes")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <Monitor className="h-4 w-4" /> Geral & Legal
-                  </span>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </TabsTrigger>
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <QrCode className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">QR Codes</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Gerador de links e QR Codes de conversa rápida.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              </div>
+            </div>
+
+            {/* CONFIGURAÇÕES GERAIS */}
+            <div className="space-y-3">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
+                <Settings className="h-3.5 w-3.5" /> Configurações Gerais
+              </h4>
+              <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+                {/* Ferramentas Avançadas */}
+                <button
+                  onClick={() => setActiveSection("advanced")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Settings className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Ferramentas Avançadas</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Sandbox avançada, logs e comandos do sistema.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* Geral & Legal */}
+                <button
+                  onClick={() => setActiveSection("general")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Monitor className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Geral & Legal</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">Termos de uso, políticas de privacidade e tags globais.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* Administração */}
                 {isAdmin && (
-                  <TabsTrigger
-                    value="admin"
-                    className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                  <button
+                    onClick={() => setActiveSection("admin")}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                   >
-                    <span className="flex items-center gap-2.5">
-                      <ShieldCheck className="h-4 w-4" /> Administração
-                    </span>
-                    <ChevronRight className="h-4 w-4 opacity-50" />
-                  </TabsTrigger>
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                        <ShieldCheck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-sm text-foreground">Administração</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">Configurações globais do servidor, auditoria e backups.</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 )}
               </div>
             </div>
-          </TabsList>
-        </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header to go back */}
+          <div className="flex items-center justify-between px-6 py-4 border-b bg-card shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveSection(null)}
+              className="gap-2 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Voltar para Configurações</span>
+            </Button>
+            <h3 className="font-display text-sm font-semibold tracking-tight uppercase text-muted-foreground/80">
+              {activeSection === "meta" && "Conexão Meta"}
+              {activeSection === "waba" && "WhatsApp (WABA)"}
+              {activeSection === "instagram" && "Instagram"}
+              {activeSection === "facebook" && "Facebook"}
+              {activeSection === "crm" && "Integrações CRM"}
+              {activeSection === "qrcodes" && "QR Codes"}
+              {activeSection === "advanced" && "Ferramentas Avançadas"}
+              {activeSection === "general" && "Geral & Legal"}
+              {activeSection === "admin" && "Administração"}
+            </h3>
+          </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <TabsContent value="meta" className="space-y-6 outline-none">
+          <div className="flex-1 overflow-y-auto p-6 w-full">
+            <Tabs value={activeSection} className="w-full border-none shadow-none bg-transparent">
+              <TabsContent value="meta" className="space-y-6 outline-none m-0 border-none p-0">
             <SetupWizard
               credentialsComplete={
                 !!(
@@ -1568,9 +1697,11 @@ function SettingsPage() {
               </div>
             </Card>
           </TabsContent>
-        </div>
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
+  )}
+</div>
   );
 }
 
