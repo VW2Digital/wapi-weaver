@@ -13,6 +13,22 @@ function getLicenseServerUrl(): string {
   return process.env.LICENSE_SERVER_URL || "http://localhost:3001/api/licenses";
 }
 
+async function fetchWithTimeout(url: string, options: any = {}, timeout = 4000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 function getFallbackLicenseKey(): string {
   return process.env.LICENSE_KEY || "VW2-PRO-XXXX-XXXX-XXXX";
 }
@@ -66,7 +82,7 @@ export async function activateLicense(key?: string, reqHost?: string): Promise<{
 
     console.log(`[License Verifier] Attempting activation for key prefix: ${activeKey.slice(0, 11)}... at ${serverUrl}/activate`);
 
-    const response = await fetch(`${serverUrl}/activate`, {
+    const response = await fetchWithTimeout(`${serverUrl}/activate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -75,7 +91,7 @@ export async function activateLicense(key?: string, reqHost?: string): Promise<{
         fingerprint_hash: fingerprint,
         installation_id: installationId,
       }),
-    });
+    }, 5000);
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
@@ -167,7 +183,7 @@ export async function checkLicense(reqHost?: string, ignoreGrace = false): Promi
     if (!isKeyAbsent) {
       console.log(`[License Verifier] Calling license server ${serverUrl}/check...`);
       try {
-        const response = await fetch(`${serverUrl}/check`, {
+        const response = await fetchWithTimeout(`${serverUrl}/check`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -176,7 +192,7 @@ export async function checkLicense(reqHost?: string, ignoreGrace = false): Promi
             fingerprint_hash: fingerprint,
             installation_id: installationId,
           }),
-        });
+        }, 4000);
 
         if (response.ok) {
           const data = await response.json();

@@ -246,7 +246,7 @@ function AppLayout() {
     }
   }, [mfaOk, router]);
 
-  if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading) || (user && licenseQuery.isLoading)) {
+  if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
     return (
       <div
         className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background text-muted-foreground"
