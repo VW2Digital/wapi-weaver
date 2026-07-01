@@ -356,7 +356,36 @@ export async function ensureDatabaseSchema() {
     `,
     );
 
-    await ensureColumnExists(connection, "templates", "parameter_format", "VARCHAR(20) NULL");
+    // Garante colunas de licença na platform_settings (compatibilidade com versões antigas)
+    await ensureColumnExists(connection, "platform_settings", "license_key", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "platform_settings", "license_token", "TEXT NULL");
+    await ensureColumnExists(connection, "platform_settings", "installation_id", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "platform_settings", "license_grace_period_start", "DATETIME NULL");
+
+    // Tabela dedicada para o sistema de licença SaaS
+    await ensureTableExists(
+      connection,
+      "license_settings",
+      `
+      CREATE TABLE IF NOT EXISTS license_settings (
+        id INT NOT NULL PRIMARY KEY DEFAULT 1,
+        license_key_encrypted TEXT NULL,
+        license_status VARCHAR(50) NULL,
+        plan VARCHAR(100) NULL,
+        features_json JSON NULL,
+        domain VARCHAR(255) NULL,
+        installation_id VARCHAR(255) NULL,
+        activated_at DATETIME NULL,
+        last_validated_at DATETIME NULL,
+        expires_at DATETIME NULL,
+        cache_valid_until DATETIME NULL,
+        grace_until DATETIME NULL,
+        last_error TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
     await ensureColumnExists(
       connection,
       "templates",
@@ -1016,34 +1045,31 @@ export async function ensureDatabaseSchema() {
       logSchema("Índice idx_facebook_pages_user adicionado.");
     } catch (e) {}
 
-    // Atualização de ENUM da coluna channel nas tabelas existentes para suportar 'messenger'
-    try {
-      await connection.query(
-        `ALTER TABLE contacts MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
-      );
-      logSchema("ENUM da coluna contacts.channel atualizado para incluir 'messenger'.");
-    } catch (e) {}
+    // Migração segura: converte coluna channel de ENUM para VARCHAR(50) em todas as tabelas.
+    // Isso evita "Data truncated" ao adicionar novos canais (ex: whatsapp_group, facebook, web, etc).
+    // Antes de alterar, normaliza valores NULL/vazios para 'unknown'.
+    const channelTablesToMigrate = ['contacts', 'direct_messages', 'bot_conversation_state'];
+    for (const tbl of channelTablesToMigrate) {
+      try {
+        const exists = await tableExists(connection, tbl);
+        if (!exists) continue;
+        const colExists = await columnExists(connection, tbl, 'channel');
+        if (!colExists) continue;
 
-    try {
-      await connection.query(
-        `ALTER TABLE direct_messages MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
-      );
-      logSchema("ENUM da coluna direct_messages.channel atualizado para incluir 'messenger'.");
-    } catch (e) {}
+        // 1. Loga os valores atuais para diagnóstico
+        const [distinctChannels] = await connection.query(`SELECT DISTINCT channel FROM \`${tbl}\``);
+        logSchema(`[${tbl}] Valores de channel encontrados: ${distinctChannels.map(r => r.channel).join(', ') || 'nenhum'}`);
 
-    try {
-      await connection.query(
-        `ALTER TABLE bot_conversation_state MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
-      );
-      logSchema("ENUM da coluna bot_conversation_state.channel atualizado para incluir 'messenger'.");
-    } catch (e) {}
+        // 2. Normaliza NULL e vazios
+        await connection.query(`UPDATE \`${tbl}\` SET channel = 'unknown' WHERE channel IS NULL OR TRIM(channel) = ''`);
 
-    try {
-      await connection.query(
-        `ALTER TABLE bot_settings MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'`,
-      );
-      logSchema("ENUM da coluna bot_settings.channel atualizado para incluir 'messenger'.");
-    } catch (e) {}
+        // 3. Converte para VARCHAR(50) — seguro para qualquer valor existente
+        await connection.query(`ALTER TABLE \`${tbl}\` MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'`);
+        logSchema(`Coluna channel de \`${tbl}\` convertida para VARCHAR(50) com segurança.`);
+      } catch (e) {
+        logSchema(`Aviso: não foi possível migrar channel em \`${tbl}\`: ${e.message}`);
+      }
+    }
 
     // Criar índices recomendados de otimização para o canal Messenger
     try {
@@ -1067,12 +1093,12 @@ export async function ensureDatabaseSchema() {
       logSchema("Índice idx_contacts_user_channel adicionado a contacts.");
     } catch (e) {}
 
-    // Columns to contacts
+    // Columns to contacts — usa VARCHAR(50) para ser à prova do futuro
     await ensureColumnExists(
       connection,
       "contacts",
       "channel",
-      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
+      "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -1087,12 +1113,12 @@ export async function ensureDatabaseSchema() {
       logSchema("Única restrição uq_contact_channel_external adicionada a contacts.");
     } catch (e) {}
 
-    // Columns to direct_messages
+    // Columns to direct_messages — usa VARCHAR(50) para ser à prova do futuro
     await ensureColumnExists(
       connection,
       "direct_messages",
       "channel",
-      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
+      "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -1113,12 +1139,12 @@ export async function ensureDatabaseSchema() {
       logSchema("Única restrição uq_dm_channel_msg adicionada a direct_messages.");
     } catch (e) {}
 
-    // Columns to bot_conversation_state
+    // Columns to bot_conversation_state — usa VARCHAR(50) para ser à prova do futuro
     await ensureColumnExists(
       connection,
       "bot_conversation_state",
       "channel",
-      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
+      "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -1127,19 +1153,24 @@ export async function ensureDatabaseSchema() {
       "VARCHAR(255) NULL",
     );
     // Adiciona channel à unique key para isolar WhatsApp de Instagram
+    // Idempotente: verifica se o índice novo já existe antes de recriar.
     try {
-      await connection.query(
-        `ALTER TABLE bot_conversation_state DROP INDEX uq_bot_conv_state`,
-      );
-      logSchema("Índice uq_bot_conv_state antigo removido de bot_conversation_state.");
-    } catch (e) {}
-    try {
-      await connection.query(
-        `ALTER TABLE bot_conversation_state ADD UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id, channel)`,
-      );
-      logSchema("Nova unique key uq_bot_conv_state (com channel) adicionada.");
+      const newKeyExists = await indexExists(connection, 'bot_conversation_state', 'uq_bot_conv_state');
+      if (!newKeyExists) {
+        // Tenta remover a versão antiga sem channel (pode não existir)
+        try {
+          await connection.query(`ALTER TABLE bot_conversation_state DROP INDEX uq_bot_conv_state`);
+          logSchema("Índice uq_bot_conv_state antigo removido de bot_conversation_state.");
+        } catch (e) {}
+        await connection.query(
+          `ALTER TABLE bot_conversation_state ADD UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id, channel)`,
+        );
+        logSchema("Nova unique key uq_bot_conv_state (com channel) adicionada.");
+      } else {
+        logSchema("Índice uq_bot_conv_state já existe com a definição correta. Ignorando.");
+      }
     } catch (e) {
-      logSchema("Aviso: não foi possível recriar uq_bot_conv_state (pode já existir).");
+      logSchema(`Aviso: não foi possível atualizar uq_bot_conv_state: ${e.message}`);
     }
 
     await ensureColumnExists(
@@ -1149,25 +1180,8 @@ export async function ensureDatabaseSchema() {
       "VARCHAR(20) NULL",
     );
 
-    // Alter ENUM channel values for messenger support
-    try {
-      await connection.query("ALTER TABLE contacts MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'");
-      logSchema("Atualizado ENUM da coluna channel na tabela contacts para incluir 'messenger'.");
-    } catch (e) {
-      logSchema(`Aviso: não foi possível alterar ENUM channel na tabela contacts: ${e.message}`);
-    }
-    try {
-      await connection.query("ALTER TABLE direct_messages MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'");
-      logSchema("Atualizado ENUM da coluna channel na tabela direct_messages para incluir 'messenger'.");
-    } catch (e) {
-      logSchema(`Aviso: não foi possível alterar ENUM channel na tabela direct_messages: ${e.message}`);
-    }
-    try {
-      await connection.query("ALTER TABLE bot_conversation_state MODIFY COLUMN channel ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'");
-      logSchema("Atualizado ENUM da coluna channel na tabela bot_conversation_state para incluir 'messenger'.");
-    } catch (e) {
-      logSchema(`Aviso: não foi possível alterar ENUM channel na tabela bot_conversation_state: ${e.message}`);
-    }
+    // Bloco de ENUM removido: a conversão para VARCHAR(50) já foi feita acima (idempotente).
+    // Não há necessidade de alterar ENUM novamente aqui.
 
     // Columns to bot_settings (Flows)
     await ensureColumnExists(
@@ -1180,7 +1194,7 @@ export async function ensureDatabaseSchema() {
       connection,
       "bot_settings",
       "channel",
-      "ENUM('whatsapp', 'instagram', 'messenger') NOT NULL DEFAULT 'whatsapp'",
+      "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
     await ensureColumnExists(
       connection,
@@ -1224,11 +1238,20 @@ export async function ensureDatabaseSchema() {
 
     // --- MIGRATIONS PARA WHATSAPP GRUPOS ---
     logSchema("Iniciando migrações do WhatsApp Grupos...");
-    try {
-      await connection.query("ALTER TABLE contacts MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'");
-      await connection.query("ALTER TABLE direct_messages MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'");
-    } catch (e) {
-      logSchema("Erro ao converter colunas channel para VARCHAR: " + e.message);
+    // Nota: a conversão para VARCHAR(50) já foi realizada no bloco anterior de forma idempotente.
+    // Não é necessário repetir aqui, mas garantimos o caso de tabelas criadas sem channel algum.
+    for (const tbl of ['contacts', 'direct_messages']) {
+      try {
+        const exists = await tableExists(connection, tbl);
+        if (!exists) continue;
+        const col = await columnExists(connection, tbl, 'channel');
+        if (!col) continue;
+        // Se ainda for ENUM por algum motivo, converte. Se já for VARCHAR, o ALTER é no-op no MySQL 8.
+        await connection.query(`UPDATE \`${tbl}\` SET channel = 'unknown' WHERE channel IS NULL OR TRIM(channel) = ''`);
+        await connection.query(`ALTER TABLE \`${tbl}\` MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'`);
+      } catch (e) {
+        logSchema(`Aviso (grupos): não foi possível garantir VARCHAR em \`${tbl}\`.channel: ${e.message}`);
+      }
     }
     
     await ensureColumnExists(connection, "direct_messages", "sender_wa_id", "VARCHAR(50) NULL");
