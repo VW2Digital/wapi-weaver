@@ -44,6 +44,12 @@ import {
   Bell,
   Info,
   Check,
+  MessageCircle,
+  Clock,
+  CheckCheck,
+  UserPlus,
+  Activity,
+  Timer,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import {
@@ -209,6 +215,24 @@ function Dashboard() {
     },
   ];
 
+  const chatMetrics = s.data?.chatMetrics || {
+    emConversa: 0,
+    aguardando: 0,
+    finalizados: 0,
+    novosContatos: 0,
+    tmConversa: "00h 00m",
+    tmEspera: "00h 00m",
+  };
+
+  const chatStats = [
+    { label: "Em Conversa", value: chatMetrics.emConversa, icon: MessageCircle },
+    { label: "Aguardando", value: chatMetrics.aguardando, icon: Clock },
+    { label: "Finalizados", value: chatMetrics.finalizados, icon: CheckCheck },
+    { label: "Novos Contatos", value: chatMetrics.novosContatos, icon: UserPlus },
+    { label: "T.M. de Conversa", value: chatMetrics.tmConversa, icon: Activity },
+    { label: "T.M. de Espera", value: chatMetrics.tmEspera, icon: Timer },
+  ];
+
   const pieData = [
     { key: "delivered", name: "Entregue", value: totals.delivered },
     { key: "read", name: "Lida", value: totals.read },
@@ -308,6 +332,25 @@ function Dashboard() {
             </Alert>
           </div>
         )}
+
+        <section aria-labelledby="chat-metrics" className="p-4 sm:p-6 pb-0">
+          <h2 id="chat-metrics" className="sr-only">Métricas de Atendimento</h2>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {chatStats.map((s, i) => (
+              <Card key={i} className="flex flex-col gap-2 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <s.icon className="h-4 w-4" aria-hidden />
+                  <p className="truncate text-[10px] font-semibold uppercase tracking-wider">
+                    {s.label}
+                  </p>
+                </div>
+                <p className="font-display text-2xl font-bold leading-tight text-foreground">
+                  {s.value}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </section>
 
         <section aria-labelledby="bento-heading" className="p-4 sm:p-6">
           <h2 id="bento-heading" className="sr-only">

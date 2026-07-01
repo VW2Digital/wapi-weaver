@@ -54,6 +54,16 @@ export const updateChatStatus = createServerFn({ method: "POST" })
         data.contactId,
         effectiveUserId,
       ]);
+
+      const { startChatSession, answerChatSession, closeChatSession } = await import("./chat-sessions.functions");
+      if (data.status === "aguardando") {
+        await startChatSession(effectiveUserId, data.contactId, "aguardando");
+      } else if (data.status === "aberto") {
+        await answerChatSession(effectiveUserId, data.contactId);
+      } else if (data.status === "fechado") {
+        await closeChatSession(effectiveUserId, data.contactId);
+      }
+
       return { ok: true };
     } catch (e: any) {
       console.error("Erro ao atualizar status do chat:", e);
