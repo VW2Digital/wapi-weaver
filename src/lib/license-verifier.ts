@@ -23,9 +23,16 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout = 4000) 
     });
     clearTimeout(id);
     return response;
-  } catch (err) {
+  } catch (err: any) {
     clearTimeout(id);
-    throw err;
+    console.error(`[License Verifier] Network error when calling ${url}:`, err.message || err);
+    if (err.name === 'AbortError') {
+      throw new Error(`Tempo esgotado (timeout de ${timeout}ms) ao conectar em: ${url}`);
+    }
+    if (err.message && err.message.includes('fetch failed')) {
+      throw new Error(`Falha ao conectar no servidor central. Verifique o IP no .env e o Firewall para a URL: ${url}`);
+    }
+    throw new Error(`Erro de rede ao acessar servidor de licenças. Detalhe: ${err.message || 'Desconhecido'}`);
   }
 }
 
