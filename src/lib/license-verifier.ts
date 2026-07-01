@@ -1,54 +1,53 @@
 import crypto from "crypto";
 import os from "os";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-import jwt from "jsonwebtoken";
+import { licenseClient } from "./license-client";
 
 // Local cache for license status to avoid querying DB/API on every request
-let cachedLicenseStatus: {
+let memoryCachedLicenseStatus: {
   valid: boolean;
-  expiresAt: number; // local cache expiration timestamp
+  expiresAt: number;
 } | null = null;
 
-function getLicenseServerUrl(): string {
-  return process.env.LICENSE_SERVER_URL || "http://localhost:3001/api/licenses";
+const ENCRYPTION_ALGORITHM = "aes-256-cbc";
+// Derive a 32-byte key from JWT_SECRET or fallback
+function getEncryptionKey() {
+  const secret = process.env.JWT_SECRET || "fallback-secret-for-encryption";
+  return crypto.createHash("sha256").update(String(secret)).digest();
 }
 
-async function fetchWithTimeout(url: string, options: any = {}, timeout = 4000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+function encryptKey(text: string): string {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, getEncryptionKey(), iv);
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  return iv.toString("hex") + ":" + encrypted;
+}
+
+function decryptKey(text: string): string | null {
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    return response;
-  } catch (err: any) {
-    clearTimeout(id);
-    console.error(`[License Verifier] Network error when calling ${url}:`, err.message || err);
-    if (err.name === 'AbortError') {
-      throw new Error(`Tempo esgotado (timeout de ${timeout}ms) ao conectar em: ${url}`);
-    }
-    if (err.message && err.message.includes('fetch failed')) {
-      throw new Error(`Falha ao conectar no servidor central. Verifique o IP no .env e o Firewall para a URL: ${url}`);
-    }
-    throw new Error(`Erro de rede ao acessar servidor de licenças. Detalhe: ${err.message || 'Desconhecido'}`);
+    const textParts = text.split(":");
+    const iv = Buffer.from(textParts.shift()!, "hex");
+    const encryptedText = Buffer.from(textParts.join(":"), "hex");
+    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, getEncryptionKey(), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (err) {
+    console.error("[License Verifier] Failed to decrypt license key");
+    return null;
   }
 }
 
-function getFallbackLicenseKey(): string {
-  return process.env.LICENSE_KEY || "VW2-PRO-XXXX-XXXX-XXXX";
-}
-
-async function getPlatformSettings() {
+async function getLicenseSettings() {
   const { data, error } = await dbAdmin
-    .from("platform_settings")
-    .select("license_key, license_token, installation_id, license_grace_period_start")
+    .from("license_settings")
+    .select("*")
     .eq("id", 1)
     .maybeSingle();
 
   if (error) {
-    console.error("[License Verifier] Error fetching platform settings:", error);
+    console.error("[License Verifier] Error fetching license settings:", error);
     return null;
   }
   return data;
@@ -56,81 +55,58 @@ async function getPlatformSettings() {
 
 async function ensureInstallationId(currentId?: string): Promise<string> {
   if (currentId) return currentId;
-
   const newId = crypto.randomUUID();
-  console.log("[License Verifier] Generating new installation ID:", newId);
-  const { error } = await dbAdmin
-    .from("platform_settings")
-    .upsert({ id: 1, installation_id: newId });
-
-  if (error) {
-    console.error("[License Verifier] Error saving installation ID:", error);
-  }
+  await dbAdmin.from("license_settings").upsert({ id: 1, installation_id: newId });
   return newId;
 }
 
-export function getFingerprint(installationId: string): string {
-  return crypto
-    .createHash("sha256")
-    .update(`${os.hostname()}_${os.platform()}_${installationId}`)
-    .digest("hex");
-}
-
-export async function activateLicense(key?: string, reqHost?: string): Promise<{ success: boolean; error?: string }> {
+export async function activateLicense(key: string, reqHost?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const settings = await getPlatformSettings();
-    const activeKey = key || settings?.license_key || getFallbackLicenseKey();
-    const installationId = await ensureInstallationId(settings?.installation_id);
-    const fingerprint = getFingerprint(installationId);
+    let settings = await getLicenseSettings();
+    if (!settings) {
+      await dbAdmin.from("license_settings").insert({ id: 1 });
+      settings = await getLicenseSettings();
+    }
     
-    // Automatically get domain from request host or fallback to hostname/localhost
+    const installationId = await ensureInstallationId(settings?.installation_id);
     const domain = reqHost || process.env.APP_URL || "localhost";
-    const serverUrl = getLicenseServerUrl();
+    const appUrl = process.env.APP_URL || `https://${domain}`;
 
-    console.log(`[License Verifier] Attempting activation for key prefix: ${activeKey.slice(0, 11)}... at ${serverUrl}/activate`);
+    console.log(`[License Verifier] Attempting activation for key...`);
 
-    const response = await fetchWithTimeout(`${serverUrl}/activate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        license_key: activeKey,
-        domain,
-        fingerprint_hash: fingerprint,
+    const response = await licenseClient.activate(key, domain, installationId, appUrl);
+
+    if (response.valid) {
+      const cacheHours = parseInt(process.env.LICENSE_CACHE_HOURS || "24", 10);
+      const cacheValidUntil = new Date(Date.now() + cacheHours * 60 * 60 * 1000);
+
+      await dbAdmin.from("license_settings").upsert({
+        id: 1,
+        license_key_encrypted: encryptKey(key),
+        license_status: "active",
+        plan: response.plan || "default",
+        features_json: response.features || {},
+        domain: domain,
         installation_id: installationId,
-      }),
-    }, 5000);
+        activated_at: new Date(),
+        last_validated_at: new Date(),
+        expires_at: response.expires_at ? new Date(response.expires_at) : null,
+        cache_valid_until: cacheValidUntil,
+        grace_until: null,
+        last_error: null,
+      });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const errorMsg = errData.error || `HTTP error ${response.status}`;
-      console.error("[License Verifier] Activation failed:", errorMsg);
-      
-      // Clear token on failure
-      await dbAdmin.from("platform_settings").upsert({ id: 1, license_token: null });
-      cachedLicenseStatus = { valid: false, expiresAt: Date.now() + 60000 }; // Cache failure for 1 minute
-      return { success: false, error: errorMsg };
-    }
-
-    const data = await response.json();
-    if (data.token) {
-      // Save token and key in the database, reset grace period since activation was successful
-      const updateData: Record<string, any> = { 
-        id: 1, 
-        license_token: data.token,
-        license_grace_period_start: null 
-      };
-      if (key) {
-        updateData.license_key = key;
-      }
-      await dbAdmin.from("platform_settings").upsert(updateData);
-      
-      // Update cache
-      cachedLicenseStatus = { valid: true, expiresAt: Date.now() + 15 * 60 * 1000 }; // Cache for 15 minutes
-      console.log("[License Verifier] Activation successful!");
+      memoryCachedLicenseStatus = { valid: true, expiresAt: Date.now() + 15 * 60 * 1000 };
       return { success: true };
+    } else {
+      await dbAdmin.from("license_settings").upsert({
+        id: 1,
+        license_status: "invalid",
+        last_error: response.message || response.error,
+      });
+      memoryCachedLicenseStatus = { valid: false, expiresAt: Date.now() + 60000 };
+      return { success: false, error: response.message || response.error };
     }
-
-    return { success: false, error: "Token não retornado pelo servidor" };
   } catch (err: any) {
     console.error("[License Verifier] Activation exception:", err.message || err);
     return { success: false, error: err.message || "Erro de conexão" };
@@ -138,124 +114,119 @@ export async function activateLicense(key?: string, reqHost?: string): Promise<{
 }
 
 export async function checkLicense(reqHost?: string, ignoreGrace = false): Promise<boolean> {
-  // 1. Check local cache first (only if we are not ignoring grace)
-  if (!ignoreGrace && cachedLicenseStatus && cachedLicenseStatus.expiresAt > Date.now()) {
-    return cachedLicenseStatus.valid;
+  if (!ignoreGrace && memoryCachedLicenseStatus && memoryCachedLicenseStatus.expiresAt > Date.now()) {
+    return memoryCachedLicenseStatus.valid;
   }
 
   try {
-    const settings = await getPlatformSettings();
-    const activeKey = settings?.license_key || getFallbackLicenseKey();
-    const installationId = await ensureInstallationId(settings?.installation_id);
-    const fingerprint = getFingerprint(installationId);
+    let settings = await getLicenseSettings();
+    if (!settings) {
+      return false;
+    }
+
+    const {
+      license_key_encrypted,
+      license_status,
+      cache_valid_until,
+      grace_until,
+      installation_id
+    } = settings;
+
+    const key = license_key_encrypted ? decryptKey(license_key_encrypted) : null;
+    if (!key) {
+      return false; // No key = no access
+    }
+
+    const now = new Date();
+
+    // If local cache is still valid
+    if (cache_valid_until && new Date(cache_valid_until) > now) {
+      if (license_status === "active") {
+        memoryCachedLicenseStatus = { valid: true, expiresAt: Date.now() + 15 * 60 * 1000 };
+        return true;
+      }
+      return false;
+    }
+
+    // Cache expired, need to validate
     const domain = reqHost || process.env.APP_URL || "localhost";
-    const serverUrl = getLicenseServerUrl();
+    const appUrl = process.env.APP_URL || `https://${domain}`;
+    const instId = await ensureInstallationId(installation_id);
 
-    // Check if key is completely absent
-    const isKeyAbsent = !settings?.license_key || settings.license_key === "VW2-PRO-XXXX-XXXX-XXXX";
+    console.log(`[License Verifier] Validating license via API...`);
+    const response = await licenseClient.validate(key, domain, instId, appUrl);
 
-    // 2. Validate JWT locally if present and key is not absent
-    const localToken = settings?.license_token;
-    if (localToken && !isKeyAbsent) {
-      try {
-        const decoded = jwt.decode(localToken) as any;
-        if (decoded && typeof decoded === "object") {
-          const expiresAt = decoded.token_expires_at || decoded.exp;
-          const endsAt = decoded.license_ends_at;
-
-          // If JWT payload looks valid, not expired, and ends_at is in the future
-          if (
-            expiresAt && expiresAt * 1000 > Date.now() &&
-            (!endsAt || new Date(endsAt).getTime() > Date.now()) &&
-            decoded.status === "active" &&
-            (!decoded.domain || decoded.domain === domain)
-          ) {
-            // Reset grace period since license is valid
-            if (settings?.license_grace_period_start) {
-              await dbAdmin.from("platform_settings").upsert({ id: 1, license_grace_period_start: null });
-            }
-            cachedLicenseStatus = { valid: true, expiresAt: Date.now() + 15 * 60 * 1000 }; // 15 mins
-            return true;
-          }
-        }
-      } catch (jwtErr) {
-        console.warn("[License Verifier] Local JWT decode error, falling back to server check:", jwtErr);
+    if (response.status === "network_error") {
+      // API offline, check grace period
+      if (grace_until && new Date(grace_until) > now) {
+        console.warn(`[License Verifier] API offline, using grace period until ${grace_until}`);
+        memoryCachedLicenseStatus = { valid: !ignoreGrace, expiresAt: Date.now() + 5 * 60 * 1000 };
+        return !ignoreGrace;
+      } else if (!grace_until) {
+        // Start grace period
+        const graceHours = parseInt(process.env.LICENSE_GRACE_HOURS || "72", 10);
+        const newGrace = new Date(Date.now() + graceHours * 60 * 60 * 1000);
+        await dbAdmin.from("license_settings").upsert({ id: 1, grace_until: newGrace });
+        memoryCachedLicenseStatus = { valid: !ignoreGrace, expiresAt: Date.now() + 5 * 60 * 1000 };
+        return !ignoreGrace;
+      } else {
+        // Grace period expired
+        memoryCachedLicenseStatus = { valid: false, expiresAt: Date.now() + 5 * 60 * 1000 };
+        return false;
       }
     }
 
-    // 3. Fallback to API check if key is not absent
-    let isServerValid = false;
-    let newToken = null;
+    // We got a response from API
+    if (response.valid) {
+      const cacheHours = parseInt(process.env.LICENSE_CACHE_HOURS || "24", 10);
+      const cacheValidUntil = new Date(Date.now() + cacheHours * 60 * 60 * 1000);
 
-    if (!isKeyAbsent) {
-      console.log(`[License Verifier] Calling license server ${serverUrl}/check...`);
-      try {
-        const response = await fetchWithTimeout(`${serverUrl}/check`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            license_key: activeKey,
-            domain,
-            fingerprint_hash: fingerprint,
-            installation_id: installationId,
-          }),
-        }, 4000);
+      await dbAdmin.from("license_settings").upsert({
+        id: 1,
+        license_status: "active",
+        plan: response.plan || settings.plan,
+        features_json: response.features || settings.features_json,
+        last_validated_at: now,
+        expires_at: response.expires_at ? new Date(response.expires_at) : settings.expires_at,
+        cache_valid_until: cacheValidUntil,
+        grace_until: null,
+        last_error: null,
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.valid && data.token) {
-            isServerValid = true;
-            newToken = data.token;
-          }
-        } else {
-          console.error("[License Verifier] Check request failed with status:", response.status);
-          // Try to re-activate
-          const actRes = await activateLicense(activeKey, domain);
-          isServerValid = actRes.success;
-        }
-      } catch (serverErr) {
-        console.error("[License Verifier] Server check failed:", serverErr);
-      }
-    }
-
-    if (isServerValid) {
-      const updateData: Record<string, any> = { id: 1, license_grace_period_start: null };
-      if (newToken) {
-        updateData.license_token = newToken;
-      }
-      await dbAdmin.from("platform_settings").upsert(updateData);
-      cachedLicenseStatus = { valid: true, expiresAt: Date.now() + 15 * 60 * 1000 }; // Cache for 15 mins
+      memoryCachedLicenseStatus = { valid: true, expiresAt: Date.now() + 15 * 60 * 1000 };
       return true;
     } else {
-      console.warn("[License Verifier] License is invalid, expired, or absent. Checking grace period.");
-      
-      const graceStart = settings?.license_grace_period_start;
-      if (!graceStart) {
-        // Record the start of the grace period
-        const now = new Date();
-        await dbAdmin.from("platform_settings").upsert({ id: 1, license_grace_period_start: now, license_token: null });
-        cachedLicenseStatus = { valid: !ignoreGrace, expiresAt: Date.now() + 5 * 60 * 1000 };
-        return !ignoreGrace; // Access allowed during grace period (since it just started)
-      } else {
-        const graceStartTime = new Date(graceStart).getTime();
-        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-        const hasGraceExpired = (Date.now() - graceStartTime) > threeDaysMs;
-        
-        if (hasGraceExpired) {
-          // Block access
-          await dbAdmin.from("platform_settings").upsert({ id: 1, license_token: null });
-          cachedLicenseStatus = { valid: false, expiresAt: Date.now() + 5 * 60 * 1000 };
-          return false;
-        } else {
-          cachedLicenseStatus = { valid: !ignoreGrace, expiresAt: Date.now() + 5 * 60 * 1000 };
-          return !ignoreGrace; // Access allowed during grace period
-        }
-      }
+      // Invalid, blocked, expired etc
+      await dbAdmin.from("license_settings").upsert({
+        id: 1,
+        license_status: response.status || "invalid",
+        last_error: response.message || response.error,
+        cache_valid_until: null, // invalidates cache immediately
+      });
+      memoryCachedLicenseStatus = { valid: false, expiresAt: Date.now() + 60000 };
+      return false;
     }
   } catch (err) {
     console.error("[License Verifier] Check license exception:", err);
-    // If license server or DB fails, check the cached status or fallback safely
-    const graceStart = cachedLicenseStatus?.valid === false ? null : undefined;
-    return cachedLicenseStatus?.valid ?? false;
+    return memoryCachedLicenseStatus?.valid ?? false;
   }
+}
+
+export async function licenseHasFeature(featureName: string): Promise<boolean> {
+  const settings = await getLicenseSettings();
+  if (!settings || !settings.features_json) return false;
+  
+  const features = settings.features_json as any;
+  return !!features[featureName];
+}
+
+export async function getLicenseLimit(featureName: string): Promise<number | null> {
+  const settings = await getLicenseSettings();
+  if (!settings || !settings.features_json) return null;
+  
+  const features = settings.features_json as any;
+  if (typeof features[featureName] === "number") {
+    return features[featureName];
+  }
+  return null;
 }

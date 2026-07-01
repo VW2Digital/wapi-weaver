@@ -94,6 +94,7 @@ const NAV = [
       { to: "/users", label: "Usuários", icon: ShieldCheck },
       { to: "/audit", label: "Auditoria", icon: ScrollText },
       { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
+      { to: "/license", label: "Licença SaaS", icon: ShieldCheck },
     ],
   },
 ] as const;
@@ -506,7 +507,7 @@ function AppLayout() {
         </header>
 
         <main className="flex-1 overflow-hidden flex flex-col">
-          {!isAccessAllowed && loc.pathname !== "/settings" ? (
+          {!isAccessAllowed && loc.pathname !== "/license" ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
               <div className="h-16 w-16 bg-destructive/10 text-destructive flex items-center justify-center rounded-full mb-6">
                 <ShieldAlert className="h-8 w-8 animate-pulse" />
@@ -519,7 +520,7 @@ function AppLayout() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                 <Button asChild variant="default" className="w-full sm:w-auto cursor-pointer">
-                  <Link to="/settings">Ir para Configurações</Link>
+                  <Link to="/license">Gerenciar Licença</Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebd56] text-white border-none shadow-sm hover:text-white cursor-pointer">
                   <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20a%20minha%20licen%C3%A7a%20do%20sistema." target="_blank" rel="noopener noreferrer">

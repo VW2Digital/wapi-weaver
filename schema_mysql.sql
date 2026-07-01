@@ -66,6 +66,24 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS license_settings (
+  id INT NOT NULL PRIMARY KEY DEFAULT 1,
+  license_key_encrypted TEXT NULL,
+  license_status VARCHAR(50) NULL,
+  plan VARCHAR(100) NULL,
+  features_json JSON NULL,
+  domain VARCHAR(255) NULL,
+  installation_id VARCHAR(255) NULL,
+  activated_at DATETIME NULL,
+  last_validated_at DATETIME NULL,
+  expires_at DATETIME NULL,
+  cache_valid_until DATETIME NULL,
+  grace_until DATETIME NULL,
+  last_error TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO platform_settings (id, meta_graph_version)
 VALUES (1, 'v20.0');
 

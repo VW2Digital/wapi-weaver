@@ -44,6 +44,49 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
     };
   });
 
+export const getDetailedLicenseStatus = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.db
+      .from("license_settings")
+      .select("*")
+      .eq("id", 1)
+      .maybeSingle();
+      
+    if (error || !data) {
+      return {
+        status: "missing",
+        plan: null,
+        domain: null,
+        expires_at: null,
+        last_validated_at: null,
+        last_error: "Licença não encontrada localmente."
+      };
+    }
+    
+    return {
+      status: data.license_status || "missing",
+      plan: data.plan,
+      domain: data.domain,
+      expires_at: data.expires_at,
+      last_validated_at: data.last_validated_at,
+      last_error: data.last_error
+    };
+  });
+
+export const activateLicenseMutation = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator(z.object({ licenseKey: z.string().min(1) }))
+  .handler(async ({ data: { licenseKey }, context }) => {
+    // Dynamically import activateLicense to avoid circular dependencies if any
+    const { activateLicense } = await import("./license-verifier");
+    const result = await activateLicense(licenseKey);
+    if (!result.success) {
+      throw new Error(result.error || "Erro ao ativar licença");
+    }
+    return { success: true };
+  });
+
 const settingsSchema = z.object({
   meta_app_id: z
     .string()
@@ -341,24 +384,28 @@ export const updateSidebarOrder = createServerFn({ method: "POST" })
 
 export const getLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async () => {
-    const { checkLicense, getPlatformSettings } = await import("./license-verifier");
+  .handler(async ({ context }) => {
+    const { checkLicense } = await import("./license-verifier");
     const isValid = await checkLicense(undefined, true); // Physically valid?
     const isAccessAllowed = await checkLicense(undefined, false); // Access permitted?
 
-    const settings = await getPlatformSettings();
-    const graceStart = settings?.license_grace_period_start;
+    const { data: settings } = await context.db
+      .from("license_settings")
+      .select("grace_until")
+      .eq("id", 1)
+      .maybeSingle();
+
+    const graceUntil = settings?.grace_until;
     let graceDaysRemaining = 0;
-    if (graceStart) {
-      const elapsed = Date.now() - new Date(graceStart).getTime();
-      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-      graceDaysRemaining = Math.max(0, Math.ceil((threeDaysMs - elapsed) / (24 * 60 * 60 * 1000)));
+    if (graceUntil) {
+      const remainingMs = new Date(graceUntil).getTime() - Date.now();
+      graceDaysRemaining = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
     }
 
     return {
       isValid,
       isAccessAllowed,
       graceDaysRemaining,
-      hasGraceStarted: !!graceStart,
+      hasGraceStarted: !!graceUntil,
     };
   });
