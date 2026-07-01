@@ -3,6 +3,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
 import crypto from "crypto";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 
 // Helper to check if groups feature is enabled
 function assertGroupsEnabled() {

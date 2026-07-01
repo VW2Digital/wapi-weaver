@@ -66,21 +66,9 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
-export default {
-  async fetch(request: Request, env: unknown, ctx: unknown) {
-    try {
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
-    } catch (error) {
-      console.error(error);
-      return brandedErrorResponse();
-    }
-  },
-};
-
 // --- Background Queue Processor ---
 import { processOnce } from "./routes/api/public/cron/process-queue";
+import { checkLicense } from "./lib/license-verifier";
 
 let queueIntervalStarted = false;
 function startQueueProcessor() {
@@ -103,4 +91,58 @@ function startQueueProcessor() {
 }
 
 startQueueProcessor();
+
+// --- Background License Validator ---
+let licenseCheckStarted = false;
+function startLicenseChecker() {
+  if (licenseCheckStarted) return;
+  licenseCheckStarted = true;
+  console.log("[License] Starting background license checker (every 6 hours)...");
+
+  // Run initial check after 10s
+  setTimeout(() => {
+    checkLicense().catch((e) => console.error("[License Init Error]", e));
+  }, 10000);
+
+  // Every 6 hours
+  setInterval(async () => {
+    try {
+      await checkLicense();
+    } catch (e) {
+      console.error("[License Background Error]", e);
+    }
+  }, 21600000);
+}
+
+startLicenseChecker();
 // ----------------------------------
+
+export default {
+  async fetch(request: Request, env: unknown, ctx: unknown) {
+    try {
+      const url = new URL(request.url);
+      
+      // Intercept critical APIs if license is invalid
+      if (url.pathname.startsWith("/api/whatsapp/")) {
+        const reqHost = request.headers.get("host") || undefined;
+        const isLicenseValid = await checkLicense(reqHost);
+        if (!isLicenseValid) {
+          return new Response(
+            JSON.stringify({ error: "Licença inválida ou expirada. Regularize seu plano." }),
+            {
+              status: 402,
+              headers: { "Content-Type": "application/json" },
+            }
+          );
+        }
+      }
+
+      const handler = await getServerEntry();
+      const response = await handler.fetch(request, env, ctx);
+      return await normalizeCatastrophicSsrResponse(response);
+    } catch (error) {
+      console.error(error);
+      return brandedErrorResponse();
+    }
+  },
+};

@@ -96,66 +96,161 @@ export async function processBotFlow(
     const globalInterruptionKeywords = ["menu", "início", "inicio", "atendente", "humano", "cancelar", "reiniciar"];
     const isInterruption = globalInterruptionKeywords.includes(messageBody.trim().toLowerCase());
 
-    // Regra 1: Se existe sessão ativa para a conversa (e não é comando global de interrupção nem está expirada), continuar o fluxo atual
-    if (state && state.current_step_id && !isSessionExpired && !isInterruption) {
-      const queuedStep = allSteps?.find((s: any) => s.id === state.current_step_id);
-      if (queuedStep) {
-        stepToExecute = queuedStep;
-        activeFlow = sortedFlows.find((f: any) => f.id === queuedStep.bot_settings_id) || activeFlow;
+    // Processamento de botão interativo (alta precedência)
+    let isButtonRedirect = false;
+    if (buttonPayload && buttonPayload.startsWith("step:")) {
+      const parts = buttonPayload.split(":");
+      const rawDest = parts[1] || "";
+      let nextStepId: string | null = null;
+      if (rawDest && rawDest !== "none") {
+        nextStepId = rawDest;
+      }
+
+      let assignTeamId: string | null = null;
+      let assignAgentId: string | null = null;
+      for (let i = 2; i < parts.length; i += 2) {
+        if (parts[i] === "team") assignTeamId = parts[i + 1] || null;
+        else if (parts[i] === "agent") assignAgentId = parts[i + 1] || null;
+      }
+
+      // Executa a atribuição se fornecida
+      if (assignTeamId || assignAgentId) {
+        try {
+          await dbAdmin.from("conversation_assignments")
+            .update({ is_active: false, unassigned_at: new Date().toISOString() })
+            .eq("user_id", userId)
+            .eq("contact_phone", phoneDigits)
+            .eq("is_active", true);
+
+          let finalAgentId = assignAgentId;
+          if (assignTeamId && !finalAgentId) {
+            const { default: db } = await import("./db");
+            const agents: any = await db.query(
+              `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
+               FROM team_members tm
+               LEFT JOIN conversation_assignments ca 
+                 ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
+               WHERE tm.team_id = ?
+               GROUP BY tm.user_id
+               ORDER BY active_chats ASC, RAND()
+               LIMIT 1`,
+              [userId, assignTeamId]
+            );
+            if (agents && agents.length > 0) {
+              finalAgentId = agents[0].agent_id;
+            }
+          }
+
+          const { randomUUID } = await import("crypto");
+          await dbAdmin.from("conversation_assignments").insert({
+            id: randomUUID(),
+            user_id: userId,
+            contact_phone: phoneDigits,
+            team_id: assignTeamId,
+            agent_id: finalAgentId || null,
+            assigned_by: null,
+            is_active: true
+          });
+        } catch (err: any) {
+          logError("Erro ao processar atribuição do botão", { error: err.message });
+        }
+      }
+
+      if (nextStepId === "-999") {
+        const updateData = {
+          current_step_id: null,
+          last_interaction: new Date().toISOString(),
+          is_paused: true,
+          paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        };
+        if (state) {
+          await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
+        } else {
+          await dbAdmin.from("bot_conversation_state").insert({
+            user_id: userId,
+            contact_number: phoneDigits,
+            instance_id: phoneNumberId,
+            channel,
+            ...updateData,
+          });
+        }
+        logInfo("Handoff manual acionado por botão interativo.");
+        return;
+      } else if (nextStepId === "-997") {
+        stepToExecute = null;
+        isButtonRedirect = true;
+      } else if (nextStepId) {
+        const targetStep = allSteps?.find((s: any) => s.id === nextStepId);
+        if (targetStep) {
+          stepToExecute = targetStep;
+          activeFlow = sortedFlows.find((f: any) => f.id === targetStep.bot_settings_id) || activeFlow;
+          isButtonRedirect = true;
+        }
       }
     }
 
-    // Regra 2: Processar interrupção global
-    if (!stepToExecute) {
-      if (isInterruption) {
-        logInfo("Interrupção global do bot solicitada pelo usuário", { messageBody });
-        
-        // Se for comando de handoff/atendente humano, pausamos o bot
-        if (["atendente", "humano"].includes(messageBody.trim().toLowerCase())) {
-          const updateData = {
-            current_step_id: null,
-            last_interaction: new Date().toISOString(),
-            is_paused: true,
-            paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          };
-          if (state) {
-            await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
-          } else {
-            await dbAdmin.from("bot_conversation_state").insert({
-              user_id: userId,
-              contact_number: phoneDigits,
-              instance_id: phoneNumberId,
-              channel,
-              ...updateData,
-            });
-          }
-          logInfo("Handoff manual acionado por palavra-chave global.");
-          return;
+    if (!isButtonRedirect) {
+      // Regra 1: Se existe sessão ativa para a conversa (e não é comando global de interrupção nem está expirada), continuar o fluxo atual
+      if (state && state.current_step_id && !isSessionExpired && !isInterruption) {
+        const queuedStep = allSteps?.find((s: any) => s.id === state.current_step_id);
+        if (queuedStep) {
+          stepToExecute = queuedStep;
+          activeFlow = sortedFlows.find((f: any) => f.id === queuedStep.bot_settings_id) || activeFlow;
         }
       }
 
-      // Regra 3, 4 & 5: Aplicar palavra-chave para iniciar novo fluxo (ordenado por priority DESC)
-      const keywordMatch = sortedFlows.find((f: any) => {
-        if (f.trigger_type === "keyword" && f.trigger_value) {
-          return messageBody.toLowerCase() === f.trigger_value.toLowerCase();
-        }
-        const startStep = allSteps?.find((s: any) => s.bot_settings_id === f.id && s.trigger_type === "keyword");
-        return startStep?.trigger_value && messageBody.toLowerCase() === startStep.trigger_value.toLowerCase();
-      });
-
-      if (keywordMatch) {
-        activeFlow = keywordMatch;
-        const startStep = allSteps?.find((s: any) => s.bot_settings_id === activeFlow.id && (s.trigger_type === "keyword" || s.trigger_type === "start"));
-        if (startStep) stepToExecute = startStep;
-      }
-
-      // Regra 6: Usar fluxo padrão (is_default = true) se nenhum for compatível
+      // Regra 2: Processar interrupção global
       if (!stepToExecute) {
-        const defaultFlow = sortedFlows.find((f: any) => f.is_default);
-        if (defaultFlow) {
-          activeFlow = defaultFlow;
-          const startStep = allSteps?.find((s: any) => s.bot_settings_id === activeFlow.id && s.trigger_type === "start");
+        if (isInterruption) {
+          logInfo("Interrupção global do bot solicitada pelo usuário", { messageBody });
+          
+          // Se for comando de handoff/atendente humano, pausamos o bot
+          if (["atendente", "humano"].includes(messageBody.trim().toLowerCase())) {
+            const updateData = {
+              current_step_id: null,
+              last_interaction: new Date().toISOString(),
+              is_paused: true,
+              paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            };
+            if (state) {
+              await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
+            } else {
+              await dbAdmin.from("bot_conversation_state").insert({
+                user_id: userId,
+                contact_number: phoneDigits,
+                instance_id: phoneNumberId,
+                channel,
+                ...updateData,
+              });
+            }
+            logInfo("Handoff manual acionado por palavra-chave global.");
+            return;
+          }
+        }
+
+        // Regra 3, 4 & 5: Aplicar palavra-chave para iniciar novo fluxo (ordenado por priority DESC)
+        const keywordMatch = sortedFlows.find((f: any) => {
+          if (f.trigger_type === "keyword" && f.trigger_value) {
+            return messageBody.toLowerCase() === f.trigger_value.toLowerCase();
+          }
+          const startStep = allSteps?.find((s: any) => s.bot_settings_id === f.id && s.trigger_type === "keyword");
+          return startStep?.trigger_value && messageBody.toLowerCase() === startStep.trigger_value.toLowerCase();
+        });
+
+        if (keywordMatch) {
+          activeFlow = keywordMatch;
+          const startStep = allSteps?.find((s: any) => s.bot_settings_id === activeFlow.id && (s.trigger_type === "keyword" || s.trigger_type === "start"));
           if (startStep) stepToExecute = startStep;
+        }
+
+        // Regra 6: Usar fluxo padrão (is_default = true) se nenhum for compatível
+        if (!stepToExecute) {
+          const defaultFlow = sortedFlows.find((f: any) => f.is_default);
+          if (defaultFlow) {
+            activeFlow = defaultFlow;
+            const startStep = allSteps?.find((s: any) => s.bot_settings_id === activeFlow.id && s.trigger_type === "start");
+            if (startStep) stepToExecute = startStep;
+          }
         }
       }
     }
@@ -242,6 +337,19 @@ export async function processBotFlow(
           mediaObj.caption = stepToExecute.media_caption;
         }
         payload[stepToExecute.message_type] = mediaObj;
+      } else if (["buttons", "list"].includes(stepToExecute.message_type) && stepToExecute.buttons_config) {
+        try {
+          const configObj = typeof stepToExecute.buttons_config === "string"
+            ? JSON.parse(stepToExecute.buttons_config)
+            : stepToExecute.buttons_config;
+          
+          payload.type = "interactive";
+          payload.interactive = configObj.interactive || configObj;
+        } catch (e: any) {
+          logError("Erro ao processar buttons_config", e);
+          payload.type = "text";
+          payload.text = { body: stepToExecute.message_content || "" };
+        }
       }
 
       const apiVersion = p.meta_graph_version || "v20.0";

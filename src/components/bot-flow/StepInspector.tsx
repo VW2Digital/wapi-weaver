@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listWhatsAppFlows } from "@/lib/botflow.functions";
+import { listTeams, listAllAgents } from "@/lib/assignment.functions";
 
 export function StepInspector({
   selectedStep,
@@ -31,6 +32,27 @@ export function StepInspector({
     queryFn: () => listFlowsFn(),
   });
   const flows = flowsQuery.data?.flows || [];
+
+  const fetchTeamsFn = useServerFn(listTeams);
+  const fetchAgentsFn = useServerFn(listAllAgents);
+
+  const teamsQuery = useQuery({
+    queryKey: ["teams"],
+    queryFn: () => fetchTeamsFn(),
+  });
+
+  const agentsQuery = useQuery({
+    queryKey: ["allAgents"],
+    queryFn: () => fetchAgentsFn(),
+  });
+
+  const rebuildButtonId = (stepId: string, teamId: string, agentId: string) => {
+    if (stepId === "none" || !stepId) return "";
+    let newId = `step:${stepId}`;
+    if (teamId) newId += `:team:${teamId}`;
+    if (agentId) newId += `:agent:${agentId}`;
+    return newId;
+  };
 
   const getStepTitle = (step: any) => {
     if (!step) return "Passo";
@@ -102,8 +124,16 @@ export function StepInspector({
             {buttons.map((btn: any, idx: number) => {
               const rawId = btn.reply?.id || "";
               let targetVal = "none";
+              let selectedTeamId = "";
+              let selectedAgentId = "";
+
               if (rawId.startsWith("step:")) {
-                targetVal = rawId.replace("step:", "");
+                const parts = rawId.split(":");
+                targetVal = parts[1] || "none";
+                for (let i = 2; i < parts.length; i += 2) {
+                  if (parts[i] === "team") selectedTeamId = parts[i + 1] || "";
+                  else if (parts[i] === "agent") selectedAgentId = parts[i + 1] || "";
+                }
               } else if (rawId) {
                 // Suporte legado
                 const isStep = steps.some((s: any) => s.id === rawId);
@@ -114,77 +144,152 @@ export function StepInspector({
               return (
                 <div
                   key={idx}
-                  className="flex gap-1.5 items-center bg-background/50 p-2 border rounded-md"
+                  className="space-y-2 bg-background/50 p-2.5 border rounded-md"
                 >
-                  <span className="text-xs font-semibold text-muted-foreground w-4 text-center">
-                    {idx + 1}
-                  </span>
+                  <div className="flex gap-1.5 items-center">
+                    <span className="text-xs font-semibold text-muted-foreground w-4 text-center">
+                      {idx + 1}
+                    </span>
 
-                  <Input
-                    placeholder="Título"
-                    className="flex-1 min-w-[70px] text-xs h-8"
-                    value={btn.reply?.title || ""}
-                    onChange={(e) => {
-                      const newBtns = [...buttons];
-                      newBtns[idx] = {
-                        ...btn,
-                        type: "reply",
-                        reply: { ...btn.reply, title: e.target.value },
-                      };
-                      updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
-                    }}
-                  />
+                    <Input
+                      placeholder="Título"
+                      className="flex-1 text-xs h-8"
+                      value={btn.reply?.title || ""}
+                      onChange={(e) => {
+                        const newBtns = [...buttons];
+                        newBtns[idx] = {
+                          ...btn,
+                          type: "reply",
+                          reply: { ...btn.reply, title: e.target.value },
+                        };
+                        updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                      }}
+                    />
 
-                  <span className="text-muted-foreground select-none text-xs">→</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
+                      onClick={() => {
+                        const newBtns = buttons.filter((_: any, i: number) => i !== idx);
+                        updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
 
-                  <Select
-                    value={targetVal}
-                    onValueChange={(val) => {
-                      const newBtns = [...buttons];
-                      newBtns[idx] = {
-                        ...btn,
-                        type: "reply",
-                        reply: {
-                          ...btn.reply,
-                          id: val === "none" ? "" : `step:${val}`,
-                        },
-                      };
-                      updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
-                    }}
-                  >
-                    <SelectTrigger className="flex-1 min-w-[120px] text-xs h-8">
-                      <SelectValue placeholder="Destino..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="-999">
-                        <span className="flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
-                          {agentName}
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="-997">Reiniciar</SelectItem>
-                      {steps
-                        .filter((s: any) => s.id !== selectedStep.id)
-                        .map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {renderStepTargetItem(s)}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {/* Destination Select */}
+                    <div className="flex flex-col gap-0.5">
+                      <Label className="text-[10px] text-muted-foreground">Destino</Label>
+                      <Select
+                        value={targetVal}
+                        onValueChange={(val) => {
+                          const newBtns = [...buttons];
+                          const newId = rebuildButtonId(val, selectedTeamId, selectedAgentId);
+                          newBtns[idx] = {
+                            ...btn,
+                            type: "reply",
+                            reply: {
+                              ...btn.reply,
+                              id: newId,
+                            },
+                          };
+                          updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                        }}
+                      >
+                        <SelectTrigger className="text-[10px] h-7 px-1.5">
+                          <SelectValue placeholder="Destino..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto">
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          <SelectItem value="-999">
+                            <span className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
+                              {agentName}
+                            </span>
                           </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                          <SelectItem value="-997">Reiniciar</SelectItem>
+                          {steps
+                            .filter((s: any) => s.id !== selectedStep.id)
+                            .map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {renderStepTargetItem(s)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
-                    onClick={() => {
-                      const newBtns = buttons.filter((_: any, i: number) => i !== idx);
-                      updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                    {/* Team Select */}
+                    <div className="flex flex-col gap-0.5">
+                      <Label className="text-[10px] text-muted-foreground">Setor</Label>
+                      <Select
+                        value={selectedTeamId || "none"}
+                        onValueChange={(val) => {
+                          const newBtns = [...buttons];
+                          const teamVal = val === "none" ? "" : val;
+                          const newId = rebuildButtonId(targetVal, teamVal, selectedAgentId);
+                          newBtns[idx] = {
+                            ...btn,
+                            type: "reply",
+                            reply: {
+                              ...btn.reply,
+                              id: newId,
+                            },
+                          };
+                          updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                        }}
+                      >
+                        <SelectTrigger className="text-[10px] h-7 px-1.5">
+                          <SelectValue placeholder="Setor..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {(teamsQuery.data ?? []).map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Agent Select */}
+                    <div className="flex flex-col gap-0.5">
+                      <Label className="text-[10px] text-muted-foreground">Vendedor</Label>
+                      <Select
+                        value={selectedAgentId || "none"}
+                        onValueChange={(val) => {
+                          const newBtns = [...buttons];
+                          const agentVal = val === "none" ? "" : val;
+                          const newId = rebuildButtonId(targetVal, selectedTeamId, agentVal);
+                          newBtns[idx] = {
+                            ...btn,
+                            type: "reply",
+                            reply: {
+                              ...btn.reply,
+                              id: newId,
+                            },
+                          };
+                          updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                        }}
+                      >
+                        <SelectTrigger className="text-[10px] h-7 px-1.5">
+                          <SelectValue placeholder="Responsável..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {(agentsQuery.data ?? []).map((a: any) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.full_name || a.display_name || a.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -236,8 +341,16 @@ export function StepInspector({
                   {(sec.rows || []).map((row: any, rowIdx: number) => {
                     const rawId = row.id || "";
                     let targetVal = "none";
+                    let selectedTeamId = "";
+                    let selectedAgentId = "";
+
                     if (rawId.startsWith("step:")) {
-                      targetVal = rawId.replace("step:", "");
+                      const parts = rawId.split(":");
+                      targetVal = parts[1] || "none";
+                      for (let i = 2; i < parts.length; i += 2) {
+                        if (parts[i] === "team") selectedTeamId = parts[i + 1] || "";
+                        else if (parts[i] === "agent") selectedAgentId = parts[i + 1] || "";
+                      }
                     } else if (rawId) {
                       const isStep = steps.some((s: any) => s.id === rawId);
                       if (isStep) targetVal = rawId;
@@ -250,19 +363,36 @@ export function StepInspector({
                         className="space-y-2 bg-background/50 p-2.5 border rounded-md relative"
                       >
                         {/* Linha 1: Título */}
-                        <Input
-                          placeholder="Título da Linha"
-                          className="text-xs h-8"
-                          value={row.title || ""}
-                          onChange={(e) => {
-                            const newSecs = [...sections];
-                            newSecs[secIdx].rows[rowIdx].title = e.target.value;
-                            updateConfig({
-                              ...config,
-                              action: { ...config.action, sections: newSecs },
-                            });
-                          }}
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Título da Linha"
+                            className="text-xs h-8 flex-1"
+                            value={row.title || ""}
+                            onChange={(e) => {
+                              const newSecs = [...sections];
+                              newSecs[secIdx].rows[rowIdx].title = e.target.value;
+                              updateConfig({
+                                ...config,
+                                action: { ...config.action, sections: newSecs },
+                              });
+                            }}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
+                            onClick={() => {
+                              const newSecs = [...sections];
+                              newSecs[secIdx].rows = newSecs[secIdx].rows.filter((_: any, i: number) => i !== rowIdx);
+                              updateConfig({
+                                ...config,
+                                action: { ...config.action, sections: newSecs },
+                              });
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
 
                         {/* Linha 2: Descrição */}
                         <Input
@@ -279,58 +409,105 @@ export function StepInspector({
                           }}
                         />
 
-                        {/* Linha 3: Destino (Select) + Excluir */}
-                        <div className="flex gap-2 items-center">
-                          <Select
-                            value={targetVal}
-                            onValueChange={(val) => {
-                              const newSecs = [...sections];
-                              newSecs[secIdx].rows[rowIdx].id = val === "none" ? "" : `step:${val}`;
-                              updateConfig({
-                                ...config,
-                                action: { ...config.action, sections: newSecs },
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="flex-1 text-xs h-8">
-                              <SelectValue placeholder="Destino..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              <SelectItem value="-999">
-                                <span className="flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
-                                  {agentName}
-                                </span>
-                              </SelectItem>
-                              <SelectItem value="-997">Reiniciar</SelectItem>
-                              {steps
-                                .filter((s: any) => s.id !== selectedStep.id)
-                                .map((s: any) => (
-                                  <SelectItem key={s.id} value={s.id}>
-                                    {renderStepTargetItem(s)}
+                        {/* Grid: Destino, Setor, Vendedor */}
+                        <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                          {/* Destination Select */}
+                          <div className="flex flex-col gap-0.5">
+                            <Label className="text-[10px] text-muted-foreground">Destino</Label>
+                            <Select
+                              value={targetVal}
+                              onValueChange={(val) => {
+                                const newSecs = [...sections];
+                                const newId = rebuildButtonId(val, selectedTeamId, selectedAgentId);
+                                newSecs[secIdx].rows[rowIdx].id = newId;
+                                updateConfig({
+                                  ...config,
+                                  action: { ...config.action, sections: newSecs },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="text-[10px] h-7 px-1.5">
+                                <SelectValue placeholder="Destino..." />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60 overflow-y-auto">
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                <SelectItem value="-999">
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
+                                    {agentName}
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="-997">Reiniciar</SelectItem>
+                                {steps
+                                  .filter((s: any) => s.id !== selectedStep.id)
+                                  .map((s: any) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                      {renderStepTargetItem(s)}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Team Select */}
+                          <div className="flex flex-col gap-0.5">
+                            <Label className="text-[10px] text-muted-foreground">Setor</Label>
+                            <Select
+                              value={selectedTeamId || "none"}
+                              onValueChange={(val) => {
+                                const newSecs = [...sections];
+                                const teamVal = val === "none" ? "" : val;
+                                const newId = rebuildButtonId(targetVal, teamVal, selectedAgentId);
+                                newSecs[secIdx].rows[rowIdx].id = newId;
+                                updateConfig({
+                                  ...config,
+                                  action: { ...config.action, sections: newSecs },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="text-[10px] h-7 px-1.5">
+                                <SelectValue placeholder="Setor..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {(teamsQuery.data ?? []).map((t: any) => (
+                                  <SelectItem key={t.id} value={t.id}>
+                                    {t.name}
                                   </SelectItem>
                                 ))}
-                            </SelectContent>
-                          </Select>
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
-                            onClick={() => {
-                              const newSecs = [...sections];
-                              newSecs[secIdx].rows = newSecs[secIdx].rows.filter(
-                                (_: any, i: number) => i !== rowIdx,
-                              );
-                              updateConfig({
-                                ...config,
-                                action: { ...config.action, sections: newSecs },
-                              });
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {/* Agent Select */}
+                          <div className="flex flex-col gap-0.5">
+                            <Label className="text-[10px] text-muted-foreground">Vendedor</Label>
+                            <Select
+                              value={selectedAgentId || "none"}
+                              onValueChange={(val) => {
+                                const newSecs = [...sections];
+                                const agentVal = val === "none" ? "" : val;
+                                const newId = rebuildButtonId(targetVal, selectedTeamId, agentVal);
+                                newSecs[secIdx].rows[rowIdx].id = newId;
+                                updateConfig({
+                                  ...config,
+                                  action: { ...config.action, sections: newSecs },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="text-[10px] h-7 px-1.5">
+                                <SelectValue placeholder="Responsável..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {(agentsQuery.data ?? []).map((a: any) => (
+                                  <SelectItem key={a.id} value={a.id}>
+                                    {a.full_name || a.display_name || a.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     );

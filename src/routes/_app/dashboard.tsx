@@ -5,6 +5,7 @@ import { listCampaigns } from "@/lib/campaigns.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
+import { getLicenseStatus } from "@/lib/admin.functions";
 import { cn } from "@/lib/utils";
 import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 import { Card } from "@/components/ui/card";
@@ -97,11 +98,15 @@ function Dashboard() {
   const fetchContacts = useServerFn(listContacts);
   const fetchTemplates = useServerFn(listTemplates);
   const fetchStats = useServerFn(getDashboardStats);
+  const fetchLicenseStatus = useServerFn(getLicenseStatus);
 
   const c = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns() });
   const ct = useQuery({ queryKey: ["contacts"], queryFn: () => fetchContacts() });
   const t = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates() });
   const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats() });
+  const lic = useQuery({ queryKey: ["license-status"], queryFn: () => fetchLicenseStatus() });
+
+  const isLicenseValid = lic.data?.isValid !== false;
 
   const totals = (c.data ?? []).reduce(
     (acc: { sent: number; delivered: number; read: number; failed: number; completed: number }, x: any) => {
@@ -274,7 +279,35 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-
+        {!isLicenseValid && (
+          <div className="px-4 pt-4 sm:px-6">
+            <Alert variant="destructive" className="border-destructive/35 bg-destructive/5 text-destructive flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <AlertTitle className="font-semibold text-sm">
+                    {lic.data?.isAccessAllowed === false 
+                      ? "Acesso Bloqueado — Licença Expirada ou Ausente" 
+                      : "Licença Inválida ou Expirada"}
+                  </AlertTitle>
+                  <AlertDescription className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    {lic.data?.isAccessAllowed === false 
+                      ? "Sua instalação está sem uma licença ativa válida e o envio de mensagens foi suspenso. Por favor, regularize sua licença com o suporte para restabelecer o serviço imediatamente." 
+                      : `Sua instalação está sem uma licença ativa válida. Evite o bloqueio do envio de mensagens em até ${lic.data?.graceDaysRemaining || 3} ${lic.data?.graceDaysRemaining === 1 ? 'dia' : 'dias'}. Entre em contato com o suporte.`}
+                  </AlertDescription>
+                </div>
+              </div>
+              <Button asChild size="sm" className="shrink-0 bg-[#25D366] hover:bg-[#1ebd56] text-white font-semibold gap-2 border-none shadow-sm transition-colors duration-200">
+                <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20a%20minha%20licen%C3%A7a%20do%20sistema." target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="shrink-0">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.458L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.623-1.023-5.086-2.885-6.948C16.59 2.016 14.133.997 11.512.997 6.079.997 1.656 5.369 1.65 10.799c-.001 1.7.453 3.36 1.317 4.81l-.994 3.63 3.734-.974.36.214zM17.306 14.37c-.327-.164-1.938-.957-2.244-1.069-.306-.113-.528-.169-.749.162-.222.33-.86 1.069-1.055 1.293-.195.223-.39.248-.717.084a9.043 9.043 0 0 1-2.66-1.636 9.97 9.97 0 0 1-1.842-2.292c-.193-.328-.02-.505.143-.668.147-.146.327-.38.49-.57.164-.189.219-.324.327-.54.109-.217.055-.407-.027-.571-.082-.164-.75-1.809-1.028-2.48-.27-.65-.564-.56-.75-.56h-.638c-.222 0-.584.083-.89.416-.306.33-1.169 1.142-1.169 2.782 0 1.64 1.196 3.22 1.358 3.44.163.22 2.353 3.591 5.698 5.037.796.344 1.418.549 1.904.704.8.254 1.528.218 2.102.132.64-.096 1.938-.793 2.21-1.558.272-.765.272-1.422.19-1.557-.08-.134-.306-.217-.638-.38z"/>
+                  </svg>
+                  Falar com o Suporte
+                </a>
+              </Button>
+            </Alert>
+          </div>
+        )}
 
         <section aria-labelledby="bento-heading" className="p-4 sm:p-6">
           <h2 id="bento-heading" className="sr-only">

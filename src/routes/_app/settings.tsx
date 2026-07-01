@@ -438,65 +438,119 @@ function SettingsPage() {
         subtitle="Conecte sua conta do WhatsApp Business em poucos passos. Não se preocupe se nunca fez isso antes — explicamos cada campo."
       />
 
-      <Tabs defaultValue="meta" className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-6 py-2 border-b bg-muted/10 shrink-0 flex items-center overflow-x-auto gap-2">
-          <TabsList className="flex bg-transparent p-0 gap-1 border-none shadow-none">
-            <TabsTrigger
-              value="meta"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <KeyRound className="h-3.5 w-3.5" /> Conexão Meta (API)
-            </TabsTrigger>
-            <TabsTrigger
-              value="crm"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <Database className="h-3.5 w-3.5" /> Integrações CRM
-            </TabsTrigger>
-            <TabsTrigger
-              value="qrcodes"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <QrCode className="h-3.5 w-3.5" /> QR Codes
-            </TabsTrigger>
-            <TabsTrigger
-              value="waba"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <Phone className="h-3.5 w-3.5" /> Conta WhatsApp (WABA)
-            </TabsTrigger>
-            <TabsTrigger
-              value="instagram"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <MessageSquare className="h-3.5 w-3.5" /> Conta Instagram
-            </TabsTrigger>
-            <TabsTrigger
-              value="facebook"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <Facebook className="h-3.5 w-3.5" /> Página Facebook (Messenger)
-            </TabsTrigger>
-            <TabsTrigger
-              value="advanced"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <Settings className="h-3.5 w-3.5" /> Ferramentas Avançadas
-            </TabsTrigger>
-            {isAdmin && (
-              <TabsTrigger
-                value="admin"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" /> Administração
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="general"
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 py-2 text-xs font-semibold flex items-center gap-2 rounded-lg cursor-pointer"
-            >
-              <Monitor className="h-3.5 w-3.5" /> Geral & Legal
-            </TabsTrigger>
+      <Tabs defaultValue="meta" orientation="vertical" className="flex-1 flex flex-row w-full h-full overflow-hidden">
+        {/* Left Sidebar Navigation Menu structured by sections */}
+        <div className="w-[280px] shrink-0 border-r bg-muted/5 flex flex-col overflow-y-auto">
+          <TabsList className="flex flex-col bg-transparent p-6 gap-8 border-none shadow-none items-stretch h-full justify-start w-full">
+            {/* Section: CONEXÕES & APIS */}
+            <div className="space-y-3 w-full">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/70 uppercase">
+                Conexões & APIs
+              </h4>
+              <div className="flex flex-col gap-2.5 w-full">
+                <TabsTrigger
+                  value="meta"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <KeyRound className="h-4 w-4" /> Conexão Meta
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="waba"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Phone className="h-4 w-4" /> WhatsApp (WABA)
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="instagram"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <MessageSquare className="h-4 w-4" /> Instagram
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="facebook"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Facebook className="h-4 w-4" /> Facebook
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+              </div>
+            </div>
+
+            {/* Section: INTEGRAÇÕES & EXTRA */}
+            <div className="space-y-3 w-full">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/70 uppercase">
+                Integrações & Extra
+              </h4>
+              <div className="flex flex-col gap-2.5 w-full">
+                <TabsTrigger
+                  value="crm"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Database className="h-4 w-4" /> Integrações CRM
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="qrcodes"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <QrCode className="h-4 w-4" /> QR Codes
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+              </div>
+            </div>
+
+            {/* Section: CONFIGURAÇÕES GERAIS */}
+            <div className="space-y-3 w-full">
+              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/70 uppercase">
+                Configurações Gerais
+              </h4>
+              <div className="flex flex-col gap-2.5 w-full">
+                <TabsTrigger
+                  value="advanced"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Settings className="h-4 w-4" /> Ferramentas Avançadas
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="general"
+                  className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Monitor className="h-4 w-4" /> Geral & Legal
+                  </span>
+                  <ChevronRight className="h-4 w-4 opacity-50" />
+                </TabsTrigger>
+                {isAdmin && (
+                  <TabsTrigger
+                    value="admin"
+                    className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none px-3 py-2.5 text-sm font-medium flex items-center justify-between rounded-lg cursor-pointer text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all border-none shadow-none w-full"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <ShieldCheck className="h-4 w-4" /> Administração
+                    </span>
+                    <ChevronRight className="h-4 w-4 opacity-50" />
+                  </TabsTrigger>
+                )}
+              </div>
+            </div>
           </TabsList>
         </div>
 
@@ -2018,6 +2072,7 @@ function AdminPlatformSection() {
   const [cronSecret, setCronSecret] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
+  const [licenseKey, setLicenseKey] = useState("");
   const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
     "zapdispatch_settings_admin_platform_collapsed",
     true,
@@ -2038,6 +2093,10 @@ function AdminPlatformSection() {
     "zapdispatch_settings_meta_creds_collapsed",
     true,
   );
+  const [licenseCollapsed, toggleLicenseCollapsed] = usePersistedCollapsedState(
+    "zapdispatch_settings_license_collapsed",
+    true,
+  );
 
   useEffect(() => {
     if (settings) {
@@ -2049,6 +2108,7 @@ function AdminPlatformSection() {
       setCronSecret((settings as any).cron_secret ?? "");
       setSeoTitle((settings as any).seo_title ?? "");
       setSeoDescription((settings as any).seo_description ?? "");
+      setLicenseKey((settings as any).license_key ?? "");
       setAppSecret("");
     }
   }, [settings]);
@@ -2453,6 +2513,67 @@ function AdminPlatformSection() {
                     }}
                   >
                     {mut.isPending ? "Salvando…" : "Salvar SEO"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Licenciamento */}
+          <div className="mt-6 border-t pt-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <h3 className="font-display text-base font-semibold flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" /> Licenciamento da Plataforma
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Insira a chave de licença oficial para validar a ativação e permitir o uso das APIs da plataforma.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={toggleLicenseCollapsed}
+                aria-expanded={!licenseCollapsed}
+                aria-label={licenseCollapsed ? "Expandir licença" : "Recolher licença"}
+                className="shrink-0 gap-1 mt-0.5"
+              >
+                {licenseCollapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline text-xs">
+                  {licenseCollapsed ? "Expandir" : "Recolher"}
+                </span>
+              </Button>
+            </div>
+            {!licenseCollapsed && (
+              <div className="mt-4 grid gap-4">
+                <div className="space-y-1.5">
+                  <Label>Chave de Licença</Label>
+                  <Input
+                    value={licenseKey}
+                    onChange={(e) => setLicenseKey(e.target.value)}
+                    placeholder="Ex: VW2-PRO-XXXX-XXXX-XXXX"
+                    maxLength={255}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    A licença será ativada automaticamente com o servidor central após salvar.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={mut.isPending}
+                    onClick={() => {
+                      mut.mutate({
+                        license_key: licenseKey || null,
+                      });
+                    }}
+                  >
+                    {mut.isPending ? "Salvando…" : "Salvar Licença"}
                   </Button>
                 </div>
               </div>

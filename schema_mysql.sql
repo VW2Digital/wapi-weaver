@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   sidebar_order TEXT NULL,
   seo_title VARCHAR(128) NULL,
   seo_description VARCHAR(320) NULL,
+  license_key VARCHAR(255) NULL,
+  license_token TEXT NULL,
+  installation_id VARCHAR(255) NULL,
+  license_grace_period_start DATETIME NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   updated_by VARCHAR(36) NULL,
   FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL

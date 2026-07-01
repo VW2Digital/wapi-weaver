@@ -341,6 +341,12 @@ export async function ensureDatabaseSchema() {
     );
 
     await ensureColumnExists(connection, "platform_settings", "sidebar_order", "TEXT NULL");
+    await ensureColumnExists(connection, "platform_settings", "seo_title", "VARCHAR(128) NULL");
+    await ensureColumnExists(connection, "platform_settings", "seo_description", "VARCHAR(320) NULL");
+    await ensureColumnExists(connection, "platform_settings", "license_key", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "platform_settings", "license_token", "TEXT NULL");
+    await ensureColumnExists(connection, "platform_settings", "installation_id", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "platform_settings", "license_grace_period_start", "DATETIME NULL");
 
     logSchema("Garantindo linha singleton de platform_settings (id=1)...");
     await connection.query(

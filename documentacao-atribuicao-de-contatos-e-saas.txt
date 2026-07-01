@@ -1,0 +1,61 @@
+================================================================================
+DOCUMENTAÇÃO: ATRIBUIÇÃO DE CONTATOS & ESTRUTURA SAAS (MULTI-TENANCY)
+================================================================================
+
+Este documento descreve as regras de negócio e de banco de dados para a
+atribuição automática de leads e o isolamento de dados de múltiplos clientes
+(SaaS/Multi-tenancy) na aplicação.
+
+--------------------------------------------------------------------------------
+1. COMO FUNCIONA A ATRIBUIÇÃO AUTOMÁTICA DE LEADS
+--------------------------------------------------------------------------------
+A plataforma distribui novos contatos recebidos de forma inteligente e justa
+entre os vendedores de uma equipe usando uma variação do algoritmo Round-Robin.
+O critério é baseado na carga de trabalho atual em tempo real:
+
+1. CONTABILIZAÇÃO DE CARGA:
+   Quando um novo contato (lead) entra no sistema, o validador conta quantos
+   chats ativos (is_active = true) cada vendedor da equipe correspondente possui
+   no momento na tabela `conversation_assignments`.
+
+2. CRITÉRIO DA MENOR CARGA:
+   O sistema prioriza o vendedor que estiver com menos atendimentos ativos
+   no momento. Isso evita sobrecarregar quem já tem muitas conversas abertas.
+
+3. DESEMPATE ALEATÓRIO (RANDOM):
+   Caso dois ou mais vendedores tenham a mesma quantidade mínima de atendimentos
+   ativos (ex: três vendedores começam o dia com 0 atendimentos), o banco de
+   dados realiza um desempate aleatório (ordenado por RAND()). Isso garante uma
+   distribuição 100% imparcial de leads.
+
+4. TRANSAÇÃO DE ATRIBUIÇÃO:
+   - A atribuição anterior do contato é finalizada (is_active = false e
+     unassigned_at = timestamp atual).
+   - Uma nova atribuição é gerada na tabela `conversation_assignments` apontando
+     para o novo agente e time selecionados.
+
+--------------------------------------------------------------------------------
+2. ESTRUTURA SAAS E ISOLAMENTO DE DADOS (MULTI-TENANCY)
+--------------------------------------------------------------------------------
+Para funcionar de forma segura como um Software as a Service (SaaS), o sistema
+posui isolamento rígido entre diferentes clientes e suas equipes:
+
+1. ISOLAMENTO DE CREDENCIAIS (Meta / WhatsApp API):
+   Cada conta de usuário principal (tenant) possui seu próprio registro único na
+   tabela `profiles` com uma chave estrangeira de relacionamento de 1 para 1
+   referenciando `users.id`. Suas credenciais de API, tokens de acesso e IDs de
+   telefone são completamente isoladas dos demais inquilinos do sistema.
+
+2. ISOLAMENTO DE REGISTROS OPERACIONAIS:
+   Registros como contatos (`contacts`), campanhas (`campaigns`), templates
+   (`templates`) e chats possuem obrigatoriamente a coluna `user_id`. O código
+   da API e as regras de consulta filtram todos os dados baseados no ID do
+   usuário autenticado pela sessão JWT. É impossível para um Usuário "A" acessar
+   informações ou gerenciar contatos do Usuário "B".
+
+3. ACESSO DE EQUIPE:
+   Membros de equipe (vendedores) são vinculados a uma equipe/organização e
+   compartilham os privilégios autorizados pelo administrador da conta principal.
+   Qualquer pessoa que não faça parte explicitamente da sua equipe é impedida de
+   interagir ou visualizar os dados e fluxos de atendimento do seu painel.
+================================================================================

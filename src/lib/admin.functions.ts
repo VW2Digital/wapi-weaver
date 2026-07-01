@@ -23,7 +23,7 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
     const { data, error } = await context.db
       .from("platform_settings")
       .select(
-        "meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret, seo_title, seo_description",
+        "meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret, seo_title, seo_description, license_key",
       )
       .eq("id", 1)
       .maybeSingle();
@@ -39,6 +39,7 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
       cron_secret: (data as any).cron_secret ?? "",
       seo_title: (data as any)?.seo_title ?? "",
       seo_description: (data as any)?.seo_description ?? "",
+      license_key: (data as any)?.license_key ?? "",
       updated_at: data.updated_at,
     };
   });
@@ -73,6 +74,7 @@ const settingsSchema = z.object({
     .max(128)
     .regex(/^[A-Za-z0-9_-]*$/, "Use apenas letras, dígitos, _ ou -")
     .optional(),
+  license_key: z.string().trim().max(256).optional(),
 });
 
 export const updatePlatformSettings = createServerFn({ method: "POST" })
@@ -98,6 +100,8 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
       update.body_tags = data.body_tags === "" ? null : data.body_tags;
     if (data.cron_secret !== undefined)
       update.cron_secret = data.cron_secret === "" ? null : data.cron_secret;
+    if (data.license_key !== undefined)
+      update.license_key = data.license_key === "" ? null : data.license_key;
 
     const { error } = await context.db.from("platform_settings").upsert({
       id: 1,
@@ -105,6 +109,16 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
     } as never);
 
     if (error) throw error;
+
+    // Trigger key activation on update
+    if (data.license_key) {
+      const { activateLicense } = await import("./license-verifier");
+      const actRes = await activateLicense(data.license_key);
+      if (!actRes.success) {
+        throw new Error(actRes.error || "Falha ao ativar a licença.");
+      }
+    }
+
     await recordAudit({
       userId: context.userId,
       actorEmail: (context.claims as any)?.email,
@@ -323,4 +337,28 @@ export const updateSidebarOrder = createServerFn({ method: "POST" })
       metadata: { has_custom_order: !!data.order },
     });
     return { ok: true };
+  });
+
+export const getLicenseStatus = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async () => {
+    const { checkLicense, getPlatformSettings } = await import("./license-verifier");
+    const isValid = await checkLicense(undefined, true); // Physically valid?
+    const isAccessAllowed = await checkLicense(undefined, false); // Access permitted?
+
+    const settings = await getPlatformSettings();
+    const graceStart = settings?.license_grace_period_start;
+    let graceDaysRemaining = 0;
+    if (graceStart) {
+      const elapsed = Date.now() - new Date(graceStart).getTime();
+      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+      graceDaysRemaining = Math.max(0, Math.ceil((threeDaysMs - elapsed) / (24 * 60 * 60 * 1000)));
+    }
+
+    return {
+      isValid,
+      isAccessAllowed,
+      graceDaysRemaining,
+      hasGraceStarted: !!graceStart,
+    };
   });
