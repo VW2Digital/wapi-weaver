@@ -170,7 +170,22 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     throw new Error(`A tabela '${table}' não é permitida ou não existe`);
   }
 
-  const isSenderAdmin = userRole === "admin";
+  const isSenderAdmin = userRole === "admin" || userRole === "adminmaster";
+
+  const adminOnlyTables = new Set([
+    "platform_settings",
+    "license_settings",
+    "licenses",
+    "license_activations",
+    "license_validation_logs",
+    "audit_logs",
+    "user_roles",
+  ]);
+
+  if (adminOnlyTables.has(table) && !isSenderAdmin) {
+    throw new Error(`Acesso negado: apenas administradores master têm permissão para acessar a tabela '${table}'`);
+  }
+
   const enforceUserRestriction = hasUserIdColumn(table) && !isSenderAdmin;
 
   let sql = "";

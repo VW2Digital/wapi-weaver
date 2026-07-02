@@ -46,11 +46,9 @@ import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remov
 import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
 import { Route as ApiSitemapXmlRouteImport } from './routes/api/sitemap.xml'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
-import { Route as ApiPublicMakeAdminRouteImport } from './routes/api/public/make-admin'
 import { Route as ApiPublicInstagramWebhookRouteImport } from './routes/api/public/instagram-webhook'
 import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/public/facebook-webhook'
 import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
-import { Route as ApiLicensesActivateRouteImport } from './routes/api/licenses/activate'
 import { Route as ApiAuthVerifyTokenRouteImport } from './routes/api/auth/verify-token'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
@@ -62,7 +60,6 @@ import { Route as AppLicensesIdRouteImport } from './routes/_app/licenses/$id'
 import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
-import { Route as ApiV1LicenseValidateRouteImport } from './routes/api/v1/license/validate'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
 
@@ -253,11 +250,6 @@ const ApiPublicWhatsappWebhookRoute =
     path: '/api/public/whatsapp-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicMakeAdminRoute = ApiPublicMakeAdminRouteImport.update({
-  id: '/api/public/make-admin',
-  path: '/api/public/make-admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicInstagramWebhookRoute =
   ApiPublicInstagramWebhookRouteImport.update({
     id: '/api/public/instagram-webhook',
@@ -273,11 +265,6 @@ const ApiPublicFacebookWebhookRoute =
 const ApiLicensesHealthRoute = ApiLicensesHealthRouteImport.update({
   id: '/api/licenses/health',
   path: '/api/licenses/health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiLicensesActivateRoute = ApiLicensesActivateRouteImport.update({
-  id: '/api/licenses/activate',
-  path: '/api/licenses/activate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthVerifyTokenRoute = ApiAuthVerifyTokenRouteImport.update({
@@ -336,11 +323,6 @@ const ApiWhatsappBusinessProfilePhotoRoute =
     path: '/photo',
     getParentRoute: () => ApiWhatsappBusinessProfileRoute,
   } as any)
-const ApiV1LicenseValidateRoute = ApiV1LicenseValidateRouteImport.update({
-  id: '/api/v1/license/validate',
-  path: '/api/v1/license/validate',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicCronProcessQueueRoute =
   ApiPublicCronProcessQueueRouteImport.update({
     id: '/api/public/cron/process-queue',
@@ -387,11 +369,9 @@ export interface FileRoutesByFullPath {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
-  '/api/licenses/activate': typeof ApiLicensesActivateRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
-  '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
   '/api/storage/file': typeof ApiStorageFileRoute
@@ -407,7 +387,6 @@ export interface FileRoutesByFullPath {
   '/licenses/': typeof AppLicensesIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
-  '/api/v1/license/validate': typeof ApiV1LicenseValidateRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRoutesByTo {
@@ -444,11 +423,9 @@ export interface FileRoutesByTo {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
-  '/api/licenses/activate': typeof ApiLicensesActivateRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
-  '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
   '/api/storage/file': typeof ApiStorageFileRoute
@@ -464,7 +441,6 @@ export interface FileRoutesByTo {
   '/licenses': typeof AppLicensesIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
-  '/api/v1/license/validate': typeof ApiV1LicenseValidateRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRoutesById {
@@ -503,11 +479,9 @@ export interface FileRoutesById {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
-  '/api/licenses/activate': typeof ApiLicensesActivateRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
-  '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
   '/api/storage/file': typeof ApiStorageFileRoute
@@ -523,7 +497,6 @@ export interface FileRoutesById {
   '/_app/licenses/': typeof AppLicensesIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
-  '/api/v1/license/validate': typeof ApiV1LicenseValidateRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRouteTypes {
@@ -562,11 +535,9 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
-    | '/api/licenses/activate'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
-    | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
     | '/api/storage/file'
@@ -582,7 +553,6 @@ export interface FileRouteTypes {
     | '/licenses/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
-    | '/api/v1/license/validate'
     | '/api/whatsapp/business-profile/photo'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -619,11 +589,9 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
-    | '/api/licenses/activate'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
-    | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
     | '/api/storage/file'
@@ -639,7 +607,6 @@ export interface FileRouteTypes {
     | '/licenses'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
-    | '/api/v1/license/validate'
     | '/api/whatsapp/business-profile/photo'
   id:
     | '__root__'
@@ -677,11 +644,9 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
-    | '/api/licenses/activate'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
-    | '/api/public/make-admin'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
     | '/api/storage/file'
@@ -697,7 +662,6 @@ export interface FileRouteTypes {
     | '/_app/licenses/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
-    | '/api/v1/license/validate'
     | '/api/whatsapp/business-profile/photo'
   fileRoutesById: FileRoutesById
 }
@@ -717,11 +681,9 @@ export interface RootRouteChildren {
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiAuthVerifyTokenRoute: typeof ApiAuthVerifyTokenRoute
-  ApiLicensesActivateRoute: typeof ApiLicensesActivateRoute
   ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
   ApiPublicFacebookWebhookRoute: typeof ApiPublicFacebookWebhookRoute
   ApiPublicInstagramWebhookRoute: typeof ApiPublicInstagramWebhookRoute
-  ApiPublicMakeAdminRoute: typeof ApiPublicMakeAdminRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiSitemapXmlRoute: typeof ApiSitemapXmlRoute
   ApiStorageFileRoute: typeof ApiStorageFileRoute
@@ -734,7 +696,6 @@ export interface RootRouteChildren {
   ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
-  ApiV1LicenseValidateRoute: typeof ApiV1LicenseValidateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -998,13 +959,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/make-admin': {
-      id: '/api/public/make-admin'
-      path: '/api/public/make-admin'
-      fullPath: '/api/public/make-admin'
-      preLoaderRoute: typeof ApiPublicMakeAdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/instagram-webhook': {
       id: '/api/public/instagram-webhook'
       path: '/api/public/instagram-webhook'
@@ -1024,13 +978,6 @@ declare module '@tanstack/react-router' {
       path: '/api/licenses/health'
       fullPath: '/api/licenses/health'
       preLoaderRoute: typeof ApiLicensesHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/licenses/activate': {
-      id: '/api/licenses/activate'
-      path: '/api/licenses/activate'
-      fullPath: '/api/licenses/activate'
-      preLoaderRoute: typeof ApiLicensesActivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/verify-token': {
@@ -1109,13 +1056,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/whatsapp/business-profile/photo'
       preLoaderRoute: typeof ApiWhatsappBusinessProfilePhotoRouteImport
       parentRoute: typeof ApiWhatsappBusinessProfileRoute
-    }
-    '/api/v1/license/validate': {
-      id: '/api/v1/license/validate'
-      path: '/api/v1/license/validate'
-      fullPath: '/api/v1/license/validate'
-      preLoaderRoute: typeof ApiV1LicenseValidateRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/public/cron/process-queue': {
       id: '/api/public/cron/process-queue'
@@ -1216,11 +1156,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiAuthVerifyTokenRoute: ApiAuthVerifyTokenRoute,
-  ApiLicensesActivateRoute: ApiLicensesActivateRoute,
   ApiLicensesHealthRoute: ApiLicensesHealthRoute,
   ApiPublicFacebookWebhookRoute: ApiPublicFacebookWebhookRoute,
   ApiPublicInstagramWebhookRoute: ApiPublicInstagramWebhookRoute,
-  ApiPublicMakeAdminRoute: ApiPublicMakeAdminRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiSitemapXmlRoute: ApiSitemapXmlRoute,
   ApiStorageFileRoute: ApiStorageFileRoute,
@@ -1233,7 +1171,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
-  ApiV1LicenseValidateRoute: ApiV1LicenseValidateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
