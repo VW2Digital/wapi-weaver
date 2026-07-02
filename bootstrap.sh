@@ -38,6 +38,7 @@ if [ -f "${APP_DIR}/.env" ]; then
 fi
 
 echo -e "${YELLOW}Clonando repositório do Wapi Weaver para ${APP_DIR}...${NC}"
+cd /var/www
 rm -rf "${APP_DIR}"
 git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
 
