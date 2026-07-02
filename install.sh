@@ -275,18 +275,18 @@ else
   echo "  Gerando .env com segredos seguros..."
 fi
 
-JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
-EXISTING_LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+EXISTING_LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="${EXISTING_LICENSE_SRV_URL}"
-LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_GR_HRS=$(grep '^LICENSE_GRACE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_K=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_GR_HRS=$(grep '^LICENSE_GRACE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_K=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
 [ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
@@ -321,12 +321,6 @@ LICENSE_KEY=${LICENSE_K}
 LICENSE_ROLE=${LICENSE_RL}
 APP_URL=${PROTOCOL}://${DOMAIN}
 EOF
-
-# Atualiza também no docker-compose.yml as senhas do container MySQL e do app
-sed -i "s/MYSQL_ROOT_PASSWORD: .*/MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}/" "${APP_DIR}/docker-compose.yml"
-sed -i "s/MYSQL_PASSWORD: .*/MYSQL_PASSWORD: ${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
-sed -i "s/- DB_PASSWORD=.*/- DB_PASSWORD=${DB_PASS}/" "${APP_DIR}/docker-compose.yml"
-sed -i "s/- JWT_SECRET=.*/- JWT_SECRET=${JWT_SEC}/" "${APP_DIR}/docker-compose.yml"
 
 print_ok "Configurações aplicadas."
 
