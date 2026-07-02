@@ -88,7 +88,7 @@ function LicensesPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["licenses", { search, status, plan, page }],
-    queryFn: () => fetchLicenses({ search, status, plan, page, limit: 15 }),
+    queryFn: () => fetchLicenses({ data: { search, status, plan, page, limit: 15 } }),
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
     placeholderData: (prev) => prev
   });
