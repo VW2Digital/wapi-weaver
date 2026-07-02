@@ -1474,6 +1474,9 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
         ig_user_id: z.string().trim().min(5),
         username: z.string().trim().min(1),
         access_token: z.string().trim().min(20),
+        app_id: z.string().optional(),
+        app_secret: z.string().optional(),
+        token_expires_at: z.string().optional(),
       })
       .parse(d),
   )
@@ -1481,10 +1484,10 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const id = crypto.randomUUID();
     await db.query(
-      `INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, access_token, status)
-       VALUES (?, ?, ?, ?, ?, 'active')
-       ON DUPLICATE KEY UPDATE username = VALUES(username), access_token = VALUES(access_token), status = 'active'`,
-      [id, context.userId, data.ig_user_id, data.username, data.access_token],
+      `INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, access_token, app_id, app_secret, token_expires_at, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+       ON DUPLICATE KEY UPDATE username = VALUES(username), access_token = VALUES(access_token), app_id = VALUES(app_id), app_secret = VALUES(app_secret), token_expires_at = VALUES(token_expires_at), status = 'active'`,
+      [id, context.userId, data.ig_user_id, data.username, data.access_token, data.app_id || null, data.app_secret || null, data.token_expires_at || null],
     );
     return { ok: true };
   });

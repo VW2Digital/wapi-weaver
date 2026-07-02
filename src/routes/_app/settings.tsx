@@ -6306,6 +6306,9 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
   const [igUserId, setIgUserId] = useState("");
   const [username, setUsername] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [appId, setAppId] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [tokenExpiresAt, setTokenExpiresAt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: accounts, isLoading } = useQuery({
@@ -6325,11 +6328,17 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
         ig_user_id: igUserId,
         username: username,
         access_token: accessToken,
+        app_id: appId || undefined,
+        app_secret: appSecret || undefined,
+        token_expires_at: tokenExpiresAt || undefined,
       });
       toast.success("Conta do Instagram conectada com sucesso!");
       setIgUserId("");
       setUsername("");
       setAccessToken("");
+      setAppId("");
+      setAppSecret("");
+      setTokenExpiresAt("");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
       toast.error(err.message || "Erro ao conectar conta");
@@ -6406,6 +6415,41 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                       />
                     </div>
 
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="app_id">App ID</Label>
+                        <Input
+                          id="app_id"
+                          placeholder="ID do seu aplicativo Meta"
+                          value={appId}
+                          onChange={(e) => setAppId(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="app_secret">App Secret</Label>
+                        <Input
+                          id="app_secret"
+                          type="password"
+                          placeholder="Chave secreta do seu aplicativo Meta"
+                          value={appSecret}
+                          onChange={(e) => setAppSecret(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="token_expires_at">Data de Expiração do Token (opcional)</Label>
+                      <Input
+                        id="token_expires_at"
+                        type="datetime-local"
+                        value={tokenExpiresAt}
+                        onChange={(e) => setTokenExpiresAt(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Os tokens de longa duração do Meta expiram em 60 dias. Informe a data para acompanhar a validade.
+                      </p>
+                    </div>
+
                     <Button type="submit" disabled={isSubmitting}>
                       {isSubmitting ? "Conectando..." : "Conectar Canal"}
                     </Button>
@@ -6425,6 +6469,13 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                           <div>
                             <p className="font-semibold text-sm">@{acc.username}</p>
                             <p className="text-xs text-muted-foreground">ID: {acc.ig_user_id}</p>
+                            {acc.app_id && <p className="text-xs text-muted-foreground">App ID: {acc.app_id}</p>}
+                            {acc.app_secret && <p className="text-xs text-muted-foreground">App Secret: ••••••••</p>}
+                            {acc.token_expires_at && (
+                              <p className={`text-xs ${new Date(acc.token_expires_at) < new Date() ? "text-destructive" : "text-muted-foreground"}`}>
+                                Expira em: {new Date(acc.token_expires_at).toLocaleString("pt-BR")}
+                              </p>
+                            )}
                           </div>
                           <Button
                             size="sm"

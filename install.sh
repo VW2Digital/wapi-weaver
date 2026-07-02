@@ -54,24 +54,6 @@ fi
 # ---------------------------------------------------------------------------
 print_step "[1/7] Coletando parâmetros de configuração..."
 
-# ── Tipo de Instalação (Painel vs SaaS) ──────────────────────────────────────
-LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${LICENSE_RL_ENV}" ] || LICENSE_RL_ENV="saas"
-
-while true; do
-  if [ -z "${LICENSE_ROLE:-}" ]; then
-    read -p "Deseja instalar como Painel Admin (panel) ou como Disparador Cliente (saas) [${LICENSE_RL_ENV}]: " LICENSE_ROLE
-    LICENSE_ROLE="${LICENSE_ROLE:-$LICENSE_RL_ENV}"
-  fi
-  LICENSE_ROLE=$(echo "$LICENSE_ROLE" | tr '[:upper:]' '[:lower:]' | xargs)
-  if [[ "$LICENSE_ROLE" == "panel" || "$LICENSE_ROLE" == "saas" ]]; then
-    break
-  else
-    echo -e "${RED}Erro: Opção inválida. Digite apenas 'panel' ou 'saas'.${NC}"
-    LICENSE_ROLE=""
-  fi
-done
-
 # Validador de Domínio da Aplicação
 while true; do
   if [ -z "${DOMAIN:-}" ]; then
@@ -86,49 +68,7 @@ while true; do
   fi
 done
 
-# Validador de Parâmetros Condicionados por Função
-if [[ "$LICENSE_ROLE" == "saas" ]]; then
-  # SaaS: Precisa do Painel de Licenças e da Chave de Licença
-  LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' || true)
-  [ -n "${LICENSE_SRV_URL_ENV}" ] || LICENSE_SRV_URL_ENV="admin.blivcrm.com"
-
-  while true; do
-    if [ -z "${LICENSE_SRV_URL:-}" ]; then
-      read -p "Digite o domínio do Painel de Licenças externo [${LICENSE_SRV_URL_ENV}]: " LICENSE_SRV_URL
-      LICENSE_SRV_URL="${LICENSE_SRV_URL:-$LICENSE_SRV_URL_ENV}"
-    fi
-    LICENSE_SRV_URL=$(echo "$LICENSE_SRV_URL" | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' | xargs)
-    if [[ "$LICENSE_SRV_URL" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-      LICENSE_SRV_URL="https://${LICENSE_SRV_URL}"
-      break
-    else
-      echo -e "${RED}Erro: Domínio do painel inválido. Digite um domínio válido.${NC}"
-      LICENSE_SRV_URL=""
-    fi
-  done
-
-  LICENSE_K_ENV=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-  [ -n "${LICENSE_K_ENV}" ] || LICENSE_K_ENV=""
-
-  while true; do
-    if [ -z "${LICENSE_KEY:-}" ]; then
-      read -p "Digite a Chave de Licença obtida no painel: " LICENSE_KEY
-    fi
-    LICENSE_KEY=$(echo "$LICENSE_KEY" | xargs)
-    if [ -n "$LICENSE_KEY" ]; then
-      break
-    else
-      echo -e "${RED}Erro: A chave de licença é obrigatória em modo cliente (saas).${NC}"
-      LICENSE_KEY=""
-    fi
-  done
-else
-  # Panel: Roda localmente, o endpoint é ele mesmo
-  LICENSE_SRV_URL="https://${DOMAIN}" # Nginx vai forçar SSL se ativado
-  LICENSE_KEY="VW2-PANEL-SERVER-KEY-NOT-NEEDED"
-fi
-
-# Coletar dados do administrador (Master no painel / Admin local no SaaS)
+# Coletar dados do administrador
 while true; do
   if [ -z "${ADMIN_EMAIL:-}" ]; then
     read -p "Digite o e-mail de acesso para o Administrador: " ADMIN_EMAIL
@@ -346,29 +286,23 @@ JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d
 DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
-EXISTING_LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="${EXISTING_LICENSE_SRV_URL}"
-LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_GR_HRS=$(grep '^LICENSE_GRACE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_K=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${LICENSE_SRV_URL:-}" ] || LICENSE_SRV_URL="${LICENSE_SRV_URL_ENV}"
+LICENSE_AP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${LICENSE_AP_ID:-}" ] || LICENSE_AP_ID="${LICENSE_AP_ID_ENV}"
+LICENSE_API_SEC_ENV=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${LICENSE_API_SEC:-}" ] || LICENSE_API_SEC="${LICENSE_API_SEC_ENV}"
+LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${LICENSE_RL:-}" ] || LICENSE_RL="${LICENSE_RL_ENV}"
 
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
 [ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
 [ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
 [ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
 
-[ -n "${LICENSE_ROLE:-}" ] && LICENSE_RL="${LICENSE_ROLE}"
-[ -n "${LICENSE_KEY:-}" ] && LICENSE_K="${LICENSE_KEY}"
-
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
 [ -n "${LICENSE_AP_ID}" ] || LICENSE_AP_ID="meu-saas"
 [ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
-[ -n "${LICENSE_CH_HRS}" ] || LICENSE_CH_HRS="24"
-[ -n "${LICENSE_GR_HRS}" ] || LICENSE_GR_HRS="72"
-[ -n "${LICENSE_K}" ] || LICENSE_K="VW2-PRO-XXXX-XXXX-XXXX"
 [ -n "${LICENSE_RL}" ] || LICENSE_RL="saas"
 
 PROTOCOL="http"
@@ -385,9 +319,6 @@ MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
 LICENSE_SERVER_URL=${LICENSE_SRV_URL}
 LICENSE_APP_ID=${LICENSE_AP_ID}
 LICENSE_API_SECRET=${LICENSE_API_SEC}
-LICENSE_CACHE_HOURS=${LICENSE_CH_HRS}
-LICENSE_GRACE_HOURS=${LICENSE_GR_HRS}
-LICENSE_KEY=${LICENSE_K}
 LICENSE_ROLE=${LICENSE_RL}
 APP_URL=${PROTOCOL}://${DOMAIN}
 ADMIN_EMAIL=${ADMIN_EMAIL:-}

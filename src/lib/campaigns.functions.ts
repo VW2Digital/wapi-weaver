@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { resolveEffectiveUserId } from "./chat-helpers";
-import db from "./db";
 import { recordAudit } from "./audit.functions";
 
 const payloadSchema = z.object({
@@ -206,6 +205,7 @@ async function rebuildCampaignQueue(db: any, context: any, campaignId: string, c
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     // Recalcular totais para todas as campanhas do usuário (exceto rascunhos) antes de listar
@@ -239,6 +239,7 @@ export const getCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     // Recalcular totais para a campanha específica antes de detalhar
@@ -483,6 +484,7 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const campaigns: any[] = (await db.query(
       `SELECT id, name, created_at, status FROM campaigns WHERE id = ? AND user_id = ? LIMIT 1`,

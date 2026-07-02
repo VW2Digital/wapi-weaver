@@ -3,6 +3,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import { sendInstagramMessage } from "@/lib/instagram-messenger";
 import db from "./db";
 
 const sendMessageInput = z.object({
@@ -343,76 +344,10 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    // Busca credenciais do perfil do dono do WhatsApp
-    const profiles: any[] = (await db.query(
-      `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
-       FROM profiles WHERE id = ? LIMIT 1`,
-      [effectiveUserId],
-    )) as any[];
-    const p = profiles?.[0];
-
-    if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
-      return { ok: false, error: "Credenciais de API não configuradas em Configurações." };
-    }
-
-    // 2. Reconstrói o payload de envio conforme especificações do cURL
-    const payload: any = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: digits,
-    };
-
-    if (data.reply_to_message_id) {
-      payload.context = { message_id: data.reply_to_message_id };
-    }
-
-    if (data.type === "text") {
-      payload.type = "text";
-      payload.text = {
-        body: data.text?.body || "",
-        preview_url: data.text?.preview_url ?? false,
-      };
-    } else if (data.type === "reaction") {
-      payload.type = "reaction";
-      payload.reaction = {
-        message_id: data.reaction?.message_id || "",
-        emoji: data.reaction?.emoji || "",
-      };
-    } else if (data.type === "image") {
-      payload.type = "image";
-      payload.image = data.image?.id ? { id: data.image.id } : { link: data.image?.link };
-    } else if (data.type === "audio") {
-      payload.type = "audio";
-      payload.audio = data.audio?.id ? { id: data.audio.id } : { link: data.audio?.link };
-    } else if (data.type === "video") {
-      payload.type = "video";
-      payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };
-    } else if (data.type === "document") {
-      payload.type = "document";
-      payload.document = data.document?.id
-        ? { id: data.document.id, filename: data.document.filename }
-        : { link: data.document?.link, filename: data.document?.filename };
-    } else if (data.type === "sticker") {
-      payload.type = "sticker";
-      payload.sticker = data.sticker?.id ? { id: data.sticker.id } : { link: data.sticker?.link };
-    } else if (data.type === "location") {
-      payload.type = "location";
-      payload.location = {
-        latitude: data.location?.latitude,
-        longitude: data.location?.longitude,
-        name: data.location?.name,
-        address: data.location?.address,
-      };
-    } else if (data.type === "contacts") {
-      payload.type = "contacts";
-      payload.contacts = data.contacts;
-    }
-
     let wamid: string | null = null;
     let body: any = null;
 
     if (isInstagram) {
-      // 1. Busca conta do Instagram conectada
       const igAccounts = (await db.query(
         `SELECT ig_user_id, access_token FROM instagram_accounts WHERE user_id = ? AND status = 'active' LIMIT 1`,
         [effectiveUserId],
@@ -423,7 +358,6 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         return { ok: false, error: "Nenhuma conta profissional do Instagram conectada." };
       }
 
-      // 2. Busca o external_contact_id
       const contacts = (await db.query(
         `SELECT external_contact_id FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
         [effectiveUserId, digits],
@@ -433,66 +367,20 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         return { ok: false, error: "Contato do Instagram sem external_contact_id." };
       }
 
-      const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
-      const payload: any = {
-        recipient: { id: externalId },
-      };
+      const result = await sendInstagramMessage({
+        igUserId: account.ig_user_id,
+        accessToken: account.access_token,
+        recipientId: externalId,
+        data,
+        replyToMessageId: data.reply_to_message_id,
+      });
 
-      if (data.type === "text") {
-        payload.message = { text: data.text?.body || "" };
-      } else if (data.type === "reaction") {
-        payload.sender_action = "react";
-        payload.payload = {
-          message_id: data.reaction?.message_id || "",
-          reaction: data.reaction?.emoji || "",
-        };
-      } else if (["image", "audio", "video", "document"].includes(data.type)) {
-        let type = data.type;
-        if (type === "document") type = "file";
-        
-        let mediaUrl = "";
-        let attachmentId = "";
-
-        if (data.type === "image") {
-          mediaUrl = data.image?.link || "";
-          attachmentId = data.image?.id || "";
-        } else if (data.type === "audio") {
-          mediaUrl = data.audio?.link || "";
-          attachmentId = data.audio?.id || "";
-        } else if (data.type === "video") {
-          mediaUrl = data.video?.link || "";
-          attachmentId = data.video?.id || "";
-        } else if (data.type === "document") {
-          mediaUrl = data.document?.link || "";
-          attachmentId = data.document?.id || "";
-        }
-
-        payload.message = {
-          attachment: {
-            type,
-            payload: attachmentId ? { attachment_id: attachmentId } : { url: mediaUrl },
-          },
-        };
+      if (!result.ok) {
+        return { ok: false, error: result.error };
       }
 
-      const r = await fetch(
-        `https://graph.facebook.com/${apiVersion}/${account.ig_user_id}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${account.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      body = await r.json();
-      if (!r.ok) {
-        return { ok: false, error: body?.error?.message ?? "Falha ao enviar DM no Instagram." };
-      }
-
-      wamid = body?.message_id || null;
+      wamid = result.wamid;
+      body = result.body;
     } else if (isMessenger) {
       // 1. Busca página do Facebook conectada
       const fbPages = (await db.query(
@@ -577,6 +465,69 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       wamid = body?.message_id || null;
     } else {
       // Envio via WhatsApp
+      const profiles: any[] = (await db.query(
+        `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
+         FROM profiles WHERE id = ? LIMIT 1`,
+        [effectiveUserId],
+      )) as any[];
+      const p = profiles?.[0];
+
+      if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+        return { ok: false, error: "Credenciais de API não configuradas em Configurações." };
+      }
+
+      const payload: any = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: digits,
+      };
+
+      if (data.reply_to_message_id) {
+        payload.context = { message_id: data.reply_to_message_id };
+      }
+
+      if (data.type === "text") {
+        payload.type = "text";
+        payload.text = {
+          body: data.text?.body || "",
+          preview_url: data.text?.preview_url ?? false,
+        };
+      } else if (data.type === "reaction") {
+        payload.type = "reaction";
+        payload.reaction = {
+          message_id: data.reaction?.message_id || "",
+          emoji: data.reaction?.emoji || "",
+        };
+      } else if (data.type === "image") {
+        payload.type = "image";
+        payload.image = data.image?.id ? { id: data.image.id } : { link: data.image?.link };
+      } else if (data.type === "audio") {
+        payload.type = "audio";
+        payload.audio = data.audio?.id ? { id: data.audio.id } : { link: data.audio?.link };
+      } else if (data.type === "video") {
+        payload.type = "video";
+        payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };
+      } else if (data.type === "document") {
+        payload.type = "document";
+        payload.document = data.document?.id
+          ? { id: data.document.id, filename: data.document.filename }
+          : { link: data.document?.link, filename: data.document?.filename };
+      } else if (data.type === "sticker") {
+        payload.type = "sticker";
+        payload.sticker = data.sticker?.id ? { id: data.sticker.id } : { link: data.sticker?.link };
+      } else if (data.type === "location") {
+        payload.type = "location";
+        payload.location = {
+          latitude: data.location?.latitude,
+          longitude: data.location?.longitude,
+          name: data.location?.name,
+          address: data.location?.address,
+        };
+      } else if (data.type === "contacts") {
+        payload.type = "contacts";
+        payload.contacts = data.contacts;
+      }
+
       const apiVersion = p.meta_graph_version || "v20.0";
       const r = await fetch(
         `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,

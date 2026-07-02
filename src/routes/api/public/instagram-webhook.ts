@@ -33,9 +33,20 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
         logInfo("GET recebido", { mode, token });
 
-        if (mode === "subscribe" && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
-          logInfo("GET validado com sucesso");
-          return new Response(challenge ?? "", { status: 200 });
+        if (mode === "subscribe" && token) {
+          if (token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+            logInfo("GET validado via env var");
+            return new Response(challenge ?? "", { status: 200 });
+          }
+          const { data: profile } = await dbAdmin
+            .from("profiles")
+            .select("id")
+            .eq("whatsapp_verify_token", token)
+            .maybeSingle();
+          if (profile) {
+            logInfo("GET validado via profile do usuário");
+            return new Response(challenge ?? "", { status: 200 });
+          }
         }
 
         logError("GET falhou na validação de token");
@@ -62,7 +73,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
         const { data: account } = await dbAdmin
           .from("instagram_accounts")
-          .select("user_id, status")
+          .select("user_id, status, app_secret")
           .eq("ig_user_id", pageId)
           .maybeSingle();
 
@@ -71,8 +82,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           return new Response("Account not integrated", { status: 404 });
         }
 
-        // Validando assinatura Meta se META_APP_SECRET existir
-        const appSecret = process.env.META_APP_SECRET;
+        // Validando assinatura Meta (usa app_secret da conta ou env var como fallback)
+        const appSecret = account.app_secret || process.env.META_APP_SECRET;
         if (appSecret) {
           const verified = await verifySignature(rawBody, sig, appSecret);
           if (!verified) {

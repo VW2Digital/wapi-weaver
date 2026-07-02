@@ -699,6 +699,8 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
   ig_user_id VARCHAR(100) NOT NULL UNIQUE,
   username VARCHAR(100) NULL,
   access_token TEXT NOT NULL,
+  app_id VARCHAR(100) NULL,
+  app_secret VARCHAR(255) NULL,
   token_expires_at DATETIME NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
