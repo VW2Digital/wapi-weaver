@@ -64,7 +64,7 @@ function LicenseDetailPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["license-detail", numericId],
-    queryFn: () => fetchDetail({ id: numericId }),
+    queryFn: () => fetchDetail({ data: { id: numericId } }),
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin
   });
 

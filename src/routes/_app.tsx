@@ -540,14 +540,14 @@ function AppLayout() {
                 <ShieldAlert className="h-8 w-8 animate-pulse" />
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-foreground mb-2">
-                Acesso Bloqueado — Domínio Não Autorizado
+                Acesso Bloqueado — Conta Não Autorizada
               </h2>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                Este domínio não está autorizado no Painel de Controle de Licenças. O uso do disparador e de todos os recursos da plataforma foi suspenso. Por favor, entre em contato com o suporte para habilitar o acesso.
+                Sua conta ou assinatura não está ativa ou expirou o período de validade. O uso do disparador e de todos os recursos da plataforma foi suspenso. Por favor, entre em contato com o suporte para regularizar seu acesso.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
                 <Button asChild variant="default" className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebd56] text-white border-none shadow-sm hover:text-white cursor-pointer">
-                  <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20o%20acesso%20do%20meu%20dom%C3%ADnio%20no%20sistema." target="_blank" rel="noopener noreferrer">
+                  <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20o%20acesso%20da%20minha%20conta%20no%20sistema." target="_blank" rel="noopener noreferrer">
                     Falar com o Suporte
                   </a>
                 </Button>
