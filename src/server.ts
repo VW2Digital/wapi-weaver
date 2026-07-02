@@ -122,6 +122,46 @@ export default {
     try {
       const url = new URL(request.url);
       
+      if (url.pathname === "/api/license/debug") {
+        const serverUrl = process.env.LICENSE_SERVER_URL || "https://painel.blivcrm.com";
+        const appId = process.env.LICENSE_APP_ID || "meu-saas";
+        let canReach = false;
+        let panelResponse: any = null;
+        let errMessage: string | null = null;
+        
+        try {
+          const healthUrl = `${serverUrl.replace(/\/+$/, "")}/api/licenses/health`;
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), 5000);
+          const res = await fetch(healthUrl, { method: "GET", signal: controller.signal });
+          clearTimeout(id);
+          canReach = res.ok;
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            panelResponse = await res.json();
+          } else {
+            panelResponse = await res.text();
+          }
+        } catch (err: any) {
+          errMessage = err.message || String(err);
+        }
+        
+        return new Response(
+          JSON.stringify({
+            role: "saas",
+            license_server_url: serverUrl,
+            app_id: appId,
+            can_reach_panel: canReach,
+            panel_health_response: panelResponse,
+            error: errMessage
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
+
       // Intercept critical APIs if license is invalid
       if (url.pathname.startsWith("/api/whatsapp/")) {
         const reqHost = request.headers.get("host") || undefined;
