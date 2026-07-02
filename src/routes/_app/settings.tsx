@@ -6322,11 +6322,9 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
     setIsSubmitting(true);
     try {
       await connectIg({
-        data: {
-          ig_user_id: igUserId,
-          username: username,
-          access_token: accessToken,
-        },
+        ig_user_id: igUserId,
+        username: username,
+        access_token: accessToken,
       });
       toast.success("Conta do Instagram conectada com sucesso!");
       setIgUserId("");
@@ -6343,7 +6341,7 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
   const handleDisconnect = async (id: string) => {
     if (!confirm("Deseja realmente desconectar esta conta do Instagram?")) return;
     try {
-      await disconnectIg({ data: { id } });
+      await disconnectIg({ id });
       toast.success("Conta desconectada.");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
@@ -6547,11 +6545,9 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
     setIsSubmitting(true);
     try {
       await connectFb({
-        data: {
-          page_id: pageId,
-          page_name: pageName,
-          page_access_token: pageAccessToken,
-        },
+        page_id: pageId,
+        page_name: pageName,
+        page_access_token: pageAccessToken,
       });
       toast.success("Página do Facebook conectada com sucesso!");
       setPageId("");
@@ -6568,7 +6564,7 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
   const handleDisconnect = async (id: string) => {
     if (!confirm("Deseja realmente desconectar esta página do Facebook?")) return;
     try {
-      await disconnectFb({ data: { id } });
+      await disconnectFb({ id });
       toast.success("Página desconectada.");
       qc.invalidateQueries({ queryKey: ["facebook-pages"] });
     } catch (err: any) {
