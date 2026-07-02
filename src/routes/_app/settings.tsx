@@ -478,8 +478,10 @@ function SettingsPage() {
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <KeyRound className="h-5 w-5" />
+                    <div className="h-10 w-10 bg-[#0064E0]/10 text-[#0064E0] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                        <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4zm0 0c2 2.67 4 4 6 4a4 4 0 1 0 0-8c-2 0-4 1.33-6 4z" />
+                      </svg>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -500,8 +502,10 @@ function SettingsPage() {
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <Phone className="h-5 w-5" />
+                    <div className="h-10 w-10 bg-[#25D366]/10 text-[#25D366] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.003 5.324 5.328 0 11.859 0c3.166.001 6.141 1.233 8.378 3.471 2.238 2.238 3.469 5.214 3.469 8.38 0 6.538-5.322 11.86-11.855 11.86-.002 0-.003 0-.005 0-2.016-.001-3.996-.543-5.74-1.571L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.023-5.11-2.884-6.973C16.73 1.912 14.25 .883 11.863.883c-5.438 0-9.863 4.42-9.867 9.859-.001 1.737.457 3.431 1.328 4.922L2.29 21.73l6.357-1.666-.001-.01z" />
+                      </svg>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -522,8 +526,12 @@ function SettingsPage() {
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <MessageSquare className="h-5 w-5" />
+                    <div className="h-10 w-10 bg-[#E1306C]/10 text-[#E1306C] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                      </svg>
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">Instagram</h5>
@@ -539,8 +547,10 @@ function SettingsPage() {
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <Facebook className="h-5 w-5" />
+                    <div className="h-10 w-10 bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                      </svg>
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">Facebook</h5>
