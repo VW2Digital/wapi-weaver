@@ -406,6 +406,82 @@ export async function ensureDatabaseSchema() {
       VALUES (1, 'absent', UUID(), 'Licença não encontrada localmente.')
     `,
     );
+
+    logSchema("Criando tabelas do Painel de Licenças (Modo Integrado)...");
+
+    await ensureTableExists(
+      connection,
+      "licenses",
+      `
+      CREATE TABLE IF NOT EXISTS licenses (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        license_key_hash CHAR(64) NOT NULL UNIQUE,
+        license_key_preview VARCHAR(60) NOT NULL,
+        client_name VARCHAR(160) NULL,
+        client_email VARCHAR(190) NULL,
+        product_name VARCHAR(120) NULL DEFAULT 'SaaS',
+        app_id VARCHAR(100) NOT NULL DEFAULT 'meu-saas',
+        plan VARCHAR(80) NOT NULL DEFAULT 'basic',
+        status VARCHAR(30) NOT NULL DEFAULT 'active',
+        expires_at DATETIME NULL,
+        max_activations INT NOT NULL DEFAULT 1,
+        max_users INT NULL,
+        features_json JSON NULL,
+        notes TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_licenses_status (status),
+        INDEX idx_licenses_app_id (app_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `
+    );
+
+    await ensureTableExists(
+      connection,
+      "license_activations",
+      `
+      CREATE TABLE IF NOT EXISTS license_activations (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        license_id BIGINT UNSIGNED NOT NULL,
+        domain VARCHAR(190) NOT NULL,
+        app_url VARCHAR(255) NULL,
+        installation_id VARCHAR(120) NOT NULL,
+        ip_address VARCHAR(80) NULL,
+        user_agent TEXT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'active',
+        activated_at DATETIME NOT NULL,
+        last_check_at DATETIME NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_license_activation (license_id, domain, installation_id),
+        INDEX idx_license_activations_license_id (license_id),
+        CONSTRAINT fk_license_activations_license FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `
+    );
+
+    await ensureTableExists(
+      connection,
+      "license_validation_logs",
+      `
+      CREATE TABLE IF NOT EXISTS license_validation_logs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        license_id BIGINT UNSIGNED NULL,
+        domain VARCHAR(190) NULL,
+        app_url VARCHAR(255) NULL,
+        installation_id VARCHAR(120) NULL,
+        ip_address VARCHAR(80) NULL,
+        app_id VARCHAR(100) NULL,
+        result VARCHAR(40) NOT NULL,
+        reason TEXT NULL,
+        payload_json JSON NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_license_logs_license_id (license_id),
+        INDEX idx_license_logs_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `
+    );
+
     await ensureColumnExists(
       connection,
       "templates",

@@ -33,6 +33,7 @@ import { Route as AppBotRouteImport } from './routes/_app/bot'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
+import { Route as AppLicensesIndexRouteImport } from './routes/_app/licenses/index'
 import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts.index'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
 import { Route as ApiWhatsappRegisterRouteImport } from './routes/api/whatsapp/register'
@@ -48,6 +49,8 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/publi
 import { Route as ApiPublicMakeAdminRouteImport } from './routes/api/public/make-admin'
 import { Route as ApiPublicInstagramWebhookRouteImport } from './routes/api/public/instagram-webhook'
 import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/public/facebook-webhook'
+import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
+import { Route as ApiLicensesActivateRouteImport } from './routes/api/licenses/activate'
 import { Route as ApiAuthVerifyTokenRouteImport } from './routes/api/auth/verify-token'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
@@ -55,9 +58,11 @@ import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
+import { Route as AppLicensesIdRouteImport } from './routes/_app/licenses/$id'
 import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
+import { Route as ApiV1LicenseValidateRouteImport } from './routes/api/v1/license/validate'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
 
@@ -181,6 +186,11 @@ const AppAiAgentRoute = AppAiAgentRouteImport.update({
   path: '/ai-agent',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLicensesIndexRoute = AppLicensesIndexRouteImport.update({
+  id: '/licenses/',
+  path: '/licenses/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppContactsIndexRoute = AppContactsIndexRouteImport.update({
   id: '/contacts/',
   path: '/contacts/',
@@ -260,6 +270,16 @@ const ApiPublicFacebookWebhookRoute =
     path: '/api/public/facebook-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiLicensesHealthRoute = ApiLicensesHealthRouteImport.update({
+  id: '/api/licenses/health',
+  path: '/api/licenses/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLicensesActivateRoute = ApiLicensesActivateRouteImport.update({
+  id: '/api/licenses/activate',
+  path: '/api/licenses/activate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthVerifyTokenRoute = ApiAuthVerifyTokenRouteImport.update({
   id: '/api/auth/verify-token',
   path: '/api/auth/verify-token',
@@ -295,6 +315,11 @@ const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
   path: '/api/admin/schema-dump',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppLicensesIdRoute = AppLicensesIdRouteImport.update({
+  id: '/licenses/$id',
+  path: '/licenses/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppContactsIdRoute = AppContactsIdRouteImport.update({
   id: '/contacts/$id',
   path: '/contacts/$id',
@@ -311,6 +336,11 @@ const ApiWhatsappBusinessProfilePhotoRoute =
     path: '/photo',
     getParentRoute: () => ApiWhatsappBusinessProfileRoute,
   } as any)
+const ApiV1LicenseValidateRoute = ApiV1LicenseValidateRouteImport.update({
+  id: '/api/v1/license/validate',
+  path: '/api/v1/license/validate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronProcessQueueRoute =
   ApiPublicCronProcessQueueRouteImport.update({
     id: '/api/public/cron/process-queue',
@@ -349,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
+  '/licenses/$id': typeof AppLicensesIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -356,6 +387,8 @@ export interface FileRoutesByFullPath {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/licenses/activate': typeof ApiLicensesActivateRoute
+  '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
@@ -371,8 +404,10 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
   '/contacts/': typeof AppContactsIndexRoute
+  '/licenses/': typeof AppLicensesIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/v1/license/validate': typeof ApiV1LicenseValidateRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRoutesByTo {
@@ -401,6 +436,7 @@ export interface FileRoutesByTo {
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
+  '/licenses/$id': typeof AppLicensesIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -408,6 +444,8 @@ export interface FileRoutesByTo {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/licenses/activate': typeof ApiLicensesActivateRoute
+  '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
@@ -423,8 +461,10 @@ export interface FileRoutesByTo {
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/campaigns': typeof AppCampaignsIndexRoute
   '/contacts': typeof AppContactsIndexRoute
+  '/licenses': typeof AppLicensesIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/v1/license/validate': typeof ApiV1LicenseValidateRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRoutesById {
@@ -455,6 +495,7 @@ export interface FileRoutesById {
   '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/_app/contacts/$id': typeof AppContactsIdRoute
+  '/_app/licenses/$id': typeof AppLicensesIdRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -462,6 +503,8 @@ export interface FileRoutesById {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/licenses/activate': typeof ApiLicensesActivateRoute
+  '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/make-admin': typeof ApiPublicMakeAdminRoute
@@ -477,8 +520,10 @@ export interface FileRoutesById {
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/_app/contacts/': typeof AppContactsIndexRoute
+  '/_app/licenses/': typeof AppLicensesIndexRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/v1/license/validate': typeof ApiV1LicenseValidateRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
 }
 export interface FileRouteTypes {
@@ -509,6 +554,7 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/campaigns/$id'
     | '/contacts/$id'
+    | '/licenses/$id'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -516,6 +562,8 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/licenses/activate'
+    | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
     | '/api/public/make-admin'
@@ -531,8 +579,10 @@ export interface FileRouteTypes {
     | '/api/whatsapp/register'
     | '/campaigns/'
     | '/contacts/'
+    | '/licenses/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/v1/license/validate'
     | '/api/whatsapp/business-profile/photo'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -561,6 +611,7 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/campaigns/$id'
     | '/contacts/$id'
+    | '/licenses/$id'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -568,6 +619,8 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/licenses/activate'
+    | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
     | '/api/public/make-admin'
@@ -583,8 +636,10 @@ export interface FileRouteTypes {
     | '/api/whatsapp/register'
     | '/campaigns'
     | '/contacts'
+    | '/licenses'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/v1/license/validate'
     | '/api/whatsapp/business-profile/photo'
   id:
     | '__root__'
@@ -614,6 +669,7 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/_app/campaigns/$id'
     | '/_app/contacts/$id'
+    | '/_app/licenses/$id'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -621,6 +677,8 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/licenses/activate'
+    | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
     | '/api/public/make-admin'
@@ -636,8 +694,10 @@ export interface FileRouteTypes {
     | '/api/whatsapp/register'
     | '/_app/campaigns/'
     | '/_app/contacts/'
+    | '/_app/licenses/'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/v1/license/validate'
     | '/api/whatsapp/business-profile/photo'
   fileRoutesById: FileRoutesById
 }
@@ -657,6 +717,8 @@ export interface RootRouteChildren {
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiAuthVerifyTokenRoute: typeof ApiAuthVerifyTokenRoute
+  ApiLicensesActivateRoute: typeof ApiLicensesActivateRoute
+  ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
   ApiPublicFacebookWebhookRoute: typeof ApiPublicFacebookWebhookRoute
   ApiPublicInstagramWebhookRoute: typeof ApiPublicInstagramWebhookRoute
   ApiPublicMakeAdminRoute: typeof ApiPublicMakeAdminRoute
@@ -672,6 +734,7 @@ export interface RootRouteChildren {
   ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
+  ApiV1LicenseValidateRoute: typeof ApiV1LicenseValidateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -844,6 +907,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAiAgentRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/licenses/': {
+      id: '/_app/licenses/'
+      path: '/licenses'
+      fullPath: '/licenses/'
+      preLoaderRoute: typeof AppLicensesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contacts/': {
       id: '/_app/contacts/'
       path: '/contacts'
@@ -949,6 +1019,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFacebookWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/licenses/health': {
+      id: '/api/licenses/health'
+      path: '/api/licenses/health'
+      fullPath: '/api/licenses/health'
+      preLoaderRoute: typeof ApiLicensesHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/licenses/activate': {
+      id: '/api/licenses/activate'
+      path: '/api/licenses/activate'
+      fullPath: '/api/licenses/activate'
+      preLoaderRoute: typeof ApiLicensesActivateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/verify-token': {
       id: '/api/auth/verify-token'
       path: '/api/auth/verify-token'
@@ -998,6 +1082,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSchemaDumpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/licenses/$id': {
+      id: '/_app/licenses/$id'
+      path: '/licenses/$id'
+      fullPath: '/licenses/$id'
+      preLoaderRoute: typeof AppLicensesIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contacts/$id': {
       id: '/_app/contacts/$id'
       path: '/contacts/$id'
@@ -1018,6 +1109,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/whatsapp/business-profile/photo'
       preLoaderRoute: typeof ApiWhatsappBusinessProfilePhotoRouteImport
       parentRoute: typeof ApiWhatsappBusinessProfileRoute
+    }
+    '/api/v1/license/validate': {
+      id: '/api/v1/license/validate'
+      path: '/api/v1/license/validate'
+      fullPath: '/api/v1/license/validate'
+      preLoaderRoute: typeof ApiV1LicenseValidateRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/cron/process-queue': {
       id: '/api/public/cron/process-queue'
@@ -1055,8 +1153,10 @@ interface AppRouteChildren {
   AppWhatsappBusinessProfileRoute: typeof AppWhatsappBusinessProfileRoute
   AppCampaignsIdRoute: typeof AppCampaignsIdRoute
   AppContactsIdRoute: typeof AppContactsIdRoute
+  AppLicensesIdRoute: typeof AppLicensesIdRoute
   AppCampaignsIndexRoute: typeof AppCampaignsIndexRoute
   AppContactsIndexRoute: typeof AppContactsIndexRoute
+  AppLicensesIndexRoute: typeof AppLicensesIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1078,8 +1178,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppWhatsappBusinessProfileRoute: AppWhatsappBusinessProfileRoute,
   AppCampaignsIdRoute: AppCampaignsIdRoute,
   AppContactsIdRoute: AppContactsIdRoute,
+  AppLicensesIdRoute: AppLicensesIdRoute,
   AppCampaignsIndexRoute: AppCampaignsIndexRoute,
   AppContactsIndexRoute: AppContactsIndexRoute,
+  AppLicensesIndexRoute: AppLicensesIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -1114,6 +1216,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiAuthVerifyTokenRoute: ApiAuthVerifyTokenRoute,
+  ApiLicensesActivateRoute: ApiLicensesActivateRoute,
+  ApiLicensesHealthRoute: ApiLicensesHealthRoute,
   ApiPublicFacebookWebhookRoute: ApiPublicFacebookWebhookRoute,
   ApiPublicInstagramWebhookRoute: ApiPublicInstagramWebhookRoute,
   ApiPublicMakeAdminRoute: ApiPublicMakeAdminRoute,
@@ -1129,6 +1233,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
+  ApiV1LicenseValidateRoute: ApiV1LicenseValidateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -54,16 +54,28 @@ fi
 # ---------------------------------------------------------------------------
 print_step "[1/7] Coletando parâmetros de configuração..."
 
-# Carregar valor prévio se existir
-LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' || true)
-[ -n "${LICENSE_SRV_URL_ENV}" ] || LICENSE_SRV_URL_ENV="admin.blivcrm.com"
+# ── Tipo de Instalação (Painel vs SaaS) ──────────────────────────────────────
+LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${LICENSE_RL_ENV}" ] || LICENSE_RL_ENV="saas"
 
-# ── Variáveis interativas ───────────────────────────────────────────────────
+while true; do
+  if [ -z "${LICENSE_ROLE:-}" ]; then
+    read -p "Deseja instalar como Painel Admin (panel) ou como Disparador Cliente (saas) [${LICENSE_RL_ENV}]: " LICENSE_ROLE
+    LICENSE_ROLE="${LICENSE_ROLE:-$LICENSE_RL_ENV}"
+  fi
+  LICENSE_ROLE=$(echo "$LICENSE_ROLE" | tr '[:upper:]' '[:lower:]' | xargs)
+  if [[ "$LICENSE_ROLE" == "panel" || "$LICENSE_ROLE" == "saas" ]]; then
+    break
+  else
+    echo -e "${RED}Erro: Opção inválida. Digite apenas 'panel' ou 'saas'.${NC}"
+    LICENSE_ROLE=""
+  fi
+done
 
-# Validador de Domínio
+# Validador de Domínio da Aplicação
 while true; do
   if [ -z "${DOMAIN:-}" ]; then
-    read -p "Digite o domínio da aplicação (ex: disparador.meusite.com): " DOMAIN
+    read -p "Digite o domínio para esta instalação (ex: disparador.meusite.com): " DOMAIN
   fi
   DOMAIN=$(echo "$DOMAIN" | xargs)
   if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
@@ -74,21 +86,47 @@ while true; do
   fi
 done
 
-# Validador de Domínio do Painel de Licenças
-while true; do
-  if [ -z "${LICENSE_SRV_URL:-}" ]; then
-    read -p "Digite o domínio do Painel de Licenças [${LICENSE_SRV_URL_ENV}]: " LICENSE_SRV_URL
-    LICENSE_SRV_URL="${LICENSE_SRV_URL:-$LICENSE_SRV_URL_ENV}"
-  fi
-  LICENSE_SRV_URL=$(echo "$LICENSE_SRV_URL" | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' | xargs)
-  if [[ "$LICENSE_SRV_URL" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-    LICENSE_SRV_URL="https://${LICENSE_SRV_URL}"
-    break
-  else
-    echo -e "${RED}Erro: Domínio do painel inválido. Digite um domínio válido.${NC}"
-    LICENSE_SRV_URL=""
-  fi
-done
+# Validador de Parâmetros Condicionados por Função
+if [[ "$LICENSE_ROLE" == "saas" ]]; then
+  # SaaS: Precisa do Painel de Licenças e da Chave de Licença
+  LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' || true)
+  [ -n "${LICENSE_SRV_URL_ENV}" ] || LICENSE_SRV_URL_ENV="admin.blivcrm.com"
+
+  while true; do
+    if [ -z "${LICENSE_SRV_URL:-}" ]; then
+      read -p "Digite o domínio do Painel de Licenças externo [${LICENSE_SRV_URL_ENV}]: " LICENSE_SRV_URL
+      LICENSE_SRV_URL="${LICENSE_SRV_URL:-$LICENSE_SRV_URL_ENV}"
+    fi
+    LICENSE_SRV_URL=$(echo "$LICENSE_SRV_URL" | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' | xargs)
+    if [[ "$LICENSE_SRV_URL" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      LICENSE_SRV_URL="https://${LICENSE_SRV_URL}"
+      break
+    else
+      echo -e "${RED}Erro: Domínio do painel inválido. Digite um domínio válido.${NC}"
+      LICENSE_SRV_URL=""
+    fi
+  done
+
+  LICENSE_K_ENV=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+  [ -n "${LICENSE_K_ENV}" ] || LICENSE_K_ENV=""
+
+  while true; do
+    if [ -z "${LICENSE_KEY:-}" ]; then
+      read -p "Digite a Chave de Licença obtida no painel: " LICENSE_KEY
+    fi
+    LICENSE_KEY=$(echo "$LICENSE_KEY" | xargs)
+    if [ -n "$LICENSE_KEY" ]; then
+      break
+    else
+      echo -e "${RED}Erro: A chave de licença é obrigatória em modo cliente (saas).${NC}"
+      LICENSE_KEY=""
+    fi
+  done
+else
+  # Panel: Roda localmente, o endpoint é ele mesmo
+  LICENSE_SRV_URL="https://${DOMAIN}" # Nginx vai forçar SSL se ativado
+  LICENSE_KEY="VW2-PANEL-SERVER-KEY-NOT-NEEDED"
+fi
 
 # Validador de SSL
 while true; do
@@ -292,6 +330,9 @@ LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | c
 [ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
 [ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
 [ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
+
+[ -n "${LICENSE_ROLE:-}" ] && LICENSE_RL="${LICENSE_ROLE}"
+[ -n "${LICENSE_KEY:-}" ] && LICENSE_K="${LICENSE_KEY}"
 
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
 [ -n "${LICENSE_AP_ID}" ] || LICENSE_AP_ID="meu-saas"

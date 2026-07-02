@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getSidebarOrder, getLicenseStatus } from "@/lib/admin.functions";
+import { getLicenseRole } from "@/lib/license-admin.functions";
 import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -153,6 +154,7 @@ function AppLayout() {
   }, [loc.pathname]);
 
   const fetchSidebarOrder = useServerFn(getSidebarOrder);
+  const fetchLicenseRole = useServerFn(getLicenseRole);
 
   const { data: sidebarOrderData } = useQuery({
     queryKey: ["sidebar-order"],
@@ -160,21 +162,47 @@ function AppLayout() {
     staleTime: 60_000,
   });
 
+  const licenseRoleQuery = useQuery({
+    queryKey: ["license-role"],
+    queryFn: () => fetchLicenseRole({}),
+    enabled: !loading && !!user && isAdmin,
+    staleTime: 60_000,
+  });
+
+  const navItems = useMemo(() => {
+    const base = [...NAV] as any[];
+    if (isAdmin && licenseRoleQuery.data?.role === "panel") {
+      // Find where Settings is to insert before it
+      const settingsIdx = base.findIndex((item) => item.to === "/settings");
+      const panelItem = {
+        to: "/licenses",
+        label: "Painel de Licenças",
+        icon: ShieldAlert,
+      };
+      if (settingsIdx !== -1) {
+        base.splice(settingsIdx, 0, panelItem);
+      } else {
+        base.push(panelItem);
+      }
+    }
+    return base;
+  }, [isAdmin, licenseRoleQuery.data?.role]);
+
   const orderedNav = useMemo(() => {
     const raw = sidebarOrderData?.order;
-    if (!raw) return [...NAV];
+    if (!raw) return [...navItems];
     try {
       const pathsOrder = typeof raw === "string" ? JSON.parse(raw) as string[] : raw as string[];
-      if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...NAV];
+      if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...navItems];
 
-      const navDefaults = NAV.map((item, idx) => ({ to: item.to, defaultIdx: idx }));
-      const navCopy = [...NAV];
+      const navDefaults = navItems.map((item, idx) => ({ to: item.to, defaultIdx: idx }));
+      const navCopy = [...navItems];
       navCopy.sort((a, b) => {
         const idxA = pathsOrder.indexOf(a.to);
         const idxB = pathsOrder.indexOf(b.to);
         // Both are in saved order — sort by saved position
         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        // Both are NOT in saved order — preserve NAV default order
+        // Both are NOT in saved order — preserve default order
         if (idxA === -1 && idxB === -1) {
           const defA = navDefaults.find(n => n.to === a.to)?.defaultIdx ?? 999;
           const defB = navDefaults.find(n => n.to === b.to)?.defaultIdx ?? 999;
@@ -186,9 +214,9 @@ function AppLayout() {
       });
       return navCopy;
     } catch {
-      return [...NAV];
+      return [...navItems];
     }
-  }, [sidebarOrderData]);
+  }, [sidebarOrderData, navItems]);
 
   useEffect(() => {
     if (!user) {
