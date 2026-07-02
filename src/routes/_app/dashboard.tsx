@@ -355,49 +355,80 @@ function Dashboard() {
 
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 px-4 pb-6 sm:px-6">
-          {/* Hero tile — Taxa de entrega */}
-          <Card className="relative overflow-hidden p-5 sm:p-6 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between min-h-[300px]">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-90"
-              style={{
-                background:
-                  "radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--primary) 28%, transparent) 0%, transparent 55%), radial-gradient(80% 60% at 0% 100%, color-mix(in oklab, var(--accent) 35%, transparent) 0%, transparent 60%)",
-              }}
-            />
-            <div className="relative flex h-full flex-col justify-between gap-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Taxa de entrega
-                  </p>
-                  {c.isPending ? (
-                    <Skeleton className="mt-2 h-10 w-32" />
-                  ) : (
-                    <p className="mt-1 font-display text-4xl font-semibold leading-none sm:text-5xl">
-                      {deliverRate}
-                      <span className="ml-1 text-2xl text-muted-foreground sm:text-3xl">%</span>
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {totals.delivered.toLocaleString("pt-BR")} de{" "}
-                    {totals.completed.toLocaleString("pt-BR")} mensagens entregues
-                  </p>
+          {/* Performance de Entrega */}
+          <Card className="p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
+            <div>
+              <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
+                PERFORMANCE DE ENTREGA
+              </h3>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">
+                Entrega vs. leitura
+              </p>
+            </div>
+
+            <div className="flex items-center justify-around py-4 flex-1">
+              {/* Taxa de entrega */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative h-28 w-28 flex items-center justify-center">
+                  <svg className="absolute transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="36"
+                      className="stroke-muted/30"
+                      strokeWidth="8"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="36"
+                      stroke="#FF7043"
+                      strokeWidth="8"
+                      strokeDasharray={226.2}
+                      strokeDashoffset={226.2 - (deliverRate / 100) * 226.2}
+                      strokeLinecap="round"
+                      fill="transparent"
+                      className="transition-all duration-500 ease-out"
+                    />
+                  </svg>
+                  <span className="font-display text-2xl font-bold text-foreground">
+                    {deliverRate}%
+                  </span>
                 </div>
-                <div className="shrink-0 rounded-xl bg-primary/15 p-2.5 text-primary">
-                  <Target className="h-5 w-5" aria-hidden />
-                </div>
+                <span className="text-xs text-muted-foreground font-medium">Taxa de entrega</span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-[width] duration-500"
-                  style={{ width: `${Math.min(deliverRate, 100)}%` }}
-                  role="progressbar"
-                  aria-valuenow={deliverRate}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label="Taxa de entrega"
-                />
+
+              {/* Taxa de leitura */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative h-28 w-28 flex items-center justify-center">
+                  <svg className="absolute transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="36"
+                      className="stroke-muted/30"
+                      strokeWidth="8"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="36"
+                      stroke="#FBBF24"
+                      strokeWidth="8"
+                      strokeDasharray={226.2}
+                      strokeDashoffset={226.2 - (readRate / 100) * 226.2}
+                      strokeLinecap="round"
+                      fill="transparent"
+                      className="transition-all duration-500 ease-out"
+                    />
+                  </svg>
+                  <span className="font-display text-2xl font-bold text-foreground">
+                    {readRate}%
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">Taxa de leitura</span>
               </div>
             </div>
           </Card>
