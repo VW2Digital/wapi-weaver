@@ -166,6 +166,7 @@ export class LicenseClient {
       error: "no_servers_available",
       message: "Nenhum servidor de licenças disponível"
     };
+  }
 
   public async activate(
     licenseKey: string,
