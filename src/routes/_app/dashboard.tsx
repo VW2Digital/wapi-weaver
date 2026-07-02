@@ -354,9 +354,9 @@ function Dashboard() {
 
 
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 px-4 pb-6 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 px-4 pb-6 sm:px-6">
           {/* Performance de Entrega */}
-          <Card className="p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
+          <Card className="lg:col-span-2 p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
             <div>
               <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
                 PERFORMANCE DE ENTREGA
@@ -434,7 +434,7 @@ function Dashboard() {
           </Card>
 
           {/* Atividade Geral */}
-          <Card className="p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
+          <Card className="lg:col-span-3 p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
             <div>
               <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
                 ATIVIDADE GERAL
