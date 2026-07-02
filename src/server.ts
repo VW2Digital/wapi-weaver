@@ -90,6 +90,28 @@ async function migrateRoles() {
       console.log("[Roles Migration] Column tenant_id already exists or error adding it.");
     }
 
+    // Ensure no orphaned rows exist in user_roles (references invalid users)
+    try {
+      const orphans = await db.query("DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users)") as any;
+      if (orphans && orphans.affectedRows > 0) {
+        console.log(`[Roles Migration] Removed ${orphans.affectedRows} orphaned user_roles.`);
+      }
+    } catch (orphanErr: any) {
+      console.warn("[Roles Migration] Warning deleting orphaned user_roles:", orphanErr.message);
+    }
+
+    // Ensure each user has only one role in user_roles (deduplicate)
+    try {
+      await db.query(`
+        DELETE ur1 FROM user_roles ur1
+        JOIN user_roles ur2 ON ur1.user_id = ur2.user_id
+        WHERE ur1.id > ur2.id
+      `);
+      console.log("[Roles Migration] Deduplicated user_roles table.");
+    } catch (dedupErr: any) {
+      console.warn("[Roles Migration] Warning deduplicating user_roles:", dedupErr.message);
+    }
+
     const roleMode = process.env.LICENSE_ROLE || "saas";
     const adminEmail = process.env.ADMIN_EMAIL;
 
@@ -98,7 +120,8 @@ async function migrateRoles() {
         const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail.trim().toLowerCase()]) as any[];
         if (userRows.length > 0) {
           const userId = userRows[0].id;
-          await db.query("UPDATE user_roles SET role = 'adminmaster' WHERE user_id = ?", [userId]);
+          await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')", [userId]);
           console.log(`[Roles Migration] Updated master user ${adminEmail} to adminmaster.`);
           
           const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')", [userId]);
@@ -112,7 +135,8 @@ async function migrateRoles() {
         const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail.trim().toLowerCase()]) as any[];
         if (userRows.length > 0) {
           const userId = userRows[0].id;
-          await db.query("UPDATE user_roles SET role = 'owner' WHERE user_id = ?", [userId]);
+          await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [userId]);
           console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to owner.`);
           
           const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')", [userId]);
@@ -124,7 +148,8 @@ async function migrateRoles() {
         const users = await db.query("SELECT id, email FROM users ORDER BY created_at ASC") as any[];
         if (users.length > 0) {
           const firstUserId = users[0].id;
-          await db.query("UPDATE user_roles SET role = 'owner' WHERE user_id = ?", [firstUserId]);
+          await db.query("DELETE FROM user_roles WHERE user_id = ?", [firstUserId]);
+          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [firstUserId]);
           console.log(`[Roles Migration] Set first user ${users[0].email} as owner.`);
           
           const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin', 'owner')", [firstUserId]);
