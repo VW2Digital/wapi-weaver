@@ -40,17 +40,32 @@ function decryptKey(text: string): string | null {
 }
 
 async function getLicenseSettings() {
-  const { data, error } = await dbAdmin
-    .from("license_settings")
-    .select("*")
-    .eq("id", 1)
-    .maybeSingle();
+  try {
+    const { data, error } = await dbAdmin
+      .from("license_settings")
+      .select("*")
+      .eq("id", 1)
+      .maybeSingle();
 
-  if (error) {
-    console.error("[License Verifier] Error fetching license settings:", error);
+    if (error) {
+      console.error("[License Verifier] Error fetching license settings:", error);
+      const errMsg = error.message || "";
+      if (errMsg.includes("não é permitida")) {
+        console.error("[License Verifier] ERRO: Tabela 'license_settings' não está na whitelist ALLOWED_TABLES do query-compiler!");
+      } else if (errMsg.includes("não existe") || errMsg.includes("doesn't exist")) {
+        console.error("[License Verifier] ERRO: Tabela 'license_settings' não existe no banco de dados. Verifique a execução das migrations!");
+      } else if (errMsg.includes("permission") || errMsg.includes("denied")) {
+        console.error("[License Verifier] ERRO: Sem permissão para ler 'license_settings'.");
+      } else {
+        console.error("[License Verifier] ERRO SQL:", (error as any).code || "N/A", errMsg);
+      }
+      return null;
+    }
+    return data;
+  } catch (err: any) {
+    console.error("[License Verifier] Exceção crítica ao buscar configurações de licença:", err.message || err);
     return null;
   }
-  return data;
 }
 
 async function ensureInstallationId(currentId?: string): Promise<string> {

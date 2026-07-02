@@ -386,6 +386,14 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
     );
+
+    logSchema("Garantindo linha singleton de license_settings (id=1)...");
+    await connection.query(
+      `
+      INSERT IGNORE INTO license_settings (id, license_status, installation_id, last_error)
+      VALUES (1, 'absent', UUID(), 'Licença não encontrada localmente.')
+    `,
+    );
     await ensureColumnExists(
       connection,
       "templates",
@@ -1309,6 +1317,27 @@ export async function ensureDatabaseSchema() {
       `
     );
     logSchema("Migrações do WhatsApp Grupos concluídas.");
+
+    await ensureTableExists(
+      connection,
+      "chat_sessions",
+      `
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        contact_id VARCHAR(36) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pendente',
+        started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        answered_at DATETIME NULL,
+        closed_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `
+    );
+    logSchema("Tabela chat_sessions validada/criada.");
 
     // Insere flows de demonstração iniciais para testes locais
     try {

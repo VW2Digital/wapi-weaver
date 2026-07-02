@@ -845,3 +845,18 @@ CREATE TABLE IF NOT EXISTS conversation_assignments (
 CREATE INDEX idx_conv_assign_active ON conversation_assignments (user_id, contact_phone, is_active);
 CREATE INDEX idx_conv_assign_team_agent ON conversation_assignments (team_id, agent_id, is_active);
 
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  contact_id VARCHAR(36) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'pendente',
+  started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  answered_at DATETIME NULL,
+  closed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+

@@ -15,6 +15,7 @@ const ALLOWED_TABLES = new Set([
   "profiles",
   "user_roles",
   "platform_settings",
+  "license_settings",
   "audit_logs",
   "schema_backups",
   "salvy_numbers",
@@ -55,6 +56,7 @@ const ALLOWED_TABLES = new Set([
   "conversation_assignments",
   "whatsapp_groups",
   "whatsapp_group_participants",
+  "chat_sessions",
 ]);
 
 function hasUserIdColumn(table: string): boolean {
@@ -97,6 +99,7 @@ function hasUserIdColumn(table: string): boolean {
     "conversation_assignments",
     "whatsapp_groups",
     "whatsapp_group_participants",
+    "chat_sessions",
   ].includes(table);
 }
 
