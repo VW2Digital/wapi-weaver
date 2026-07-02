@@ -40,7 +40,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Ban,
-  Calendar
+  Calendar,
+  ShieldAlert
 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
