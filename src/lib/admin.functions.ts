@@ -47,13 +47,11 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
 export const getDetailedLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("license_settings")
-      .select("*")
-      .eq("id", 1)
-      .maybeSingle();
+    const { default: db } = await import("./db");
+    const rows = await db.query("SELECT * FROM license_settings WHERE id = 1 LIMIT 1") as any[];
+    const data = rows?.[0] ?? null;
       
-    if (error || !data) {
+    if (!data) {
       return {
         status: "missing",
         plan: null,
@@ -396,13 +394,25 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
     }
 
     const tenantId = context.tenantId;
-    const { data: sub, error } = await context.db
-      .from("licenses")
-      .select("status, expires_at")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
+    const email = claims?.email;
 
-    if (error || !sub) {
+    const { default: db } = await import("./db");
+
+    // First try by tenant_id
+    let rows = await db.query(
+      "SELECT status, expires_at FROM licenses WHERE tenant_id = ? LIMIT 1",
+      [tenantId]
+    ) as any[];
+
+    // Fallback: search by email if not found by tenant_id
+    if ((!rows || rows.length === 0) && email) {
+      rows = await db.query(
+        "SELECT status, expires_at FROM licenses WHERE LOWER(TRIM(client_email)) = ? LIMIT 1",
+        [String(email).trim().toLowerCase()]
+      ) as any[];
+    }
+
+    if (!rows || rows.length === 0) {
       return {
         isValid: false,
         isAccessAllowed: false,
@@ -411,6 +421,7 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
       };
     }
 
+    const sub = rows[0];
     const isExpired = sub.expires_at && new Date(sub.expires_at) < new Date();
     const isAccessAllowed = sub.status === "active" && !isExpired;
 

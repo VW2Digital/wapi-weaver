@@ -160,6 +160,32 @@ async function migrateRoles() {
       }
     }
 
+    // Link existing licenses to their owners by email if tenant_id is not set
+    const allUsers = await db.query("SELECT id, email FROM users") as any[];
+    for (const u of allUsers) {
+      const emailNormalized = String(u.email).trim().toLowerCase();
+      
+      const emailLicenses = await db.query(
+        "SELECT id, tenant_id FROM licenses WHERE LOWER(TRIM(client_email)) = ?",
+        [emailNormalized]
+      ) as any[];
+
+      if (emailLicenses.length > 0) {
+        const linkedLicense = emailLicenses.find(l => l.tenant_id === u.id);
+        const unlinkedLicense = emailLicenses.find(l => !l.tenant_id);
+
+        if (unlinkedLicense) {
+          if (linkedLicense) {
+            console.log(`[License Migration] Found duplicate licenses for ${emailNormalized}. Keeping main license ${unlinkedLicense.id} and deleting trial license ${linkedLicense.id}`);
+            await db.query("DELETE FROM licenses WHERE id = ?", [linkedLicense.id]);
+          }
+          
+          await db.query("UPDATE licenses SET tenant_id = ? WHERE id = ?", [u.id, unlinkedLicense.id]);
+          console.log(`[License Migration] Linked license ${unlinkedLicense.id} to user ${emailNormalized} (${u.id})`);
+        }
+      }
+    }
+
     // Auto-create a license subscription record for any owner/adminmaster user that doesn't have one
     const owners = await db.query("SELECT u.id, u.email, p.display_name FROM users u JOIN user_roles r ON u.id = r.user_id LEFT JOIN profiles p ON p.id = u.id WHERE r.role IN ('owner', 'adminmaster')") as any[];
     for (const owner of owners) {
