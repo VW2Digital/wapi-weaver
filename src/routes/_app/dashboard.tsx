@@ -354,8 +354,56 @@ function Dashboard() {
 
 
 
-        <div className="px-4 pb-6 sm:px-6">
-          <Card className="p-5 sm:p-6 bg-card border shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 px-4 pb-6 sm:px-6">
+          {/* Hero tile — Taxa de entrega */}
+          <Card className="relative overflow-hidden p-5 sm:p-6 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between min-h-[300px]">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-90"
+              style={{
+                background:
+                  "radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--primary) 28%, transparent) 0%, transparent 55%), radial-gradient(80% 60% at 0% 100%, color-mix(in oklab, var(--accent) 35%, transparent) 0%, transparent 60%)",
+              }}
+            />
+            <div className="relative flex h-full flex-col justify-between gap-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Taxa de entrega
+                  </p>
+                  {c.isPending ? (
+                    <Skeleton className="mt-2 h-10 w-32" />
+                  ) : (
+                    <p className="mt-1 font-display text-4xl font-semibold leading-none sm:text-5xl">
+                      {deliverRate}
+                      <span className="ml-1 text-2xl text-muted-foreground sm:text-3xl">%</span>
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {totals.delivered.toLocaleString("pt-BR")} de{" "}
+                    {totals.completed.toLocaleString("pt-BR")} mensagens entregues
+                  </p>
+                </div>
+                <div className="shrink-0 rounded-xl bg-primary/15 p-2.5 text-primary">
+                  <Target className="h-5 w-5" aria-hidden />
+                </div>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${Math.min(deliverRate, 100)}%` }}
+                  role="progressbar"
+                  aria-valuenow={deliverRate}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Taxa de entrega"
+                />
+              </div>
+            </div>
+          </Card>
+
+          {/* Atividade Geral */}
+          <Card className="p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
             <div>
               <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
                 ATIVIDADE GERAL
@@ -365,7 +413,7 @@ function Dashboard() {
               </p>
             </div>
 
-            <div className="mt-8 space-y-5 max-w-4xl">
+            <div className="mt-6 space-y-4 w-full">
               {[
                 { label: "Contatos", value: ct.data?.length ?? s.data?.contacts.current ?? 0 },
                 { label: "Templates", value: t.data?.length ?? s.data?.templates.current ?? 0 },
@@ -385,18 +433,18 @@ function Dashboard() {
                 return (
                   <div key={idx} className="flex items-center">
                     {/* Label */}
-                    <div className="w-24 sm:w-28 text-right text-sm font-medium text-muted-foreground pr-4 shrink-0">
+                    <div className="w-20 sm:w-24 text-right text-xs font-medium text-muted-foreground pr-3 shrink-0">
                       {item.label}
                     </div>
                     {/* Bar container */}
-                    <div className="flex-1 h-7 bg-muted/40 rounded-lg overflow-hidden relative">
+                    <div className="flex-1 h-6 bg-muted/40 rounded-md overflow-hidden relative">
                       <div
-                        className="h-full bg-primary rounded-lg transition-all duration-500 ease-out"
+                        className="h-full bg-primary rounded-md transition-all duration-500 ease-out"
                         style={{ width: widthStyle }}
                       />
                     </div>
                     {/* Value */}
-                    <div className="w-16 text-left text-sm font-mono text-muted-foreground pl-4 shrink-0 font-medium">
+                    <div className="w-14 text-left text-xs font-mono text-muted-foreground pl-3 shrink-0 font-medium">
                       {item.value.toLocaleString("pt-BR")}
                     </div>
                   </div>
