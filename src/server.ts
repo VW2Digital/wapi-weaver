@@ -126,8 +126,8 @@ export default {
         const serverUrls = process.env.LICENSE_SERVER_URL
           ? [process.env.LICENSE_SERVER_URL]
           : [
-              "https://painel.blivcrm.com",
               "https://admin.blivcrm.com",
+              "https://painel.blivcrm.com",
               "http://85.155.186.146",
               "http://134.195.88.7"
             ];

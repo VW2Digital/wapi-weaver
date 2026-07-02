@@ -18,8 +18,8 @@ export class LicenseClient {
       return [process.env.LICENSE_SERVER_URL];
     }
     return [
-      "https://painel.blivcrm.com",
       "https://admin.blivcrm.com",
+      "https://painel.blivcrm.com",
       "http://85.155.186.146",
       "http://134.195.88.7"
     ];
