@@ -126,6 +126,35 @@ else
   # Panel: Roda localmente, o endpoint é ele mesmo
   LICENSE_SRV_URL="https://${DOMAIN}" # Nginx vai forçar SSL se ativado
   LICENSE_KEY="VW2-PANEL-SERVER-KEY-NOT-NEEDED"
+
+  # Coletar dados do administrador Master
+  while true; do
+    if [ -z "${ADMIN_EMAIL:-}" ]; then
+      read -p "Digite o e-mail de acesso para o Administrador Master: " ADMIN_EMAIL
+    fi
+    ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)
+    if [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      break
+    else
+      echo -e "${RED}Erro: E-mail inválido.${NC}"
+      ADMIN_EMAIL=""
+    fi
+  done
+
+  while true; do
+    if [ -z "${ADMIN_PASSWORD:-}" ]; then
+      echo -n "Digite a senha de acesso para o Administrador Master: "
+      read -s ADMIN_PASSWORD
+      echo ""
+    fi
+    ADMIN_PASSWORD=$(echo "$ADMIN_PASSWORD" | xargs)
+    if [ -z "$ADMIN_PASSWORD" ] || [ ${#ADMIN_PASSWORD} -lt 6 ]; then
+      echo -e "${RED}Erro: A senha deve conter pelo menos 6 caracteres.${NC}"
+      ADMIN_PASSWORD=""
+    else
+      break
+    fi
+  done
 fi
 
 # Validador de SSL
@@ -361,6 +390,8 @@ LICENSE_GRACE_HOURS=${LICENSE_GR_HRS}
 LICENSE_KEY=${LICENSE_K}
 LICENSE_ROLE=${LICENSE_RL}
 APP_URL=${PROTOCOL}://${DOMAIN}
+ADMIN_EMAIL=${ADMIN_EMAIL:-}
+ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 EOF
 
 print_ok "Configurações aplicadas."

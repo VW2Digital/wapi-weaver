@@ -10,16 +10,17 @@ import {
   parseJson
 } from "./license-server";
 
-// Helper to assert admin privileges
-async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("Acesso negado: apenas administradores.");
+// Helper to assert Master administrator privileges
+async function assertMaster(ctx: { userId: string }) {
+  const masterEmail = process.env.ADMIN_EMAIL;
+  if (!masterEmail) {
+    throw new Error("Acesso negado: E-mail do Administrador Master não configurado no servidor.");
+  }
+  const userRows = (await db.query("SELECT email FROM users WHERE id = ? LIMIT 1", [ctx.userId])) as any[];
+  const userEmail = userRows[0]?.email;
+  if (!userEmail || userEmail.toLowerCase() !== masterEmail.toLowerCase()) {
+    throw new Error("Acesso negado: apenas o Administrador Master tem acesso.");
+  }
 }
 
 // 1. List licenses
@@ -35,7 +36,7 @@ export const listLicenses = createServerFn({ method: "GET" })
     })
   )
   .handler(async ({ data: input, context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
     const { search, status, plan, page, limit } = input;
     const offset = (page - 1) * limit;
@@ -87,23 +88,24 @@ export const createLicense = createServerFn({ method: "POST" })
     z.object({
       client_name: z.string().trim().min(1, "Nome do cliente é obrigatório"),
       client_email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
+      domain: z.string().trim().min(1, "Domínio é obrigatório"),
       product_name: z.string().default("SaaS"),
       app_id: z.string().default("meu-saas"),
       plan: z.string().default("basic"),
       status: z.string().default("active"),
       expires_at: z.string().nullable().optional(),
-      max_activations: z.number().default(1),
+      max_activations: z.number().default(99),
       max_users: z.number().nullable().optional(),
       features_json: z.record(z.any()).optional(),
       notes: z.string().optional()
     })
   )
   .handler(async ({ data: input, context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
-    const licenseKey = generateLicenseKey();
+    const licenseKey = input.domain.toLowerCase();
     const keyHash = licenseHash(licenseKey);
-    const keyPreview = previewLicenseKey(licenseKey);
+    const keyPreview = licenseKey;
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
     const features = input.features_json || { max_users: input.max_users || 1 };
@@ -147,7 +149,7 @@ export const createLicense = createServerFn({ method: "POST" })
 export const getLicenseStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
     const totalRes = (await db.query("SELECT COUNT(*) AS total FROM licenses")) as any[];
     const activeRes = (await db.query("SELECT COUNT(*) AS total FROM licenses WHERE status = 'active'")) as any[];
@@ -181,7 +183,7 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
     const licenseRows = (await db.query("SELECT * FROM licenses WHERE id = ? LIMIT 1", [input.id])) as any[];
     if (!licenseRows.length) {
@@ -227,7 +229,7 @@ export const updateLicense = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data: input, context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
 
@@ -256,7 +258,7 @@ export const deleteLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
     await db.query("DELETE FROM licenses WHERE id = ?", [input.id]);
     return { success: true };
@@ -267,15 +269,28 @@ export const deleteActivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
-    await assertAdmin(context);
+    await assertMaster(context);
 
     await db.query("DELETE FROM license_activations WHERE id = ?", [input.id]);
     return { success: true };
   });
 
-// 8. Get license role
 export const getLicenseRole = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async () => {
-    return { role: process.env.LICENSE_ROLE || "saas" };
+  .handler(async ({ context }) => {
+    const role = process.env.LICENSE_ROLE || "saas";
+    let isMaster = false;
+    try {
+      const masterEmail = process.env.ADMIN_EMAIL;
+      if (masterEmail) {
+        const userRows = (await db.query("SELECT email FROM users WHERE id = ? LIMIT 1", [context.userId])) as any[];
+        const userEmail = userRows[0]?.email;
+        if (userEmail && userEmail.toLowerCase() === masterEmail.toLowerCase()) {
+          isMaster = true;
+        }
+      }
+    } catch (e) {
+      console.error("[getLicenseRole Error]", e);
+    }
+    return { role, isMaster };
   });

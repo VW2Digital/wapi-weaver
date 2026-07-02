@@ -27,9 +27,7 @@ import {
   ArrowLeft,
   Loader2,
   Trash2,
-  Calendar,
   Globe,
-  Monitor,
   CheckCircle,
   XCircle,
   Database
@@ -66,7 +64,6 @@ function LicenseDetailPage() {
   const [clientEmail, setClientEmail] = useState("");
   const [plan, setPlan] = useState("basic");
   const [status, setStatus] = useState("active");
-  const [maxActivations, setMaxActivations] = useState(1);
   const [expiresAt, setExpiresAt] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -77,7 +74,6 @@ function LicenseDetailPage() {
       setClientEmail(lic.client_email || "");
       setPlan(lic.plan || "basic");
       setStatus(lic.status || "active");
-      setMaxActivations(lic.max_activations || 1);
       setNotes(lic.notes || "");
       
       if (lic.expires_at) {
@@ -97,10 +93,10 @@ function LicenseDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["license-detail", numericId] });
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
-      toast.success("Licença atualizada com sucesso.");
+      toast.success("Domínio atualizado com sucesso.");
     },
     onError: (err: any) => {
-      toast.error(err.message || "Erro ao atualizar licença.");
+      toast.error(err.message || "Erro ao atualizar domínio.");
     }
   });
 
@@ -108,10 +104,10 @@ function LicenseDetailPage() {
     mutationFn: (activationId: number) => deleteActivationMut({ data: { id: activationId } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["license-detail", numericId] });
-      toast.success("Ativação revogada com sucesso.");
+      toast.success("Instancia removida com sucesso.");
     },
     onError: (err: any) => {
-      toast.error(err.message || "Erro ao revogar ativação.");
+      toast.error(err.message || "Erro ao remover instancia.");
     }
   });
 
@@ -123,7 +119,7 @@ function LicenseDetailPage() {
       client_email: clientEmail,
       plan,
       status,
-      max_activations: maxActivations,
+      max_activations: 99,
       expires_at: expiresAt || null,
       notes
     });
@@ -131,8 +127,8 @@ function LicenseDetailPage() {
 
   const handleRevoke = async (actId: number, domain: string) => {
     const ok = await confirm({
-      title: "Revogar Ativação",
-      description: `Tem certeza que deseja revogar a ativação do domínio ${domain}? O cliente perderá acesso imediato até ativar novamente.`,
+      title: "Revogar Instância",
+      description: `Tem certeza que deseja revogar esta conexão ativa da máquina do domínio ${domain}? Ela será recriada automaticamente na próxima requisição se o acesso continuar ativo.`,
       confirmText: "Revogar",
       variant: "destructive"
     });
@@ -144,7 +140,7 @@ function LicenseDetailPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground p-12">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando detalhes da licença...
+        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando detalhes...
       </div>
     );
   }
@@ -153,7 +149,7 @@ function LicenseDetailPage() {
     return (
       <div className="p-8 text-center">
         <h2 className="text-xl font-semibold text-red-500">Erro ao carregar detalhes</h2>
-        <p className="text-muted-foreground mt-2">A licença solicitada pode ter sido removida.</p>
+        <p className="text-muted-foreground mt-2">O domínio solicitado pode ter sido removido.</p>
         <Button className="mt-4" asChild>
           <Link to="/licenses">Voltar para lista</Link>
         </Button>
@@ -173,12 +169,12 @@ function LicenseDetailPage() {
         </Button>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-bold tracking-tight">{license.client_name}</h1>
-            <Badge variant="outline" className="font-mono text-[11px]">
-              {license.license_key_preview}
+            <h1 className="font-display text-2xl font-bold tracking-tight">{license.license_key_preview}</h1>
+            <Badge variant="outline" className="capitalize">
+              {license.plan}
             </Badge>
           </div>
-          <p className="text-muted-foreground text-sm">Detalhes da licença e log de conexões do cliente.</p>
+          <p className="text-muted-foreground text-sm">Cliente: {license.client_name}</p>
         </div>
       </div>
 
@@ -187,7 +183,7 @@ function LicenseDetailPage() {
         <Card className="md:col-span-1 shadow-sm h-fit">
           <CardHeader>
             <CardTitle>Editar Propriedades</CardTitle>
-            <CardDescription>Configure os limites da chave de licença.</CardDescription>
+            <CardDescription>Configure as opções de acesso do cliente.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleUpdate} className="space-y-4">
@@ -240,17 +236,6 @@ function LicenseDetailPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="max_act">Limite Ativações</Label>
-                <Input
-                  id="max_act"
-                  type="number"
-                  min={1}
-                  value={maxActivations}
-                  onChange={(e) => setMaxActivations(Number(e.target.value))}
-                />
-              </div>
-
-              <div className="grid gap-2">
                 <Label htmlFor="expires">Expira em</Label>
                 <Input
                   id="expires"
@@ -282,8 +267,8 @@ function LicenseDetailPage() {
           {/* Active Activations */}
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Ativações Ativas ({activations.length}/{license.max_activations})</CardTitle>
-              <CardDescription>Servidores/domínios rodando com esta licença.</CardDescription>
+              <CardTitle>Conexões Ativas ({activations.length})</CardTitle>
+              <CardDescription>Instâncias reportando requisições com este domínio.</CardDescription>
             </CardHeader>
             <CardContent>
               {!activations.length ? (
@@ -296,7 +281,7 @@ function LicenseDetailPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Domínio</TableHead>
+                        <TableHead>Instância ID</TableHead>
                         <TableHead>Última Checagem</TableHead>
                         <TableHead>IP</TableHead>
                         <TableHead className="w-[100px] text-right">Revogar</TableHead>
@@ -309,13 +294,8 @@ function LicenseDetailPage() {
                           : "N/A";
                         return (
                           <TableRow key={act.id}>
-                            <TableCell className="font-medium">
-                              <div>
-                                <span>{act.domain}</span>
-                                {act.app_url && (
-                                  <div className="text-xs text-muted-foreground font-mono">{act.app_url}</div>
-                                )}
-                              </div>
+                            <TableCell className="font-medium font-mono text-xs">
+                              {act.installation_id}
                             </TableCell>
                             <TableCell className="text-sm">{lastCheck}</TableCell>
                             <TableCell className="text-sm font-mono">{act.ip_address || "N/A"}</TableCell>
@@ -344,13 +324,13 @@ function LicenseDetailPage() {
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Histórico de Validações</CardTitle>
-              <CardDescription>Log das últimas 100 checagens realizadas.</CardDescription>
+              <CardDescription>Logs das requisições mais recentes.</CardDescription>
             </CardHeader>
             <CardContent>
               {!logs.length ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <Database className="h-8 w-8 mb-2 opacity-40" />
-                  Nenhuma checagem gravada no log.
+                  Nenhuma validação gravada.
                 </div>
               ) : (
                 <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
@@ -358,7 +338,6 @@ function LicenseDetailPage() {
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
                         <TableHead>Data/Hora</TableHead>
-                        <TableHead>Domínio</TableHead>
                         <TableHead>Resultado</TableHead>
                         <TableHead>IP</TableHead>
                       </TableRow>
@@ -370,7 +349,6 @@ function LicenseDetailPage() {
                         return (
                           <TableRow key={log.id}>
                             <TableCell className="text-sm whitespace-nowrap">{date}</TableCell>
-                            <TableCell className="text-sm font-medium">{log.domain || "N/A"}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1.5">
                                 {isSuccess ? (

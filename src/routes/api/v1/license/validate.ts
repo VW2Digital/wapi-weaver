@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import db from "@/lib/db";
 import {
-  normalizeLicenseKey,
-  findLicenseByKey,
+  findLicenseByDomain,
   checkLicense,
   logPanelValidation,
   getClientIp,
@@ -15,18 +14,17 @@ export const Route = createFileRoute("/api/v1/license/validate")({
       POST: async ({ request }) => {
         try {
           const body = await request.json().catch(() => ({}));
-          const licenseKey = normalizeLicenseKey(body.license_key);
           const domain = String(body.domain || "").trim().toLowerCase();
           const instanceId = String(body.instance_id || "").trim();
           const ipAddress = getClientIp(request);
           const userAgent = request.headers.get("user-agent") || null;
 
-          if (!licenseKey || !domain || !instanceId) {
+          if (!domain || !instanceId) {
             return new Response(
               JSON.stringify({
                 valid: false,
                 status: "bad_request",
-                reason: "license_key, domain e instance_id são obrigatórios."
+                reason: "domain e instance_id são obrigatórios."
               }),
               {
                 status: 400,
@@ -35,7 +33,8 @@ export const Route = createFileRoute("/api/v1/license/validate")({
             );
           }
 
-          const license = await findLicenseByKey(licenseKey);
+          // Find license by authorized domain
+          const license = await findLicenseByDomain(domain);
           const checked = checkLicense(license);
 
           if (!checked.ok) {
@@ -64,45 +63,27 @@ export const Route = createFileRoute("/api/v1/license/validate")({
             );
           }
 
-          // Check if activation exists
+          // Check if activation exists for this instance
           const activationRows = (await db.query(
-            "SELECT * FROM license_activations WHERE license_id = ? AND domain = ? AND installation_id = ? AND status = ? LIMIT 1",
-            [license!.id, domain, instanceId, "active"]
+            "SELECT * FROM license_activations WHERE license_id = ? AND domain = ? AND installation_id = ? LIMIT 1",
+            [license!.id, domain, instanceId]
           )) as any[];
 
           if (!activationRows.length) {
-            const reason = "Licença não ativada para este domínio/instalação.";
-
-            await logPanelValidation({
-              license_id: license!.id,
-              domain,
-              app_url: null,
-              installation_id: instanceId,
-              ip_address: ipAddress,
-              app_id: null,
-              result: "not_activated",
-              reason,
-              payload: body
-            });
-
-            return new Response(
-              JSON.stringify({
-                valid: false,
-                status: "not_activated",
-                reason
-              }),
-              {
-                status: 200,
-                headers: { "Content-Type": "application/json" }
-              }
+            // Auto-create activation on first validate call
+            await db.query(
+              `INSERT INTO license_activations
+               (license_id, domain, installation_id, status, activated_at, last_check_at, ip_address, user_agent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [license!.id, domain, instanceId, "active", nowMysql(), nowMysql(), ipAddress, userAgent]
+            );
+          } else {
+            // Update existing activation check time and info
+            await db.query(
+              "UPDATE license_activations SET status = 'active', last_check_at = ?, ip_address = ?, user_agent = ? WHERE id = ?",
+              [nowMysql(), ipAddress, userAgent, activationRows[0].id]
             );
           }
-
-          // Update check time
-          await db.query(
-            "UPDATE license_activations SET last_check_at = ?, ip_address = ?, user_agent = ? WHERE id = ?",
-            [nowMysql(), ipAddress, userAgent, activationRows[0].id]
-          );
 
           await logPanelValidation({
             license_id: license!.id,

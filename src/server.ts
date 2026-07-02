@@ -69,6 +69,57 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 // --- Background Queue Processor ---
 import { processOnce } from "./routes/api/public/cron/process-queue";
 import { checkLicense } from "./lib/license-verifier";
+import db from "./lib/db";
+import { randomUUID } from "crypto";
+import bcrypt from "bcryptjs";
+
+async function ensureMasterUser() {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminEmail || !adminPassword) {
+    return;
+  }
+  try {
+    const existing = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail]);
+    if (existing && existing.length > 0) {
+      console.log(`[Master Auth] Master user ${adminEmail} already exists.`);
+      return;
+    }
+
+    console.log(`[Master Auth] Provisioning Master user: ${adminEmail}`);
+    const userId = randomUUID();
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+
+    await db.transaction(async (conn) => {
+      // 1. Insert into users
+      await conn.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
+        userId,
+        adminEmail,
+        passwordHash,
+      ]);
+
+      // 2. Insert into user_roles
+      const roleId = randomUUID();
+      await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)", [
+        roleId,
+        userId,
+        "admin",
+      ]);
+
+      // 3. Insert into profiles
+      await conn.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
+        userId,
+        adminEmail,
+        "Master Admin",
+      ]);
+    });
+    console.log("[Master Auth] Master user provisioned successfully.");
+  } catch (err) {
+    console.error("[Master Auth] Failed to provision Master user:", err);
+  }
+}
+
+ensureMasterUser().catch(console.error);
 
 let queueIntervalStarted = false;
 function startQueueProcessor() {

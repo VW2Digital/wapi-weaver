@@ -72,6 +72,15 @@ export async function findLicenseByKey(key: string): Promise<LicenseRecord | nul
   return (rows as LicenseRecord[])[0] || null;
 }
 
+export async function findLicenseByDomain(domain: string): Promise<LicenseRecord | null> {
+  const normalized = String(domain || "").trim().toLowerCase();
+  const rows = await db.query(
+    "SELECT * FROM licenses WHERE LOWER(license_key_preview) = ? LIMIT 1",
+    [normalized]
+  );
+  return (rows as LicenseRecord[])[0] || null;
+}
+
 export function checkLicense(license: LicenseRecord | null, appId?: string): { ok: boolean; status: string; reason: string } {
   if (!license) {
     return {
