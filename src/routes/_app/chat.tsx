@@ -1699,7 +1699,7 @@ function ChatPage() {
         body: typedMessage,
         preview_url: previewUrl,
       },
-      reply_to_message_id: replyingTo?.id,
+      reply_to_message_id: replyingTo?.wa_message_id,
     });
   };
 
@@ -1721,7 +1721,7 @@ function ChatPage() {
       image: {
         id: metaImageId.trim(),
       },
-      reply_to_message_id: replyingTo?.id,
+      reply_to_message_id: replyingTo?.wa_message_id,
     });
     setMetaImageId("");
     setIsImageModalOpen(false);
@@ -1770,7 +1770,7 @@ function ChatPage() {
             pendingMediaType === "document"
               ? { id: mediaId, filename: file.name }
               : { id: mediaId },
-          reply_to_message_id: replyingTo?.id,
+          reply_to_message_id: replyingTo?.wa_message_id,
         } as any,
       });
 
@@ -1806,7 +1806,7 @@ function ChatPage() {
         name: locName.trim() || undefined,
         address: locAddress.trim() || undefined,
       },
-      reply_to_message_id: replyingTo?.id,
+      reply_to_message_id: replyingTo?.wa_message_id,
     });
 
     setIsLocationModalOpen(false);
@@ -1840,7 +1840,7 @@ function ChatPage() {
           ],
         },
       ],
-      reply_to_message_id: replyingTo?.id,
+      reply_to_message_id: replyingTo?.wa_message_id,
     });
 
     setIsContactModalOpen(false);
@@ -3491,7 +3491,7 @@ function ChatPage() {
                                     {DEFAULT_EMOJIS.map((emoji) => (
                                       <button
                                         key={emoji}
-                                        onClick={() => handleSendReaction(msg.id, emoji)}
+                                        onClick={() => handleSendReaction(msg.wa_message_id, emoji)}
                                         className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
                                       >
                                         {emoji}
@@ -4103,7 +4103,7 @@ function ChatPage() {
                                     {DEFAULT_EMOJIS.map((emoji) => (
                                       <button
                                         key={emoji}
-                                        onClick={() => handleSendReaction(msg.id, emoji)}
+                                        onClick={() => handleSendReaction(msg.wa_message_id, emoji)}
                                         className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
                                       >
                                         {emoji}
