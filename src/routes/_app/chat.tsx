@@ -1180,113 +1180,101 @@ function ChatPage() {
     }
   };
 
-  const renderMessageTagDropdown = (msg: any) => {
+  const renderMessageTagSubmenu = (msg: any) => {
     const msgTags = (messageTagsQuery.data ?? []).filter((mt: any) => mt.message_id === msg.id);
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-            title="Etiquetas da mensagem"
-          >
-            <Tag className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="p-2 min-w-[220px]" align="start">
-          {msgTags.length > 0 && (
-            <div className="border-b pb-1.5 mb-1.5">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
-                onClick={() => handleClearMessageTags(msg.id)}
-              >
-                <X className="h-3 w-3 mr-1.5" /> Limpar tags ({msgTags.length})
-              </Button>
-            </div>
-          )}
-
-          <div className="max-h-44 overflow-y-auto space-y-1">
-            {(tagsQuery.data ?? []).length === 0 ? (
-              <div className="text-[10px] text-muted-foreground p-1 text-center">
-                Nenhuma etiqueta cadastrada.
-              </div>
-            ) : (
-              (tagsQuery.data ?? []).map((tag: any) => {
-                const isApplied = msgTags.some((mt: any) => mt.tag_id === tag.id);
-                return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => handleToggleMessageTag(msg.id, tag.id, isApplied)}
-                    className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
-                  >
-                    <TagBadge tag={tag} className="border-transparent bg-transparent px-0" />
-                    <span
-                      className={cn(
-                        "h-4 w-4 rounded border flex items-center justify-center transition-all",
-                        isApplied
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "border-muted-foreground/30",
-                      )}
-                    >
-                      {isApplied && <Check className="h-3 w-3" />}
-                    </span>
-                  </button>
-                );
-              })
-            )}
+      <>
+        {msgTags.length > 0 && (
+          <div className="border-b pb-1.5 mb-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 font-medium"
+              onClick={() => handleClearMessageTags(msg.id)}
+            >
+              <X className="h-3 w-3 mr-1.5" /> Limpar tags ({msgTags.length})
+            </Button>
           </div>
+        )}
 
-          <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
-            <p className="text-[10px] text-muted-foreground px-1 font-semibold">Nova tag</p>
-            <div className="flex gap-1">
-              <Input
-                placeholder="Nome..."
-                className="h-7 text-xs px-2 flex-1"
-                maxLength={20}
-                onKeyDown={async (e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    const target = e.currentTarget;
-                    const val = target.value.trim();
-                    if (!val) return;
-                    const res = await handleCreateTag(val, selectedColor, selectedIconName);
-                    if (res?.id) {
-                      target.value = "";
-                      await handleToggleMessageTag(msg.id, res.id, false);
-                    }
-                  }
-                }}
-              />
+        <div className="max-h-44 overflow-y-auto space-y-1">
+          {(tagsQuery.data ?? []).length === 0 ? (
+            <div className="text-[10px] text-muted-foreground p-1 text-center">
+              Nenhuma etiqueta cadastrada.
             </div>
-            <div className="flex justify-between items-center px-1">
-              <input
-                type="color"
-                value={selectedColor}
-                onChange={(e) => setSelectedColor(e.target.value)}
-                className="w-5 h-5 p-0 border-0 cursor-pointer rounded overflow-hidden"
-              />
-              <div className="flex gap-1">
-                {PREDEFINED_COLORS.slice(0, 6).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
+          ) : (
+            (tagsQuery.data ?? []).map((tag: any) => {
+              const isApplied = msgTags.some((mt: any) => mt.tag_id === tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => handleToggleMessageTag(msg.id, tag.id, isApplied)}
+                  className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
+                >
+                  <TagBadge tag={tag} className="border-transparent bg-transparent px-0" />
+                  <span
                     className={cn(
-                      "h-3 w-3 rounded-full border transition-transform hover:scale-110",
-                      selectedColor === c ? "border-foreground" : "border-transparent",
+                      "h-4 w-4 rounded border flex items-center justify-center transition-all",
+                      isApplied
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-muted-foreground/30",
                     )}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setSelectedColor(c)}
-                  />
-                ))}
-              </div>
+                  >
+                    {isApplied && <Check className="h-3 w-3" />}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div className="border-t mt-1.5 pt-1.5 space-y-1.5">
+          <p className="text-[10px] text-muted-foreground px-1 font-semibold">Nova tag</p>
+          <div className="flex gap-1">
+            <Input
+              placeholder="Nome..."
+              className="h-7 text-xs px-2 flex-1"
+              maxLength={20}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const target = e.currentTarget;
+                  const val = target.value.trim();
+                  if (!val) return;
+                  const res = await handleCreateTag(val, selectedColor, selectedIconName);
+                  if (res?.id) {
+                    target.value = "";
+                    await handleToggleMessageTag(msg.id, res.id, false);
+                  }
+                }
+              }}
+            />
+          </div>
+          <div className="flex justify-between items-center px-1">
+            <input
+              type="color"
+              value={selectedColor}
+              onChange={(e) => setSelectedColor(e.target.value)}
+              className="w-5 h-5 p-0 border-0 cursor-pointer rounded overflow-hidden"
+            />
+            <div className="flex gap-1">
+              {PREDEFINED_COLORS.slice(0, 6).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={cn(
+                    "h-3 w-3 rounded-full border transition-transform hover:scale-110",
+                    selectedColor === c ? "border-foreground" : "border-transparent",
+                  )}
+                  style={{ backgroundColor: c }}
+                  onClick={() => setSelectedColor(c)}
+                />
+              ))}
             </div>
           </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </div>
+      </>
     );
   };
 
@@ -1952,7 +1940,11 @@ function ChatPage() {
 
   const messageMap = new Map<string, any>();
   normalMessages.forEach((m: any) => {
-    messageMap.set(m.id, { ...m, reactions: [] });
+    if (m.wa_message_id) {
+      messageMap.set(m.wa_message_id, { ...m, reactions: [] });
+    } else {
+      messageMap.set(m.id, { ...m, reactions: [] });
+    }
   });
 
   reactions.forEach((r: any) => {
@@ -3480,44 +3472,53 @@ function ChatPage() {
                               >
                           {/* Container do Balão + Ações */}
                           <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
-                            {/* Ações Rápidas (Lado esquerdo para outgoing, lado direito para incoming) */}
+                            {/* Ações Rápidas em Menu Único para incoming */}
                             {!isOutgoing && (
-                              <div className="flex flex-col gap-1">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                    >
-                                      <Smile className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                    title="Opções"
+                                  >
+                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56 p-1">
+                                  {/* Reações Rápidas */}
+                                  <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
                                     {DEFAULT_EMOJIS.map((emoji) => (
                                       <button
                                         key={emoji}
                                         onClick={() => handleSendReaction(msg.id, emoji)}
-                                        className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                                        className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
                                       >
                                         {emoji}
                                       </button>
                                     ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                  </div>
 
-                                {renderMessageTagDropdown(msg)}
+                                  {/* Responder */}
+                                  <DropdownMenuItem onClick={() => setReplyingTo(msg)} className="flex items-center gap-2 cursor-pointer text-xs">
+                                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span>Responder</span>
+                                  </DropdownMenuItem>
 
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                  onClick={() => setReplyingTo(msg)}
-                                  title="Responder"
-                                >
-                                  <Reply className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              </div>
+                                  {/* Etiquetar */}
+                                  <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
+                                      <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span>Etiquetar</span>
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuPortal>
+                                      <DropdownMenuSubContent className="p-2 min-w-[200px]">
+                                        {renderMessageTagSubmenu(msg)}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuPortal>
+                                  </DropdownMenuSub>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
 
                             {/* Balão em si */}
@@ -4083,44 +4084,53 @@ function ChatPage() {
                               )}
                             </div>
 
-                            {/* Ações para Outgoing */}
+                            {/* Ações Rápidas em Menu Único para outgoing */}
                             {isOutgoing && (
-                              <div className="flex flex-col gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                  onClick={() => setReplyingTo(msg)}
-                                  title="Responder"
-                                >
-                                  <Reply className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-
-                                {renderMessageTagDropdown(msg)}
-
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                    >
-                                      <Smile className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="p-1 min-w-[120px] flex gap-1">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                    title="Opções"
+                                  >
+                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56 p-1">
+                                  {/* Reações Rápidas */}
+                                  <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
                                     {DEFAULT_EMOJIS.map((emoji) => (
                                       <button
                                         key={emoji}
                                         onClick={() => handleSendReaction(msg.id, emoji)}
-                                        className="hover:bg-muted p-1.5 rounded text-lg transition-transform hover:scale-125"
+                                        className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
                                       >
                                         {emoji}
                                       </button>
                                     ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
+                                  </div>
+
+                                  {/* Responder */}
+                                  <DropdownMenuItem onClick={() => setReplyingTo(msg)} className="flex items-center gap-2 cursor-pointer text-xs">
+                                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span>Responder</span>
+                                  </DropdownMenuItem>
+
+                                  {/* Etiquetar */}
+                                  <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
+                                      <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span>Etiquetar</span>
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuPortal>
+                                      <DropdownMenuSubContent className="p-2 min-w-[200px]">
+                                        {renderMessageTagSubmenu(msg)}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuPortal>
+                                  </DropdownMenuSub>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </div>
