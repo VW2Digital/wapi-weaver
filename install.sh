@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# INSTALADOR AUTOMATIZADO - DISPARADOR WAPI WEAVER (DOCKER COMPOSE)
+# INSTALADOR AUTOMATIZADO - CRM WAPI WEAVER (DOCKER COMPOSE)
 # ==============================================================================
 # Alvo: Ubuntu 20.04 / 22.04 / 24.04 LTS
 # Uso:  sudo bash install.sh
@@ -22,7 +22,7 @@ APP_DIR="/var/www/wapi-weaver"
 print_header() {
   echo -e "${GREEN}"
   echo "========================================================================"
-  echo "    INSTALADOR OFICIAL - DISPARADOR WAPI WEAVER (DOCKER + NGINX + SSL)  "
+  echo "    INSTALADOR OFICIAL - CRM WAPI WEAVER (DOCKER + NGINX + SSL)  "
   echo "========================================================================"
   echo -e "${NC}"
 }
