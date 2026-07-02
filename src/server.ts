@@ -73,6 +73,65 @@ import db from "./lib/db";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
+async function migrateRoles() {
+  try {
+    console.log("[Roles Migration] Starting role schema and data migration...");
+    try {
+      await db.query("ALTER TABLE user_roles MODIFY COLUMN role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user', 'admin') NOT NULL DEFAULT 'user'");
+      console.log("[Roles Migration] Column enum altered successfully.");
+    } catch (alterErr: any) {
+      console.warn("[Roles Migration] Warning altering user_roles table:", alterErr.message);
+    }
+
+    const roleMode = process.env.LICENSE_ROLE || "saas";
+    const adminEmail = process.env.ADMIN_EMAIL;
+
+    if (roleMode === "panel") {
+      if (adminEmail) {
+        const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail.trim().toLowerCase()]) as any[];
+        if (userRows.length > 0) {
+          const userId = userRows[0].id;
+          await db.query("UPDATE user_roles SET role = 'adminmaster' WHERE user_id = ?", [userId]);
+          console.log(`[Roles Migration] Updated master user ${adminEmail} to adminmaster.`);
+          
+          const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')", [userId]);
+          if (cleaned.affectedRows > 0) {
+            console.log(`[Roles Migration] Cleaned up ${cleaned.affectedRows} unauthorized administrators in Panel mode.`);
+          }
+        }
+      }
+    } else {
+      if (adminEmail) {
+        const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail.trim().toLowerCase()]) as any[];
+        if (userRows.length > 0) {
+          const userId = userRows[0].id;
+          await db.query("UPDATE user_roles SET role = 'owner' WHERE user_id = ?", [userId]);
+          console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to owner.`);
+          
+          const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')", [userId]);
+          if (cleaned.affectedRows > 0) {
+            console.log(`[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user in SaaS mode.`);
+          }
+        }
+      } else {
+        const users = await db.query("SELECT id, email FROM users ORDER BY created_at ASC") as any[];
+        if (users.length > 0) {
+          const firstUserId = users[0].id;
+          await db.query("UPDATE user_roles SET role = 'owner' WHERE user_id = ?", [firstUserId]);
+          console.log(`[Roles Migration] Set first user ${users[0].email} as owner.`);
+          
+          const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin', 'owner')", [firstUserId]);
+          if (cleaned.affectedRows > 0) {
+            console.log(`[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user.`);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[Roles Migration] Error running migrations:", err.message);
+  }
+}
+
 async function ensureMasterUser() {
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -82,11 +141,14 @@ async function ensureMasterUser() {
   try {
     const existing = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail]);
     if (existing && existing.length > 0) {
-      console.log(`[Master Auth] Master user ${adminEmail} already exists.`);
+      console.log(`[Master Auth] Admin user ${adminEmail} already exists.`);
       return;
     }
 
-    console.log(`[Master Auth] Provisioning Master user: ${adminEmail}`);
+    const roleMode = process.env.LICENSE_ROLE || "saas";
+    const initialRole = roleMode === "panel" ? "adminmaster" : "owner";
+
+    console.log(`[Master Auth] Provisioning Admin user: ${adminEmail} with role ${initialRole}`);
     const userId = randomUUID();
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
@@ -103,23 +165,28 @@ async function ensureMasterUser() {
       await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)", [
         roleId,
         userId,
-        "admin",
+        initialRole,
       ]);
 
       // 3. Insert into profiles
       await conn.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
         userId,
         adminEmail,
-        "Master Admin",
+        roleMode === "panel" ? "Master Admin" : "Owner Admin",
       ]);
     });
-    console.log("[Master Auth] Master user provisioned successfully.");
+    console.log("[Master Auth] Admin user provisioned successfully.");
   } catch (err) {
-    console.error("[Master Auth] Failed to provision Master user:", err);
+    console.error("[Master Auth] Failed to provision Admin user:", err);
   }
 }
 
-ensureMasterUser().catch(console.error);
+async function runBootSequence() {
+  await migrateRoles();
+  await ensureMasterUser();
+}
+
+runBootSequence().catch(console.error);
 
 let queueIntervalStarted = false;
 function startQueueProcessor() {

@@ -16,11 +16,11 @@ async function assertAdmin(ctx: { userId: string }) {
     throw new Error("Acesso negado: o Painel de Licenças está inativo nesta instalação.");
   }
   const rows = (await db.query(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin' LIMIT 1",
+    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
     [ctx.userId]
   )) as any[];
   if (!rows.length) {
-    throw new Error("Acesso negado: apenas administradores.");
+    throw new Error("Acesso negado: apenas o administrador master (adminmaster) da plataforma tem permissão.");
   }
 }
 
@@ -283,7 +283,7 @@ export const getLicenseRole = createServerFn({ method: "GET" })
     let isAdmin = false;
     try {
       const rows = (await db.query(
-        "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin' LIMIT 1",
+        "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
         [context.userId]
       )) as any[];
       if (rows.length > 0) {

@@ -5,14 +5,19 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "./db";
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
+  const roleMode = process.env.LICENSE_ROLE || "saas";
+  const requiredRole = roleMode === "panel" ? "adminmaster" : "owner";
+
   const { data, error } = await ctx.supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", ctx.userId)
-    .eq("role", "admin")
+    .in("role", [requiredRole])
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error("Acesso negado: apenas administradores.");
+  if (!data) {
+    throw new Error(`Acesso negado: apenas o administrador (${requiredRole}) tem permissão.`);
+  }
 }
 
 export const listUsers = createServerFn({ method: "GET" })
@@ -65,7 +70,7 @@ const createSchema = z.object({
   email: z.string().trim().email().max(255),
   password: z.string().min(8).max(72),
   display_name: z.string().trim().min(1).max(80).optional(),
-  role: z.enum(["admin", "user"]).default("user"),
+  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user", "admin"]).default("user"),
 });
 
 export const createUser = createServerFn({ method: "POST" })
@@ -81,10 +86,10 @@ export const createUser = createServerFn({ method: "POST" })
     });
     if (error) throw error;
     const uid = created.user!.id;
-    // O trigger assign_default_role já insere 'user'. Se admin solicitado, adiciona.
-    if (data.role === "admin") {
-      await dbAdmin.from("user_roles").insert({ user_id: uid, role: "admin" } as never);
-    }
+    const roleMode = process.env.LICENSE_ROLE || "saas";
+    const targetRole = data.role === "admin" ? (roleMode === "panel" ? "adminmaster" : "owner") : data.role;
+
+    await dbAdmin.from("user_roles").insert({ user_id: uid, role: targetRole } as never);
     // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
     await db.query(
       `INSERT IGNORE INTO profiles (id, email, display_name, full_name)
@@ -96,7 +101,7 @@ export const createUser = createServerFn({ method: "POST" })
 
 const roleSchema = z.object({
   user_id: z.string().uuid(),
-  role: z.enum(["admin", "user"]),
+  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user", "admin"]),
   grant: z.boolean(),
 });
 
@@ -111,13 +116,13 @@ export const setUserRole = createServerFn({ method: "POST" })
         .insert({ user_id: data.user_id, role: data.role } as never);
       if (error && !String(error.message).includes("duplicate")) throw error;
     } else {
-      // Proteção: não permitir remover o último admin
-      if (data.role === "admin") {
+      // Proteção: não permitir remover o último admin/owner/adminmaster
+      if (data.role === "admin" || data.role === "owner" || data.role === "adminmaster") {
         const { count } = await dbAdmin
           .from("user_roles")
           .select("user_id", { count: "exact", head: true })
-          .eq("role", "admin");
-        if ((count ?? 0) <= 1) throw new Error("Não é possível remover o último administrador.");
+          .eq("role", data.role);
+        if ((count ?? 0) <= 1) throw new Error(`Não é possível remover o último ${data.role}.`);
       }
       const { error } = await dbAdmin
         .from("user_roles")
