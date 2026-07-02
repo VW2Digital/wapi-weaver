@@ -53,15 +53,25 @@ export class LicenseClient {
       .digest("hex");
   }
 
-  private async request(endpoint: string, payload: any): Promise<LicenseResponse> {
+  private async request(endpoint: string, payload: any, useHmac: boolean = true): Promise<LicenseResponse> {
     const urls = this.serverUrls;
     let lastErrorResponse: LicenseResponse | null = null;
 
     for (const baseUrl of urls) {
       const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
       const bodyJson = this.stableStringify(payload) || "{}";
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signature = this.generateSignature(timestamp, bodyJson);
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (useHmac) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const signature = this.generateSignature(timestamp, bodyJson);
+        headers["X-App-Id"] = this.appId;
+        headers["X-Timestamp"] = timestamp.toString();
+        headers["X-Signature"] = signature;
+      }
 
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 8000);
@@ -69,12 +79,7 @@ export class LicenseClient {
       try {
         const res = await fetch(url, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-App-Id": this.appId,
-            "X-Timestamp": timestamp.toString(),
-            "X-Signature": signature,
-          },
+          headers,
           body: bodyJson,
           signal: controller.signal,
         });
@@ -192,14 +197,32 @@ export class LicenseClient {
     appUrl: string,
     appVersion: string = "1.0.0"
   ): Promise<LicenseResponse> {
-    return this.request("/api/licenses/validate", {
-      license_key: licenseKey,
-      app_id: this.appId,
-      domain,
-      installation_id: installationId,
-      app_url: appUrl,
-      app_version: appVersion,
-    });
+    const response = await this.request(
+      "/api/v1/license/validate",
+      {
+        license_key: licenseKey,
+        domain,
+        instance_id: installationId,
+      },
+      false
+    );
+
+    if (response.valid) {
+      return {
+        valid: true,
+        status: "active",
+        plan: response.plan,
+        expires_at: response.expires_at,
+        features: response.features,
+      };
+    } else {
+      return {
+        valid: false,
+        status: (response as any).reason || "invalid",
+        error: (response as any).reason || "invalid",
+        message: (response as any).reason || response.message || "Licença inválida",
+      };
+    }
   }
 }
 
