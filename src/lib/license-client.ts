@@ -13,8 +13,15 @@ export interface LicenseResponse {
 }
 
 export class LicenseClient {
-  private get serverUrl() {
-    return process.env.LICENSE_SERVER_URL || "https://painel.blivcrm.com";
+  private get serverUrls(): string[] {
+    if (process.env.LICENSE_SERVER_URL) {
+      return [process.env.LICENSE_SERVER_URL];
+    }
+    return [
+      "https://painel.blivcrm.com",
+      "https://admin.blivcrm.com",
+      "http://85.155.186.146"
+    ];
   }
   private get appId() {
     return process.env.LICENSE_APP_ID || "meu-saas";
@@ -46,103 +53,118 @@ export class LicenseClient {
   }
 
   private async request(endpoint: string, payload: any): Promise<LicenseResponse> {
-    const url = `${this.serverUrl.replace(/\/+$/, "")}${endpoint}`;
-    const bodyJson = this.stableStringify(payload) || "{}";
-    const timestamp = Math.floor(Date.now() / 1000);
-    const signature = this.generateSignature(timestamp, bodyJson);
+    const urls = this.serverUrls;
+    let lastErrorResponse: LicenseResponse | null = null;
 
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 8000);
+    for (const baseUrl of urls) {
+      const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
+      const bodyJson = this.stableStringify(payload) || "{}";
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signature = this.generateSignature(timestamp, bodyJson);
 
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-App-Id": this.appId,
-          "X-Timestamp": timestamp.toString(),
-          "X-Signature": signature,
-        },
-        body: bodyJson,
-        signal: controller.signal,
-      });
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 8000);
 
-      clearTimeout(id);
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-App-Id": this.appId,
+            "X-Timestamp": timestamp.toString(),
+            "X-Signature": signature,
+          },
+          body: bodyJson,
+          signal: controller.signal,
+        });
 
-      const text = await res.text();
-      let data: any = {};
-      const isJson = res.headers.get("content-type")?.includes("application/json");
+        clearTimeout(id);
 
-      if (isJson) {
-        try {
-          data = JSON.parse(text);
-        } catch {
-          console.error(`[LicenseClient] Falha ao parsear JSON. URL: ${this.serverUrl}, Endpoint: ${endpoint}, Status: ${res.status}`);
-          return {
-            valid: false,
-            status: "error",
-            error: "json_parse_error",
-            message: "Painel retornou HTML em vez de JSON"
-          };
-        }
-      } else {
-        console.error(`[LicenseClient] Resposta não-JSON recebida. URL: ${this.serverUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text.slice(0, 200)}`);
-        if (text.trim().startsWith("<")) {
-          return {
-            valid: false,
-            status: "error",
-            error: "html_response",
-            message: "Painel retornou HTML em vez de JSON"
-          };
-        }
-      }
+        const text = await res.text();
+        let data: any = {};
+        const isJson = res.headers.get("content-type")?.includes("application/json");
 
-      if (!res.ok) {
-        console.error(`[LicenseClient] Erro HTTP recebido. URL: ${this.serverUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text}`);
-        let message = data.reason || data.message || `Erro HTTP ${res.status}`;
-        if (res.status === 401) {
-          message = "Assinatura inválida";
-        } else if (res.status === 404) {
-          message = "Endpoint não encontrado";
-        } else if (res.status === 403) {
-          if (message.includes("expirada")) {
-            message = "Licença expirada";
-          } else if (message.includes("bloqueada") || message.includes("inativa")) {
-            message = "Licença bloqueada";
-          } else {
-            message = "Acesso negado / Licença inválida";
+        if (isJson) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            console.error(`[LicenseClient] Falha ao parsear JSON. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}`);
+            lastErrorResponse = {
+              valid: false,
+              status: "error",
+              error: "json_parse_error",
+              message: "Painel retornou HTML em vez de JSON"
+            };
+            continue;
+          }
+        } else {
+          console.error(`[LicenseClient] Resposta não-JSON recebida. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text.slice(0, 200)}`);
+          if (text.trim().startsWith("<")) {
+            lastErrorResponse = {
+              valid: false,
+              status: "error",
+              error: "html_response",
+              message: "Painel retornou HTML em vez de JSON"
+            };
+            continue;
           }
         }
-        return {
+
+        if (!res.ok) {
+          console.error(`[LicenseClient] Erro HTTP recebido. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text}`);
+          let message = data.reason || data.message || `Erro HTTP ${res.status}`;
+          if (res.status === 401) {
+            message = "Assinatura inválida";
+          } else if (res.status === 404) {
+            message = "Endpoint não encontrado";
+          } else if (res.status === 403) {
+            if (message.includes("expirada")) {
+              message = "Licença expirada";
+            } else if (message.includes("bloqueada") || message.includes("inativa")) {
+              message = "Licença bloqueada";
+            } else {
+              message = "Acesso negado / Licença inválida";
+            }
+          }
+          lastErrorResponse = {
+            valid: false,
+            status: "error",
+            error: data.error || `HTTP_${res.status}`,
+            message
+          };
+          continue;
+        }
+
+        return data as LicenseResponse;
+      } catch (err: any) {
+        clearTimeout(id);
+        console.error(`[LicenseClient] Erro de comunicação com o Painel. URL: ${baseUrl}, Endpoint: ${endpoint}, Erro: ${err.message || err}`);
+        
+        let message = "Servidor de licenças inacessível";
+        if (err.name === "AbortError") {
+          message = "Tempo limite de conexão esgotado (Timeout)";
+        } else if (err.code === "ENOTFOUND") {
+          message = "Servidor de licenças inacessível (DNS não encontrado)";
+        } else if (err.code === "ECONNREFUSED") {
+          message = "Servidor de licenças inacessível (Conexão recusada)";
+        }
+
+        lastErrorResponse = {
           valid: false,
-          status: "error",
-          error: data.error || `HTTP_${res.status}`,
+          status: "network_error",
+          error: err.code || "network_error",
           message
         };
+        continue;
       }
-
-      return data as LicenseResponse;
-    } catch (err: any) {
-      clearTimeout(id);
-      console.error(`[LicenseClient] Erro de comunicação com o Painel. URL: ${this.serverUrl}, Endpoint: ${endpoint}, Erro: ${err.message || err}`);
-      
-      let message = "Servidor de licenças inacessível";
-      if (err.name === "AbortError") {
-        message = "Tempo limite de conexão esgotado (Timeout)";
-      } else if (err.code === "ENOTFOUND") {
-        message = "Servidor de licenças inacessível (DNS não encontrado)";
-      } else if (err.code === "ECONNREFUSED") {
-        message = "Servidor de licenças inacessível (Conexão recusada)";
-      }
-
-      return {
-        valid: false,
-        status: "network_error",
-        error: err.code || "network_error",
-        message
-      };
     }
-  }
+
+    return lastErrorResponse || {
+      valid: false,
+      status: "network_error",
+      error: "no_servers_available",
+      message: "Nenhum servidor de licenças disponível"
+    };
 
   public async activate(
     licenseKey: string,
