@@ -60,6 +60,10 @@ const ALLOWED_TABLES = new Set([
   "whatsapp_groups",
   "whatsapp_group_participants",
   "chat_sessions",
+  "instagram_accounts",
+  "instagram_webhook_events",
+  "facebook_pages",
+  "facebook_webhook_events",
 ]);
 
 function hasUserIdColumn(table: string): boolean {
@@ -103,6 +107,10 @@ function hasUserIdColumn(table: string): boolean {
     "whatsapp_groups",
     "whatsapp_group_participants",
     "chat_sessions",
+    "instagram_accounts",
+    "instagram_webhook_events",
+    "facebook_pages",
+    "facebook_webhook_events",
   ].includes(table);
 }
 
