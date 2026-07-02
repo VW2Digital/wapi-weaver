@@ -434,10 +434,46 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
-      const payload = {
+      const payload: any = {
         recipient: { id: externalId },
-        message: { text: data.text?.body || "" },
       };
+
+      if (data.type === "text") {
+        payload.message = { text: data.text?.body || "" };
+      } else if (data.type === "reaction") {
+        payload.sender_action = "react";
+        payload.payload = {
+          message_id: data.reaction?.message_id || "",
+          reaction: data.reaction?.emoji || "",
+        };
+      } else if (["image", "audio", "video", "document"].includes(data.type)) {
+        let type = data.type;
+        if (type === "document") type = "file";
+        
+        let mediaUrl = "";
+        let attachmentId = "";
+
+        if (data.type === "image") {
+          mediaUrl = data.image?.link || "";
+          attachmentId = data.image?.id || "";
+        } else if (data.type === "audio") {
+          mediaUrl = data.audio?.link || "";
+          attachmentId = data.audio?.id || "";
+        } else if (data.type === "video") {
+          mediaUrl = data.video?.link || "";
+          attachmentId = data.video?.id || "";
+        } else if (data.type === "document") {
+          mediaUrl = data.document?.link || "";
+          attachmentId = data.document?.id || "";
+        }
+
+        payload.message = {
+          attachment: {
+            type,
+            payload: attachmentId ? { attachment_id: attachmentId } : { url: mediaUrl },
+          },
+        };
+      }
 
       const r = await fetch(
         `https://graph.facebook.com/${apiVersion}/${account.ig_user_id}/messages`,
@@ -480,10 +516,46 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
-      const payload = {
+      const payload: any = {
         recipient: { id: externalId },
-        message: { text: data.text?.body || "" },
       };
+
+      if (data.type === "text") {
+        payload.message = { text: data.text?.body || "" };
+      } else if (data.type === "reaction") {
+        payload.sender_action = "react";
+        payload.payload = {
+          message_id: data.reaction?.message_id || "",
+          reaction: data.reaction?.emoji || "",
+        };
+      } else if (["image", "audio", "video", "document"].includes(data.type)) {
+        let type = data.type;
+        if (type === "document") type = "file";
+        
+        let mediaUrl = "";
+        let attachmentId = "";
+
+        if (data.type === "image") {
+          mediaUrl = data.image?.link || "";
+          attachmentId = data.image?.id || "";
+        } else if (data.type === "audio") {
+          mediaUrl = data.audio?.link || "";
+          attachmentId = data.audio?.id || "";
+        } else if (data.type === "video") {
+          mediaUrl = data.video?.link || "";
+          attachmentId = data.video?.id || "";
+        } else if (data.type === "document") {
+          mediaUrl = data.document?.link || "";
+          attachmentId = data.document?.id || "";
+        }
+
+        payload.message = {
+          attachment: {
+            type,
+            payload: attachmentId ? { attachment_id: attachmentId } : { url: mediaUrl },
+          },
+        };
+      }
 
       const r = await fetch(
         `https://graph.facebook.com/${apiVersion}/${page.page_id}/messages`,
