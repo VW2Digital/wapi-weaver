@@ -30,8 +30,20 @@ async function ensureTableExists(connection, tableName, createSql) {
 
   if (rows.length === 0) {
     logSchema(`Tabela \`${tableName}\` não existe. Criando...`);
-    await connection.query(createSql);
-    logSchema(`Tabela \`${tableName}\` criada com sucesso.`);
+    try {
+      let sql = createSql;
+      if (!/if\s+not\s+exists/i.test(sql)) {
+        sql = sql.replace(/create\s+table\s+(\`?\w+\`?)/i, 'CREATE TABLE IF NOT EXISTS $1');
+      }
+      await connection.query(sql);
+      logSchema(`Tabela \`${tableName}\` criada com sucesso.`);
+    } catch (err) {
+      if (err.code === "ER_TABLE_EXISTS_ERROR" || err.errno === 1050) {
+        logSchema(`Tabela \`${tableName}\` já existe (tratado via ER_TABLE_EXISTS_ERROR).`);
+      } else {
+        throw err;
+      }
+    }
     return false;
   }
 
