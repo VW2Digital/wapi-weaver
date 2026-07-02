@@ -255,20 +255,20 @@ else
   echo "  Gerando .env com segredos seguros..."
 fi
 
-JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 
-LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_PNL_URL=$(grep '^LICENSE_PANEL_URL=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_LOC_SEC=$(grep '^LICENSE_LOCAL_SECRET=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_GR_HRS=$(grep '^LICENSE_GRACE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_K=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
-SAAS_PUB_URL=$(grep '^SAAS_PUBLIC_URL=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_PNL_URL=$(grep '^LICENSE_PANEL_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_LOC_SEC=$(grep '^LICENSE_LOCAL_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_GR_HRS=$(grep '^LICENSE_GRACE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_K=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+SAAS_PUB_URL=$(grep '^SAAS_PUBLIC_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
 [ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
