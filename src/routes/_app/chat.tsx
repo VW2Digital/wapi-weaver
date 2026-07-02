@@ -1294,8 +1294,8 @@ function ChatPage() {
   const contactsQuery = useQuery({
     queryKey: ["chat-contacts"],
     queryFn: () => fetchContacts(),
-    staleTime: 3000,
-    refetchInterval: 8000,
+    staleTime: 1000,
+    refetchInterval: 2000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
@@ -1363,8 +1363,8 @@ function ChatPage() {
     queryKey: ["chat-messages", selectedPhone],
     queryFn: () => fetchMessages({ data: { phone: selectedPhone } }),
     enabled: !!selectedPhone,
-    staleTime: 3000,
-    refetchInterval: 6000,
+    staleTime: 1000,
+    refetchInterval: 2000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
