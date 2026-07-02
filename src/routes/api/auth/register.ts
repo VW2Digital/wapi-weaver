@@ -47,7 +47,7 @@ export const Route = createFileRoute("/api/auth/register")({
             await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)", [
               roleId,
               userId,
-              "user",
+              "owner",
             ]);
 
             // 3. Insert into profiles
@@ -56,10 +56,23 @@ export const Route = createFileRoute("/api/auth/register")({
               email,
               displayName,
             ]);
+
+            // 4. Insert default subscription (license) record for this owner
+            const crypto = await import("crypto");
+            const licenseKey = email;
+            const keyHash = crypto.createHash("sha256").update(licenseKey).digest("hex");
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 15); // 15 days trial
+            
+            await conn.execute(
+              `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, expires_at, tenant_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [keyHash, email, displayName || email, email, "basic", "active", expiresAt, userId]
+            );
           });
 
           // Sign local JWT
-          const token = jwt.sign({ sub: userId, email, role: "user" }, JWT_SECRET, {
+          const token = jwt.sign({ sub: userId, email, role: "owner" }, JWT_SECRET, {
             expiresIn: "30d",
           });
 
@@ -68,7 +81,7 @@ export const Route = createFileRoute("/api/auth/register")({
             user: {
               id: userId,
               email,
-              role: "user",
+              role: "owner",
               app_metadata: {},
               user_metadata: { display_name: displayName },
               aud: "authenticated",

@@ -83,6 +83,13 @@ async function migrateRoles() {
       console.warn("[Roles Migration] Warning altering user_roles table:", alterErr.message);
     }
 
+    try {
+      await db.query("ALTER TABLE licenses ADD COLUMN tenant_id VARCHAR(36) NULL UNIQUE");
+      console.log("[Roles Migration] Added tenant_id column to licenses table.");
+    } catch (colErr: any) {
+      console.log("[Roles Migration] Column tenant_id already exists or error adding it.");
+    }
+
     const roleMode = process.env.LICENSE_ROLE || "saas";
     const adminEmail = process.env.ADMIN_EMAIL;
 
@@ -125,6 +132,22 @@ async function migrateRoles() {
             console.log(`[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user.`);
           }
         }
+      }
+    }
+
+    // Auto-create a license subscription record for any owner/adminmaster user that doesn't have one
+    const owners = await db.query("SELECT u.id, u.email, p.display_name FROM users u JOIN user_roles r ON u.id = r.user_id LEFT JOIN profiles p ON p.id = u.id WHERE r.role IN ('owner', 'adminmaster')") as any[];
+    for (const owner of owners) {
+      const existingSub = await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [owner.id]) as any[];
+      if (existingSub.length === 0) {
+        const licenseKey = owner.email;
+        const keyHash = crypto.createHash("sha256").update(licenseKey).digest("hex");
+        await db.query(
+          `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [keyHash, owner.email, owner.display_name || owner.email, owner.email, "basic", "active", owner.id]
+        );
+        console.log(`[Roles Migration] Auto-provisioned subscription for owner: ${owner.email}`);
       }
     }
   } catch (err: any) {

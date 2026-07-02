@@ -385,7 +385,8 @@ export const updateSidebarOrder = createServerFn({ method: "POST" })
 export const getLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    if (process.env.LICENSE_ROLE === "panel") {
+    const claims = context.claims as any;
+    if (claims?.role === "adminmaster") {
       return {
         isValid: true,
         isAccessAllowed: true,
@@ -394,27 +395,29 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
       };
     }
 
-    const { checkLicense } = await import("./license-verifier");
-    const isValid = await checkLicense(undefined, true); // Physically valid?
-    const isAccessAllowed = await checkLicense(undefined, false); // Access permitted?
-
-    const { data: settings } = await context.db
-      .from("license_settings")
-      .select("grace_until")
-      .eq("id", 1)
+    const tenantId = context.tenantId;
+    const { data: sub, error } = await context.db
+      .from("licenses")
+      .select("status, expires_at")
+      .eq("tenant_id", tenantId)
       .maybeSingle();
 
-    const graceUntil = settings?.grace_until;
-    let graceDaysRemaining = 0;
-    if (graceUntil) {
-      const remainingMs = new Date(graceUntil).getTime() - Date.now();
-      graceDaysRemaining = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
+    if (error || !sub) {
+      return {
+        isValid: false,
+        isAccessAllowed: false,
+        graceDaysRemaining: 0,
+        hasGraceStarted: false,
+      };
     }
 
+    const isExpired = sub.expires_at && new Date(sub.expires_at) < new Date();
+    const isAccessAllowed = sub.status === "active" && !isExpired;
+
     return {
-      isValid,
+      isValid: sub.status === "active",
       isAccessAllowed,
-      graceDaysRemaining,
-      hasGraceStarted: !!graceUntil,
+      graceDaysRemaining: 0,
+      hasGraceStarted: false,
     };
   });

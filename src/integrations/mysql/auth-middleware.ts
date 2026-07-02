@@ -47,6 +47,7 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
         // Alias de compatibilidade — preferir context.db em código novo
         supabase: db,
         userId: decoded.sub,
+        tenantId: effectiveUserId,
         claims: decoded,
       },
     });

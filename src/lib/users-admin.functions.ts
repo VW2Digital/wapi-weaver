@@ -5,18 +5,15 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "./db";
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const roleMode = process.env.LICENSE_ROLE || "saas";
-  const requiredRole = roleMode === "panel" ? "adminmaster" : "owner";
-
   const { data, error } = await ctx.supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", ctx.userId)
-    .in("role", [requiredRole])
+    .in("role", ["owner", "adminmaster"])
     .maybeSingle();
   if (error) throw error;
   if (!data) {
-    throw new Error(`Acesso negado: apenas o administrador (${requiredRole}) tem permissão.`);
+    throw new Error("Acesso negado: apenas o administrador (owner ou adminmaster) tem permissão.");
   }
 }
 
@@ -86,9 +83,7 @@ export const createUser = createServerFn({ method: "POST" })
     });
     if (error) throw error;
     const uid = created.user!.id;
-    const roleMode = process.env.LICENSE_ROLE || "saas";
-    const targetRole = data.role === "admin" ? (roleMode === "panel" ? "adminmaster" : "owner") : data.role;
-
+    const targetRole = data.role === "admin" ? "owner" : data.role;
     await dbAdmin.from("user_roles").insert({ user_id: uid, role: targetRole } as never);
     // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
     await db.query(

@@ -12,9 +12,6 @@ import {
 
 // Helper to assert administrator privileges in panel mode
 async function assertAdmin(ctx: { userId: string }) {
-  if (process.env.LICENSE_ROLE !== "panel") {
-    throw new Error("Acesso negado: o Painel de Licenças está inativo nesta instalação.");
-  }
   const rows = (await db.query(
     "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
     [ctx.userId]
@@ -104,6 +101,15 @@ export const createLicense = createServerFn({ method: "POST" })
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
+    // Link tenant_id if user exists
+    let tenantId = null;
+    if (input.client_email) {
+      const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [input.client_email.trim().toLowerCase()]) as any[];
+      if (userRows.length > 0) {
+        tenantId = userRows[0].id;
+      }
+    }
+
     const licenseKey = input.domain.toLowerCase();
     const keyHash = licenseHash(licenseKey);
     const keyPreview = licenseKey;
@@ -114,8 +120,8 @@ export const createLicense = createServerFn({ method: "POST" })
     try {
       await db.query(
         `INSERT INTO licenses
-         (license_key_hash, license_key_preview, client_name, client_email, product_name, app_id, plan, status, expires_at, max_activations, max_users, features_json, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?)`,
+         (license_key_hash, license_key_preview, client_name, client_email, product_name, app_id, plan, status, expires_at, max_activations, max_users, features_json, notes, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?)`,
         [
           keyHash,
           keyPreview,
@@ -129,7 +135,8 @@ export const createLicense = createServerFn({ method: "POST" })
           input.max_activations,
           input.max_users || null,
           JSON.stringify(features),
-          input.notes || null
+          input.notes || null,
+          tenantId
         ]
       );
 
@@ -279,7 +286,6 @@ export const deleteActivation = createServerFn({ method: "POST" })
 export const getLicenseRole = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const role = process.env.LICENSE_ROLE || "saas";
     let isAdmin = false;
     try {
       const rows = (await db.query(
@@ -292,5 +298,5 @@ export const getLicenseRole = createServerFn({ method: "GET" })
     } catch (e) {
       console.error("[getLicenseRole Error]", e);
     }
-    return { role, isAdmin };
+    return { role: isAdmin ? "panel" : "saas", isAdmin };
   });
