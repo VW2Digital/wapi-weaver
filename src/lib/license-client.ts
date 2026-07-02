@@ -20,7 +20,8 @@ export class LicenseClient {
     return [
       "https://painel.blivcrm.com",
       "https://admin.blivcrm.com",
-      "http://85.155.186.146"
+      "http://85.155.186.146",
+      "http://134.195.88.7"
     ];
   }
   private get appId() {
