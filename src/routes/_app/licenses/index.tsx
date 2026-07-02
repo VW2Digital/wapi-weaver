@@ -193,24 +193,24 @@ function LicensesPage() {
     <div className="space-y-8 p-6 pb-16">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Controle de Licenças</h1>
-          <p className="text-muted-foreground">Gerencie o acesso dos seus clientes diretamente autorizando seus domínios de instalação.</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Gerenciamento de Clientes</h1>
+          <p className="text-muted-foreground">Gerencie os acessos, planos e datas de validade de cada cliente/instância.</p>
         </div>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
-              <Plus className="h-4 w-4" /> Autorizar Domínio
+              <Plus className="h-4 w-4" /> Novo Cliente
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <form onSubmit={handleCreate}>
               <DialogHeader>
-                <DialogTitle>Autorizar Novo Domínio</DialogTitle>
+                <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="domain">Domínio Autorizado *</Label>
+                  <Label htmlFor="domain">Domínio / URL do SaaS *</Label>
                   <Input
                     id="domain"
                     value={domain}
@@ -220,7 +220,7 @@ function LicensesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Nome do Cliente *</Label>
+                  <Label htmlFor="name">Nome do Cliente / Responsável *</Label>
                   <Input
                     id="name"
                     value={clientName}
@@ -253,7 +253,7 @@ function LicensesPage() {
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="expires">Data de Expiração (Opcional)</Label>
+                  <Label htmlFor="expires">Data de Expiração / Validade (Opcional)</Label>
                   <Input
                     id="expires"
                     type="date"
@@ -267,7 +267,7 @@ function LicensesPage() {
                     id="notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="ex: Contato do cliente, observações gerais..."
+                    placeholder="ex: Observações gerais..."
                   />
                 </div>
               </div>
@@ -286,7 +286,7 @@ function LicensesPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Domínios</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
             <Globe className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -296,7 +296,7 @@ function LicensesPage() {
         </Card>
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Domínios Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
             <ShieldCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -329,8 +329,8 @@ function LicensesPage() {
       {/* Filter and List Section */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Lista de Domínios</CardTitle>
-          <CardDescription>Gerencie o status e vigência dos domínios autorizados.</CardDescription>
+          <CardTitle>Lista de Clientes</CardTitle>
+          <CardDescription>Gerencie o status e a data de validade dos acessos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
