@@ -54,12 +54,16 @@ fi
 # ---------------------------------------------------------------------------
 print_step "[1/7] Coletando parâmetros de configuração..."
 
+# Carregar valor prévio se existir
+LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' || true)
+[ -n "${LICENSE_SRV_URL_ENV}" ] || LICENSE_SRV_URL_ENV="admin.blivcrm.com"
+
 # ── Variáveis interativas ───────────────────────────────────────────────────
 
 # Validador de Domínio
 while true; do
   if [ -z "${DOMAIN:-}" ]; then
-    read -p "Digite o domínio da aplicação: " DOMAIN
+    read -p "Digite o domínio da aplicação (ex: disparador.meusite.com): " DOMAIN
   fi
   DOMAIN=$(echo "$DOMAIN" | xargs)
   if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
@@ -67,6 +71,22 @@ while true; do
   else
     echo -e "${RED}Erro: Domínio inválido. Digite um domínio válido.${NC}"
     DOMAIN=""
+  fi
+done
+
+# Validador de Domínio do Painel de Licenças
+while true; do
+  if [ -z "${LICENSE_SRV_URL:-}" ]; then
+    read -p "Digite o domínio do Painel de Licenças [${LICENSE_SRV_URL_ENV}]: " LICENSE_SRV_URL
+    LICENSE_SRV_URL="${LICENSE_SRV_URL:-$LICENSE_SRV_URL_ENV}"
+  fi
+  LICENSE_SRV_URL=$(echo "$LICENSE_SRV_URL" | sed -e 's/^https\?:\/\///' -e 's/\/.*$//' | xargs)
+  if [[ "$LICENSE_SRV_URL" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+    LICENSE_SRV_URL="https://${LICENSE_SRV_URL}"
+    break
+  else
+    echo -e "${RED}Erro: Domínio do painel inválido. Digite um domínio válido.${NC}"
+    LICENSE_SRV_URL=""
   fi
 done
 
@@ -259,7 +279,8 @@ JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d
 DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 
-LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+EXISTING_LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
+[ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="${EXISTING_LICENSE_SRV_URL}"
 LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
