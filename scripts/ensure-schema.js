@@ -419,6 +419,7 @@ export async function ensureDatabaseSchema() {
         license_key_preview VARCHAR(60) NOT NULL,
         client_name VARCHAR(160) NULL,
         client_email VARCHAR(190) NULL,
+        tenant_id VARCHAR(36) NULL,
         product_name VARCHAR(120) NULL DEFAULT 'SaaS',
         app_id VARCHAR(100) NOT NULL DEFAULT 'meu-saas',
         plan VARCHAR(80) NOT NULL DEFAULT 'basic',
@@ -431,10 +432,33 @@ export async function ensureDatabaseSchema() {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_licenses_status (status),
-        INDEX idx_licenses_app_id (app_id)
+        INDEX idx_licenses_app_id (app_id),
+        INDEX idx_licenses_tenant_id (tenant_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `
     );
+
+    // Migration: add tenant_id to existing licenses tables that were created without it
+    await ensureColumnExists(connection, "licenses", "tenant_id", "VARCHAR(36) NULL");
+    await ensureIndexExists(
+      connection,
+      "licenses",
+      "idx_licenses_tenant_id",
+      "CREATE INDEX idx_licenses_tenant_id ON licenses(tenant_id)"
+    );
+
+    // Back-fill tenant_id from users table for existing licenses missing it
+    try {
+      await connection.query(`
+        UPDATE licenses l
+        JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(l.client_email))
+        SET l.tenant_id = u.id
+        WHERE l.tenant_id IS NULL AND l.client_email IS NOT NULL AND l.client_email != ''
+      `);
+      logSchema("Back-fill de tenant_id nas licenças existentes concluído.");
+    } catch (err) {
+      console.warn("[Schema] Falha no back-fill de tenant_id (não crítico):", err.message);
+    }
 
     await ensureTableExists(
       connection,

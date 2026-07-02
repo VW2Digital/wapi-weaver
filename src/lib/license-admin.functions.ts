@@ -241,9 +241,18 @@ export const updateLicense = createServerFn({ method: "POST" })
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
 
+    // Re-resolve tenant_id from updated email
+    let tenantId: string | null = null;
+    if (input.client_email) {
+      const userRows = await db.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1", [input.client_email]) as any[];
+      if (userRows.length > 0) {
+        tenantId = userRows[0].id;
+      }
+    }
+
     await db.query(
       `UPDATE licenses
-       SET client_name = ?, client_email = ?, plan = ?, status = ?, expires_at = ?, max_activations = ?, max_users = ?, notes = ?
+       SET client_name = ?, client_email = ?, plan = ?, status = ?, expires_at = ?, max_activations = ?, max_users = ?, notes = ?, tenant_id = ?
        WHERE id = ?`,
       [
         input.client_name,
@@ -254,6 +263,7 @@ export const updateLicense = createServerFn({ method: "POST" })
         input.max_activations,
         input.max_users || null,
         input.notes || null,
+        tenantId,
         input.id
       ]
     );

@@ -868,6 +868,7 @@ CREATE TABLE IF NOT EXISTS licenses (
   license_key_preview VARCHAR(60) NOT NULL,
   client_name VARCHAR(160) NULL,
   client_email VARCHAR(190) NULL,
+  tenant_id VARCHAR(36) NULL,
   product_name VARCHAR(120) NULL DEFAULT 'SaaS',
   app_id VARCHAR(100) NOT NULL DEFAULT 'meu-saas',
   plan VARCHAR(80) NOT NULL DEFAULT 'basic',
@@ -880,7 +881,8 @@ CREATE TABLE IF NOT EXISTS licenses (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_licenses_status (status),
-  INDEX idx_licenses_app_id (app_id)
+  INDEX idx_licenses_app_id (app_id),
+  INDEX idx_licenses_tenant_id (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS license_activations (
