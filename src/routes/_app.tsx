@@ -171,7 +171,7 @@ function AppLayout() {
 
   const navItems = useMemo(() => {
     const base = [...NAV] as any[];
-    if (licenseRoleQuery.data?.isMaster) {
+    if (licenseRoleQuery.data?.role === "panel" && licenseRoleQuery.data?.isAdmin) {
       // Find where Settings is to insert before it
       const settingsIdx = base.findIndex((item) => item.to === "/settings");
       const panelItem = {
@@ -186,7 +186,7 @@ function AppLayout() {
       }
     }
     return base;
-  }, [licenseRoleQuery.data?.isMaster]);
+  }, [licenseRoleQuery.data?.role, licenseRoleQuery.data?.isAdmin]);
 
   const orderedNav = useMemo(() => {
     const raw = sidebarOrderData?.order;

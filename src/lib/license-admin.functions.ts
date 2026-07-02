@@ -10,16 +10,17 @@ import {
   parseJson
 } from "./license-server";
 
-// Helper to assert Master administrator privileges
-async function assertMaster(ctx: { userId: string }) {
-  const masterEmail = process.env.ADMIN_EMAIL;
-  if (!masterEmail) {
-    throw new Error("Acesso negado: E-mail do Administrador Master não configurado no servidor.");
+// Helper to assert administrator privileges in panel mode
+async function assertAdmin(ctx: { userId: string }) {
+  if (process.env.LICENSE_ROLE !== "panel") {
+    throw new Error("Acesso negado: o Painel de Licenças está inativo nesta instalação.");
   }
-  const userRows = (await db.query("SELECT email FROM users WHERE id = ? LIMIT 1", [ctx.userId])) as any[];
-  const userEmail = userRows[0]?.email;
-  if (!userEmail || userEmail.toLowerCase() !== masterEmail.toLowerCase()) {
-    throw new Error("Acesso negado: apenas o Administrador Master tem acesso.");
+  const rows = (await db.query(
+    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin' LIMIT 1",
+    [ctx.userId]
+  )) as any[];
+  if (!rows.length) {
+    throw new Error("Acesso negado: apenas administradores.");
   }
 }
 
@@ -36,7 +37,7 @@ export const listLicenses = createServerFn({ method: "GET" })
     })
   )
   .handler(async ({ data: input, context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     const { search, status, plan, page, limit } = input;
     const offset = (page - 1) * limit;
@@ -101,7 +102,7 @@ export const createLicense = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data: input, context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     const licenseKey = input.domain.toLowerCase();
     const keyHash = licenseHash(licenseKey);
@@ -149,7 +150,7 @@ export const createLicense = createServerFn({ method: "POST" })
 export const getLicenseStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     const totalRes = (await db.query("SELECT COUNT(*) AS total FROM licenses")) as any[];
     const activeRes = (await db.query("SELECT COUNT(*) AS total FROM licenses WHERE status = 'active'")) as any[];
@@ -183,7 +184,7 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .inputValidator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     const licenseRows = (await db.query("SELECT * FROM licenses WHERE id = ? LIMIT 1", [input.id])) as any[];
     if (!licenseRows.length) {
@@ -229,7 +230,7 @@ export const updateLicense = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data: input, context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
 
@@ -258,7 +259,7 @@ export const deleteLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     await db.query("DELETE FROM licenses WHERE id = ?", [input.id]);
     return { success: true };
@@ -269,7 +270,7 @@ export const deleteActivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
-    await assertMaster(context);
+    await assertAdmin(context);
 
     await db.query("DELETE FROM license_activations WHERE id = ?", [input.id]);
     return { success: true };
@@ -279,18 +280,17 @@ export const getLicenseRole = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const role = process.env.LICENSE_ROLE || "saas";
-    let isMaster = false;
+    let isAdmin = false;
     try {
-      const masterEmail = process.env.ADMIN_EMAIL;
-      if (masterEmail) {
-        const userRows = (await db.query("SELECT email FROM users WHERE id = ? LIMIT 1", [context.userId])) as any[];
-        const userEmail = userRows[0]?.email;
-        if (userEmail && userEmail.toLowerCase() === masterEmail.toLowerCase()) {
-          isMaster = true;
-        }
+      const rows = (await db.query(
+        "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin' LIMIT 1",
+        [context.userId]
+      )) as any[];
+      if (rows.length > 0) {
+        isAdmin = true;
       }
     } catch (e) {
       console.error("[getLicenseRole Error]", e);
     }
-    return { role, isMaster };
+    return { role, isAdmin };
   });

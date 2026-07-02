@@ -36,7 +36,8 @@ import { useConfirm } from "@/components/confirm-dialog";
 import {
   getLicenseDetail,
   updateLicense,
-  deleteActivation
+  deleteActivation,
+  getLicenseRole
 } from "@/lib/license-admin.functions";
 
 export const Route = createFileRoute("/_app/licenses/$id")({
@@ -53,10 +54,18 @@ function LicenseDetailPage() {
   const fetchDetail = useServerFn(getLicenseDetail);
   const updateLicenseMut = useServerFn(updateLicense);
   const deleteActivationMut = useServerFn(deleteActivation);
+  const fetchLicenseRole = useServerFn(getLicenseRole);
+
+  const { data: roleData, isLoading: roleLoading } = useQuery({
+    queryKey: ["license-role"],
+    queryFn: () => fetchLicenseRole({}),
+    staleTime: 60_000
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["license-detail", numericId],
-    queryFn: () => fetchDetail({ id: numericId })
+    queryFn: () => fetchDetail({ id: numericId }),
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin
   });
 
   // Edit fields state
@@ -136,6 +145,28 @@ function LicenseDetailPage() {
       revokeMutation.mutate(actId);
     }
   };
+
+  if (roleLoading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground p-12">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Verificando permissões...
+      </div>
+    );
+  }
+
+  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
+        <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Você não possui privilégios de administrador ou esta instalação não está configurada como Painel de Licenças.
+        </p>
+        <Button asChild>
+          <Link to="/">Voltar para o início</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

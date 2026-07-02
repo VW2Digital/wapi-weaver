@@ -47,7 +47,8 @@ import {
   listLicenses,
   createLicense,
   deleteLicense,
-  getLicenseStats
+  getLicenseStats,
+  getLicenseRole
 } from "@/lib/license-admin.functions";
 
 export const Route = createFileRoute("/_app/licenses/")({
@@ -57,6 +58,12 @@ export const Route = createFileRoute("/_app/licenses/")({
 function LicensesPage() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+
+  const fetchLicenses = useServerFn(listLicenses);
+  const fetchStats = useServerFn(getLicenseStats);
+  const createLicenseMut = useServerFn(createLicense);
+  const deleteLicenseMut = useServerFn(deleteLicense);
+  const fetchLicenseRole = useServerFn(getLicenseRole);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -72,21 +79,48 @@ function LicensesPage() {
   const [expiresAt, setExpiresAt] = useState("");
   const [notes, setNotes] = useState("");
 
-  const fetchLicenses = useServerFn(listLicenses);
-  const fetchStats = useServerFn(getLicenseStats);
-  const createLicenseMut = useServerFn(createLicense);
-  const deleteLicenseMut = useServerFn(deleteLicense);
+  const { data: roleData, isLoading: roleLoading } = useQuery({
+    queryKey: ["license-role"],
+    queryFn: () => fetchLicenseRole({}),
+    staleTime: 60_000
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["licenses", { search, status, plan, page }],
     queryFn: () => fetchLicenses({ search, status, plan, page, limit: 15 }),
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
     placeholderData: (prev) => prev
   });
 
   const { data: statsData } = useQuery({
     queryKey: ["licenses-stats"],
-    queryFn: () => fetchStats({})
+    queryFn: () => fetchStats({}),
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin
   });
+
+  if (roleLoading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground p-12">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Verificando permissões...
+      </div>
+    );
+  }
+
+  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
+        <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Você não possui privilégios de administrador ou esta instalação não está configurada como Painel de Licenças.
+        </p>
+        <Button asChild>
+          <Link to="/">Voltar para o início</Link>
+        </Button>
+      </div>
+    );
+  }
+
+
 
   const createMutation = useMutation({
     mutationFn: (payload: any) => createLicenseMut({ data: payload }),
