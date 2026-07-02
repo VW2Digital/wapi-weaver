@@ -34,21 +34,20 @@ if (process.env.NODE_ENV !== "production") {
  * @returns Resultado da query (linhas ou ResultSetHeader)
  */
 export async function query<T = any>(sql: string, params?: unknown[]): Promise<T> {
+  const sanitizedParams = params?.map((p) => (p === undefined ? null : p)) as any;
   try {
-    const sanitizedParams = params?.map((p) => (p === undefined ? null : p)) as any;
     const [results] = await pool.execute(sql, sanitizedParams);
     return results as T;
   } catch (error: unknown) {
-    const err = error as { code?: string; errno?: number };
-    if (err.code === "ER_WRONG_ARGUMENTS" || err.errno === 1210) {
-      const sanitizedParams = params?.map((p) => (p === undefined ? null : p)) as any;
+    try {
       const [results] = await pool.query(sql, sanitizedParams);
       return results as T;
+    } catch (fallbackError: unknown) {
+      console.error("[DB] Query error after fallback:", fallbackError);
+      console.error("[DB] Failed SQL:", sql);
+      console.error("[DB] Params:", params);
+      throw error;
     }
-    console.error("[DB] Query error:", error);
-    console.error("[DB] Failed SQL:", sql);
-    console.error("[DB] Params:", params);
-    throw error;
   }
 }
 

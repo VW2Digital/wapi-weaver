@@ -85,7 +85,7 @@ function LicensesPage() {
     staleTime: 60_000
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["licenses", { search, status, plan, page }],
     queryFn: () => fetchLicenses({ search, status, plan, page, limit: 15 }),
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
@@ -390,6 +390,12 @@ function LicensesPage() {
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando domínios...
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12 text-destructive">
+              <ShieldAlert className="h-10 w-10 mb-4 opacity-50 animate-pulse" />
+              <div className="font-semibold text-base">Falha ao carregar domínios</div>
+              <div className="text-sm opacity-80 mt-1">{(error as any).message || "Erro de conexão"}</div>
             </div>
           ) : !data?.licenses.length ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
