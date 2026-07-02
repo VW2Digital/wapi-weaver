@@ -25,7 +25,7 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
 // 1. List licenses
 export const listLicenses = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .input(
+  .inputValidator(
     z.object({
       search: z.string().optional(),
       status: z.string().optional(),
@@ -34,7 +34,7 @@ export const listLicenses = createServerFn({ method: "GET" })
       limit: z.number().default(20)
     })
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     const { search, status, plan, page, limit } = input;
@@ -83,7 +83,7 @@ export const listLicenses = createServerFn({ method: "GET" })
 // 2. Create license
 export const createLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .input(
+  .inputValidator(
     z.object({
       client_name: z.string().trim().min(1, "Nome do cliente é obrigatório"),
       client_email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
@@ -98,7 +98,7 @@ export const createLicense = createServerFn({ method: "POST" })
       notes: z.string().optional()
     })
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     const licenseKey = generateLicenseKey();
@@ -179,8 +179,8 @@ export const getLicenseStats = createServerFn({ method: "GET" })
 // 4. Get individual license details
 export const getLicenseDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .input(z.object({ id: z.number() }))
-  .handler(async ({ input, context }) => {
+  .inputValidator(z.object({ id: z.number() }))
+  .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     const licenseRows = (await db.query("SELECT * FROM licenses WHERE id = ? LIMIT 1", [input.id])) as any[];
@@ -213,7 +213,7 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
 // 5. Update license
 export const updateLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .input(
+  .inputValidator(
     z.object({
       id: z.number(),
       client_name: z.string().trim().min(1),
@@ -226,7 +226,7 @@ export const updateLicense = createServerFn({ method: "POST" })
       notes: z.string().nullable().optional()
     })
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
@@ -254,8 +254,8 @@ export const updateLicense = createServerFn({ method: "POST" })
 // 6. Delete license
 export const deleteLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .input(z.object({ id: z.number() }))
-  .handler(async ({ input, context }) => {
+  .inputValidator(z.object({ id: z.number() }))
+  .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     await db.query("DELETE FROM licenses WHERE id = ?", [input.id]);
@@ -265,8 +265,8 @@ export const deleteLicense = createServerFn({ method: "POST" })
 // 7. Delete activation
 export const deleteActivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .input(z.object({ id: z.number() }))
-  .handler(async ({ input, context }) => {
+  .inputValidator(z.object({ id: z.number() }))
+  .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     await db.query("DELETE FROM license_activations WHERE id = ?", [input.id]);
