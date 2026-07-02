@@ -13,7 +13,7 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
       .eq("user_id", context.userId);
     if (error) throw error;
     const roles = (data ?? []).map((r: { role: string }) => r.role);
-    return { roles, isAdmin: roles.includes("admin") };
+    return { roles, isAdmin: roles.includes("admin") || roles.includes("owner") || roles.includes("adminmaster") };
   });
 
 export const getPlatformSettings = createServerFn({ method: "GET" })
