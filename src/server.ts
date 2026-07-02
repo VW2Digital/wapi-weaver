@@ -70,7 +70,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 import { processOnce } from "./routes/api/public/cron/process-queue";
 import { checkLicense } from "./lib/license-verifier";
 import db from "./lib/db";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import bcrypt from "bcryptjs";
 
 async function migrateRoles() {
@@ -166,7 +166,7 @@ async function migrateRoles() {
       const existingSub = await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [owner.id]) as any[];
       if (existingSub.length === 0) {
         const licenseKey = owner.email;
-        const keyHash = crypto.createHash("sha256").update(licenseKey).digest("hex");
+        const keyHash = createHash("sha256").update(licenseKey).digest("hex");
         await db.query(
           `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
