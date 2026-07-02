@@ -516,123 +516,54 @@ function Dashboard() {
           </div>
         </section>
 
-        <div className="grid gap-3 px-4 pb-6 sm:gap-4 sm:px-6 lg:grid-cols-5">
-          <Card className="p-4 sm:p-5 lg:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Distribuição de mensagens
-            </p>
-            <p className="mt-1 mb-2 text-xs text-muted-foreground">
-              Status agregado de todas as campanhas
-            </p>
-            <div className="w-full" style={{ height: "256px" }}>
-              {pieData.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  Sem dados ainda
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={256}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {pieData.map((d) => (
-                        <Cell key={d.key} fill={STATUS_HEX[d.key]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                        color: "var(--popover-foreground)",
-                      }}
-                      itemStyle={{ color: "var(--popover-foreground)" }}
-                      labelStyle={{ color: "var(--popover-foreground)" }}
-                    />
-                    <Legend
-                      verticalAlign="bottom"
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
+        <div className="px-4 pb-6 sm:px-6">
+          <Card className="p-5 sm:p-6 bg-card border shadow-sm">
+            <div>
+              <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
+                ATIVIDADE GERAL
+              </h3>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">
+                Contatos · templates · campanhas · entregas · falhas
+              </p>
             </div>
-          </Card>
 
-          <Card className="p-4 sm:p-5 lg:col-span-3">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Volume por campanha
-            </p>
-            <p className="mt-1 mb-2 text-xs text-muted-foreground">
-              Top {barData.length} campanhas mais recentes
-            </p>
-            <div className="w-full" style={{ height: "256px" }}>
-              {barData.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  Sem campanhas ainda
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={256}>
-                  <BarChart data={barData} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11 }}
-                      stroke="currentColor"
-                      className="text-muted-foreground"
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11 }}
-                      stroke="currentColor"
-                      className="text-muted-foreground"
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                        color: "var(--popover-foreground)",
-                      }}
-                      itemStyle={{ color: "var(--popover-foreground)" }}
-                      labelStyle={{ color: "var(--popover-foreground)" }}
-                      cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }}
-                      iconType="circle"
-                    />
-                    <Bar
-                      dataKey="Enviada"
-                      stackId="a"
-                      fill={STATUS_HEX.sent}
-                      radius={[0, 0, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="Entregue"
-                      stackId="a"
-                      fill={STATUS_HEX.delivered}
-                      radius={[0, 0, 0, 0]}
-                    />
-                    <Bar dataKey="Lida" stackId="a" fill={STATUS_HEX.read} radius={[0, 0, 0, 0]} />
-                    <Bar
-                      dataKey="Falhou"
-                      stackId="a"
-                      fill={STATUS_HEX.failed}
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+            <div className="mt-8 space-y-5 max-w-4xl">
+              {[
+                { label: "Contatos", value: ct.data?.length ?? s.data?.contacts.current ?? 0 },
+                { label: "Templates", value: t.data?.length ?? s.data?.templates.current ?? 0 },
+                { label: "Campanhas", value: c.data?.length ?? s.data?.campaigns.current ?? 0 },
+                { label: "Entregas (7d)", value: s.data?.delivered.current ?? totals.delivered },
+                { label: "Falhas", value: totals.failed },
+              ].map((item, idx) => {
+                const totalContacts = ct.data?.length ?? s.data?.contacts.current ?? 0;
+                const totalTemplates = t.data?.length ?? s.data?.templates.current ?? 0;
+                const totalCampaigns = c.data?.length ?? s.data?.campaigns.current ?? 0;
+                const totalDelivered = s.data?.delivered.current ?? totals.delivered;
+                const totalFailed = totals.failed;
+                const maxVal = Math.max(totalContacts, totalTemplates, totalCampaigns, totalDelivered, totalFailed, 1);
+                
+                const pct = (item.value / maxVal) * 100;
+                const widthStyle = item.value > 0 ? `${Math.max(pct, 1.5)}%` : "0.5%";
+                return (
+                  <div key={idx} className="flex items-center">
+                    {/* Label */}
+                    <div className="w-24 sm:w-28 text-right text-sm font-medium text-muted-foreground pr-4 shrink-0">
+                      {item.label}
+                    </div>
+                    {/* Bar container */}
+                    <div className="flex-1 h-7 bg-muted/40 rounded-lg overflow-hidden relative">
+                      <div
+                        className="h-full bg-primary rounded-lg transition-all duration-500 ease-out"
+                        style={{ width: widthStyle }}
+                      />
+                    </div>
+                    {/* Value */}
+                    <div className="w-16 text-left text-sm font-mono text-muted-foreground pl-4 shrink-0 font-medium">
+                      {item.value.toLocaleString("pt-BR")}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>
