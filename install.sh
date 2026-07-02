@@ -260,15 +260,12 @@ DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | c
 DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 
 LICENSE_SRV_URL=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_PNL_URL=$(grep '^LICENSE_PANEL_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_AP_ID=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_API_SEC=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-LICENSE_LOC_SEC=$(grep '^LICENSE_LOCAL_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_CH_HRS=$(grep '^LICENSE_CACHE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_GR_HRS=$(grep '^LICENSE_GRACE_HOURS=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_K=$(grep '^LICENSE_KEY=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 LICENSE_RL=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
-SAAS_PUB_URL=$(grep '^SAAS_PUBLIC_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- || true)
 
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
 [ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
@@ -276,15 +273,15 @@ SAAS_PUB_URL=$(grep '^SAAS_PUBLIC_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 
 [ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
 
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
-[ -n "${LICENSE_PNL_URL}" ] || LICENSE_PNL_URL="https://admin.blivcrm.com/api/v1/license/validate"
 [ -n "${LICENSE_AP_ID}" ] || LICENSE_AP_ID="meu-saas"
 [ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
-[ -n "${LICENSE_LOC_SEC}" ] || LICENSE_LOC_SEC="segredo_local_do_saas"
 [ -n "${LICENSE_CH_HRS}" ] || LICENSE_CH_HRS="24"
 [ -n "${LICENSE_GR_HRS}" ] || LICENSE_GR_HRS="72"
 [ -n "${LICENSE_K}" ] || LICENSE_K="VW2-PRO-XXXX-XXXX-XXXX"
 [ -n "${LICENSE_RL}" ] || LICENSE_RL="saas"
-[ -n "${SAAS_PUB_URL}" ] || SAAS_PUB_URL="https://dominio-real-do-saas.com"
+
+PROTOCOL="http"
+[ "${INSTALL_SSL:-n}" = "s" ] && PROTOCOL="https"
 
 cat > "${APP_DIR}/.env" <<EOF
 DB_HOST=banco-mysql
@@ -295,15 +292,13 @@ DB_NAME=wapi_weaver
 JWT_SECRET=${JWT_SEC}
 MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
 LICENSE_SERVER_URL=${LICENSE_SRV_URL}
-LICENSE_PANEL_URL=${LICENSE_PNL_URL}
 LICENSE_APP_ID=${LICENSE_AP_ID}
 LICENSE_API_SECRET=${LICENSE_API_SEC}
-LICENSE_LOCAL_SECRET=${LICENSE_LOC_SEC}
 LICENSE_CACHE_HOURS=${LICENSE_CH_HRS}
 LICENSE_GRACE_HOURS=${LICENSE_GR_HRS}
 LICENSE_KEY=${LICENSE_K}
 LICENSE_ROLE=${LICENSE_RL}
-SAAS_PUBLIC_URL=${SAAS_PUB_URL}
+APP_URL=${PROTOCOL}://${DOMAIN}
 EOF
 
 # Atualiza também no docker-compose.yml as senhas do container MySQL e do app
