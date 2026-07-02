@@ -84,8 +84,8 @@ export async function activateLicense(key: string, reqHost?: string): Promise<{ 
     }
     
     const installationId = await ensureInstallationId(settings?.installation_id);
-    const domain = reqHost || process.env.APP_URL || "localhost";
-    const appUrl = process.env.APP_URL || `https://${domain}`;
+    const domain = "app.blivcrm.com";
+    const appUrl = `https://${domain}`;
 
     console.log(`[License Verifier] Attempting activation for key...`);
 
@@ -163,8 +163,8 @@ export async function checkLicense(reqHost?: string, ignoreGrace = false): Promi
     }
 
     // Cache expired, need to validate
-    const domain = reqHost || process.env.APP_URL || "localhost";
-    const appUrl = process.env.APP_URL || `https://${domain}`;
+    const domain = "app.blivcrm.com";
+    const appUrl = `https://${domain}`;
     const instId = await ensureInstallationId(installation_id);
 
     console.log(`[License Verifier] Validating license via API...`);

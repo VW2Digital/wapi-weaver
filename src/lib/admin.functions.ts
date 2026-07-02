@@ -385,6 +385,15 @@ export const updateSidebarOrder = createServerFn({ method: "POST" })
 export const getLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    if (process.env.LICENSE_ROLE === "panel") {
+      return {
+        isValid: true,
+        isAccessAllowed: true,
+        graceDaysRemaining: 0,
+        hasGraceStarted: false,
+      };
+    }
+
     const { checkLicense } = await import("./license-verifier");
     const isValid = await checkLicense(undefined, true); // Physically valid?
     const isAccessAllowed = await checkLicense(undefined, false); // Access permitted?
