@@ -4,6 +4,7 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "@/lib/db";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { processBotFlow } from "@/lib/botflow-executor.server";
+import { webhookQueue } from "@/lib/queue/webhook-queue";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -630,7 +631,7 @@ const OPT_OUT_KEYWORDS = [
   "remover",
 ];
 
-async function processStatusUpdate(value: WebhookValue | undefined, userId: string) {
+export async function processStatusUpdate(value: WebhookValue | undefined, userId: string) {
   const statuses = value?.statuses ?? [];
   for (const s of statuses) {
     const waId = normalizeWaMessageId(s.id);
@@ -718,7 +719,7 @@ async function processStatusUpdate(value: WebhookValue | undefined, userId: stri
   }
 }
 
-async function processInboundMessages(value: WebhookValue | undefined, userId: string) {
+export async function processInboundMessages(value: WebhookValue | undefined, userId: string) {
   const messages = value?.messages ?? [];
   for (const m of messages) {
     const from: string | undefined = m.from;
@@ -742,7 +743,7 @@ async function processInboundMessages(value: WebhookValue | undefined, userId: s
   }
 }
 
-async function processInboundDirectMessages(value: WebhookValue | undefined, userId: string) {
+export async function processInboundDirectMessages(value: WebhookValue | undefined, userId: string) {
   const messages = value?.messages ?? [];
   const waContacts = value?.contacts ?? [];
   const waIdToName = new Map<string, string>();
@@ -976,7 +977,7 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
   }
 }
 
-async function processTemplateStatusUpdate(value: WebhookValue | undefined, userId: string) {
+export async function processTemplateStatusUpdate(value: WebhookValue | undefined, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const name = value?.message_template_name as string | undefined;
   const language = value?.message_template_language as string | undefined;
@@ -1012,7 +1013,7 @@ async function processTemplateStatusUpdate(value: WebhookValue | undefined, user
   }
 }
 
-async function processTemplateCategoryUpdate(value: WebhookValue | undefined, userId: string) {
+export async function processTemplateCategoryUpdate(value: WebhookValue | undefined, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const newCategory = value?.new_category as string | undefined;
   if (!metaId || !newCategory) return;
@@ -1023,7 +1024,7 @@ async function processTemplateCategoryUpdate(value: WebhookValue | undefined, us
     .eq("user_id", userId);
 }
 
-async function processStateSync(value: WebhookValue | undefined, userId: string) {
+export async function processStateSync(value: WebhookValue | undefined, userId: string) {
   const stateSyncItems = value?.state_sync ?? [];
   const phoneNumberId = value?.metadata?.phone_number_id
     ? String(value.metadata.phone_number_id)
@@ -1080,7 +1081,7 @@ async function processStateSync(value: WebhookValue | undefined, userId: string)
   }
 }
 
-async function processHistorySync(value: WebhookValue | undefined, userId: string) {
+export async function processHistorySync(value: WebhookValue | undefined, userId: string) {
   const historyItems = value?.history ?? [];
   const phoneNumberId = value?.metadata?.phone_number_id
     ? String(value.metadata.phone_number_id)
@@ -1252,7 +1253,7 @@ async function processHistorySync(value: WebhookValue | undefined, userId: strin
   }
 }
 
-async function processMessageEchoes(value: WebhookValue | undefined, userId: string) {
+export async function processMessageEchoes(value: WebhookValue | undefined, userId: string) {
   const messageEchoes = value?.message_echoes ?? [];
   const phoneNumberId = value?.metadata?.phone_number_id
     ? String(value.metadata.phone_number_id)
@@ -1559,45 +1560,12 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           .select("id")
           .single();
 
-        // Responde rápido para a Meta e processa de forma assíncrona
-        setTimeout(() => {
-          (async () => {
-            try {
-              for (const entry of payload.entry ?? []) {
-                for (const change of entry.changes ?? []) {
-                  if (change.field === "messages") {
-                    await processStatusUpdate(change.value, matchedUserId);
-                    await processInboundMessages(change.value, matchedUserId);
-                    await processInboundDirectMessages(change.value, matchedUserId);
-                  } else if (change.field === "history") {
-                    await processHistorySync(change.value, matchedUserId);
-                  } else if (change.field === "smb_app_state_sync") {
-                    await processStateSync(change.value, matchedUserId);
-                  } else if (change.field === "smb_message_echoes") {
-                    await processMessageEchoes(change.value, matchedUserId);
-                  } else if (change.field === "message_template_status_update") {
-                    await processTemplateStatusUpdate(change.value, matchedUserId);
-                  } else if (change.field === "template_category_update") {
-                    await processTemplateCategoryUpdate(change.value, matchedUserId);
-                  } else {
-                    logInfo("Evento ignorado", { field: change.field });
-                  }
-                }
-              }
-
-              if (evRow?.id) {
-                await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
-              }
-
-              logInfo("POST processado com sucesso", { eventId: evRow?.id ?? null });
-            } catch (error: unknown) {
-              logError("Erro ao processar POST", {
-                error: getErrorMessage(error),
-                eventId: evRow?.id ?? null,
-              });
-            }
-          })();
-        }, 0);
+        // Responde rápido para a Meta e empurra o payload para o Redis BullMQ
+        await webhookQueue.add("meta-event", {
+          entry: payload.entry,
+          matchedUserId,
+          evRowId: evRow?.id ?? null,
+        });
 
         return new Response("ok", { status: 200 });
       },

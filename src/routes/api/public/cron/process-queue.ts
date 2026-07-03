@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
+import { getOrSetCache } from "@/lib/cache";
 
 const BATCH = 60;
 const STUCK_SENDING_MINUTES = 5;
@@ -300,13 +301,16 @@ export async function processOnce() {
   let processed = 0;
 
   for (const [userId, msgs] of byUser) {
-    const { data: profile } = await dbAdmin
-      .from("profiles")
-      .select(
-        "whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version",
-      )
-      .eq("id", userId)
-      .maybeSingle();
+    const profile = await getOrSetCache(`profile:${userId}`, async () => {
+      const { data } = await dbAdmin
+        .from("profiles")
+        .select(
+          "whatsapp_phone_number_id, whatsapp_access_token, rate_limit_per_second, meta_graph_version",
+        )
+        .eq("id", userId)
+        .maybeSingle();
+      return data;
+    });
 
     if (!profile?.whatsapp_phone_number_id || !profile?.whatsapp_access_token) {
       const ids = msgs.map((x) => x.id);

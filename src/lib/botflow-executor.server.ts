@@ -298,6 +298,39 @@ export async function processBotFlow(
     // Se nenhum step ou fluxo puder ser mapeado, encerra ou transfere para IA
     if (!stepToExecute) {
       logInfo("Nenhum step aplicável. Tentando Agente de IA...", { messageBody });
+
+      // Envia indicador de digitando (melhoria de UX)
+      try {
+        const { data: p } = await dbAdmin
+          .from("profiles")
+          .select("whatsapp_access_token, meta_graph_version")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (p?.whatsapp_access_token) {
+          const apiVersion = p.meta_graph_version || "v18.0";
+          const typingPayload = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: phoneDigits,
+            type: "text",
+            text: { body: "_...digitando..._ ✍️" }
+          };
+
+          // Não bloqueia a execução do Gemini para responder isso
+          fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${p.whatsapp_access_token}`,
+            },
+            body: JSON.stringify(typingPayload),
+          }).catch(err => logError("Erro ao enviar typing indicator", err));
+        }
+      } catch (err) {
+        logError("Exceção ao tentar enviar typing indicator", err);
+      }
+
       const { processAiAgent } = await import("./ai-agent.server");
       const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
       if (handledByAi) {

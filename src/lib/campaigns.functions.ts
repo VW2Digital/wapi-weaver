@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { resolveEffectiveUserId } from "./chat-helpers";
 import { recordAudit } from "./audit.functions";
+import { campaignQueue } from "./queue/campaign-queue";
+import { getOrSetCache } from "./cache";
 
 const payloadSchema = z.object({
   // For template messages
@@ -80,12 +82,15 @@ async function attachTemplateDiagnostics(db: any, campaigns: any[]) {
     );
   }
 
-  const { data: approvedTemplates, error: approvedErr } = await db
-    .from("templates")
-    .select("id, name, language, status, meta_template_id")
-    .eq("status", "APPROVED")
-    .not("meta_template_id", "is", null);
-  if (approvedErr) throw approvedErr;
+  const approvedTemplates = await getOrSetCache("approved_templates", async () => {
+    const { data, error: approvedErr } = await db
+      .from("templates")
+      .select("id, name, language, status, meta_template_id")
+      .eq("status", "APPROVED")
+      .not("meta_template_id", "is", null);
+    if (approvedErr) throw approvedErr;
+    return data ?? [];
+  }, 3600); // cache for 1 hour
 
   const approvedByNameLang = Object.fromEntries(
     (approvedTemplates ?? []).map((template: any) => [
@@ -154,12 +159,15 @@ async function validateTemplateForCampaign(db: any, data: z.infer<typeof createS
     throw new Error("Selecione um template aprovado antes de criar a campanha.");
   }
 
-  const { data: template, error: templateErr } = await db
-    .from("templates")
-    .select("id, name, language, status, meta_template_id")
-    .eq("id", data.template_id)
-    .maybeSingle();
-  if (templateErr) throw templateErr;
+  const template = await getOrSetCache(`template:${data.template_id}`, async () => {
+    const { data: t, error: templateErr } = await db
+      .from("templates")
+      .select("id, name, language, status, meta_template_id")
+      .eq("id", data.template_id)
+      .maybeSingle();
+    if (templateErr) throw templateErr;
+    return t;
+  });
 
   if (!template) {
     throw new Error("O template selecionado não foi encontrado.");
@@ -206,6 +214,9 @@ async function rebuildCampaignQueue(db: any, context: any, campaignId: string, c
     const { error: insErr } = await db.from("campaign_messages").insert(slice);
     if (insErr) throw insErr;
   }
+
+  // Trigger the background worker to start processing this campaign immediately
+  await campaignQueue.add("drain-batch", {});
 }
 
 export const listCampaigns = createServerFn({ method: "GET" })
