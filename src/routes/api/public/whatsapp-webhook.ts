@@ -500,25 +500,35 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
       ? { ...parsedExistingCustomFields }
       : {};
 
-    await dbAdmin.from("contacts").upsert({
-      user_id: userId,
-      phone_e164: phoneDigits,
+    const nextChatStatus =
+      !existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado"
+        ? "aguardando"
+        : undefined;
+
+    const contactPayload = {
       name: contactName || existingContact?.name || undefined,
       source: "whatsapp_inbound",
       is_unread: true,
-      chat_status:
-        !existingContact ||
-        !existingContact.chat_status ||
-        existingContact.chat_status === "fechado"
-          ? "aguardando"
-          : undefined,
+      chat_status: nextChatStatus,
       custom_fields: {
         ...existingCustomFields,
         wa_id: m.from,
         phone_number_id: phoneNumberId,
         display_phone_number: displayPhoneNumber,
       },
-    });
+    };
+
+    if (existingContact?.id) {
+      await dbAdmin.from("contacts").update(contactPayload).eq("id", existingContact.id);
+    } else {
+      await dbAdmin.from("contacts").insert({
+        id: randomUUID(),
+        user_id: userId,
+        phone_e164: phoneDigits,
+        channel: "whatsapp",
+        ...contactPayload,
+      });
+    }
 
     if (
       !existingContact ||
@@ -667,7 +677,8 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
       continue;
     }
 
-    await dbAdmin.from("direct_messages").upsert({
+    await dbAdmin.from("direct_messages").insert({
+      id: randomUUID(),
       user_id: userId,
       contact_phone: phoneDigits,
       direction: "incoming",
@@ -676,11 +687,14 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
       wa_message_id: waMessageId,
       status: "delivered",
       reply_to_message_id,
+      channel: "whatsapp",
+      provider_account_id: phoneNumberId,
       metadata: {
         message: m,
         contacts: waContacts,
         metadata: value?.metadata ?? null,
       },
+      raw_payload: value ?? null,
     });
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
