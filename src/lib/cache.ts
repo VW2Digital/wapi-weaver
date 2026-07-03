@@ -10,6 +10,7 @@ export const redis =
     port: parseInt(process.env.REDIS_PORT || "6379", 10),
     password: process.env.REDIS_PASSWORD || "redis_pass",
     maxRetriesPerRequest: null, // Required by BullMQ
+    enableOfflineQueue: false, // Prevents hanging operations if Redis is unavailable
   });
 
 if (process.env.NODE_ENV !== "production") {
