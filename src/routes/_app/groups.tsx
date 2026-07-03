@@ -41,6 +41,20 @@ export const Route = createFileRoute("/_app/groups")({
   component: GroupsPage,
 });
 
+interface WhatsAppGroupRecord {
+  id: string;
+  group_id: string;
+  name?: string | null;
+  description?: string | null;
+  invite_link?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Erro inesperado";
+}
+
 function GroupsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -67,8 +81,7 @@ function GroupsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: { name: string; description?: string }) =>
-      createGroup({ data: payload }),
+    mutationFn: (payload: { name: string; description?: string }) => createGroup({ data: payload }),
     onSuccess: (res) => {
       if (res.success) {
         toast.success("Grupo criado com sucesso!");
@@ -81,8 +94,8 @@ function GroupsPage() {
         toast.error(res.error?.message || "Erro ao criar grupo.");
       }
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Falha na requisição.");
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err) || "Falha na requisição.");
     },
   });
 
@@ -92,8 +105,8 @@ function GroupsPage() {
       toast.success("Grupo arquivado!");
       qc.invalidateQueries({ queryKey: ["whatsapp-groups"] });
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Erro ao arquivar grupo.");
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err) || "Erro ao arquivar grupo.");
     },
   });
 
@@ -140,7 +153,7 @@ function GroupsPage() {
     );
   }
 
-  const groups = groupsQuery.data?.groups || [];
+  const groups: WhatsAppGroupRecord[] = groupsQuery.data?.groups ?? [];
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
@@ -149,65 +162,66 @@ function GroupsPage() {
           title="Grupos de WhatsApp"
           subtitle="Crie e gerencie grupos oficiais do WhatsApp diretamente pela API Cloud da Meta."
           action={
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90 shadow-md">
-                <Plus className="h-4 w-4 mr-2" /> Novo Grupo
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md border-border">
-              <DialogHeader>
-                <DialogTitle>Criar Novo Grupo</DialogTitle>
-                <DialogDescription>
-                  Cadastre um grupo para uso interno na plataforma. A criação automática oficial na Meta ainda não está disponível neste fluxo.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <label htmlFor="groupName" className="text-xs font-semibold">
-                    Nome do Grupo *
-                  </label>
-                  <Input
-                    id="groupName"
-                    required
-                    placeholder="Ex: Suporte VIP Bliv"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    maxLength={25}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="groupDesc" className="text-xs font-semibold">
-                    Descrição (Opcional)
-                  </label>
-                  <Textarea
-                    id="groupDesc"
-                    placeholder="Adicione um propósito ou regras para o grupo..."
-                    value={newGroupDesc}
-                    onChange={(e) => setNewGroupDesc(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <DialogFooter className="pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                    disabled={createMutation.isPending}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90"
-                    disabled={createMutation.isPending}
-                  >
-                    {createMutation.isPending ? "Criando..." : "Criar Grupo"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90 shadow-md">
+                  <Plus className="h-4 w-4 mr-2" /> Novo Grupo
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md border-border">
+                <DialogHeader>
+                  <DialogTitle>Criar Novo Grupo</DialogTitle>
+                  <DialogDescription>
+                    Cadastre um grupo para uso interno na plataforma. A criação automática oficial
+                    na Meta ainda não está disponível neste fluxo.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <label htmlFor="groupName" className="text-xs font-semibold">
+                      Nome do Grupo *
+                    </label>
+                    <Input
+                      id="groupName"
+                      required
+                      placeholder="Ex: Suporte VIP Bliv"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      maxLength={25}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="groupDesc" className="text-xs font-semibold">
+                      Descrição (Opcional)
+                    </label>
+                    <Textarea
+                      id="groupDesc"
+                      placeholder="Adicione um propósito ou regras para o grupo..."
+                      value={newGroupDesc}
+                      onChange={(e) => setNewGroupDesc(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <DialogFooter className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateOpen(false)}
+                      disabled={createMutation.isPending}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90"
+                      disabled={createMutation.isPending}
+                    >
+                      {createMutation.isPending ? "Criando..." : "Criar Grupo"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           }
         />
       </div>
@@ -246,12 +260,12 @@ function GroupsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.map((group: any) => (
+            {groups.map((group) => (
               <Card
                 key={group.id}
                 className={cn(
                   "border-border shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden bg-card",
-                  group.status === "archived" && "opacity-75"
+                  group.status === "archived" && "opacity-75",
                 )}
               >
                 <CardHeader className="pb-3">
@@ -275,30 +289,34 @@ function GroupsPage() {
                   </p>
 
                   <div className="space-y-2 pt-2 border-t border-border">
-                    {group.invite_link && (
-                      <div className="flex items-center justify-between bg-muted/65 p-2 rounded-lg gap-2">
-                        <span className="truncate text-muted-foreground select-none max-w-[190px]">
-                          {group.invite_link}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 rounded-full shrink-0"
-                          onClick={() => handleCopyLink(group.id, group.invite_link)}
-                        >
-                          {copiedGroupId === group.id ? (
-                            <Check className="h-3.5 w-3.5 text-success" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </div>
-                    )}
+                    {group.invite_link &&
+                      (() => {
+                        const inviteLink = group.invite_link;
+                        return (
+                          <div className="flex items-center justify-between bg-muted/65 p-2 rounded-lg gap-2">
+                            <span className="truncate text-muted-foreground select-none max-w-[190px]">
+                              {inviteLink}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 rounded-full shrink-0"
+                              onClick={() => handleCopyLink(group.id, inviteLink)}
+                            >
+                              {copiedGroupId === group.id ? (
+                                <Check className="h-3.5 w-3.5 text-success" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })()}
 
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span>Criado em:</span>
                       <span className="font-semibold text-foreground">
-                        {new Date(group.created_at).toLocaleDateString()}
+                        {group.created_at ? new Date(group.created_at).toLocaleDateString() : "-"}
                       </span>
                     </div>
                   </div>
@@ -315,15 +333,23 @@ function GroupsPage() {
                       <Archive className="h-3.5 w-3.5 mr-1.5" /> Arquivar
                     </Button>
                   ) : (
-                    <span className="text-xs text-muted-foreground italic pl-1">Grupo Arquivado</span>
+                    <span className="text-xs text-muted-foreground italic pl-1">
+                      Grupo Arquivado
+                    </span>
                   )}
 
                   <Button
                     size="sm"
                     className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 h-8 font-semibold"
-                    onClick={() => navigate({ to: `/chat`, search: { phone: group.group_id } as any })}
+                    onClick={() =>
+                      navigate({
+                        to: "/chat",
+                        search: { phone: group.group_id, contactId: undefined },
+                      })
+                    }
                   >
-                    <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> Conversar <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                    <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> Conversar{" "}
+                    <ArrowRight className="h-3.5 w-3.5 ml-1" />
                   </Button>
                 </div>
               </Card>

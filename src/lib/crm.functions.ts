@@ -9,6 +9,13 @@ type SqlParams = unknown[];
 
 type SqlConnectionLike = mysql.PoolConnection;
 
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+
 interface IdRow {
   id: string;
 }
@@ -34,14 +41,54 @@ interface MaxOrderRow {
   max_order: string | number | null;
 }
 
+interface OpportunityCustomFields {
+  avatar_url?: string;
+  photo_url?: string;
+  photo?: string;
+  picture?: string;
+  image_url?: string;
+  image?: string;
+}
+
 interface OpportunityListRow {
   id: string;
-  primary_contact_custom_fields?:
-    | string
-    | Record<string, string | number | boolean | null | undefined>
-    | null;
-  tags?: Array<{ name: string; color: string }>;
-  [key: string]: unknown;
+  title: string;
+  value: number;
+  currency: string;
+  status: "open" | "won" | "lost" | "paused" | "archived";
+  stage_id: string;
+  priority: "low" | "medium" | "high" | "urgent";
+  primary_contact_id?: string | null;
+  temperature?: "cold" | "warm" | "hot";
+  expected_close_date?: string;
+  primary_contact_name?: string;
+  primary_contact_email?: string;
+  primary_contact_phone?: string;
+  primary_contact_custom_fields?: OpportunityCustomFields | null;
+  owner_user_id?: string;
+  last_activity_at?: string;
+  next_activity_at?: string;
+  tags: Array<{ name: string; color: string }>;
+}
+
+interface OpportunityListDbRow {
+  id: string;
+  title?: string | null;
+  value?: string | number | null;
+  currency?: string | null;
+  status?: string | null;
+  stage_id?: string | null;
+  priority?: string | null;
+  primary_contact_id?: string | null;
+  temperature?: string | null;
+  expected_close_date?: string | Date | null;
+  primary_contact_name?: string | null;
+  primary_contact_email?: string | null;
+  primary_contact_phone?: string | null;
+  primary_contact_custom_fields?: unknown;
+  owner_user_id?: string | null;
+  last_activity_at?: string | Date | null;
+  next_activity_at?: string | Date | null;
 }
 
 interface OpportunityTagRow {
@@ -205,6 +252,102 @@ async function syncContactKanbanStage(
     contactId,
     userId,
   ]);
+}
+
+function normalizeJsonValue(value: unknown): JsonValue | undefined {
+  if (value === null) return null;
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    const normalizedItems = value
+      .map((item) => normalizeJsonValue(item))
+      .filter((item): item is JsonValue => item !== undefined);
+
+    return normalizedItems;
+  }
+
+  if (typeof value === "object") {
+    const normalizedObject: JsonObject = {};
+
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      const normalizedItem = normalizeJsonValue(item);
+
+      if (normalizedItem !== undefined) {
+        normalizedObject[key] = normalizedItem;
+      }
+    }
+
+    return normalizedObject;
+  }
+
+  return undefined;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function normalizeOptionalDateString(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return undefined;
+}
+
+function normalizeOpportunityStatus(
+  value: unknown,
+): "open" | "won" | "lost" | "paused" | "archived" {
+  return value === "won" || value === "lost" || value === "paused" || value === "archived"
+    ? value
+    : "open";
+}
+
+function normalizeOpportunityPriority(value: unknown): "low" | "medium" | "high" | "urgent" {
+  return value === "low" || value === "high" || value === "urgent" ? value : "medium";
+}
+
+function normalizeOpportunityTemperature(value: unknown): "cold" | "warm" | "hot" | undefined {
+  return value === "cold" || value === "warm" || value === "hot" ? value : undefined;
+}
+
+function normalizeOpportunityCustomFields(value: unknown): OpportunityCustomFields | null {
+  const parsedValue =
+    typeof value === "string"
+      ? (() => {
+          try {
+            return JSON.parse(value) as unknown;
+          } catch {
+            return null;
+          }
+        })()
+      : value;
+
+  const normalizedValue = normalizeJsonValue(parsedValue);
+
+  if (!normalizedValue || Array.isArray(normalizedValue) || typeof normalizedValue !== "object") {
+    return null;
+  }
+
+  return {
+    avatar_url: normalizeOptionalString(normalizedValue.avatar_url),
+    photo_url: normalizeOptionalString(normalizedValue.photo_url),
+    photo: normalizeOptionalString(normalizedValue.photo),
+    picture: normalizeOptionalString(normalizedValue.picture),
+    image_url: normalizeOptionalString(normalizedValue.image_url),
+    image: normalizeOptionalString(normalizedValue.image),
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -598,22 +741,11 @@ export const listOpportunities = createServerFn({ method: "GET" })
     queryStr += " LIMIT ? OFFSET ?";
     params.push(data.limit, offset);
 
-    const rows = (await db.query(queryStr, params)) as OpportunityListRow[];
-
-    // Parse custom fields JSON
-    if (rows && rows.length > 0) {
-      for (const row of rows) {
-        if (typeof row.primary_contact_custom_fields === "string") {
-          try {
-            row.primary_contact_custom_fields = JSON.parse(row.primary_contact_custom_fields);
-          } catch (e) {
-            row.primary_contact_custom_fields = {};
-          }
-        }
-      }
-    }
+    const rows = (await db.query(queryStr, params)) as OpportunityListDbRow[];
 
     // Eager load tags
+    const tagsByOpportunityId = new Map<string, Array<{ name: string; color: string }>>();
+
     if (rows && rows.length > 0) {
       const oppIds = rows.map((r) => r.id);
       const placeholders = oppIds.map(() => "?").join(",");
@@ -627,14 +759,38 @@ export const listOpportunities = createServerFn({ method: "GET" })
         oppIds,
       )) as OpportunityTagRow[];
 
-      for (const row of rows) {
-        row.tags = tagsRows
-          .filter((tr) => tr.opportunity_id === row.id)
-          .map((tr) => ({ name: tr.name, color: tr.color }));
+      for (const tagRow of tagsRows) {
+        const currentTags = tagsByOpportunityId.get(tagRow.opportunity_id) ?? [];
+        currentTags.push({ name: tagRow.name, color: tagRow.color });
+        tagsByOpportunityId.set(tagRow.opportunity_id, currentTags);
       }
     }
 
-    return rows;
+    return rows.map(
+      (row): OpportunityListRow => ({
+        id: row.id,
+        title: typeof row.title === "string" && row.title.length > 0 ? row.title : "Oportunidade",
+        value: row.value != null ? Number(row.value) || 0 : 0,
+        currency:
+          typeof row.currency === "string" && row.currency.length > 0 ? row.currency : "BRL",
+        status: normalizeOpportunityStatus(row.status),
+        stage_id: typeof row.stage_id === "string" ? row.stage_id : "",
+        priority: normalizeOpportunityPriority(row.priority),
+        primary_contact_id: row.primary_contact_id ?? null,
+        temperature: normalizeOpportunityTemperature(row.temperature),
+        expected_close_date: normalizeOptionalDateString(row.expected_close_date),
+        primary_contact_name: normalizeOptionalString(row.primary_contact_name),
+        primary_contact_email: normalizeOptionalString(row.primary_contact_email),
+        primary_contact_phone: normalizeOptionalString(row.primary_contact_phone),
+        primary_contact_custom_fields: normalizeOpportunityCustomFields(
+          row.primary_contact_custom_fields,
+        ),
+        owner_user_id: normalizeOptionalString(row.owner_user_id),
+        last_activity_at: normalizeOptionalDateString(row.last_activity_at),
+        next_activity_at: normalizeOptionalDateString(row.next_activity_at),
+        tags: tagsByOpportunityId.get(row.id) ?? [],
+      }),
+    );
   });
 
 export const getOpportunity = createServerFn({ method: "GET" })

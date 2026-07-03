@@ -148,22 +148,43 @@ interface ContactCustomFields {
   [key: string]: unknown;
 }
 
+type ContactFlagValue = boolean | number | null | undefined;
+
 interface ChatContactRecord {
   id: string;
+  user_id?: string | null;
   name?: string | null;
   email?: string | null;
   phone_e164?: string | null;
+  source?: string | null;
+  channel?: string | null;
+  chat_status?: string | null;
   active_team_id?: string | null;
   active_team_name?: string | null;
   active_agent_id?: string | null;
   active_agent_name?: string | null;
   unread_count?: number | null;
-  is_pinned?: boolean;
-  is_archived?: boolean;
-  is_unread?: boolean;
+  is_pinned?: ContactFlagValue;
+  is_archived?: ContactFlagValue;
+  is_unread?: ContactFlagValue;
   opted_out?: boolean;
+  bot_active?: ContactFlagValue;
+  last_message_body?: string | null;
+  last_message_time?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  kanban_stage_id?: string | null;
+  kanban_stage_name?: string | null;
+  kanban_stage_color?: string | null;
   custom_fields?: ContactCustomFields | null;
   [key: string]: unknown;
+}
+
+interface TeamMemberOption {
+  user_id: string;
+  full_name?: string | null;
+  display_name?: string | null;
+  email?: string | null;
 }
 
 interface TeamOption {
@@ -188,18 +209,23 @@ interface InventoryProduct {
 
 interface SalesFunnelOption {
   id: string;
+  name?: string | null;
   is_default?: boolean | null;
 }
 
 interface SalesStageOption {
   id: string;
+  name?: string | null;
+  color?: string | null;
   funnel_id?: string | null;
 }
 
 interface ChatTagRecord {
+  id?: string;
   name: string;
   color?: string | null;
   icon?: string | null;
+  created_at?: string | null;
 }
 
 interface AutoAssignResult {
@@ -211,8 +237,308 @@ interface QuickSaveResult {
   phone?: string | null;
 }
 
+interface ConversationTagRecord {
+  contact_number: string;
+  tag_id: string;
+  user_id?: string;
+  tags: ChatTagRecord | null;
+}
+
+interface MessageTagRecord {
+  message_id: string;
+  tag_id: string;
+  user_id?: string;
+  tags: ChatTagRecord | null;
+}
+
+interface LeadActivityRecord {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  type?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  due_at?: string | null;
+}
+
+interface OpportunityAuditLogRecord {
+  id: string;
+  action?: string | null;
+  old_values?: unknown;
+  new_values?: unknown;
+  created_at?: string | null;
+}
+
+interface LeadTimelineItem {
+  id: string;
+  type: "activity" | "audit";
+  title?: string | null;
+  description?: string | null;
+  activityType?: string | null;
+  status?: string | null;
+  date: Date;
+  due_at?: string | null;
+  old_values?: unknown;
+  new_values?: unknown;
+}
+
+interface ChatOpportunityRecord {
+  id: string;
+  title?: string | null;
+}
+
+interface ChatMessageReactionRecord {
+  emoji: string;
+  direction: "incoming" | "outgoing";
+}
+
+type ChatMessageType =
+  | "text"
+  | "reaction"
+  | "image"
+  | "audio"
+  | "video"
+  | "document"
+  | "sticker"
+  | "location"
+  | "contacts"
+  | "system";
+
+interface InteractiveButtonRecord {
+  reply?: {
+    title?: string;
+  };
+}
+
+interface InteractiveHeaderRecord {
+  type?: string;
+  image?: { link?: string };
+  video?: { link?: string };
+  document?: { link?: string; filename?: string };
+  text?: string;
+}
+
+interface InteractivePayloadRecord {
+  type?: string;
+  header?: InteractiveHeaderRecord;
+  footer?: { text?: string };
+  body?: { text?: string };
+  action?: {
+    button?: string;
+    buttons?: InteractiveButtonRecord[];
+    parameters?: { flow_cta?: string };
+  };
+}
+
+interface ChatMessageRecord {
+  id: string;
+  wa_message_id?: string | null;
+  provider_message_id?: string | null;
+  direction: "incoming" | "outgoing";
+  timestamp: string;
+  type: ChatMessageType;
+  body?: string | null;
+  status?: string | null;
+  sender_name?: string | null;
+  sender_wa_id?: string | null;
+  context?: { message_id?: string | null } | null;
+  metadata?: Record<string, unknown> | null;
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    name?: string;
+    address?: string;
+  } | null;
+  contacts?: Array<{
+    name?: { formatted_name?: string };
+    phones?: Array<{ phone?: string }>;
+  }> | null;
+  reactions?: ChatMessageReactionRecord[];
+}
+
+interface SendContactPayload {
+  name: {
+    formatted_name: string;
+    first_name?: string;
+    last_name?: string;
+  };
+  phones: Array<{
+    phone: string;
+    type?: string;
+  }>;
+}
+
+type SendMessagePayload =
+  | {
+      to: string;
+      type: "text";
+      text: { body: string; preview_url: boolean };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "reaction";
+      reaction: { message_id: string; emoji: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "image";
+      image: { id?: string; link?: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "audio";
+      audio: { id?: string; link?: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "video";
+      video: { id?: string; link?: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "document";
+      document: { id?: string; link?: string; filename?: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "sticker";
+      sticker: { id?: string; link?: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "location";
+      location: { latitude: number; longitude: number; name?: string; address?: string };
+      reply_to_message_id?: string;
+    }
+  | {
+      to: string;
+      type: "contacts";
+      contacts: SendContactPayload[];
+      reply_to_message_id?: string;
+    };
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Erro inesperado";
+}
+
+function isFlagEnabled(value: ContactFlagValue): boolean {
+  return value === true || value === 1;
+}
+
+function normalizeOptionalString(value: unknown): string | null | undefined {
+  return typeof value === "string" ? value : value == null ? null : undefined;
+}
+
+function normalizeContactCustomFields(value: unknown): ContactCustomFields | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  const normalized: ContactCustomFields = {};
+
+  for (const [key, entry] of Object.entries(source)) {
+    normalized[key] = entry;
+  }
+
+  return normalized;
+}
+
+function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (typeof record.id !== "string" || record.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    user_id: normalizeOptionalString(record.user_id),
+    name: normalizeOptionalString(record.name),
+    email: normalizeOptionalString(record.email),
+    phone_e164: normalizeOptionalString(record.phone_e164),
+    source: normalizeOptionalString(record.source),
+    channel: normalizeOptionalString(record.channel),
+    chat_status: normalizeOptionalString(record.chat_status),
+    active_team_id: normalizeOptionalString(record.active_team_id),
+    active_team_name: normalizeOptionalString(record.active_team_name),
+    active_agent_id: normalizeOptionalString(record.active_agent_id),
+    active_agent_name: normalizeOptionalString(record.active_agent_name),
+    unread_count: typeof record.unread_count === "number" ? record.unread_count : null,
+    is_pinned:
+      typeof record.is_pinned === "boolean" || typeof record.is_pinned === "number"
+        ? record.is_pinned
+        : null,
+    is_archived:
+      typeof record.is_archived === "boolean" || typeof record.is_archived === "number"
+        ? record.is_archived
+        : null,
+    is_unread:
+      typeof record.is_unread === "boolean" || typeof record.is_unread === "number"
+        ? record.is_unread
+        : null,
+    opted_out: typeof record.opted_out === "boolean" ? record.opted_out : false,
+    bot_active:
+      typeof record.bot_active === "boolean" || typeof record.bot_active === "number"
+        ? record.bot_active
+        : null,
+    last_message_body: normalizeOptionalString(record.last_message_body),
+    last_message_time: normalizeOptionalString(record.last_message_time),
+    created_at: normalizeOptionalString(record.created_at),
+    updated_at: normalizeOptionalString(record.updated_at),
+    kanban_stage_id: normalizeOptionalString(record.kanban_stage_id),
+    kanban_stage_name: normalizeOptionalString(record.kanban_stage_name),
+    kanban_stage_color: normalizeOptionalString(record.kanban_stage_color),
+    custom_fields: normalizeContactCustomFields(record.custom_fields),
+  };
+}
+
+function getMessageInteractivePayload(metadata: Record<string, unknown> | null | undefined) {
+  const payload =
+    metadata && typeof metadata.payload === "object" && metadata.payload !== null
+      ? (metadata.payload as Record<string, unknown>)
+      : null;
+
+  const interactive =
+    payload && typeof payload.interactive === "object" && payload.interactive !== null
+      ? (payload.interactive as InteractivePayloadRecord)
+      : null;
+
+  return { payload, interactive };
+}
+
+function getCustomFieldText(
+  customFields: ContactCustomFields | null | undefined,
+  key: string,
+): string | undefined {
+  const value = customFields?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function mergeChatContactRecord(
+  current: ChatContactRecord,
+  patch: Partial<ChatContactRecord>,
+): ChatContactRecord {
+  return {
+    ...current,
+    ...patch,
+    id: current.id,
+    custom_fields:
+      patch.custom_fields === undefined
+        ? (current.custom_fields ?? null)
+        : normalizeContactCustomFields(patch.custom_fields),
+  };
 }
 
 function getAgentDisplayName(agent?: AgentOption | null): string | null {
@@ -358,7 +684,7 @@ function TagBadge({
   showName?: boolean;
 }) {
   if (!tag) return null;
-  const Icon = TAG_ICONS[tag.icon] || Tag;
+  const Icon = typeof tag.icon === "string" ? (TAG_ICONS[tag.icon] ?? Tag) : Tag;
   const color = tag.color || "#8B5CF6";
   return (
     <div
@@ -414,7 +740,9 @@ function ChatPage() {
 
   const teams = (teamsQuery.data ?? []) as TeamOption[];
   const agents = (agentsQuery.data ?? []) as AgentOption[];
-  const getTeamName = (teamId?: string | null) => teams.find((team) => team.id === teamId)?.name ?? null;
+  const teamMembers = (teamMembersQuery.data ?? []) as TeamMemberOption[];
+  const getTeamName = (teamId?: string | null) =>
+    teams.find((team) => team.id === teamId)?.name ?? null;
   const getAgentById = (agentId?: string | null) => agents.find((agent) => agent.id === agentId);
 
   const assignMutation = useMutation({
@@ -558,7 +886,9 @@ function ChatPage() {
             return parsed.filter(isInventoryProduct);
           }
         }
-      } catch {}
+      } catch (error) {
+        console.warn("Falha ao ler produtos do estoque local:", error);
+      }
     }
     return [
       { id: "prod-1", name: "Plano Mensal Bliv", price: 97.0, stock: 9999, isUnlimited: true },
@@ -579,7 +909,9 @@ function ChatPage() {
       const updated = prev.map((p) => (p.id === id ? { ...p, stock: newStock } : p));
       try {
         localStorage.setItem("inventory:products", JSON.stringify(updated));
-      } catch {}
+      } catch (error) {
+        console.warn("Falha ao salvar produtos do estoque local:", error);
+      }
       return updated;
     });
   };
@@ -858,7 +1190,7 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["contact-opportunities", selectedContact?.id] });
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       // Também atualiza o estágio do contato no Kanban
-      if (oppStageId) {
+      if (oppStageId && selectedContact?.id) {
         kanbanStageMutation.mutate({
           contactId: selectedContact.id,
           stageId: oppStageId,
@@ -973,11 +1305,14 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
       toast.success(variables.block ? "Contato bloqueado!" : "Contato desbloqueado!");
-      setSelectedContact((prev) => ({
-        ...prev,
-        opted_out: variables.block,
-        custom_fields: { ...(prev?.custom_fields ?? {}), is_blocked: variables.block },
-      }));
+      setSelectedContact((prev) =>
+        prev
+          ? mergeChatContactRecord(prev, {
+              opted_out: variables.block,
+              custom_fields: { ...(prev.custom_fields ?? {}), is_blocked: variables.block },
+            })
+          : prev,
+      );
     },
     onError: (err: unknown) => {
       toast.error("Erro ao atualizar status de bloqueio: " + getErrorMessage(err));
@@ -1008,9 +1343,9 @@ function ChatPage() {
       if (oppError) throw oppError;
 
       // 3. Histórico de auditoria do CRM
-      let auditLogs: any[] = [];
+      let auditLogs: OpportunityAuditLogRecord[] = [];
       if (opps && opps.length > 0) {
-        const oppIds = opps.map((o: any) => o.id);
+        const oppIds = (opps as ChatOpportunityRecord[]).map((opportunity) => opportunity.id);
         const { data: audits, error: auditError } = await db
           .from("opportunity_audit_logs")
           .select("*")
@@ -1021,29 +1356,29 @@ function ChatPage() {
       }
 
       // Combinar em uma única timeline ordenada
-      const timeline: any[] = [];
+      const timeline: LeadTimelineItem[] = [];
 
-      activities?.forEach((act: any) => {
+      (activities as LeadActivityRecord[] | null)?.forEach((activity) => {
         timeline.push({
-          id: act.id,
+          id: activity.id,
           type: "activity",
-          title: act.title,
-          description: act.description,
-          activityType: act.type,
-          status: act.status,
-          date: new Date(act.created_at || act.due_at),
-          due_at: act.due_at,
+          title: activity.title,
+          description: activity.description,
+          activityType: activity.type,
+          status: activity.status,
+          date: new Date(activity.created_at || activity.due_at || Date.now()),
+          due_at: activity.due_at,
         });
       });
 
-      auditLogs.forEach((log: any) => {
+      auditLogs.forEach((log) => {
         timeline.push({
           id: log.id,
           type: "audit",
           title: log.action,
           old_values: log.old_values,
           new_values: log.new_values,
-          date: new Date(log.created_at),
+          date: new Date(log.created_at ?? Date.now()),
         });
       });
 
@@ -1069,7 +1404,7 @@ function ChatPage() {
   const [bulkFunnelId, setBulkFunnelId] = useState("");
   const [bulkStageId, setBulkStageId] = useState("");
   const [typedMessage, setTypedMessage] = useState("");
-  const [replyingTo, setReplyingTo] = useState<any>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessageRecord | null>(null);
   const [previewUrl, setPreviewUrl] = useState(false);
   const [metaImageId, setMetaImageId] = useState("");
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -1100,8 +1435,8 @@ function ChatPage() {
 
   // Fetch session JWT token on mount
   useEffect(() => {
-    db.auth.getSession().then(({ data }: any) => {
-      setSessionToken(data.session?.access_token || "");
+    db.auth.getSession().then((result: { data: { session: { access_token?: string } | null } }) => {
+      setSessionToken(result.data.session?.access_token || "");
     });
   }, []);
 
@@ -1119,9 +1454,9 @@ function ChatPage() {
   const [showTagFilters, setShowTagFilters] = useState(false);
   const [countryCode, setCountryCode] = useState("+55");
   const [newChatPhone, setNewChatPhone] = useState("");
-  const [draftChatContacts, setDraftChatContacts] = useState<any[]>([]);
+  const [draftChatContacts, setDraftChatContacts] = useState<ChatContactRecord[]>([]);
 
-  const upsertDraftChatContact = (contact: any) => {
+  const upsertDraftChatContact = (contact: ChatContactRecord | null) => {
     if (!contact?.id) return;
 
     const draftContact = {
@@ -1136,7 +1471,10 @@ function ChatPage() {
       bot_active: contact.bot_active ?? true,
     };
 
-    setDraftChatContacts((prev) => [draftContact, ...prev.filter((c: any) => c.id !== contact.id)]);
+    setDraftChatContacts((prev) => [
+      draftContact,
+      ...prev.filter((candidate) => candidate.id !== contact.id),
+    ]);
   };
 
   // Mutation para iniciar novo chat/criar contato manual no rodapé
@@ -1150,18 +1488,23 @@ function ChatPage() {
       });
       return res;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: unknown) => {
+      const normalizedContact = normalizeChatContactRecord(data);
+      if (!normalizedContact) {
+        toast.error("Contato criado, mas a resposta retornou em formato inválido.");
+        return;
+      }
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-      upsertDraftChatContact(data);
+      upsertDraftChatContact(normalizedContact);
       setMainTab("conversas");
       setActiveTab("outros");
       setFilterView("all");
-      setSelectedContact(data);
+      setSelectedContact(normalizedContact);
       setNewChatPhone("");
       toast.success("Nova conversa iniciada!");
     },
-    onError: (err: any) => {
-      toast.error("Erro ao iniciar conversa: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao iniciar conversa: " + getErrorMessage(err));
     },
   });
 
@@ -1199,20 +1542,25 @@ function ChatPage() {
       });
       return res;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: unknown) => {
+      const normalizedContact = normalizeChatContactRecord(data);
+      if (!normalizedContact) {
+        toast.error("Contato criado, mas a resposta retornou em formato inválido.");
+        return;
+      }
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-      upsertDraftChatContact(data);
+      upsertDraftChatContact(normalizedContact);
       setMainTab("conversas");
       setActiveTab("outros");
       setFilterView("all");
-      setSelectedContact(data);
+      setSelectedContact(normalizedContact);
       setNewChatName("");
       setNewChatPhoneDialog("");
       setIsNewChatDialogOpen(false);
       toast.success("Nova conversa iniciada!");
     },
-    onError: (err: any) => {
-      toast.error("Erro ao iniciar conversa: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao iniciar conversa: " + getErrorMessage(err));
     },
   });
 
@@ -1235,12 +1583,14 @@ function ChatPage() {
   ];
 
   // Persistent cache for conversation tags
-  const [cachedConvTags, setCachedConvTags] = useState<any[]>(() => {
+  const [cachedConvTags, setCachedConvTags] = useState<ConversationTagRecord[]>(() => {
     if (typeof window !== "undefined") {
       try {
         const val = localStorage.getItem("tags:conv");
-        return val ? JSON.parse(val) : [];
-      } catch (e) {
+        const parsed: unknown = val ? JSON.parse(val) : [];
+        return Array.isArray(parsed) ? (parsed as ConversationTagRecord[]) : [];
+      } catch (error) {
+        console.warn("Falha ao ler cache local de tags de conversa:", error);
         return [];
       }
     }
@@ -1275,10 +1625,12 @@ function ChatPage() {
   // Sync cache and localstorage when query finishes
   useEffect(() => {
     if (conversationTagsQuery.data) {
-      setCachedConvTags(conversationTagsQuery.data);
+      setCachedConvTags(conversationTagsQuery.data as ConversationTagRecord[]);
       try {
         localStorage.setItem("tags:conv", JSON.stringify(conversationTagsQuery.data));
-      } catch (e) {}
+      } catch (error) {
+        console.warn("Falha ao salvar cache local de tags de conversa:", error);
+      }
     }
   }, [conversationTagsQuery.data]);
 
@@ -1305,8 +1657,8 @@ function ChatPage() {
       return null;
     }
 
-    const existing = (tagsQuery.data ?? []).find(
-      (t: any) => t.name.toLowerCase() === nameTrim.toLowerCase(),
+    const existing = ((tagsQuery.data ?? []) as ChatTagRecord[]).find(
+      (tag) => tag.name.toLowerCase() === nameTrim.toLowerCase(),
     );
     if (existing) {
       toast.error("Tag já existe com esse nome.");
@@ -1416,8 +1768,10 @@ function ChatPage() {
     }
   };
 
-  const renderMessageTagSubmenu = (msg: any) => {
-    const msgTags = (messageTagsQuery.data ?? []).filter((mt: any) => mt.message_id === msg.id);
+  const renderMessageTagSubmenu = (msg: ChatMessageRecord) => {
+    const msgTags = ((messageTagsQuery.data ?? []) as MessageTagRecord[]).filter(
+      (messageTag) => messageTag.message_id === msg.id,
+    );
     return (
       <>
         {msgTags.length > 0 && (
@@ -1439,13 +1793,15 @@ function ChatPage() {
               Nenhuma etiqueta cadastrada.
             </div>
           ) : (
-            (tagsQuery.data ?? []).map((tag: any) => {
-              const isApplied = msgTags.some((mt: any) => mt.tag_id === tag.id);
+            ((tagsQuery.data ?? []) as ChatTagRecord[]).map((tag) => {
+              const tagId = tag.id;
+              if (!tagId) return null;
+              const isApplied = msgTags.some((messageTag) => messageTag.tag_id === tagId);
               return (
                 <button
-                  key={tag.id}
+                  key={tagId}
                   type="button"
-                  onClick={() => handleToggleMessageTag(msg.id, tag.id, isApplied)}
+                  onClick={() => handleToggleMessageTag(msg.id, tagId, isApplied)}
                   className="w-full flex items-center justify-between p-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left"
                 >
                   <TagBadge tag={tag} className="border-transparent bg-transparent px-0" />
@@ -1515,9 +1871,16 @@ function ChatPage() {
   };
 
   // Queries
-  const contactsQuery = useQuery({
+  const contactsQuery = useQuery<ChatContactRecord[]>({
     queryKey: ["chat-contacts"],
-    queryFn: () => fetchContacts(),
+    queryFn: async () => {
+      const data = await fetchContacts();
+      if (!Array.isArray(data)) return [];
+
+      return data
+        .map((contact) => normalizeChatContactRecord(contact))
+        .filter((contact): contact is ChatContactRecord => contact !== null);
+    },
     staleTime: 1000,
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
@@ -1532,7 +1895,7 @@ function ChatPage() {
       const searchPhone = searchParams.get("phone");
 
       if (searchContactId) {
-        const foundById = contactsQuery.data.find((c: any) => c.id === searchContactId);
+        const foundById = contactsQuery.data.find((contact) => contact.id === searchContactId);
         if (foundById) {
           if (foundById.channel === "whatsapp_group") {
             setMainTab("grupos");
@@ -1547,8 +1910,9 @@ function ChatPage() {
       if (searchPhone) {
         const cleanedSearchPhone = searchPhone.replace(/\D/g, "");
         const found = contactsQuery.data.find(
-          (c: any) =>
-            c.phone_e164 === searchPhone || c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone,
+          (contact) =>
+            contact.phone_e164 === searchPhone ||
+            contact.phone_e164?.replace(/\D/g, "") === cleanedSearchPhone,
         );
         if (found) {
           if (found.channel === "whatsapp_group") {
@@ -1566,21 +1930,25 @@ function ChatPage() {
   useEffect(() => {
     if (!contactsQuery.data || !selectedContact?.id) return;
 
-    const freshSelected = contactsQuery.data.find((c: any) => c.id === selectedContact.id);
+    const freshSelected = contactsQuery.data.find((contact) => contact.id === selectedContact.id);
 
     if (!freshSelected) {
       setSelectedContact(null);
       return;
     }
 
-    setSelectedContact((prev: any) => (prev ? { ...prev, ...freshSelected } : prev));
+    setSelectedContact((prev) => (prev ? mergeChatContactRecord(prev, freshSelected) : prev));
   }, [contactsQuery.data, selectedContact?.id]);
 
   const selectedPhone = selectedContact?.phone_e164;
 
-  const contactDetailsQuery = useQuery({
+  const contactDetailsQuery = useQuery<ChatContactRecord | null>({
     queryKey: ["chat-contact-details", selectedPhone],
-    queryFn: () => fetchContactDetails({ data: { phone: selectedPhone } }),
+    queryFn: async () => {
+      if (!selectedPhone) return null;
+      const details = await fetchContactDetails({ data: { phone: selectedPhone } });
+      return normalizeChatContactRecord(details);
+    },
     enabled: !!selectedPhone && contactInfoOpen,
     staleTime: 10_000,
   });
@@ -1588,7 +1956,8 @@ function ChatPage() {
   // Atualiza o selectedContact quando abrimos o painel e carregamos dados completos
   useEffect(() => {
     if (!contactDetailsQuery.data || !selectedContact) return;
-    setSelectedContact((prev: any) => ({ ...(prev ?? {}), ...(contactDetailsQuery.data as any) }));
+    const contactDetails = contactDetailsQuery.data;
+    setSelectedContact((prev) => (prev ? mergeChatContactRecord(prev, contactDetails) : prev));
   }, [contactDetailsQuery.data]);
 
   // Busca automaticamente a foto de perfil do WhatsApp quando o contato não tem avatar
@@ -1601,10 +1970,13 @@ function ChatPage() {
     fetchContactPhoto({ data: { contactId: selectedContact.id, phone: selectedPhone } })
       .then((result) => {
         if (result?.photo_url) {
-          setSelectedContact((prev: any) => ({
-            ...(prev ?? {}),
-            custom_fields: { ...(prev?.custom_fields ?? {}), avatar_url: result.photo_url },
-          }));
+          setSelectedContact((prev) =>
+            prev
+              ? mergeChatContactRecord(prev, {
+                  custom_fields: { ...(prev.custom_fields ?? {}), avatar_url: result.photo_url },
+                })
+              : prev,
+          );
           qc.invalidateQueries({ queryKey: ["chat-contacts"] });
         }
       })
@@ -1621,28 +1993,33 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
-  const contactsForUi = useMemo(() => {
+  const contactsForUi = useMemo<ChatContactRecord[]>(() => {
     const baseContacts = [...(contactsQuery.data ?? [])];
 
     for (const draft of draftChatContacts) {
-      if (!baseContacts.some((c: any) => c.id === draft.id)) {
+      if (!baseContacts.some((contact) => contact.id === draft.id)) {
         baseContacts.unshift(draft);
       }
     }
 
     if (!selectedContact?.id) return baseContacts;
 
-    return baseContacts.map((c: any) =>
-      c.id === selectedContact.id ? { ...c, ...selectedContact } : c,
+    return baseContacts.map((contact) =>
+      contact.id === selectedContact.id
+        ? mergeChatContactRecord(contact, selectedContact)
+        : contact,
     );
   }, [contactsQuery.data, draftChatContacts, selectedContact]);
 
   const hasUnreadInOpenChat = useMemo(() => {
     if (!selectedPhone) return false;
-    if (selectedContact?.is_unread || (selectedContact?.unread_count ?? 0) > 0) return true;
+    if (isFlagEnabled(selectedContact?.is_unread) || (selectedContact?.unread_count ?? 0) > 0) {
+      return true;
+    }
 
     return (messagesQuery.data ?? []).some(
-      (m: any) => m.direction === "incoming" && (m.status == null || m.status !== "read"),
+      (message) =>
+        message.direction === "incoming" && (message.status == null || message.status !== "read"),
     );
   }, [
     messagesQuery.data,
@@ -1654,7 +2031,10 @@ function ChatPage() {
   // Função para reproduzir um som amigável de notificação
   const playNotificationSound = () => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioWindow = window as Window & { webkitAudioContext?: typeof AudioContext };
+      const AudioContextCtor = window.AudioContext ?? audioWindow.webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const audioCtx = new AudioContextCtor();
       // Tom 1 (G5 agudo rápido)
       const osc1 = audioCtx.createOscillator();
       const gain1 = audioCtx.createGain();
@@ -1692,7 +2072,7 @@ function ChatPage() {
     // 1. Notificação para novas mensagens no chat aberto ativo
     if (selectedPhone) {
       const incomingMsgs = (messagesQuery.data ?? []).filter(
-        (m: any) => m.direction === "incoming",
+        (message) => message.direction === "incoming",
       );
 
       if (prevSelectedPhoneRef.current !== selectedPhone) {
@@ -1708,10 +2088,10 @@ function ChatPage() {
 
     // 2. Notificação para novas mensagens em outros contatos da lista
     const currentUnreadSum = contactsForUi
-      .filter((c: any) => c.phone_e164 !== selectedPhone)
+      .filter((contact) => contact.phone_e164 !== selectedPhone)
       .reduce(
-        (acc: number, c: any) =>
-          acc + Math.max(c.unread_count || 0, c.is_unread === 1 || c.is_unread === true ? 1 : 0),
+        (acc, contact) =>
+          acc + Math.max(contact.unread_count || 0, isFlagEnabled(contact.is_unread) ? 1 : 0),
         0,
       );
     if (currentUnreadSum > prevUnreadSumRef.current) {
@@ -1733,7 +2113,7 @@ function ChatPage() {
       .then(() => {
         qc.invalidateQueries({ queryKey: ["chat-contacts"] });
         qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
-        setSelectedContact((prev: any) =>
+        setSelectedContact((prev) =>
           prev ? { ...prev, is_unread: false, unread_count: 0 } : prev,
         );
       })
@@ -1743,9 +2123,9 @@ function ChatPage() {
   }, [selectedPhone, hasUnreadInOpenChat, fetchMarkAsRead, qc]);
 
   // Helpers para o visual dos cards de contato conforme o mockup
-  const getSlaWarning = (c: any): boolean => {
-    if (c.unread_count > 0 && c.last_message_time) {
-      const diffMs = Date.now() - new Date(c.last_message_time).getTime();
+  const getSlaWarning = (contact: ChatContactRecord): boolean => {
+    if ((contact.unread_count ?? 0) > 0 && contact.last_message_time) {
+      const diffMs = Date.now() - new Date(contact.last_message_time).getTime();
       const diffMins = Math.floor(diffMs / 60000);
       return diffMins >= 15;
     }
@@ -1761,12 +2141,15 @@ function ChatPage() {
     return parts[0].slice(0, 2).toUpperCase();
   };
 
-  const getContactCategory = (c: any, currentUserId: string): "novos" | "meus" | "outros" => {
-    const hasUnread = c.is_unread || (c.unread_count ?? 0) > 0;
-    if (!c.active_agent_id && hasUnread) {
+  const getContactCategory = (
+    contact: ChatContactRecord,
+    currentUserId: string,
+  ): "novos" | "meus" | "outros" => {
+    const hasUnread = isFlagEnabled(contact.is_unread) || (contact.unread_count ?? 0) > 0;
+    if (!contact.active_agent_id && hasUnread) {
       return "novos";
     }
-    if (c.active_agent_id === currentUserId) {
+    if (contact.active_agent_id === currentUserId) {
       return "meus";
     }
     return "outros";
@@ -1783,7 +2166,7 @@ function ChatPage() {
     return "bg-sky-500/10 text-sky-700 border-sky-500/20 dark:text-sky-300";
   };
 
-  const formatRelativeTime = (dateInput: any): string => {
+  const formatRelativeTime = (dateInput: string | number | Date | null | undefined): string => {
     if (!dateInput) return "";
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) return "";
@@ -1814,12 +2197,11 @@ function ChatPage() {
   const unreadConversas = useMemo(() => {
     return contactsForUi
       .filter(
-        (c: any) =>
-          c.channel !== "whatsapp_group" && !(c.is_archived === 1 || c.is_archived === true),
+        (contact) => contact.channel !== "whatsapp_group" && !isFlagEnabled(contact.is_archived),
       )
       .reduce(
-        (acc: number, c: any) =>
-          acc + Math.max(c.unread_count || 0, c.is_unread === 1 || c.is_unread === true ? 1 : 0),
+        (acc, contact) =>
+          acc + Math.max(contact.unread_count || 0, isFlagEnabled(contact.is_unread) ? 1 : 0),
         0,
       );
   }, [contactsForUi]);
@@ -1827,50 +2209,53 @@ function ChatPage() {
   const unreadGrupos = useMemo(() => {
     return contactsForUi
       .filter(
-        (c: any) =>
-          c.channel === "whatsapp_group" && !(c.is_archived === 1 || c.is_archived === true),
+        (contact) => contact.channel === "whatsapp_group" && !isFlagEnabled(contact.is_archived),
       )
       .reduce(
-        (acc: number, c: any) =>
-          acc + Math.max(c.unread_count || 0, c.is_unread === 1 || c.is_unread === true ? 1 : 0),
+        (acc, contact) =>
+          acc + Math.max(contact.unread_count || 0, isFlagEnabled(contact.is_unread) ? 1 : 0),
         0,
       );
   }, [contactsForUi]);
 
   // Mapeia e enriquece os contatos vindos da API do servidor
   const mappedContacts = contactsForUi
-    .filter((c: any) =>
-      mainTab === "grupos" ? c.channel === "whatsapp_group" : c.channel !== "whatsapp_group",
+    .filter((contact) =>
+      mainTab === "grupos"
+        ? contact.channel === "whatsapp_group"
+        : contact.channel !== "whatsapp_group",
     )
-    .map((c: any) => {
-      const isPinned = c.is_pinned === 1 || c.is_pinned === true;
-      const isArchived = c.is_archived === 1 || c.is_archived === true;
-      const isUnread = c.is_unread === 1 || c.is_unread === true;
-      const category = getContactCategory({ ...c, is_unread: isUnread }, profile?.id || "");
+    .map((contact) => {
+      const isPinned = isFlagEnabled(contact.is_pinned);
+      const isArchived = isFlagEnabled(contact.is_archived);
+      const isUnread = isFlagEnabled(contact.is_unread);
+      const category = getContactCategory({ ...contact, is_unread: isUnread }, profile?.id || "");
 
       // Mapeia setor de acordo com as etiquetas atribuídas ou equipe real
-      const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
-      const hasSuporte = contactTags.some((ct: any) =>
-        ct.tags?.name?.toUpperCase().includes("SUPORTE"),
+      const contactTags = cachedConvTags.filter(
+        (conversationTag) => conversationTag.contact_number === contact.phone_e164,
+      );
+      const hasSuporte = contactTags.some((conversationTag) =>
+        conversationTag.tags?.name?.toUpperCase().includes("SUPORTE"),
       );
       const hasCS = contactTags.some(
-        (ct: any) =>
-          ct.tags?.name?.toUpperCase().includes("CS") ||
-          ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"),
+        (conversationTag) =>
+          conversationTag.tags?.name?.toUpperCase().includes("CS") ||
+          conversationTag.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"),
       );
 
-      let department = c.active_team_name || c.custom_fields?.department;
+      let department = contact.active_team_name || contact.custom_fields?.department;
       if (!department) {
         if (hasCS) {
           department = "Sucesso Cliente";
         } else if (hasSuporte) {
-          if (c.name?.includes("Lucas")) {
+          if (contact.name?.includes("Lucas")) {
             department = "Atendimento Geral";
           } else {
             department = "Suporte Técnico";
           }
         } else {
-          const hash = (c.id || "")
+          const hash = (contact.id || "")
             .split("")
             .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
           const deptMod = hash % 3;
@@ -1881,26 +2266,28 @@ function ChatPage() {
       }
 
       return {
-        ...c,
+        ...contact,
         category,
         department,
         is_pinned: isPinned,
         is_archived: isArchived,
         is_unread: isUnread,
-        last_message_body: c.last_message_body || "",
-        last_message_time: c.last_message_time || null,
-        unread_count: Math.max(c.unread_count || 0, isUnread ? 1 : 0),
+        last_message_body: contact.last_message_body || "",
+        last_message_time: contact.last_message_time || null,
+        unread_count: Math.max(contact.unread_count || 0, isUnread ? 1 : 0),
       };
     });
 
-  const tabScopedContacts = mappedContacts.filter((c: any) =>
-    filterView === "archived" ? c.is_archived : !c.is_archived,
+  const tabScopedContacts = mappedContacts.filter((contact) =>
+    filterView === "archived"
+      ? isFlagEnabled(contact.is_archived)
+      : !isFlagEnabled(contact.is_archived),
   );
 
   // Separação em abas conforme o mockup
-  const novosContacts = tabScopedContacts.filter((c: any) => c.category === "novos");
-  const meusContacts = tabScopedContacts.filter((c: any) => c.category === "meus");
-  const outrosContacts = tabScopedContacts.filter((c: any) => c.category === "outros");
+  const novosContacts = tabScopedContacts.filter((contact) => contact.category === "novos");
+  const meusContacts = tabScopedContacts.filter((contact) => contact.category === "meus");
+  const outrosContacts = tabScopedContacts.filter((contact) => contact.category === "outros");
 
   const activeContactsList =
     activeTab === "novos" ? novosContacts : activeTab === "meus" ? meusContacts : outrosContacts;
@@ -1918,7 +2305,7 @@ function ChatPage() {
       return;
     }
 
-    const isArchived = selectedContact.is_archived === 1 || selectedContact.is_archived === true;
+    const isArchived = isFlagEnabled(selectedContact.is_archived);
     if (filterView === "archived" && !isArchived) {
       setSelectedContact(null);
       return;
@@ -1942,36 +2329,43 @@ function ChatPage() {
   }, [filterView, mainTab]);
 
   // Contatos filtrados e ordenados por filtros de visualização e ordenação personalizada
-  const rawFilteredContacts = activeContactsList.filter((c: any) => {
+  const rawFilteredContacts = activeContactsList.filter((contact) => {
     // Se o filtro de visualização for "archived", mostramos apenas arquivados.
     // Caso contrário, ocultamos arquivados por padrão.
     if (filterView === "archived") {
-      if (!c.is_archived) return false;
+      if (!isFlagEnabled(contact.is_archived)) return false;
     } else {
-      if (c.is_archived) return false;
+      if (isFlagEnabled(contact.is_archived)) return false;
     }
 
     // Filtros de visualização adicionais
-    if (filterView === "unread" && !c.unread_count && !c.is_unread) return false;
-    if (filterView === "bot_paused" && c.bot_active !== 0 && c.bot_active !== false) return false;
-    if (filterView === "bot_active" && c.bot_active === 0) return false;
-    if (filterView === "whatsapp" && c.channel !== "whatsapp") return false;
-    if (filterView === "instagram" && c.channel !== "instagram") return false;
-    if (filterView === "messenger" && c.channel !== "messenger") return false;
-    if (filterView === "whatsapp_group" && c.channel !== "whatsapp_group") return false;
+    if (filterView === "unread" && !contact.unread_count && !isFlagEnabled(contact.is_unread))
+      return false;
+    if (filterView === "bot_paused" && !contact.bot_active === false) return false;
+    if (filterView === "bot_active" && !isFlagEnabled(contact.bot_active)) return false;
+    if (filterView === "whatsapp" && contact.channel !== "whatsapp") return false;
+    if (filterView === "instagram" && contact.channel !== "instagram") return false;
+    if (filterView === "messenger" && contact.channel !== "messenger") return false;
+    if (filterView === "whatsapp_group" && contact.channel !== "whatsapp_group") return false;
 
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      !term || (c.name ?? "").toLowerCase().includes(term) || (c.phone_e164 ?? "").includes(term);
+      !term ||
+      (contact.name ?? "").toLowerCase().includes(term) ||
+      (contact.phone_e164 ?? "").includes(term);
     if (!matchesSearch) return false;
 
     if (selectedFilterTagIds.length === 0) return true;
 
-    const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
-    return contactTags.some((ct: any) => selectedFilterTagIds.includes(ct.tag_id));
+    const contactTags = cachedConvTags.filter(
+      (conversationTag) => conversationTag.contact_number === contact.phone_e164,
+    );
+    return contactTags.some((conversationTag) =>
+      selectedFilterTagIds.includes(conversationTag.tag_id),
+    );
   });
 
-  const filteredContacts = [...rawFilteredContacts].sort((a: any, b: any) => {
+  const filteredContacts = [...rawFilteredContacts].sort((a, b) => {
     const aPinned = a.is_pinned ? 1 : 0;
     const bPinned = b.is_pinned ? 1 : 0;
     if (bPinned !== aPinned) return bPinned - aPinned;
@@ -1996,7 +2390,7 @@ function ChatPage() {
   });
 
   const visibleFilteredContactIds = useMemo(
-    () => filteredContacts.map((c: any) => c.id),
+    () => filteredContacts.map((contact) => contact.id),
     [filteredContacts],
   );
   const visibleFilteredContactIdSet = useMemo(
@@ -2017,7 +2411,32 @@ function ChatPage() {
   }, [isSelectionMode, selectedContactIds.length, visibleSelectedContactIds]);
 
   // Mutation para envio de mensagens
-  const sendMutation = useMutation<any, any, any>({
+  const sendMutation = useMutation<
+    unknown,
+    unknown,
+    {
+      type:
+        | "text"
+        | "reaction"
+        | "image"
+        | "audio"
+        | "video"
+        | "document"
+        | "sticker"
+        | "location"
+        | "contacts";
+      text?: { body: string; preview_url: boolean };
+      reaction?: { message_id: string; emoji: string };
+      image?: { id?: string; link?: string };
+      audio?: { id?: string; link?: string };
+      video?: { id?: string; link?: string };
+      document?: { id?: string; link?: string; filename?: string };
+      sticker?: { id?: string; link?: string };
+      location?: { latitude: number; longitude: number; name?: string; address?: string };
+      contacts?: SendContactPayload[];
+      reply_to_message_id?: string;
+    }
+  >({
     mutationFn: async (payload: {
       type:
         | "text"
@@ -2037,7 +2456,7 @@ function ChatPage() {
       document?: { id?: string; link?: string; filename?: string };
       sticker?: { id?: string; link?: string };
       location?: { latitude: number; longitude: number; name?: string; address?: string };
-      contacts?: any[];
+      contacts?: SendContactPayload[];
       reply_to_message_id?: string;
     }) => {
       if (!selectedPhone) throw new Error("Nenhum contato selecionado");
@@ -2080,10 +2499,10 @@ function ChatPage() {
       }
       return res;
     },
-    onSuccess: (_result: any, variables: any) => {
+    onSuccess: (_result, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-      setSelectedContact((prev: any) => {
+      setSelectedContact((prev) => {
         if (!prev) return prev;
 
         let preview = prev.last_message_body || "";
@@ -2105,10 +2524,10 @@ function ChatPage() {
       setTypedMessage("");
       setReplyingTo(null);
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Erro ao enviar mensagem");
+    onError: (err) => {
+      toast.error(getErrorMessage(err) || "Erro ao enviar mensagem");
     },
-  } as any);
+  });
 
   const handleSendText = () => {
     if (!typedMessage.trim()) return;
@@ -2118,11 +2537,15 @@ function ChatPage() {
         body: typedMessage,
         preview_url: previewUrl,
       },
-      reply_to_message_id: replyingTo?.wa_message_id,
+      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
     });
   };
 
-  const handleSendReaction = (messageId: string, emoji: string) => {
+  const handleSendReaction = (messageId: string | null | undefined, emoji: string) => {
+    if (!messageId) {
+      toast.error("Não foi possível reagir: identificador da mensagem ausente.");
+      return;
+    }
     sendMutation.mutate({
       type: "reaction",
       reaction: {
@@ -2140,7 +2563,7 @@ function ChatPage() {
       image: {
         id: metaImageId.trim(),
       },
-      reply_to_message_id: replyingTo?.wa_message_id,
+      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
     });
     setMetaImageId("");
     setIsImageModalOpen(false);
@@ -2162,6 +2585,10 @@ function ChatPage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !pendingMediaType) return;
+    if (!selectedPhone) {
+      toast.error("Nenhum contato selecionado para envio de mídia.");
+      return;
+    }
 
     const phoneId = profile?.whatsapp_phone_number_id;
     if (!phoneId) {
@@ -2181,17 +2608,43 @@ function ChatPage() {
 
       const mediaId = res.data.id;
 
-      const sendRes = await sendMessage({
-        data: {
-          to: selectedPhone,
-          type: pendingMediaType,
-          [pendingMediaType]:
-            pendingMediaType === "document"
-              ? { id: mediaId, filename: file.name }
-              : { id: mediaId },
-          reply_to_message_id: replyingTo?.wa_message_id,
-        } as any,
-      });
+      const payload: SendMessagePayload =
+        pendingMediaType === "document"
+          ? {
+              to: selectedPhone,
+              type: "document",
+              document: { id: mediaId, filename: file.name },
+              reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+            }
+          : pendingMediaType === "image"
+            ? {
+                to: selectedPhone,
+                type: "image",
+                image: { id: mediaId },
+                reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+              }
+            : pendingMediaType === "audio"
+              ? {
+                  to: selectedPhone,
+                  type: "audio",
+                  audio: { id: mediaId },
+                  reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                }
+              : pendingMediaType === "video"
+                ? {
+                    to: selectedPhone,
+                    type: "video",
+                    video: { id: mediaId },
+                    reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                  }
+                : {
+                    to: selectedPhone,
+                    type: "sticker",
+                    sticker: { id: mediaId },
+                    reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                  };
+
+      const sendRes = await sendMessage({ data: payload });
 
       if (!sendRes.ok) {
         throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
@@ -2200,7 +2653,7 @@ function ChatPage() {
       toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
       qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-      setSelectedContact((prev: any) =>
+      setSelectedContact((prev) =>
         prev
           ? {
               ...prev,
@@ -2211,8 +2664,8 @@ function ChatPage() {
           : prev,
       );
       setReplyingTo(null);
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao realizar upload da mídia.", { id: toastId });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Erro ao realizar upload da mídia.", { id: toastId });
     } finally {
       setUploadingMedia(false);
       setPendingMediaType(null);
@@ -2236,7 +2689,7 @@ function ChatPage() {
         name: locName.trim() || undefined,
         address: locAddress.trim() || undefined,
       },
-      reply_to_message_id: replyingTo?.wa_message_id,
+      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
     });
 
     setIsLocationModalOpen(false);
@@ -2270,7 +2723,7 @@ function ChatPage() {
           ],
         },
       ],
-      reply_to_message_id: replyingTo?.wa_message_id,
+      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
     });
 
     setIsContactModalOpen(false);
@@ -2298,7 +2751,7 @@ function ChatPage() {
       const storagePath = `contacts/${selectedContact.id}/avatar-${Date.now()}.${ext}`;
       const { error: upErr } = await db.storage
         .from("avatars")
-        .upload(storagePath, file, { cacheControl: "3600", upsert: true } as any);
+        .upload(storagePath, file, { cacheControl: "3600", upsert: true });
       if (upErr) throw new Error(upErr.message || "Falha ao enviar imagem.");
 
       const { data: pub } = db.storage.from("avatars").getPublicUrl(storagePath);
@@ -2307,21 +2760,24 @@ function ChatPage() {
         data: { id: selectedContact.id, avatar_url: url },
       });
 
-      setSelectedContact((prev: any) => ({
-        ...(prev ?? {}),
-        ...(updated ?? {}),
-        custom_fields: {
-          ...((prev?.custom_fields as any) ?? {}),
-          ...((updated?.custom_fields as any) ?? {}),
-          avatar_url: url,
-        },
-      }));
+      setSelectedContact((prev) =>
+        prev
+          ? mergeChatContactRecord(prev, {
+              ...(normalizeChatContactRecord(updated) ?? {}),
+              custom_fields: {
+                ...(prev.custom_fields ?? {}),
+                ...(normalizeContactCustomFields(updated?.custom_fields) ?? {}),
+                avatar_url: url,
+              },
+            })
+          : prev,
+      );
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
       qc.invalidateQueries({ queryKey: ["contacts"] });
       toast.success("Foto do contato atualizada.");
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao atualizar foto do contato.");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || "Falha ao atualizar foto do contato.");
     } finally {
       setUploadingContactPhoto(false);
       if (contactPhotoInputRef.current) contactPhotoInputRef.current.value = "";
@@ -2335,10 +2791,12 @@ function ChatPage() {
       const updated = await saveContactProfilePhoto({
         data: { id: selectedContact.id, avatar_url: null },
       });
-      setSelectedContact((prev: any) => {
+      setSelectedContact((prev) => {
+        if (!prev) return prev;
+
         const custom = {
-          ...((prev?.custom_fields as any) ?? {}),
-          ...((updated?.custom_fields as any) ?? {}),
+          ...(prev.custom_fields ?? {}),
+          ...(normalizeContactCustomFields(updated?.custom_fields) ?? {}),
         };
         delete custom.avatar_url;
         delete custom.photo_url;
@@ -2347,8 +2805,8 @@ function ChatPage() {
         delete custom.image_url;
         delete custom.image;
         return {
-          ...(prev ?? {}),
-          ...(updated ?? {}),
+          ...prev,
+          ...(normalizeChatContactRecord(updated) ?? {}),
           custom_fields: custom,
         };
       });
@@ -2356,39 +2814,42 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
       qc.invalidateQueries({ queryKey: ["contacts"] });
       toast.success("Foto do contato removida.");
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao remover foto do contato.");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || "Falha ao remover foto do contato.");
     } finally {
       setUploadingContactPhoto(false);
     }
   };
 
   // Processa reações e monta árvore de mensagens
-  const rawMessages = messagesQuery.data ?? [];
-  const normalMessages = rawMessages.filter((m: any) => m.type !== "reaction");
-  const reactions = rawMessages.filter((m: any) => m.type === "reaction");
+  const rawMessages = (messagesQuery.data ?? []) as ChatMessageRecord[];
+  const normalMessages = rawMessages.filter((message) => message.type !== "reaction");
+  const reactions = rawMessages.filter((message) => message.type === "reaction");
 
-  const messageMap = new Map<string, any>();
-  normalMessages.forEach((m: any) => {
-    if (m.wa_message_id) {
-      messageMap.set(m.wa_message_id, { ...m, reactions: [] });
+  const messageMap = new Map<string, ChatMessageRecord>();
+  normalMessages.forEach((message) => {
+    if (message.wa_message_id) {
+      messageMap.set(message.wa_message_id, { ...message, reactions: [] });
     } else {
-      messageMap.set(m.id, { ...m, reactions: [] });
+      messageMap.set(message.id, { ...message, reactions: [] });
     }
   });
 
-  reactions.forEach((r: any) => {
-    const targetId = r.context?.message_id;
+  reactions.forEach((reaction) => {
+    const targetId = reaction.context?.message_id;
     if (targetId && messageMap.has(targetId)) {
       const msg = messageMap.get(targetId);
+      if (!msg) return;
       // Evita duplicar reação igual do mesmo remetente
-      const exists = msg.reactions.some(
-        (rx: any) => rx.emoji === r.body && rx.direction === r.direction,
+      const exists = (msg.reactions ?? []).some(
+        (currentReaction) =>
+          currentReaction.emoji === reaction.body &&
+          currentReaction.direction === reaction.direction,
       );
       if (!exists) {
-        msg.reactions.push({
-          emoji: r.body,
-          direction: r.direction,
+        (msg.reactions ??= []).push({
+          emoji: reaction.body ?? "",
+          direction: reaction.direction,
         });
       }
     }
@@ -2396,7 +2857,7 @@ function ChatPage() {
 
   const displayMessages = Array.from(messageMap.values());
 
-  const visibleMessageIds = displayMessages.map((m: any) => m.id);
+  const visibleMessageIds = displayMessages.map((message) => message.id);
   const messageTagsQuery = useQuery({
     queryKey: ["message-tags", visibleMessageIds],
     queryFn: async () => {
@@ -2854,7 +3315,7 @@ function ChatPage() {
                       if (allVisibleContactsSelected) {
                         setSelectedContactIds([]);
                       } else {
-                        setSelectedContactIds(filteredContacts.map((c: any) => c.id));
+                        setSelectedContactIds(filteredContacts.map((contact) => contact.id));
                       }
                     }}
                   >
@@ -2874,14 +3335,13 @@ function ChatPage() {
                     onClick={() => {
                       // Set default funnel and stage
                       const defaultFunnel =
-                        salesFunnelsQuery.data?.find((f: any) => f.is_default) ||
+                        salesFunnels.find((funnel) => funnel.is_default) ||
                         salesFunnelsQuery.data?.[0];
                       if (defaultFunnel) {
                         setBulkFunnelId(defaultFunnel.id);
                         const defaultStage =
-                          salesStagesQuery.data?.find(
-                            (s: any) => s.funnel_id === defaultFunnel.id,
-                          ) || salesStagesQuery.data?.[0];
+                          salesStages.find((stage) => stage.funnel_id === defaultFunnel.id) ||
+                          salesStagesQuery.data?.[0];
                         if (defaultStage) {
                           setBulkStageId(defaultStage.id);
                         }
@@ -2942,17 +3402,19 @@ function ChatPage() {
                       Nenhuma etiqueta.
                     </span>
                   ) : (
-                    (tagsQuery.data ?? []).map((tag: any) => {
-                      const isActive = selectedFilterTagIds.includes(tag.id);
+                    ((tagsQuery.data ?? []) as ChatTagRecord[]).map((tag) => {
+                      const tagId = tag.id;
+                      if (!tagId) return null;
+                      const isActive = selectedFilterTagIds.includes(tagId);
                       return (
                         <button
-                          key={tag.id}
+                          key={tagId}
                           type="button"
                           onClick={() => {
                             setSelectedFilterTagIds((prev) =>
-                              prev.includes(tag.id)
-                                ? prev.filter((id) => id !== tag.id)
-                                : [...prev, tag.id],
+                              prev.includes(tagId)
+                                ? prev.filter((id) => id !== tagId)
+                                : [...prev, tagId],
                             );
                           }}
                           className={cn(
@@ -2961,7 +3423,10 @@ function ChatPage() {
                               ? "opacity-100 ring-2 ring-primary ring-offset-1 ring-offset-background text-white"
                               : "opacity-60 text-white",
                           )}
-                          style={{ backgroundColor: tag.color, borderColor: tag.color }}
+                          style={{
+                            backgroundColor: tag.color ?? undefined,
+                            borderColor: tag.color ?? undefined,
+                          }}
                         >
                           {tag.name}
                         </button>
@@ -2985,12 +3450,12 @@ function ChatPage() {
                 Nenhum contato encontrado.
               </div>
             ) : (
-              filteredContacts.map((c: any) => {
+              filteredContacts.map((c) => {
                 const isSelected = selectedContact?.id === c.id;
                 const avatarUrl = getContactAvatarUrl(c);
                 const avatarBg = getAvatarColor(c.name ?? "");
                 const contactTags = cachedConvTags.filter(
-                  (ct: any) => ct.contact_number === c.phone_e164,
+                  (conversationTag) => conversationTag.contact_number === c.phone_e164,
                 );
                 return (
                   <div
@@ -3064,7 +3529,7 @@ function ChatPage() {
                           )}
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 bg-background p-0.5 rounded-full shadow-sm">
-                          <ChannelBadge channel={c.channel} />
+                          <ChannelBadge channel={c.channel ?? "whatsapp"} />
                         </div>
                       </div>
 
@@ -3101,7 +3566,9 @@ function ChatPage() {
 
                         {/* Second row: Last message body */}
                         <p className="text-xs text-muted-foreground truncate leading-normal">
-                          {c.last_message_body || c.custom_fields?.company || "Sem mensagens"}
+                          {c.last_message_body ||
+                            getCustomFieldText(c.custom_fields, "company") ||
+                            "Sem mensagens"}
                         </p>
 
                         {/* Third row: Badges */}
@@ -3152,15 +3619,17 @@ function ChatPage() {
                           )}
 
                           {/* Kanban Badge */}
-                          {(c.kanban_stage_name || c.custom_fields?.company) && (
+                          {(c.kanban_stage_name ||
+                            getCustomFieldText(c.custom_fields, "company")) && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase bg-cyan-700 text-white select-none">
                               <Phone className="h-2.5 w-2.5" />
-                              {c.kanban_stage_name || c.custom_fields?.company}
+                              {c.kanban_stage_name ||
+                                getCustomFieldText(c.custom_fields, "company")}
                             </span>
                           )}
 
                           {/* Textual Tags (legacy) */}
-                          {contactTags.map((ct: any) => (
+                          {contactTags.map((ct) => (
                             <span
                               key={ct.tag_id}
                               className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider text-white select-none"
@@ -3228,9 +3697,9 @@ function ChatPage() {
                                       <span>Sem funil</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    {(salesFunnelsQuery.data ?? []).map((funnel: any) => {
-                                      const funnelStages = salesStagesQuery.data.filter(
-                                        (s: any) => s.funnel_id === funnel.id,
+                                    {salesFunnels.map((funnel) => {
+                                      const funnelStages = salesStages.filter(
+                                        (stage) => stage.funnel_id === funnel.id,
                                       );
                                       if (funnelStages.length === 0) return null;
                                       return (
@@ -3240,7 +3709,7 @@ function ChatPage() {
                                           </DropdownMenuSubTrigger>
                                           <DropdownMenuPortal>
                                             <DropdownMenuSubContent className="w-[180px]">
-                                              {funnelStages.map((stage: any) => (
+                                              {funnelStages.map((stage) => (
                                                 <DropdownMenuItem
                                                   key={stage.id}
                                                   onClick={() =>
@@ -3279,17 +3748,20 @@ function ChatPage() {
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
                                   <DropdownMenuSubContent className="w-[180px]">
-                                    {tagsQuery.data.map((tag: any) => {
+                                    {(tagsQuery.data as ChatTagRecord[]).map((tag) => {
+                                      const tagId = tag.id;
+                                      const contactPhone = c.phone_e164;
+                                      if (!tagId || !contactPhone) return null;
                                       const isTagged = contactTags.some(
-                                        (ct: any) => ct.tag_id === tag.id,
+                                        (conversationTag) => conversationTag.tag_id === tagId,
                                       );
                                       return (
                                         <DropdownMenuItem
-                                          key={tag.id}
+                                          key={tagId}
                                           onClick={() =>
                                             handleToggleConversationTag(
-                                              c.phone_e164,
-                                              tag.id,
+                                              contactPhone,
+                                              tagId,
                                               isTagged,
                                             )
                                           }
@@ -3540,12 +4012,13 @@ function ChatPage() {
                         {/* Render conversation tag pills/dots in header */}
                         {(() => {
                           const contactTags = cachedConvTags.filter(
-                            (ct: any) => ct.contact_number === selectedContact.phone_e164,
+                            (conversationTag) =>
+                              conversationTag.contact_number === selectedContact.phone_e164,
                           );
                           if (contactTags.length === 0) return null;
                           return (
                             <div className="flex gap-1 shrink-0">
-                              {contactTags.map((ct: any) => (
+                              {contactTags.map((ct) => (
                                 <TagBadge key={ct.tag_id} tag={ct.tags} />
                               ))}
                             </div>
@@ -3553,7 +4026,7 @@ function ChatPage() {
                         })()}
                       </div>
                       <span className="text-xs text-muted-foreground font-medium leading-normal truncate whitespace-nowrap">
-                        {formatPhone(selectedContact.phone_e164)}
+                        {formatPhone(selectedContact.phone_e164 ?? "")}
                       </span>
                     </div>
                   </div>
@@ -3646,13 +4119,22 @@ function ChatPage() {
                     {/* Bot Toggle Button */}
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        const contactPhone = selectedContact.phone_e164 ?? "";
+                        const channel = selectedContact.channel ?? "whatsapp";
+                        if (!contactPhone) {
+                          toast.error(
+                            "Este contato não possui telefone válido para alterar o bot.",
+                          );
+                          return;
+                        }
+
                         botActiveMutation.mutate({
-                          contactPhone: selectedContact.phone_e164,
-                          botActive: !selectedContact.bot_active,
-                          channel: selectedContact.channel || "whatsapp",
-                        })
-                      }
+                          contactPhone,
+                          botActive: !isFlagEnabled(selectedContact.bot_active),
+                          channel,
+                        });
+                      }}
                       className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-neutral-800 text-zinc-400 hover:text-zinc-200 relative"
                       title={
                         selectedContact.bot_active
@@ -3660,7 +4142,7 @@ function ChatPage() {
                           : "Ativar Inteligência / Chatbot"
                       }
                     >
-                      {selectedContact.bot_active ? (
+                      {isFlagEnabled(selectedContact.bot_active) ? (
                         <Bot className="h-5 w-5 text-emerald-500" />
                       ) : (
                         <div className="relative h-5 w-5 flex items-center justify-center">
@@ -3755,8 +4237,7 @@ function ChatPage() {
                             "cursor-pointer",
                           )}
                           onClick={async () => {
-                            const isBlocked =
-                              selectedContact.opted_out === 1 || selectedContact.opted_out === true;
+                            const isBlocked = selectedContact.opted_out === true;
                             const ok = await confirm({
                               title: isBlocked ? "Desbloquear Contato?" : "Bloquear Contato?",
                               description: isBlocked
@@ -3827,8 +4308,10 @@ function ChatPage() {
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 relative bg-muted/10">
                   {(() => {
                     let lastDateStr = "";
-                    const formatDateSeparator = (dateInput: any) => {
-                      const date = new Date(dateInput);
+                    const formatDateSeparator = (
+                      dateInput: string | number | Date | null | undefined,
+                    ) => {
+                      const date = new Date(dateInput ?? Date.now());
                       const today = new Date();
                       const yesterday = new Date();
                       yesterday.setDate(today.getDate() - 1);
@@ -3862,11 +4345,12 @@ function ChatPage() {
                         </p>
                       </div>
                     ) : (
-                      displayMessages.map((msg: any) => {
+                      displayMessages.map((msg) => {
                         const isOutgoing = msg.direction === "outgoing";
                         const replyMsgId = msg.context?.message_id;
                         const replyMessage =
-                          replyMsgId && displayMessages.find((m: any) => m.id === replyMsgId);
+                          replyMsgId &&
+                          displayMessages.find((message) => message.id === replyMsgId);
 
                         const msgDateStr = new Date(msg.timestamp).toDateString();
                         const showDateSeparator = msgDateStr !== lastDateStr;
@@ -3956,8 +4440,9 @@ function ChatPage() {
                                   {/* Balão em si */}
                                   <div className="flex flex-col relative">
                                     {(() => {
-                                      const payload = msg.metadata?.payload;
-                                      const interactive = payload?.interactive;
+                                      const { interactive } = getMessageInteractivePayload(
+                                        msg.metadata,
+                                      );
 
                                       // Extract interactive header media
                                       const header = interactive?.header;
@@ -4009,7 +4494,7 @@ function ChatPage() {
                                         // Highlight message search query if active
                                         if (messageSearchQuery.trim()) {
                                           const escapedQuery = messageSearchQuery.replace(
-                                            /[-\/\\^$*+?.()|[\]{}]/g,
+                                            /[-/\\^$*+?.()|[\]{}]/g,
                                             "\\$&",
                                           );
                                           const regex = new RegExp(`(${escapedQuery})`, "gi");
@@ -4093,8 +4578,10 @@ function ChatPage() {
                                             )}
                                           {/* Display applied tags in message body */}
                                           {(() => {
-                                            const msgTags = (messageTagsQuery.data ?? []).filter(
-                                              (mt: any) => mt.message_id === msg.id,
+                                            const msgTags = (
+                                              (messageTagsQuery.data ?? []) as MessageTagRecord[]
+                                            ).filter(
+                                              (messageTag) => messageTag.message_id === msg.id,
                                             );
                                             if (msgTags.length === 0) return null;
                                             return (
@@ -4104,7 +4591,7 @@ function ChatPage() {
                                                   isRichCard ? "px-3 pt-3" : "",
                                                 )}
                                               >
-                                                {msgTags.map((mt: any) => (
+                                                {msgTags.map((mt) => (
                                                   <TagBadge
                                                     key={mt.tag_id}
                                                     tag={mt.tags}
@@ -4198,7 +4685,7 @@ function ChatPage() {
                                               <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/10 bg-black/10 p-2 flex items-center gap-2 text-xs">
                                                 <FileText className="h-6 w-6 text-primary shrink-0" />
                                                 <span className="truncate font-medium flex-1">
-                                                  {header.document?.filename ||
+                                                  {header?.document?.filename ||
                                                     "Documento de Cabeçalho"}
                                                 </span>
                                                 <Button
@@ -4445,10 +4932,14 @@ function ChatPage() {
                                               interactive.action?.buttons && (
                                                 <div className="flex flex-col w-full mt-1.5">
                                                   {interactive.action.buttons.map(
-                                                    (btn: any, btnIdx: number) => {
+                                                    (
+                                                      btn: InteractiveButtonRecord,
+                                                      btnIdx: number,
+                                                    ) => {
                                                       const isLast =
                                                         btnIdx ===
-                                                        interactive.action.buttons.length - 1;
+                                                        (interactive.action?.buttons?.length ?? 0) -
+                                                          1;
                                                       return (
                                                         <div
                                                           key={btnIdx}
@@ -4521,7 +5012,7 @@ function ChatPage() {
                                                 minute: "2-digit",
                                               })}
                                             </span>
-                                            {isOutgoing && renderStatus(msg.status)}
+                                            {isOutgoing && renderStatus(msg.status ?? "")}
                                           </div>
                                         </div>
                                       );
@@ -4535,7 +5026,7 @@ function ChatPage() {
                                           isOutgoing ? "left-2" : "right-2",
                                         )}
                                       >
-                                        {msg.reactions.map((rx: any, idx: number) => (
+                                        {msg.reactions.map((rx, idx: number) => (
                                           <span
                                             key={idx}
                                             title={rx.direction === "outgoing" ? "Você" : "Contato"}
@@ -4935,23 +5426,27 @@ function ChatPage() {
                                   Nenhuma etiqueta criada.
                                 </div>
                               ) : (
-                                (tagsQuery.data ?? []).map((tag: any) => (
-                                  <div
-                                    key={tag.id}
-                                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm"
-                                  >
-                                    <TagBadge tag={tag} className="text-xs px-2 py-1" />
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => handleDeleteTag(tag.id)}
-                                      title="Excluir etiqueta"
+                                ((tagsQuery.data ?? []) as ChatTagRecord[]).map((tag) => {
+                                  const tagId = tag.id;
+                                  if (!tagId) return null;
+                                  return (
+                                    <div
+                                      key={tagId}
+                                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm"
                                     >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))
+                                      <TagBadge tag={tag} className="text-xs px-2 py-1" />
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        onClick={() => handleDeleteTag(tagId)}
+                                        title="Excluir etiqueta"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  );
+                                })
                               )}
                             </div>
                           </div>
@@ -5072,8 +5567,7 @@ function ChatPage() {
                         <p className="font-semibold text-base leading-tight">
                           {selectedContact.name || "Sem Nome"}
                         </p>
-                        {(selectedContact.opted_out === 1 ||
-                          selectedContact.opted_out === true) && (
+                        {selectedContact.opted_out === true && (
                           <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
                             Opt-out
                           </span>
@@ -5308,7 +5802,7 @@ function ChatPage() {
                           <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">
                             Selecionar Equipe
                           </DropdownMenuLabel>
-                          {(teamsQuery.data ?? []).map((t: any) => {
+                          {teams.map((t) => {
                             const isCurrentTeam =
                               selectedContact?.active_team_id === t.id || selectedTeamId === t.id;
                             return (
@@ -5338,10 +5832,10 @@ function ChatPage() {
                             Selecionar Agente
                           </DropdownMenuLabel>
                           {(selectedTeamId || selectedContact?.active_team_id
-                            ? (teamMembersQuery.data ?? [])
-                            : (agentsQuery.data ?? [])
-                          ).map((a: any) => {
-                            const agentId = a.user_id || a.id;
+                            ? teamMembers
+                            : agents
+                          ).map((a: TeamMemberOption | AgentOption) => {
+                            const agentId = "user_id" in a ? a.user_id : a.id;
                             const isCurrentAgent = selectedContact?.active_agent_id === agentId;
                             return (
                               <DropdownMenuItem
@@ -5474,6 +5968,7 @@ function ChatPage() {
                       toast.error("O telefone é obrigatório");
                       return;
                     }
+                    if (!quickSaveContactData) return;
                     quickSaveMutation.mutate({
                       contactId: quickSaveContactData.id,
                       name: quickSaveName,
@@ -5512,7 +6007,7 @@ function ChatPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Sem equipe (Não atribuído)</SelectItem>
-                      {(teamsQuery.data ?? []).map((t: any) => (
+                      {(teamsQuery.data ?? []).map((t: TeamOption) => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name}
                         </SelectItem>
@@ -5533,7 +6028,7 @@ function ChatPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Sem agente (Fila da equipe)</SelectItem>
-                      {(assignDialogTeamMembersQuery.data ?? []).map((m: any) => (
+                      {(assignDialogTeamMembersQuery.data ?? []).map((m: TeamMemberOption) => (
                         <SelectItem key={m.user_id} value={m.user_id}>
                           {m.full_name || m.display_name || m.email || m.user_id}
                         </SelectItem>
@@ -5546,17 +6041,22 @@ function ChatPage() {
                 {assignDialogTeamId && assignDialogTeamId !== "none" && (
                   <div className="flex gap-2 pt-2">
                     {(assignDialogTeamMembersQuery.data ?? []).some(
-                      (m: any) => m.user_id === profile?.id,
+                      (m: TeamMemberOption) => m.user_id === profile?.id,
                     ) && (
                       <Button
                         variant="secondary"
                         size="sm"
                         type="button"
                         onClick={() => {
+                          const contactPhone = assigningContactData?.phone_e164 ?? undefined;
+                          if (!contactPhone) {
+                            toast.error("Este contato não possui telefone válido para atribuição.");
+                            return;
+                          }
                           selfAssignMutation.mutate(
                             {
                               teamId: assignDialogTeamId,
-                              contactPhone: assigningContactData.phone_e164,
+                              contactPhone,
                             },
                             {
                               onSuccess: () => setAssigningContactData(null),
@@ -5579,10 +6079,15 @@ function ChatPage() {
                       size="sm"
                       type="button"
                       onClick={() => {
+                        const contactPhone = assigningContactData?.phone_e164 ?? undefined;
+                        if (!contactPhone) {
+                          toast.error("Este contato não possui telefone válido para atribuição.");
+                          return;
+                        }
                         autoAssignMutation.mutate(
                           {
                             teamId: assignDialogTeamId,
-                            contactPhone: assigningContactData.phone_e164,
+                            contactPhone,
                           },
                           {
                             onSuccess: () => setAssigningContactData(null),
@@ -5616,11 +6121,16 @@ function ChatPage() {
                       assignDialogAgentId === "none" || !assignDialogAgentId
                         ? null
                         : assignDialogAgentId;
+                    const contactPhone = assigningContactData?.phone_e164 ?? undefined;
+                    if (!contactPhone) {
+                      toast.error("Este contato não possui telefone válido para atribuição.");
+                      return;
+                    }
                     assignMutation.mutate(
                       {
                         teamId: targetTeamId,
                         agentId: targetAgentId,
-                        contactPhone: assigningContactData.phone_e164,
+                        contactPhone,
                       },
                       {
                         onSuccess: () => setAssigningContactData(null),
@@ -5683,7 +6193,7 @@ function ChatPage() {
                     value={oppFunnelId}
                     onValueChange={(val) => {
                       setOppFunnelId(val);
-                      const stages = salesStagesQuery.data?.filter((s: any) => s.funnel_id === val);
+                      const stages = salesStages.filter((stage) => stage.funnel_id === val);
                       if (stages && stages.length > 0) {
                         setOppStageId(stages[0].id);
                       }
@@ -5693,7 +6203,7 @@ function ChatPage() {
                       <SelectValue placeholder="Selecione o Funil" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(salesFunnelsQuery.data ?? []).map((f: any) => (
+                      {salesFunnels.map((f) => (
                         <SelectItem key={f.id} value={f.id}>
                           {f.name}
                         </SelectItem>
@@ -5709,9 +6219,9 @@ function ChatPage() {
                       <SelectValue placeholder="Selecione a Etapa" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(salesStagesQuery.data ?? [])
-                        .filter((s: any) => s.funnel_id === oppFunnelId)
-                        .map((s: any) => (
+                      {salesStages
+                        .filter((s) => s.funnel_id === oppFunnelId)
+                        .map((s) => (
                           <SelectItem key={s.id} value={s.id}>
                             {s.name}
                           </SelectItem>
@@ -5732,6 +6242,10 @@ function ChatPage() {
                     }
                     if (!oppFunnelId || !oppStageId) {
                       toast.error("Selecione o funil e a etapa");
+                      return;
+                    }
+                    if (!selectedContact?.id) {
+                      toast.error("Nenhum contato selecionado");
                       return;
                     }
                     createOpportunityMutation.mutate({
@@ -5831,7 +6345,7 @@ function ChatPage() {
                   </div>
                 ) : (
                   <div className="relative border-l border-zinc-800 ml-3 pl-5 space-y-5">
-                    {(leadHistoryQuery.data ?? []).map((item: any) => {
+                    {(leadHistoryQuery.data ?? []).map((item: LeadTimelineItem) => {
                       const itemDate = new Date(item.date);
                       return (
                         <div key={item.id} className="relative group">
@@ -5869,11 +6383,11 @@ function ChatPage() {
                                 {item.description}
                               </p>
                             )}
-                            {item.type === "audit" && item.new_values && (
+                            {item.type === "audit" && Boolean(item.new_values) && (
                               <div className="text-[10px] text-zinc-400 font-mono mt-1 bg-neutral-900 p-1.5 rounded truncate max-w-full">
                                 Modificado:{" "}
                                 {typeof item.new_values === "object"
-                                  ? JSON.stringify(item.new_values)
+                                  ? String(JSON.stringify(item.new_values) ?? "")
                                   : String(item.new_values)}
                               </div>
                             )}
@@ -6026,7 +6540,7 @@ function ChatPage() {
                     value={bulkFunnelId}
                     onValueChange={(val) => {
                       setBulkFunnelId(val);
-                      const stages = salesStagesQuery.data?.filter((s: any) => s.funnel_id === val);
+                      const stages = salesStages.filter((stage) => stage.funnel_id === val);
                       if (stages && stages.length > 0) {
                         setBulkStageId(stages[0].id);
                       }
@@ -6036,7 +6550,7 @@ function ChatPage() {
                       <SelectValue placeholder="Selecione o Funil" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(salesFunnelsQuery.data ?? []).map((f: any) => (
+                      {salesFunnels.map((f) => (
                         <SelectItem key={f.id} value={f.id}>
                           {f.name}
                         </SelectItem>
@@ -6056,9 +6570,9 @@ function ChatPage() {
                       <SelectValue placeholder="Selecione a Etapa" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(salesStagesQuery.data ?? [])
-                        .filter((s: any) => s.funnel_id === bulkFunnelId)
-                        .map((s: any) => (
+                      {salesStages
+                        .filter((s) => s.funnel_id === bulkFunnelId)
+                        .map((s) => (
                           <SelectItem key={s.id} value={s.id}>
                             {s.name}
                           </SelectItem>

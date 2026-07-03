@@ -5,11 +5,219 @@ import db from "@/lib/db";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 
-function logInfo(message: string, data?: any) {
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+interface WebhookEntry {
+  changes?: WebhookChange[];
+}
+
+interface WebhookChange {
+  field?: string;
+  value?: WebhookValue;
+}
+
+interface WebhookContactProfile {
+  name?: string;
+}
+
+interface WebhookContact {
+  wa_id?: string;
+  profile?: WebhookContactProfile;
+}
+
+interface WebhookMessageStatus {
+  id?: string;
+  status?: string;
+  timestamp?: string;
+  errors?: JsonValue;
+  pricing?: {
+    billable?: boolean | null;
+    category?: string | null;
+    pricing_model?: string | null;
+  };
+  conversation?: {
+    id?: string | null;
+    origin?: {
+      type?: string | null;
+    };
+  };
+}
+
+interface WebhookInteractiveMessage {
+  type?: string;
+  button_reply?: {
+    title?: string;
+    id?: string;
+  };
+  list_reply?: {
+    title?: string;
+    id?: string;
+  };
+  nfm_reply?: {
+    name?: string;
+    response_json?: string;
+  };
+}
+
+interface WebhookMessageContactCard {
+  name?: {
+    formatted_name?: string;
+  };
+  phones?: Array<{
+    phone?: string;
+  }>;
+}
+
+interface WebhookInboundMessage {
+  id?: string;
+  from?: string;
+  type?: string;
+  group_id?: string | null;
+  group_name?: string | null;
+  recipient_type?: string | null;
+  text?: {
+    body?: string;
+  };
+  button?: {
+    text?: string;
+    payload?: string;
+  };
+  interactive?: WebhookInteractiveMessage;
+  reaction?: {
+    emoji?: string;
+  };
+  image?: {
+    id?: string;
+  };
+  audio?: {
+    id?: string;
+  };
+  video?: {
+    id?: string;
+  };
+  document?: {
+    id?: string;
+  };
+  sticker?: {
+    id?: string;
+  };
+  location?: {
+    name?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  contacts?: WebhookMessageContactCard[];
+  context?: {
+    message_id?: string | null;
+  };
+}
+
+interface WebhookValue {
+  metadata?: {
+    phone_number_id?: string;
+    display_phone_number?: string;
+  };
+  statuses?: WebhookMessageStatus[];
+  messages?: WebhookInboundMessage[];
+  contacts?: WebhookContact[];
+  message_template_id?: string;
+  message_template_name?: string;
+  message_template_language?: string;
+  event?: string;
+  new_category?: string;
+}
+
+interface WebhookPayload {
+  entry?: WebhookEntry[];
+}
+
+interface ProfileIdRow {
+  id: string;
+}
+
+interface ProfileWebhookRow extends ProfileIdRow {
+  whatsapp_app_secret?: string | null;
+  whatsapp_phone_number_id?: string | null;
+}
+
+interface CampaignMessageRow {
+  campaign_id: string | null;
+}
+
+interface ContactLookupRow extends ProfileIdRow {
+  name?: string | null;
+  custom_fields?: JsonObject | null;
+  chat_status?: string | null;
+}
+
+type GroupParticipantRow = ProfileIdRow;
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseJsonObject(value: unknown): JsonObject | null {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parseJsonObject(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const result: JsonObject = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (
+      entry === null ||
+      typeof entry === "string" ||
+      typeof entry === "number" ||
+      typeof entry === "boolean"
+    ) {
+      result[key] = entry;
+      continue;
+    }
+
+    if (Array.isArray(entry)) {
+      result[key] = entry as JsonValue[];
+      continue;
+    }
+
+    const nestedObject = parseJsonObject(entry);
+    if (nestedObject) {
+      result[key] = nestedObject;
+    }
+  }
+
+  return result;
+}
+
+function getJsonString(source: JsonObject | null, key: string): string | undefined {
+  const value = source?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function getNestedJsonObject(source: JsonObject | null, key: string): JsonObject | null {
+  const value = source?.[key];
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : null;
+}
+
+function logInfo(message: string, data?: unknown) {
   console.log(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
 }
 
-function logError(message: string, data?: any) {
+function logError(message: string, data?: unknown) {
   console.error(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
 }
 
@@ -24,7 +232,7 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
   }
 }
 
-function extractPhoneNumberIds(payload: any): string[] {
+function extractPhoneNumberIds(payload: WebhookPayload | null): string[] {
   const ids = new Set<string>();
   for (const entry of payload?.entry ?? []) {
     for (const change of entry?.changes ?? []) {
@@ -35,7 +243,11 @@ function extractPhoneNumberIds(payload: any): string[] {
   return Array.from(ids);
 }
 
-async function resolveWebhookUser(rawBody: string, signatureHeader: string | null, payload: any) {
+async function resolveWebhookUser(
+  rawBody: string,
+  signatureHeader: string | null,
+  payload: WebhookPayload | null,
+) {
   const envSecret = process.env.META_APP_SECRET;
   if (envSecret && (await verifySignature(rawBody, signatureHeader, envSecret))) {
     const phoneIds = extractPhoneNumberIds(payload);
@@ -45,10 +257,11 @@ async function resolveWebhookUser(rawBody: string, signatureHeader: string | nul
         .select("id")
         .in("whatsapp_phone_number_id", phoneIds)
         .limit(2);
-      if (byPhone && byPhone.length === 1) {
-        return { userId: byPhone[0].id as string, reason: "env_secret_phone_number_id" as const };
+      const typedByPhone = (byPhone ?? []) as ProfileIdRow[];
+      if (typedByPhone.length === 1) {
+        return { userId: typedByPhone[0].id, reason: "env_secret_phone_number_id" as const };
       }
-      if (byPhone && byPhone.length > 1) {
+      if (typedByPhone.length > 1) {
         return { userId: null, reason: "ambiguous_phone_number_id" as const };
       }
     }
@@ -59,8 +272,9 @@ async function resolveWebhookUser(rawBody: string, signatureHeader: string | nul
       .select("id")
       .not("whatsapp_phone_number_id", "is", null)
       .limit(2);
-    if (onlyOne && onlyOne.length === 1) {
-      return { userId: onlyOne[0].id as string, reason: "env_secret_single_profile" as const };
+    const typedOnlyOne = (onlyOne ?? []) as ProfileIdRow[];
+    if (typedOnlyOne.length === 1) {
+      return { userId: typedOnlyOne[0].id, reason: "env_secret_single_profile" as const };
     }
 
     return { userId: null, reason: "signature_ok_but_user_unknown" as const };
@@ -77,12 +291,12 @@ async function resolveWebhookUser(rawBody: string, signatureHeader: string | nul
     whatsapp_phone_number_id?: string | null;
   }> = [];
 
-  for (const profile of profiles ?? []) {
+  for (const profile of (profiles ?? []) as ProfileWebhookRow[]) {
     if (
       profile.whatsapp_app_secret &&
       (await verifySignature(rawBody, signatureHeader, profile.whatsapp_app_secret))
     ) {
-      verifiedProfiles.push(profile as any);
+      verifiedProfiles.push(profile);
     }
   }
 
@@ -124,7 +338,7 @@ const OPT_OUT_KEYWORDS = [
   "remover",
 ];
 
-async function processStatusUpdate(value: any, userId: string) {
+async function processStatusUpdate(value: WebhookValue | undefined, userId: string) {
   const statuses = value?.statuses ?? [];
   for (const s of statuses) {
     const waId = normalizeWaMessageId(s.id);
@@ -133,10 +347,10 @@ async function processStatusUpdate(value: any, userId: string) {
     const timestamp = s.timestamp
       ? new Date(Number(s.timestamp) * 1000).toISOString()
       : new Date().toISOString();
-    const update: any = {};
+    const update: Record<string, JsonValue> = {};
 
     const allowedCampaignStatuses = ["pending", "sending", "sent", "delivered", "read", "failed"];
-    if (allowedCampaignStatuses.includes(status)) {
+    if (typeof status === "string" && allowedCampaignStatuses.includes(status)) {
       update.status = status;
     }
 
@@ -157,7 +371,7 @@ async function processStatusUpdate(value: any, userId: string) {
     }
 
     // SECURITY: scope mutation to the verified user
-    let rows: any[] | null = null;
+    let rows: CampaignMessageRow[] | null = null;
     if (Object.keys(update).length > 0) {
       const { data } = await dbAdmin
         .from("campaign_messages")
@@ -165,12 +379,12 @@ async function processStatusUpdate(value: any, userId: string) {
         .eq("wa_message_id", waId)
         .eq("user_id", userId)
         .select("campaign_id");
-      rows = data;
+      rows = (data ?? null) as CampaignMessageRow[] | null;
     }
 
     // Update status in direct_messages table too
     const allowedDirectStatuses = ["sent", "delivered", "read", "failed"];
-    if (allowedDirectStatuses.includes(status)) {
+    if (typeof status === "string" && allowedDirectStatuses.includes(status)) {
       await dbAdmin
         .from("direct_messages")
         .update({ status })
@@ -184,8 +398,8 @@ async function processStatusUpdate(value: any, userId: string) {
         .eq("user_id", userId);
     }
 
-    const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id))).filter(
-      Boolean,
+    const campaignIds = Array.from(new Set((rows ?? []).map((row) => row.campaign_id))).filter(
+      (campaignId): campaignId is string => Boolean(campaignId),
     );
     if (campaignIds.length > 0) {
       for (const cid of campaignIds) {
@@ -212,7 +426,7 @@ async function processStatusUpdate(value: any, userId: string) {
   }
 }
 
-async function processInboundMessages(value: any, userId: string) {
+async function processInboundMessages(value: WebhookValue | undefined, userId: string) {
   const messages = value?.messages ?? [];
   for (const m of messages) {
     const from: string | undefined = m.from;
@@ -236,7 +450,7 @@ async function processInboundMessages(value: any, userId: string) {
   }
 }
 
-async function processInboundDirectMessages(value: any, userId: string) {
+async function processInboundDirectMessages(value: WebhookValue | undefined, userId: string) {
   const messages = value?.messages ?? [];
   const waContacts = value?.contacts ?? [];
   const waIdToName = new Map<string, string>();
@@ -274,15 +488,17 @@ async function processInboundDirectMessages(value: any, userId: string) {
     const contactName = waIdToName.get(phoneDigits) || "";
     const { data: existingContact } = await dbAdmin
       .from("contacts")
-    .select("id, name, custom_fields, chat_status")
+      .select("id, name, custom_fields, chat_status")
       .eq("user_id", userId)
       .eq("phone_e164", phoneDigits)
       .maybeSingle();
 
-    const existingCustomFields =
-      existingContact?.custom_fields && typeof existingContact.custom_fields === "object"
-        ? { ...(existingContact.custom_fields as Record<string, any>) }
-        : {};
+    const parsedExistingCustomFields = parseJsonObject(
+      (existingContact as ContactLookupRow | null)?.custom_fields,
+    );
+    const existingCustomFields = parsedExistingCustomFields
+      ? { ...parsedExistingCustomFields }
+      : {};
 
     await dbAdmin.from("contacts").upsert({
       user_id: userId,
@@ -291,7 +507,9 @@ async function processInboundDirectMessages(value: any, userId: string) {
       source: "whatsapp_inbound",
       is_unread: true,
       chat_status:
-        !existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado"
+        !existingContact ||
+        !existingContact.chat_status ||
+        existingContact.chat_status === "fechado"
           ? "aguardando"
           : undefined,
       custom_fields: {
@@ -302,7 +520,11 @@ async function processInboundDirectMessages(value: any, userId: string) {
       },
     });
 
-    if (!existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado") {
+    if (
+      !existingContact ||
+      !existingContact.chat_status ||
+      existingContact.chat_status === "fechado"
+    ) {
       const { data: refreshedContact } = await dbAdmin
         .from("contacts")
         .select("id")
@@ -359,30 +581,34 @@ async function processInboundDirectMessages(value: any, userId: string) {
     } else if (m.type === "interactive") {
       let isFlowReply = false;
       let flowToken = "";
-      let responseJsonObj: any = null;
+      let responseJsonObj: JsonObject | null = null;
 
       if (m.interactive?.type === "nfm_reply" && m.interactive.nfm_reply?.name === "flow") {
         const responseJsonStr = m.interactive.nfm_reply.response_json;
         if (responseJsonStr) {
           try {
-            responseJsonObj = JSON.parse(responseJsonStr);
-            flowToken = responseJsonObj?.flow_token || "";
+            responseJsonObj = parseJsonObject(responseJsonStr);
+            flowToken = getJsonString(responseJsonObj, "flow_token") || "";
             isFlowReply = true;
             body = "[Formulário Flow Enviado]";
 
+            const flowResponseParams = getNestedJsonObject(
+              responseJsonObj,
+              "wa_flow_response_params",
+            );
             // Grava a submissão
             const submissionId = randomUUID();
             await dbAdmin.from("whatsapp_flow_submissions").insert({
               id: submissionId,
               user_id: userId,
               contact_phone: phoneDigits,
-              flow_id: responseJsonObj?.wa_flow_response_params?.flow_id || "unknown",
+              flow_id: getJsonString(flowResponseParams, "flow_id") || "unknown",
               flow_token: flowToken,
               response_json: responseJsonObj,
             });
             logInfo("Submissão de Flow registrada com sucesso", { submissionId });
-          } catch (e: any) {
-            logError("Erro ao processar submissão do WhatsApp Flow", e);
+          } catch (error: unknown) {
+            logError("Erro ao processar submissão do WhatsApp Flow", error);
           }
         }
       }
@@ -413,16 +639,13 @@ async function processInboundDirectMessages(value: any, userId: string) {
 
           if (step && step.buttons_config) {
             try {
-              const configObj =
-                typeof step.buttons_config === "string"
-                  ? JSON.parse(step.buttons_config)
-                  : step.buttons_config;
+              const configObj = parseJsonObject(step.buttons_config);
               const nextSuccess = configObj?.next_step_on_success;
               if (nextSuccess) {
                 buttonPayload = `step:${nextSuccess}`;
               }
-            } catch (e: any) {
-              logError("Erro ao processar buttons_config do step original do flow", e);
+            } catch (error: unknown) {
+              logError("Erro ao processar buttons_config do step original do flow", error);
             }
           }
         }
@@ -467,7 +690,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
   }
 }
 
-async function processTemplateStatusUpdate(value: any, userId: string) {
+async function processTemplateStatusUpdate(value: WebhookValue | undefined, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const name = value?.message_template_name as string | undefined;
   const language = value?.message_template_language as string | undefined;
@@ -486,7 +709,7 @@ async function processTemplateStatusUpdate(value: any, userId: string) {
   };
   const status = event && statusMap[event];
   if (!status) return;
-  const update: any = { status, synced_at: new Date().toISOString() };
+  const update: Record<string, JsonValue> = { status, synced_at: new Date().toISOString() };
   if (metaId) {
     await dbAdmin
       .from("templates")
@@ -503,7 +726,7 @@ async function processTemplateStatusUpdate(value: any, userId: string) {
   }
 }
 
-async function processTemplateCategoryUpdate(value: any, userId: string) {
+async function processTemplateCategoryUpdate(value: WebhookValue | undefined, userId: string) {
   const metaId = value?.message_template_id ? String(value.message_template_id) : null;
   const newCategory = value?.new_category as string | undefined;
   if (!metaId || !newCategory) return;
@@ -515,11 +738,11 @@ async function processTemplateCategoryUpdate(value: any, userId: string) {
 }
 
 async function handleWhatsAppGroupMessage(
-  m: any,
+  m: WebhookInboundMessage,
   waIdToName: Map<string, string>,
   userId: string,
-  rawPayload: any,
-  phoneNumberId: string | null
+  rawPayload: WebhookValue | undefined,
+  phoneNumberId: string | null,
 ) {
   if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
     logInfo("Mensagem de grupo ignorada pois WHATSAPP_GROUPS_ENABLED não é true");
@@ -529,7 +752,7 @@ async function handleWhatsAppGroupMessage(
   const groupId = m.group_id || (m.recipient_type === "group" ? m.from : null);
   if (!groupId) return;
 
-  const senderWaId = m.from; // O participante
+  const senderWaId = m.from ?? ""; // O participante
   const senderName = waIdToName.get(senderWaId) || "Participante";
 
   // 1. Encontrar ou criar o grupo no banco
@@ -588,7 +811,11 @@ async function handleWhatsAppGroupMessage(
       .eq("id", existingContact.id);
   }
 
-  if (!existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado") {
+  if (
+    !existingContact ||
+    !existingContact.chat_status ||
+    existingContact.chat_status === "fechado"
+  ) {
     const { data: refreshedContact } = await dbAdmin
       .from("contacts")
       .select("id")
@@ -621,15 +848,18 @@ async function handleWhatsAppGroupMessage(
       status: "active",
     });
   } else {
-    await dbAdmin.from("whatsapp_group_participants").update({
-      name: senderName,
-      status: "active",
-    }).eq("id", existingParticipant.id);
+    await dbAdmin
+      .from("whatsapp_group_participants")
+      .update({
+        name: senderName,
+        status: "active",
+      })
+      .eq("id", (existingParticipant as GroupParticipantRow).id);
   }
 
   // 4. Salvar a mensagem na tabela direct_messages
   const waMessageId = normalizeWaMessageId(m.id);
-  let type = m.type ?? "text";
+  const type = m.type ?? "text";
   let body = "";
   if (m.type === "text") {
     body = m.text?.body ?? "";
@@ -650,31 +880,33 @@ async function handleWhatsAppGroupMessage(
     return;
   }
 
-  await dbAdmin.from("direct_messages").upsert({
-    id: randomUUID(),
-    user_id: userId,
-    contact_phone: groupId, // A conversa é vinculada ao ID do grupo
-    direction: "incoming",
-    type,
-    body,
-    wa_message_id: waMessageId,
-    status: "delivered",
-    reply_to_message_id,
-    channel: "whatsapp_group",
-    provider_account_id: phoneNumberId,
-    sender_wa_id: senderWaId,
-    sender_name: senderName,
-    recipient_type: "group",
-    external_group_id: groupId,
-    raw_payload: rawPayload,
-  }, { onConflict: "wa_message_id" });
+  await dbAdmin.from("direct_messages").upsert(
+    {
+      id: randomUUID(),
+      user_id: userId,
+      contact_phone: groupId, // A conversa é vinculada ao ID do grupo
+      direction: "incoming",
+      type,
+      body,
+      wa_message_id: waMessageId,
+      status: "delivered",
+      reply_to_message_id,
+      channel: "whatsapp_group",
+      provider_account_id: phoneNumberId,
+      sender_wa_id: senderWaId,
+      sender_name: senderName,
+      recipient_type: "group",
+      external_group_id: groupId,
+      raw_payload: rawPayload ?? null,
+    },
+    { onConflict: "wa_message_id" },
+  );
 
   // 🚀 Chama o motor do BotFlow para processar essa mensagem do grupo (se habilitado)
   if (process.env.WHATSAPP_GROUPS_ENABLED === "true" && phoneNumberId && body) {
     await processBotFlow(body, groupId, phoneNumberId, userId, undefined, "whatsapp_group");
   }
 }
-
 
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
   server: {
@@ -712,11 +944,11 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const sig = request.headers.get("x-hub-signature-256");
         logInfo("POST recebido", { hasSignature: !!sig, bytes: rawBody.length });
 
-        let payload: any = null;
+        let payload: WebhookPayload | null = null;
         try {
-          payload = JSON.parse(rawBody);
-        } catch (e: any) {
-          logError("POST inválido (JSON parse)", { error: e?.message });
+          payload = JSON.parse(rawBody) as WebhookPayload;
+        } catch (error: unknown) {
+          logError("POST inválido (JSON parse)", { error: getErrorMessage(error) });
           return new Response("Bad Request", { status: 400 });
         }
 
@@ -772,9 +1004,9 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               }
 
               logInfo("POST processado com sucesso", { eventId: evRow?.id ?? null });
-            } catch (err: any) {
+            } catch (error: unknown) {
               logError("Erro ao processar POST", {
-                error: err?.message,
+                error: getErrorMessage(error),
                 eventId: evRow?.id ?? null,
               });
             }
