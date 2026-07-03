@@ -62,7 +62,7 @@ export async function processAiAgent(
       .from("direct_messages")
       .select("direction, body, created_at")
       .eq("user_id", userId)
-      .eq("wa_id", phoneDigits)
+      .eq("contact_phone", phoneDigits)
       .order("created_at", { ascending: false })
       .limit(10);
 
@@ -71,7 +71,7 @@ export async function processAiAgent(
       const msgs = [...recentMsgs].reverse();
       historyText = msgs
         .map((m: any) => {
-          const who = m.direction === "inbound" ? "Cliente" : "Agente";
+          const who = m.direction === "incoming" ? "Cliente" : "Agente";
           return `${who}: ${m.body}`;
         })
         .join("\n");

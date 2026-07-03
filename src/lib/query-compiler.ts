@@ -708,8 +708,8 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
         )) as any[];
       } else if (table === "conversation_tags" && singleData.contact_number && singleData.tag_id) {
         rows = (await db.query(
-          `SELECT * FROM \`conversation_tags\` WHERE \`contact_number\` = ? AND \`tag_id\` = ?`,
-          [singleData.contact_number, singleData.tag_id],
+          `SELECT * FROM \`conversation_tags\` WHERE \`contact_number\` = ? AND \`tag_id\` = ? AND \`user_id\` = ?`,
+          [singleData.contact_number, singleData.tag_id, singleData.user_id || userId],
         )) as any[];
       } else if (table === "message_tags" && singleData.message_id && singleData.tag_id) {
         rows = (await db.query(

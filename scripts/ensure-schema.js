@@ -108,6 +108,48 @@ async function indexExists(connection, tableName, indexName) {
   return Number(rows?.[0]?.total ?? 0) > 0;
 }
 
+async function getPrimaryKeyColumns(connection, tableName) {
+  const [rows] = await connection.query(
+    `
+      SELECT COLUMN_NAME
+      FROM information_schema.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND CONSTRAINT_NAME = 'PRIMARY'
+      ORDER BY ORDINAL_POSITION
+    `,
+    [tableName],
+  );
+
+  return rows.map((row) => row.COLUMN_NAME);
+}
+
+async function ensureConversationTagsPrimaryKey(connection) {
+  const expectedColumns = ["contact_number", "tag_id", "user_id"];
+
+  if (!(await tableExists(connection, "conversation_tags"))) {
+    return;
+  }
+
+  const currentColumns = await getPrimaryKeyColumns(connection, "conversation_tags");
+  if (expectedColumns.join(",") === currentColumns.join(",")) {
+    return;
+  }
+
+  logSchema(
+    `Ajustando chave primária de conversation_tags de [${currentColumns.join(", ")}] para [${expectedColumns.join(", ")}].`,
+  );
+
+  if (currentColumns.length > 0) {
+    await connection.query("ALTER TABLE `conversation_tags` DROP PRIMARY KEY");
+  }
+
+  await connection.query(
+    "ALTER TABLE `conversation_tags` ADD PRIMARY KEY (`contact_number`, `tag_id`, `user_id`)",
+  );
+  logSchema("Chave primária de conversation_tags atualizada com sucesso.");
+}
+
 async function countDuplicateWaMessageGroups(connection) {
   const [rows] = await connection.query(`
     SELECT COUNT(*) AS total
@@ -262,11 +304,25 @@ async function ensureIndexExists(connection, tableName, indexName, definitionSql
     await connection.query(definitionSql);
     logSchema(`Índice ${indexName} criado com sucesso.`);
   } catch (err) {
-    console.error(`[Schema] Falha ao criar índice único ${indexName}.`, formatDbError(err));
-    console.error(
-      `[Schema] Motivo provável: existem duplicidades em ${tableName}(user_id, wa_message_id) ou dados inconsistentes impedindo a criação do índice.`,
-    );
-    console.error(`[Schema] Execute a rotina de deduplicação ou revise os dados.`);
+    const formattedError = formatDbError(err);
+    console.error(`[Schema] Falha ao criar índice ${indexName} em ${tableName}.`, formattedError);
+
+    if (tableName === "direct_messages" && indexName === "uq_direct_messages_user_wa_id") {
+      console.error(
+        "[Schema] Motivo provável: ainda existem duplicidades em direct_messages(user_id, wa_message_id) ou dados inconsistentes impedindo a criação do índice.",
+      );
+      console.error("[Schema] Execute a rotina de deduplicação ou revise os dados.");
+    } else if (formattedError?.code === "ER_DUP_KEYNAME" || formattedError?.errno === 1061) {
+      console.error(`[Schema] O índice ${indexName} já existe com outro nome ou definição equivalente.`);
+    } else if (formattedError?.code === "ER_DUP_ENTRY" || formattedError?.errno === 1062) {
+      console.error(
+        `[Schema] Existem registros duplicados na combinação exigida pelo índice ${indexName} em ${tableName}.`,
+      );
+    } else {
+      console.error(
+        `[Schema] Revise a definição do índice ${indexName} e os dados atuais da tabela ${tableName}.`,
+      );
+    }
     throw err;
   }
 }
@@ -591,12 +647,13 @@ export async function ensureDatabaseSchema() {
         contact_number VARCHAR(50) NOT NULL,
         tag_id VARCHAR(36) NOT NULL,
         user_id VARCHAR(36) NOT NULL,
-        PRIMARY KEY (contact_number, tag_id),
+        PRIMARY KEY (contact_number, tag_id, user_id),
         FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+    await ensureConversationTagsPrimaryKey(connection);
 
     await ensureTableExists(
       connection,
@@ -1440,7 +1497,7 @@ export async function ensureDatabaseSchema() {
         id VARCHAR(36) NOT NULL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
         contact_id VARCHAR(36) NOT NULL,
-        status VARCHAR(50) NOT NULL DEFAULT 'pendente',
+        status VARCHAR(50) NOT NULL DEFAULT 'aguardando',
         started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         answered_at DATETIME NULL,
         closed_at DATETIME NULL,
@@ -1452,6 +1509,9 @@ export async function ensureDatabaseSchema() {
       `
     );
     logSchema("Tabela chat_sessions validada/criada.");
+    await connection.query(
+      "UPDATE chat_sessions SET status = 'aguardando' WHERE status = 'pendente' AND closed_at IS NULL",
+    );
 
     // Insere flows de demonstração iniciais para testes locais
     try {

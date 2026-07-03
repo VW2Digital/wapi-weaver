@@ -305,6 +305,9 @@ function Dashboard() {
       <div className="flex-1 overflow-y-auto">
         {!isLicenseValid && (
           <div className="px-4 pt-4 sm:px-6">
+            {(() => {
+              const graceDaysRemaining = Number(lic.data?.graceDaysRemaining ?? 3);
+              return (
             <Alert variant="destructive" className="border-destructive/35 bg-destructive/5 text-destructive flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -317,7 +320,7 @@ function Dashboard() {
                   <AlertDescription className="mt-1 text-xs text-muted-foreground leading-relaxed">
                     {lic.data?.isAccessAllowed === false 
                       ? "Sua instalação está sem uma licença ativa válida e o envio de mensagens foi suspenso. Por favor, regularize sua licença com o suporte para restabelecer o serviço imediatamente." 
-                      : `Sua instalação está sem uma licença ativa válida. Evite o bloqueio do envio de mensagens em até ${lic.data?.graceDaysRemaining || 3} ${lic.data?.graceDaysRemaining === 1 ? 'dia' : 'dias'}. Entre em contato com o suporte.`}
+                      : `Sua instalação está sem uma licença ativa válida. Evite o bloqueio do envio de mensagens em até ${graceDaysRemaining} ${graceDaysRemaining === 1 ? 'dia' : 'dias'}. Entre em contato com o suporte.`}
                   </AlertDescription>
                 </div>
               </div>
@@ -330,6 +333,8 @@ function Dashboard() {
                 </a>
               </Button>
             </Alert>
+              );
+            })()}
           </div>
         )}
 

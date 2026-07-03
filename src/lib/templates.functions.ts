@@ -167,7 +167,7 @@ function buildMetaComponents(input: CreateTemplateInput) {
 
 export const createTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => createTemplateInput.parse(d))
+  .validator((d) => createTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
     const bodyPlaceholders = extractTemplatePlaceholders(data.body);
     if (bodyPlaceholders.length > 0) {
@@ -264,7 +264,7 @@ export type UpdateTemplateInput = z.infer<typeof updateTemplateInput>;
 
 export const updateTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => updateTemplateInput.parse(d))
+  .validator((d) => updateTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
     const bodyPlaceholders = extractTemplatePlaceholders(data.body);
     if (bodyPlaceholders.length > 0) {
@@ -362,7 +362,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
 
 export const deleteTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({ id: z.string().uuid(), deleteMode: z.enum(["single", "all"]).default("single") })
       .parse(d),
@@ -418,7 +418,7 @@ export const deleteTemplate = createServerFn({ method: "POST" })
 
 export const deleteTemplatesBulk = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ ids: z.array(z.string().uuid()).min(1).max(200) }).parse(d))
+  .validator((d) => z.object({ ids: z.array(z.string().uuid()).min(1).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: tpls } = await context.db
       .from("templates")
@@ -954,7 +954,7 @@ export const seedSampleTemplates = createServerFn({ method: "POST" })
 
 export const submitTemplateToMeta = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
     const { data: tpl, error: fetchErr } = await context.db
@@ -1045,7 +1045,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
 
 export const getMetaTemplateDetails = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({ id: z.string().uuid().optional(), meta_template_id: z.string().optional() })
       .parse(d),
@@ -1130,7 +1130,7 @@ export const getMetaTemplateDetails = createServerFn({ method: "GET" })
 
 export const listMetaTemplatesDirect = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator(
+  .validator(
     z.object({
       limit: z.number().int().min(1).max(100).optional(),
       after: z.string().optional(),

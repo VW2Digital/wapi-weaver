@@ -139,7 +139,7 @@ function LicenseDetailPage() {
       title: "Revogar Instância",
       description: `Tem certeza que deseja revogar esta conexão ativa da máquina do domínio ${domain}? Ela será recriada automaticamente na próxima requisição se o acesso continuar ativo.`,
       confirmText: "Revogar",
-      variant: "destructive"
+      destructive: true,
     });
     if (ok) {
       revokeMutation.mutate(actId);

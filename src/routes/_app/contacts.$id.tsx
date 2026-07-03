@@ -124,7 +124,7 @@ function ContactDetailPage() {
         action={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link to="/chat" search={{ phone: contact.phone_e164 } as any}>
+              <Link to="/chat" search={{ contactId: contact.id, phone: contact.phone_e164 } as any}>
                 <MessageSquare className="mr-2 h-4 w-4" /> Enviar mensagem
               </Link>
             </Button>

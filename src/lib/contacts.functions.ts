@@ -79,7 +79,7 @@ export const listContacts = createServerFn({ method: "GET" })
 
 export const createContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => contactInput.parse(d))
+  .validator((d) => contactInput.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -123,7 +123,7 @@ export const createContact = createServerFn({ method: "POST" })
 
 export const deleteContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -178,7 +178,7 @@ const updateContactInput = z.object({
 
 export const updateContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => updateContactInput.parse(d))
+  .validator((d) => updateContactInput.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -250,7 +250,7 @@ export const updateContact = createServerFn({ method: "POST" })
 
 export const getContactKanbanStages = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ contact_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ contact_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -297,7 +297,7 @@ export const getContactKanbanStages = createServerFn({ method: "GET" })
 
 export const getContactDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -363,7 +363,7 @@ export const getContactDetail = createServerFn({ method: "GET" })
 
 export const addContactNote = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z.object({
       contact_id: z.string().uuid(),
       body: z.string().trim().min(1),
@@ -454,7 +454,7 @@ const bulkInput = z.object({
 
 export const bulkUpsertContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => bulkInput.parse(d))
+  .validator((d) => bulkInput.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -500,7 +500,7 @@ const bulkIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(2000
 
 export const bulkDeleteContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => bulkIdsSchema.parse(d))
+  .validator((d) => bulkIdsSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -526,7 +526,7 @@ export const bulkDeleteContacts = createServerFn({ method: "POST" })
 
 export const bulkSetOptOut = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({ ids: z.array(z.string().uuid()).min(1).max(20000), opted_out: z.boolean() })
       .parse(d),
@@ -545,7 +545,7 @@ export const bulkSetOptOut = createServerFn({ method: "POST" })
 
 export const bulkAddContactsToList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         list_id: z.string().uuid(),
@@ -574,7 +574,7 @@ export const bulkAddContactsToList = createServerFn({ method: "POST" })
 
 export const bulkAddTagToContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         tag_id: z.string().uuid(),
@@ -644,7 +644,7 @@ export const autoFetchContactPhoto = createServerFn({ method: "POST" })
 
 export const removeTagFromContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         contact_id: z.string().uuid(),

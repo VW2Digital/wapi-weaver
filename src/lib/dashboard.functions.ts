@@ -17,9 +17,13 @@ async function countBefore(
 }
 
 async function countActiveSessionsByStatus(userId: string, status: string): Promise<number> {
+  const aliases = status === "aguardando" ? ["aguardando", "pendente"] : [status];
+  const placeholders = aliases.map(() => "?").join(", ");
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM chat_sessions WHERE user_id = ? AND status = ? AND closed_at IS NULL`,
-    [userId, status],
+    `SELECT COUNT(*) AS cnt
+     FROM chat_sessions
+     WHERE user_id = ? AND status IN (${placeholders}) AND closed_at IS NULL`,
+    [userId, ...aliases],
   )) as any[];
   return (rows?.[0]?.cnt as number) ?? 0;
 }

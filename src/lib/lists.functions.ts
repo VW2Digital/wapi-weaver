@@ -17,7 +17,7 @@ export const listTags = createServerFn({ method: "GET" })
 
 export const createTag = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         name: z.string().trim().min(1).max(40),
@@ -45,7 +45,7 @@ export const createTag = createServerFn({ method: "POST" })
 
 export const deleteTag = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -56,7 +56,7 @@ export const deleteTag = createServerFn({ method: "POST" })
 
 export const updateTag = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -100,7 +100,7 @@ export const listLists = createServerFn({ method: "GET" })
 
 export const createList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         name: z.string().trim().min(1).max(80),
@@ -125,7 +125,7 @@ export const createList = createServerFn({ method: "POST" })
 
 export const deleteList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -136,7 +136,7 @@ export const deleteList = createServerFn({ method: "POST" })
 
 export const updateList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -159,7 +159,7 @@ export const updateList = createServerFn({ method: "POST" })
 
 export const addContactsToList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         list_id: z.string().uuid(),
@@ -207,7 +207,7 @@ export const addContactsToList = createServerFn({ method: "POST" })
 
 export const removeContactFromList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z.object({ list_id: z.string().uuid(), contact_id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -224,7 +224,7 @@ export const removeContactFromList = createServerFn({ method: "POST" })
 
 export const getListContacts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ list_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ list_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
@@ -278,7 +278,7 @@ export const getListContacts = createServerFn({ method: "POST" })
 
 export const importCsvToList = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         list_id: z.string().uuid(),

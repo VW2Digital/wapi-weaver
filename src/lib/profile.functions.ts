@@ -46,7 +46,7 @@ export const getProfile = createServerFn({ method: "GET" })
 
 export const updateProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => credSchema.parse(d))
+  .validator((d) => credSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
 
@@ -110,7 +110,7 @@ export const pingMeta = createServerFn({ method: "POST" })
 
 export const sendTestMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         to: z.string().trim().min(5).max(40),
@@ -164,7 +164,7 @@ export const sendTestMessage = createServerFn({ method: "POST" })
  */
 export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ to: z.string().trim().min(5).max(40) }).parse(d))
+  .validator((d) => z.object({ to: z.string().trim().min(5).max(40) }).parse(d))
   .handler(async ({ data, context }) => {
     if (data.to.startsWith("ig_")) {
       return { ok: false, error: "Hello World não suportado para Instagram. Use o chat para testar." };
@@ -210,7 +210,7 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
  */
 export const getTestMessageStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ wamid: z.string().trim().min(5).max(200) }).parse(d))
+  .validator((d) => z.object({ wamid: z.string().trim().min(5).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     // SECURITY: o wamid precisa pertencer ao usuário autenticado antes de varrermos webhook_events.
     const { data: owned } = await dbAdmin
@@ -259,7 +259,7 @@ export const getTestMessageStatus = createServerFn({ method: "POST" })
 
 export const getQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
+  .validator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -306,7 +306,7 @@ export const listQRCodes = createServerFn({ method: "POST" })
 
 export const createQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         prefilled_message: z.string().trim(),
@@ -345,7 +345,7 @@ export const createQRCode = createServerFn({ method: "POST" })
 
 export const updateQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         code: z.string().trim().min(1),
@@ -389,7 +389,7 @@ export const updateQRCode = createServerFn({ method: "POST" })
 
 export const deleteQRCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
+  .validator((d) => z.object({ code: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -414,7 +414,7 @@ export const deleteQRCode = createServerFn({ method: "POST" })
 
 export const listOwnedWABAs = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -444,7 +444,7 @@ export const listOwnedWABAs = createServerFn({ method: "POST" })
 
 export const listClientWABAs = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ businessId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -474,7 +474,7 @@ export const listClientWABAs = createServerFn({ method: "POST" })
 
 export const getWABAInfo = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -503,7 +503,7 @@ export const getWABAInfo = createServerFn({ method: "POST" })
 
 export const updateWABA = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         wabaId: z.string().trim().min(5),
@@ -544,7 +544,7 @@ export const updateWABA = createServerFn({ method: "POST" })
 
 export const subscribeAppToWABA = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -573,7 +573,7 @@ export const subscribeAppToWABA = createServerFn({ method: "POST" })
 
 export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ wabaId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -603,7 +603,7 @@ export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
 
 export const registerPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -674,7 +674,7 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
 
 export const debugAccessToken = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ token: z.string().trim().min(10) }).parse(d))
+  .validator((d) => z.object({ token: z.string().trim().min(10) }).parse(d))
   .handler(async ({ data, context }) => {
     const apiVersion = "v20.0";
     const r = await fetch(
@@ -691,7 +691,7 @@ export const debugAccessToken = createServerFn({ method: "POST" })
 
 export const listAssignedWABAs = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ metaUserId: z.string().trim().min(1) }).parse(d))
+  .validator((d) => z.object({ metaUserId: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -721,7 +721,7 @@ export const listAssignedWABAs = createServerFn({ method: "POST" })
 
 export const getWABABotDetails = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ botId: z.string().trim().min(1) }).parse(d))
+  .validator((d) => z.object({ botId: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -749,7 +749,7 @@ export const getWABABotDetails = createServerFn({ method: "POST" })
 
 export const checkCallPermissions = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -789,7 +789,7 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
 
 export const manageCall = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -838,7 +838,7 @@ export const manageCall = createServerFn({ method: "POST" })
 
 export const sendAdvancedSandboxMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -884,7 +884,7 @@ export const sendAdvancedSandboxMessage = createServerFn({ method: "POST" })
 
 export const uploadMetaMedia = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -933,7 +933,7 @@ export const uploadMetaMedia = createServerFn({ method: "POST" })
 
 export const requestVerificationCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -973,7 +973,7 @@ export const requestVerificationCode = createServerFn({ method: "POST" })
 
 export const verifyVerificationCode = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -1011,7 +1011,7 @@ export const verifyVerificationCode = createServerFn({ method: "POST" })
 
 export const deregisterPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1038,7 +1038,7 @@ export const deregisterPhoneNumber = createServerFn({ method: "POST" })
 
 export const getPhoneSettings = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1066,7 +1066,7 @@ export const getPhoneSettings = createServerFn({ method: "POST" })
 
 export const updatePhoneSettings = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -1106,7 +1106,7 @@ export const updatePhoneSettings = createServerFn({ method: "POST" })
 
 export const getOBAStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1133,7 +1133,7 @@ export const getOBAStatus = createServerFn({ method: "POST" })
 
 export const applyForOBA = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -1172,7 +1172,7 @@ export const applyForOBA = createServerFn({ method: "POST" })
 
 export const getSinglePhoneInfo = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1202,7 +1202,7 @@ export const getSinglePhoneInfo = createServerFn({ method: "POST" })
 
 export const updatePhoneConfig = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
@@ -1238,7 +1238,7 @@ export const updatePhoneConfig = createServerFn({ method: "POST" })
 
 export const getSolutionDetails = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1267,7 +1267,7 @@ export const getSolutionDetails = createServerFn({ method: "POST" })
 
 export const acceptSolutionInvitation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1294,7 +1294,7 @@ export const acceptSolutionInvitation = createServerFn({ method: "POST" })
 
 export const rejectSolutionInvitation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1321,7 +1321,7 @@ export const rejectSolutionInvitation = createServerFn({ method: "POST" })
 
 export const sendSolutionDeactivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1355,7 +1355,7 @@ export const sendSolutionDeactivation = createServerFn({ method: "POST" })
 
 export const acceptSolutionDeactivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1386,7 +1386,7 @@ export const acceptSolutionDeactivation = createServerFn({ method: "POST" })
 
 export const rejectSolutionDeactivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
+  .validator((d) => z.object({ solutionId: z.string().trim().min(5) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: p } = await context.db
       .from("profiles")
@@ -1417,7 +1417,7 @@ export const rejectSolutionDeactivation = createServerFn({ method: "POST" })
 
 export const getSolutionAccessToken = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         solutionId: z.string().trim().min(5),

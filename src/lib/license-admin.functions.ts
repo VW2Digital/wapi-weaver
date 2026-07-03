@@ -24,7 +24,7 @@ async function assertAdmin(ctx: { userId: string }) {
 // 1. List licenses
 export const listLicenses = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator(
+  .validator(
     z.object({
       search: z.string().optional(),
       status: z.string().optional(),
@@ -82,7 +82,7 @@ export const listLicenses = createServerFn({ method: "GET" })
 // 2. Create license
 export const createLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator(
+  .validator(
     z.object({
       client_name: z.string().trim().min(1, "Nome do cliente é obrigatório"),
       client_email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
@@ -94,7 +94,7 @@ export const createLicense = createServerFn({ method: "POST" })
       expires_at: z.string().nullable().optional(),
       max_activations: z.number().default(99),
       max_users: z.number().nullable().optional(),
-      features_json: z.record(z.any()).optional(),
+      features_json: z.record(z.string(), z.any()).optional(),
       notes: z.string().optional()
     })
   )
@@ -189,7 +189,7 @@ export const getLicenseStats = createServerFn({ method: "GET" })
 // 4. Get individual license details
 export const getLicenseDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator(z.object({ id: z.number() }))
+  .validator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
@@ -223,7 +223,7 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
 // 5. Update license
 export const updateLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator(
+  .validator(
     z.object({
       id: z.number(),
       client_name: z.string().trim().min(1),
@@ -274,7 +274,7 @@ export const updateLicense = createServerFn({ method: "POST" })
 // 6. Delete license
 export const deleteLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator(z.object({ id: z.number() }))
+  .validator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
@@ -285,7 +285,7 @@ export const deleteLicense = createServerFn({ method: "POST" })
 // 7. Delete activation
 export const deleteActivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator(z.object({ id: z.number() }))
+  .validator(z.object({ id: z.number() }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 

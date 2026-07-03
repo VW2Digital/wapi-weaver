@@ -409,11 +409,23 @@ function CRMPage() {
   });
 
   const moveMutation = useMutation({
-    mutationFn: ({ id, toStageId }: { id: string; toStageId: string }) =>
+    mutationFn: ({
+      id,
+      toStageId,
+      beforeOppId,
+      afterOppId,
+    }: {
+      id: string;
+      toStageId: string;
+      beforeOppId?: string | null;
+      afterOppId?: string | null;
+    }) =>
       moveOpp({
         data: {
           id,
           to_stage_id: toStageId,
+          before_opportunity_id: beforeOppId ?? null,
+          after_opportunity_id: afterOppId ?? null,
         },
       }),
     onSuccess: () => {
@@ -423,8 +435,13 @@ function CRMPage() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const handleMoveCard = (id: string, toStageId: string) => {
-    moveMutation.mutate({ id, toStageId });
+  const handleMoveCard = (
+    id: string,
+    toStageId: string,
+    beforeOppId?: string | null,
+    afterOppId?: string | null,
+  ) => {
+    moveMutation.mutate({ id, toStageId, beforeOppId, afterOppId });
   };
 
   const formatCurrency = (val: number) => {

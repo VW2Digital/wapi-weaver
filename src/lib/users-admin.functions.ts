@@ -72,7 +72,7 @@ const createSchema = z.object({
 
 export const createUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => createSchema.parse(d))
+  .validator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { data: created, error } = await dbAdmin.auth.admin.createUser({
@@ -102,7 +102,7 @@ const roleSchema = z.object({
 
 export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => roleSchema.parse(d))
+  .validator((d) => roleSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     if (data.grant) {
@@ -133,7 +133,7 @@ const deleteSchema = z.object({ user_id: z.string().uuid() });
 
 export const deleteUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => deleteSchema.parse(d))
+  .validator((d) => deleteSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     if (data.user_id === context.userId) throw new Error("Você não pode excluir a si mesmo.");
@@ -150,7 +150,7 @@ const updateProfileSchema = z.object({
 
 export const updateUserProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => updateProfileSchema.parse(d))
+  .validator((d) => updateProfileSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     await db.query(
@@ -164,7 +164,7 @@ const activitySchema = z.object({ user_id: z.string().uuid() });
 
 export const getUserActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => activitySchema.parse(d))
+  .validator((d) => activitySchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const uid = data.user_id;

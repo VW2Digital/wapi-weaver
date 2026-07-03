@@ -74,7 +74,7 @@ export const getDetailedLicenseStatus = createServerFn({ method: "GET" })
 
 export const activateLicenseMutation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator(z.object({ licenseKey: z.string().min(1) }))
+  .validator(z.object({ licenseKey: z.string().min(1) }))
   .handler(async ({ data: { licenseKey }, context }) => {
     // Dynamically import activateLicense to avoid circular dependencies if any
     const { activateLicense } = await import("./license-verifier");
@@ -120,7 +120,7 @@ const settingsSchema = z.object({
 
 export const updatePlatformSettings = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => settingsSchema.parse(d))
+  .validator((d) => settingsSchema.parse(d))
   .handler(async ({ data, context }) => {
     const update: Record<string, any> = {
       updated_at: new Date().toISOString(),
@@ -269,7 +269,7 @@ export const listSchemaBackups = createServerFn({ method: "GET" })
 // Retorna o SQL completo de um backup específico para download.
 export const getSchemaBackup = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { data: row, error } = await context.db
@@ -329,7 +329,7 @@ export const createSchemaBackupNow = createServerFn({ method: "POST" })
 // Exclui um backup (apenas admins).
 export const deleteSchemaBackup = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { error } = await context.db.from("schema_backups").delete().eq("id", data.id);
@@ -358,7 +358,7 @@ export const getSidebarOrder = createServerFn({ method: "GET" })
 
 export const updateSidebarOrder = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ order: z.string().nullable() }).parse(d))
+  .validator((d) => z.object({ order: z.string().nullable() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { error } = await context.db.from("platform_settings").upsert({

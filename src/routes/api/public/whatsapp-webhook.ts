@@ -176,6 +176,12 @@ async function processStatusUpdate(value: any, userId: string) {
         .update({ status })
         .eq("wa_message_id", waId)
         .eq("user_id", userId);
+
+      await dbAdmin
+        .from("direct_messages")
+        .update({ status })
+        .eq("provider_message_id", waId)
+        .eq("user_id", userId);
     }
 
     const campaignIds = Array.from(new Set((rows ?? []).map((r: any) => r.campaign_id))).filter(
@@ -237,7 +243,10 @@ async function processInboundDirectMessages(value: any, userId: string) {
   for (const c of waContacts) {
     const waId = c?.wa_id ? String(c.wa_id) : null;
     const name = c?.profile?.name ? String(c.profile.name) : "";
-    if (waId) waIdToName.set(waId, name);
+    if (waId) {
+      waIdToName.set(waId, name);
+      waIdToName.set(waId.replace(/\D+/g, ""), name);
+    }
   }
 
   const phoneNumberId = value?.metadata?.phone_number_id
@@ -265,7 +274,7 @@ async function processInboundDirectMessages(value: any, userId: string) {
     const contactName = waIdToName.get(phoneDigits) || "";
     const { data: existingContact } = await dbAdmin
       .from("contacts")
-      .select("id, name, custom_fields")
+    .select("id, name, custom_fields, chat_status")
       .eq("user_id", userId)
       .eq("phone_e164", phoneDigits)
       .maybeSingle();
@@ -281,6 +290,10 @@ async function processInboundDirectMessages(value: any, userId: string) {
       name: contactName || existingContact?.name || undefined,
       source: "whatsapp_inbound",
       is_unread: true,
+      chat_status:
+        !existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado"
+          ? "aguardando"
+          : undefined,
       custom_fields: {
         ...existingCustomFields,
         wa_id: m.from,
@@ -288,6 +301,20 @@ async function processInboundDirectMessages(value: any, userId: string) {
         display_phone_number: displayPhoneNumber,
       },
     });
+
+    if (!existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado") {
+      const { data: refreshedContact } = await dbAdmin
+        .from("contacts")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("phone_e164", phoneDigits)
+        .maybeSingle();
+
+      if (refreshedContact?.id) {
+        const { startChatSession } = await import("@/lib/chat-sessions.functions");
+        await startChatSession(userId, refreshedContact.id, "aguardando");
+      }
+    }
 
     let type = m.type ?? "text";
     const allowedTypes = new Set([
@@ -406,7 +433,17 @@ async function processInboundDirectMessages(value: any, userId: string) {
 
     const reply_to_message_id = m.context?.message_id ?? null;
 
-    // Salva na tabela direct_messages (dedupe por wa_message_id via UNIQUE KEY)
+    const { data: existingMessage } = await dbAdmin
+      .from("direct_messages")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("wa_message_id", waMessageId)
+      .maybeSingle();
+
+    if (existingMessage?.id) {
+      continue;
+    }
+
     await dbAdmin.from("direct_messages").upsert({
       user_id: userId,
       contact_phone: phoneDigits,
@@ -482,7 +519,7 @@ async function handleWhatsAppGroupMessage(
   waIdToName: Map<string, string>,
   userId: string,
   rawPayload: any,
-  phoneNumberId: string
+  phoneNumberId: string | null
 ) {
   if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
     logInfo("Mensagem de grupo ignorada pois WHATSAPP_GROUPS_ENABLED não é true");
@@ -522,7 +559,7 @@ async function handleWhatsAppGroupMessage(
   // 2. Garantir que o contato virtual do grupo exista na tabela contacts (com canal 'whatsapp_group')
   const { data: existingContact } = await dbAdmin
     .from("contacts")
-    .select("id, name")
+    .select("id, name, chat_status")
     .eq("user_id", userId)
     .eq("phone_e164", groupId)
     .maybeSingle();
@@ -536,10 +573,33 @@ async function handleWhatsAppGroupMessage(
       source: "whatsapp_group",
       channel: "whatsapp_group",
       is_unread: true,
-      chat_status: "aberto",
+      chat_status: "aguardando",
     });
   } else {
-    await dbAdmin.from("contacts").update({ is_unread: true }).eq("id", existingContact.id);
+    await dbAdmin
+      .from("contacts")
+      .update({
+        is_unread: true,
+        chat_status:
+          !existingContact.chat_status || existingContact.chat_status === "fechado"
+            ? "aguardando"
+            : undefined,
+      })
+      .eq("id", existingContact.id);
+  }
+
+  if (!existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado") {
+    const { data: refreshedContact } = await dbAdmin
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("phone_e164", groupId)
+      .maybeSingle();
+
+    if (refreshedContact?.id) {
+      const { startChatSession } = await import("@/lib/chat-sessions.functions");
+      await startChatSession(userId, refreshedContact.id, "aguardando");
+    }
   }
 
   // 3. Atualizar/inserir o participante na tabela whatsapp_group_participants
@@ -578,6 +638,17 @@ async function handleWhatsAppGroupMessage(
   }
 
   const reply_to_message_id = m.context?.message_id ?? null;
+
+  const { data: existingGroupMessage } = await dbAdmin
+    .from("direct_messages")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("wa_message_id", waMessageId)
+    .maybeSingle();
+
+  if (existingGroupMessage?.id) {
+    return;
+  }
 
   await dbAdmin.from("direct_messages").upsert({
     id: randomUUID(),

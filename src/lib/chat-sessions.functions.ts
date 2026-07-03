@@ -1,7 +1,12 @@
 import crypto from "crypto";
 import db from "./db";
 
+function normalizeSessionStatus(status: string) {
+  return status === "pendente" ? "aguardando" : status;
+}
+
 export async function startChatSession(userId: string, contactId: string, status: string = 'aguardando') {
+  const normalizedStatus = normalizeSessionStatus(status);
   const sessionId = crypto.randomUUID();
   // Check if there is already an active session (not closed)
   const existing: any[] = await db.query(
@@ -13,7 +18,7 @@ export async function startChatSession(userId: string, contactId: string, status
     // If there is an active session, just update its status if needed
     await db.query(
       "UPDATE chat_sessions SET status = ? WHERE id = ?",
-      [status, existing[0].id]
+      [normalizedStatus, existing[0].id]
     );
     return existing[0].id;
   }
@@ -21,7 +26,7 @@ export async function startChatSession(userId: string, contactId: string, status
   // Otherwise, create a new one
   await db.query(
     "INSERT INTO chat_sessions (id, user_id, contact_id, status) VALUES (?, ?, ?, ?)",
-    [sessionId, userId, contactId, status]
+    [sessionId, userId, contactId, normalizedStatus]
   );
   return sessionId;
 }

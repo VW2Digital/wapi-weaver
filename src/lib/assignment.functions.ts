@@ -5,6 +5,47 @@ import db from "./db";
 import { resolveEffectiveUserId } from "./chat-helpers";
 import crypto from "crypto";
 
+const normalizeContactPhone = (value: string) => {
+  if (
+    value.startsWith("ig_") ||
+    value.startsWith("fb_") ||
+    value.endsWith("@g.us") ||
+    value.endsWith("@temp")
+  ) {
+    return value;
+  }
+
+  return value.replace(/\D/g, "");
+};
+
+async function ensureTeamBelongsToWorkspace(teamId: string, effectiveUserId: string) {
+  const rows = await db.query("SELECT id FROM teams WHERE id = ? AND user_id = ? LIMIT 1", [
+    teamId,
+    effectiveUserId,
+  ]);
+
+  if (!rows || rows.length === 0) {
+    throw new Error("Equipe não encontrada ou acesso negado.");
+  }
+}
+
+async function ensureAgentBelongsToWorkspace(agentId: string, effectiveUserId: string) {
+  if (agentId === effectiveUserId) return;
+
+  const rows = await db.query(
+    `SELECT 1
+     FROM team_members tm
+     JOIN teams t ON t.id = tm.team_id
+     WHERE t.user_id = ? AND tm.user_id = ?
+     LIMIT 1`,
+    [effectiveUserId, agentId],
+  );
+
+  if (!rows || rows.length === 0) {
+    throw new Error("O agente informado não pertence a este workspace.");
+  }
+}
+
 export const listTeams = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -29,6 +70,8 @@ export const listTeamMembers = createServerFn({ method: "POST" })
   .validator((d) => z.object({ teamId: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     try {
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
+      await ensureTeamBelongsToWorkspace(data.teamId, effectiveUserId);
       const members = await db.query(
         `SELECT tm.id, tm.team_id, tm.user_id, tm.role, p.full_name, p.display_name, u.email
          FROM team_members tm
@@ -48,11 +91,16 @@ export const listAllAgents = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     try {
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
       const agents = await db.query(
-        `SELECT p.id, p.full_name, p.display_name, u.email
-         FROM profiles p
-         JOIN users u ON u.id = p.id
+        `SELECT DISTINCT u.id, p.full_name, p.display_name, u.email
+         FROM users u
+         LEFT JOIN profiles p ON p.id = u.id
+         LEFT JOIN team_members tm ON tm.user_id = u.id
+         LEFT JOIN teams t ON t.id = tm.team_id
+         WHERE u.id = ? OR t.user_id = ?
          ORDER BY COALESCE(p.full_name, p.display_name, u.email) ASC`,
+        [effectiveUserId, effectiveUserId],
       );
       return agents;
     } catch (e: any) {
@@ -72,14 +120,26 @@ export const assignConversation = createServerFn({ method: "POST" })
   .validator((d) => assignInput.parse(d))
   .handler(async ({ data, context }) => {
     try {
-      const phone = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
+      const phone = normalizeContactPhone(data.contactPhone);
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+      if (data.teamId) {
+        await ensureTeamBelongsToWorkspace(data.teamId, effectiveUserId);
+      }
+
+      if (data.agentId) {
+        await ensureAgentBelongsToWorkspace(data.agentId, effectiveUserId);
+      }
 
       // 1. Validar associação do agente com a equipe se ambos forem informados
       if (data.teamId && data.agentId) {
         const members = await db.query(
-          "SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?",
-          [data.teamId, data.agentId],
+          `SELECT 1
+           FROM team_members tm
+           JOIN teams t ON t.id = tm.team_id
+           WHERE tm.team_id = ? AND tm.user_id = ? AND t.user_id = ?
+           LIMIT 1`,
+          [data.teamId, data.agentId, effectiveUserId],
         );
         if (!members || members.length === 0) {
           throw new Error("O agente informado não pertence a esta equipe.");
@@ -119,8 +179,9 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      const phone = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
+      const phone = normalizeContactPhone(data.contactPhone);
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
+      await ensureTeamBelongsToWorkspace(data.teamId, effectiveUserId);
 
       // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos,
       // incluindo todos os agentes cadastrados na equipe
@@ -169,13 +230,18 @@ export const selfAssignConversation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      const phone = data.contactPhone.startsWith("ig_") || data.contactPhone.startsWith("fb_") ? data.contactPhone : data.contactPhone.replace(/\D/g, "");
+      const phone = normalizeContactPhone(data.contactPhone);
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
+      await ensureTeamBelongsToWorkspace(data.teamId, effectiveUserId);
 
       // Verifica se o usuário atual é membro da equipe (administrador tem permissão bypass)
       const member = await db.query(
-        "SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?",
-        [data.teamId, context.userId],
+        `SELECT 1
+         FROM team_members tm
+         JOIN teams t ON t.id = tm.team_id
+         WHERE tm.team_id = ? AND tm.user_id = ? AND t.user_id = ?
+         LIMIT 1`,
+        [data.teamId, context.userId, effectiveUserId],
       );
       const isAdmin = context.userId === effectiveUserId;
       if (!isAdmin && (!member || member.length === 0)) {

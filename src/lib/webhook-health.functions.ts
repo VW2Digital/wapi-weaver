@@ -51,7 +51,7 @@ export const getWebhookHealth = createServerFn({ method: "GET" })
  */
 export const listWebhookEvents = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((data: { limit?: number; onlyUnprocessed?: boolean }) => ({
+  .validator((data: { limit?: number; onlyUnprocessed?: boolean }) => ({
     limit: Math.min(Math.max(data?.limit ?? 50, 1), 200),
     onlyUnprocessed: !!data?.onlyUnprocessed,
   }))

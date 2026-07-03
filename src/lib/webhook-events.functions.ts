@@ -3,7 +3,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 export const listMyWebhookEvents = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((data: { limit?: number } | undefined) => ({
+  .validator((data: { limit?: number } | undefined) => ({
     limit: Math.min(Math.max(data?.limit ?? 100, 1), 500),
   }))
   .handler(async ({ context, data }) => {

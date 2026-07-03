@@ -4,7 +4,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 
 export const getBillingReport = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         // ISO yyyy-mm — default: mês corrente

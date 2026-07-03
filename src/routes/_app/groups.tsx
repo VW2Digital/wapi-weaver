@@ -147,8 +147,8 @@ function GroupsPage() {
       <div className="p-6 shrink-0 border-b border-border bg-card">
         <PageHeader
           title="Grupos de WhatsApp"
-          description="Crie e gerencie grupos oficiais do WhatsApp diretamente pela API Cloud da Meta."
-        >
+          subtitle="Crie e gerencie grupos oficiais do WhatsApp diretamente pela API Cloud da Meta."
+          action={
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90 shadow-md">
@@ -159,7 +159,7 @@ function GroupsPage() {
               <DialogHeader>
                 <DialogTitle>Criar Novo Grupo</DialogTitle>
                 <DialogDescription>
-                  Insira as informações básicas para criar o grupo no WhatsApp oficial da Meta.
+                  Cadastre um grupo para uso interno na plataforma. A criação automática oficial na Meta ainda não está disponível neste fluxo.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
@@ -208,7 +208,8 @@ function GroupsPage() {
               </form>
             </DialogContent>
           </Dialog>
-        </PageHeader>
+          }
+        />
       </div>
 
       <div className="p-6 flex-1 overflow-y-auto space-y-6">

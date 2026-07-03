@@ -9,7 +9,12 @@ import {
   markMessagesAsRead,
 } from "@/lib/chat.functions";
 import { sendGroupMessage } from "@/lib/groups.functions";
-import { updateContactProfilePhoto, createContact, deleteContact, autoFetchContactPhoto } from "@/lib/contacts.functions";
+import {
+  updateContactProfilePhoto,
+  createContact,
+  deleteContact,
+  autoFetchContactPhoto,
+} from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
 import {
   listTeams,
@@ -43,12 +48,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -69,6 +69,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
+  type LucideIcon,
   Send,
   Image as ImageIcon,
   Reply,
@@ -136,8 +137,102 @@ export const Route = createFileRoute("/_app/chat")({
   component: ChatPage,
 });
 
+interface ContactCustomFields {
+  avatar_url?: string;
+  photo_url?: string;
+  photo?: string;
+  picture?: string;
+  image_url?: string;
+  image?: string;
+  is_blocked?: boolean;
+  [key: string]: unknown;
+}
+
+interface ChatContactRecord {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone_e164?: string | null;
+  active_team_id?: string | null;
+  active_team_name?: string | null;
+  active_agent_id?: string | null;
+  active_agent_name?: string | null;
+  unread_count?: number | null;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+  is_unread?: boolean;
+  opted_out?: boolean;
+  custom_fields?: ContactCustomFields | null;
+  [key: string]: unknown;
+}
+
+interface TeamOption {
+  id: string;
+  name?: string | null;
+}
+
+interface AgentOption {
+  id: string;
+  full_name?: string | null;
+  display_name?: string | null;
+  email?: string | null;
+}
+
+interface InventoryProduct {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  isUnlimited: boolean;
+}
+
+interface SalesFunnelOption {
+  id: string;
+  is_default?: boolean | null;
+}
+
+interface SalesStageOption {
+  id: string;
+  funnel_id?: string | null;
+}
+
+interface ChatTagRecord {
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+}
+
+interface AutoAssignResult {
+  agentId?: string | null;
+}
+
+interface QuickSaveResult {
+  previousPhone?: string | null;
+  phone?: string | null;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Erro inesperado";
+}
+
+function getAgentDisplayName(agent?: AgentOption | null): string | null {
+  return agent?.full_name || agent?.display_name || agent?.email || null;
+}
+
+function isInventoryProduct(value: unknown): value is InventoryProduct {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<InventoryProduct>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.price === "number" &&
+    typeof candidate.stock === "number" &&
+    typeof candidate.isUnlimited === "boolean"
+  );
+}
+
 /** Extrai a URL de foto de perfil dos custom_fields do contato, seguindo o mesmo padrão do CRM */
-function getContactAvatarUrl(contact: any): string {
+function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   const cf = contact?.custom_fields;
   if (!cf || typeof cf !== "object") return "";
   return cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
@@ -175,11 +270,21 @@ function formatPhone(phone: string): string {
   return `+${phone}`;
 }
 
-function ChannelBadge({ channel, className = "h-2.5 w-2.5" }: { channel: string; className?: string }) {
+function ChannelBadge({
+  channel,
+  className = "h-2.5 w-2.5",
+}: {
+  channel: string;
+  className?: string;
+}) {
   if (channel === "instagram") {
     return (
       <div className="bg-pink-600 p-0.5 rounded-full text-white flex items-center justify-center">
-        <svg viewBox="0 0 24 24" className={`${className} fill-none stroke-current stroke-2`} xmlns="http://www.w3.org/2000/svg">
+        <svg
+          viewBox="0 0 24 24"
+          className={`${className} fill-none stroke-current stroke-2`}
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
           <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
           <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
@@ -190,7 +295,11 @@ function ChannelBadge({ channel, className = "h-2.5 w-2.5" }: { channel: string;
   if (channel === "messenger") {
     return (
       <div className="bg-blue-600 p-0.5 rounded-full text-white flex items-center justify-center">
-        <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
+        <svg
+          viewBox="0 0 24 24"
+          className={`${className} fill-current`}
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.914 1.453 5.508 3.738 7.18v3.743c0 .285.31.464.556.32l4.137-2.42c.504.07 1.02.11 1.569.11 5.523 0 10-4.146 10-9.26C22 6.144 17.523 2 12 2zm1.096 12.062l-2.616-2.79-5.1 2.79 5.6-5.95 2.616 2.79 5.1-2.79-5.6 5.95z" />
         </svg>
       </div>
@@ -198,23 +307,34 @@ function ChannelBadge({ channel, className = "h-2.5 w-2.5" }: { channel: string;
   }
   if (channel === "whatsapp_group") {
     return (
-      <div className="bg-indigo-600 p-0.5 rounded-full text-white flex items-center justify-center" title="Grupo de WhatsApp">
-        <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
-          <path d="M17 11c.966 0 1.75-.784 1.75-1.75S17.966 7.5 17 7.5s-1.75.784-1.75 1.75.784 1.75 1.75 1.75zm-10 0c.966 0 1.75-.784 1.75-1.75S7.966 7.5 7 7.5 5.25 8.284 5.25 9.25 6.034 11 7 11zm5 .5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5-2.5 1.12-2.5 2.5 1.12 2.5 2.5 2.5zm5 2.5c-1.1 0-2.03.63-2.5 1.54-.47-.91-1.4-1.54-2.5-1.54s-2.03.63-2.5 1.54c-.47-.91-1.4-1.54-2.5-1.54-1.66 0-3 1.34-3 3v1h16v-1c0-1.66-1.34-3-3-3zm-10 0c-.8 0-1.5.3-2.05.8-.18-.48-.45-.9-.8-1.25.75-.85 1.83-1.35 3.05-1.35.53 0 1.03.1 1.5.3-.65.65-1.1 1.5-1.1 2.5zm10 0c0-1-.45-1.85-1.1-2.5.47-.2.97-.3 1.5-.3 1.22 0 2.3.5 3.05 1.35-.35.35-.62.77-.8 1.25-.55-.5-1.25-.8-2.05-.8z"/>
+      <div
+        className="bg-indigo-600 p-0.5 rounded-full text-white flex items-center justify-center"
+        title="Grupo de WhatsApp"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className={`${className} fill-current`}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M17 11c.966 0 1.75-.784 1.75-1.75S17.966 7.5 17 7.5s-1.75.784-1.75 1.75.784 1.75 1.75 1.75zm-10 0c.966 0 1.75-.784 1.75-1.75S7.966 7.5 7 7.5 5.25 8.284 5.25 9.25 6.034 11 7 11zm5 .5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5-2.5 1.12-2.5 2.5 1.12 2.5 2.5 2.5zm5 2.5c-1.1 0-2.03.63-2.5 1.54-.47-.91-1.4-1.54-2.5-1.54s-2.03.63-2.5 1.54c-.47-.91-1.4-1.54-2.5-1.54-1.66 0-3 1.34-3 3v1h16v-1c0-1.66-1.34-3-3-3zm-10 0c-.8 0-1.5.3-2.05.8-.18-.48-.45-.9-.8-1.25.75-.85 1.83-1.35 3.05-1.35.53 0 1.03.1 1.5.3-.65.65-1.1 1.5-1.1 2.5zm10 0c0-1-.45-1.85-1.1-2.5.47-.2.97-.3 1.5-.3 1.22 0 2.3.5 3.05 1.35-.35.35-.62.77-.8 1.25-.55-.5-1.25-.8-2.05-.8z" />
         </svg>
       </div>
     );
   }
   return (
     <div className="bg-emerald-500 p-0.5 rounded-full text-white flex items-center justify-center">
-      <svg viewBox="0 0 24 24" className={`${className} fill-current`} xmlns="http://www.w3.org/2000/svg">
+      <svg
+        viewBox="0 0 24 24"
+        className={`${className} fill-current`}
+        xmlns="http://www.w3.org/2000/svg"
+      >
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
       </svg>
     </div>
   );
 }
 
-const TAG_ICONS: Record<string, any> = {
+const TAG_ICONS: Record<string, LucideIcon> = {
   Tag,
   Star,
   Heart,
@@ -233,7 +353,7 @@ function TagBadge({
   className,
   showName = true,
 }: {
-  tag: any;
+  tag: ChatTagRecord | null;
   className?: string;
   showName?: boolean;
 }) {
@@ -266,7 +386,7 @@ function ChatPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
 
-  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [selectedContact, setSelectedContact] = useState<ChatContactRecord | null>(null);
 
   // Atribuição de Atendimentos e Equipes
   const fetchTeamsFn = useServerFn(listTeams);
@@ -292,6 +412,11 @@ function ChatPage() {
     enabled: !!selectedTeamId,
   });
 
+  const teams = (teamsQuery.data ?? []) as TeamOption[];
+  const agents = (agentsQuery.data ?? []) as AgentOption[];
+  const getTeamName = (teamId?: string | null) => teams.find((team) => team.id === teamId)?.name ?? null;
+  const getAgentById = (agentId?: string | null) => agents.find((agent) => agent.id === agentId);
+
   const assignMutation = useMutation({
     mutationFn: async (payload: {
       teamId: string | null;
@@ -308,12 +433,23 @@ function ChatPage() {
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact((prev) =>
+        prev
+          ? {
+              ...prev,
+              active_team_id: variables.teamId,
+              active_agent_id: variables.agentId,
+              active_team_name: getTeamName(variables.teamId),
+              active_agent_name: getAgentDisplayName(getAgentById(variables.agentId)),
+            }
+          : prev,
+      );
       toast.success("Atendimento atribuído com sucesso!");
     },
-    onError: (err: any) => {
-      toast.error("Erro ao atribuir: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao atribuir: " + getErrorMessage(err));
     },
   });
 
@@ -330,16 +466,29 @@ function ChatPage() {
         },
       });
     },
-    onSuccess: (res: any) => {
+    onSuccess: (res: AutoAssignResult, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      const targetTeamId = typeof variables === "string" ? variables : variables.teamId;
+      const assignedAgent = getAgentById(res.agentId);
+      setSelectedContact((prev) =>
+        prev
+          ? {
+              ...prev,
+              active_team_id: targetTeamId,
+              active_agent_id: res.agentId ?? null,
+              active_team_name: getTeamName(targetTeamId),
+              active_agent_name: getAgentDisplayName(assignedAgent),
+            }
+          : prev,
+      );
       if (res.agentId) {
         toast.success("Auto-atribuição concluída!");
       } else {
         toast.warning("Nenhum agente disponível. O chat ficou na fila da equipe.");
       }
     },
-    onError: (err: any) => {
-      toast.error("Erro ao auto-atribuir: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao auto-atribuir: " + getErrorMessage(err));
     },
   });
 
@@ -354,18 +503,30 @@ function ChatPage() {
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      const currentAgent = getAgentById(profile?.id);
+      setSelectedContact((prev) =>
+        prev
+          ? {
+              ...prev,
+              active_team_id: variables.teamId,
+              active_agent_id: profile?.id ?? null,
+              active_team_name: getTeamName(variables.teamId),
+              active_agent_name: getAgentDisplayName(currentAgent),
+            }
+          : prev,
+      );
       toast.success("Conversa atribuída a você!");
     },
-    onError: (err: any) => {
-      toast.error("Erro ao atribuir a você: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao atribuir a você: " + getErrorMessage(err));
     },
   });
 
   // Novos estados para diálogos de ações de chat
-  const [quickSaveContactData, setQuickSaveContactData] = useState<any>(null);
-  const [assigningContactData, setAssigningContactData] = useState<any>(null);
+  const [quickSaveContactData, setQuickSaveContactData] = useState<ChatContactRecord | null>(null);
+  const [assigningContactData, setAssigningContactData] = useState<ChatContactRecord | null>(null);
 
   // Estados para novas ações rápidas
   const [isQuickOpportunityOpen, setIsQuickOpportunityOpen] = useState(false);
@@ -387,12 +548,17 @@ function ChatPage() {
   const [followUpDate, setFollowUpDate] = useState("");
 
   // Estados para Gerenciar Estoque
-  const [products, setProducts] = useState<any[]>(() => {
+  const [products, setProducts] = useState<InventoryProduct[]>(() => {
     if (typeof window !== "undefined") {
       try {
         const val = localStorage.getItem("inventory:products");
-        if (val) return JSON.parse(val);
-      } catch (e) {}
+        if (val) {
+          const parsed: unknown = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            return parsed.filter(isInventoryProduct);
+          }
+        }
+      } catch {}
     }
     return [
       { id: "prod-1", name: "Plano Mensal Bliv", price: 97.0, stock: 9999, isUnlimited: true },
@@ -413,7 +579,7 @@ function ChatPage() {
       const updated = prev.map((p) => (p.id === id ? { ...p, stock: newStock } : p));
       try {
         localStorage.setItem("inventory:products", JSON.stringify(updated));
-      } catch (e) {}
+      } catch {}
       return updated;
     });
   };
@@ -481,19 +647,20 @@ function ChatPage() {
     },
   });
 
+  const salesFunnels = (salesFunnelsQuery.data ?? []) as SalesFunnelOption[];
+  const salesStages = (salesStagesQuery.data ?? []) as SalesStageOption[];
+
   // Pre-fill Opportunity Form when opened
   useEffect(() => {
     if (isQuickOpportunityOpen && selectedContact) {
       setOppTitle(`Oportunidade - ${selectedContact.name || selectedContact.phone_e164}`);
       setOppValue(0);
 
-      const defaultFunnel =
-        salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+      const defaultFunnel = salesFunnels.find((funnel) => funnel.is_default) || salesFunnels[0];
       if (defaultFunnel) {
         setOppFunnelId(defaultFunnel.id);
         const defaultStage =
-          salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) ||
-          salesStagesQuery.data?.[0];
+          salesStages.find((stage) => stage.funnel_id === defaultFunnel.id) || salesStages[0];
         if (defaultStage) {
           setOppStageId(defaultStage.id);
         }
@@ -512,12 +679,15 @@ function ChatPage() {
   const pinMutation = useMutation({
     mutationFn: async (payload: { contactId: string; isPinned: boolean }) =>
       togglePinContactFn({ data: payload }),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact((prev) =>
+        prev?.id === variables.contactId ? { ...prev, is_pinned: variables.isPinned } : prev,
+      );
       toast.success("Alteração de pinagem salva!");
     },
-    onError: (err: any) => {
-      toast.error("Erro: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro: " + getErrorMessage(err));
     },
   });
 
@@ -526,10 +696,15 @@ function ChatPage() {
       toggleArchiveContactFn({ data: payload }),
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact((prev) => {
+        if (prev?.id !== variables.contactId) return prev;
+        if (variables.isArchived && filterView !== "archived") return null;
+        return { ...prev, is_archived: variables.isArchived };
+      });
       toast.success(variables.isArchived ? "Conversa arquivada!" : "Conversa desarquivada!");
     },
-    onError: (err: any) => {
-      toast.error("Erro: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro: " + getErrorMessage(err));
     },
   });
 
@@ -540,8 +715,8 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       toast.success("Status de atendimento atualizado!");
     },
-    onError: (err: any) => {
-      toast.error("Erro: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro: " + getErrorMessage(err));
     },
   });
 
@@ -550,12 +725,20 @@ function ChatPage() {
       toggleUnreadContactFn({ data: payload }),
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact((prev) => {
+        if (prev?.id !== variables.contactId) return prev;
+        return {
+          ...prev,
+          is_unread: variables.isUnread,
+          unread_count: variables.isUnread ? Math.max(prev?.unread_count ?? 0, 1) : 0,
+        };
+      });
       toast.success(
         variables.isUnread ? "Conversa marcada como não lida!" : "Conversa marcada como lida!",
       );
     },
-    onError: (err: any) => {
-      toast.error("Erro: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro: " + getErrorMessage(err));
     },
   });
 
@@ -566,8 +749,8 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       toast.success("Etapa do Kanban atualizada!");
     },
-    onError: (err: any) => {
-      toast.error("Erro: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro: " + getErrorMessage(err));
     },
   });
 
@@ -578,13 +761,33 @@ function ChatPage() {
       email: string;
       phone: string;
     }) => quickSaveContactFn({ data: payload }),
-    onSuccess: () => {
+    onSuccess: (result: QuickSaveResult, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      if (result?.previousPhone) {
+        qc.invalidateQueries({ queryKey: ["chat-messages", result.previousPhone] });
+        qc.invalidateQueries({ queryKey: ["chat-contact-details", result.previousPhone] });
+      }
+      if (result?.phone) {
+        qc.invalidateQueries({ queryKey: ["chat-messages", result.phone] });
+        qc.invalidateQueries({ queryKey: ["chat-contact-details", result.phone] });
+      }
+      if (selectedContact?.id === variables.contactId && result?.phone) {
+        setSelectedContact((prev) =>
+          prev
+            ? {
+                ...prev,
+                name: variables.name,
+                email: variables.email || null,
+                phone_e164: result.phone,
+              }
+            : prev,
+        );
+      }
       toast.success("Contato atualizado com sucesso!");
       setQuickSaveContactData(null);
     },
-    onError: (err: any) => {
-      toast.error("Erro ao salvar contato: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao salvar contato: " + getErrorMessage(err));
     },
   });
 
@@ -595,13 +798,13 @@ function ChatPage() {
       toast.success("Contato excluído do sistema!");
       setSelectedContact(null);
     },
-    onError: (err: any) => {
-      toast.error("Erro ao excluir: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao excluir: " + getErrorMessage(err));
     },
   });
 
   const botActiveMutation = useMutation({
-    mutationFn: async (payload: { contactPhone: string; botActive: boolean }) =>
+    mutationFn: async (payload: { contactPhone: string; botActive: boolean; channel: string }) =>
       toggleBotActive({ data: payload }),
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
@@ -612,8 +815,8 @@ function ChatPage() {
           : "Chatbot pausado para este contato!",
       );
     },
-    onError: (err: any) => {
-      toast.error("Erro ao alterar status do bot: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao alterar status do bot: " + getErrorMessage(err));
     },
   });
 
@@ -664,8 +867,8 @@ function ChatPage() {
       toast.success("Oportunidade de venda criada no CRM!");
       setIsQuickOpportunityOpen(false);
     },
-    onError: (err: any) => {
-      toast.error("Erro ao criar oportunidade: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao criar oportunidade: " + getErrorMessage(err));
     },
   });
 
@@ -680,8 +883,8 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["contacts"] });
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
     },
-    onError: (err: any) => {
-      toast.error(err?.message || "Falha ao adicionar contatos ao funil.");
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err) || "Falha ao adicionar contatos ao funil.");
     },
   });
 
@@ -696,13 +899,11 @@ function ChatPage() {
         oppId = existingOpps[0].id;
       } else {
         // Criar oportunidade padrão automática
-        const defaultFunnel =
-          salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+        const defaultFunnel = salesFunnels.find((funnel) => funnel.is_default) || salesFunnels[0];
         if (!defaultFunnel) throw new Error("Nenhum funil de vendas cadastrado no CRM");
 
         const defaultStage =
-          salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) ||
-          salesStagesQuery.data?.[0];
+          salesStages.find((stage) => stage.funnel_id === defaultFunnel.id) || salesStages[0];
         if (!defaultStage) throw new Error("Nenhuma etapa de vendas cadastrada para este funil");
 
         const newOpp = await createOpportunityFn({
@@ -735,8 +936,8 @@ function ChatPage() {
       toast.success("Follow-up agendado com sucesso!");
       setIsFollowUpOpen(false);
     },
-    onError: (err: any) => {
-      toast.error("Erro ao agendar follow-up: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao agendar follow-up: " + getErrorMessage(err));
     },
   });
 
@@ -772,14 +973,14 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       qc.invalidateQueries({ queryKey: ["chat-contact-details", selectedPhone] });
       toast.success(variables.block ? "Contato bloqueado!" : "Contato desbloqueado!");
-      setSelectedContact((prev: any) => ({
+      setSelectedContact((prev) => ({
         ...prev,
         opted_out: variables.block,
-        custom_fields: { ...prev?.custom_fields, is_blocked: variables.block },
+        custom_fields: { ...(prev?.custom_fields ?? {}), is_blocked: variables.block },
       }));
     },
-    onError: (err: any) => {
-      toast.error("Erro ao atualizar status de bloqueio: " + err.message);
+    onError: (err: unknown) => {
+      toast.error("Erro ao atualizar status de bloqueio: " + getErrorMessage(err));
     },
   });
 
@@ -918,6 +1119,25 @@ function ChatPage() {
   const [showTagFilters, setShowTagFilters] = useState(false);
   const [countryCode, setCountryCode] = useState("+55");
   const [newChatPhone, setNewChatPhone] = useState("");
+  const [draftChatContacts, setDraftChatContacts] = useState<any[]>([]);
+
+  const upsertDraftChatContact = (contact: any) => {
+    if (!contact?.id) return;
+
+    const draftContact = {
+      ...contact,
+      last_message_body: contact.last_message_body || "",
+      last_message_time:
+        contact.last_message_time || contact.updated_at || contact.created_at || null,
+      unread_count: contact.unread_count || 0,
+      is_unread: contact.is_unread ?? false,
+      is_archived: contact.is_archived ?? false,
+      is_pinned: contact.is_pinned ?? false,
+      bot_active: contact.bot_active ?? true,
+    };
+
+    setDraftChatContacts((prev) => [draftContact, ...prev.filter((c: any) => c.id !== contact.id)]);
+  };
 
   // Mutation para iniciar novo chat/criar contato manual no rodapé
   const addContactMutation = useMutation({
@@ -932,6 +1152,10 @@ function ChatPage() {
     },
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      upsertDraftChatContact(data);
+      setMainTab("conversas");
+      setActiveTab("outros");
+      setFilterView("all");
       setSelectedContact(data);
       setNewChatPhone("");
       toast.success("Nova conversa iniciada!");
@@ -949,7 +1173,15 @@ function ChatPage() {
   // States and mutations for custom sorting, filtering and new chat dialog
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name" | "unread">("newest");
   const [filterView, setFilterView] = useState<
-    "all" | "unread" | "bot_paused" | "bot_active" | "archived" | "whatsapp" | "instagram" | "messenger"
+    | "all"
+    | "unread"
+    | "bot_paused"
+    | "bot_active"
+    | "archived"
+    | "whatsapp"
+    | "instagram"
+    | "messenger"
+    | "whatsapp_group"
   >("all");
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
@@ -969,6 +1201,10 @@ function ChatPage() {
     },
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      upsertDraftChatContact(data);
+      setMainTab("conversas");
+      setActiveTab("outros");
+      setFilterView("all");
       setSelectedContact(data);
       setNewChatName("");
       setNewChatPhoneDialog("");
@@ -1288,17 +1524,31 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Auto-select contact based on "phone" query parameter
+  // Auto-select contact based on deep link params.
   useEffect(() => {
     if (typeof window !== "undefined" && contactsQuery.data && !selectedContact) {
       const searchParams = new URLSearchParams(window.location.search);
+      const searchContactId = searchParams.get("contactId");
       const searchPhone = searchParams.get("phone");
+
+      if (searchContactId) {
+        const foundById = contactsQuery.data.find((c: any) => c.id === searchContactId);
+        if (foundById) {
+          if (foundById.channel === "whatsapp_group") {
+            setMainTab("grupos");
+          } else {
+            setMainTab("conversas");
+          }
+          setSelectedContact(foundById);
+          return;
+        }
+      }
+
       if (searchPhone) {
         const cleanedSearchPhone = searchPhone.replace(/\D/g, "");
         const found = contactsQuery.data.find(
           (c: any) =>
-            c.phone_e164 === searchPhone ||
-            c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone,
+            c.phone_e164 === searchPhone || c.phone_e164.replace(/\D/g, "") === cleanedSearchPhone,
         );
         if (found) {
           if (found.channel === "whatsapp_group") {
@@ -1311,6 +1561,20 @@ function ChatPage() {
       }
     }
   }, [contactsQuery.data, selectedContact]);
+
+  // Mantém o contato selecionado sincronizado com a lista em polling.
+  useEffect(() => {
+    if (!contactsQuery.data || !selectedContact?.id) return;
+
+    const freshSelected = contactsQuery.data.find((c: any) => c.id === selectedContact.id);
+
+    if (!freshSelected) {
+      setSelectedContact(null);
+      return;
+    }
+
+    setSelectedContact((prev: any) => (prev ? { ...prev, ...freshSelected } : prev));
+  }, [contactsQuery.data, selectedContact?.id]);
 
   const selectedPhone = selectedContact?.phone_e164;
 
@@ -1357,6 +1621,36 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
+  const contactsForUi = useMemo(() => {
+    const baseContacts = [...(contactsQuery.data ?? [])];
+
+    for (const draft of draftChatContacts) {
+      if (!baseContacts.some((c: any) => c.id === draft.id)) {
+        baseContacts.unshift(draft);
+      }
+    }
+
+    if (!selectedContact?.id) return baseContacts;
+
+    return baseContacts.map((c: any) =>
+      c.id === selectedContact.id ? { ...c, ...selectedContact } : c,
+    );
+  }, [contactsQuery.data, draftChatContacts, selectedContact]);
+
+  const hasUnreadInOpenChat = useMemo(() => {
+    if (!selectedPhone) return false;
+    if (selectedContact?.is_unread || (selectedContact?.unread_count ?? 0) > 0) return true;
+
+    return (messagesQuery.data ?? []).some(
+      (m: any) => m.direction === "incoming" && (m.status == null || m.status !== "read"),
+    );
+  }, [
+    messagesQuery.data,
+    selectedContact?.is_unread,
+    selectedContact?.unread_count,
+    selectedPhone,
+  ]);
+
   // Função para reproduzir um som amigável de notificação
   const playNotificationSound = () => {
     try {
@@ -1397,8 +1691,10 @@ function ChatPage() {
   useEffect(() => {
     // 1. Notificação para novas mensagens no chat aberto ativo
     if (selectedPhone) {
-      const incomingMsgs = (messagesQuery.data ?? []).filter((m: any) => m.direction === "incoming");
-      
+      const incomingMsgs = (messagesQuery.data ?? []).filter(
+        (m: any) => m.direction === "incoming",
+      );
+
       if (prevSelectedPhoneRef.current !== selectedPhone) {
         prevSelectedPhoneRef.current = selectedPhone;
         prevMessagesLengthRef.current = incomingMsgs.length;
@@ -1411,33 +1707,40 @@ function ChatPage() {
     }
 
     // 2. Notificação para novas mensagens em outros contatos da lista
-    const currentUnreadSum = (contactsQuery.data ?? []).reduce(
-      (acc: number, c: any) => acc + (c.unread_count || 0),
-      0,
-    );
+    const currentUnreadSum = contactsForUi
+      .filter((c: any) => c.phone_e164 !== selectedPhone)
+      .reduce(
+        (acc: number, c: any) =>
+          acc + Math.max(c.unread_count || 0, c.is_unread === 1 || c.is_unread === true ? 1 : 0),
+        0,
+      );
     if (currentUnreadSum > prevUnreadSumRef.current) {
       playNotificationSound();
     }
     prevUnreadSumRef.current = currentUnreadSum;
-  }, [messagesQuery.data, contactsQuery.data, selectedPhone]);
+  }, [messagesQuery.data, contactsForUi, selectedPhone]);
 
   // Scroll ao fim ao carregar novas mensagens
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messagesQuery.data?.length]);
 
-  // Efeito para marcar mensagens recebidas como lidas quando selecionamos o contato
+  // Marca como lida tanto ao abrir quanto ao receber novas mensagens no chat aberto.
   useEffect(() => {
-    if (selectedPhone) {
-      fetchMarkAsRead({ data: { phone: selectedPhone } })
-        .then(() => {
-          qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-        })
-        .catch((err) => {
-          console.error("Erro ao marcar mensagens como lidas:", err);
-        });
-    }
-  }, [selectedPhone, fetchMarkAsRead, qc]);
+    if (!selectedPhone || !hasUnreadInOpenChat) return;
+
+    fetchMarkAsRead({ data: { phone: selectedPhone } })
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+        qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
+        setSelectedContact((prev: any) =>
+          prev ? { ...prev, is_unread: false, unread_count: 0 } : prev,
+        );
+      })
+      .catch((err) => {
+        console.error("Erro ao marcar mensagens como lidas:", err);
+      });
+  }, [selectedPhone, hasUnreadInOpenChat, fetchMarkAsRead, qc]);
 
   // Helpers para o visual dos cards de contato conforme o mockup
   const getSlaWarning = (c: any): boolean => {
@@ -1459,13 +1762,11 @@ function ChatPage() {
   };
 
   const getContactCategory = (c: any, currentUserId: string): "novos" | "meus" | "outros" => {
-    if (c.active_agent_id) {
-      return c.active_agent_id === currentUserId ? "meus" : "outros";
-    }
-    if (c.is_unread || (c.unread_count ?? 0) > 0) {
+    const hasUnread = c.is_unread || (c.unread_count ?? 0) > 0;
+    if (!c.active_agent_id && hasUnread) {
       return "novos";
     }
-    if (c.user_id === currentUserId) {
+    if (c.active_agent_id === currentUserId) {
       return "meus";
     }
     return "outros";
@@ -1511,72 +1812,134 @@ function ChatPage() {
   };
 
   const unreadConversas = useMemo(() => {
-    return (contactsQuery.data ?? [])
-      .filter((c: any) => c.channel !== "whatsapp_group")
-      .reduce((acc: number, c: any) => acc + (c.unread_count || 0), 0);
-  }, [contactsQuery.data]);
+    return contactsForUi
+      .filter(
+        (c: any) =>
+          c.channel !== "whatsapp_group" && !(c.is_archived === 1 || c.is_archived === true),
+      )
+      .reduce(
+        (acc: number, c: any) =>
+          acc + Math.max(c.unread_count || 0, c.is_unread === 1 || c.is_unread === true ? 1 : 0),
+        0,
+      );
+  }, [contactsForUi]);
 
   const unreadGrupos = useMemo(() => {
-    return (contactsQuery.data ?? [])
-      .filter((c: any) => c.channel === "whatsapp_group")
-      .reduce((acc: number, c: any) => acc + (c.unread_count || 0), 0);
-  }, [contactsQuery.data]);
+    return contactsForUi
+      .filter(
+        (c: any) =>
+          c.channel === "whatsapp_group" && !(c.is_archived === 1 || c.is_archived === true),
+      )
+      .reduce(
+        (acc: number, c: any) =>
+          acc + Math.max(c.unread_count || 0, c.is_unread === 1 || c.is_unread === true ? 1 : 0),
+        0,
+      );
+  }, [contactsForUi]);
 
   // Mapeia e enriquece os contatos vindos da API do servidor
-  const mappedContacts = (contactsQuery.data ?? [])
-    .filter((c: any) => mainTab === "grupos" ? c.channel === "whatsapp_group" : c.channel !== "whatsapp_group")
+  const mappedContacts = contactsForUi
+    .filter((c: any) =>
+      mainTab === "grupos" ? c.channel === "whatsapp_group" : c.channel !== "whatsapp_group",
+    )
     .map((c: any) => {
-      const category = getContactCategory(c, profile?.id || "");
+      const isPinned = c.is_pinned === 1 || c.is_pinned === true;
+      const isArchived = c.is_archived === 1 || c.is_archived === true;
+      const isUnread = c.is_unread === 1 || c.is_unread === true;
+      const category = getContactCategory({ ...c, is_unread: isUnread }, profile?.id || "");
 
-    // Mapeia setor de acordo com as etiquetas atribuídas ou equipe real
-    const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
-    const hasSuporte = contactTags.some((ct: any) =>
-      ct.tags?.name?.toUpperCase().includes("SUPORTE"),
-    );
-    const hasCS = contactTags.some(
-      (ct: any) =>
-        ct.tags?.name?.toUpperCase().includes("CS") ||
-        ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"),
-    );
+      // Mapeia setor de acordo com as etiquetas atribuídas ou equipe real
+      const contactTags = cachedConvTags.filter((ct: any) => ct.contact_number === c.phone_e164);
+      const hasSuporte = contactTags.some((ct: any) =>
+        ct.tags?.name?.toUpperCase().includes("SUPORTE"),
+      );
+      const hasCS = contactTags.some(
+        (ct: any) =>
+          ct.tags?.name?.toUpperCase().includes("CS") ||
+          ct.tags?.name?.toUpperCase().includes("IMPLANTAÇÃO"),
+      );
 
-    let department = c.active_team_name || c.custom_fields?.department;
-    if (!department) {
-      if (hasCS) {
-        department = "Sucesso Cliente";
-      } else if (hasSuporte) {
-        if (c.name?.includes("Lucas")) {
-          department = "Atendimento Geral";
+      let department = c.active_team_name || c.custom_fields?.department;
+      if (!department) {
+        if (hasCS) {
+          department = "Sucesso Cliente";
+        } else if (hasSuporte) {
+          if (c.name?.includes("Lucas")) {
+            department = "Atendimento Geral";
+          } else {
+            department = "Suporte Técnico";
+          }
         } else {
-          department = "Suporte Técnico";
+          const hash = (c.id || "")
+            .split("")
+            .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+          const deptMod = hash % 3;
+          if (deptMod === 0) department = "Atendimento Geral";
+          else if (deptMod === 1) department = "Sucesso Cliente";
+          else department = "Suporte Técnico";
         }
-      } else {
-        const hash = (c.id || "")
-          .split("")
-          .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-        const deptMod = hash % 3;
-        if (deptMod === 0) department = "Atendimento Geral";
-        else if (deptMod === 1) department = "Sucesso Cliente";
-        else department = "Suporte Técnico";
       }
-    }
 
-    return {
-      ...c,
-      category,
-      department,
-      last_message_body: c.last_message_body || "",
-      last_message_time: c.last_message_time || null,
-      unread_count: c.unread_count || 0,
-    };
-  });
+      return {
+        ...c,
+        category,
+        department,
+        is_pinned: isPinned,
+        is_archived: isArchived,
+        is_unread: isUnread,
+        last_message_body: c.last_message_body || "",
+        last_message_time: c.last_message_time || null,
+        unread_count: Math.max(c.unread_count || 0, isUnread ? 1 : 0),
+      };
+    });
+
+  const tabScopedContacts = mappedContacts.filter((c: any) =>
+    filterView === "archived" ? c.is_archived : !c.is_archived,
+  );
 
   // Separação em abas conforme o mockup
-  const novosContacts = mappedContacts.filter((c: any) => c.category === "novos");
-  const meusContacts = mappedContacts.filter((c: any) => c.category === "meus");
-  const outrosContacts = mappedContacts.filter((c: any) => c.category === "outros");
+  const novosContacts = tabScopedContacts.filter((c: any) => c.category === "novos");
+  const meusContacts = tabScopedContacts.filter((c: any) => c.category === "meus");
+  const outrosContacts = tabScopedContacts.filter((c: any) => c.category === "outros");
 
   const activeContactsList =
     activeTab === "novos" ? novosContacts : activeTab === "meus" ? meusContacts : outrosContacts;
+
+  useEffect(() => {
+    if (!selectedContact) return;
+
+    const isGroupChat = selectedContact.channel === "whatsapp_group";
+    if (mainTab === "grupos" && !isGroupChat) {
+      setSelectedContact(null);
+      return;
+    }
+    if (mainTab === "conversas" && isGroupChat) {
+      setSelectedContact(null);
+      return;
+    }
+
+    const isArchived = selectedContact.is_archived === 1 || selectedContact.is_archived === true;
+    if (filterView === "archived" && !isArchived) {
+      setSelectedContact(null);
+      return;
+    }
+    if (filterView !== "archived" && isArchived) {
+      setSelectedContact(null);
+    }
+  }, [filterView, mainTab, selectedContact]);
+
+  useEffect(() => {
+    if (mainTab === "grupos") {
+      if (["whatsapp", "instagram", "messenger"].includes(filterView)) {
+        setFilterView("all");
+      }
+      return;
+    }
+
+    if (filterView === "whatsapp_group") {
+      setFilterView("all");
+    }
+  }, [filterView, mainTab]);
 
   // Contatos filtrados e ordenados por filtros de visualização e ordenação personalizada
   const rawFilteredContacts = activeContactsList.filter((c: any) => {
@@ -1609,6 +1972,10 @@ function ChatPage() {
   });
 
   const filteredContacts = [...rawFilteredContacts].sort((a: any, b: any) => {
+    const aPinned = a.is_pinned ? 1 : 0;
+    const bPinned = b.is_pinned ? 1 : 0;
+    if (bPinned !== aPinned) return bPinned - aPinned;
+
     if (sortBy === "name") {
       return (a.name || "").localeCompare(b.name || "");
     }
@@ -1627,6 +1994,27 @@ function ChatPage() {
     const bTime = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
     return bTime - aTime;
   });
+
+  const visibleFilteredContactIds = useMemo(
+    () => filteredContacts.map((c: any) => c.id),
+    [filteredContacts],
+  );
+  const visibleFilteredContactIdSet = useMemo(
+    () => new Set(visibleFilteredContactIds),
+    [visibleFilteredContactIds],
+  );
+  const visibleSelectedContactIds = useMemo(
+    () => selectedContactIds.filter((id) => visibleFilteredContactIdSet.has(id)),
+    [selectedContactIds, visibleFilteredContactIdSet],
+  );
+  const allVisibleContactsSelected =
+    filteredContacts.length > 0 && visibleSelectedContactIds.length === filteredContacts.length;
+
+  useEffect(() => {
+    if (!isSelectionMode) return;
+    if (visibleSelectedContactIds.length === selectedContactIds.length) return;
+    setSelectedContactIds(visibleSelectedContactIds);
+  }, [isSelectionMode, selectedContactIds.length, visibleSelectedContactIds]);
 
   // Mutation para envio de mensagens
   const sendMutation = useMutation<any, any, any>({
@@ -1654,7 +2042,12 @@ function ChatPage() {
     }) => {
       if (!selectedPhone) throw new Error("Nenhum contato selecionado");
       if (selectedContact?.channel === "whatsapp_group") {
-        const bodyText = payload.type === "text" ? payload.text?.body : `[Mídia não suportada em grupos via painel]`;
+        if (payload.type !== "text") {
+          throw new Error(
+            "Envio de mídia para grupos ainda não está disponível neste painel. Use apenas texto por enquanto.",
+          );
+        }
+        const bodyText = payload.text?.body;
         const res = await sendGroupMsg({
           data: {
             groupId: selectedPhone,
@@ -1687,8 +2080,28 @@ function ChatPage() {
       }
       return res;
     },
-    onSuccess: () => {
+    onSuccess: (_result: any, variables: any) => {
       qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact((prev: any) => {
+        if (!prev) return prev;
+
+        let preview = prev.last_message_body || "";
+        if (variables.type === "text") preview = variables.text?.body || "";
+        else if (variables.type === "reaction")
+          preview = `${variables.reaction?.emoji || ""} Reação`;
+        else if (variables.type === "location")
+          preview = variables.location?.name || "Localização enviada";
+        else if (variables.type === "contacts") preview = "Contato compartilhado";
+        else preview = "Mídia enviada";
+
+        return {
+          ...prev,
+          is_unread: false,
+          last_message_body: preview,
+          last_message_time: new Date().toISOString(),
+        };
+      });
       setTypedMessage("");
       setReplyingTo(null);
     },
@@ -1786,6 +2199,17 @@ function ChatPage() {
 
       toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
       qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      setSelectedContact((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              is_unread: false,
+              last_message_body: file.name || "Mídia enviada",
+              last_message_time: new Date().toISOString(),
+            }
+          : prev,
+      );
       setReplyingTo(null);
     } catch (err: any) {
       toast.error(err.message || "Erro ao realizar upload da mídia.", { id: toastId });
@@ -2138,7 +2562,6 @@ function ChatPage() {
         }}
       />
 
-
       <div className="flex-1 min-h-0 flex border-t">
         {/* Sidebar de Contatos */}
         <div
@@ -2156,7 +2579,7 @@ function ChatPage() {
                 "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
                 mainTab === "conversas"
                   ? "border-[#FF424E] text-[#FF424E] bg-muted/10"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30",
               )}
             >
               <MessageCircle className="h-4 w-4" />
@@ -2174,7 +2597,7 @@ function ChatPage() {
                 "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
                 mainTab === "grupos"
                   ? "border-[#FF424E] text-[#FF424E] bg-muted/10"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30",
               )}
             >
               <Users className="h-4 w-4" />
@@ -2428,37 +2851,37 @@ function ChatPage() {
                     variant="outline"
                     className="h-7 text-[10px] px-2"
                     onClick={() => {
-                      if (selectedContactIds.length === filteredContacts.length) {
+                      if (allVisibleContactsSelected) {
                         setSelectedContactIds([]);
                       } else {
                         setSelectedContactIds(filteredContacts.map((c: any) => c.id));
                       }
                     }}
                   >
-                    {selectedContactIds.length === filteredContacts.length
-                      ? "Desmarcar Todos"
-                      : "Selecionar Todos"}
+                    {allVisibleContactsSelected ? "Desmarcar Todos" : "Selecionar Todos"}
                   </Button>
                   <span className="font-semibold text-muted-foreground text-[10px]">
-                    {selectedContactIds.length} selecionado(s)
+                    {visibleSelectedContactIds.length} selecionado(s)
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-1">
                   <Button
                     size="sm"
                     variant="default"
                     className="h-7 text-[10px] px-2.5 bg-violet-600 hover:bg-violet-700 text-white font-medium"
-                    disabled={selectedContactIds.length === 0}
+                    disabled={visibleSelectedContactIds.length === 0}
                     onClick={() => {
                       // Set default funnel and stage
                       const defaultFunnel =
-                        salesFunnelsQuery.data?.find((f: any) => f.is_default) || salesFunnelsQuery.data?.[0];
+                        salesFunnelsQuery.data?.find((f: any) => f.is_default) ||
+                        salesFunnelsQuery.data?.[0];
                       if (defaultFunnel) {
                         setBulkFunnelId(defaultFunnel.id);
                         const defaultStage =
-                          salesStagesQuery.data?.find((s: any) => s.funnel_id === defaultFunnel.id) ||
-                          salesStagesQuery.data?.[0];
+                          salesStagesQuery.data?.find(
+                            (s: any) => s.funnel_id === defaultFunnel.id,
+                          ) || salesStagesQuery.data?.[0];
                         if (defaultStage) {
                           setBulkStageId(defaultStage.id);
                         }
@@ -2658,7 +3081,7 @@ function ChatPage() {
                                 Grupo
                               </span>
                             )}
-                            {c.is_pinned === 1 && (
+                            {c.is_pinned && (
                               <Bookmark className="h-3.5 w-3.5 text-amber-500 fill-current shrink-0 ml-1" />
                             )}
                           </div>
@@ -2776,11 +3199,11 @@ function ChatPage() {
                             {/* Pin */}
                             <DropdownMenuItem
                               onClick={() =>
-                                pinMutation.mutate({ contactId: c.id, isPinned: c.is_pinned !== 1 })
+                                pinMutation.mutate({ contactId: c.id, isPinned: !c.is_pinned })
                               }
                             >
                               <Bookmark className="mr-2 h-4 w-4 text-amber-500" />
-                              {c.is_pinned === 1 ? "Desafixar conversa" : "Fixar conversa"}
+                              {c.is_pinned ? "Desafixar conversa" : "Fixar conversa"}
                             </DropdownMenuItem>
 
                             {/* Kanban Submenu */}
@@ -2947,12 +3370,12 @@ function ChatPage() {
                               onClick={() =>
                                 unreadMutation.mutate({
                                   contactId: c.id,
-                                  isUnread: c.is_unread !== 1,
+                                  isUnread: !c.is_unread,
                                 })
                               }
                             >
                               <Mail className="mr-2 h-4 w-4" />
-                              {c.is_unread === 1 ? "Marcar como lida" : "Marcar como não lida"}
+                              {c.is_unread ? "Marcar como lida" : "Marcar como não lida"}
                             </DropdownMenuItem>
 
                             {/* Arquivar */}
@@ -2960,12 +3383,12 @@ function ChatPage() {
                               onClick={() =>
                                 archiveMutation.mutate({
                                   contactId: c.id,
-                                  isArchived: c.is_archived !== 1,
+                                  isArchived: !c.is_archived,
                                 })
                               }
                             >
                               <Archive className="mr-2 h-4 w-4" />
-                              {c.is_archived === 1 ? "Desarquivar conversa" : "Arquivar conversa"}
+                              {c.is_archived ? "Desarquivar conversa" : "Arquivar conversa"}
                             </DropdownMenuItem>
 
                             <DropdownMenuSeparator />
@@ -3227,6 +3650,7 @@ function ChatPage() {
                         botActiveMutation.mutate({
                           contactPhone: selectedContact.phone_e164,
                           botActive: !selectedContact.bot_active,
+                          channel: selectedContact.channel || "whatsapp",
                         })
                       }
                       className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-neutral-800 text-zinc-400 hover:text-zinc-200 relative"
@@ -3266,10 +3690,7 @@ function ChatPage() {
                           <MoreVertical className="h-5 w-5 text-zinc-400" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-[220px]"
-                      >
+                      <DropdownMenuContent align="end" className="w-[220px]">
                         <DropdownMenuItem
                           onClick={() => setIsQuickOpportunityOpen(true)}
                           className="cursor-pointer"
@@ -3476,676 +3897,718 @@ function ChatPage() {
                                   isOutgoing ? "items-end" : "items-start",
                                 )}
                               >
-                          {/* Container do Balão + Ações */}
-                          <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
-                            {/* Ações Rápidas em Menu Único para incoming */}
-                            {!isOutgoing && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                    title="Opções"
-                                  >
-                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56 p-1">
-                                  {/* Reações Rápidas */}
-                                  <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
-                                    {DEFAULT_EMOJIS.map((emoji) => (
-                                      <button
-                                        key={emoji}
-                                        onClick={() => handleSendReaction(msg.wa_message_id, emoji)}
-                                        className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
-                                      >
-                                        {emoji}
-                                      </button>
-                                    ))}
-                                  </div>
+                                {/* Container do Balão + Ações */}
+                                <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
+                                  {/* Ações Rápidas em Menu Único para incoming */}
+                                  {!isOutgoing && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                          title="Opções"
+                                        >
+                                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-56 p-1">
+                                        {/* Reações Rápidas */}
+                                        <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
+                                          {DEFAULT_EMOJIS.map((emoji) => (
+                                            <button
+                                              key={emoji}
+                                              onClick={() =>
+                                                handleSendReaction(msg.wa_message_id, emoji)
+                                              }
+                                              className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
+                                            >
+                                              {emoji}
+                                            </button>
+                                          ))}
+                                        </div>
 
-                                  {/* Responder */}
-                                  <DropdownMenuItem onClick={() => setReplyingTo(msg)} className="flex items-center gap-2 cursor-pointer text-xs">
-                                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <span>Responder</span>
-                                  </DropdownMenuItem>
+                                        {/* Responder */}
+                                        <DropdownMenuItem
+                                          onClick={() => setReplyingTo(msg)}
+                                          className="flex items-center gap-2 cursor-pointer text-xs"
+                                        >
+                                          <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span>Responder</span>
+                                        </DropdownMenuItem>
 
-                                  {/* Etiquetar */}
-                                  <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
-                                      <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                                      <span>Etiquetar</span>
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuPortal>
-                                      <DropdownMenuSubContent className="p-2 min-w-[200px]">
-                                        {renderMessageTagSubmenu(msg)}
-                                      </DropdownMenuSubContent>
-                                    </DropdownMenuPortal>
-                                  </DropdownMenuSub>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
+                                        {/* Etiquetar */}
+                                        <DropdownMenuSub>
+                                          <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
+                                            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span>Etiquetar</span>
+                                          </DropdownMenuSubTrigger>
+                                          <DropdownMenuPortal>
+                                            <DropdownMenuSubContent className="p-2 min-w-[200px]">
+                                              {renderMessageTagSubmenu(msg)}
+                                            </DropdownMenuSubContent>
+                                          </DropdownMenuPortal>
+                                        </DropdownMenuSub>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
 
-                            {/* Balão em si */}
-                            <div className="flex flex-col relative">
-                              {(() => {
-                                const payload = msg.metadata?.payload;
-                                const interactive = payload?.interactive;
-
-                                // Extract interactive header media
-                                const header = interactive?.header;
-                                let headerMediaUrl = "";
-                                let headerMediaType = "";
-                                let headerText = "";
-
-                                if (header) {
-                                  if (header.type === "image" && header.image?.link) {
-                                    headerMediaUrl = header.image.link;
-                                    headerMediaType = "image";
-                                  } else if (header.type === "video" && header.video?.link) {
-                                    headerMediaUrl = header.video.link;
-                                    headerMediaType = "video";
-                                  } else if (header.type === "document" && header.document?.link) {
-                                    headerMediaUrl = header.document.link;
-                                    headerMediaType = "document";
-                                  } else if (header.type === "text" && header.text) {
-                                    headerText = header.text;
-                                  }
-                                }
-
-                                // Extract standard message body and type
-                                const type = msg.type || "text";
-                                const bodyText = msg.body || "";
-
-                                // Helper to check if string is a URL
-                                const isUrl = (str: string) => {
-                                  if (!str) return false;
-                                  return str.startsWith("http://") || str.startsWith("https://");
-                                };
-
-                                // Format WhatsApp bold, italic, strikethrough in bodyText
-                                const formatMessageText = (text: string) => {
-                                  if (!text) return "";
-                                  let formatted = text;
-
-                                  // Escape HTML characters to prevent XSS before formatting
-                                  formatted = formatted
-                                    .replace(/&/g, "&amp;")
-                                    .replace(/</g, "&lt;")
-                                    .replace(/>/g, "&gt;");
-
-                                  // Highlight message search query if active
-                                  if (messageSearchQuery.trim()) {
-                                    const escapedQuery = messageSearchQuery.replace(
-                                      /[-\/\\^$*+?.()|[\]{}]/g,
-                                      "\\$&",
-                                    );
-                                    const regex = new RegExp(`(${escapedQuery})`, "gi");
-                                    formatted = formatted.replace(
-                                      regex,
-                                      "<mark class='bg-yellow-500/40 text-yellow-100 px-0.5 rounded'>$1</mark>",
-                                    );
-                                  }
-
-                                  // Bold
-                                  formatted = formatted.replace(
-                                    /\*\*([^*]+)\*\*/g,
-                                    "<strong>$1</strong>",
-                                  );
-                                  formatted = formatted.replace(
-                                    /\*([^*]+)\*/g,
-                                    "<strong>$1</strong>",
-                                  );
-                                  // Italic
-                                  formatted = formatted.replace(/__([^_]+)__/g, "<em>$1</em>");
-                                  formatted = formatted.replace(/_([^_]+)_/g, "<em>$1</em>");
-                                  // Strikethrough
-                                  formatted = formatted.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-                                  formatted = formatted.replace(/~([^~]+)~/g, "<del>$1</del>");
-                                  // Code
-                                  formatted = formatted.replace(
-                                    /`([^`]+)`/g,
-                                    "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>",
-                                  );
-                                  return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
-                                };
-
-                                // Helper to get media source URL
-                                const getMediaUrl = (urlOrId: string) => {
-                                  if (!urlOrId) return "";
-                                  if (isUrl(urlOrId)) return urlOrId;
-                                  return sessionToken
-                                    ? `/api/whatsapp/media?id=${urlOrId}&token=${encodeURIComponent(sessionToken)}`
-                                    : "";
-                                };
-
-                                const hasTopMedia =
-                                  headerMediaType === "image" ||
-                                  headerMediaType === "video" ||
-                                  type === "image" ||
-                                  type === "video";
-                                const hasBottomActions =
-                                  (interactive?.type === "button" && interactive.action?.buttons) ||
-                                  interactive?.type === "list" ||
-                                  interactive?.type === "flow";
-                                const isRichCard = hasTopMedia || hasBottomActions;
-
-                                return (
-                                  <div
-                                    className={cn(
-                                      "shadow-sm relative transition-all duration-200 max-w-sm",
-                                      isOutgoing ? "wa-bubble-outgoing" : "wa-bubble-incoming",
-                                      isRichCard ? "p-0 rounded-lg" : "p-3",
-                                    )}
-                                  >
-                                    {!isOutgoing && selectedContact?.channel === "whatsapp_group" && msg.sender_name && (
-                                      <p className="text-[10px] font-extrabold text-indigo-500 mb-0.5 px-3 pt-1 select-none">
-                                        {msg.sender_name}
-                                      </p>
-                                    )}
-                                    {/* Display applied tags in message body */}
+                                  {/* Balão em si */}
+                                  <div className="flex flex-col relative">
                                     {(() => {
-                                      const msgTags = (messageTagsQuery.data ?? []).filter(
-                                        (mt: any) => mt.message_id === msg.id,
-                                      );
-                                      if (msgTags.length === 0) return null;
+                                      const payload = msg.metadata?.payload;
+                                      const interactive = payload?.interactive;
+
+                                      // Extract interactive header media
+                                      const header = interactive?.header;
+                                      let headerMediaUrl = "";
+                                      let headerMediaType = "";
+                                      let headerText = "";
+
+                                      if (header) {
+                                        if (header.type === "image" && header.image?.link) {
+                                          headerMediaUrl = header.image.link;
+                                          headerMediaType = "image";
+                                        } else if (header.type === "video" && header.video?.link) {
+                                          headerMediaUrl = header.video.link;
+                                          headerMediaType = "video";
+                                        } else if (
+                                          header.type === "document" &&
+                                          header.document?.link
+                                        ) {
+                                          headerMediaUrl = header.document.link;
+                                          headerMediaType = "document";
+                                        } else if (header.type === "text" && header.text) {
+                                          headerText = header.text;
+                                        }
+                                      }
+
+                                      // Extract standard message body and type
+                                      const type = msg.type || "text";
+                                      const bodyText = msg.body || "";
+
+                                      // Helper to check if string is a URL
+                                      const isUrl = (str: string) => {
+                                        if (!str) return false;
+                                        return (
+                                          str.startsWith("http://") || str.startsWith("https://")
+                                        );
+                                      };
+
+                                      // Format WhatsApp bold, italic, strikethrough in bodyText
+                                      const formatMessageText = (text: string) => {
+                                        if (!text) return "";
+                                        let formatted = text;
+
+                                        // Escape HTML characters to prevent XSS before formatting
+                                        formatted = formatted
+                                          .replace(/&/g, "&amp;")
+                                          .replace(/</g, "&lt;")
+                                          .replace(/>/g, "&gt;");
+
+                                        // Highlight message search query if active
+                                        if (messageSearchQuery.trim()) {
+                                          const escapedQuery = messageSearchQuery.replace(
+                                            /[-\/\\^$*+?.()|[\]{}]/g,
+                                            "\\$&",
+                                          );
+                                          const regex = new RegExp(`(${escapedQuery})`, "gi");
+                                          formatted = formatted.replace(
+                                            regex,
+                                            "<mark class='bg-yellow-500/40 text-yellow-100 px-0.5 rounded'>$1</mark>",
+                                          );
+                                        }
+
+                                        // Bold
+                                        formatted = formatted.replace(
+                                          /\*\*([^*]+)\*\*/g,
+                                          "<strong>$1</strong>",
+                                        );
+                                        formatted = formatted.replace(
+                                          /\*([^*]+)\*/g,
+                                          "<strong>$1</strong>",
+                                        );
+                                        // Italic
+                                        formatted = formatted.replace(
+                                          /__([^_]+)__/g,
+                                          "<em>$1</em>",
+                                        );
+                                        formatted = formatted.replace(/_([^_]+)_/g, "<em>$1</em>");
+                                        // Strikethrough
+                                        formatted = formatted.replace(
+                                          /~~([^~]+)~~/g,
+                                          "<del>$1</del>",
+                                        );
+                                        formatted = formatted.replace(
+                                          /~([^~]+)~/g,
+                                          "<del>$1</del>",
+                                        );
+                                        // Code
+                                        formatted = formatted.replace(
+                                          /`([^`]+)`/g,
+                                          "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>",
+                                        );
+                                        return (
+                                          <span dangerouslySetInnerHTML={{ __html: formatted }} />
+                                        );
+                                      };
+
+                                      // Helper to get media source URL
+                                      const getMediaUrl = (urlOrId: string) => {
+                                        if (!urlOrId) return "";
+                                        if (isUrl(urlOrId)) return urlOrId;
+                                        return sessionToken
+                                          ? `/api/whatsapp/media?id=${urlOrId}&token=${encodeURIComponent(sessionToken)}`
+                                          : "";
+                                      };
+
+                                      const hasTopMedia =
+                                        headerMediaType === "image" ||
+                                        headerMediaType === "video" ||
+                                        type === "image" ||
+                                        type === "video";
+                                      const hasBottomActions =
+                                        (interactive?.type === "button" &&
+                                          interactive.action?.buttons) ||
+                                        interactive?.type === "list" ||
+                                        interactive?.type === "flow";
+                                      const isRichCard = hasTopMedia || hasBottomActions;
+
                                       return (
                                         <div
                                           className={cn(
-                                            "flex flex-wrap gap-1 mb-1.5",
-                                            isRichCard ? "px-3 pt-3" : "",
+                                            "shadow-sm relative transition-all duration-200 max-w-sm",
+                                            isOutgoing
+                                              ? "wa-bubble-outgoing"
+                                              : "wa-bubble-incoming",
+                                            isRichCard ? "p-0 rounded-lg" : "p-3",
                                           )}
                                         >
-                                          {msgTags.map((mt: any) => (
-                                            <TagBadge
-                                              key={mt.tag_id}
-                                              tag={mt.tags}
-                                              className={cn(
-                                                "shadow-sm",
-                                                isOutgoing
-                                                  ? "border-primary-foreground/30 text-white"
-                                                  : "",
+                                          {!isOutgoing &&
+                                            selectedContact?.channel === "whatsapp_group" &&
+                                            msg.sender_name && (
+                                              <p className="text-[10px] font-extrabold text-indigo-500 mb-0.5 px-3 pt-1 select-none">
+                                                {msg.sender_name}
+                                              </p>
+                                            )}
+                                          {/* Display applied tags in message body */}
+                                          {(() => {
+                                            const msgTags = (messageTagsQuery.data ?? []).filter(
+                                              (mt: any) => mt.message_id === msg.id,
+                                            );
+                                            if (msgTags.length === 0) return null;
+                                            return (
+                                              <div
+                                                className={cn(
+                                                  "flex flex-wrap gap-1 mb-1.5",
+                                                  isRichCard ? "px-3 pt-3" : "",
+                                                )}
+                                              >
+                                                {msgTags.map((mt: any) => (
+                                                  <TagBadge
+                                                    key={mt.tag_id}
+                                                    tag={mt.tags}
+                                                    className={cn(
+                                                      "shadow-sm",
+                                                      isOutgoing
+                                                        ? "border-primary-foreground/30 text-white"
+                                                        : "",
+                                                    )}
+                                                  />
+                                                ))}
+                                              </div>
+                                            );
+                                          })()}
+
+                                          {/* Quote reply block inside bubble */}
+                                          {replyMessage && (
+                                            <div
+                                              className={cn("px-3 pt-3", isRichCard ? "" : "pb-1")}
+                                            >
+                                              <button
+                                                onClick={() => scrollToMessage(replyMessage.id)}
+                                                className={cn(
+                                                  "w-full text-left text-xs p-2 rounded-md border-l-4 transition-all hover:opacity-100 block",
+                                                  isOutgoing
+                                                    ? "wa-quote-reply-outgoing"
+                                                    : "wa-quote-reply-incoming",
+                                                )}
+                                              >
+                                                <div className="font-bold mb-0.5 text-emerald-400 text-[11px]">
+                                                  {replyMessage.direction === "incoming"
+                                                    ? "Contato"
+                                                    : "Você"}
+                                                </div>
+                                                <div className="truncate opacity-80 text-[11px]">
+                                                  {replyMessage.type === "image"
+                                                    ? "📷 Imagem"
+                                                    : replyMessage.type === "audio"
+                                                      ? "🎙️ Áudio"
+                                                      : replyMessage.type === "video"
+                                                        ? "🎥 Vídeo"
+                                                        : replyMessage.type === "document"
+                                                          ? "📄 Documento"
+                                                          : replyMessage.type === "sticker"
+                                                            ? "😊 Sticker"
+                                                            : replyMessage.type === "location"
+                                                              ? "📍 Localização"
+                                                              : replyMessage.type === "contacts"
+                                                                ? "👤 Contato"
+                                                                : replyMessage.body}
+                                                </div>
+                                              </button>
+                                            </div>
+                                          )}
+
+                                          <div className="space-y-0.5">
+                                            {/* A. Render Interactive Header Media if present */}
+                                            {headerMediaType === "image" && headerMediaUrl && (
+                                              <div
+                                                className={cn(
+                                                  "w-full overflow-hidden bg-black/10",
+                                                  isOutgoing
+                                                    ? "rounded-tl-lg rounded-tr-none"
+                                                    : "rounded-tl-none rounded-tr-lg",
+                                                )}
+                                              >
+                                                <img
+                                                  src={headerMediaUrl}
+                                                  alt="Header"
+                                                  className="w-full max-h-60 object-cover"
+                                                />
+                                              </div>
+                                            )}
+                                            {headerMediaType === "video" && headerMediaUrl && (
+                                              <div
+                                                className={cn(
+                                                  "w-full overflow-hidden bg-black/10",
+                                                  isOutgoing
+                                                    ? "rounded-tl-lg rounded-tr-none"
+                                                    : "rounded-tl-none rounded-tr-lg",
+                                                )}
+                                              >
+                                                <video
+                                                  src={headerMediaUrl}
+                                                  controls
+                                                  className="w-full max-h-60 object-cover"
+                                                />
+                                              </div>
+                                            )}
+                                            {headerMediaType === "document" && headerMediaUrl && (
+                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/10 bg-black/10 p-2 flex items-center gap-2 text-xs">
+                                                <FileText className="h-6 w-6 text-primary shrink-0" />
+                                                <span className="truncate font-medium flex-1">
+                                                  {header.document?.filename ||
+                                                    "Documento de Cabeçalho"}
+                                                </span>
+                                                <Button
+                                                  size="icon"
+                                                  variant="ghost"
+                                                  className="h-6 w-6 shrink-0 ml-auto rounded-full"
+                                                  asChild
+                                                >
+                                                  <a
+                                                    href={headerMediaUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                  >
+                                                    <ExternalLink className="h-3 w-3" />
+                                                  </a>
+                                                </Button>
+                                              </div>
+                                            )}
+
+                                            {/* B. Render Standard Media Types */}
+                                            {type === "image" && bodyText && (
+                                              <div
+                                                className={cn(
+                                                  "w-full overflow-hidden bg-black/10",
+                                                  isOutgoing
+                                                    ? "rounded-lg rounded-tr-none"
+                                                    : "rounded-lg rounded-tl-none",
+                                                )}
+                                              >
+                                                {getMediaUrl(bodyText) ? (
+                                                  <img
+                                                    src={getMediaUrl(bodyText)}
+                                                    alt="Imagem"
+                                                    className="w-full max-h-64 object-cover"
+                                                  />
+                                                ) : (
+                                                  <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                                                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {type === "audio" && bodyText && (
+                                              <div className="px-1 py-1.5">
+                                                {getMediaUrl(bodyText) ? (
+                                                  <audio
+                                                    src={getMediaUrl(bodyText)}
+                                                    controls
+                                                    className="w-[240px] max-w-full h-10"
+                                                  />
+                                                ) : (
+                                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                    <Volume2 className="h-4 w-4" /> Áudio (ID:{" "}
+                                                    {bodyText})
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {type === "video" && bodyText && (
+                                              <div
+                                                className={cn(
+                                                  "w-full overflow-hidden bg-black/10",
+                                                  isOutgoing
+                                                    ? "rounded-lg rounded-tr-none"
+                                                    : "rounded-lg rounded-tl-none",
+                                                )}
+                                              >
+                                                {getMediaUrl(bodyText) ? (
+                                                  <video
+                                                    src={getMediaUrl(bodyText)}
+                                                    controls
+                                                    className="w-full max-h-64 object-cover"
+                                                  />
+                                                ) : (
+                                                  <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                                                    <Video className="h-6 w-6 text-muted-foreground" />
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {type === "document" && bodyText && (
+                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 flex items-center gap-3">
+                                                <FileText className="h-8 w-8 text-primary shrink-0" />
+                                                <div className="min-w-0 flex-1">
+                                                  <p className="text-xs font-medium truncate text-foreground">
+                                                    {isUrl(bodyText)
+                                                      ? bodyText.substring(
+                                                          bodyText.lastIndexOf("/") + 1,
+                                                        )
+                                                      : bodyText}
+                                                  </p>
+                                                  <p className="text-[10px] opacity-75">
+                                                    Documento PDF/Office
+                                                  </p>
+                                                </div>
+                                                {getMediaUrl(bodyText) && (
+                                                  <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    asChild
+                                                    className="h-8 w-8 shrink-0 rounded-full"
+                                                  >
+                                                    <a
+                                                      href={getMediaUrl(bodyText)}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                    >
+                                                      <ExternalLink className="h-4 w-4" />
+                                                    </a>
+                                                  </Button>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {type === "sticker" && bodyText && (
+                                              <div className="p-1">
+                                                {getMediaUrl(bodyText) ? (
+                                                  <img
+                                                    src={getMediaUrl(bodyText)}
+                                                    alt="Sticker"
+                                                    className="h-24 w-24 object-contain"
+                                                  />
+                                                ) : (
+                                                  <span className="text-xs text-muted-foreground font-mono">
+                                                    Sticker (ID: {bodyText})
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {type === "location" && msg.location && (
+                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-2">
+                                                <div className="flex items-start gap-2.5">
+                                                  <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                                                  <div className="min-w-0">
+                                                    <p className="text-xs font-semibold text-foreground">
+                                                      {msg.location.name || "Localização"}
+                                                    </p>
+                                                    <p className="text-[10px] text-muted-foreground leading-normal">
+                                                      {msg.location.address ||
+                                                        `${msg.location.latitude}, ${msg.location.longitude}`}
+                                                    </p>
+                                                  </div>
+                                                </div>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="w-full text-xs h-7 gap-1"
+                                                  asChild
+                                                >
+                                                  <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${msg.location.latitude},${msg.location.longitude}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                  >
+                                                    <ExternalLink className="h-3 w-3" /> Ver no
+                                                    Google Maps
+                                                  </a>
+                                                </Button>
+                                              </div>
+                                            )}
+
+                                            {type === "contacts" && msg.contacts && (
+                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                                    <User className="h-4 w-4" />
+                                                  </div>
+                                                  <div className="min-w-0">
+                                                    <p className="text-xs font-semibold truncate">
+                                                      {msg.contacts[0]?.name?.formatted_name ||
+                                                        "Contato"}
+                                                    </p>
+                                                    <p className="text-[10px] text-muted-foreground font-mono truncate">
+                                                      {msg.contacts[0]?.phones?.[0]?.phone ||
+                                                        "Sem telefone"}
+                                                    </p>
+                                                  </div>
+                                                </div>
+                                                {msg.contacts[0]?.phones?.[0]?.phone && (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="w-full text-xs h-7 gap-1"
+                                                    asChild
+                                                  >
+                                                    <a
+                                                      href={`tel:${msg.contacts[0].phones[0].phone}`}
+                                                    >
+                                                      <Phone className="h-3 w-3" /> Ligar para
+                                                      Contato
+                                                    </a>
+                                                  </Button>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {/* Text block for header text, body, and footer */}
+                                            {((![
+                                              "image",
+                                              "audio",
+                                              "video",
+                                              "document",
+                                              "sticker",
+                                              "location",
+                                              "contacts",
+                                            ].includes(type) &&
+                                              bodyText) ||
+                                              headerText ||
+                                              interactive?.footer?.text) && (
+                                              <div className="px-3 py-2 space-y-1">
+                                                {headerText && (
+                                                  <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
+                                                    {headerText}
+                                                  </p>
+                                                )}
+                                                {![
+                                                  "image",
+                                                  "audio",
+                                                  "video",
+                                                  "document",
+                                                  "sticker",
+                                                  "location",
+                                                  "contacts",
+                                                ].includes(type) &&
+                                                  bodyText && (
+                                                    <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
+                                                      {formatMessageText(bodyText)}
+                                                    </p>
+                                                  )}
+                                                {interactive?.footer?.text && (
+                                                  <p className="text-[10px] opacity-60">
+                                                    {interactive.footer.text}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
+                                            {interactive?.type === "button" &&
+                                              interactive.action?.buttons && (
+                                                <div className="flex flex-col w-full mt-1.5">
+                                                  {interactive.action.buttons.map(
+                                                    (btn: any, btnIdx: number) => {
+                                                      const isLast =
+                                                        btnIdx ===
+                                                        interactive.action.buttons.length - 1;
+                                                      return (
+                                                        <div
+                                                          key={btnIdx}
+                                                          className={cn(
+                                                            "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                                            isOutgoing
+                                                              ? "wa-card-button-outgoing wa-button-separator-outgoing"
+                                                              : "wa-card-button-incoming wa-button-separator-incoming",
+                                                            isLast &&
+                                                              (isOutgoing
+                                                                ? "rounded-b-lg rounded-br-none"
+                                                                : "rounded-b-lg rounded-bl-none"),
+                                                          )}
+                                                        >
+                                                          <MessageSquare className="h-3.5 w-3.5 opacity-60" />
+                                                          {btn.reply?.title || "Botão"}
+                                                        </div>
+                                                      );
+                                                    },
+                                                  )}
+                                                </div>
                                               )}
-                                            />
-                                          ))}
+
+                                            {/* F. Render List selection action */}
+                                            {interactive?.type === "list" && (
+                                              <div className="flex flex-col w-full mt-1.5">
+                                                <div
+                                                  className={cn(
+                                                    "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                                    isOutgoing
+                                                      ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
+                                                      : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
+                                                  )}
+                                                >
+                                                  <Menu className="h-3.5 w-3.5 opacity-60" />
+                                                  {interactive.action?.button || "Ver Recursos"}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* G. Render Flow CTA action */}
+                                            {interactive?.type === "flow" && (
+                                              <div className="flex flex-col w-full mt-1.5">
+                                                <div
+                                                  className={cn(
+                                                    "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
+                                                    isOutgoing
+                                                      ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
+                                                      : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
+                                                  )}
+                                                >
+                                                  <ClipboardList className="h-3.5 w-3.5 opacity-80" />
+                                                  {interactive.action?.parameters?.flow_cta ||
+                                                    "Preencher Formulário"}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Horário + Status */}
+                                          <div
+                                            className={cn(
+                                              "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-1.5 pr-2.5 pt-0.5",
+                                              !isRichCard && "px-0 pb-0 pt-1",
+                                            )}
+                                          >
+                                            <span>
+                                              {new Date(msg.timestamp).toLocaleTimeString([], {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
+                                            </span>
+                                            {isOutgoing && renderStatus(msg.status)}
+                                          </div>
                                         </div>
                                       );
                                     })()}
 
-                                    {/* Quote reply block inside bubble */}
-                                    {replyMessage && (
-                                      <div className={cn("px-3 pt-3", isRichCard ? "" : "pb-1")}>
-                                        <button
-                                          onClick={() => scrollToMessage(replyMessage.id)}
-                                          className={cn(
-                                            "w-full text-left text-xs p-2 rounded-md border-l-4 transition-all hover:opacity-100 block",
-                                            isOutgoing
-                                              ? "wa-quote-reply-outgoing"
-                                              : "wa-quote-reply-incoming",
-                                          )}
-                                        >
-                                          <div className="font-bold mb-0.5 text-emerald-400 text-[11px]">
-                                            {replyMessage.direction === "incoming"
-                                              ? "Contato"
-                                              : "Você"}
-                                          </div>
-                                          <div className="truncate opacity-80 text-[11px]">
-                                            {replyMessage.type === "image"
-                                              ? "📷 Imagem"
-                                              : replyMessage.type === "audio"
-                                                ? "🎙️ Áudio"
-                                                : replyMessage.type === "video"
-                                                  ? "🎥 Vídeo"
-                                                  : replyMessage.type === "document"
-                                                    ? "📄 Documento"
-                                                    : replyMessage.type === "sticker"
-                                                      ? "😊 Sticker"
-                                                      : replyMessage.type === "location"
-                                                        ? "📍 Localização"
-                                                        : replyMessage.type === "contacts"
-                                                          ? "👤 Contato"
-                                                          : replyMessage.body}
-                                          </div>
-                                        </button>
+                                    {/* Emojis de Reação Flutuantes */}
+                                    {msg.reactions && msg.reactions.length > 0 && (
+                                      <div
+                                        className={cn(
+                                          "absolute bottom-[-10px] flex gap-0.5 bg-background shadow border rounded-full px-1.5 py-0.5 text-xs select-none",
+                                          isOutgoing ? "left-2" : "right-2",
+                                        )}
+                                      >
+                                        {msg.reactions.map((rx: any, idx: number) => (
+                                          <span
+                                            key={idx}
+                                            title={rx.direction === "outgoing" ? "Você" : "Contato"}
+                                            className="transition-transform hover:scale-110"
+                                          >
+                                            {rx.emoji}
+                                          </span>
+                                        ))}
                                       </div>
                                     )}
-
-                                    <div className="space-y-0.5">
-                                      {/* A. Render Interactive Header Media if present */}
-                                      {headerMediaType === "image" && headerMediaUrl && (
-                                        <div
-                                          className={cn(
-                                            "w-full overflow-hidden bg-black/10",
-                                            isOutgoing
-                                              ? "rounded-tl-lg rounded-tr-none"
-                                              : "rounded-tl-none rounded-tr-lg",
-                                          )}
-                                        >
-                                          <img
-                                            src={headerMediaUrl}
-                                            alt="Header"
-                                            className="w-full max-h-60 object-cover"
-                                          />
-                                        </div>
-                                      )}
-                                      {headerMediaType === "video" && headerMediaUrl && (
-                                        <div
-                                          className={cn(
-                                            "w-full overflow-hidden bg-black/10",
-                                            isOutgoing
-                                              ? "rounded-tl-lg rounded-tr-none"
-                                              : "rounded-tl-none rounded-tr-lg",
-                                          )}
-                                        >
-                                          <video
-                                            src={headerMediaUrl}
-                                            controls
-                                            className="w-full max-h-60 object-cover"
-                                          />
-                                        </div>
-                                      )}
-                                      {headerMediaType === "document" && headerMediaUrl && (
-                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/10 bg-black/10 p-2 flex items-center gap-2 text-xs">
-                                          <FileText className="h-6 w-6 text-primary shrink-0" />
-                                          <span className="truncate font-medium flex-1">
-                                            {header.document?.filename || "Documento de Cabeçalho"}
-                                          </span>
-                                          <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-6 w-6 shrink-0 ml-auto rounded-full"
-                                            asChild
-                                          >
-                                            <a
-                                              href={headerMediaUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                            >
-                                              <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                          </Button>
-                                        </div>
-                                      )}
-
-                                      {/* B. Render Standard Media Types */}
-                                      {type === "image" && bodyText && (
-                                        <div
-                                          className={cn(
-                                            "w-full overflow-hidden bg-black/10",
-                                            isOutgoing
-                                              ? "rounded-lg rounded-tr-none"
-                                              : "rounded-lg rounded-tl-none",
-                                          )}
-                                        >
-                                          {getMediaUrl(bodyText) ? (
-                                            <img
-                                              src={getMediaUrl(bodyText)}
-                                              alt="Imagem"
-                                              className="w-full max-h-64 object-cover"
-                                            />
-                                          ) : (
-                                            <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                                              <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {type === "audio" && bodyText && (
-                                        <div className="px-1 py-1.5">
-                                          {getMediaUrl(bodyText) ? (
-                                            <audio
-                                              src={getMediaUrl(bodyText)}
-                                              controls
-                                              className="w-[240px] max-w-full h-10"
-                                            />
-                                          ) : (
-                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                              <Volume2 className="h-4 w-4" /> Áudio (ID: {bodyText})
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {type === "video" && bodyText && (
-                                        <div
-                                          className={cn(
-                                            "w-full overflow-hidden bg-black/10",
-                                            isOutgoing
-                                              ? "rounded-lg rounded-tr-none"
-                                              : "rounded-lg rounded-tl-none",
-                                          )}
-                                        >
-                                          {getMediaUrl(bodyText) ? (
-                                            <video
-                                              src={getMediaUrl(bodyText)}
-                                              controls
-                                              className="w-full max-h-64 object-cover"
-                                            />
-                                          ) : (
-                                            <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                                              <Video className="h-6 w-6 text-muted-foreground" />
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {type === "document" && bodyText && (
-                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 flex items-center gap-3">
-                                          <FileText className="h-8 w-8 text-primary shrink-0" />
-                                          <div className="min-w-0 flex-1">
-                                            <p className="text-xs font-medium truncate text-foreground">
-                                              {isUrl(bodyText)
-                                                ? bodyText.substring(bodyText.lastIndexOf("/") + 1)
-                                                : bodyText}
-                                            </p>
-                                            <p className="text-[10px] opacity-75">
-                                              Documento PDF/Office
-                                            </p>
-                                          </div>
-                                          {getMediaUrl(bodyText) && (
-                                            <Button
-                                              size="icon"
-                                              variant="ghost"
-                                              asChild
-                                              className="h-8 w-8 shrink-0 rounded-full"
-                                            >
-                                              <a
-                                                href={getMediaUrl(bodyText)}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                              >
-                                                <ExternalLink className="h-4 w-4" />
-                                              </a>
-                                            </Button>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {type === "sticker" && bodyText && (
-                                        <div className="p-1">
-                                          {getMediaUrl(bodyText) ? (
-                                            <img
-                                              src={getMediaUrl(bodyText)}
-                                              alt="Sticker"
-                                              className="h-24 w-24 object-contain"
-                                            />
-                                          ) : (
-                                            <span className="text-xs text-muted-foreground font-mono">
-                                              Sticker (ID: {bodyText})
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {type === "location" && msg.location && (
-                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-2">
-                                          <div className="flex items-start gap-2.5">
-                                            <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                                            <div className="min-w-0">
-                                              <p className="text-xs font-semibold text-foreground">
-                                                {msg.location.name || "Localização"}
-                                              </p>
-                                              <p className="text-[10px] text-muted-foreground leading-normal">
-                                                {msg.location.address ||
-                                                  `${msg.location.latitude}, ${msg.location.longitude}`}
-                                              </p>
-                                            </div>
-                                          </div>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="w-full text-xs h-7 gap-1"
-                                            asChild
-                                          >
-                                            <a
-                                              href={`https://www.google.com/maps/search/?api=1&query=${msg.location.latitude},${msg.location.longitude}`}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                            >
-                                              <ExternalLink className="h-3 w-3" /> Ver no Google
-                                              Maps
-                                            </a>
-                                          </Button>
-                                        </div>
-                                      )}
-
-                                      {type === "contacts" && msg.contacts && (
-                                        <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-3">
-                                          <div className="flex items-center gap-3">
-                                            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                              <User className="h-4 w-4" />
-                                            </div>
-                                            <div className="min-w-0">
-                                              <p className="text-xs font-semibold truncate">
-                                                {msg.contacts[0]?.name?.formatted_name || "Contato"}
-                                              </p>
-                                              <p className="text-[10px] text-muted-foreground font-mono truncate">
-                                                {msg.contacts[0]?.phones?.[0]?.phone ||
-                                                  "Sem telefone"}
-                                              </p>
-                                            </div>
-                                          </div>
-                                          {msg.contacts[0]?.phones?.[0]?.phone && (
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              className="w-full text-xs h-7 gap-1"
-                                              asChild
-                                            >
-                                              <a href={`tel:${msg.contacts[0].phones[0].phone}`}>
-                                                <Phone className="h-3 w-3" /> Ligar para Contato
-                                              </a>
-                                            </Button>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* Text block for header text, body, and footer */}
-                                      {((![
-                                        "image",
-                                        "audio",
-                                        "video",
-                                        "document",
-                                        "sticker",
-                                        "location",
-                                        "contacts",
-                                      ].includes(type) &&
-                                        bodyText) ||
-                                        headerText ||
-                                        interactive?.footer?.text) && (
-                                        <div className="px-3 py-2 space-y-1">
-                                          {headerText && (
-                                            <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
-                                              {headerText}
-                                            </p>
-                                          )}
-                                          {![
-                                            "image",
-                                            "audio",
-                                            "video",
-                                            "document",
-                                            "sticker",
-                                            "location",
-                                            "contacts",
-                                          ].includes(type) &&
-                                            bodyText && (
-                                              <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
-                                                {formatMessageText(bodyText)}
-                                              </p>
-                                            )}
-                                          {interactive?.footer?.text && (
-                                            <p className="text-[10px] opacity-60">
-                                              {interactive.footer.text}
-                                            </p>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
-                                      {interactive?.type === "button" &&
-                                        interactive.action?.buttons && (
-                                          <div className="flex flex-col w-full mt-1.5">
-                                            {interactive.action.buttons.map(
-                                              (btn: any, btnIdx: number) => {
-                                                const isLast =
-                                                  btnIdx === interactive.action.buttons.length - 1;
-                                                return (
-                                                  <div
-                                                    key={btnIdx}
-                                                    className={cn(
-                                                      "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
-                                                      isOutgoing
-                                                        ? "wa-card-button-outgoing wa-button-separator-outgoing"
-                                                        : "wa-card-button-incoming wa-button-separator-incoming",
-                                                      isLast &&
-                                                        (isOutgoing
-                                                          ? "rounded-b-lg rounded-br-none"
-                                                          : "rounded-b-lg rounded-bl-none"),
-                                                    )}
-                                                  >
-                                                    <MessageSquare className="h-3.5 w-3.5 opacity-60" />
-                                                    {btn.reply?.title || "Botão"}
-                                                  </div>
-                                                );
-                                              },
-                                            )}
-                                          </div>
-                                        )}
-
-                                      {/* F. Render List selection action */}
-                                      {interactive?.type === "list" && (
-                                        <div className="flex flex-col w-full mt-1.5">
-                                          <div
-                                            className={cn(
-                                              "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
-                                              isOutgoing
-                                                ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
-                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
-                                            )}
-                                          >
-                                            <Menu className="h-3.5 w-3.5 opacity-60" />
-                                            {interactive.action?.button || "Ver Recursos"}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* G. Render Flow CTA action */}
-                                      {interactive?.type === "flow" && (
-                                        <div className="flex flex-col w-full mt-1.5">
-                                          <div
-                                            className={cn(
-                                              "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
-                                              isOutgoing
-                                                ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
-                                                : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
-                                            )}
-                                          >
-                                            <ClipboardList className="h-3.5 w-3.5 opacity-80" />
-                                            {interactive.action?.parameters?.flow_cta ||
-                                              "Preencher Formulário"}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* Horário + Status */}
-                                    <div
-                                      className={cn(
-                                        "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-1.5 pr-2.5 pt-0.5",
-                                        !isRichCard && "px-0 pb-0 pt-1",
-                                      )}
-                                    >
-                                      <span>
-                                        {new Date(msg.timestamp).toLocaleTimeString([], {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })}
-                                      </span>
-                                      {isOutgoing && renderStatus(msg.status)}
-                                    </div>
                                   </div>
-                                );
-                              })()}
 
-                              {/* Emojis de Reação Flutuantes */}
-                              {msg.reactions && msg.reactions.length > 0 && (
-                                <div
-                                  className={cn(
-                                    "absolute bottom-[-10px] flex gap-0.5 bg-background shadow border rounded-full px-1.5 py-0.5 text-xs select-none",
-                                    isOutgoing ? "left-2" : "right-2",
+                                  {/* Ações Rápidas em Menu Único para outgoing */}
+                                  {isOutgoing && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
+                                          title="Opções"
+                                        >
+                                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-56 p-1">
+                                        {/* Reações Rápidas */}
+                                        <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
+                                          {DEFAULT_EMOJIS.map((emoji) => (
+                                            <button
+                                              key={emoji}
+                                              onClick={() =>
+                                                handleSendReaction(msg.wa_message_id, emoji)
+                                              }
+                                              className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
+                                            >
+                                              {emoji}
+                                            </button>
+                                          ))}
+                                        </div>
+
+                                        {/* Responder */}
+                                        <DropdownMenuItem
+                                          onClick={() => setReplyingTo(msg)}
+                                          className="flex items-center gap-2 cursor-pointer text-xs"
+                                        >
+                                          <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span>Responder</span>
+                                        </DropdownMenuItem>
+
+                                        {/* Etiquetar */}
+                                        <DropdownMenuSub>
+                                          <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
+                                            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span>Etiquetar</span>
+                                          </DropdownMenuSubTrigger>
+                                          <DropdownMenuPortal>
+                                            <DropdownMenuSubContent className="p-2 min-w-[200px]">
+                                              {renderMessageTagSubmenu(msg)}
+                                            </DropdownMenuSubContent>
+                                          </DropdownMenuPortal>
+                                        </DropdownMenuSub>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   )}
-                                >
-                                  {msg.reactions.map((rx: any, idx: number) => (
-                                    <span
-                                      key={idx}
-                                      title={rx.direction === "outgoing" ? "Você" : "Contato"}
-                                      className="transition-transform hover:scale-110"
-                                    >
-                                      {rx.emoji}
-                                    </span>
-                                  ))}
                                 </div>
-                              )}
-                            </div>
-
-                            {/* Ações Rápidas em Menu Único para outgoing */}
-                            {isOutgoing && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                    title="Opções"
-                                  >
-                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 p-1">
-                                  {/* Reações Rápidas */}
-                                  <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
-                                    {DEFAULT_EMOJIS.map((emoji) => (
-                                      <button
-                                        key={emoji}
-                                        onClick={() => handleSendReaction(msg.wa_message_id, emoji)}
-                                        className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
-                                      >
-                                        {emoji}
-                                      </button>
-                                    ))}
-                                  </div>
-
-                                  {/* Responder */}
-                                  <DropdownMenuItem onClick={() => setReplyingTo(msg)} className="flex items-center gap-2 cursor-pointer text-xs">
-                                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
-                                    <span>Responder</span>
-                                  </DropdownMenuItem>
-
-                                  {/* Etiquetar */}
-                                  <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
-                                      <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                                      <span>Etiquetar</span>
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuPortal>
-                                      <DropdownMenuSubContent className="p-2 min-w-[200px]">
-                                        {renderMessageTagSubmenu(msg)}
-                                      </DropdownMenuSubContent>
-                                    </DropdownMenuPortal>
-                                  </DropdownMenuSub>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )
-            })()}
+                        );
+                      })
+                    );
+                  })()}
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -4752,7 +5215,8 @@ function ChatPage() {
                     <div className="h-px bg-border" />
                     <div className="space-y-3">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
-                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição de Atendimento
+                        <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> Atribuição
+                        de Atendimento
                       </p>
 
                       <DropdownMenu>
@@ -4762,19 +5226,40 @@ function ChatPage() {
                             className="w-full h-9 justify-between text-xs bg-muted/20 hover:bg-muted/40"
                           >
                             <span className="truncate">
-                              {selectedContact?.active_team_name || selectedContact?.active_agent_name
+                              {selectedContact?.active_team_name ||
+                              selectedContact?.active_agent_name
                                 ? `${selectedContact.active_team_name ? `Equipe: ${selectedContact.active_team_name}` : ""} ${selectedContact.active_agent_name ? `(${selectedContact.active_agent_name})` : ""}`
                                 : "Sem atribuição"}
                             </span>
                             <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-1" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-[240px] max-h-[350px] overflow-y-auto" align="end">
-                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Ações rápidas</DropdownMenuLabel>
+                        <DropdownMenuContent
+                          className="w-[240px] max-h-[350px] overflow-y-auto"
+                          align="end"
+                        >
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">
+                            Ações rápidas
+                          </DropdownMenuLabel>
                           <DropdownMenuItem
                             className="text-xs cursor-pointer gap-2"
-                            onClick={() => selfAssignMutation.mutate({ teamId: selectedTeamId || "" })}
-                            disabled={selfAssignMutation.isPending}
+                            onClick={() => {
+                              const targetTeam =
+                                selectedTeamId ||
+                                selectedContact?.active_team_id ||
+                                (teamsQuery.data?.[0]?.id ?? "");
+                              if (!targetTeam) {
+                                toast.error("Por favor, selecione uma equipe primeiro.");
+                                return;
+                              }
+                              selfAssignMutation.mutate({ teamId: targetTeam });
+                            }}
+                            disabled={
+                              selfAssignMutation.isPending ||
+                              (!selectedTeamId &&
+                                !selectedContact?.active_team_id &&
+                                !(teamsQuery.data?.[0]?.id ?? ""))
+                            }
                           >
                             <UserCheck className="h-3.5 w-3.5" />
                             Atribuir a mim
@@ -4783,7 +5268,10 @@ function ChatPage() {
                           <DropdownMenuItem
                             className="text-xs cursor-pointer gap-2"
                             onClick={() => {
-                              const targetTeam = selectedTeamId || selectedContact?.active_team_id || (teamsQuery.data?.[0]?.id);
+                              const targetTeam =
+                                selectedTeamId ||
+                                selectedContact?.active_team_id ||
+                                teamsQuery.data?.[0]?.id;
                               if (targetTeam) {
                                 autoAssignMutation.mutate(targetTeam);
                               } else {
@@ -4798,7 +5286,9 @@ function ChatPage() {
 
                           <DropdownMenuSeparator />
 
-                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Remover Atribuição</DropdownMenuLabel>
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">
+                            Remover Atribuição
+                          </DropdownMenuLabel>
                           <DropdownMenuItem
                             className="text-xs cursor-pointer text-destructive hover:text-destructive gap-2"
                             onClick={() =>
@@ -4815,13 +5305,19 @@ function ChatPage() {
 
                           <DropdownMenuSeparator />
 
-                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Selecionar Equipe</DropdownMenuLabel>
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">
+                            Selecionar Equipe
+                          </DropdownMenuLabel>
                           {(teamsQuery.data ?? []).map((t: any) => {
-                            const isCurrentTeam = (selectedContact?.active_team_id === t.id) || (selectedTeamId === t.id);
+                            const isCurrentTeam =
+                              selectedContact?.active_team_id === t.id || selectedTeamId === t.id;
                             return (
                               <DropdownMenuItem
                                 key={t.id}
-                                className={cn("text-xs cursor-pointer justify-between", isCurrentTeam && "bg-accent font-medium")}
+                                className={cn(
+                                  "text-xs cursor-pointer justify-between",
+                                  isCurrentTeam && "bg-accent font-medium",
+                                )}
                                 onClick={() => {
                                   setSelectedTeamId(t.id);
                                   assignMutation.mutate({
@@ -4838,8 +5334,10 @@ function ChatPage() {
 
                           <DropdownMenuSeparator />
 
-                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">Selecionar Agente</DropdownMenuLabel>
-                          {((selectedTeamId || selectedContact?.active_team_id)
+                          <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">
+                            Selecionar Agente
+                          </DropdownMenuLabel>
+                          {(selectedTeamId || selectedContact?.active_team_id
                             ? (teamMembersQuery.data ?? [])
                             : (agentsQuery.data ?? [])
                           ).map((a: any) => {
@@ -4848,15 +5346,21 @@ function ChatPage() {
                             return (
                               <DropdownMenuItem
                                 key={agentId}
-                                className={cn("text-xs cursor-pointer justify-between", isCurrentAgent && "bg-accent font-medium")}
+                                className={cn(
+                                  "text-xs cursor-pointer justify-between",
+                                  isCurrentAgent && "bg-accent font-medium",
+                                )}
                                 onClick={() =>
                                   assignMutation.mutate({
-                                    teamId: selectedTeamId || selectedContact?.active_team_id || null,
+                                    teamId:
+                                      selectedTeamId || selectedContact?.active_team_id || null,
                                     agentId: agentId,
                                   })
                                 }
                               >
-                                <span className="truncate">{a.full_name || a.display_name || a.email}</span>
+                                <span className="truncate">
+                                  {a.full_name || a.display_name || a.email}
+                                </span>
                                 {isCurrentAgent && <Check className="h-3.5 w-3.5 text-primary" />}
                               </DropdownMenuItem>
                             );
@@ -5217,10 +5721,7 @@ function ChatPage() {
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsQuickOpportunityOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setIsQuickOpportunityOpen(false)}>
                   Cancelar
                 </Button>
                 <Button
@@ -5284,10 +5785,7 @@ function ChatPage() {
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsFollowUpOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setIsFollowUpOpen(false)}>
                   Cancelar
                 </Button>
                 <Button
@@ -5411,10 +5909,7 @@ function ChatPage() {
                 )}
               </div>
               <div className="mt-4 pt-4 border-t">
-                <Button
-                  onClick={() => setIsLeadHistoryOpen(false)}
-                  className="w-full"
-                >
+                <Button onClick={() => setIsLeadHistoryOpen(false)} className="w-full">
                   Fechar
                 </Button>
               </div>
@@ -5506,10 +6001,7 @@ function ChatPage() {
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t">
-                <Button
-                  onClick={() => setIsInventoryOpen(false)}
-                  className="w-full"
-                >
+                <Button onClick={() => setIsInventoryOpen(false)} className="w-full">
                   Fechar
                 </Button>
               </div>
@@ -5524,7 +6016,8 @@ function ChatPage() {
               </SheetHeader>
               <div className="space-y-4 py-2 flex-1">
                 <p className="text-xs text-muted-foreground">
-                  Você está enviando {selectedContactIds.length} contato(s) selecionado(s) para o funil e etapa abaixo.
+                  Você está enviando {visibleSelectedContactIds.length} contato(s) selecionado(s)
+                  para o funil e etapa abaixo.
                 </p>
 
                 <div className="space-y-1">
@@ -5554,7 +6047,11 @@ function ChatPage() {
 
                 <div className="space-y-1">
                   <Label>Etapa do Funil</Label>
-                  <Select value={bulkStageId} onValueChange={setBulkStageId} disabled={!bulkFunnelId}>
+                  <Select
+                    value={bulkStageId}
+                    onValueChange={setBulkStageId}
+                    disabled={!bulkFunnelId}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a Etapa" />
                     </SelectTrigger>
@@ -5571,10 +6068,7 @@ function ChatPage() {
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsBulkFunnelDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setIsBulkFunnelDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button
@@ -5584,7 +6078,7 @@ function ChatPage() {
                       return;
                     }
                     bulkAssignMutation.mutate({
-                      contactIds: selectedContactIds,
+                      contactIds: visibleSelectedContactIds,
                       funnelId: bulkFunnelId,
                       stageId: bulkStageId,
                     });

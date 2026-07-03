@@ -333,7 +333,7 @@ CREATE TABLE IF NOT EXISTS conversation_tags (
   contact_number VARCHAR(50) NOT NULL,
   tag_id VARCHAR(36) NOT NULL,
   user_id VARCHAR(36) NOT NULL,
-  PRIMARY KEY (contact_number, tag_id),
+  PRIMARY KEY (contact_number, tag_id, user_id),
   FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -851,7 +851,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
   contact_id VARCHAR(36) NOT NULL,
-  status VARCHAR(50) NOT NULL DEFAULT 'pendente',
+  status VARCHAR(50) NOT NULL DEFAULT 'aguardando',
   started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   answered_at DATETIME NULL,
   closed_at DATETIME NULL,

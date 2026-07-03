@@ -6325,12 +6325,14 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
     setIsSubmitting(true);
     try {
       await connectIg({
-        ig_user_id: igUserId,
-        username: username,
-        access_token: accessToken,
-        app_id: appId || undefined,
-        app_secret: appSecret || undefined,
-        token_expires_at: tokenExpiresAt || undefined,
+        data: {
+          ig_user_id: igUserId,
+          username: username,
+          access_token: accessToken,
+          app_id: appId || undefined,
+          app_secret: appSecret || undefined,
+          token_expires_at: tokenExpiresAt || undefined,
+        },
       });
       toast.success("Conta do Instagram conectada com sucesso!");
       setIgUserId("");
@@ -6350,7 +6352,7 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
   const handleDisconnect = async (id: string) => {
     if (!confirm("Deseja realmente desconectar esta conta do Instagram?")) return;
     try {
-      await disconnectIg({ id });
+      await disconnectIg({ data: { id } });
       toast.success("Conta desconectada.");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
@@ -6596,9 +6598,11 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
     setIsSubmitting(true);
     try {
       await connectFb({
-        page_id: pageId,
-        page_name: pageName,
-        page_access_token: pageAccessToken,
+        data: {
+          page_id: pageId,
+          page_name: pageName,
+          page_access_token: pageAccessToken,
+        },
       });
       toast.success("Página do Facebook conectada com sucesso!");
       setPageId("");
@@ -6615,7 +6619,7 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
   const handleDisconnect = async (id: string) => {
     if (!confirm("Deseja realmente desconectar esta página do Facebook?")) return;
     try {
-      await disconnectFb({ id });
+      await disconnectFb({ data: { id } });
       toast.success("Página desconectada.");
       qc.invalidateQueries({ queryKey: ["facebook-pages"] });
     } catch (err: any) {

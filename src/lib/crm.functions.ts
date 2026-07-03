@@ -1,8 +1,104 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import type mysql from "mysql2/promise";
 import db from "./db";
 import crypto from "crypto";
+
+type SqlParams = unknown[];
+
+type SqlConnectionLike = mysql.PoolConnection;
+
+interface IdRow {
+  id: string;
+}
+
+interface StageIdRow {
+  stage_id: string | null;
+}
+
+interface FunnelIdRow {
+  funnel_id: string;
+}
+
+interface StageMoveRow extends IdRow, FunnelIdRow {
+  is_won_stage?: boolean | number | null;
+  is_lost_stage?: boolean | number | null;
+}
+
+interface KanbanOrderRow {
+  kanban_order: string | number | null;
+}
+
+interface MaxOrderRow {
+  max_order: string | number | null;
+}
+
+interface OpportunityListRow {
+  id: string;
+  primary_contact_custom_fields?:
+    | string
+    | Record<string, string | number | boolean | null | undefined>
+    | null;
+  tags?: Array<{ name: string; color: string }>;
+  [key: string]: unknown;
+}
+
+interface OpportunityTagRow {
+  opportunity_id: string;
+  name: string;
+  color: string;
+}
+
+interface OpportunityCoreRow {
+  id: string;
+  funnel_id: string;
+  stage_id: string;
+  status: string;
+  primary_contact_id: string | null;
+  closed_at?: string | Date | null;
+  title?: string;
+  description?: string | null;
+  company_name?: string | null;
+  owner_user_id?: string | null;
+  value?: number;
+  currency?: string | null;
+  expected_close_date?: string | null;
+  source?: string | null;
+  temperature?: string | null;
+  priority?: string | null;
+}
+
+interface OpportunityContactRow {
+  contact_id: string;
+  role: string | null;
+  is_primary: boolean | number;
+}
+
+interface OpportunityTagIdRow {
+  tag_id: string;
+}
+
+interface TimestampAggregateRow {
+  last_act?: string | Date | null;
+  next_act?: string | Date | null;
+}
+
+interface TimelineEventRow {
+  event_date: string | Date;
+  [key: string]: unknown;
+}
+
+interface StatusSummaryRow {
+  status: string;
+  count: string | number;
+  total_value?: string | number | null;
+}
+
+interface ContactNameRow {
+  name: string | null;
+  phone_e164: string | null;
+}
 
 // Schemas
 const funnelSchema = z.object({
@@ -52,12 +148,12 @@ const opportunitySchema = z.object({
 
 // Helper for audit logging
 async function logAudit(
-  connection: any,
+  connection: SqlConnectionLike,
   userId: string,
   opportunityId: string | null,
   action: string,
-  oldValues: any,
-  newValues: any,
+  oldValues: unknown,
+  newValues: unknown,
   actorId?: string,
 ) {
   const auditId = crypto.randomUUID();
@@ -85,6 +181,32 @@ async function validateStageBelongsToFunnel(funnelId: string, stageId: string): 
   return rows && rows.length > 0;
 }
 
+async function syncContactKanbanStage(
+  connection: SqlConnectionLike,
+  userId: string,
+  contactId: string | null | undefined,
+  fallbackStageId: string | null = null,
+) {
+  if (!contactId) return;
+
+  const [rows] = (await connection.execute(
+    `SELECT stage_id
+     FROM opportunities
+     WHERE user_id = ? AND primary_contact_id = ? AND deleted_at IS NULL
+     ORDER BY updated_at DESC, created_at DESC
+     LIMIT 1`,
+    [userId, contactId],
+  )) as [StageIdRow[], unknown];
+
+  const stageId = rows?.[0]?.stage_id ?? fallbackStageId ?? null;
+
+  await connection.execute("UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND user_id = ?", [
+    stageId,
+    contactId,
+    userId,
+  ]);
+}
+
 // -----------------------------------------------------------------------------
 // FUNNELS ENDPOINTS
 // -----------------------------------------------------------------------------
@@ -103,7 +225,7 @@ export const listFunnels = createServerFn({ method: "GET" })
 
 export const createFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => funnelSchema.parse(d))
+  .validator((d) => funnelSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -143,7 +265,7 @@ export const createFunnel = createServerFn({ method: "POST" })
 
 export const updateFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), data: funnelSchema }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid(), data: funnelSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -154,10 +276,10 @@ export const updateFunnel = createServerFn({ method: "POST" })
 
     await db.transaction(async (conn) => {
       // Validate ownership
-      const [ownerCheck]: any = await conn.execute(
+      const [ownerCheck] = (await conn.execute(
         "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [IdRow[], unknown];
       if (!ownerCheck || ownerCheck.length === 0) {
         throw new Error("Funil não encontrado ou não autorizado");
       }
@@ -191,7 +313,7 @@ export const updateFunnel = createServerFn({ method: "POST" })
 
 export const deleteFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -225,7 +347,7 @@ export const deleteFunnel = createServerFn({ method: "POST" })
 
 export const listStages = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ funnel_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ funnel_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -238,7 +360,7 @@ export const listStages = createServerFn({ method: "GET" })
 
 export const createStage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => stageSchema.parse(d))
+  .validator((d) => stageSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -250,10 +372,10 @@ export const createStage = createServerFn({ method: "POST" })
 
     await db.transaction(async (conn) => {
       // Validate funnel ownership
-      const [funnelCheck]: any = await conn.execute(
+      const [funnelCheck] = (await conn.execute(
         "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
         [data.funnel_id, effectiveUserId],
-      );
+      )) as [IdRow[], unknown];
       if (!funnelCheck || funnelCheck.length === 0) {
         throw new Error("Funil de destino inválido");
       }
@@ -284,7 +406,7 @@ export const createStage = createServerFn({ method: "POST" })
 
 export const updateStage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), data: stageSchema }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid(), data: stageSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -295,10 +417,10 @@ export const updateStage = createServerFn({ method: "POST" })
 
     await db.transaction(async (conn) => {
       // Validate ownership
-      const [ownerCheck]: any = await conn.execute(
+      const [ownerCheck] = (await conn.execute(
         "SELECT id FROM sales_stages WHERE id = ? AND user_id = ? LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [IdRow[], unknown];
       if (!ownerCheck || ownerCheck.length === 0) {
         throw new Error("Etapa não encontrada");
       }
@@ -328,7 +450,7 @@ export const updateStage = createServerFn({ method: "POST" })
 
 export const deleteStage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -341,19 +463,19 @@ export const deleteStage = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate ownership
-      const [stage]: any = await conn.execute(
+      const [stage] = (await conn.execute(
         "SELECT id, funnel_id FROM sales_stages WHERE id = ? AND user_id = ? LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [Array<IdRow & FunnelIdRow>, unknown];
       if (!stage || stage.length === 0) {
         throw new Error("Etapa não encontrada");
       }
 
       // Check for opportunities in this stage
-      const [opps]: any = await conn.execute(
+      const [opps] = (await conn.execute(
         "SELECT id FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id],
-      );
+      )) as [IdRow[], unknown];
 
       if (opps && opps.length > 0) {
         if (!data.move_opportunities_to_stage_id) {
@@ -363,10 +485,10 @@ export const deleteStage = createServerFn({ method: "POST" })
         }
 
         // Validate migration stage
-        const [targetStage]: any = await conn.execute(
+        const [targetStage] = (await conn.execute(
           "SELECT id FROM sales_stages WHERE id = ? AND funnel_id = ? LIMIT 1",
           [data.move_opportunities_to_stage_id, stage[0].funnel_id],
-        );
+        )) as [IdRow[], unknown];
         if (!targetStage || targetStage.length === 0) {
           throw new Error("Etapa de destino para migração inválida ou pertence a outro funil");
         }
@@ -386,7 +508,7 @@ export const deleteStage = createServerFn({ method: "POST" })
 
 export const reorderStages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         funnel_id: z.string().uuid(),
@@ -399,10 +521,10 @@ export const reorderStages = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate ownership of the funnel
-      const [funnelCheck]: any = await conn.execute(
+      const [funnelCheck] = (await conn.execute(
         "SELECT id FROM sales_funnels WHERE id = ? AND user_id = ? LIMIT 1",
         [data.funnel_id, effectiveUserId],
-      );
+      )) as [IdRow[], unknown];
       if (!funnelCheck || funnelCheck.length === 0) {
         throw new Error("Funil não encontrado");
       }
@@ -424,7 +546,7 @@ export const reorderStages = createServerFn({ method: "POST" })
 
 export const listOpportunities = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         funnel_id: z.string().uuid(),
@@ -449,7 +571,7 @@ export const listOpportunities = createServerFn({ method: "GET" })
       LEFT JOIN contacts c ON o.primary_contact_id = c.id
       WHERE o.user_id = ? AND o.funnel_id = ? AND o.deleted_at IS NULL
     `;
-    const params: any[] = [effectiveUserId, data.funnel_id];
+    const params: SqlParams = [effectiveUserId, data.funnel_id];
 
     if (data.stage_id) {
       queryStr += " AND o.stage_id = ?";
@@ -476,7 +598,7 @@ export const listOpportunities = createServerFn({ method: "GET" })
     queryStr += " LIMIT ? OFFSET ?";
     params.push(data.limit, offset);
 
-    const rows = await db.query(queryStr, params);
+    const rows = (await db.query(queryStr, params)) as OpportunityListRow[];
 
     // Parse custom fields JSON
     if (rows && rows.length > 0) {
@@ -493,9 +615,9 @@ export const listOpportunities = createServerFn({ method: "GET" })
 
     // Eager load tags
     if (rows && rows.length > 0) {
-      const oppIds = rows.map((r: any) => r.id);
+      const oppIds = rows.map((r) => r.id);
       const placeholders = oppIds.map(() => "?").join(",");
-      const tagsRows = await db.query(
+      const tagsRows = (await db.query(
         `
         SELECT ot.opportunity_id, t.name, t.color
         FROM opportunity_tags ot
@@ -503,12 +625,12 @@ export const listOpportunities = createServerFn({ method: "GET" })
         WHERE ot.opportunity_id IN (${placeholders})
       `,
         oppIds,
-      );
+      )) as OpportunityTagRow[];
 
       for (const row of rows) {
         row.tags = tagsRows
-          .filter((tr: any) => tr.opportunity_id === row.id)
-          .map((tr: any) => ({ name: tr.name, color: tr.color }));
+          .filter((tr) => tr.opportunity_id === row.id)
+          .map((tr) => ({ name: tr.name, color: tr.color }));
       }
     }
 
@@ -517,7 +639,7 @@ export const listOpportunities = createServerFn({ method: "GET" })
 
 export const getOpportunity = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -586,7 +708,7 @@ export const getOpportunity = createServerFn({ method: "GET" })
 
 export const createOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => opportunitySchema.parse(d))
+  .validator((d) => opportunitySchema.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -599,11 +721,12 @@ export const createOpportunity = createServerFn({ method: "POST" })
       }
 
       // Calculate kanban order (placed at the end by default)
-      const [maxOrderRow]: any = await conn.execute(
+      const [maxOrderRow] = (await conn.execute(
         "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
         [data.stage_id],
-      );
-      const maxOrder = maxOrderRow?.[0]?.max_order ? parseFloat(maxOrderRow[0].max_order) : 0.0;
+      )) as [MaxOrderRow[], unknown];
+      const rawMaxOrder = maxOrderRow?.[0]?.max_order;
+      const maxOrder = rawMaxOrder != null ? Number(rawMaxOrder) || 0.0 : 0.0;
       const kanbanOrder = maxOrder + 1000.0;
 
       // Insert opportunity
@@ -641,6 +764,7 @@ export const createOpportunity = createServerFn({ method: "POST" })
            ON DUPLICATE KEY UPDATE is_primary = TRUE`,
           [effectiveUserId, oppId, data.primary_contact_id],
         );
+        await syncContactKanbanStage(conn, effectiveUserId, data.primary_contact_id, data.stage_id);
       }
 
       // Save additional contacts
@@ -659,10 +783,10 @@ export const createOpportunity = createServerFn({ method: "POST" })
       if (data.tags && data.tags.length > 0) {
         for (const tagName of data.tags) {
           // Find or create tag
-          const [tag]: any = await conn.execute(
+          const [tag] = (await conn.execute(
             "SELECT id FROM tags WHERE user_id = ? AND name = ? LIMIT 1",
             [effectiveUserId, tagName],
-          );
+          )) as [IdRow[], unknown];
           let tagId: string;
           if (tag && tag.length > 0) {
             tagId = tag[0].id;
@@ -692,16 +816,16 @@ export const createOpportunity = createServerFn({ method: "POST" })
 
 export const updateOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), data: opportunitySchema }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid(), data: opportunitySchema }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate owner
-      const [oppCheck]: any = await conn.execute(
+      const [oppCheck] = (await conn.execute(
         "SELECT * FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!oppCheck || oppCheck.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
@@ -751,6 +875,21 @@ export const updateOpportunity = createServerFn({ method: "POST" })
         );
       }
 
+      if (
+        existingOpp.primary_contact_id &&
+        existingOpp.primary_contact_id !== data.data.primary_contact_id
+      ) {
+        await syncContactKanbanStage(conn, effectiveUserId, existingOpp.primary_contact_id, null);
+      }
+      if (data.data.primary_contact_id) {
+        await syncContactKanbanStage(
+          conn,
+          effectiveUserId,
+          data.data.primary_contact_id,
+          data.data.stage_id,
+        );
+      }
+
       // Sync additional contacts
       await conn.execute(
         "DELETE FROM opportunity_contacts WHERE opportunity_id = ? AND is_primary = FALSE",
@@ -770,10 +909,10 @@ export const updateOpportunity = createServerFn({ method: "POST" })
       await conn.execute("DELETE FROM opportunity_tags WHERE opportunity_id = ?", [data.id]);
       if (data.data.tags && data.data.tags.length > 0) {
         for (const tagName of data.data.tags) {
-          const [tag]: any = await conn.execute(
+          const [tag] = (await conn.execute(
             "SELECT id FROM tags WHERE user_id = ? AND name = ? LIMIT 1",
             [effectiveUserId, tagName],
-          );
+          )) as [IdRow[], unknown];
           let tagId: string;
           if (tag && tag.length > 0) {
             tagId = tag[0].id;
@@ -800,7 +939,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
 
 export const deleteOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -825,7 +964,7 @@ export const deleteOpportunity = createServerFn({ method: "POST" })
 // Kanban Drag and Drop move opportunity
 export const moveOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -841,10 +980,10 @@ export const moveOpportunity = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     return await db.transaction(async (conn) => {
       // Find opportunity with lock (using plain SELECT first for simplicity, or SELECT ... FOR UPDATE)
-      const [oppRows]: any = await conn.execute(
+      const [oppRows] = (await conn.execute(
         "SELECT * FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!oppRows || oppRows.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
@@ -853,10 +992,10 @@ export const moveOpportunity = createServerFn({ method: "POST" })
       const oldStatus = opportunity.status;
 
       // Find target stage
-      const [stageRows]: any = await conn.execute(
+      const [stageRows] = (await conn.execute(
         "SELECT * FROM sales_stages WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.to_stage_id, effectiveUserId],
-      );
+      )) as [StageMoveRow[], unknown];
       if (!stageRows || stageRows.length === 0) {
         throw new Error("Etapa de destino inválida");
       }
@@ -873,44 +1012,44 @@ export const moveOpportunity = createServerFn({ method: "POST" })
       let newOrder = 0.0;
       if (!data.before_opportunity_id && !data.after_opportunity_id) {
         // Only card in stage, or just append
-        const [maxRow]: any = await conn.execute(
+        const [maxRow] = (await conn.execute(
           "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
           [data.to_stage_id],
-        );
-        const maxVal = maxRow?.[0]?.max_order ? parseFloat(maxRow[0].max_order) : 0.0;
+        )) as [MaxOrderRow[], unknown];
+        const maxVal = maxRow?.[0]?.max_order != null ? Number(maxRow[0].max_order) || 0.0 : 0.0;
         newOrder = maxVal + 1000.0;
       } else if (!data.before_opportunity_id && data.after_opportunity_id) {
         // Place at very top (before the 'after' card)
-        const [afterRow]: any = await conn.execute(
+        const [afterRow] = (await conn.execute(
           "SELECT kanban_order FROM opportunities WHERE id = ? LIMIT 1",
           [data.after_opportunity_id as string],
-        );
-        const afterVal = afterRow?.[0]?.kanban_order ? parseFloat(afterRow[0].kanban_order) : 0.0;
+        )) as [KanbanOrderRow[], unknown];
+        const afterVal =
+          afterRow?.[0]?.kanban_order != null ? Number(afterRow[0].kanban_order) || 0.0 : 0.0;
         newOrder = afterVal - 1000.0;
       } else if (data.before_opportunity_id && !data.after_opportunity_id) {
         // Place at bottom (after the 'before' card)
-        const [beforeRow]: any = await conn.execute(
+        const [beforeRow] = (await conn.execute(
           "SELECT kanban_order FROM opportunities WHERE id = ? LIMIT 1",
           [data.before_opportunity_id as string],
-        );
-        const beforeVal = beforeRow?.[0]?.kanban_order
-          ? parseFloat(beforeRow[0].kanban_order)
-          : 0.0;
+        )) as [KanbanOrderRow[], unknown];
+        const beforeVal =
+          beforeRow?.[0]?.kanban_order != null ? Number(beforeRow[0].kanban_order) || 0.0 : 0.0;
         newOrder = beforeVal + 1000.0;
       } else {
         // Between two cards
-        const [beforeRow]: any = await conn.execute(
+        const [beforeRow] = (await conn.execute(
           "SELECT kanban_order FROM opportunities WHERE id = ? LIMIT 1",
           [data.before_opportunity_id as string],
-        );
-        const [afterRow]: any = await conn.execute(
+        )) as [KanbanOrderRow[], unknown];
+        const [afterRow] = (await conn.execute(
           "SELECT kanban_order FROM opportunities WHERE id = ? LIMIT 1",
           [data.after_opportunity_id as string],
-        );
-        const beforeVal = beforeRow?.[0]?.kanban_order
-          ? parseFloat(beforeRow[0].kanban_order)
-          : 0.0;
-        const afterVal = afterRow?.[0]?.kanban_order ? parseFloat(afterRow[0].kanban_order) : 0.0;
+        )) as [KanbanOrderRow[], unknown];
+        const beforeVal =
+          beforeRow?.[0]?.kanban_order != null ? Number(beforeRow[0].kanban_order) || 0.0 : 0.0;
+        const afterVal =
+          afterRow?.[0]?.kanban_order != null ? Number(afterRow[0].kanban_order) || 0.0 : 0.0;
         newOrder = (beforeVal + afterVal) / 2.0;
       }
 
@@ -937,13 +1076,12 @@ export const moveOpportunity = createServerFn({ method: "POST" })
         [data.to_stage_id, newOrder, newStatus, closedAt, context.userId, data.id],
       );
 
-      // Sincronizar o campo kanban_stage_id no contato principal correspondente
-      if (opportunity.primary_contact_id) {
-        await conn.execute(
-          "UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND user_id = ?",
-          [data.to_stage_id, opportunity.primary_contact_id, effectiveUserId]
-        );
-      }
+      await syncContactKanbanStage(
+        conn,
+        effectiveUserId,
+        opportunity.primary_contact_id,
+        data.to_stage_id,
+      );
 
       // Save to stage history
       const historyId = crypto.randomUUID();
@@ -987,26 +1125,26 @@ export const moveOpportunity = createServerFn({ method: "POST" })
 // Mark Won
 export const markOpportunityWon = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Get opportunity funnel
-      const [opps]: any = await conn.execute(
-        "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
+      const [opps] = (await conn.execute(
+        "SELECT funnel_id, stage_id, status, primary_contact_id FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
       const opportunity = opps[0];
 
       // Get won stage of this funnel
-      const [stages]: any = await conn.execute(
+      const [stages] = (await conn.execute(
         "SELECT id FROM sales_stages WHERE funnel_id = ? AND is_won_stage = TRUE AND is_active = TRUE LIMIT 1",
         [opportunity.funnel_id],
-      );
+      )) as [IdRow[], unknown];
       if (!stages || stages.length === 0) {
         throw new Error("Nenhuma etapa de Ganho configurada para este funil");
       }
@@ -1016,6 +1154,13 @@ export const markOpportunityWon = createServerFn({ method: "POST" })
       await conn.execute(
         "UPDATE opportunities SET status = 'won', stage_id = ?, closed_at = NOW() WHERE id = ?",
         [wonStageId, data.id],
+      );
+
+      await syncContactKanbanStage(
+        conn,
+        effectiveUserId,
+        opportunity.primary_contact_id,
+        wonStageId,
       );
 
       // History
@@ -1049,7 +1194,7 @@ export const markOpportunityWon = createServerFn({ method: "POST" })
 // Mark Lost
 export const markOpportunityLost = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -1062,29 +1207,29 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
-      const [opps]: any = await conn.execute(
-        "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
+      const [opps] = (await conn.execute(
+        "SELECT funnel_id, stage_id, status, primary_contact_id FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
       const opportunity = opps[0];
 
       // Verify reason
-      const [reasons]: any = await conn.execute(
+      const [reasons] = (await conn.execute(
         "SELECT id FROM opportunity_lost_reasons WHERE id = ? LIMIT 1",
         [data.lost_reason_id],
-      );
+      )) as [IdRow[], unknown];
       if (!reasons || reasons.length === 0) {
         throw new Error("Motivo de perda inválido");
       }
 
       // Get lost stage
-      const [stages]: any = await conn.execute(
+      const [stages] = (await conn.execute(
         "SELECT id FROM sales_stages WHERE funnel_id = ? AND is_lost_stage = TRUE AND is_active = TRUE LIMIT 1",
         [opportunity.funnel_id],
-      );
+      )) as [IdRow[], unknown];
       if (!stages || stages.length === 0) {
         throw new Error("Nenhuma etapa de Perda configurada para este funil");
       }
@@ -1096,6 +1241,13 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
          SET status = 'lost', stage_id = ?, lost_reason_id = ?, lost_reason_text = ?, closed_at = NOW() 
          WHERE id = ?`,
         [lostStageId, data.lost_reason_id, data.lost_reason_text ?? null, data.id],
+      );
+
+      await syncContactKanbanStage(
+        conn,
+        effectiveUserId,
+        opportunity.primary_contact_id,
+        lostStageId,
       );
 
       // History
@@ -1130,17 +1282,17 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
 // Reopen
 export const reopenOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z.object({ id: z.string().uuid(), target_stage_id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
-      const [opps]: any = await conn.execute(
-        "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
+      const [opps] = (await conn.execute(
+        "SELECT funnel_id, stage_id, status, primary_contact_id FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
@@ -1154,6 +1306,13 @@ export const reopenOpportunity = createServerFn({ method: "POST" })
       await conn.execute(
         "UPDATE opportunities SET status = 'open', stage_id = ?, closed_at = NULL, lost_reason_id = NULL, lost_reason_text = NULL WHERE id = ?",
         [data.target_stage_id, data.id],
+      );
+
+      await syncContactKanbanStage(
+        conn,
+        effectiveUserId,
+        opportunity.primary_contact_id,
+        data.target_stage_id,
       );
 
       await conn.execute(
@@ -1186,7 +1345,7 @@ export const reopenOpportunity = createServerFn({ method: "POST" })
 // Change funnel
 export const changeOpportunityFunnel = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -1199,36 +1358,43 @@ export const changeOpportunityFunnel = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
-      const [opps]: any = await conn.execute(
-        "SELECT funnel_id, stage_id, status FROM opportunities WHERE id = ? AND user_id = ? LIMIT 1",
+      const [opps] = (await conn.execute(
+        "SELECT funnel_id, stage_id, status, primary_contact_id FROM opportunities WHERE id = ? AND user_id = ? LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
       const opportunity = opps[0];
 
       // Validate stage in target funnel
-      const [stages]: any = await conn.execute(
+      const [stages] = (await conn.execute(
         "SELECT id FROM sales_stages WHERE id = ? AND funnel_id = ? LIMIT 1",
         [data.to_stage_id, data.to_funnel_id],
-      );
+      )) as [IdRow[], unknown];
       if (!stages || stages.length === 0) {
         throw new Error("Etapa selecionada não pertence ao novo funil informado");
       }
 
       // Calculate Kanban order
-      const [maxRow]: any = await conn.execute(
+      const [maxRow] = (await conn.execute(
         "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
         [data.to_stage_id],
-      );
-      const maxVal = maxRow?.[0]?.max_order ? parseFloat(maxRow[0].max_order) : 0.0;
+      )) as [MaxOrderRow[], unknown];
+      const maxVal = maxRow?.[0]?.max_order != null ? Number(maxRow[0].max_order) || 0.0 : 0.0;
       const newOrder = maxVal + 1000.0;
 
       // Update
       await conn.execute(
         "UPDATE opportunities SET funnel_id = ?, stage_id = ?, kanban_order = ? WHERE id = ?",
         [data.to_funnel_id, data.to_stage_id, newOrder, data.id],
+      );
+
+      await syncContactKanbanStage(
+        conn,
+        effectiveUserId,
+        opportunity.primary_contact_id,
+        data.to_stage_id,
       );
 
       // Audit Log
@@ -1248,28 +1414,28 @@ export const changeOpportunityFunnel = createServerFn({ method: "POST" })
 // Duplicate Opportunity
 export const duplicateOpportunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const newId = crypto.randomUUID();
 
     await db.transaction(async (conn) => {
-      const [opps]: any = await conn.execute(
+      const [opps] = (await conn.execute(
         "SELECT * FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [OpportunityCoreRow[], unknown];
       if (!opps || opps.length === 0) {
         throw new Error("Oportunidade não encontrada");
       }
       const o = opps[0];
 
       // Calculate Kanban order
-      const [maxRow]: any = await conn.execute(
+      const [maxRow] = (await conn.execute(
         "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
         [o.stage_id],
-      );
-      const maxVal = maxRow?.[0]?.max_order ? parseFloat(maxRow[0].max_order) : 0.0;
+      )) as [MaxOrderRow[], unknown];
+      const maxVal = maxRow?.[0]?.max_order != null ? Number(maxRow[0].max_order) || 0.0 : 0.0;
       const newOrder = maxVal + 1000.0;
 
       // Insert duplicate
@@ -1300,10 +1466,10 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
       );
 
       // Duplicate contacts association
-      const [contacts]: any = await conn.execute(
+      const [contacts] = (await conn.execute(
         "SELECT contact_id, role, is_primary FROM opportunity_contacts WHERE opportunity_id = ?",
         [data.id],
-      );
+      )) as [OpportunityContactRow[], unknown];
       for (const c of contacts) {
         await conn.execute(
           `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
@@ -1313,10 +1479,10 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
       }
 
       // Duplicate tags
-      const [tags]: any = await conn.execute(
+      const [tags] = (await conn.execute(
         "SELECT tag_id FROM opportunity_tags WHERE opportunity_id = ?",
         [data.id],
-      );
+      )) as [OpportunityTagIdRow[], unknown];
       for (const t of tags) {
         await conn.execute(
           "INSERT INTO opportunity_tags (opportunity_id, tag_id, user_id) VALUES (?, ?, ?)",
@@ -1360,7 +1526,7 @@ const activitySchema = z.object({
 
 export const listActivities = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -1377,7 +1543,7 @@ export const listActivities = createServerFn({ method: "GET" })
 
 export const createActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => activitySchema.parse(d))
+  .validator((d) => activitySchema.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -1414,16 +1580,16 @@ export const createActivity = createServerFn({ method: "POST" })
 
 export const updateActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), data: activitySchema }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid(), data: activitySchema }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.transaction(async (conn) => {
       // Validate owner
-      const [checks]: any = await conn.execute(
+      const [checks] = (await conn.execute(
         "SELECT id FROM opportunity_activities WHERE id = ? AND user_id = ? LIMIT 1",
         [data.id, effectiveUserId],
-      );
+      )) as [IdRow[], unknown];
       if (!checks || checks.length === 0) {
         throw new Error("Atividade não encontrada");
       }
@@ -1454,9 +1620,7 @@ export const updateActivity = createServerFn({ method: "POST" })
 
 export const deleteActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
-    z.object({ id: z.string().uuid(), opportunity_id: z.string().uuid() }).parse(d),
-  )
+  .validator((d) => z.object({ id: z.string().uuid(), opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -1470,21 +1634,21 @@ export const deleteActivity = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-async function updateOpportunityActivityTimestamps(conn: any, opportunityId: string) {
+async function updateOpportunityActivityTimestamps(conn: SqlConnectionLike, opportunityId: string) {
   // Last completed activity date
-  const [lastRow]: any = await conn.execute(
+  const [lastRow] = (await conn.execute(
     `SELECT MAX(completed_at) AS last_act 
      FROM opportunity_activities 
      WHERE opportunity_id = ? AND status = 'done' AND deleted_at IS NULL`,
     [opportunityId],
-  );
+  )) as [TimestampAggregateRow[], unknown];
   // Next pending activity date
-  const [nextRow]: any = await conn.execute(
+  const [nextRow] = (await conn.execute(
     `SELECT MIN(due_at) AS next_act 
      FROM opportunity_activities 
      WHERE opportunity_id = ? AND status = 'pending' AND deleted_at IS NULL AND due_at >= NOW()`,
     [opportunityId],
-  );
+  )) as [TimestampAggregateRow[], unknown];
 
   const lastAct = lastRow?.[0]?.last_act ? new Date(lastRow[0].last_act) : null;
   const nextAct = nextRow?.[0]?.next_act ? new Date(nextRow[0].next_act) : null;
@@ -1501,7 +1665,7 @@ async function updateOpportunityActivityTimestamps(conn: any, opportunityId: str
 
 export const listNotes = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -1518,7 +1682,7 @@ export const listNotes = createServerFn({ method: "GET" })
 
 export const createNote = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         opportunity_id: z.string().uuid(),
@@ -1548,7 +1712,7 @@ export const createNote = createServerFn({ method: "POST" })
 
 export const updateNote = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) =>
+  .validator((d) =>
     z
       .object({
         id: z.string().uuid(),
@@ -1571,7 +1735,7 @@ export const updateNote = createServerFn({ method: "POST" })
 
 export const deleteNote = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -1588,12 +1752,12 @@ export const deleteNote = createServerFn({ method: "POST" })
 
 export const getOpportunityTimeline = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ opportunity_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     // 1. Get Stage changes
-    const stageHistory = await db.query(
+    const stageHistory = (await db.query(
       `SELECT h.moved_at AS event_date, 'stage_history' AS event_type, 
               h.reason, h.old_status, h.new_status,
               s1.name AS from_stage_name, s2.name AS to_stage_name,
@@ -1605,10 +1769,10 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
        WHERE h.opportunity_id = ? AND h.user_id = ?
        ORDER BY h.moved_at DESC`,
       [data.opportunity_id, effectiveUserId],
-    );
+    )) as TimelineEventRow[];
 
     // 2. Get Notes
-    const notes = await db.query(
+    const notes = (await db.query(
       `SELECT n.created_at AS event_date, 'note' AS event_type,
               n.body, n.is_pinned, n.id AS note_id,
               u.email AS actor_email
@@ -1616,10 +1780,10 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
        LEFT JOIN users u ON n.user_id_creator = u.id
        WHERE n.opportunity_id = ? AND n.user_id = ? AND n.deleted_at IS NULL`,
       [data.opportunity_id, effectiveUserId],
-    );
+    )) as TimelineEventRow[];
 
     // 3. Get Activities
-    const activities = await db.query(
+    const activities = (await db.query(
       `SELECT a.created_at AS event_date, 'activity' AS event_type,
               a.id AS activity_id, a.type, a.title, a.description, a.status, a.due_at, a.completed_at,
               u.email AS actor_email
@@ -1627,13 +1791,13 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
        LEFT JOIN users u ON a.created_by_user_id = u.id
        WHERE a.opportunity_id = ? AND a.user_id = ? AND a.deleted_at IS NULL`,
       [data.opportunity_id, effectiveUserId],
-    );
+    )) as TimelineEventRow[];
 
     // Merge and sort timeline
     const timeline = [
-      ...stageHistory.map((h: any) => ({ ...h, event_date: new Date(h.event_date).toISOString() })),
-      ...notes.map((n: any) => ({ ...n, event_date: new Date(n.event_date).toISOString() })),
-      ...activities.map((a: any) => ({ ...a, event_date: new Date(a.event_date).toISOString() })),
+      ...stageHistory.map((h) => ({ ...h, event_date: new Date(h.event_date).toISOString() })),
+      ...notes.map((n) => ({ ...n, event_date: new Date(n.event_date).toISOString() })),
+      ...activities.map((a) => ({ ...a, event_date: new Date(a.event_date).toISOString() })),
     ];
 
     timeline.sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
@@ -1647,20 +1811,20 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
 
 export const getCRMStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ funnel_id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ funnel_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const userId = effectiveUserId;
 
     // 1. Total opportunities count & values (grouped by status)
-    const statusSummary = await db.query(
+    const statusSummary = (await db.query(
       `SELECT status, COUNT(*) AS count, SUM(value) AS total_value
        FROM opportunities
        WHERE user_id = ? AND funnel_id = ? AND deleted_at IS NULL
        GROUP BY status`,
       [userId, data.funnel_id],
-    );
+    )) as StatusSummaryRow[];
 
     // 2. Opportunities per Stage
     const stageSummary = await db.query(
@@ -1698,8 +1862,8 @@ export const getCRMStats = createServerFn({ method: "GET" })
     );
 
     // 5. Conversion rates
-    const wonCountRow = statusSummary.find((s: any) => s.status === "won");
-    const lostCountRow = statusSummary.find((s: any) => s.status === "lost");
+    const wonCountRow = statusSummary.find((s) => s.status === "won");
+    const lostCountRow = statusSummary.find((s) => s.status === "lost");
     const wonCount = wonCountRow ? Number(wonCountRow.count) : 0;
     const lostCount = lostCountRow ? Number(lostCountRow.count) : 0;
     const closedCount = wonCount + lostCount;
@@ -1758,25 +1922,24 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
 
       for (const contactId of data.contactIds) {
         // 1. Check if contact has an active opportunity in this funnel
-        const [existing]: any = await conn.execute(
+        const [existing] = (await conn.execute(
           `SELECT id FROM opportunities 
            WHERE user_id = ? AND primary_contact_id = ? AND funnel_id = ? AND deleted_at IS NULL
            LIMIT 1`,
           [effectiveUserId, contactId, data.funnelId],
-        );
+        )) as [IdRow[], unknown];
 
         const oppRow = existing?.[0];
 
         if (oppRow) {
           // Update existing opportunity stage
           const oppId = oppRow.id;
-          
+
           // Get old values for auditing
-          const [oldRow]: any = await conn.execute(
-            "SELECT stage_id FROM opportunities WHERE id = ?",
-            [oppId]
-          );
-          
+          const [oldRow] = (await conn.execute("SELECT stage_id FROM opportunities WHERE id = ?", [
+            oppId,
+          ])) as [StageIdRow[], unknown];
+
           await conn.execute(
             `UPDATE opportunities 
              SET stage_id = ?, updated_at = CURRENT_TIMESTAMP()
@@ -1795,22 +1958,23 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
         } else {
           // Create new opportunity
           const oppId = crypto.randomUUID();
-          
+
           // Fetch contact details to make a nice title
-          const [contactRow]: any = await conn.execute(
+          const [contactRow] = (await conn.execute(
             "SELECT name, phone_e164 FROM contacts WHERE id = ? LIMIT 1",
             [contactId],
-          );
+          )) as [ContactNameRow[], unknown];
           const contact = contactRow?.[0];
           const name = contact?.name || contact?.phone_e164 || "Contato";
           const title = `Oportunidade - ${name}`;
 
           // Calculate kanban order
-          const [maxOrderRow]: any = await conn.execute(
+          const [maxOrderRow] = (await conn.execute(
             "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
             [data.stageId],
-          );
-          const maxOrder = maxOrderRow?.[0]?.max_order ? parseFloat(maxOrderRow[0].max_order) : 0.0;
+          )) as [MaxOrderRow[], unknown];
+          const rawMaxOrder = maxOrderRow?.[0]?.max_order;
+          const maxOrder = rawMaxOrder != null ? Number(rawMaxOrder) || 0.0 : 0.0;
           const kanbanOrder = maxOrder + 1000.0;
 
           await conn.execute(
@@ -1838,14 +2002,11 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
             [effectiveUserId, oppId, contactId],
           );
 
-          await logAudit(
-            conn,
-            context.userId,
-            oppId,
-            "create",
-            null,
-            { funnel_id: data.funnelId, stage_id: data.stageId, title },
-          );
+          await logAudit(conn, context.userId, oppId, "create", null, {
+            funnel_id: data.funnelId,
+            stage_id: data.stageId,
+            title,
+          });
         }
       }
     });

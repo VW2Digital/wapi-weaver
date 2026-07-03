@@ -162,7 +162,7 @@ function LicensesPage() {
       title: "Revogar Acesso",
       description: `Tem certeza que deseja revogar o acesso do domínio ${domainName}? O sistema cliente deixará de funcionar imediatamente.`,
       confirmText: "Revogar",
-      variant: "destructive"
+      destructive: true,
     });
     if (ok) {
       deleteMutation.mutate(id);
@@ -431,14 +431,12 @@ function LicensesPage() {
                         <TableCell className="capitalize">{lic.plan}</TableCell>
                         <TableCell>
                           <Badge
-                            variant={
+                            variant={lic.status === "blocked" ? "destructive" : "outline"}
+                            className={`capitalize ${
                               lic.status === "active"
-                                ? "success"
-                                : lic.status === "blocked"
-                                ? "destructive"
-                                : "outline"
-                            }
-                            className="capitalize"
+                                ? "border-green-200 bg-green-50 text-green-700"
+                                : ""
+                            }`}
                           >
                             {lic.status === "active" ? "Ativo" : lic.status === "blocked" ? "Bloqueado" : "Expirado"}
                           </Badge>
@@ -446,7 +444,7 @@ function LicensesPage() {
                         <TableCell>{expires}</TableCell>
                         <TableCell className="flex items-center justify-end gap-2">
                           <Button size="icon" variant="ghost" asChild>
-                            <Link to={`/licenses/${lic.id}`}>
+                            <Link to="/licenses/$id" params={{ id: String(lic.id) }}>
                               <ExternalLink className="h-4 w-4" />
                             </Link>
                           </Button>

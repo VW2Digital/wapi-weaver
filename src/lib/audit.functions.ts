@@ -49,7 +49,7 @@ const listSchema = z.object({
 
 export const listAuditLogs = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => listSchema.parse(d ?? {}))
+  .validator((d) => listSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const from = (data.page - 1) * data.limit;
     const to = from + data.limit - 1;

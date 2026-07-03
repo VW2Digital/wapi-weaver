@@ -51,6 +51,12 @@ function buildTemplateLookupKey(name?: string | null, language?: string | null) 
     .toLowerCase()}`;
 }
 
+const campaignMessageContactJoin = `
+  LEFT JOIN contacts c
+    ON c.user_id = cm.user_id
+   AND (c.id = cm.contact_id OR (cm.contact_id IS NULL AND c.phone_e164 = cm.to_phone))
+`;
+
 async function attachTemplateDiagnostics(db: any, campaigns: any[]) {
   if (!campaigns.length) return campaigns;
 
@@ -237,7 +243,7 @@ export const listCampaigns = createServerFn({ method: "GET" })
 
 export const getCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -270,7 +276,7 @@ export const getCampaign = createServerFn({ method: "POST" })
     if (!campaign) return { campaign: null, messages: [], template: null };
     const messages: any[] = (await db.query(
       `SELECT cm.*, c.name AS contact_name FROM campaign_messages cm
-       LEFT JOIN contacts c ON c.phone_e164 = cm.to_phone AND c.user_id = cm.user_id
+       ${campaignMessageContactJoin}
        WHERE cm.campaign_id = ? AND cm.user_id = ?
        ORDER BY cm.created_at DESC LIMIT 500`,
       [data.id, effectiveUserId],
@@ -291,7 +297,7 @@ export const getCampaign = createServerFn({ method: "POST" })
 
 export const createCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => createSchema.parse(d))
+  .validator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
     await validateTemplateForCampaign(context.db, data);
     const contacts = await fetchEligibleContactsForList(context.db, data.list_id);
@@ -337,7 +343,7 @@ export const createCampaign = createServerFn({ method: "POST" })
 
 export const updateCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => updateSchema.parse(d))
+  .validator((d) => updateSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { data: existing, error: existingErr } = await context.db
       .from("campaigns")
@@ -403,7 +409,7 @@ export const updateCampaign = createServerFn({ method: "POST" })
 
 export const cancelCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     // Cancela mensagens que ainda não foram enviadas
     await context.db
@@ -448,7 +454,7 @@ export const cancelCampaign = createServerFn({ method: "POST" })
 
 export const deleteCampaign = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: c } = await context.db
       .from("campaigns")
@@ -482,7 +488,7 @@ function csvEscape(v: unknown): string {
 
 export const exportCampaignReport = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -504,7 +510,7 @@ export const exportCampaignReport = createServerFn({ method: "POST" })
                 cm.error, cm.contact_id,
                 c.name AS contact_name, c.email AS contact_email
          FROM campaign_messages cm
-         LEFT JOIN contacts c ON c.id = cm.contact_id AND c.user_id = cm.user_id
+         ${campaignMessageContactJoin}
          WHERE cm.campaign_id = ? AND cm.user_id = ?
          ORDER BY cm.created_at ASC
          LIMIT ? OFFSET ?`,
