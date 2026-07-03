@@ -566,7 +566,8 @@ function ContactsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuItem
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingContact(c);
                                 setEditForm({
                                   phone: c.phone_e164 || "",
@@ -600,20 +601,22 @@ function ContactsPage() {
                               Editar contato
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() =>
-                                navigate({ to: "/contacts/$id", params: { id: c.id } })
-                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate({ to: "/contacts/$id", params: { id: c.id } });
+                              }}
                             >
                               <UserIcon className="mr-2 h-4 w-4" />
                               Abrir detalhes
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 navigate({
                                   to: "/chat",
                                   search: { phone: c.phone_e164 } as any,
-                                })
-                              }
+                                });
+                              }}
                             >
                               <MessageSquare className="mr-2 h-4 w-4" />
                               Mandar mensagem
@@ -621,7 +624,10 @@ function ContactsPage() {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onClick={() => handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`);
+                              }}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Excluir
