@@ -149,10 +149,12 @@ export const updateList = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    await db.query(
-      "UPDATE lists SET name = ?, description = ? WHERE id = ? AND user_id = ?",
-      [data.name, data.description ?? null, data.id, effectiveUserId],
-    );
+    await db.query("UPDATE lists SET name = ?, description = ? WHERE id = ? AND user_id = ?", [
+      data.name,
+      data.description ?? null,
+      data.id,
+      effectiveUserId,
+    ]);
     const rows = await db.query("SELECT * FROM lists WHERE id = ?", [data.id]);
     return (rows as any[])[0];
   });
@@ -173,10 +175,10 @@ export const addContactsToList = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     // Verificar se a lista pertence ao usuário
-    const [list] = (await db.query(
-      "SELECT 1 FROM lists WHERE id = ? AND user_id = ?",
-      [data.list_id, effectiveUserId],
-    )) as any[];
+    const [list] = (await db.query("SELECT 1 FROM lists WHERE id = ? AND user_id = ?", [
+      data.list_id,
+      effectiveUserId,
+    ])) as any[];
     if (!list) {
       throw new Error("Lista não encontrada ou sem permissão.");
     }
@@ -214,11 +216,10 @@ export const removeContactFromList = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    await db.query("DELETE FROM list_contacts WHERE list_id = ? AND contact_id = ? AND user_id = ?", [
-      data.list_id,
-      data.contact_id,
-      effectiveUserId,
-    ]);
+    await db.query(
+      "DELETE FROM list_contacts WHERE list_id = ? AND contact_id = ? AND user_id = ?",
+      [data.list_id, data.contact_id, effectiveUserId],
+    );
     return { ok: true };
   });
 
@@ -255,9 +256,13 @@ export const getListContacts = createServerFn({ method: "POST" })
           created_at: row.c_created_at,
           updated_at: row.c_updated_at,
         };
-        if (typeof row.contacts.custom_fields === "string" &&
-            (row.contacts.custom_fields.startsWith("{") || row.contacts.custom_fields.startsWith("["))) {
-          try { row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields); } catch {}
+        if (
+          typeof row.contacts.custom_fields === "string" &&
+          (row.contacts.custom_fields.startsWith("{") || row.contacts.custom_fields.startsWith("["))
+        ) {
+          try {
+            row.contacts.custom_fields = JSON.parse(row.contacts.custom_fields);
+          } catch {}
         }
       } else {
         row.contacts = null;
@@ -287,7 +292,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
             name: z.string().trim().max(120).nullable().optional(),
             phone: z.string().trim().min(1).max(32),
             email: z.string().trim().max(180).nullable().optional(),
-          })
+          }),
         ),
       })
       .parse(d),
@@ -300,20 +305,19 @@ export const importCsvToList = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     // Verificar se a lista pertence ao usuário
-    const [list] = (await db.query(
-      "SELECT 1 FROM lists WHERE id = ? AND user_id = ?",
-      [data.list_id, effectiveUserId],
-    )) as any[];
+    const [list] = (await db.query("SELECT 1 FROM lists WHERE id = ? AND user_id = ?", [
+      data.list_id,
+      effectiveUserId,
+    ])) as any[];
     if (!list) {
       throw new Error("Lista não encontrada ou sem permissão.");
     }
 
     const importedIds: string[] = [];
 
-    const existing = (await db.query(
-      "SELECT id, phone_e164 FROM contacts WHERE user_id = ?",
-      [effectiveUserId]
-    )) as { id: string; phone_e164: string }[];
+    const existing = (await db.query("SELECT id, phone_e164 FROM contacts WHERE user_id = ?", [
+      effectiveUserId,
+    ])) as { id: string; phone_e164: string }[];
 
     const phoneToIdMap = new Map<string, string>();
     for (const r of existing) {
@@ -352,7 +356,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
       await db.query(
         `INSERT INTO contacts (id, user_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}
          ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)`,
-        chunk.flat()
+        chunk.flat(),
       );
     }
 
@@ -365,7 +369,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
         const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
         await db.query(
           `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders}`,
-          chunk.flat()
+          chunk.flat(),
         );
       }
     }

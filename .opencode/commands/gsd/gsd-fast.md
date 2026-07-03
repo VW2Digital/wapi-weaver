@@ -3,12 +3,12 @@ name: gsd-fast
 description: Execute a trivial task inline — no subagents, no planning overhead
 argument-hint: "[task description]"
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   grep: true
-   glob: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  grep: true
+  glob: true
 ---
 
 <objective>

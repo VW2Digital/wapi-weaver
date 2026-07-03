@@ -10,11 +10,13 @@ Interactive workflow to select an AI model from opencode's available providers a
 ## Script Location
 
 The script is bundled with this skill at:
+
 ```
 scripts/select-models.cjs
 ```
 
 Run with:
+
 ```bash
 node <skill-dir>/scripts/select-models.cjs [options]
 ```
@@ -32,6 +34,7 @@ node <skill-dir>/scripts/select-models.cjs --providers-only
 ```
 
 Returns JSON:
+
 ```json
 {
   "provider_count": N,
@@ -48,6 +51,7 @@ Returns JSON:
 Use the question tool with paginated options. **Show 10 providers per page.**
 
 **Pagination pattern:**
+
 - For each page, include navigation options as needed:
   - `"→ Next"` - to go to next page (include when not on last page)
   - `"← Previous"` - to go to previous page (include when not on first page)
@@ -55,6 +59,7 @@ Use the question tool with paginated options. **Show 10 providers per page.**
 - Label the provider options clearly: show name and model count
 
 **Example for page 0 (first 10 providers):**
+
 ```
 question: "Select a provider (page 1/N, showing 1-10 of M):"
 Options:
@@ -65,14 +70,17 @@ Options:
 ```
 
 **When user selects "→ Next":**
+
 - Increment page index
 - Call question tool again with next 10 providers
 
 **When user selects "← Previous":**
+
 - Decrement page index
 - Call question tool again with previous 10 providers
 
 **When user selects a provider:**
+
 - Save the selected provider name
 - Save `has_sub_providers` flag from the provider data
 - Proceed to Step 3
@@ -88,6 +96,7 @@ node <skill-dir>/scripts/select-models.cjs --provider "provider-name"
 **Returns one of two JSON structures:**
 
 **A. For flat providers (2-level flow):**
+
 ```json
 {
   "provider": "openai",
@@ -95,9 +104,11 @@ node <skill-dir>/scripts/select-models.cjs --provider "provider-name"
   "models": ["gpt-4", "gpt-3.5-turbo", ...]
 }
 ```
+
 - `models` array present → Proceed to Step 5 (2-level flow)
 
 **B. For hierarchical providers (3-level flow):**
+
 ```json
 {
   "provider": "synthetic",
@@ -110,6 +121,7 @@ node <skill-dir>/scripts/select-models.cjs --provider "provider-name"
   ]
 }
 ```
+
 - `has_sub_providers: true` → Proceed to Step 4 (3-level flow)
 - Save the `sub_providers` array for the next step
 
@@ -120,6 +132,7 @@ node <skill-dir>/scripts/select-models.cjs --provider "provider-name"
 **Breadcrumb format:** `Provider: {name} > Select a sub-provider (page X/Y, showing A-B of M)`
 
 **Example for page 0:**
+
 ```
 question: "Provider: synthetic > Select a sub-provider (page 1/1, showing 1-3 of 3):"
 Options:
@@ -130,10 +143,12 @@ Options:
 ```
 
 **Navigation:**
+
 - `"→ Next"` / `"← Previous"` - standard pagination
 - `"← Back"` - returns to provider selection (Step 2), preserves `provider_page`
 
 **When user selects a sub-provider:**
+
 - Save the selected sub-provider name
 - Proceed to Step 5
 
@@ -148,6 +163,7 @@ node <skill-dir>/scripts/select-models.cjs --provider "provider-name" --sub-prov
 ```
 
 Returns JSON:
+
 ```json
 {
   "provider": "synthetic",
@@ -160,10 +176,12 @@ Returns JSON:
 **Pagination:** **Show 15 models per page.**
 
 **Breadcrumb format varies by flow:**
+
 - 2-level: `Provider: {name} > Select a model (page X/Y, showing A-B of M)`
 - 3-level: `Provider: {p} > Sub-provider: {sp} > Select a model (page X/Y, showing A-B of M)`
 
 **Example for 2-level flow (page 0):**
+
 ```
 question: "Provider: openai > Select a model (page 1/1, showing 1-5 of 5):"
 Options:
@@ -174,6 +192,7 @@ Options:
 ```
 
 **Example for 3-level flow (page 0):**
+
 ```
 question: "Provider: synthetic > Sub-provider: deepseek-ai > Select a model (page 1/1, showing 1-5 of 5):"
 Options:
@@ -184,10 +203,12 @@ Options:
 ```
 
 **Navigation:**
+
 - `"→ Next"` / `"← Previous"` - standard pagination
 - `"← Back"` - returns to provider selection (2-level) or sub-provider selection (3-level)
 
 **When user selects a model:**
+
 - Return the full model ID:
   - 2-level: `provider/model-name`
   - 3-level: `provider/sub-provider/model-name`
@@ -198,12 +219,12 @@ Breadcrumbs appear in the question header to orient the user at each selection l
 
 ### Breadcrumb Formats
 
-| Level | Format | Example |
-|-------|--------|---------|
-| Provider selection | `Select a provider (page X/Y, showing A-B of M)` | "Select a provider (page 1/3, showing 1-10 of 25)" |
-| Sub-provider selection (3-level) | `Provider: {name} > Select a sub-provider (page X/Y, showing A-B of M)` | "Provider: synthetic > Select a sub-provider (page 1/2, showing 1-10 of 15)" |
-| Model selection (2-level) | `Provider: {name} > Select a model (page X/Y, showing A-B of M)` | "Provider: openai > Select a model (page 1/1, showing 1-5 of 5)" |
-| Model selection (3-level) | `Provider: {p} > Sub-provider: {sp} > Select a model (page X/Y, showing A-B of M)` | "Provider: synthetic > Sub-provider: deepseek-ai > Select a model (page 1/1, showing 1-5 of 5)" |
+| Level                            | Format                                                                             | Example                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Provider selection               | `Select a provider (page X/Y, showing A-B of M)`                                   | "Select a provider (page 1/3, showing 1-10 of 25)"                                              |
+| Sub-provider selection (3-level) | `Provider: {name} > Select a sub-provider (page X/Y, showing A-B of M)`            | "Provider: synthetic > Select a sub-provider (page 1/2, showing 1-10 of 15)"                    |
+| Model selection (2-level)        | `Provider: {name} > Select a model (page X/Y, showing A-B of M)`                   | "Provider: openai > Select a model (page 1/1, showing 1-5 of 5)"                                |
+| Model selection (3-level)        | `Provider: {p} > Sub-provider: {sp} > Select a model (page X/Y, showing A-B of M)` | "Provider: synthetic > Sub-provider: deepseek-ai > Select a model (page 1/1, showing 1-5 of 5)" |
 
 ### Implementation Notes
 
@@ -218,24 +239,24 @@ Breadcrumbs appear in the question header to orient the user at each selection l
 
 The `"← Back"` option allows users to return to previous levels:
 
-| Current Level | "← Back" Goes To | State Preserved |
-|---------------|------------------|-----------------|
-| Sub-provider selection | Provider selection | `provider_page` |
-| Model selection (2-level) | Provider selection | `provider_page` |
+| Current Level             | "← Back" Goes To       | State Preserved                      |
+| ------------------------- | ---------------------- | ------------------------------------ |
+| Sub-provider selection    | Provider selection     | `provider_page`                      |
+| Model selection (2-level) | Provider selection     | `provider_page`                      |
 | Model selection (3-level) | Sub-provider selection | `sub_provider_page`, `provider_page` |
 
 ### State Variables to Track
 
 Maintain these variables at the conversation level:
 
-| Variable | Type | Description |
-|----------|------|-------------|
-| `provider_page` | number (0-based) | Current provider page index |
-| `sub_provider_page` | number (0-based) | Current sub-provider page index (3-level only) |
-| `model_page` | number (0-based) | Current model page index |
-| `selected_provider` | string | Name of the selected provider (for breadcrumbs) |
-| `selected_sub_provider` | string | Name of the selected sub-provider (3-level only) |
-| `has_sub_providers` | boolean | Whether the selected provider is hierarchical |
+| Variable                | Type             | Description                                      |
+| ----------------------- | ---------------- | ------------------------------------------------ |
+| `provider_page`         | number (0-based) | Current provider page index                      |
+| `sub_provider_page`     | number (0-based) | Current sub-provider page index (3-level only)   |
+| `model_page`            | number (0-based) | Current model page index                         |
+| `selected_provider`     | string           | Name of the selected provider (for breadcrumbs)  |
+| `selected_sub_provider` | string           | Name of the selected sub-provider (3-level only) |
+| `has_sub_providers`     | boolean          | Whether the selected provider is hierarchical    |
 
 ### Pagination State Preservation
 
@@ -288,6 +309,7 @@ This is the standard flow for providers without sub-providers (e.g., openai, xai
 This flow demonstrates hierarchical provider selection with back navigation (e.g., synthetic).
 
 **State tracking:**
+
 - `provider_page` = 0, `selected_provider` = "synthetic"
 - `sub_provider_page` = 0, `selected_sub_provider` = "deepseek-ai"
 - `model_page` = 0

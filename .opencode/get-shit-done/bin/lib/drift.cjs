@@ -28,13 +28,13 @@
  *     non-blocking guarantee.
  */
 
-'use strict';
+"use strict";
 
-const fs = require('node:fs');
+const fs = require("node:fs");
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const DRIFT_CATEGORIES = Object.freeze(['new_dir', 'barrel', 'migration', 'route']);
+const DRIFT_CATEGORIES = Object.freeze(["new_dir", "barrel", "migration", "route"]);
 
 // Category priority when a single file matches multiple rules.
 // Higher index = more specific = wins.
@@ -62,7 +62,8 @@ const ROUTE_RES = [
 // A conservative allowlist for `--paths` arguments passed to the mapper:
 // repo-relative path components separated by /, containing only
 // alphanumerics, dash, underscore, and dot (no `..`, no `/..`).
-const SAFE_PATH_RE = /^(?!.*\.\.)(?:[A-Za-z0-9_.][A-Za-z0-9_.\-]*)(?:\/[A-Za-z0-9_.][A-Za-z0-9_.\-]*)*$/;
+const SAFE_PATH_RE =
+  /^(?!.*\.\.)(?:[A-Za-z0-9_.][A-Za-z0-9_.\-]*)(?:\/[A-Za-z0-9_.][A-Za-z0-9_.\-]*)*$/;
 
 // ─── Classification ──────────────────────────────────────────────────────────
 
@@ -73,11 +74,11 @@ const SAFE_PATH_RE = /^(?!.*\.\.)(?:[A-Za-z0-9_.][A-Za-z0-9_.\-]*)(?:\/[A-Za-z0-
  * @returns {'barrel'|'migration'|'route'|null}
  */
 function classifyFile(file) {
-  if (typeof file !== 'string' || !file) return null;
-  const norm = file.replace(/\\/g, '/');
-  if (MIGRATION_RES.some((r) => r.test(norm))) return 'migration';
-  if (ROUTE_RES.some((r) => r.test(norm))) return 'route';
-  if (BARREL_RE.test(norm)) return 'barrel';
+  if (typeof file !== "string" || !file) return null;
+  const norm = file.replace(/\\/g, "/");
+  if (MIGRATION_RES.some((r) => r.test(norm))) return "migration";
+  if (ROUTE_RES.some((r) => r.test(norm))) return "route";
+  if (BARREL_RE.test(norm)) return "barrel";
   return null;
 }
 
@@ -90,16 +91,16 @@ function classifyFile(file) {
  * check `structureMd.includes('src/lib')` holds.
  */
 function isPathMapped(file, structureMd) {
-  const norm = file.replace(/\\/g, '/');
-  const parts = norm.split('/');
+  const norm = file.replace(/\\/g, "/");
+  const parts = norm.split("/");
   // Check prefixes from longest to shortest; any hit means "mapped".
   for (let i = parts.length - 1; i >= 1; i--) {
-    const prefix = parts.slice(0, i).join('/');
+    const prefix = parts.slice(0, i).join("/");
     if (structureMd.includes(prefix)) return true;
   }
   // Finally, if even the top-level dir is mentioned, count as mapped.
-  if (parts.length > 0 && structureMd.includes(parts[0] + '/')) return true;
-  if (parts.length > 0 && structureMd.includes('`' + parts[0] + '`')) return true;
+  if (parts.length > 0 && structureMd.includes(parts[0] + "/")) return true;
+  if (parts.length > 0 && structureMd.includes("`" + parts[0] + "`")) return true;
   return false;
 }
 
@@ -119,28 +120,22 @@ function isPathMapped(file, structureMd) {
  */
 function detectDrift(input) {
   try {
-    if (!input || typeof input !== 'object') {
-      return skipped('invalid-input');
+    if (!input || typeof input !== "object") {
+      return skipped("invalid-input");
     }
-    const {
-      addedFiles,
-      modifiedFiles,
-      deletedFiles,
-      structureMd,
-    } = input;
-    const threshold = Number.isInteger(input.threshold) && input.threshold >= 1
-      ? input.threshold
-      : 3;
-    const action = input.action === 'auto-remap' ? 'auto-remap' : 'warn';
+    const { addedFiles, modifiedFiles, deletedFiles, structureMd } = input;
+    const threshold =
+      Number.isInteger(input.threshold) && input.threshold >= 1 ? input.threshold : 3;
+    const action = input.action === "auto-remap" ? "auto-remap" : "warn";
 
     if (structureMd === null || structureMd === undefined) {
-      return skipped('missing-structure-md');
+      return skipped("missing-structure-md");
     }
-    if (typeof structureMd !== 'string') {
-      return skipped('invalid-structure-md');
+    if (typeof structureMd !== "string") {
+      return skipped("invalid-structure-md");
     }
 
-    const added = Array.isArray(addedFiles) ? addedFiles.filter((x) => typeof x === 'string') : [];
+    const added = Array.isArray(addedFiles) ? addedFiles.filter((x) => typeof x === "string") : [];
     const modified = Array.isArray(modifiedFiles) ? modifiedFiles : [];
     const deleted = Array.isArray(deletedFiles) ? deletedFiles : [];
 
@@ -150,12 +145,12 @@ function detectDrift(input) {
     const seen = new Map();
 
     for (const rawFile of added) {
-      const file = rawFile.replace(/\\/g, '/');
+      const file = rawFile.replace(/\\/g, "/");
       const specific = classifyFile(file);
       let category = specific;
       if (!category) {
         if (!isPathMapped(file, structureMd)) {
-          category = 'new_dir';
+          category = "new_dir";
         } else {
           continue; // mapped, known, ordinary file — not drift
         }
@@ -178,15 +173,15 @@ function detectDrift(input) {
     );
 
     const actionRequired = elements.length >= threshold;
-    let directive = 'none';
+    let directive = "none";
     let spawnMapper = false;
     let affectedPaths = [];
-    let message = '';
+    let message = "";
 
     if (actionRequired) {
       directive = action;
       affectedPaths = chooseAffectedPaths(elements.map((e) => e.path));
-      if (action === 'auto-remap') {
+      if (action === "auto-remap") {
         spawnMapper = true;
       }
       message = buildMessage(elements, affectedPaths, action);
@@ -210,7 +205,7 @@ function detectDrift(input) {
     };
   } catch (err) {
     // Non-blocking: never throw from this function.
-    return skipped('exception:' + (err && err.message ? err.message : String(err)));
+    return skipped("exception:" + (err && err.message ? err.message : String(err)));
   }
 }
 
@@ -220,10 +215,10 @@ function skipped(reason) {
     reason,
     elements: [],
     actionRequired: false,
-    directive: 'none',
+    directive: "none",
     spawnMapper: false,
     affectedPaths: [],
-    message: '',
+    message: "",
   };
 }
 
@@ -234,29 +229,29 @@ function buildMessage(elements, affectedPaths, action) {
   }
   const lines = [
     `Codebase drift detected: ${elements.length} structural element(s) since last mapping.`,
-    '',
+    "",
   ];
   const labels = {
-    new_dir: 'New directories',
-    barrel: 'New barrel exports',
-    migration: 'New migrations',
-    route: 'New route modules',
+    new_dir: "New directories",
+    barrel: "New barrel exports",
+    migration: "New migrations",
+    route: "New route modules",
   };
-  for (const cat of ['new_dir', 'barrel', 'migration', 'route']) {
+  for (const cat of ["new_dir", "barrel", "migration", "route"]) {
     if (byCat[cat]) {
       lines.push(`${labels[cat]}:`);
       for (const p of byCat[cat]) lines.push(`  - ${p}`);
     }
   }
-  lines.push('');
-  if (action === 'auto-remap') {
-    lines.push(`Auto-remap scheduled for paths: ${affectedPaths.join(', ')}`);
+  lines.push("");
+  if (action === "auto-remap") {
+    lines.push(`Auto-remap scheduled for paths: ${affectedPaths.join(", ")}`);
   } else {
     lines.push(
-      `Run /gsd-map-codebase --paths ${affectedPaths.join(',')} to refresh planning context.`,
+      `Run /gsd-map-codebase --paths ${affectedPaths.join(",")} to refresh planning context.`,
     );
   }
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 // ─── Affected paths ──────────────────────────────────────────────────────────
@@ -269,12 +264,12 @@ function buildMessage(elements, affectedPaths, action) {
 function chooseAffectedPaths(paths) {
   const out = new Set();
   for (const raw of paths || []) {
-    if (typeof raw !== 'string' || !raw) continue;
-    const file = raw.replace(/\\/g, '/');
-    const parts = file.split('/');
+    if (typeof raw !== "string" || !raw) continue;
+    const file = raw.replace(/\\/g, "/");
+    const parts = file.split("/");
     if (parts.length === 0) continue;
     const top = parts[0];
-    if ((top === 'apps' || top === 'packages') && parts.length >= 2) {
+    if ((top === "apps" || top === "packages") && parts.length >= 2) {
       out.add(`${top}/${parts[1]}`);
     } else {
       out.add(top);
@@ -292,8 +287,8 @@ function sanitizePaths(paths) {
   if (!Array.isArray(paths)) return [];
   const out = [];
   for (const p of paths) {
-    if (typeof p !== 'string') continue;
-    if (p.startsWith('/')) continue;
+    if (typeof p !== "string") continue;
+    if (p.startsWith("/")) continue;
     if (!SAFE_PATH_RE.test(p)) continue;
     out.push(p);
   }
@@ -305,7 +300,7 @@ function sanitizePaths(paths) {
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 function parseFrontmatter(content) {
-  if (typeof content !== 'string') return { data: {}, body: '' };
+  if (typeof content !== "string") return { data: {}, body: "" };
   const m = content.match(FRONTMATTER_RE);
   if (!m) return { data: {}, body: content };
   const data = {};
@@ -320,10 +315,10 @@ function parseFrontmatter(content) {
 function serializeFrontmatter(data, body) {
   const keys = Object.keys(data);
   if (keys.length === 0) return body;
-  const lines = ['---'];
+  const lines = ["---"];
   for (const k of keys) lines.push(`${k}: ${data[k]}`);
-  lines.push('---');
-  return lines.join('\n') + '\n' + body;
+  lines.push("---");
+  return lines.join("\n") + "\n" + body;
 }
 
 /**
@@ -333,13 +328,13 @@ function serializeFrontmatter(data, body) {
 function readMappedCommit(filePath) {
   let content;
   try {
-    content = fs.readFileSync(filePath, 'utf8');
+    content = fs.readFileSync(filePath, "utf8");
   } catch {
     return null;
   }
   const { data } = parseFrontmatter(content);
   const sha = data.last_mapped_commit;
-  return typeof sha === 'string' && sha.length > 0 ? sha : null;
+  return typeof sha === "string" && sha.length > 0 ? sha : null;
 }
 
 /**
@@ -351,11 +346,11 @@ function writeMappedCommit(filePath, commitSha, isoDate) {
   // tolerate a missing target by creating a minimal frontmatter-only file
   // rather than throwing ENOENT. This matters when a mapper produces a new
   // doc and the caller stamps it before any prior content existed.
-  let content = '';
+  let content = "";
   try {
-    content = fs.readFileSync(filePath, 'utf8');
+    content = fs.readFileSync(filePath, "utf8");
   } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
+    if (err.code !== "ENOENT") throw err;
   }
   const { data, body } = parseFrontmatter(content);
   data.last_mapped_commit = commitSha;

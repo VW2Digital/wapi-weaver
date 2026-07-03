@@ -220,11 +220,13 @@ Extract `goal` and `requirements` from JSON. write `${phase_dir}/${padded_phase}
 ## Implementation Decisions
 
 ### OpenCode's Discretion
+
 All implementation choices are at OpenCode's discretion — discuss phase was skipped per user setting. Use ROADMAP phase goal, success criteria, and codebase conventions to guide decisions.
 
 </decisions>
 
 <code_context>
+
 ## Existing Code Insights
 
 Codebase context will be gathered during plan-phase research.
@@ -353,9 +355,11 @@ skill(skill="gsd-execute-phase", args="${PHASE_NUM} --no-transition")
 Auto-invoke code review and fix chain. Autonomous mode chains both review and fix (unlike execute-phase/quick which only suggest fix).
 
 **Config gate:**
+
 ```bash
 CODE_REVIEW_ENABLED=$(gsd-sdk query config-get workflow.code_review 2>/dev/null || echo "true")
 ```
+
 If `"false"`: display "Code review skipped (workflow.code_review=false)" and proceed to 3d.
 
 ```
@@ -363,6 +367,7 @@ skill(skill="gsd-code-review", args="${PHASE_NUM}")
 ```
 
 Parse status from REVIEW.md frontmatter. If "clean" or "skipped": proceed to 3d. If findings found: auto-invoke:
+
 ```
 skill(skill="gsd-code-review-fix", args="${PHASE_NUM} --auto")
 ```
@@ -394,6 +399,7 @@ Go to handle_blocker: "Execute phase ${PHASE_NUM} did not produce verification r
 **If `passed`:**
 
 Display:
+
 ```
 Phase ${PHASE_NUM} ✅ ${PHASE_NAME} — Verification passed
 ```
@@ -404,13 +410,14 @@ Proceed to iterate step.
 
 read the human_verification section from VERIFICATION.md to get the count and items requiring manual testing.
 
-
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 Display the items, then ask user via question:
+
 - **question:** "Phase ${PHASE_NUM} has items needing manual verification. Validate now or continue to next phase?"
 - **options:** "Validate now" / "Continue without validation"
 
 On **"Validate now"**: Present the specific items from VERIFICATION.md's human_verification section. After user reviews, ask:
+
 - **question:** "Validation result?"
 - **options:** "All good — continue" / "Found issues"
 
@@ -423,12 +430,14 @@ On **"Continue without validation"**: Display `Phase ${PHASE_NUM} ⏭ Human vali
 **If `gaps_found`:**
 
 read gap summary from VERIFICATION.md (score and missing items). Display:
+
 ```
 ⚠ Phase ${PHASE_NUM}: ${PHASE_NAME} — Gaps Found
 Score: {N}/{M} must-haves verified
 ```
 
 Ask user via question:
+
 - **question:** "Gaps found in phase ${PHASE_NUM}. How to proceed?"
 - **options:** "Run gap closure" / "Continue without fixing" / "Stop autonomous mode"
 
@@ -441,11 +450,13 @@ skill(skill="gsd-plan-phase", args="${PHASE_NUM} --gaps")
 Verify gap plans were created — re-run `init phase-op ${PHASE_NUM}` and check `has_plans`. If no new gap plans → go to handle_blocker: "Gap closure planning for phase ${PHASE_NUM} did not produce plans."
 
 Re-execute:
+
 ```
 skill(skill="gsd-execute-phase", args="${PHASE_NUM} --no-transition")
 ```
 
 Re-read verification status:
+
 ```bash
 VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' ')
 ```
@@ -453,6 +464,7 @@ VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md 2>/dev/null | h
 If `passed` or `human_needed`: Route normally (continue or ask user as above).
 
 If still `gaps_found` after this retry: Display "Gaps persist after closure attempt." and ask via question:
+
 - **question:** "Gap closure did not fully resolve issues. How to proceed?"
 - **options:** "Continue anyway" / "Stop autonomous mode"
 
@@ -541,6 +553,7 @@ ROADMAP=$(gsd-sdk query roadmap.analyze)
 ```
 
 Re-filter incomplete phases using the same logic as discover_phases:
+
 - Keep phases where `disk_status !== "complete"` OR `roadmap_complete === false`
 - Apply `--from N` filter if originally provided
 - Apply `--to N` filter if originally provided
@@ -557,6 +570,7 @@ Check for blockers in the Blockers/Concerns section. If blockers are found, go t
 If incomplete phases remain: proceed to next phase, loop back to execute_phase.
 
 **Interactive mode overlap:** When `INTERACTIVE` is set, the iterate step enables pipeline parallelism:
+
 1. After discuss completes for Phase N, dispatch plan+execute as background agents
 2. Immediately start discuss for Phase N+1 (the next incomplete phase) while Phase N builds
 3. Before starting plan for Phase N+1, wait for Phase N's execute agent to complete and handle its post-execution routing (verification, gap closure, etc.)
@@ -620,6 +634,7 @@ Go to handle_blocker: "Audit did not produce results — audit file missing or m
 **If `passed`:**
 
 Display:
+
 ```
 Audit ✅ passed — proceeding to complete milestone
 ```
@@ -629,11 +644,13 @@ Proceed to 5b (no user pause — per CTRL-01).
 **If `gaps_found`:**
 
 read the gaps summary from the audit file. Display:
+
 ```
 ⚠ Audit: Gaps Found
 ```
 
 Ask user via question:
+
 - **question:** "Milestone audit found gaps. How to proceed?"
 - **options:** "Continue anyway — accept gaps" / "Stop — fix gaps manually"
 
@@ -644,11 +661,13 @@ On **"Stop"**: Go to handle_blocker with "User stopped — audit gaps remain. Ru
 **If `tech_debt`:**
 
 read the tech debt summary from the audit file. Display:
+
 ```
 ⚠ Audit: Tech Debt Identified
 ```
 
 Show the summary, then ask user via question:
+
 - **question:** "Milestone audit found tech debt. How to proceed?"
 - **options:** "Continue with tech debt" / "Stop — address debt first"
 
@@ -705,6 +724,7 @@ When any phase operation fails or a blocker is detected, present 3 options via q
 **Prompt:** "Phase {N} ({Name}) encountered an issue: {description}"
 
 **Options:**
+
 1. **"Fix and retry"** — Re-run the failed step (discuss, plan, or execute) for this phase
 2. **"Skip this phase"** — Mark phase as skipped, continue to the next incomplete phase
 3. **"Stop autonomous mode"** — Display summary of progress so far and exit cleanly
@@ -732,6 +752,7 @@ When any phase operation fails or a blocker is detected, present 3 options via q
 </process>
 
 <success_criteria>
+
 - [ ] All incomplete phases executed in order (smart discuss → ui-phase → plan → execute → ui-review each)
 - [ ] Smart discuss proposes grey area answers in tables, user accepts or overrides per area
 - [ ] Progress banners displayed between phases
@@ -778,4 +799,4 @@ When any phase operation fails or a blocker is detected, present 3 options via q
 - [ ] `--interactive` main context only accumulates discuss conversations (lean)
 - [ ] `--interactive` waits for background agents before post-execution routing
 - [ ] `--interactive` compatible with `--only`, `--from`, and `--to` flags
-</success_criteria>
+      </success_criteria>

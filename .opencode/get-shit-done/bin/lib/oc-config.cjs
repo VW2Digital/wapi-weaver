@@ -5,13 +5,13 @@
  * Follows gsd-tools.cjs architecture pattern.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Valid profile types whitelist
  */
-const VALID_PROFILES = ['simple', 'smart', 'genius'];
+const VALID_PROFILES = ["simple", "smart", "genius"];
 
 /**
  * Profile to agent mapping
@@ -20,24 +20,18 @@ const VALID_PROFILES = ['simple', 'smart', 'genius'];
 const PROFILE_AGENT_MAPPING = {
   // Planning agents
   planning: [
-    'gsd-planner',
-    'gsd-plan-checker',
-    'gsd-phase-researcher',
-    'gsd-roadmapper',
-    'gsd-project-researcher',
-    'gsd-research-synthesizer',
-    'gsd-codebase-mapper'
+    "gsd-planner",
+    "gsd-plan-checker",
+    "gsd-phase-researcher",
+    "gsd-roadmapper",
+    "gsd-project-researcher",
+    "gsd-research-synthesizer",
+    "gsd-codebase-mapper",
   ],
   // Execution agents
-  execution: [
-    'gsd-executor',
-    'gsd-debugger'
-  ],
+  execution: ["gsd-executor", "gsd-debugger"],
   // Verification agents
-  verification: [
-    'gsd-verifier',
-    'gsd-integration-checker'
-  ]
+  verification: ["gsd-verifier", "gsd-integration-checker"],
 };
 
 /**
@@ -48,15 +42,15 @@ const PROFILE_AGENT_MAPPING = {
  */
 function loadProfileConfig(cwd) {
   try {
-    const configPath = path.join(cwd, '.planning', 'config.json');
-    
+    const configPath = path.join(cwd, ".planning", "config.json");
+
     if (!fs.existsSync(configPath)) {
       return null;
     }
-    
-    const content = fs.readFileSync(configPath, 'utf8');
+
+    const content = fs.readFileSync(configPath, "utf8");
     const config = JSON.parse(content);
-    
+
     return config;
   } catch (err) {
     return null;
@@ -76,95 +70,98 @@ function applyProfileToOpencode(opencodePath, configPath) {
     // Load profile config
     let config;
     if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, 'utf8');
+      const content = fs.readFileSync(configPath, "utf8");
       config = JSON.parse(content);
     } else {
       return {
         success: false,
         error: {
-          code: 'CONFIG_NOT_FOUND',
-          message: `.planning/config.json not found at ${configPath}`
-        }
+          code: "CONFIG_NOT_FOUND",
+          message: `.planning/config.json not found at ${configPath}`,
+        },
       };
     }
-    
+
     // Validate profile_type
     const profileType = config.profile_type || config.profiles?.profile_type;
     if (!profileType) {
       return {
         success: false,
         error: {
-          code: 'PROFILE_NOT_FOUND',
-          message: 'profile_type not found in config.json'
-        }
+          code: "PROFILE_NOT_FOUND",
+          message: "profile_type not found in config.json",
+        },
       };
     }
-    
+
     if (!VALID_PROFILES.includes(profileType)) {
       return {
         success: false,
         error: {
-          code: 'INVALID_PROFILE',
-          message: `Invalid profile_type: "${profileType}". Valid profiles: ${VALID_PROFILES.join(', ')}`
-        }
+          code: "INVALID_PROFILE",
+          message: `Invalid profile_type: "${profileType}". Valid profiles: ${VALID_PROFILES.join(", ")}`,
+        },
       };
     }
-    
+
     // Load opencode.json
     if (!fs.existsSync(opencodePath)) {
       return {
         success: false,
         error: {
-          code: 'CONFIG_NOT_FOUND',
-          message: `opencode.json not found at ${opencodePath}`
-        }
+          code: "CONFIG_NOT_FOUND",
+          message: `opencode.json not found at ${opencodePath}`,
+        },
       };
     }
-    
-    const opencodeContent = fs.readFileSync(opencodePath, 'utf8');
+
+    const opencodeContent = fs.readFileSync(opencodePath, "utf8");
     const opencodeData = JSON.parse(opencodeContent);
-    
+
     // Get model assignments from profile
     // Support both structures: profiles.planning or profiles.models.planning
     const profiles = config.profiles || {};
     let profileModels;
-    
+
     // Try new structure first: profiles.models.{planning|execution|verification}
-    if (profiles.models && typeof profiles.models === 'object') {
+    if (profiles.models && typeof profiles.models === "object") {
       profileModels = profiles.models;
     } else {
       // Fallback to old structure: profiles.{planning|execution|verification}
       profileModels = profiles[profileType] || {};
     }
-    
+
     if (!profileModels.planning && !profileModels.execution && !profileModels.verification) {
       return {
         success: false,
         error: {
-          code: 'PROFILE_NOT_FOUND',
-          message: `No model assignments found for profile "${profileType}"`
-        }
+          code: "PROFILE_NOT_FOUND",
+          message: `No model assignments found for profile "${profileType}"`,
+        },
       };
     }
-    
+
     // Apply model assignments to agents
     const updatedAgents = [];
-    
+
     // Initialize agent object if it doesn't exist
     if (!opencodeData.agent) {
       opencodeData.agent = {};
     }
-    
+
     // Apply each profile category
     for (const [category, agentNames] of Object.entries(PROFILE_AGENT_MAPPING)) {
       const modelId = profileModels[category];
-      
+
       if (modelId) {
         for (const agentName of agentNames) {
           // Handle both string and object agent configurations
-          if (typeof opencodeData.agent[agentName] === 'string') {
+          if (typeof opencodeData.agent[agentName] === "string") {
             opencodeData.agent[agentName] = modelId;
-          } else if (typeof opencodeData.agent[agentName] === 'object' && opencodeData.agent[agentName] !== null) {
+          } else if (
+            typeof opencodeData.agent[agentName] === "object" &&
+            opencodeData.agent[agentName] !== null
+          ) {
             opencodeData.agent[agentName].model = modelId;
           } else {
             opencodeData.agent[agentName] = modelId;
@@ -173,21 +170,21 @@ function applyProfileToOpencode(opencodePath, configPath) {
         }
       }
     }
-    
+
     // write updated opencode.json
-    fs.writeFileSync(opencodePath, JSON.stringify(opencodeData, null, 2) + '\n', 'utf8');
-    
+    fs.writeFileSync(opencodePath, JSON.stringify(opencodeData, null, 2) + "\n", "utf8");
+
     return {
       success: true,
-      updated: updatedAgents
+      updated: updatedAgents,
     };
   } catch (err) {
     return {
       success: false,
       error: {
-        code: 'UPDATE_FAILED',
-        message: `Failed to apply profile: ${err.message}`
-      }
+        code: "UPDATE_FAILED",
+        message: `Failed to apply profile: ${err.message}`,
+      },
     };
   }
 }
@@ -196,5 +193,5 @@ module.exports = {
   loadProfileConfig,
   applyProfileToOpencode,
   VALID_PROFILES,
-  PROFILE_AGENT_MAPPING
+  PROFILE_AGENT_MAPPING,
 };

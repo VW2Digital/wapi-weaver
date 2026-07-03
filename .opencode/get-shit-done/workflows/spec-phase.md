@@ -8,12 +8,12 @@ This workflow handles "what" and "why" — discuss-phase handles "how".
 <ambiguity_model>
 Score each dimension 0.0 (completely unclear) to 1.0 (crystal clear):
 
-| Dimension         | Weight | Minimum | What it measures                                  |
-|-------------------|--------|---------|---------------------------------------------------|
-| Goal Clarity      | 35%    | 0.75    | Is the outcome specific and measurable?           |
-| Boundary Clarity  | 25%    | 0.70    | What's in scope vs out of scope?                  |
-| Constraint Clarity| 20%    | 0.65    | Performance, compatibility, data requirements?    |
-| Acceptance Criteria| 20%   | 0.70    | How do we know it's done?                         |
+| Dimension           | Weight | Minimum | What it measures                               |
+| ------------------- | ------ | ------- | ---------------------------------------------- |
+| Goal Clarity        | 35%    | 0.75    | Is the outcome specific and measurable?        |
+| Boundary Clarity    | 25%    | 0.70    | What's in scope vs out of scope?               |
+| Constraint Clarity  | 20%    | 0.65    | Performance, compatibility, data requirements? |
+| Acceptance Criteria | 20%    | 0.70    | How do we know it's done?                      |
 
 **Ambiguity score** = 1.0 − (0.35×goal + 0.25×boundary + 0.20×constraint + 0.20×acceptance)
 
@@ -26,30 +26,35 @@ A score of 0.20 means 80% weighted clarity — enough precision that the planner
 Rotate through these perspectives — each naturally surfaces different blindspots:
 
 **Researcher (rounds 1–2):** Ground the discussion in current reality.
+
 - "What exists in the codebase today related to this phase?"
 - "What's the delta between today and the target state?"
 - "What triggers this work — what's broken or missing?"
 
 **Simplifier (round 2):** Surface minimum viable scope.
+
 - "What's the simplest version that solves the core problem?"
 - "If you had to cut 50%, what's the irreducible core?"
 - "What would make this phase a success even without the nice-to-haves?"
 
 **Boundary Keeper (round 3):** Lock the perimeter.
+
 - "What explicitly will NOT be done in this phase?"
 - "What adjacent problems is it tempting to solve but shouldn't?"
 - "What does 'done' look like — what's the final deliverable?"
 
 **Failure Analyst (round 4):** Find the edge cases that invalidate requirements.
+
 - "What's the worst thing that could go wrong if we get the requirements wrong?"
 - "What does a broken version of this look like?"
 - "What would cause a verifier to reject the output?"
 
 **Seed Closer (rounds 5–6):** Lock remaining undecided territory.
+
 - "We have [dimension] at [score] — what would make it completely clear?"
 - "The remaining ambiguity is in [area] — can we make a decision now?"
 - "Is there anything you'd regret not specifying before planning starts?"
-</interview_perspectives>
+  </interview_perspectives>
 
 <process>
 
@@ -65,13 +70,16 @@ Parse JSON for: `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase
 **If `response_language` is set:** All user-facing text in this workflow MUST be in `{response_language}`. Technical terms, code, and file paths stay in English.
 
 **If `phase_found` is false:**
+
 ```
 Phase [X] not found in roadmap.
 Use /gsd-progress to see available phases.
 ```
+
 Exit.
 
 **Check for existing SPEC.md:**
+
 ```bash
 ls ${phase_dir}/*-SPEC.md 2>/dev/null | grep -v AI-SPEC | head -1 || true
 ```
@@ -81,6 +89,7 @@ If SPEC.md already exists:
 **If `--auto`:** Auto-select "Update it". Log: `[auto] SPEC.md exists — updating.`
 
 **Otherwise:** Use question:
+
 - header: "Spec"
 - question: "Phase [X] already has a SPEC.md. What do you want to do?"
 - options:
@@ -95,17 +104,20 @@ If "Update": Load existing SPEC.md, continue to Step 3.
 ## Step 2: Scout Codebase
 
 **read these files before any questions:**
+
 - `{requirements_path}` — Project requirements
 - `{state_path}` — Decisions already made, current phase, blockers
 - ROADMAP.md phase entry — Phase description, goals, canonical refs
 
 **grep the codebase** for code/files relevant to this phase goal. Look for:
+
 - Existing implementations of similar functionality
 - Integration points where new code will connect
 - Test coverage gaps relevant to the phase
 - Prior phase artifacts (SUMMARY.md, VERIFICATION.md) that inform current state
 
 **Synthesize current state** — the grounded baseline for the interview:
+
 - What exists today related to this phase
 - The gap between current state and the phase goal
 - The primary deliverable: what file/behavior/capability does NOT exist yet?
@@ -134,6 +146,7 @@ Ambiguity: [score] ([calculate])
 **Max 6 rounds.** Each round: 2–3 questions max. End round after user responds.
 
 **Round selection by perspective:**
+
 - Round 1: Researcher
 - Round 2: Researcher + Simplifier
 - Round 3: Boundary Keeper
@@ -141,6 +154,7 @@ Ambiguity: [score] ([calculate])
 - Rounds 5–6: Seed Closer (focus on lowest-scoring dimensions)
 
 **After each round:**
+
 1. Update all 4 dimension scores from the user's answers
 2. Calculate new ambiguity score
 3. Display the updated scoring:
@@ -161,6 +175,7 @@ If gate passes (ambiguity ≤ 0.20 AND all minimums met):
 **If `--auto`:** Jump to Step 6.
 
 **Otherwise:** question:
+
 - header: "Spec Gate Passed"
 - question: "Ambiguity is [score] — requirements are clear enough to write SPEC.md. Proceed?"
 - options:
@@ -173,6 +188,7 @@ If gate passes (ambiguity ≤ 0.20 AND all minimums met):
 **If `--auto`:** write SPEC.md anyway — flag unresolved dimensions. Log: `[auto] Max rounds reached. Writing SPEC.md with [N] dimensions below minimum. Planner will need to treat these as assumptions.`
 
 **Otherwise:** question:
+
 - header: "Max Rounds"
 - question: "After 6 rounds, ambiguity is [score]. [List dimensions still below minimum.] What would you like to do?"
 - options:
@@ -191,12 +207,14 @@ If gate passes (ambiguity ≤ 0.20 AND all minimums met):
 Use the SPEC.md template from @./.opencode/get-shit-done/templates/spec.md.
 
 **Requirements for every requirement entry:**
+
 - One specific, testable statement
 - Current state (what exists now)
 - Target state (what it should become)
 - Acceptance criterion (how to verify it was met)
 
 **Vague requirements are rejected:**
+
 - ✗ "The system should be fast"
 - ✗ "Improve user experience"
 - ✓ "API endpoint responds in < 200ms at p95 under 100 concurrent requests"
@@ -205,6 +223,7 @@ Use the SPEC.md template from @./.opencode/get-shit-done/templates/spec.md.
 **Count requirements.** The display in discuss-phase reads: "Found SPEC.md — {N} requirements locked."
 
 **Boundaries must be explicit lists:**
+
 - "In scope" — what this phase produces
 - "Out of scope" — what it explicitly does NOT do (with brief reasoning)
 
@@ -240,6 +259,7 @@ Next: /gsd-discuss-phase {X}
 </process>
 
 <critical_rules>
+
 - Every requirement MUST have current state, target state, and acceptance criterion
 - Boundaries section is MANDATORY — cannot be empty
 - "In scope" and "Out of scope" must be explicit lists, not narrative prose
@@ -248,9 +268,10 @@ Next: /gsd-discuss-phase {X}
 - Do NOT ask about HOW to implement — that is discuss-phase territory
 - Scout the codebase BEFORE the first question — grounded questions only
 - Max 2–3 questions per round — do not frontload all questions at once
-</critical_rules>
+  </critical_rules>
 
 <success_criteria>
+
 - Codebase scouted and current state understood before questioning
 - All 4 dimensions scored after every round
 - Gate passed OR user explicitly chose to write despite gaps
@@ -259,4 +280,4 @@ Next: /gsd-discuss-phase {X}
 - Acceptance criteria are pass/fail checkboxes
 - SPEC.md committed atomically (when commit_docs is true)
 - User directed to /gsd-discuss-phase as next step
-</success_criteria>
+  </success_criteria>

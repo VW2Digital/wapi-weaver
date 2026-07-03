@@ -228,22 +228,31 @@ export const updateContact = createServerFn({ method: "POST" })
       ...(data.source !== undefined ? { source: data.source || null } : {}),
       ...(data.opted_out !== undefined ? { opted_out: data.opted_out ? 1 : 0 } : {}),
       ...(data.channel !== undefined ? { channel: data.channel } : {}),
-      ...(data.external_contact_id !== undefined ? { external_contact_id: data.external_contact_id || null } : {}),
-      ...(data.custom_fields !== undefined ? { custom_fields: JSON.stringify(data.custom_fields) } : {}),
+      ...(data.external_contact_id !== undefined
+        ? { external_contact_id: data.external_contact_id || null }
+        : {}),
+      ...(data.custom_fields !== undefined
+        ? { custom_fields: JSON.stringify(data.custom_fields) }
+        : {}),
       ...(data.is_pinned !== undefined ? { is_pinned: data.is_pinned ? 1 : 0 } : {}),
       ...(data.is_archived !== undefined ? { is_archived: data.is_archived ? 1 : 0 } : {}),
       ...(data.chat_status !== undefined ? { chat_status: data.chat_status } : {}),
       ...(data.is_unread !== undefined ? { is_unread: data.is_unread ? 1 : 0 } : {}),
-      ...(data.kanban_stage_id !== undefined ? { kanban_stage_id: data.kanban_stage_id || null } : {}),
+      ...(data.kanban_stage_id !== undefined
+        ? { kanban_stage_id: data.kanban_stage_id || null }
+        : {}),
     };
 
-    const setClause = Object.keys(fields).map((k) => `\`${k}\` = ?`).join(", ");
+    const setClause = Object.keys(fields)
+      .map((k) => `\`${k}\` = ?`)
+      .join(", ");
     const values = Object.values(fields);
 
-    await db.query(
-      `UPDATE contacts SET ${setClause} WHERE id = ? AND user_id = ?`,
-      [...values, data.id, effectiveUserId],
-    );
+    await db.query(`UPDATE contacts SET ${setClause} WHERE id = ? AND user_id = ?`, [
+      ...values,
+      data.id,
+      effectiveUserId,
+    ]);
     const rows = await db.query("SELECT * FROM contacts WHERE id = ?", [data.id]);
     return (rows as any[])[0];
   });
@@ -364,11 +373,13 @@ export const getContactDetail = createServerFn({ method: "GET" })
 export const addContactNote = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) =>
-    z.object({
-      contact_id: z.string().uuid(),
-      body: z.string().trim().min(1),
-      is_pinned: z.boolean().optional(),
-    }).parse(d),
+    z
+      .object({
+        contact_id: z.string().uuid(),
+        body: z.string().trim().min(1),
+        is_pinned: z.boolean().optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
@@ -408,7 +419,16 @@ export const addContactNote = createServerFn({ method: "POST" })
       await db.query(
         `INSERT INTO opportunities (id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', 0)`,
-        [opportunityId, effectiveUserId, funnelId, stageId, `Oportunidade - ${name}`, data.contact_id, effectiveUserId, context.userId],
+        [
+          opportunityId,
+          effectiveUserId,
+          funnelId,
+          stageId,
+          `Oportunidade - ${name}`,
+          data.contact_id,
+          effectiveUserId,
+          context.userId,
+        ],
       );
 
       await db.query(
@@ -484,7 +504,15 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     for (let i = 0; i < cleaned.length; i += chunkSize) {
       const slice = cleaned.slice(i, i + chunkSize);
       const placeholders = slice.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
-      const params = slice.flatMap((r) => [r.id, r.user_id, r.phone_e164, r.name, r.email, r.custom_fields, r.source]);
+      const params = slice.flatMap((r) => [
+        r.id,
+        r.user_id,
+        r.phone_e164,
+        r.name,
+        r.email,
+        r.custom_fields,
+        r.source,
+      ]);
       await db.query(
         `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
          VALUES ${placeholders}
@@ -508,19 +536,13 @@ export const bulkDeleteContacts = createServerFn({ method: "POST" })
     const placeholders = data.ids.map(() => "?").join(",");
 
     // Limpar junction tables antes de deletar os contatos
-    await db.query(
-      `DELETE FROM contact_tags WHERE contact_id IN (${placeholders})`,
-      data.ids,
-    );
-    await db.query(
-      `DELETE FROM list_contacts WHERE contact_id IN (${placeholders})`,
-      data.ids,
-    );
+    await db.query(`DELETE FROM contact_tags WHERE contact_id IN (${placeholders})`, data.ids);
+    await db.query(`DELETE FROM list_contacts WHERE contact_id IN (${placeholders})`, data.ids);
 
-    await db.query(
-      `DELETE FROM contacts WHERE id IN (${placeholders}) AND user_id = ?`,
-      [...data.ids, effectiveUserId],
-    );
+    await db.query(`DELETE FROM contacts WHERE id IN (${placeholders}) AND user_id = ?`, [
+      ...data.ids,
+      effectiveUserId,
+    ]);
     return { deleted: data.ids.length };
   });
 
@@ -664,9 +686,9 @@ export const removeTagFromContact = createServerFn({ method: "POST" })
     )) as any[];
     if (!contacts?.[0]) throw new Error("Contato não encontrado");
 
-    await db.query(
-      "DELETE FROM contact_tags WHERE contact_id = ? AND tag_id = ?",
-      [data.contact_id, data.tag_id],
-    );
+    await db.query("DELETE FROM contact_tags WHERE contact_id = ? AND tag_id = ?", [
+      data.contact_id,
+      data.tag_id,
+    ]);
     return { ok: true };
   });

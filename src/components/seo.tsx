@@ -21,7 +21,8 @@ export function SeoHead({
   const pageTitle = title ? `${title} — ${SITE_NAME}` : SITE_NAME;
   const pageDescription = description || SITE_DEFAULT_DESCRIPTION;
   const pageOgImage = ogImage || SITE_DEFAULT_OG_IMAGE;
-  const pageCanonical = canonical || (typeof window !== "undefined" ? window.location.href : SITE_URL);
+  const pageCanonical =
+    canonical || (typeof window !== "undefined" ? window.location.href : SITE_URL);
 
   const robots: string[] = [];
   if (noindex) robots.push("noindex");
@@ -52,9 +53,7 @@ export function SeoHead({
       <meta name="twitter:description" content={pageDescription} />
       <meta name="twitter:image" content={pageOgImage} />
 
-      {jsonLdScript && (
-        <script type="application/ld+json">{jsonLdScript}</script>
-      )}
+      {jsonLdScript && <script type="application/ld+json">{jsonLdScript}</script>}
     </Helmet>
   );
 }

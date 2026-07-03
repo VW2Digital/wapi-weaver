@@ -2,13 +2,14 @@
 name: gsd-scan
 description: Rapid codebase assessment — lightweight alternative to /gsd-map-codebase
 permissions:
-   read: true
-   write: true
-   bash: true
-   grep: true
-   glob: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  grep: true
+  glob: true
+  question: true
 ---
+
 <objective>
 Run a focused codebase scan for a single area, producing targeted documents in `.planning/codebase/`.
 Accepts an optional `--focus` flag: `tech`, `arch`, `quality`, `concerns`, or `tech+arch` (default).

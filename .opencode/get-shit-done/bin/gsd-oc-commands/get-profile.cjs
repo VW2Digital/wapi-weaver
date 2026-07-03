@@ -11,10 +11,10 @@
  * Usage: node get-profile.cjs [profile-name] [--raw] [--verbose]
  */
 
-const fs = require('fs');
-const path = require('path');
-const { output, error } = require('../gsd-oc-lib/oc-core.cjs');
-const { loadOcProfileConfig } = require('../gsd-oc-lib/oc-profile-config.cjs');
+const fs = require("fs");
+const path = require("path");
+const { output, error } = require("../gsd-oc-lib/oc-core.cjs");
+const { loadOcProfileConfig } = require("../gsd-oc-lib/oc-profile-config.cjs");
 
 /**
  * Main command function
@@ -23,21 +23,21 @@ const { loadOcProfileConfig } = require('../gsd-oc-lib/oc-profile-config.cjs');
  * @param {string[]} args - Command line arguments
  */
 function getProfile(cwd, args) {
-  const verbose = args.includes('--verbose');
-  const raw = args.includes('--raw');
-  const log = verbose ? (...args) => console.error('[get-profile]', ...args) : () => {};
+  const verbose = args.includes("--verbose");
+  const raw = args.includes("--raw");
+  const log = verbose ? (...args) => console.error("[get-profile]", ...args) : () => {};
 
   // Filter out flags to get profile name argument
-  const profileArgs = args.filter(arg => !arg.startsWith('--'));
-  
+  const profileArgs = args.filter((arg) => !arg.startsWith("--"));
+
   // Check for too many arguments
   if (profileArgs.length > 1) {
-    error('Too many arguments. Usage: get-profile [profile-name]', 'INVALID_ARGS');
+    error("Too many arguments. Usage: get-profile [profile-name]", "INVALID_ARGS");
   }
-  
+
   const profileName = profileArgs.length > 0 ? profileArgs[0] : null;
 
-  log('Loading oc_config.json');
+  log("Loading oc_config.json");
 
   // Load oc_config.json
   const loadResult = loadOcProfileConfig(cwd);
@@ -51,13 +51,13 @@ function getProfile(cwd, args) {
 
   // ========== MODE 1: No parameters (get current profile) ==========
   if (!profileName) {
-    log('Mode 1: Getting current profile');
+    log("Mode 1: Getting current profile");
 
     // Check current_oc_profile is set
     if (!config.current_oc_profile) {
       error(
-        'current_oc_profile not set in oc_config.json. Run set-profile first.',
-        'MISSING_CURRENT_PROFILE'
+        "current_oc_profile not set in oc_config.json. Run set-profile first.",
+        "MISSING_CURRENT_PROFILE",
       );
     }
 
@@ -67,10 +67,10 @@ function getProfile(cwd, args) {
     // Check profile exists in profiles.presets
     const presets = config.profiles?.presets;
     if (!presets || !presets[currentProfileName]) {
-      const availableProfiles = presets ? Object.keys(presets).join(', ') : 'none';
+      const availableProfiles = presets ? Object.keys(presets).join(", ") : "none";
       error(
         `Current profile "${currentProfileName}" not found in profiles.presets. Available profiles: ${availableProfiles}`,
-        'PROFILE_NOT_FOUND'
+        "PROFILE_NOT_FOUND",
       );
     }
 
@@ -94,10 +94,10 @@ function getProfile(cwd, args) {
   // Note: Does NOT require current_oc_profile to be set
   const presets = config.profiles?.presets;
   if (!presets || !presets[profileName]) {
-    const availableProfiles = presets ? Object.keys(presets).join(', ') : 'none';
+    const availableProfiles = presets ? Object.keys(presets).join(", ") : "none";
     error(
       `Profile "${profileName}" not found in profiles.presets. Available profiles: ${availableProfiles}`,
-      'PROFILE_NOT_FOUND'
+      "PROFILE_NOT_FOUND",
     );
   }
 

@@ -24,14 +24,14 @@ gsd-sdk query commit "" .planning/codebase/*.md --amend
 
 ## Commit Message Patterns
 
-| Command | Scope | Example |
-|---------|-------|---------|
-| plan-phase | phase | `docs(phase-03): create authentication plans` |
-| execute-phase | phase | `docs(phase-03): complete authentication phase` |
-| new-milestone | milestone | `docs: start milestone v1.1` |
-| remove-phase | chore | `chore: remove phase 17 (dashboard)` |
-| insert-phase | phase | `docs: insert phase 16.1 (critical fix)` |
-| add-phase | phase | `docs: add phase 07 (settings page)` |
+| Command       | Scope     | Example                                         |
+| ------------- | --------- | ----------------------------------------------- |
+| plan-phase    | phase     | `docs(phase-03): create authentication plans`   |
+| execute-phase | phase     | `docs(phase-03): complete authentication phase` |
+| new-milestone | milestone | `docs: start milestone v1.1`                    |
+| remove-phase  | chore     | `chore: remove phase 17 (dashboard)`            |
+| insert-phase  | phase     | `docs: insert phase 16.1 (critical fix)`        |
+| add-phase     | phase     | `docs: add phase 07 (settings page)`            |
 
 ## When to Skip
 

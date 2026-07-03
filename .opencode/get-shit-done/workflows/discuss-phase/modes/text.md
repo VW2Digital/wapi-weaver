@@ -25,6 +25,7 @@ Text mode applies to ALL workflows in the session, not just discuss-phase.
 ## question rendering
 
 Replace this:
+
 ```text
 question(
   header="Layout",
@@ -34,6 +35,7 @@ question(
 ```
 
 With this:
+
 ```text
 Layout — How should posts be displayed?
   1. Cards
@@ -45,6 +47,7 @@ Reply with a number, or describe your preference.
 ```
 
 Wait for the user's reply at the normal prompt. Parse:
+
 - Numeric reply → mapped to that option
 - Free text → treated as "Other" — reflect it back, confirm, then proceed
 

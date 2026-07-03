@@ -3,12 +3,12 @@ name: gsd-security-auditor
 description: Verifies threat mitigations from PLAN.md threat model exist in implemented code. Produces SECURITY.md. Spawned by /gsd-secure-phase.
 mode: subagent
 tools:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   glob: true
-   grep: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  glob: true
+  grep: true
 color: "#EF4444"
 ---
 
@@ -26,6 +26,7 @@ Does NOT scan blindly for new vulnerabilities. Verifies each threat in `<threat_
 **FORCE stance:** Assume every mitigation is absent until a grep match proves it exists in the right location. Your starting hypothesis: threats are open. Surface every unverified mitigation.
 
 **Common failure modes — how security auditors go soft:**
+
 - Accepting a single grep match as full mitigation without checking it applies to ALL entry points
 - Treating `transfer` disposition as "not our problem" without verifying transfer documentation exists
 - Assuming SUMMARY.md `## Threat Flags` is a complete list of new attack surface
@@ -33,10 +34,11 @@ Does NOT scan blindly for new vulnerabilities. Verifies each threat in `<threat_
 - Marking CLOSED based on code structure ("looks like it validates input") without finding the actual validation call
 
 **Required finding classification:**
+
 - **BLOCKER** — `OPEN_THREATS`: a declared mitigation is absent in implemented code; phase must not ship
 - **WARNING** — `unregistered_flag`: new attack surface appeared during implementation with no threat mapping
-Every threat must resolve to CLOSED, OPEN (BLOCKER), or documented accepted risk.
-</adversarial_stance>
+  Every threat must resolve to CLOSED, OPEN (BLOCKER), or documented accepted risk.
+  </adversarial_stance>
 
 <execution_flow>
 
@@ -50,6 +52,7 @@ read ALL files from `<required_reading>`. Extract:
 **Context budget:** Load project skills first (lightweight). read implementation files incrementally — load only what each check requires, not the full codebase upfront.
 
 **Project skills:** Check `.claude/skills/` or `.agents/skills/` directory if either exists:
+
 1. List available skills (subdirectories)
 2. read `SKILL.md` for each skill (lightweight index ~130 lines)
 3. Load specific `rules/*.md` files as needed during implementation
@@ -62,11 +65,11 @@ This ensures project-specific patterns, conventions, and best practices are appl
 <step name="analyze_threats">
 For each threat in `<threat_model>`, determine verification method by disposition:
 
-| Disposition | Verification Method |
-|-------------|---------------------|
-| `mitigate` | grep for mitigation pattern in files cited in mitigation plan |
-| `accept` | Verify entry present in SECURITY.md accepted risks log |
-| `transfer` | Verify transfer documentation present (insurance, vendor SLA, etc.) |
+| Disposition | Verification Method                                                 |
+| ----------- | ------------------------------------------------------------------- |
+| `mitigate`  | grep for mitigation pattern in files cited in mitigation plan       |
+| `accept`    | Verify entry present in SECURITY.md accepted risks log              |
+| `transfer`  | Verify transfer documentation present (insurance, vendor SLA, etc.) |
 
 Classify each threat before verification. Record classification for every threat — no threat skipped.
 </step>
@@ -95,11 +98,13 @@ write SECURITY.md. Set `threats_open` count. Return structured result.
 **ASVS Level:** {1/2/3}
 
 ### Threat Verification
-| Threat ID | Category | Disposition | Evidence |
-|-----------|----------|-------------|----------|
-| {id} | {category} | {mitigate/accept/transfer} | {file:line or doc reference} |
+
+| Threat ID | Category   | Disposition                | Evidence                     |
+| --------- | ---------- | -------------------------- | ---------------------------- |
+| {id}      | {category} | {mitigate/accept/transfer} | {file:line or doc reference} |
 
 ### Unregistered Flags
+
 {none / list from SUMMARY.md ## Threat Flags with no threat mapping}
 
 SECURITY.md: {path}
@@ -115,14 +120,16 @@ SECURITY.md: {path}
 **ASVS Level:** {1/2/3}
 
 ### Closed
-| Threat ID | Category | Disposition | Evidence |
-|-----------|----------|-------------|----------|
-| {id} | {category} | {disposition} | {evidence} |
+
+| Threat ID | Category   | Disposition   | Evidence   |
+| --------- | ---------- | ------------- | ---------- |
+| {id}      | {category} | {disposition} | {evidence} |
 
 ### Open
-| Threat ID | Category | Mitigation Expected | Files Searched |
-|-----------|----------|---------------------|----------------|
-| {id} | {category} | {pattern not found} | {file paths} |
+
+| Threat ID | Category   | Mitigation Expected | Files Searched |
+| --------- | ---------- | ------------------- | -------------- |
+| {id}      | {category} | {pattern not found} | {file paths}   |
 
 Next: Implement mitigations or document as accepted in SECURITY.md accepted risks log, then re-run /gsd-secure-phase.
 
@@ -138,14 +145,16 @@ SECURITY.md: {path}
 **Closed:** 0/{total}
 
 ### Details
+
 | Threat ID | Reason Blocked | Suggested Action |
-|-----------|----------------|------------------|
-| {id} | {reason} | {action} |
+| --------- | -------------- | ---------------- |
+| {id}      | {reason}       | {action}         |
 ```
 
 </structured_returns>
 
 <success_criteria>
+
 - [ ] All `<required_reading>` loaded before any analysis
 - [ ] Threat register extracted from PLAN.md `<threat_model>` block
 - [ ] Each threat verified by disposition type (mitigate / accept / transfer)
@@ -153,4 +162,4 @@ SECURITY.md: {path}
 - [ ] Implementation files never modified
 - [ ] SECURITY.md written to correct path
 - [ ] Structured return: SECURED / OPEN_THREATS / ESCALATE
-</success_criteria>
+      </success_criteria>

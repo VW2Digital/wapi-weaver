@@ -32,6 +32,7 @@ Goal-backward verification. Start from what the phase SHOULD deliver, verify it 
 **FORCE stance:** Assume the phase goal was not achieved until codebase evidence proves it. Your starting hypothesis: tasks completed, goal missed. Falsify the SUMMARY.md narrative.
 
 **Common failure modes — how verifiers go soft:**
+
 - Trusting SUMMARY.md bullet points without reading the actual code files they describe
 - Accepting "file exists" as "truth verified" — a stub file satisfies existence but not behavior
 - Choosing UNCERTAIN instead of FAILED when absence of implementation is observable
@@ -39,10 +40,11 @@ Goal-backward verification. Start from what the phase SHOULD deliver, verify it 
 - Anchoring on truths that passed early and giving less scrutiny to later ones
 
 **Required finding classification:**
+
 - **BLOCKER** — a must-have truth is FAILED; phase goal not achieved; must not proceed to next phase
 - **WARNING** — a must-have is UNCERTAIN or an artifact exists but wiring is incomplete
-Every truth must resolve to VERIFIED, FAILED (BLOCKER), or UNCERTAIN (WARNING with human decision requested.
-</adversarial_stance>
+  Every truth must resolve to VERIFIED, FAILED (BLOCKER), or UNCERTAIN (WARNING with human decision requested.
+  </adversarial_stance>
 
 <required_reading>
 @./.opencode/get-shit-done/references/verification-overrides.md
@@ -56,9 +58,10 @@ Before verifying, discover project context:
 **Project instructions:** read `./AGENTS.md` if it exists in the working directory. Follow all project-specific guidelines, security requirements, and coding conventions.
 
 **Project skills:** @./.opencode/get-shit-done/references/project-skills-discovery.md
+
 - Load `rules/*.md` as needed during **verification**.
 - Apply skill rules when scanning for anti-patterns and verifying quality.
-</project_context>
+  </project_context>
 
 <core_principle>
 **task completion ≠ Goal achievement**
@@ -198,17 +201,19 @@ Before marking any must-have as FAILED, check the VERIFICATION.md frontmatter fo
 4. Key technical terms (file paths, component names, API endpoints) have higher weight
 
 **If override found:**
+
 - Mark as `PASSED (override)` instead of FAIL
 - Evidence: `Override: {reason} — accepted by {accepted_by} on {accepted_at}`
 - Count toward passing score, not failing score
 
 **If no override found:**
+
 - Mark as FAILED as normal
 - Consider suggesting an override if the failure looks intentional (alternative implementation exists)
 
 **Suggesting overrides:** When a must-have FAILs but evidence shows an alternative implementation that achieves the same intent, include an override suggestion in the report:
 
-```markdown
+````markdown
 **This looks intentional.** To accept this deviation, add to VERIFICATION.md frontmatter:
 
 ```yaml
@@ -218,7 +223,9 @@ overrides:
     accepted_by: "{name}"
     accepted_at: "{ISO timestamp}"
 ```
-```
+````
+
+````
 
 ## Step 4: Verify Artifacts (Three Levels)
 
@@ -226,22 +233,23 @@ Use `gsd-sdk query` for artifact verification against must_haves in PLAN frontma
 
 ```bash
 ARTIFACT_RESULT=$(gsd-sdk query verify.artifacts "$PLAN_PATH")
-```
+````
 
 Parse JSON result: `{ all_passed, passed, total, artifacts: [{path, exists, issues, passed}] }`
 
 For each artifact in result:
+
 - `exists=false` → MISSING
 - `issues` contains "Only N lines" or "Missing pattern" → STUB
 - `passed=true` → VERIFIED
 
 **Artifact status mapping:**
 
-| exists | issues empty | Status      |
-| ------ | ------------ | ----------- |
-| true   | true         | ✓ VERIFIED  |
-| true   | false        | ✗ STUB      |
-| false  | -            | ✗ MISSING   |
+| exists | issues empty | Status     |
+| ------ | ------------ | ---------- |
+| true   | true         | ✓ VERIFIED |
+| true   | false        | ✗ STUB     |
+| false  | -            | ✗ MISSING  |
 
 **For wiring verification (Level 3)**, check imports/usage manually for artifacts that pass Levels 1-2:
 
@@ -254,6 +262,7 @@ grep -r "$artifact_name" "${search_path:-src/}" --include="*.ts" --include="*.ts
 ```
 
 **Wiring status:**
+
 - WIRED: Imported AND used
 - ORPHANED: Exists but not imported/used
 - PARTIAL: Imported but not used (or vice versa)
@@ -307,22 +316,22 @@ grep -r -A 3 "<${COMPONENT_NAME}" "${search_path:-src/}" --include="*.tsx" 2>/de
 
 **Data-flow status:**
 
-| Data Source | Produces Real Data | Status |
-| ---------- | ------------------ | ------ |
-| DB query found | Yes | ✓ FLOWING |
-| Fetch exists, static fallback only | No | ⚠️ STATIC |
-| No data source found | N/A | ✗ DISCONNECTED |
-| Props hardcoded empty at call site | No | ✗ HOLLOW_PROP |
+| Data Source                        | Produces Real Data | Status         |
+| ---------------------------------- | ------------------ | -------------- |
+| DB query found                     | Yes                | ✓ FLOWING      |
+| Fetch exists, static fallback only | No                 | ⚠️ STATIC      |
+| No data source found               | N/A                | ✗ DISCONNECTED |
+| Props hardcoded empty at call site | No                 | ✗ HOLLOW_PROP  |
 
 **Final Artifact Status (updated with Level 4):**
 
-| Exists | Substantive | Wired | Data Flows | Status |
-| ------ | ----------- | ----- | ---------- | ------ |
-| ✓ | ✓ | ✓ | ✓ | ✓ VERIFIED |
-| ✓ | ✓ | ✓ | ✗ | ⚠️ HOLLOW — wired but data disconnected |
-| ✓ | ✓ | ✗ | - | ⚠️ ORPHANED |
-| ✓ | ✗ | - | - | ✗ STUB |
-| ✗ | - | - | - | ✗ MISSING |
+| Exists | Substantive | Wired | Data Flows | Status                                  |
+| ------ | ----------- | ----- | ---------- | --------------------------------------- |
+| ✓      | ✓           | ✓     | ✓          | ✓ VERIFIED                              |
+| ✓      | ✓           | ✓     | ✗          | ⚠️ HOLLOW — wired but data disconnected |
+| ✓      | ✓           | ✗     | -          | ⚠️ ORPHANED                             |
+| ✓      | ✗           | -     | -          | ✗ STUB                                  |
+| ✗      | -           | -     | -          | ✗ MISSING                               |
 
 ## Step 5: Verify Key Links (Wiring)
 
@@ -337,6 +346,7 @@ LINKS_RESULT=$(gsd-sdk query verify.key-links "$PLAN_PATH")
 Parse JSON result: `{ all_verified, verified, total, links: [{from, to, via, verified, detail}] }`
 
 For each link:
+
 - `verified=true` → WIRED
 - `verified=false` with "not found" in detail → NOT_WIRED
 - `verified=false` with "Pattern not found" → PARTIAL
@@ -392,6 +402,7 @@ Collect ALL requirement IDs declared across plans for this phase.
 **6b. Cross-reference against REQUIREMENTS.md:**
 
 For each requirement ID from plans:
+
 1. Find its full description in REQUIREMENTS.md (`**REQ-ID**: description`)
 2. Map to supporting truths/artifacts verified in Steps 3-5
 3. Determine status:
@@ -476,9 +487,9 @@ npm test -- --grep "$PHASE_TEST_PATTERN" 2>&1 | grep -q "passing"
 
 **Spot-check status:**
 
-| Behavior | Command | Result | Status |
-| -------- | ------- | ------ | ------ |
-| {truth} | {command} | {output} | ✓ PASS / ✗ FAIL / ? SKIP |
+| Behavior | Command   | Result   | Status                   |
+| -------- | --------- | -------- | ------------------------ |
+| {truth}  | {command} | {output} | ✓ PASS / ✗ FAIL / ? SKIP |
 
 3. **Classification:**
    - ✓ PASS: Command succeeded and output matches expected
@@ -486,6 +497,7 @@ npm test -- --grep "$PHASE_TEST_PATTERN" 2>&1 | grep -q "passing"
    - ? SKIP: Can't test without running server/external service — route to human verification (Step 8)
 
 **Spot-check constraints:**
+
 - Each check must complete in under 10 seconds
 - Do not start servers or services — only test what's already runnable
 - Do not modify state (no writes, no mutations, no side effects)
@@ -579,7 +591,7 @@ gaps:
 If Step 9b identified deferred items, add a `deferred` section after `gaps`:
 
 ```yaml
-deferred:  # Items addressed in later phases — not actionable gaps
+deferred: # Items addressed in later phases — not actionable gaps
   - truth: "Observable truth not yet met"
     addressed_in: "Phase 5"
     evidence: "Phase 5 success criteria: 'Implement RuntimeConfigC FFI bindings'"
@@ -660,9 +672,9 @@ human_verification: # Only if status: human_needed
 Items not yet met but explicitly addressed in later milestone phases.
 Only include this section if deferred items exist (from Step 9b).
 
-| # | Item | Addressed In | Evidence |
-|---|------|-------------|----------|
-| 1 | {truth} | Phase {N} | {matching goal or success criteria} |
+| #   | Item    | Addressed In | Evidence                            |
+| --- | ------- | ------------ | ----------------------------------- |
+| 1   | {truth} | Phase {N}    | {matching goal or success criteria} |
 
 ### Required Artifacts
 
@@ -688,7 +700,7 @@ Only include this section if deferred items exist (from Step 9b).
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
-| ----------- | ---------- | ----------- | ------ | -------- |
+| ----------- | ----------- | ----------- | ------ | -------- |
 
 ### Anti-Patterns Found
 
@@ -726,16 +738,22 @@ Return with:
 All must-haves verified. Phase goal achieved. Ready to proceed.
 
 {If gaps_found:}
+
 ### Gaps Found
+
 {N} gaps blocking goal achievement:
+
 1. **{Truth 1}** — {reason}
    - Missing: {what needs to be added}
 
 Structured gaps in VERIFICATION.md frontmatter for `/gsd-plan-phase --gaps`.
 
 {If human_needed:}
+
 ### Human Verification Required
+
 {N} items need human testing:
+
 1. **{Test name}** — {what to do}
    - Expected: {what should happen}
 
@@ -833,4 +851,4 @@ return <div>No messages</div>  // Always shows "no messages"
 - [ ] Re-verification metadata included (if previous existed)
 - [ ] VERIFICATION.md created with complete report
 - [ ] Results returned to orchestrator (NOT committed)
-</success_criteria>
+      </success_criteria>

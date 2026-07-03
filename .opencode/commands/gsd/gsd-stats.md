@@ -2,9 +2,10 @@
 name: gsd-stats
 description: Display project statistics — phases, plans, requirements, git metrics, and timeline
 permissions:
-   read: true
-   bash: true
+  read: true
+  bash: true
 ---
+
 <objective>
 Display comprehensive project statistics including phase progress, plan execution metrics, requirements completion, git history stats, and project timeline.
 </objective>

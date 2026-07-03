@@ -3,7 +3,7 @@ name: gsd-set-profile
 description: Switch model profile for GSD agents (simple/smart/genius/inherit)
 argument-hint: "<profile (simple|smart|genius|inherit)>"
 permissions:
-   bash: true
+  bash: true
 ---
 
 <objective>

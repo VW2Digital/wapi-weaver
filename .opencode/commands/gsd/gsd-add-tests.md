@@ -3,19 +3,20 @@ name: gsd-add-tests
 description: Generate tests for a completed phase based on UAT criteria and implementation
 argument-hint: "<phase> [additional instructions]"
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   glob: true
-   grep: true
-   task: true
-   question: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  glob: true
+  grep: true
+  task: true
+  question: true
 argument-instructions: |
   Parse the argument as a phase number (integer, decimal, or letter-suffix), plus optional free-text instructions.
   Example: /gsd-add-tests 12
   Example: /gsd-add-tests 12 focus on edge cases in the pricing module
 ---
+
 <objective>
 Generate unit and E2E tests for a completed phase, using its SUMMARY.md, CONTEXT.md, and VERIFICATION.md as specifications.
 

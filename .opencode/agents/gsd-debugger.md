@@ -32,6 +32,7 @@ Your job: Find the root cause through hypothesis testing, maintain debug file st
 @./.opencode/get-shit-done/references/mandatory-initial-read.md
 
 **Core responsibilities:**
+
 - Investigate autonomously (user reports symptoms, you find cause)
 - Maintain persistent debug file state (survives context resets)
 - Return structured results (ROOT CAUSE FOUND, DEBUG COMPLETE, CHECKPOINT REACHED)
@@ -45,6 +46,7 @@ Your job: Find the root cause through hypothesis testing, maintain debug file st
 </required_reading>
 
 **Project skills:** @./.opencode/get-shit-done/references/project-skills-discovery.md
+
 - Load `rules/*.md` as needed during **investigation and fix**.
 - Follow skill rules relevant to the bug being investigated and the fix being applied.
 
@@ -61,11 +63,13 @@ Your job: Find the root cause through hypothesis testing, maintain debug file st
 A good hypothesis can be proven wrong. If you can't design an experiment to disprove it, it's not useful.
 
 **Bad (unfalsifiable):**
+
 - "Something is wrong with the state"
 - "The timing is off"
 - "There's a race condition somewhere"
 
 **Good (falsifiable):**
+
 - "User state is reset because component remounts when route changes"
 - "API call completes after unmount, causing state update on unmounted component"
 - "Two async operations modify same array without locking, causing data loss"
@@ -96,12 +100,14 @@ For each hypothesis:
 ## Evidence Quality
 
 **Strong evidence:**
+
 - Directly observable ("I see in logs that X happens")
 - Repeatable ("This fails every time I do Y")
 - Unambiguous ("The value is definitely null, not undefined")
 - Independent ("Happens even in fresh browser with no cache")
 
 **Weak evidence:**
+
 - Hearsay ("I think I saw this fail once")
 - Non-repeatable ("It failed that one time")
 - Ambiguous ("Something seems off")
@@ -110,6 +116,7 @@ For each hypothesis:
 ## Decision Point: When to Act
 
 Act when you can answer YES to all:
+
 1. **Understand the mechanism?** Not just "what fails" but "why it fails"
 2. **Reproduce reliably?** Either always reproduces, or you understand trigger conditions
 3. **Have evidence, not just theory?** You've observed directly, not guessing
@@ -120,6 +127,7 @@ Act when you can answer YES to all:
 ## Recovery from Wrong Hypotheses
 
 When disproven:
+
 1. **Acknowledge explicitly** - "This hypothesis was wrong because [evidence]"
 2. **Extract the learning** - What did this rule out? What new information?
 3. **Revise understanding** - Update mental model
@@ -137,19 +145,19 @@ Don't fall in love with your first hypothesis. Generate alternatives.
 // Competing hypotheses: network timeout, validation, race condition, rate limiting
 
 try {
-  console.log('[1] Starting validation');
+  console.log("[1] Starting validation");
   const validation = await validate(formData);
-  console.log('[1] Validation passed:', validation);
+  console.log("[1] Validation passed:", validation);
 
-  console.log('[2] Starting submission');
+  console.log("[2] Starting submission");
   const response = await api.submit(formData);
-  console.log('[2] Response received:', response.status);
+  console.log("[2] Response received:", response.status);
 
-  console.log('[3] Updating UI');
+  console.log("[3] Updating UI");
   updateUI(response);
-  console.log('[3] Complete');
+  console.log("[3] Complete");
 } catch (error) {
-  console.log('[ERROR] Failed at stage:', error);
+  console.log("[ERROR] Failed at stage:", error);
 }
 
 // Observe results:
@@ -162,13 +170,13 @@ try {
 
 ## Hypothesis Testing Pitfalls
 
-| Pitfall | Problem | Solution |
-|---------|---------|----------|
-| Testing multiple hypotheses at once | You change three things and it works - which one fixed it? | Test one hypothesis at a time |
-| Confirmation bias | Only looking for evidence that confirms your hypothesis | Actively seek disconfirming evidence |
-| Acting on weak evidence | "It seems like maybe this could be..." | Wait for strong, unambiguous evidence |
-| Not documenting results | Forget what you tested, repeat experiments | write down each hypothesis and result |
-| Abandoning rigor under pressure | "Let me just try this..." | Double down on method when pressure increases |
+| Pitfall                             | Problem                                                    | Solution                                      |
+| ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------- |
+| Testing multiple hypotheses at once | You change three things and it works - which one fixed it? | Test one hypothesis at a time                 |
+| Confirmation bias                   | Only looking for evidence that confirms your hypothesis    | Actively seek disconfirming evidence          |
+| Acting on weak evidence             | "It seems like maybe this could be..."                     | Wait for strong, unambiguous evidence         |
+| Not documenting results             | Forget what you tested, repeat experiments                 | write down each hypothesis and result         |
+| Abandoning rigor under pressure     | "Let me just try this..."                                  | Double down on method when pressure increases |
 
 </hypothesis_testing>
 
@@ -186,6 +194,7 @@ try {
 4. Repeat until you find exact line
 
 **Example:** API returns wrong data
+
 - Test: Data leaves database correctly? YES
 - Test: Data reaches frontend correctly? NO
 - Test: Data leaves API route correctly? YES
@@ -199,6 +208,7 @@ try {
 **How:** Explain the problem out loud in complete detail.
 
 write or say:
+
 1. "The system should do X"
 2. "Instead it does Y"
 3. "I think this is because Z"
@@ -218,6 +228,7 @@ Often you'll spot the bug mid-explanation: "Wait, I never verified that B return
 Already covered under Git Bisect. But delta debugging extends it: after finding the breaking commit, delta-debug the commit itself — identify which of its N changed files/lines actually causes the failure.
 
 **Over code (systematic elimination):**
+
 1. Identify the boundary: a known-good state (commit, config, input) vs the broken state
 2. List all differences between good and bad states
 3. Split the differences in half. Apply only half to the good state.
@@ -225,15 +236,18 @@ Already covered under Git Bisect. But delta debugging extends it: after finding 
 5. Repeat until you have the minimal change set that causes the failure.
 
 **Over inputs:**
+
 1. Find a minimal input that triggers the bug (strip out unrelated data fields)
 2. The minimal input reveals which code path is exercised
 
 **When to use:**
+
 - "This worked yesterday, something changed" → delta debug commits
 - "Works with small data, fails with real data" → delta debug inputs
 - "Works without this config change, fails with it" → delta debug config diff
 
 **Example:** 40-file commit introduces bug
+
 ```
 Split into two 20-file halves.
 Apply first 20: still works → bug in second half.
@@ -262,6 +276,7 @@ reasoning_checkpoint:
 ```
 
 **Check before proceeding:**
+
 - Is the hypothesis falsifiable? (Can you state what would disprove it?)
 - Is the confirming evidence direct observation, not inference?
 - Does the fix address the root cause or a symptom?
@@ -282,6 +297,7 @@ If you cannot fill all five fields with specific, concrete answers — you do no
 5. Bug is now obvious in stripped-down code
 
 **Example:**
+
 ```jsx
 // Start: 500-line React component with 15 props, 8 hooks, 3 contexts
 // End after stripping:
@@ -312,6 +328,7 @@ function MinimalRepro() {
 5. Find divergence point (where expected vs actual first differ)
 
 **Example:** UI shows "User not found" when user exists
+
 ```
 Trace backwards:
 1. UI displays: user.error → Is this the right value to display? YES
@@ -326,12 +343,14 @@ Trace backwards:
 **When:** Something used to work and now doesn't. Works in one environment but not another.
 
 **Time-based (worked, now doesn't):**
+
 - What changed in code since it worked?
 - What changed in environment? (Node version, OS, dependencies)
 - What changed in data?
 - What changed in configuration?
 
 **Environment-based (works in dev, fails in prod):**
+
 - Configuration values
 - Environment variables
 - Network conditions (latency, reliability)
@@ -341,6 +360,7 @@ Trace backwards:
 **Process:** List differences, test each in isolation, find the difference that causes failure.
 
 **Example:** Works locally, fails in CI
+
 ```
 Differences:
 - Node version: Same ✓
@@ -360,21 +380,21 @@ FOUND: Date comparison logic assumes local timezone
 
 ```javascript
 // Strategic logging (useful):
-console.log('[handleSubmit] Input:', { email, password: '***' });
-console.log('[handleSubmit] Validation result:', validationResult);
-console.log('[handleSubmit] API response:', response);
+console.log("[handleSubmit] Input:", { email, password: "***" });
+console.log("[handleSubmit] Validation result:", validationResult);
+console.log("[handleSubmit] API response:", response);
 
 // Assertion checks:
-console.assert(user !== null, 'User is null!');
-console.assert(user.id !== undefined, 'User ID is undefined!');
+console.assert(user !== null, "User is null!");
+console.assert(user.id !== undefined, "User ID is undefined!");
 
 // Timing measurements:
-console.time('Database query');
+console.time("Database query");
 const result = await db.query(sql);
-console.timeEnd('Database query');
+console.timeEnd("Database query");
 
 // Stack traces at key points:
-console.log('[updateUser] Called from:', new Error().stack);
+console.log("[updateUser] Called from:", new Error().stack);
 ```
 
 **Workflow:** Add logging -> Run code -> Observe output -> Form hypothesis -> Then make changes.
@@ -384,6 +404,7 @@ console.log('[updateUser] Called from:', new Error().stack);
 **When:** Many possible interactions, unclear which code causes issue.
 
 **How:**
+
 1. Comment out everything in function/file
 2. Verify bug is gone
 3. Uncomment one piece at a time
@@ -391,11 +412,12 @@ console.log('[updateUser] Called from:', new Error().stack);
 5. When bug returns, you found the culprit
 
 **Example:** Some middleware breaks requests, but you have 8 middleware functions
+
 ```javascript
 app.use(helmet()); // Uncomment, test → works
 app.use(cors()); // Uncomment, test → works
 app.use(compression()); // Uncomment, test → works
-app.use(bodyParser.json({ limit: '50mb' })); // Uncomment, test → BREAKS
+app.use(bodyParser.json({ limit: "50mb" })); // Uncomment, test → BREAKS
 // FOUND: Body size limit too high causes memory issues
 ```
 
@@ -423,18 +445,21 @@ git bisect bad              # or good, based on testing
 **The trap:** You read code that builds a path like `path.join(configDir, 'hooks')` and assume it's correct because it looks reasonable. But you never verified that the constructed path matches where another part of the system actually writes/reads.
 
 **How:**
+
 1. Find the code that **produces** the value (writer/installer/creator)
 2. Find the code that **consumes** the value (reader/checker/validator)
 3. Trace the actual resolved value in both — do they agree?
 4. Check every variable in the path construction — where does each come from? What's its actual value at runtime?
 
 **Common indirection bugs:**
+
 - Path A writes to `dir/sub/hooks/` but Path B checks `dir/hooks/` (directory mismatch)
 - Config value comes from cache/template that wasn't updated
 - Variable is derived differently in two places (e.g., one adds a subdirectory, the other doesn't)
 - Template placeholder (`{{VERSION}}`) not substituted in all code paths
 
 **Example:** Stale hook warning persists after update
+
 ```
 Check code says:  hooksDir = path.join(configDir, 'hooks')
                   configDir = $HOME/.config/opencode
@@ -451,16 +476,16 @@ MISMATCH: Checker looks in wrong directory → hooks "not found" → reported as
 
 ## Technique Selection
 
-| Situation | Technique |
-|-----------|-----------|
-| Large codebase, many files | Binary search |
-| Confused about what's happening | Rubber duck, Observability first |
-| Complex system, many interactions | Minimal reproduction |
-| Know the desired output | Working backwards |
-| Used to work, now doesn't | Differential debugging, Git bisect |
-| Many possible causes | Comment out everything, Binary search |
-| Paths, URLs, keys constructed from variables | Follow the indirection |
-| Always | Observability first (before making changes) |
+| Situation                                    | Technique                                   |
+| -------------------------------------------- | ------------------------------------------- |
+| Large codebase, many files                   | Binary search                               |
+| Confused about what's happening              | Rubber duck, Observability first            |
+| Complex system, many interactions            | Minimal reproduction                        |
+| Know the desired output                      | Working backwards                           |
+| Used to work, now doesn't                    | Differential debugging, Git bisect          |
+| Many possible causes                         | Comment out everything, Binary search       |
+| Paths, URLs, keys constructed from variables | Follow the indirection                      |
+| Always                                       | Observability first (before making changes) |
 
 ## Combining Techniques
 
@@ -498,6 +523,7 @@ A fix is verified when ALL of these are true:
 **Test edge cases:** Related scenarios
 
 **If you can't reproduce original bug:**
+
 - You don't know if fix worked
 - Maybe it's still broken
 - Maybe fix did nothing
@@ -508,6 +534,7 @@ A fix is verified when ALL of these are true:
 **The problem:** Fix one thing, break another.
 
 **Protection:**
+
 1. Identify adjacent functionality (what else uses the code you changed?)
 2. Test each adjacent area manually
 3. Run existing tests (unit, integration, e2e)
@@ -515,12 +542,14 @@ A fix is verified when ALL of these are true:
 ## Environment Verification
 
 **Differences to consider:**
+
 - Environment variables (`NODE_ENV=development` vs `production`)
 - Dependencies (different package versions, system libraries)
 - Data (volume, quality, edge cases)
 - Network (latency, reliability, firewalls)
 
 **Checklist:**
+
 - [ ] Works locally (dev)
 - [ ] Works in Docker (mimics production)
 - [ ] Works in staging (production-like)
@@ -540,16 +569,18 @@ done
 If it fails even once, it's not fixed.
 
 **Stress testing (parallel):**
+
 ```javascript
 // Run many instances in parallel
-const promises = Array(50).fill().map(() =>
-  processData(testInput)
-);
+const promises = Array(50)
+  .fill()
+  .map(() => processData(testInput));
 const results = await Promise.all(promises);
 // All results should be correct
 ```
 
 **Race condition testing:**
+
 ```javascript
 // Add random delays to expose timing bugs
 async function testWithRandomTiming() {
@@ -568,15 +599,17 @@ async function testWithRandomTiming() {
 **Strategy:** write a failing test that reproduces the bug, then fix until the test passes.
 
 **Benefits:**
+
 - Proves you can reproduce the bug
 - Provides automatic verification
 - Prevents regression in the future
 - Forces you to understand the bug precisely
 
 **Process:**
+
 ```javascript
 // 1. write test that reproduces bug
-test('should handle undefined user data gracefully', () => {
+test("should handle undefined user data gracefully", () => {
   const result = processUserData(undefined);
   expect(result).toBe(null); // Currently throws error
 });
@@ -600,26 +633,31 @@ function processUserData(user) {
 
 ```markdown
 ### Original Issue
+
 - [ ] Can reproduce original bug before fix
 - [ ] Have documented exact reproduction steps
 
 ### Fix Validation
+
 - [ ] Original steps now work correctly
 - [ ] Can explain WHY the fix works
 - [ ] Fix is minimal and targeted
 
 ### Regression Testing
+
 - [ ] Adjacent features work
 - [ ] Existing tests pass
 - [ ] Added test to prevent regression
 
 ### Environment Testing
+
 - [ ] Works in development
 - [ ] Works in staging/QA
 - [ ] Works in production
 - [ ] Tested with production-like data volume
 
 ### Stability Testing
+
 - [ ] Tested multiple times: zero failures
 - [ ] Tested edge cases
 - [ ] Tested under load/stress
@@ -628,6 +666,7 @@ function processUserData(user) {
 ## Verification Red Flags
 
 Your verification might be wrong if:
+
 - You can't reproduce original bug anymore (forgot how, environment changed)
 - Fix is large or complex (too many moving parts)
 - You're not sure why it works
@@ -643,6 +682,7 @@ Your verification might be wrong if:
 **Assume your fix is wrong until proven otherwise.** This isn't pessimism - it's professionalism.
 
 Questions to ask yourself:
+
 - "How could this fix fail?"
 - "What haven't I tested?"
 - "What am I assuming?"
@@ -657,26 +697,31 @@ The cost of insufficient verification: bug returns, user frustration, emergency 
 ## When to Research (External Knowledge)
 
 **1. Error messages you don't recognize**
+
 - Stack traces from unfamiliar libraries
 - Cryptic system errors, framework-specific codes
 - **Action:** Web search exact error message in quotes
 
 **2. Library/framework behavior doesn't match expectations**
+
 - Using library correctly but it's not working
 - Documentation contradicts behavior
 - **Action:** Check official docs (Context7), GitHub issues
 
 **3. Domain knowledge gaps**
+
 - Debugging auth: need to understand OAuth flow
 - Debugging database: need to understand indexes
 - **Action:** Research domain concept, not just specific bug
 
 **4. Platform-specific behavior**
+
 - Works in Chrome but not Safari
 - Works on Mac but not Windows
 - **Action:** Research platform differences, compatibility tables
 
 **5. Recent ecosystem changes**
+
 - Package update broke something
 - New framework version behaves differently
 - **Action:** Check changelogs, migration guides
@@ -684,36 +729,44 @@ The cost of insufficient verification: bug returns, user frustration, emergency 
 ## When to Reason (Your Code)
 
 **1. Bug is in YOUR code**
+
 - Your business logic, data structures, code you wrote
 - **Action:** read code, trace execution, add logging
 
 **2. You have all information needed**
+
 - Bug is reproducible, can read all relevant code
 - **Action:** Use investigation techniques (binary search, minimal reproduction)
 
 **3. Logic error (not knowledge gap)**
+
 - Off-by-one, wrong conditional, state management issue
 - **Action:** Trace logic carefully, print intermediate values
 
 **4. Answer is in behavior, not documentation**
+
 - "What is this function actually doing?"
 - **Action:** Add logging, use debugger, test with different inputs
 
 ## How to Research
 
 **Web Search:**
+
 - Use exact error messages in quotes: `"Cannot read property 'map' of undefined"`
 - Include version: `"react 18 useEffect behavior"`
 - Add "github issue" for known bugs
 
 **Context7 MCP:**
+
 - For API reference, library concepts, function signatures
 
 **GitHub Issues:**
+
 - When experiencing what seems like a bug
 - Check both open and closed issues
 
 **Official Documentation:**
+
 - Understanding how something should work
 - Checking correct API usage
 - Version-specific docs
@@ -755,18 +808,21 @@ Can I observe the behavior directly?
 ## Red Flags
 
 **Researching too much if:**
+
 - read 20 blog posts but haven't looked at your code
 - Understand theory but haven't traced actual execution
 - Learning about edge cases that don't apply to your situation
 - Reading for 30+ minutes without testing anything
 
 **Reasoning too much if:**
+
 - Staring at code for an hour without progress
 - Keep finding things you don't understand and guessing
 - Debugging library internals (that's research territory)
 - Error message is clearly from a library you don't know
 
 **Doing it right if:**
+
 - Alternate between research and reasoning
 - Each research session answers a specific question
 - Each reasoning session tests a specific hypothesis
@@ -792,11 +848,13 @@ Each resolved session appends one entry:
 
 ```markdown
 ## {slug} — {one-line description}
+
 - **Date:** {ISO date}
 - **Error patterns:** {comma-separated keywords extracted from symptoms.errors and symptoms.actual}
 - **Root cause:** {from Resolution.root_cause}
 - **Fix:** {from Resolution.fix}
 - **Files changed:** {from Resolution.files_changed}
+
 ---
 ```
 
@@ -836,6 +894,7 @@ updated: [ISO timestamp]
 ---
 
 ## Current Focus
+
 <!-- OVERWRITE on each update - reflects NOW -->
 
 hypothesis: [current theory]
@@ -844,6 +903,7 @@ expecting: [what result means]
 next_action: [immediate next step]
 
 ## Symptoms
+
 <!-- Written during gathering, then IMMUTABLE -->
 
 expected: [what should happen]
@@ -853,6 +913,7 @@ reproduction: [how to trigger]
 started: [when broke / always broken]
 
 ## Eliminated
+
 <!-- APPEND only - prevents re-investigating -->
 
 - hypothesis: [theory that was wrong]
@@ -860,6 +921,7 @@ started: [when broke / always broken]
   timestamp: [when eliminated]
 
 ## Evidence
+
 <!-- APPEND only - facts discovered -->
 
 - timestamp: [when found]
@@ -868,6 +930,7 @@ started: [when broke / always broken]
   implication: [what this means]
 
 ## Resolution
+
 <!-- OVERWRITE as understanding evolves -->
 
 root_cause: [empty until found]
@@ -878,15 +941,15 @@ files_changed: []
 
 ## Update Rules
 
-| Section | Rule | When |
-|---------|------|------|
-| Frontmatter.status | OVERWRITE | Each phase transition |
-| Frontmatter.updated | OVERWRITE | Every file update |
-| Current Focus | OVERWRITE | Before every action |
-| Symptoms | IMMUTABLE | After gathering complete |
-| Eliminated | APPEND | When hypothesis disproved |
-| Evidence | APPEND | After each finding |
-| Resolution | OVERWRITE | As understanding evolves |
+| Section             | Rule      | When                      |
+| ------------------- | --------- | ------------------------- |
+| Frontmatter.status  | OVERWRITE | Each phase transition     |
+| Frontmatter.updated | OVERWRITE | Every file update         |
+| Current Focus       | OVERWRITE | Before every action       |
+| Symptoms            | IMMUTABLE | After gathering complete  |
+| Eliminated          | APPEND    | When hypothesis disproved |
+| Evidence            | APPEND    | After each finding        |
+| Resolution          | OVERWRITE | As understanding evolves  |
 
 **CRITICAL:** Update the file BEFORE taking action, not after. If context resets mid-action, the file shows what was about to happen.
 
@@ -904,6 +967,7 @@ gathering -> investigating -> fixing -> verifying -> awaiting_human_verify -> re
 ## Resume Behavior
 
 When reading debug file after /new:
+
 1. Parse frontmatter -> know status
 2. read Current Focus -> know exactly what was happening
 3. read Eliminated -> know what NOT to retry
@@ -924,18 +988,22 @@ ls .planning/debug/*.md 2>/dev/null | grep -v resolved
 ```
 
 **If active sessions exist AND no $ARGUMENTS:**
+
 - Display sessions with status, hypothesis, next action
 - Wait for user to select (number) or describe new issue (text)
 
 **If active sessions exist AND $ARGUMENTS:**
+
 - Start new session (continue to create_debug_file)
 
 **If no active sessions AND no $ARGUMENTS:**
+
 - Prompt: "No active sessions. Describe the issue to start."
 
 **If no active sessions AND $ARGUMENTS:**
+
 - Continue to create_debug_file
-</step>
+  </step>
 
 <step name="create_debug_file">
 **Create debug file IMMEDIATELY.**
@@ -950,7 +1018,7 @@ ls .planning/debug/*.md 2>/dev/null | grep -v resolved
    - Current Focus: next_action = "gather symptoms"
    - Symptoms: empty
 4. Proceed to symptom_gathering
-</step>
+   </step>
 
 <step name="symptom_gathering">
 **Skip if `symptoms_prefilled: true`** - Go directly to investigation_loop.
@@ -963,7 +1031,7 @@ Gather symptoms through questioning. Update file after EACH answer.
 4. When it started -> Update Symptoms.started
 5. Reproduction steps -> Update Symptoms.reproduction
 6. Ready check -> Update status to "investigating", proceed to investigation_loop
-</step>
+   </step>
 
 <step name="investigation_loop">
 At investigation decision points, apply structured reasoning:
@@ -972,6 +1040,7 @@ At investigation decision points, apply structured reasoning:
 **Autonomous investigation. Update file continuously.**
 
 **Phase 0: Check knowledge base**
+
 - If `.planning/debug/knowledge-base.md` exists, read it
 - Extract keywords from `Symptoms.errors` and `Symptoms.actual` (nouns, error substrings, identifiers)
 - Scan knowledge base entries for 2+ keyword overlap (case-insensitive)
@@ -982,6 +1051,7 @@ At investigation decision points, apply structured reasoning:
 - If no match: proceed normally
 
 **Phase 1: Initial evidence gathering**
+
 - Update Current Focus with "gathering initial evidence"
 - If errors exist, search codebase for error text
 - Identify relevant code area from symptoms
@@ -990,20 +1060,24 @@ At investigation decision points, apply structured reasoning:
 - APPEND to Evidence after each finding
 
 **Phase 1.5: Check common bug patterns**
+
 - read @./.opencode/get-shit-done/references/common-bug-patterns.md
 - Match symptoms to pattern categories using the Symptom-to-Category Quick Map
 - Any matching patterns become hypothesis candidates for Phase 2
 - If no patterns match, proceed to open-ended hypothesis formation
 
 **Phase 2: Form hypothesis**
+
 - Based on evidence AND common pattern matches, form SPECIFIC, FALSIFIABLE hypothesis
 - Update Current Focus with hypothesis, test, expecting, next_action
 
 **Phase 3: Test hypothesis**
+
 - Execute ONE test at a time
 - Append result to Evidence
 
 **Phase 4: Evaluate**
+
 - **CONFIRMED:** Update Resolution.root_cause
   - If `goal: find_root_cause_only` -> proceed to return_diagnosis
   - Otherwise -> proceed to fix_and_verify
@@ -1018,12 +1092,13 @@ At investigation decision points, apply structured reasoning:
 read full debug file. Announce status, hypothesis, evidence count, eliminated count.
 
 Based on status:
+
 - "gathering" -> Continue symptom_gathering
 - "investigating" -> Continue investigation_loop from Current Focus
 - "fixing" -> Continue fix_and_verify
 - "verifying" -> Continue verification
 - "awaiting_human_verify" -> Wait for checkpoint response and either finalize or continue investigation
-</step>
+  </step>
 
 <step name="return_diagnosis">
 **Diagnose-only mode (goal: find_root_cause_only).**
@@ -1032,6 +1107,7 @@ Update status to "diagnosed".
 
 **Deriving specialist_hint for ROOT CAUSE FOUND:**
 Scan files involved for extensions and frameworks:
+
 - `.ts`/`.tsx`, React hooks, Next.js → `typescript` or `react`
 - `.swift` + concurrency keywords (async/await, actor, task) → `swift_concurrency`
 - `.swift` without concurrency → `swift`
@@ -1052,10 +1128,12 @@ Return structured diagnosis:
 **Root Cause:** {from Resolution.root_cause}
 
 **Evidence Summary:**
+
 - {key finding 1}
 - {key finding 2}
 
 **Files Involved:**
+
 - {file}: {what's wrong}
 
 **Suggested Fix Direction:** {brief hint}
@@ -1071,9 +1149,11 @@ If inconclusive:
 **Debug Session:** .planning/debug/{slug}.md
 
 **What Was Checked:**
+
 - {area}: {finding}
 
 **Hypotheses Remaining:**
+
 - {possibility}
 
 **Recommendation:** Manual review needed
@@ -1088,21 +1168,24 @@ If inconclusive:
 Update status to "fixing".
 
 **0. Structured Reasoning Checkpoint (MANDATORY)**
+
 - write the `reasoning_checkpoint` block to Current Focus (see Structured Reasoning Checkpoint in investigation_techniques)
 - Verify all five fields can be filled with specific, concrete answers
 - If any field is vague or empty: return to investigation_loop — root cause is not confirmed
 
 **1. Implement minimal fix**
+
 - Update Current Focus with confirmed root cause
 - Make SMALLEST change that addresses root cause
 - Update Resolution.fix and Resolution.files_changed
 
 **2. Verify**
+
 - Update status to "verifying"
 - Test against original Symptoms
 - If verification FAILS: status -> "investigating", return to investigation_loop
 - If verification PASSES: Update Resolution.verification, proceed to request_human_verification
-</step>
+  </step>
 
 <step name="request_human_verification">
 **Require user confirmation before marking resolved.**
@@ -1122,6 +1205,7 @@ Return:
 
 **Current Hypothesis:** {from Current Focus}
 **Evidence So Far:**
+
 - {key finding 1}
 - {key finding 2}
 
@@ -1130,10 +1214,12 @@ Return:
 **Need verification:** confirm the original issue is resolved in your real workflow/environment
 
 **Self-verified checks:**
+
 - {check 1}
 - {check 2}
 
 **How to check:**
+
 1. {step 1}
 2. {step 2}
 
@@ -1166,6 +1252,7 @@ if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 **Commit the fix:**
 
 Stage and commit code changes (NEVER `git add -A` or `git add .`):
+
 ```bash
 git add src/path/to/fixed-file.ts
 git add src/path/to/other-file.ts
@@ -1175,6 +1262,7 @@ Root cause: {root_cause}"
 ```
 
 Then commit planning docs via CLI (respects `commit_docs` config automatically):
+
 ```bash
 gsd-sdk query commit "docs: resolve debug {slug}" .planning/debug/resolved/{slug}.md
 ```
@@ -1184,28 +1272,31 @@ gsd-sdk query commit "docs: resolve debug {slug}" .planning/debug/resolved/{slug
 read `.planning/debug/resolved/{slug}.md` to extract final `Resolution` values. Then append to `.planning/debug/knowledge-base.md` (create file with header if it doesn't exist):
 
 If creating for the first time, write this header first:
+
 ```markdown
 # GSD Debug Knowledge Base
 
 Resolved debug sessions. Used by `gsd-debugger` to surface known-pattern hypotheses at the start of new investigations.
 
 ---
-
 ```
 
 Then append the entry:
+
 ```markdown
 ## {slug} — {one-line description of the bug}
+
 - **Date:** {ISO date}
 - **Error patterns:** {comma-separated keywords from Symptoms.errors + Symptoms.actual}
 - **Root cause:** {Resolution.root_cause}
 - **Fix:** {Resolution.fix}
 - **Files changed:** {Resolution.files_changed joined as comma list}
----
 
+---
 ```
 
 Commit the knowledge base update alongside the resolved session:
+
 ```bash
 gsd-sdk query commit "docs: update debug knowledge base with {slug}" .planning/debug/knowledge-base.md
 ```
@@ -1220,6 +1311,7 @@ Report completion and offer next steps.
 ## When to Return Checkpoints
 
 Return a checkpoint when:
+
 - Investigation requires user action you cannot perform
 - Need user to verify something you can't observe
 - Need user decision on investigation direction
@@ -1237,6 +1329,7 @@ Return a checkpoint when:
 
 **Current Hypothesis:** {from Current Focus}
 **Evidence So Far:**
+
 - {key finding 1}
 - {key finding 2}
 
@@ -1252,12 +1345,14 @@ Return a checkpoint when:
 ## Checkpoint Types
 
 **human-verify:** Need user to confirm something you can't observe
+
 ```markdown
 ### Checkpoint Details
 
 **Need verification:** {what you need confirmed}
 
 **How to check:**
+
 1. {step 1}
 2. {step 2}
 
@@ -1265,6 +1360,7 @@ Return a checkpoint when:
 ```
 
 **human-action:** Need user to do something (auth, physical action)
+
 ```markdown
 ### Checkpoint Details
 
@@ -1272,11 +1368,13 @@ Return a checkpoint when:
 **Why:** {why you can't do it}
 
 **Steps:**
+
 1. {step 1}
 2. {step 2}
 ```
 
 **decision:** Need user to choose investigation direction
+
 ```markdown
 ### Checkpoint Details
 
@@ -1284,6 +1382,7 @@ Return a checkpoint when:
 **Context:** {why this matters}
 
 **Options:**
+
 - **A:** {option and implications}
 - **B:** {option and implications}
 ```
@@ -1306,11 +1405,13 @@ Orchestrator presents checkpoint to user, gets response, spawns fresh continuati
 **Root Cause:** {specific cause with evidence}
 
 **Evidence Summary:**
+
 - {key finding 1}
 - {key finding 2}
 - {key finding 3}
 
 **Files Involved:**
+
 - {file1}: {what's wrong}
 - {file2}: {related issue}
 
@@ -1331,6 +1432,7 @@ Orchestrator presents checkpoint to user, gets response, spawns fresh continuati
 **Verification:** {how verified}
 
 **Files Changed:**
+
 - {file1}: {change}
 - {file2}: {change}
 
@@ -1347,14 +1449,17 @@ Only return this after human verification confirms the fix.
 **Debug Session:** .planning/debug/{slug}.md
 
 **What Was Checked:**
+
 - {area 1}: {finding}
 - {area 2}: {finding}
 
 **Hypotheses Eliminated:**
+
 - {hypothesis 1}: {why eliminated}
 - {hypothesis 2}: {why eliminated}
 
 **Remaining Possibilities:**
+
 - {possibility 1}
 - {possibility 2}
 
@@ -1373,7 +1478,9 @@ Only return this after human verification confirms the fix.
 
 **Test output (failure):**
 ```
+
 {first 10 lines of failure output}
+
 ```
 
 **Root Cause (confirmed):** {root_cause}
@@ -1394,24 +1501,28 @@ See <checkpoint_behavior> section for full format.
 Check for mode flags in prompt context:
 
 **symptoms_prefilled: true**
+
 - Symptoms section already filled (from UAT or orchestrator)
 - Skip symptom_gathering step entirely
 - Start directly at investigation_loop
 - Create debug file with status: "investigating" (not "gathering")
 
 **goal: find_root_cause_only**
+
 - Diagnose but don't fix
 - Stop after confirming root cause
 - Skip fix_and_verify step
 - Return root cause to caller (for plan-phase --gaps to handle)
 
 **goal: find_and_fix** (default)
+
 - Find root cause, then fix and verify
 - Complete full debugging cycle
 - Require human-verify checkpoint after self-verification
 - Archive session only after user confirmation
 
 **Default mode (no flags):**
+
 - Interactive debugging with user
 - Gather symptoms through questions
 - Investigate, fix, and verify
@@ -1419,6 +1530,7 @@ Check for mode flags in prompt context:
 **tdd_mode: true** (when set in `<mode>` block by orchestrator)
 
 After root cause is confirmed (investigation_loop Phase 4 CONFIRMED):
+
 - Before entering fix_and_verify, enter tdd_debug_mode:
   1. write a minimal failing test that directly exercises the bug
      - Test MUST fail before the fix is applied
@@ -1440,6 +1552,7 @@ After root cause is confirmed (investigation_loop Phase 4 CONFIRMED):
   8. Continue to existing verification and human checkpoint
 
 If the test cannot be made to fail initially, this indicates either:
+
 - The test does not correctly reproduce the bug (rewrite it)
 - The root cause hypothesis is wrong (return to investigation_loop)
 
@@ -1448,6 +1561,7 @@ Never skip the red phase. A test that passes before the fix tells you nothing.
 </modes>
 
 <success_criteria>
+
 - [ ] Debug file created IMMEDIATELY on command
 - [ ] File updated after EACH piece of information
 - [ ] Current Focus always reflects NOW
@@ -1457,4 +1571,4 @@ Never skip the red phase. A test that passes before the fix tells you nothing.
 - [ ] Root cause confirmed with evidence before fixing
 - [ ] Fix verified against original symptoms
 - [ ] Appropriate return format based on mode
-</success_criteria>
+      </success_criteria>

@@ -27,11 +27,11 @@ consumed by downstream agents — those read CONTEXT.md only.
 
 ## [Area Name]
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| [Option 1] | [Description from question] | |
-| [Option 2] | [Description] | ✓ |
-| [Option 3] | [Description] | |
+| Option     | Description                 | Selected |
+| ---------- | --------------------------- | -------- |
+| [Option 1] | [Description from question] |          |
+| [Option 2] | [Description]               | ✓        |
+| [Option 3] | [Description]               |          |
 
 **User's choice:** [Selected option or free-text response]
 **Notes:** [Any clarifications, follow-up context, or rationale the user provided]

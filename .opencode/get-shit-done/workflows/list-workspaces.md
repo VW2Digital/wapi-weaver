@@ -48,6 +48,7 @@ Manage:
 ```
 
 For each workspace, show:
+
 - **Name** — directory name
 - **Repos** — count from init data
 - **Strategy** — from WORKSPACE.md

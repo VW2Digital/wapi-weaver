@@ -8,6 +8,7 @@
 ### Rule 1 — Auto-fix bugs
 
 **Examples of Rule 1 triggers:**
+
 - Wrong queries returning incorrect data
 - Logic errors in conditionals
 - Type errors and type mismatches
@@ -20,6 +21,7 @@
 ### Rule 2 — Auto-add missing critical functionality
 
 **Examples of Rule 2 triggers:**
+
 - Missing error handling (unhandled promise rejections, no try/catch on I/O)
 - No input validation on user-facing endpoints
 - Missing null checks before property access
@@ -33,6 +35,7 @@
 ### Rule 3 — Auto-fix blocking issues
 
 **Examples of Rule 3 triggers:**
+
 - Missing dependency not in package.json
 - Wrong types preventing compilation
 - Broken imports (wrong path, wrong export name)
@@ -45,6 +48,7 @@
 ### Rule 4 — Ask about architectural changes
 
 **Examples of Rule 4 triggers:**
+
 - New DB table (not just adding a column)
 - Major schema changes (renaming tables, changing relationships)
 - New service layer (adding a queue, cache, or message bus)
@@ -55,16 +59,17 @@
 
 ## Edge Case Decision Guide
 
-| Scenario | Rule | Rationale |
-|----------|------|-----------|
-| Missing validation on input | Rule 2 | Security requirement |
-| Crashes on null input | Rule 1 | Bug — incorrect behavior |
-| Need new database table | Rule 4 | Architectural decision |
-| Need new column on existing table | Rule 1 or 2 | Depends on context |
-| Pre-existing linting warnings | Out of scope | Not caused by current task |
-| Unrelated test failures | Out of scope | Not caused by current task |
+| Scenario                          | Rule         | Rationale                  |
+| --------------------------------- | ------------ | -------------------------- |
+| Missing validation on input       | Rule 2       | Security requirement       |
+| Crashes on null input             | Rule 1       | Bug — incorrect behavior   |
+| Need new database table           | Rule 4       | Architectural decision     |
+| Need new column on existing table | Rule 1 or 2  | Depends on context         |
+| Pre-existing linting warnings     | Out of scope | Not caused by current task |
+| Unrelated test failures           | Out of scope | Not caused by current task |
 
 **Decision heuristic:** "Does this affect correctness, security, or ability to complete the current task?"
+
 - YES → Rules 1-3 (fix automatically)
 - MAYBE → Rule 4 (ask the user)
 - NO → Out of scope (log to deferred-items.md)
@@ -104,6 +109,7 @@
 ### Auth gate handling
 
 When an auth error occurs during `type="auto"` execution:
+
 1. Recognize it as an auth gate (not a bug) — indicators: "Not authenticated", "401", "403", "Please run X login"
 2. STOP the current task
 3. Return a `checkpoint:human-action` with exact auth steps

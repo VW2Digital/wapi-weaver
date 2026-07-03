@@ -2,12 +2,13 @@
 name: gsd-next
 description: Automatically advance to the next logical step in the GSD workflow
 permissions:
-   read: true
-   bash: true
-   grep: true
-   glob: true
-   task: true
+  read: true
+  bash: true
+  grep: true
+  glob: true
+  task: true
 ---
+
 <objective>
 Detect the current project state and automatically invoke the next logical GSD workflow step.
 No arguments needed — reads STATE.md, ROADMAP.md, and phase directories to determine what comes next.

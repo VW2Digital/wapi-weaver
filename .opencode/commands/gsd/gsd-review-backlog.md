@@ -2,10 +2,10 @@
 name: gsd-review-backlog
 description: Review and promote backlog items to active milestone
 permissions:
-   read: true
-   write: true
-   bash: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  question: true
 ---
 
 <objective>
@@ -16,14 +16,17 @@ milestone sequence or remove stale entries.
 <process>
 
 1. **List backlog items:**
+
    ```bash
    ls -d .planning/phases/999* 2>/dev/null || echo "No backlog items found"
    ```
 
 2. **read ROADMAP.md** and extract all 999.x phase entries:
+
    ```bash
    cat .planning/ROADMAP.md
    ```
+
    Show each backlog item with its description, any accumulated context (CONTEXT.md, RESEARCH.md), and creation date.
 
 3. **Present the list to the user** via question:
@@ -46,11 +49,13 @@ milestone sequence or remove stale entries.
    - Remove the entry from ROADMAP.md `## Backlog` section
 
 6. **Commit changes:**
+
    ```bash
    gsd-sdk query commit "docs: review backlog — promoted N, removed M" .planning/ROADMAP.md
    ```
 
 7. **Report summary:**
+
    ```
    ## 📋 Backlog Review Complete
 

@@ -3,11 +3,11 @@ name: gsd-review
 description: Request cross-AI peer review of phase plans from external AI CLIs
 argument-hint: "--phase N [--gemini] [--claude] [--codex] [--opencode] [--qwen] [--cursor] [--all]"
 permissions:
-   read: true
-   write: true
-   bash: true
-   glob: true
-   grep: true
+  read: true
+  write: true
+  bash: true
+  glob: true
+  grep: true
 ---
 
 <objective>
@@ -26,6 +26,7 @@ planning via /gsd-plan-phase --reviews.
 Phase number: extracted from $ARGUMENTS (required)
 
 **Flags:**
+
 - `--gemini` — Include Gemini CLI review
 - `--claude` — Include OpenCode CLI review (uses separate session)
 - `--codex` — Include Codex CLI review
@@ -33,7 +34,7 @@ Phase number: extracted from $ARGUMENTS (required)
 - `--qwen` — Include Qwen Code review (Alibaba Qwen models)
 - `--cursor` — Include Cursor agent review
 - `--all` — Include all available CLIs
-</context>
+  </context>
 
 <process>
 Execute the review workflow from @./.opencode/get-shit-done/workflows/review.md end-to-end.

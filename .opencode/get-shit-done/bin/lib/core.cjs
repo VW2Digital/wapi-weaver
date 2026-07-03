@@ -2,26 +2,26 @@
  * Core — Shared utilities, constants, and internal helpers
  */
 
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const crypto = require('crypto');
-const { execSync, execFileSync, spawnSync } = require('child_process');
-const { MODEL_PROFILES } = require('./model-profiles.cjs');
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const crypto = require("crypto");
+const { execSync, execFileSync, spawnSync } = require("child_process");
+const { MODEL_PROFILES } = require("./model-profiles.cjs");
 
 const WORKSTREAM_SESSION_ENV_KEYS = [
-  'GSD_SESSION_KEY',
-  'CODEX_THREAD_ID',
-  'CLAUDE_SESSION_ID',
-  'CLAUDE_CODE_SSE_PORT',
-  'OPENCODE_SESSION_ID',
-  'GEMINI_SESSION_ID',
-  'CURSOR_SESSION_ID',
-  'WINDSURF_SESSION_ID',
-  'TERM_SESSION_ID',
-  'WT_SESSION',
-  'TMUX_PANE',
-  'ZELLIJ_SESSION_NAME',
+  "GSD_SESSION_KEY",
+  "CODEX_THREAD_ID",
+  "CLAUDE_SESSION_ID",
+  "CLAUDE_CODE_SSE_PORT",
+  "OPENCODE_SESSION_ID",
+  "GEMINI_SESSION_ID",
+  "CURSOR_SESSION_ID",
+  "WINDSURF_SESSION_ID",
+  "TERM_SESSION_ID",
+  "WT_SESSION",
+  "TMUX_PANE",
+  "ZELLIJ_SESSION_NAME",
 ];
 
 let cachedControllingTtyToken = null;
@@ -31,9 +31,13 @@ let didProbeControllingTtyToken = false;
 // on exit. process.on('exit') fires even on process.exit(1), unlike try/finally
 // which is skipped when error() calls process.exit(1) inside a locked region (#1916).
 const _heldPlanningLocks = new Set();
-process.on('exit', () => {
+process.on("exit", () => {
   for (const lockPath of _heldPlanningLocks) {
-    try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+    try {
+      fs.unlinkSync(lockPath);
+    } catch {
+      /* already gone */
+    }
   }
 });
 
@@ -41,7 +45,7 @@ process.on('exit', () => {
 
 /** Normalize a relative path to always use forward slashes (cross-platform). */
 function toPosixPath(p) {
-  return p.split(path.sep).join('/');
+  return p.split(path.sep).join("/");
 }
 
 /**
@@ -55,8 +59,8 @@ function detectSubRepos(cwd) {
     const entries = fs.readdirSync(cwd, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-      const gitPath = path.join(cwd, entry.name, '.git');
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const gitPath = path.join(cwd, entry.name, ".git");
       try {
         if (fs.existsSync(gitPath)) {
           results.push(entry.name);
@@ -86,11 +90,11 @@ function detectSubRepos(cwd) {
 function findProjectRoot(startDir) {
   const resolved = path.resolve(startDir);
   const root = path.parse(resolved).root;
-  const homedir = require('os').homedir();
+  const homedir = require("os").homedir();
 
   // If startDir already contains .planning/, it IS the project root.
   // Do not walk up to a parent workspace that also has .planning/ (#1362).
-  const ownPlanning = path.join(resolved, '.planning');
+  const ownPlanning = path.join(resolved, ".planning");
   if (fs.existsSync(ownPlanning) && fs.statSync(ownPlanning).isDirectory()) {
     return startDir;
   }
@@ -102,7 +106,7 @@ function findProjectRoot(startDir) {
   function isInsideGitRepo(candidateParent) {
     let d = resolved;
     while (d !== root) {
-      if (fs.existsSync(path.join(d, '.git'))) return true;
+      if (fs.existsSync(path.join(d, ".git"))) return true;
       if (d === candidateParent) break;
       d = path.dirname(d);
     }
@@ -115,11 +119,11 @@ function findProjectRoot(startDir) {
     if (parent === dir) break; // filesystem root
     if (parent === homedir) break; // never go above home
 
-    const parentPlanning = path.join(parent, '.planning');
+    const parentPlanning = path.join(parent, ".planning");
     if (fs.existsSync(parentPlanning) && fs.statSync(parentPlanning).isDirectory()) {
-      const configPath = path.join(parentPlanning, 'config.json');
+      const configPath = path.join(parentPlanning, "config.json");
       try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
         const subRepos = config.sub_repos || config.planning?.sub_repos || [];
 
         // Check explicit sub_repos list
@@ -164,13 +168,13 @@ function findProjectRoot(startDir) {
  * Created on first use. Keeps GSD temp files isolated from the system
  * temp directory so reap scans only GSD files (#1975).
  */
-const GSD_TEMP_DIR = path.join(require('os').tmpdir(), 'gsd');
+const GSD_TEMP_DIR = path.join(require("os").tmpdir(), "gsd");
 
 function ensureGsdTempDir() {
   fs.mkdirSync(GSD_TEMP_DIR, { recursive: true });
 }
 
-function reapStaleTempFiles(prefix = 'gsd-', { maxAgeMs = 5 * 60 * 1000, dirsOnly = false } = {}) {
+function reapStaleTempFiles(prefix = "gsd-", { maxAgeMs = 5 * 60 * 1000, dirsOnly = false } = {}) {
   try {
     ensureGsdTempDir();
     const now = Date.now();
@@ -208,8 +212,8 @@ function output(result, raw, rawValue) {
       reapStaleTempFiles();
       ensureGsdTempDir();
       const tmpPath = path.join(GSD_TEMP_DIR, `gsd-${Date.now()}.json`);
-      fs.writeFileSync(tmpPath, json, 'utf-8');
-      data = '@file:' + tmpPath;
+      fs.writeFileSync(tmpPath, json, "utf-8");
+      data = "@file:" + tmpPath;
     } else {
       data = json;
     }
@@ -222,7 +226,7 @@ function output(result, raw, rawValue) {
 }
 
 function error(message) {
-  fs.writeSync(2, 'Error: ' + message + '\n');
+  fs.writeSync(2, "Error: " + message + "\n");
   process.exit(1);
 }
 
@@ -230,7 +234,7 @@ function error(message) {
 
 function safeReadFile(filePath) {
   try {
-    return fs.readFileSync(filePath, 'utf-8');
+    return fs.readFileSync(filePath, "utf-8");
   } catch {
     return null;
   }
@@ -240,12 +244,12 @@ function safeReadFile(filePath) {
  * Canonical config defaults. Single source of truth — imported by config.cjs and verify.cjs.
  */
 const CONFIG_DEFAULTS = {
-  model_profile: 'balanced',
+  model_profile: "balanced",
   commit_docs: true,
   search_gitignored: false,
-  branching_strategy: 'none',
-  phase_branch_template: 'gsd/phase-{phase}-{slug}',
-  milestone_branch_template: 'gsd/{milestone}-{slug}',
+  branching_strategy: "none",
+  phase_branch_template: "gsd/phase-{phase}-{slug}",
+  milestone_branch_template: "gsd/{milestone}-{slug}",
   quick_branch_template: null,
   research: true,
   plan_checker: true,
@@ -260,25 +264,29 @@ const CONFIG_DEFAULTS = {
   sub_repos: [],
   resolve_model_ids: false, // false: return alias as-is | true: map to full OpenCode model ID | "omit": return '' (runtime uses its default)
   context_window: 200000, // default 200k; set to 1000000 for Opus/Sonnet 4.6 1M models
-  phase_naming: 'sequential', // 'sequential' (default, auto-increment) or 'custom' (arbitrary string IDs)
+  phase_naming: "sequential", // 'sequential' (default, auto-increment) or 'custom' (arbitrary string IDs)
   project_code: null, // optional short prefix for phase dirs (e.g., 'CK' → 'CK-01-foundation')
   subagent_timeout: 300000, // 5 min default; increase for large codebases or slower models (ms)
 };
 
 function loadConfig(cwd) {
-  const configPath = path.join(planningDir(cwd), 'config.json');
+  const configPath = path.join(planningDir(cwd), "config.json");
   const defaults = CONFIG_DEFAULTS;
 
   try {
-    const raw = fs.readFileSync(configPath, 'utf-8');
+    const raw = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(raw);
 
     // Migrate deprecated "depth" key to "granularity" with value mapping
-    if ('depth' in parsed && !('granularity' in parsed)) {
-      const depthToGranularity = { quick: 'coarse', standard: 'standard', comprehensive: 'fine' };
+    if ("depth" in parsed && !("granularity" in parsed)) {
+      const depthToGranularity = { quick: "coarse", standard: "standard", comprehensive: "fine" };
       parsed.granularity = depthToGranularity[parsed.depth] || parsed.depth;
       delete parsed.depth;
-      try { fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), 'utf-8'); } catch { /* intentionally empty */ }
+      try {
+        fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), "utf-8");
+      } catch {
+        /* intentionally empty */
+      }
     }
 
     // Auto-detect and sync sub_repos: scan for child directories with .git
@@ -311,28 +319,39 @@ function loadConfig(cwd) {
 
     // Persist sub_repos changes (migration or sync)
     if (configDirty) {
-      try { fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), 'utf-8'); } catch {}
+      try {
+        fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), "utf-8");
+      } catch {}
     }
 
     // Warn about unrecognized top-level keys so users don't silently lose config.
     // Derived from config-set's VALID_CONFIG_KEYS (canonical source) plus internal-only
     // keys that loadConfig handles but config-set doesn't expose. This avoids maintaining
     // a hardcoded duplicate that drifts when new config keys are added.
-    const { VALID_CONFIG_KEYS } = require('./config.cjs');
+    const { VALID_CONFIG_KEYS } = require("./config.cjs");
     const KNOWN_TOP_LEVEL = new Set([
       // Extract top-level key names from dot-notation paths (e.g., 'workflow.research' → 'workflow')
-      ...[...VALID_CONFIG_KEYS].map(k => k.split('.')[0]),
+      ...[...VALID_CONFIG_KEYS].map((k) => k.split(".")[0]),
       // Section containers that hold nested sub-keys
-      'git', 'workflow', 'planning', 'hooks', 'features',
+      "git",
+      "workflow",
+      "planning",
+      "hooks",
+      "features",
       // Internal keys loadConfig reads but config-set doesn't expose
-      'model_overrides', 'agent_skills', 'context_window', 'resolve_model_ids', 'claude_md_path',
+      "model_overrides",
+      "agent_skills",
+      "context_window",
+      "resolve_model_ids",
+      "claude_md_path",
       // Deprecated keys (still accepted for migration, not in config-set)
-      'depth', 'multiRepo',
+      "depth",
+      "multiRepo",
     ]);
-    const unknownKeys = Object.keys(parsed).filter(k => !KNOWN_TOP_LEVEL.has(k));
+    const unknownKeys = Object.keys(parsed).filter((k) => !KNOWN_TOP_LEVEL.has(k));
     if (unknownKeys.length > 0) {
       process.stderr.write(
-        `gsd-tools: warning: unknown config key(s) in .planning/config.json: ${unknownKeys.join(', ')} — these will be ignored\n`
+        `gsd-tools: warning: unknown config key(s) in .planning/config.json: ${unknownKeys.join(", ")} — these will be ignored\n`,
       );
     }
 
@@ -345,52 +364,70 @@ function loadConfig(cwd) {
     };
 
     const parallelization = (() => {
-      const val = get('parallelization');
-      if (typeof val === 'boolean') return val;
-      if (typeof val === 'object' && val !== null && 'enabled' in val) return val.enabled;
+      const val = get("parallelization");
+      if (typeof val === "boolean") return val;
+      if (typeof val === "object" && val !== null && "enabled" in val) return val.enabled;
       return defaults.parallelization;
     })();
 
     return {
-      model_profile: get('model_profile') ?? defaults.model_profile,
+      model_profile: get("model_profile") ?? defaults.model_profile,
       commit_docs: (() => {
-        const explicit = get('commit_docs', { section: 'planning', field: 'commit_docs' });
+        const explicit = get("commit_docs", { section: "planning", field: "commit_docs" });
         // If explicitly set in config, respect the user's choice
         if (explicit !== undefined) return explicit;
         // Auto-detection: when no explicit value and .planning/ is gitignored,
         // default to false instead of true
-        if (isGitIgnored(cwd, '.planning/')) return false;
+        if (isGitIgnored(cwd, ".planning/")) return false;
         return defaults.commit_docs;
       })(),
-      search_gitignored: get('search_gitignored', { section: 'planning', field: 'search_gitignored' }) ?? defaults.search_gitignored,
-      branching_strategy: get('branching_strategy', { section: 'git', field: 'branching_strategy' }) ?? defaults.branching_strategy,
-      phase_branch_template: get('phase_branch_template', { section: 'git', field: 'phase_branch_template' }) ?? defaults.phase_branch_template,
-      milestone_branch_template: get('milestone_branch_template', { section: 'git', field: 'milestone_branch_template' }) ?? defaults.milestone_branch_template,
-      quick_branch_template: get('quick_branch_template', { section: 'git', field: 'quick_branch_template' }) ?? defaults.quick_branch_template,
-      research: get('research', { section: 'workflow', field: 'research' }) ?? defaults.research,
-      plan_checker: get('plan_checker', { section: 'workflow', field: 'plan_check' }) ?? defaults.plan_checker,
-      verifier: get('verifier', { section: 'workflow', field: 'verifier' }) ?? defaults.verifier,
-      nyquist_validation: get('nyquist_validation', { section: 'workflow', field: 'nyquist_validation' }) ?? defaults.nyquist_validation,
+      search_gitignored:
+        get("search_gitignored", { section: "planning", field: "search_gitignored" }) ??
+        defaults.search_gitignored,
+      branching_strategy:
+        get("branching_strategy", { section: "git", field: "branching_strategy" }) ??
+        defaults.branching_strategy,
+      phase_branch_template:
+        get("phase_branch_template", { section: "git", field: "phase_branch_template" }) ??
+        defaults.phase_branch_template,
+      milestone_branch_template:
+        get("milestone_branch_template", { section: "git", field: "milestone_branch_template" }) ??
+        defaults.milestone_branch_template,
+      quick_branch_template:
+        get("quick_branch_template", { section: "git", field: "quick_branch_template" }) ??
+        defaults.quick_branch_template,
+      research: get("research", { section: "workflow", field: "research" }) ?? defaults.research,
+      plan_checker:
+        get("plan_checker", { section: "workflow", field: "plan_check" }) ?? defaults.plan_checker,
+      verifier: get("verifier", { section: "workflow", field: "verifier" }) ?? defaults.verifier,
+      nyquist_validation:
+        get("nyquist_validation", { section: "workflow", field: "nyquist_validation" }) ??
+        defaults.nyquist_validation,
       parallelization,
-      brave_search: get('brave_search') ?? defaults.brave_search,
-      firecrawl: get('firecrawl') ?? defaults.firecrawl,
-      exa_search: get('exa_search') ?? defaults.exa_search,
-      tdd_mode: get('tdd_mode', { section: 'workflow', field: 'tdd_mode' }) ?? false,
-      text_mode: get('text_mode', { section: 'workflow', field: 'text_mode' }) ?? defaults.text_mode,
-      auto_advance: get('auto_advance', { section: 'workflow', field: 'auto_advance' }) ?? false,
-      _auto_chain_active: get('_auto_chain_active', { section: 'workflow', field: '_auto_chain_active' }) ?? false,
-      mode: get('mode') ?? 'interactive',
-      sub_repos: get('sub_repos', { section: 'planning', field: 'sub_repos' }) ?? defaults.sub_repos,
-      resolve_model_ids: get('resolve_model_ids') ?? defaults.resolve_model_ids,
-      context_window: get('context_window') ?? defaults.context_window,
-      phase_naming: get('phase_naming') ?? defaults.phase_naming,
-      project_code: get('project_code') ?? defaults.project_code,
-      subagent_timeout: get('subagent_timeout', { section: 'workflow', field: 'subagent_timeout' }) ?? defaults.subagent_timeout,
+      brave_search: get("brave_search") ?? defaults.brave_search,
+      firecrawl: get("firecrawl") ?? defaults.firecrawl,
+      exa_search: get("exa_search") ?? defaults.exa_search,
+      tdd_mode: get("tdd_mode", { section: "workflow", field: "tdd_mode" }) ?? false,
+      text_mode:
+        get("text_mode", { section: "workflow", field: "text_mode" }) ?? defaults.text_mode,
+      auto_advance: get("auto_advance", { section: "workflow", field: "auto_advance" }) ?? false,
+      _auto_chain_active:
+        get("_auto_chain_active", { section: "workflow", field: "_auto_chain_active" }) ?? false,
+      mode: get("mode") ?? "interactive",
+      sub_repos:
+        get("sub_repos", { section: "planning", field: "sub_repos" }) ?? defaults.sub_repos,
+      resolve_model_ids: get("resolve_model_ids") ?? defaults.resolve_model_ids,
+      context_window: get("context_window") ?? defaults.context_window,
+      phase_naming: get("phase_naming") ?? defaults.phase_naming,
+      project_code: get("project_code") ?? defaults.project_code,
+      subagent_timeout:
+        get("subagent_timeout", { section: "workflow", field: "subagent_timeout" }) ??
+        defaults.subagent_timeout,
       model_overrides: parsed.model_overrides || null,
       agent_skills: parsed.agent_skills || {},
       manager: parsed.manager || {},
-      response_language: get('response_language') || null,
-      claude_md_path: get('claude_md_path') || null,
+      response_language: get("response_language") || null,
+      claude_md_path: get("claude_md_path") || null,
     };
   } catch {
     // Fall back to ~/.gsd/defaults.json only for truly pre-project contexts (#1683)
@@ -400,8 +437,8 @@ function loadConfig(cwd) {
     }
     try {
       const home = process.env.GSD_HOME || os.homedir();
-      const globalDefaultsPath = path.join(home, '.gsd', 'defaults.json');
-      const raw = fs.readFileSync(globalDefaultsPath, 'utf-8');
+      const globalDefaultsPath = path.join(home, ".gsd", "defaults.json");
+      const raw = fs.readFileSync(globalDefaultsPath, "utf-8");
       const globalDefaults = JSON.parse(raw);
       return {
         ...defaults,
@@ -431,7 +468,7 @@ function loadConfig(cwd) {
 const _gitIgnoredCache = new Map();
 
 function isGitIgnored(cwd, targetPath) {
-  const key = cwd + '::' + targetPath;
+  const key = cwd + "::" + targetPath;
   if (_gitIgnoredCache.has(key)) return _gitIgnoredCache.get(key);
   try {
     // --no-index checks .gitignore rules regardless of whether the file is tracked.
@@ -440,9 +477,9 @@ function isGitIgnored(cwd, targetPath) {
     // was committed before being added to .gitignore.
     // Use execFileSync (array args) to prevent shell interpretation of special characters
     // in file paths — avoids command injection via crafted path names.
-    execFileSync('git', ['check-ignore', '-q', '--no-index', '--', targetPath], {
+    execFileSync("git", ["check-ignore", "-q", "--no-index", "--", targetPath], {
       cwd,
-      stdio: 'pipe',
+      stdio: "pipe",
     });
     _gitIgnoredCache.set(key, true);
     return true;
@@ -466,12 +503,12 @@ function isGitIgnored(cwd, targetPath) {
  *   MD047 — Files end with a single newline
  */
 function normalizeMd(content) {
-  if (!content || typeof content !== 'string') return content;
+  if (!content || typeof content !== "string") return content;
 
   // Normalize line endings to LF for consistent processing
-  let text = content.replace(/\r\n/g, '\n');
+  let text = content.replace(/\r\n/g, "\n");
 
-  const lines = text.split('\n');
+  const lines = text.split("\n");
   const result = [];
 
   // Pre-compute fence state in a single O(n) pass instead of O(n^2) per-line scanning
@@ -496,29 +533,39 @@ function normalizeMd(content) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const prev = i > 0 ? lines[i - 1] : '';
+    const prev = i > 0 ? lines[i - 1] : "";
     const prevTrimmed = prev.trimEnd();
     const trimmed = line.trimEnd();
     const isFenceLine = fenceRegex.test(trimmed);
 
     // MD022: Blank line before headings (skip first line and frontmatter delimiters)
-    if (/^#{1,6}\s/.test(trimmed) && i > 0 && prevTrimmed !== '' && prevTrimmed !== '---') {
-      result.push('');
+    if (/^#{1,6}\s/.test(trimmed) && i > 0 && prevTrimmed !== "" && prevTrimmed !== "---") {
+      result.push("");
     }
 
     // MD031: Blank line before fenced code blocks (opening fences only)
-    if (isFenceLine && i > 0 && prevTrimmed !== '' && !insideFence[i] && (i === 0 || !insideFence[i - 1] || isFenceLine)) {
+    if (
+      isFenceLine &&
+      i > 0 &&
+      prevTrimmed !== "" &&
+      !insideFence[i] &&
+      (i === 0 || !insideFence[i - 1] || isFenceLine)
+    ) {
       // Only add blank before opening fences (not closing ones)
       if (i === 0 || !insideFence[i - 1]) {
-        result.push('');
+        result.push("");
       }
     }
 
     // MD032: Blank line before lists (- item, * item, N. item, - [ ] item)
-    if (/^(\s*[-*+]\s|\s*\d+\.\s)/.test(line) && i > 0 &&
-        prevTrimmed !== '' && !/^(\s*[-*+]\s|\s*\d+\.\s)/.test(prev) &&
-        prevTrimmed !== '---') {
-      result.push('');
+    if (
+      /^(\s*[-*+]\s|\s*\d+\.\s)/.test(line) &&
+      i > 0 &&
+      prevTrimmed !== "" &&
+      !/^(\s*[-*+]\s|\s*\d+\.\s)/.test(prev) &&
+      prevTrimmed !== "---"
+    ) {
+      result.push("");
     }
 
     result.push(line);
@@ -526,52 +573,55 @@ function normalizeMd(content) {
     // MD022: Blank line after headings
     if (/^#{1,6}\s/.test(trimmed) && i < lines.length - 1) {
       const next = lines[i + 1];
-      if (next !== undefined && next.trimEnd() !== '') {
-        result.push('');
+      if (next !== undefined && next.trimEnd() !== "") {
+        result.push("");
       }
     }
 
     // MD031: Blank line after closing fenced code blocks
     if (/^```\s*$/.test(trimmed) && i > 0 && insideFence[i - 1] && i < lines.length - 1) {
       const next = lines[i + 1];
-      if (next !== undefined && next.trimEnd() !== '') {
-        result.push('');
+      if (next !== undefined && next.trimEnd() !== "") {
+        result.push("");
       }
     }
 
     // MD032: Blank line after last list item in a block
     if (/^(\s*[-*+]\s|\s*\d+\.\s)/.test(line) && i < lines.length - 1) {
       const next = lines[i + 1];
-      if (next !== undefined && next.trimEnd() !== '' &&
-          !/^(\s*[-*+]\s|\s*\d+\.\s)/.test(next) &&
-          !/^\s/.test(next)) {
+      if (
+        next !== undefined &&
+        next.trimEnd() !== "" &&
+        !/^(\s*[-*+]\s|\s*\d+\.\s)/.test(next) &&
+        !/^\s/.test(next)
+      ) {
         // Only add blank line if next line is not a continuation/indented line
-        result.push('');
+        result.push("");
       }
     }
   }
 
-  text = result.join('\n');
+  text = result.join("\n");
 
   // MD012: Collapse 3+ consecutive blank lines to 2
-  text = text.replace(/\n{3,}/g, '\n\n');
+  text = text.replace(/\n{3,}/g, "\n\n");
 
   // MD047: Ensure file ends with exactly one newline
-  text = text.replace(/\n*$/, '\n');
+  text = text.replace(/\n*$/, "\n");
 
   return text;
 }
 
 function execGit(cwd, args) {
-  const result = spawnSync('git', args, {
+  const result = spawnSync("git", args, {
     cwd,
-    stdio: 'pipe',
-    encoding: 'utf-8',
+    stdio: "pipe",
+    encoding: "utf-8",
   });
   return {
     exitCode: result.status ?? 1,
-    stdout: (result.stdout ?? '').toString().trim(),
-    stderr: (result.stderr ?? '').toString().trim(),
+    stdout: (result.stdout ?? "").toString().trim(),
+    stderr: (result.stderr ?? "").toString().trim(),
   };
 }
 
@@ -585,13 +635,13 @@ function execGit(cwd, args) {
 function resolveWorktreeRoot(cwd) {
   // If the current directory already has its own .planning/, respect it.
   // This handles linked worktrees with independent planning state (e.g., Conductor workspaces).
-  if (fs.existsSync(path.join(cwd, '.planning'))) {
+  if (fs.existsSync(path.join(cwd, ".planning"))) {
     return cwd;
   }
 
   // Check if we're in a linked worktree
-  const gitDir = execGit(cwd, ['rev-parse', '--git-dir']);
-  const commonDir = execGit(cwd, ['rev-parse', '--git-common-dir']);
+  const gitDir = execGit(cwd, ["rev-parse", "--git-dir"]);
+  const commonDir = execGit(cwd, ["rev-parse", "--git-common-dir"]);
 
   if (gitDir.exitCode !== 0 || commonDir.exitCode !== 0) return cwd;
 
@@ -620,12 +670,12 @@ function resolveWorktreeRoot(cwd) {
 function parseWorktreePorcelain(porcelain) {
   const entries = [];
   let current = null;
-  for (const line of porcelain.split('\n')) {
-    if (line.startsWith('worktree ')) {
-      current = { path: line.slice('worktree '.length).trim(), branch: null };
-    } else if (line.startsWith('branch refs/heads/') && current) {
-      current.branch = line.slice('branch refs/heads/'.length).trim();
-    } else if (line === '' && current) {
+  for (const line of porcelain.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      current = { path: line.slice("worktree ".length).trim(), branch: null };
+    } else if (line.startsWith("branch refs/heads/") && current) {
+      current.branch = line.slice("branch refs/heads/".length).trim();
+    } else if (line === "" && current) {
       if (current.branch) entries.push(current);
       current = null;
     }
@@ -656,12 +706,12 @@ function pruneOrphanedWorktrees(repoRoot) {
 
   try {
     // 1. Get all worktrees in porcelain format
-    const listResult = execGit(repoRoot, ['worktree', 'list', '--porcelain']);
+    const listResult = execGit(repoRoot, ["worktree", "list", "--porcelain"]);
     if (listResult.exitCode !== 0) return pruned;
 
     const worktrees = parseWorktreePorcelain(listResult.stdout);
     if (worktrees.length === 0) {
-      execGit(repoRoot, ['worktree', 'prune']);
+      execGit(repoRoot, ["worktree", "prune"]);
       return pruned;
     }
 
@@ -677,9 +727,7 @@ function pruneOrphanedWorktrees(repoRoot) {
 
       // Check if the branch is fully merged into HEAD (main)
       // git merge-base --is-ancestor <branch> HEAD exits 0 when merged
-      const ancestorCheck = execGit(repoRoot, [
-        'merge-base', '--is-ancestor', branch, 'HEAD',
-      ]);
+      const ancestorCheck = execGit(repoRoot, ["merge-base", "--is-ancestor", branch, "HEAD"]);
 
       if (ancestorCheck.exitCode !== 0) {
         // Not yet merged — leave it alone
@@ -687,16 +735,18 @@ function pruneOrphanedWorktrees(repoRoot) {
       }
 
       // Remove the worktree and delete the branch
-      const removeResult = execGit(repoRoot, ['worktree', 'remove', '--force', wtPath]);
+      const removeResult = execGit(repoRoot, ["worktree", "remove", "--force", wtPath]);
       if (removeResult.exitCode === 0) {
-        execGit(repoRoot, ['branch', '-D', branch]);
+        execGit(repoRoot, ["branch", "-D", branch]);
         pruned.push(wtPath);
       }
     }
-  } catch { /* never crash the caller */ }
+  } catch {
+    /* never crash the caller */
+  }
 
   // 4. Always run prune to clear stale references (e.g. manually-deleted dirs)
-  execGit(repoRoot, ['worktree', 'prune']);
+  execGit(repoRoot, ["worktree", "prune"]);
 
   return pruned;
 }
@@ -707,22 +757,30 @@ function pruneOrphanedWorktrees(repoRoot) {
  * Lock is auto-released after the callback completes.
  */
 function withPlanningLock(cwd, fn) {
-  const lockPath = path.join(planningDir(cwd), '.lock');
+  const lockPath = path.join(planningDir(cwd), ".lock");
   const lockTimeout = 10000; // 10 seconds
   const retryDelay = 100;
   const start = Date.now();
 
   // Ensure .planning/ exists
-  try { fs.mkdirSync(planningDir(cwd), { recursive: true }); } catch { /* ok */ }
+  try {
+    fs.mkdirSync(planningDir(cwd), { recursive: true });
+  } catch {
+    /* ok */
+  }
 
   while (Date.now() - start < lockTimeout) {
     try {
       // Atomic create — fails if file exists
-      fs.writeFileSync(lockPath, JSON.stringify({
-        pid: process.pid,
-        cwd,
-        acquired: new Date().toISOString(),
-      }), { flag: 'wx' });
+      fs.writeFileSync(
+        lockPath,
+        JSON.stringify({
+          pid: process.pid,
+          cwd,
+          acquired: new Date().toISOString(),
+        }),
+        { flag: "wx" },
+      );
 
       // Register for exit-time cleanup so process.exit(1) inside a locked region
       // cannot leave a stale lock file (#1916).
@@ -733,10 +791,14 @@ function withPlanningLock(cwd, fn) {
         return fn();
       } finally {
         _heldPlanningLocks.delete(lockPath);
-        try { fs.unlinkSync(lockPath); } catch { /* already released */ }
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          /* already released */
+        }
       }
     } catch (err) {
-      if (err.code === 'EEXIST') {
+      if (err.code === "EEXIST") {
         // Lock exists — check if stale (>30s old)
         try {
           const stat = fs.statSync(lockPath);
@@ -744,7 +806,9 @@ function withPlanningLock(cwd, fn) {
             fs.unlinkSync(lockPath);
             continue; // retry
           }
-        } catch { continue; }
+        } catch {
+          continue;
+        }
 
         // Wait and retry (cross-platform, no shell dependency)
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
@@ -754,7 +818,11 @@ function withPlanningLock(cwd, fn) {
     }
   }
   // Timeout — force acquire (stale lock recovery)
-  try { fs.unlinkSync(lockPath); } catch { /* ok */ }
+  try {
+    fs.unlinkSync(lockPath);
+  } catch {
+    /* ok */
+  }
   return fn();
 }
 
@@ -789,15 +857,15 @@ function planningDir(cwd, ws, project) {
     throw new Error(`GSD_WORKSTREAM contains invalid path characters: ${ws}`);
   }
 
-  let base = path.join(cwd, '.planning');
+  let base = path.join(cwd, ".planning");
   if (project) base = path.join(base, project);
-  if (ws) base = path.join(base, 'workstreams', ws);
+  if (ws) base = path.join(base, "workstreams", ws);
   return base;
 }
 
 /** Always returns the root .planning/ path, ignoring workstreams and projects. For shared resources. */
 function planningRoot(cwd) {
-  return path.join(cwd, '.planning');
+  return path.join(cwd, ".planning");
 }
 
 /**
@@ -814,12 +882,12 @@ function planningPaths(cwd, ws) {
   const base = planningDir(cwd, ws);
   return {
     planning: base,
-    state: path.join(base, 'STATE.md'),
-    roadmap: path.join(base, 'ROADMAP.md'),
-    project: path.join(base, 'PROJECT.md'),
-    config: path.join(base, 'config.json'),
-    phases: path.join(base, 'phases'),
-    requirements: path.join(base, 'REQUIREMENTS.md'),
+    state: path.join(base, "STATE.md"),
+    roadmap: path.join(base, "ROADMAP.md"),
+    project: path.join(base, "PROJECT.md"),
+    config: path.join(base, "config.json"),
+    phases: path.join(base, "phases"),
+    requirements: path.join(base, "REQUIREMENTS.md"),
   };
 }
 
@@ -827,7 +895,10 @@ function planningPaths(cwd, ws) {
 
 function sanitizeWorkstreamSessionToken(value) {
   if (value === null || value === undefined) return null;
-  const token = String(value).trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+  const token = String(value)
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
   return token ? token.slice(0, 160) : null;
 }
 
@@ -842,12 +913,12 @@ function probeControllingTtyToken() {
   }
 
   try {
-    const ttyPath = execFileSync('tty', [], {
-      encoding: 'utf-8',
-      stdio: ['inherit', 'pipe', 'ignore'],
+    const ttyPath = execFileSync("tty", [], {
+      encoding: "utf-8",
+      stdio: ["inherit", "pipe", "ignore"],
     }).trim();
-    if (ttyPath && ttyPath !== 'not a tty') {
-      const token = sanitizeWorkstreamSessionToken(ttyPath.replace(/^\/dev\//, ''));
+    if (ttyPath && ttyPath !== "not a tty") {
+      const token = sanitizeWorkstreamSessionToken(ttyPath.replace(/^\/dev\//, ""));
       if (token) cachedControllingTtyToken = `tty-${token}`;
     }
   } catch {}
@@ -856,9 +927,9 @@ function probeControllingTtyToken() {
 }
 
 function getControllingTtyToken() {
-  for (const envKey of ['TTY', 'SSH_TTY']) {
+  for (const envKey of ["TTY", "SSH_TTY"]) {
     const token = sanitizeWorkstreamSessionToken(process.env[envKey]);
-    if (token) return `tty-${token.replace(/^dev_/, '')}`;
+    if (token) return `tty-${token.replace(/^dev_/, "")}`;
   }
 
   return probeControllingTtyToken();
@@ -877,7 +948,7 @@ function getWorkstreamSessionKey() {
   for (const envKey of WORKSTREAM_SESSION_ENV_KEYS) {
     const raw = process.env[envKey];
     const token = sanitizeWorkstreamSessionToken(raw);
-    if (token) return `${envKey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${token}`;
+    if (token) return `${envKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${token}`;
   }
 
   return getControllingTtyToken();
@@ -898,13 +969,9 @@ function getSessionScopedWorkstreamFile(cwd) {
   } catch {
     planningAbs = path.resolve(planningRoot(cwd));
   }
-  const projectId = crypto
-    .createHash('sha1')
-    .update(planningAbs)
-    .digest('hex')
-    .slice(0, 16);
+  const projectId = crypto.createHash("sha1").update(planningAbs).digest("hex").slice(0, 16);
 
-  const dirPath = path.join(os.tmpdir(), 'gsd-workstream-sessions', projectId);
+  const dirPath = path.join(os.tmpdir(), "gsd-workstream-sessions", projectId);
   return {
     sessionKey,
     dirPath,
@@ -913,7 +980,9 @@ function getSessionScopedWorkstreamFile(cwd) {
 }
 
 function clearActiveWorkstreamPointer(filePath, cleanupDirPath) {
-  try { fs.unlinkSync(filePath); } catch {}
+  try {
+    fs.unlinkSync(filePath);
+  } catch {}
 
   // Session-scoped pointers for a repo share one tmp directory. Only remove it
   // when it is empty so clearing or self-healing one session never deletes siblings.
@@ -937,12 +1006,12 @@ function clearActiveWorkstreamPointer(filePath, cleanupDirPath) {
  */
 function readActiveWorkstreamPointer(filePath, cwd, cleanupDirPath = null) {
   try {
-    const name = fs.readFileSync(filePath, 'utf-8').trim();
+    const name = fs.readFileSync(filePath, "utf-8").trim();
     if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
       clearActiveWorkstreamPointer(filePath, cleanupDirPath);
       return null;
     }
-    const wsDir = path.join(planningRoot(cwd), 'workstreams', name);
+    const wsDir = path.join(planningRoot(cwd), "workstreams", name);
     if (!fs.existsSync(wsDir)) {
       clearActiveWorkstreamPointer(filePath, cleanupDirPath);
       return null;
@@ -969,7 +1038,7 @@ function getActiveWorkstream(cwd) {
     return readActiveWorkstreamPointer(sessionScoped.filePath, cwd, sessionScoped.dirPath);
   }
 
-  const sharedFilePath = path.join(planningRoot(cwd), 'active-workstream');
+  const sharedFilePath = path.join(planningRoot(cwd), "active-workstream");
   return readActiveWorkstreamPointer(sharedFilePath, cwd);
 }
 
@@ -984,41 +1053,41 @@ function setActiveWorkstream(cwd, name) {
   const sessionScoped = getSessionScopedWorkstreamFile(cwd);
   const filePath = sessionScoped
     ? sessionScoped.filePath
-    : path.join(planningRoot(cwd), 'active-workstream');
+    : path.join(planningRoot(cwd), "active-workstream");
 
   if (!name) {
     clearActiveWorkstreamPointer(filePath, sessionScoped ? sessionScoped.dirPath : null);
     return;
   }
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error('Invalid workstream name: must be alphanumeric, hyphens, and underscores only');
+    throw new Error("Invalid workstream name: must be alphanumeric, hyphens, and underscores only");
   }
 
   if (sessionScoped) {
     fs.mkdirSync(sessionScoped.dirPath, { recursive: true });
   }
-  fs.writeFileSync(filePath, name + '\n', 'utf-8');
+  fs.writeFileSync(filePath, name + "\n", "utf-8");
 }
 
 // ─── Phase utilities ──────────────────────────────────────────────────────────
 
 function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizePhaseName(phase) {
   const str = String(phase);
   // Strip optional project_code prefix (e.g., 'CK-01' → '01')
-  const stripped = str.replace(/^[A-Z]{1,6}-(?=\d)/, '');
+  const stripped = str.replace(/^[A-Z]{1,6}-(?=\d)/, "");
   // Standard numeric phases: 1, 01, 12A, 12.1
   const match = stripped.match(/^(\d+)([A-Z])?((?:\.\d+)*)/i);
   if (match) {
-    const padded = match[1].padStart(2, '0');
+    const padded = match[1].padStart(2, "0");
     // Preserve original case of letter suffix (#1962).
     // Uppercasing causes directory/roadmap mismatches on case-sensitive filesystems
     // (e.g., "16c" in ROADMAP.md → directory "16C-name" → progress can't match).
-    const letter = match[2] || '';
-    const decimal = match[3] || '';
+    const letter = match[2] || "";
+    const decimal = match[3] || "";
     return padded + letter + decimal;
   }
   // Custom phase IDs (e.g. PROJ-42, AUTH-101): return as-is
@@ -1027,8 +1096,8 @@ function normalizePhaseName(phase) {
 
 function comparePhaseNum(a, b) {
   // Strip optional project_code prefix before comparing (e.g., 'CK-01-name' → '01-name')
-  const sa = String(a).replace(/^[A-Z]{1,6}-/, '');
-  const sb = String(b).replace(/^[A-Z]{1,6}-/, '');
+  const sa = String(a).replace(/^[A-Z]{1,6}-/, "");
+  const sb = String(b).replace(/^[A-Z]{1,6}-/, "");
   const pa = sa.match(/^(\d+)([A-Z])?((?:\.\d+)*)/i);
   const pb = sb.match(/^(\d+)([A-Z])?((?:\.\d+)*)/i);
   // If either is non-numeric (custom ID), fall back to string comparison
@@ -1036,16 +1105,26 @@ function comparePhaseNum(a, b) {
   const intDiff = parseInt(pa[1], 10) - parseInt(pb[1], 10);
   if (intDiff !== 0) return intDiff;
   // No letter sorts before letter: 12 < 12A < 12B
-  const la = (pa[2] || '').toUpperCase();
-  const lb = (pb[2] || '').toUpperCase();
+  const la = (pa[2] || "").toUpperCase();
+  const lb = (pb[2] || "").toUpperCase();
   if (la !== lb) {
     if (!la) return -1;
     if (!lb) return 1;
     return la < lb ? -1 : 1;
   }
   // Segment-by-segment decimal comparison: 12A < 12A.1 < 12A.1.2 < 12A.2
-  const aDecParts = pa[3] ? pa[3].slice(1).split('.').map(p => parseInt(p, 10)) : [];
-  const bDecParts = pb[3] ? pb[3].slice(1).split('.').map(p => parseInt(p, 10)) : [];
+  const aDecParts = pa[3]
+    ? pa[3]
+        .slice(1)
+        .split(".")
+        .map((p) => parseInt(p, 10))
+    : [];
+  const bDecParts = pb[3]
+    ? pb[3]
+        .slice(1)
+        .split(".")
+        .map((p) => parseInt(p, 10))
+    : [];
   const maxLen = Math.max(aDecParts.length, bDecParts.length);
   if (aDecParts.length === 0 && bDecParts.length > 0) return -1;
   if (bDecParts.length === 0 && aDecParts.length > 0) return 1;
@@ -1083,7 +1162,7 @@ function phaseTokenMatches(dirName, normalized) {
   const token = extractPhaseToken(dirName);
   if (token.toUpperCase() === normalized.toUpperCase()) return true;
   // Strip optional project_code prefix from dir and retry
-  const stripped = dirName.replace(/^[A-Z]{1,6}-(?=\d)/i, '');
+  const stripped = dirName.replace(/^[A-Z]{1,6}-(?=\d)/i, "");
   if (stripped !== dirName) {
     const strippedToken = extractPhaseToken(stripped);
     if (strippedToken.toUpperCase() === normalized.toUpperCase()) return true;
@@ -1095,26 +1174,32 @@ function searchPhaseInDir(baseDir, relBase, normalized) {
   try {
     const dirs = readSubdirectories(baseDir, true);
     // Match: exact phase token comparison (not prefix matching)
-    const match = dirs.find(d => phaseTokenMatches(d, normalized));
+    const match = dirs.find((d) => phaseTokenMatches(d, normalized));
     if (!match) return null;
 
     // Extract phase number and name — supports numeric (01-name), project-code-prefixed (CK-01-name), and custom (PROJ-42-name)
-    const dirMatch = match.match(/^(?:[A-Z]{1,6}-)(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i)
-      || match.match(/^(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i)
-      || match.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)-(.+)/i)
-      || [null, match, null];
+    const dirMatch = match.match(/^(?:[A-Z]{1,6}-)(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i) ||
+      match.match(/^(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i) ||
+      match.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)-(.+)/i) || [null, match, null];
     const phaseNumber = dirMatch ? dirMatch[1] : normalized;
     const phaseName = dirMatch && dirMatch[2] ? dirMatch[2] : null;
     const phaseDir = path.join(baseDir, match);
-    const { plans: unsortedPlans, summaries: unsortedSummaries, hasResearch, hasContext, hasVerification, hasReviews } = getPhaseFileStats(phaseDir);
+    const {
+      plans: unsortedPlans,
+      summaries: unsortedSummaries,
+      hasResearch,
+      hasContext,
+      hasVerification,
+      hasReviews,
+    } = getPhaseFileStats(phaseDir);
     const plans = unsortedPlans.sort();
     const summaries = unsortedSummaries.sort();
 
     const completedPlanIds = new Set(
-      summaries.map(s => s.replace('-SUMMARY.md', '').replace('SUMMARY.md', ''))
+      summaries.map((s) => s.replace("-SUMMARY.md", "").replace("SUMMARY.md", "")),
     );
-    const incompletePlans = plans.filter(p => {
-      const planId = p.replace('-PLAN.md', '').replace('PLAN.md', '');
+    const incompletePlans = plans.filter((p) => {
+      const planId = p.replace("-PLAN.md", "").replace("PLAN.md", "");
       return !completedPlanIds.has(planId);
     });
 
@@ -1123,7 +1208,12 @@ function searchPhaseInDir(baseDir, relBase, normalized) {
       directory: toPosixPath(path.join(relBase, match)),
       phase_number: phaseNumber,
       phase_name: phaseName,
-      phase_slug: phaseName ? phaseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null,
+      phase_slug: phaseName
+        ? phaseName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+        : null,
       plans,
       summaries,
       incomplete_plans: incompletePlans,
@@ -1140,7 +1230,7 @@ function searchPhaseInDir(baseDir, relBase, normalized) {
 function findPhaseInternal(cwd, phase) {
   if (!phase) return null;
 
-  const phasesDir = path.join(planningDir(cwd), 'phases');
+  const phasesDir = path.join(planningDir(cwd), "phases");
   const normalized = normalizePhaseName(phase);
 
   // Search current phases first
@@ -1149,34 +1239,36 @@ function findPhaseInternal(cwd, phase) {
   if (current) return current;
 
   // Search archived milestone phases (newest first)
-  const milestonesDir = path.join(cwd, '.planning', 'milestones');
+  const milestonesDir = path.join(cwd, ".planning", "milestones");
   if (!fs.existsSync(milestonesDir)) return null;
 
   try {
     const milestoneEntries = fs.readdirSync(milestonesDir, { withFileTypes: true });
     const archiveDirs = milestoneEntries
-      .filter(e => e.isDirectory() && /^v[\d.]+-phases$/.test(e.name))
-      .map(e => e.name)
+      .filter((e) => e.isDirectory() && /^v[\d.]+-phases$/.test(e.name))
+      .map((e) => e.name)
       .sort()
       .reverse();
 
     for (const archiveName of archiveDirs) {
       const version = archiveName.match(/^(v[\d.]+)-phases$/)[1];
       const archivePath = path.join(milestonesDir, archiveName);
-      const relBase = '.planning/milestones/' + archiveName;
+      const relBase = ".planning/milestones/" + archiveName;
       const result = searchPhaseInDir(archivePath, relBase, normalized);
       if (result) {
         result.archived = version;
         return result;
       }
     }
-  } catch { /* intentionally empty */ }
+  } catch {
+    /* intentionally empty */
+  }
 
   return null;
 }
 
 function getArchivedPhaseDirs(cwd) {
-  const milestonesDir = path.join(cwd, '.planning', 'milestones');
+  const milestonesDir = path.join(cwd, ".planning", "milestones");
   const results = [];
 
   if (!fs.existsSync(milestonesDir)) return results;
@@ -1185,8 +1277,8 @@ function getArchivedPhaseDirs(cwd) {
     const milestoneEntries = fs.readdirSync(milestonesDir, { withFileTypes: true });
     // Find v*-phases directories, sort newest first
     const phaseDirs = milestoneEntries
-      .filter(e => e.isDirectory() && /^v[\d.]+-phases$/.test(e.name))
-      .map(e => e.name)
+      .filter((e) => e.isDirectory() && /^v[\d.]+-phases$/.test(e.name))
+      .map((e) => e.name)
       .sort()
       .reverse();
 
@@ -1199,12 +1291,14 @@ function getArchivedPhaseDirs(cwd) {
         results.push({
           name: dir,
           milestone: version,
-          basePath: path.join('.planning', 'milestones', archiveName),
+          basePath: path.join(".planning", "milestones", archiveName),
           fullPath: path.join(archivePath, dir),
         });
       }
     }
-  } catch { /* intentionally empty */ }
+  } catch {
+    /* intentionally empty */
+  }
 
   return results;
 }
@@ -1218,7 +1312,7 @@ function getArchivedPhaseDirs(cwd) {
  * phases that share the same numbers as current milestone phases.
  */
 function stripShippedMilestones(content) {
-  return content.replace(/<details>[\s\S]*?<\/details>/gi, '');
+  return content.replace(/<details>[\s\S]*?<\/details>/gi, "");
 }
 
 /**
@@ -1243,9 +1337,9 @@ function extractCurrentMilestone(content, cwd) {
   // 1. Get current milestone version from STATE.md frontmatter
   let version = null;
   try {
-    const statePath = path.join(planningDir(cwd), 'STATE.md');
+    const statePath = path.join(planningDir(cwd), "STATE.md");
     if (fs.existsSync(statePath)) {
-      const stateRaw = fs.readFileSync(statePath, 'utf-8');
+      const stateRaw = fs.readFileSync(statePath, "utf-8");
       const milestoneMatch = stateRaw.match(/^milestone:\s*(.+)/m);
       if (milestoneMatch) {
         version = milestoneMatch[1].trim();
@@ -1258,7 +1352,7 @@ function extractCurrentMilestone(content, cwd) {
     // Check for 🚧 in-progress marker
     const inProgressMatch = content.match(/🚧\s*\*\*v(\d+\.\d+)\s/);
     if (inProgressMatch) {
-      version = 'v' + inProgressMatch[1];
+      version = "v" + inProgressMatch[1];
     }
   }
 
@@ -1267,10 +1361,7 @@ function extractCurrentMilestone(content, cwd) {
   // 3. Find the section matching this version
   // Match headings like: ## Roadmap v3.0: Name, ## v3.0 Name, etc.
   const escapedVersion = escapeRegex(version);
-  const sectionPattern = new RegExp(
-    `(^#{1,3}\\s+.*${escapedVersion}[^\\n]*)`,
-    'mi'
-  );
+  const sectionPattern = new RegExp(`(^#{1,3}\\s+.*${escapedVersion}[^\\n]*)`, "mi");
   const sectionMatch = content.match(sectionPattern);
 
   if (!sectionMatch) return stripShippedMilestones(content);
@@ -1283,7 +1374,7 @@ function extractCurrentMilestone(content, cwd) {
   const restContent = content.slice(sectionStart + sectionMatch[0].length);
   const nextMilestonePattern = new RegExp(
     `^#{1,${headingLevel}}\\s+(?:.*v\\d+\\.\\d+|✅|📋|🚧)`,
-    'mi'
+    "mi",
   );
   const nextMatch = restContent.match(nextMilestonePattern);
 
@@ -1301,7 +1392,7 @@ function extractCurrentMilestone(content, cwd) {
 
   // Also include any content before the first milestone heading (title, overview, etc.)
   // but strip any <details> blocks in it (these are definitely shipped)
-  const preamble = beforeMilestones.replace(/<details>[\s\S]*?<\/details>/gi, '');
+  const preamble = beforeMilestones.replace(/<details>[\s\S]*?<\/details>/gi, "");
 
   return preamble + currentSection;
 }
@@ -1312,11 +1403,11 @@ function extractCurrentMilestone(content, cwd) {
  * that must not accidentally modify archived milestone checkboxes/tables.
  */
 function replaceInCurrentMilestone(content, pattern, replacement) {
-  const lastDetailsClose = content.lastIndexOf('</details>');
+  const lastDetailsClose = content.lastIndexOf("</details>");
   if (lastDetailsClose === -1) {
     return content.replace(pattern, replacement);
   }
-  const offset = lastDetailsClose + '</details>'.length;
+  const offset = lastDetailsClose + "</details>".length;
   const before = content.slice(0, offset);
   const after = content.slice(offset);
   return before + after.replace(pattern, replacement);
@@ -1326,14 +1417,14 @@ function replaceInCurrentMilestone(content, pattern, replacement) {
 
 function getRoadmapPhaseInternal(cwd, phaseNum) {
   if (!phaseNum) return null;
-  const roadmapPath = path.join(planningDir(cwd), 'ROADMAP.md');
+  const roadmapPath = path.join(planningDir(cwd), "ROADMAP.md");
   if (!fs.existsSync(roadmapPath)) return null;
 
   try {
-    const content = extractCurrentMilestone(fs.readFileSync(roadmapPath, 'utf-8'), cwd);
+    const content = extractCurrentMilestone(fs.readFileSync(roadmapPath, "utf-8"), cwd);
     const escapedPhase = escapeRegex(phaseNum.toString());
     // Match both numeric (Phase 1:) and custom (Phase PROJ-42:) headers
-    const phasePattern = new RegExp(`#{2,4}\\s*Phase\\s+${escapedPhase}:\\s*([^\\n]+)`, 'i');
+    const phasePattern = new RegExp(`#{2,4}\\s*Phase\\s+${escapedPhase}:\\s*([^\\n]+)`, "i");
     const headerMatch = content.match(phasePattern);
     if (!headerMatch) return null;
 
@@ -1376,7 +1467,7 @@ function getAgentsDir() {
     return process.env.GSD_AGENTS_DIR;
   }
   // __dirname is get-shit-done/bin/lib/ → go up 3 levels to configDir
-  return path.join(__dirname, '..', '..', '..', 'agents');
+  return path.join(__dirname, "..", "..", "..", "agents");
 }
 
 /**
@@ -1430,9 +1521,9 @@ function checkAgentsInstalled() {
  * Users can override with model_overrides in config.json for custom/latest models.
  */
 const MODEL_ALIAS_MAP = {
-  'opus': 'OpenCode-opus-4-6',
-  'sonnet': 'OpenCode-sonnet-4-6',
-  'haiku': 'OpenCode-haiku-4-5',
+  opus: "OpenCode-opus-4-6",
+  sonnet: "OpenCode-sonnet-4-6",
+  haiku: "OpenCode-haiku-4-5",
 };
 
 function resolveModelInternal(cwd, agentType) {
@@ -1448,16 +1539,16 @@ function resolveModelInternal(cwd, agentType) {
   // resolve_model_ids: "omit" — return empty string so the runtime uses its configured
   // default model. For non-OpenCode runtimes (OpenCode, Codex, etc.) that don't recognize
   // OpenCode aliases (opus/sonnet/haiku/inherit). Set automatically during install. See #1156.
-  if (config.resolve_model_ids === 'omit') {
-    return '';
+  if (config.resolve_model_ids === "omit") {
+    return "";
   }
 
   // Fall back to profile lookup
-  const profile = String(config.model_profile || 'balanced').toLowerCase();
+  const profile = String(config.model_profile || "balanced").toLowerCase();
   const agentModels = MODEL_PROFILES[agentType];
-  if (!agentModels) return 'sonnet';
-  if (profile === 'inherit') return 'inherit';
-  const alias = agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  if (!agentModels) return "sonnet";
+  if (profile === "inherit") return "inherit";
+  const alias = agentModels[profile] || agentModels["balanced"] || "sonnet";
 
   // resolve_model_ids: true — map alias to full OpenCode model ID
   // Prevents 404s when the task tool passes aliases directly to the API
@@ -1479,7 +1570,7 @@ function resolveModelInternal(cwd, agentType) {
 function extractOneLinerFromBody(content) {
   if (!content) return null;
   // Strip frontmatter first
-  const body = content.replace(/^---\n[\s\S]*?\n---\n*/, '');
+  const body = content.replace(/^---\n[\s\S]*?\n---\n*/, "");
   // Find the first **...** line after a # heading
   const match = body.match(/^#[^\n]*\n+\*\*([^*]+)\*\*/m);
   return match ? match[1].trim() : null;
@@ -1499,12 +1590,16 @@ function pathExistsInternal(cwd, targetPath) {
 
 function generateSlugInternal(text) {
   if (!text) return null;
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 60);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .substring(0, 60);
 }
 
 function getMilestoneInfo(cwd) {
   try {
-    const roadmap = fs.readFileSync(path.join(planningDir(cwd), 'ROADMAP.md'), 'utf-8');
+    const roadmap = fs.readFileSync(path.join(planningDir(cwd), "ROADMAP.md"), "utf-8");
 
     // First: check for list-format roadmaps using 🚧 (in-progress) marker
     // e.g. "- 🚧 **v2.1 Belgium** — Phases 24-28 (in progress)"
@@ -1512,7 +1607,7 @@ function getMilestoneInfo(cwd) {
     const inProgressMatch = roadmap.match(/🚧\s*\*\*v(\d+(?:\.\d+)+)\s+([^*]+)\*\*/);
     if (inProgressMatch) {
       return {
-        version: 'v' + inProgressMatch[1],
+        version: "v" + inProgressMatch[1],
         name: inProgressMatch[2].trim(),
       };
     }
@@ -1524,18 +1619,18 @@ function getMilestoneInfo(cwd) {
     const headingMatch = cleaned.match(/## .*v(\d+(?:\.\d+)+)[:\s]+([^\n(]+)/);
     if (headingMatch) {
       return {
-        version: 'v' + headingMatch[1],
+        version: "v" + headingMatch[1],
         name: headingMatch[2].trim(),
       };
     }
     // Fallback: try bare version match (greedy — capture longest version string)
     const versionMatch = cleaned.match(/v(\d+(?:\.\d+)+)/);
     return {
-      version: versionMatch ? versionMatch[0] : 'v1.0',
-      name: 'milestone',
+      version: versionMatch ? versionMatch[0] : "v1.0",
+      name: "milestone",
     };
   } catch {
-    return { version: 'v1.0', name: 'milestone' };
+    return { version: "v1.0", name: "milestone" };
   }
 }
 
@@ -1547,14 +1642,19 @@ function getMilestoneInfo(cwd) {
 function getMilestonePhaseFilter(cwd) {
   const milestonePhaseNums = new Set();
   try {
-    const roadmap = extractCurrentMilestone(fs.readFileSync(path.join(planningDir(cwd), 'ROADMAP.md'), 'utf-8'), cwd);
+    const roadmap = extractCurrentMilestone(
+      fs.readFileSync(path.join(planningDir(cwd), "ROADMAP.md"), "utf-8"),
+      cwd,
+    );
     // Match both numeric phases (Phase 1:) and custom IDs (Phase PROJ-42:)
     const phasePattern = /#{2,4}\s*Phase\s+([\w][\w.-]*)\s*:/gi;
     let m;
     while ((m = phasePattern.exec(roadmap)) !== null) {
       milestonePhaseNums.add(m[1]);
     }
-  } catch { /* intentionally empty */ }
+  } catch {
+    /* intentionally empty */
+  }
 
   if (milestonePhaseNums.size === 0) {
     const passAll = () => true;
@@ -1563,7 +1663,7 @@ function getMilestonePhaseFilter(cwd) {
   }
 
   const normalized = new Set(
-    [...milestonePhaseNums].map(n => (n.replace(/^0+/, '') || '0').toLowerCase())
+    [...milestonePhaseNums].map((n) => (n.replace(/^0+/, "") || "0").toLowerCase()),
   );
 
   function isDirInMilestone(dirName) {
@@ -1583,12 +1683,12 @@ function getMilestonePhaseFilter(cwd) {
 
 /** Filter a file list to just PLAN.md / *-PLAN.md entries. */
 function filterPlanFiles(files) {
-  return files.filter(f => f.endsWith('-PLAN.md') || f === 'PLAN.md');
+  return files.filter((f) => f.endsWith("-PLAN.md") || f === "PLAN.md");
 }
 
 /** Filter a file list to just SUMMARY.md / *-SUMMARY.md entries. */
 function filterSummaryFiles(files) {
-  return files.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
+  return files.filter((f) => f.endsWith("-SUMMARY.md") || f === "SUMMARY.md");
 }
 
 /**
@@ -1601,10 +1701,10 @@ function getPhaseFileStats(phaseDir) {
   return {
     plans: filterPlanFiles(files),
     summaries: filterSummaryFiles(files),
-    hasResearch: files.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md'),
-    hasContext: files.some(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md'),
-    hasVerification: files.some(f => f.endsWith('-VERIFICATION.md') || f === 'VERIFICATION.md'),
-    hasReviews: files.some(f => f.endsWith('-REVIEWS.md') || f === 'REVIEWS.md'),
+    hasResearch: files.some((f) => f.endsWith("-RESEARCH.md") || f === "RESEARCH.md"),
+    hasContext: files.some((f) => f.endsWith("-CONTEXT.md") || f === "CONTEXT.md"),
+    hasVerification: files.some((f) => f.endsWith("-VERIFICATION.md") || f === "VERIFICATION.md"),
+    hasReviews: files.some((f) => f.endsWith("-REVIEWS.md") || f === "REVIEWS.md"),
   };
 }
 
@@ -1616,7 +1716,7 @@ function getPhaseFileStats(phaseDir) {
 function readSubdirectories(dirPath, sort = false) {
   try {
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-    const dirs = entries.filter(e => e.isDirectory()).map(e => e.name);
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
     return sort ? dirs.sort((a, b) => comparePhaseNum(a, b)) : dirs;
   } catch {
     return [];
@@ -1643,14 +1743,18 @@ function readSubdirectories(dirPath, sort = false) {
  * @param {string|Buffer} content  File content.
  * @param {string} [encoding='utf-8']  Encoding passed to writeFileSync.
  */
-function atomicWriteFileSync(filePath, content, encoding = 'utf-8') {
-  const tmpPath = filePath + '.tmp.' + process.pid;
+function atomicWriteFileSync(filePath, content, encoding = "utf-8") {
+  const tmpPath = filePath + ".tmp." + process.pid;
   try {
     fs.writeFileSync(tmpPath, content, encoding);
     fs.renameSync(tmpPath, filePath);
   } catch (renameErr) {
     // Clean up the temp file if rename failed, then fall back to direct write.
-    try { fs.unlinkSync(tmpPath); } catch { /* already gone or never created */ }
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch {
+      /* already gone or never created */
+    }
     fs.writeFileSync(filePath, content, encoding);
   }
 }
@@ -1662,22 +1766,22 @@ function atomicWriteFileSync(filePath, content, encoding = 'utf-8') {
  */
 function timeAgo(date) {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 5) return 'just now';
+  if (seconds < 5) return "just now";
   if (seconds < 60) return `${seconds} seconds ago`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes === 1) return '1 minute ago';
+  if (minutes === 1) return "1 minute ago";
   if (minutes < 60) return `${minutes} minutes ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours === 1) return '1 hour ago';
+  if (hours === 1) return "1 hour ago";
   if (hours < 24) return `${hours} hours ago`;
   const days = Math.floor(hours / 24);
-  if (days === 1) return '1 day ago';
+  if (days === 1) return "1 day ago";
   if (days < 30) return `${days} days ago`;
   const months = Math.floor(days / 30);
-  if (months === 1) return '1 month ago';
+  if (months === 1) return "1 month ago";
   if (months < 12) return `${months} months ago`;
   const years = Math.floor(days / 365);
-  if (years === 1) return '1 year ago';
+  if (years === 1) return "1 year ago";
   return `${years} years ago`;
 }
 

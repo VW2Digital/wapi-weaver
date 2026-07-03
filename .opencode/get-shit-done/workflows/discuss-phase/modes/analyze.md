@@ -8,6 +8,7 @@
 
 Before presenting each question (or question group, in batch mode), provide
 a brief **trade-off analysis** for the decision:
+
 - 2-3 options with pros/cons based on codebase context and common patterns
 - A recommended approach with reasoning
 - Known pitfalls or constraints from prior phases
@@ -17,11 +18,11 @@ a brief **trade-off analysis** for the decision:
 ```markdown
 **Trade-off analysis: Authentication strategy**
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| Session cookies | Simple, httpOnly prevents XSS | Requires CSRF protection, sticky sessions |
-| JWT (stateless) | Scalable, no server state | Token size, revocation complexity |
-| OAuth 2.0 + PKCE | Industry standard for SPAs | More setup, redirect flow UX |
+| Approach         | Pros                          | Cons                                      |
+| ---------------- | ----------------------------- | ----------------------------------------- |
+| Session cookies  | Simple, httpOnly prevents XSS | Requires CSRF protection, sticky sessions |
+| JWT (stateless)  | Scalable, no server state     | Token size, revocation complexity         |
+| OAuth 2.0 + PKCE | Industry standard for SPAs    | More setup, redirect flow UX              |
 
 💡 Recommended: OAuth 2.0 + PKCE — your app has social login in requirements (REQ-04) and this aligns with the existing NextAuth setup in `src/lib/auth.ts`.
 

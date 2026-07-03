@@ -4,12 +4,13 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 **Core principle:** OpenCode automates everything with CLI/API. Checkpoints are for verification and decisions, not manual work.
 
 **Golden rules:**
+
 1. **If OpenCode can run it, OpenCode runs it** - Never ask user to execute CLI commands, start servers, or run builds
 2. **OpenCode sets up the verification environment** - Start dev servers, seed databases, configure env vars
 3. **User only does what requires human judgment** - Visual checks, UX evaluation, "does this feel right?"
 4. **Secrets come from user, automation comes from OpenCode** - Ask for API keys, then OpenCode uses them via CLI
 5. **Auto-mode bypasses verification/decision checkpoints** — When `workflow._auto_chain_active` or `workflow.auto_advance` is true in config: human-verify auto-approves, decision auto-selects first option, human-action still stops (auth gates cannot be automated)
-</overview>
+   </overview>
 
 <checkpoint_types>
 
@@ -19,6 +20,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 **When:** OpenCode completed automated work, human confirms it works correctly.
 
 **Use for:**
+
 - Visual UI checks (layout, styling, responsiveness)
 - Interactive flows (click through wizard, test user flows)
 - Functional verification (feature works as expected)
@@ -27,6 +29,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 - Accessibility testing
 
 **Structure:**
+
 ```xml
 <task type="checkpoint:human-verify" gate="blocking">
   <what-built>[What OpenCode automated and deployed/built]</what-built>
@@ -38,6 +41,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 ```
 
 **Example: UI Component (shows key pattern: OpenCode starts server BEFORE checkpoint)**
+
 ```xml
 <task type="auto">
   <name>Build responsive dashboard layout</name>
@@ -68,6 +72,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 ```
 
 **Example: Xcode Build**
+
 ```xml
 <task type="auto">
   <name>Build macOS app with Xcode</name>
@@ -89,6 +94,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
   <resume-signal>Type "approved" or describe issues</resume-signal>
 </task>
 ```
+
 </type>
 
 <type name="decision">
@@ -97,6 +103,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 **When:** Human must make choice that affects implementation direction.
 
 **Use for:**
+
 - Technology selection (which auth provider, which database)
 - Architecture decisions (monorepo vs separate repos)
 - Design choices (color scheme, layout approach)
@@ -104,6 +111,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 - Data model decisions (schema structure)
 
 **Structure:**
+
 ```xml
 <task type="checkpoint:decision" gate="blocking">
   <decision>[What's being decided]</decision>
@@ -125,6 +133,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 ```
 
 **Example: Auth Provider Selection**
+
 ```xml
 <task type="checkpoint:decision" gate="blocking">
   <decision>Select authentication provider</decision>
@@ -153,6 +162,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 ```
 
 **Example: Database Selection**
+
 ```xml
 <task type="checkpoint:decision" gate="blocking">
   <decision>Select database for user data</decision>
@@ -180,6 +190,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
   <resume-signal>Select: supabase, planetscale, or convex</resume-signal>
 </task>
 ```
+
 </type>
 
 <type name="human-action">
@@ -188,6 +199,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 **When:** Action has NO CLI/API and requires human-only interaction, OR OpenCode hit an authentication gate during automation.
 
 **Use ONLY for:**
+
 - **Authentication gates** - OpenCode tried CLI/API but needs credentials (this is NOT a failure)
 - Email verification links (clicking email)
 - SMS 2FA codes (phone verification)
@@ -196,12 +208,14 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 - OAuth app approvals (web-based approval)
 
 **Do NOT use for pre-planned manual work:**
+
 - Deploying (use CLI - auth gate if needed)
 - Creating webhooks/databases (use API/CLI - auth gate if needed)
 - Running builds/tests (use bash tool)
 - Creating files (use write tool)
 
 **Structure:**
+
 ```xml
 <task type="checkpoint:human-action" gate="blocking">
   <action>[What human must do - OpenCode already did everything automatable]</action>
@@ -215,6 +229,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 ```
 
 **Example: Email Verification**
+
 ```xml
 <task type="auto">
   <name>Create SendGrid account via API</name>
@@ -235,6 +250,7 @@ Plans execute autonomously. Checkpoints formalize interaction points where human
 ```
 
 **Example: Authentication Gate (Dynamic Checkpoint)**
+
 ```xml
 <task type="auto">
   <name>Deploy to Vercel</name>
@@ -280,6 +296,7 @@ When OpenCode encounters `type="checkpoint:*"`:
 5. **Resume execution** - continue to next task only after confirmation
 
 **For checkpoint:human-verify:**
+
 ```
 ╔═══════════════════════════════════════════════════════╗
 ║  CHECKPOINT: Verification Required                    ║
@@ -302,6 +319,7 @@ How to verify:
 ```
 
 **For checkpoint:decision:**
+
 ```
 ╔═══════════════════════════════════════════════════════╗
 ║  CHECKPOINT: Decision Required                        ║
@@ -333,6 +351,7 @@ Options:
 ```
 
 **For checkpoint:human-action:**
+
 ```
 ╔═══════════════════════════════════════════════════════╗
 ║  CHECKPOINT: Action Required                          ║
@@ -355,6 +374,7 @@ I'll verify: vercel whoami returns your account
 → YOUR ACTION: Type "done" when authenticated
 ────────────────────────────────────────────────────────
 ```
+
 </execution_protocol>
 
 <authentication_gates>
@@ -364,6 +384,7 @@ I'll verify: vercel whoami returns your account
 **Pattern:** OpenCode tries automation → auth error → creates checkpoint:human-action → user authenticates → OpenCode retries → continues
 
 **Gate protocol:**
+
 1. Recognize it's not a failure - missing auth is expected
 2. Stop current task - don't retry repeatedly
 3. Create checkpoint:human-action dynamically
@@ -373,6 +394,7 @@ I'll verify: vercel whoami returns your account
 7. Continue normally
 
 **Key distinction:**
+
 - Pre-planned checkpoint: "I need you to do X" (wrong - OpenCode should automate)
 - Auth gate: "I tried to automate X but need credentials" (correct - unblocks automation)
 
@@ -384,19 +406,19 @@ I'll verify: vercel whoami returns your account
 
 ## Service CLI Reference
 
-| Service | CLI/API | Key Commands | Auth Gate |
-|---------|---------|--------------|-----------|
-| Vercel | `vercel` | `--yes`, `env add`, `--prod`, `ls` | `vercel login` |
-| Railway | `railway` | `init`, `up`, `variables set` | `railway login` |
-| Fly | `fly` | `launch`, `deploy`, `secrets set` | `fly auth login` |
-| Stripe | `stripe` + API | `listen`, `trigger`, API calls | API key in .env |
-| Supabase | `supabase` | `init`, `link`, `db push`, `gen types` | `supabase login` |
-| Upstash | `upstash` | `redis create`, `redis get` | `upstash auth login` |
-| PlanetScale | `pscale` | `database create`, `branch create` | `pscale auth login` |
-| GitHub | `gh` | `repo create`, `pr create`, `secret set` | `gh auth login` |
-| Node | `npm`/`pnpm` | `install`, `run build`, `test`, `run dev` | N/A |
-| Xcode | `xcodebuild` | `-project`, `-scheme`, `build`, `test` | N/A |
-| Convex | `npx convex` | `dev`, `deploy`, `env set`, `env get` | `npx convex login` |
+| Service     | CLI/API        | Key Commands                              | Auth Gate            |
+| ----------- | -------------- | ----------------------------------------- | -------------------- |
+| Vercel      | `vercel`       | `--yes`, `env add`, `--prod`, `ls`        | `vercel login`       |
+| Railway     | `railway`      | `init`, `up`, `variables set`             | `railway login`      |
+| Fly         | `fly`          | `launch`, `deploy`, `secrets set`         | `fly auth login`     |
+| Stripe      | `stripe` + API | `listen`, `trigger`, API calls            | API key in .env      |
+| Supabase    | `supabase`     | `init`, `link`, `db push`, `gen types`    | `supabase login`     |
+| Upstash     | `upstash`      | `redis create`, `redis get`               | `upstash auth login` |
+| PlanetScale | `pscale`       | `database create`, `branch create`        | `pscale auth login`  |
+| GitHub      | `gh`           | `repo create`, `pr create`, `secret set`  | `gh auth login`      |
+| Node        | `npm`/`pnpm`   | `install`, `run build`, `test`, `run dev` | N/A                  |
+| Xcode       | `xcodebuild`   | `-project`, `-scheme`, `build`, `test`    | N/A                  |
+| Convex      | `npx convex`   | `dev`, `deploy`, `env set`, `env get`     | `npx convex login`   |
 
 ## Environment Variable Automation
 
@@ -404,15 +426,16 @@ I'll verify: vercel whoami returns your account
 
 **Dashboard env vars via CLI:**
 
-| Platform | CLI Command | Example |
-|----------|-------------|---------|
-| Convex | `npx convex env set` | `npx convex env set OPENAI_API_KEY sk-...` |
-| Vercel | `vercel env add` | `vercel env add STRIPE_KEY production` |
-| Railway | `railway variables set` | `railway variables set API_KEY=value` |
-| Fly | `fly secrets set` | `fly secrets set DATABASE_URL=...` |
-| Supabase | `supabase secrets set` | `supabase secrets set MY_SECRET=value` |
+| Platform | CLI Command             | Example                                    |
+| -------- | ----------------------- | ------------------------------------------ |
+| Convex   | `npx convex env set`    | `npx convex env set OPENAI_API_KEY sk-...` |
+| Vercel   | `vercel env add`        | `vercel env add STRIPE_KEY production`     |
+| Railway  | `railway variables set` | `railway variables set API_KEY=value`      |
+| Fly      | `fly secrets set`       | `fly secrets set DATABASE_URL=...`         |
+| Supabase | `supabase secrets set`  | `supabase secrets set MY_SECRET=value`     |
 
 **Secret collection pattern:**
+
 ```xml
 <!-- WRONG: Asking user to add env vars in dashboard -->
 <task type="checkpoint:human-action">
@@ -441,15 +464,16 @@ I'll verify: vercel whoami returns your account
 
 ## Dev Server Automation
 
-| Framework | Start Command | Ready Signal | Default URL |
-|-----------|---------------|--------------|-------------|
-| Next.js | `npm run dev` | "Ready in" or "started server" | http://localhost:3000 |
-| Vite | `npm run dev` | "ready in" | http://localhost:5173 |
-| Convex | `npx convex dev` | "Convex functions ready" | N/A (backend only) |
-| Express | `npm start` | "listening on port" | http://localhost:3000 |
-| Django | `python manage.py runserver` | "Starting development server" | http://localhost:8000 |
+| Framework | Start Command                | Ready Signal                   | Default URL           |
+| --------- | ---------------------------- | ------------------------------ | --------------------- |
+| Next.js   | `npm run dev`                | "Ready in" or "started server" | http://localhost:3000 |
+| Vite      | `npm run dev`                | "ready in"                     | http://localhost:5173 |
+| Convex    | `npx convex dev`             | "Convex functions ready"       | N/A (backend only)    |
+| Express   | `npm start`                  | "listening on port"            | http://localhost:3000 |
+| Django    | `python manage.py runserver` | "Starting development server"  | http://localhost:8000 |
 
 **Server lifecycle:**
+
 ```bash
 # Run in background, capture PID
 npm run dev &
@@ -465,29 +489,29 @@ timeout 30 bash -c 'until node -e "fetch(\"http://localhost:3000\").then(r=>{pro
 
 ## CLI Installation Handling
 
-| CLI | Auto-install? | Command |
-|-----|---------------|---------|
-| npm/pnpm/yarn | No - ask user | User chooses package manager |
-| vercel | Yes | `npm i -g vercel` |
-| gh (GitHub) | Yes | `brew install gh` (macOS) or `apt install gh` (Linux) |
-| stripe | Yes | `npm i -g stripe` |
-| supabase | Yes | `npm i -g supabase` |
-| convex | No - use npx | `npx convex` (no install needed) |
-| fly | Yes | `brew install flyctl` or curl installer |
-| railway | Yes | `npm i -g @railway/cli` |
+| CLI           | Auto-install? | Command                                               |
+| ------------- | ------------- | ----------------------------------------------------- |
+| npm/pnpm/yarn | No - ask user | User chooses package manager                          |
+| vercel        | Yes           | `npm i -g vercel`                                     |
+| gh (GitHub)   | Yes           | `brew install gh` (macOS) or `apt install gh` (Linux) |
+| stripe        | Yes           | `npm i -g stripe`                                     |
+| supabase      | Yes           | `npm i -g supabase`                                   |
+| convex        | No - use npx  | `npx convex` (no install needed)                      |
+| fly           | Yes           | `brew install flyctl` or curl installer               |
+| railway       | Yes           | `npm i -g @railway/cli`                               |
 
 **Protocol:** Try command → "command not found" → auto-installable? → yes: install silently, retry → no: checkpoint asking user to install.
 
 ## Pre-Checkpoint Automation Failures
 
-| Failure | Response |
-|---------|----------|
+| Failure            | Response                                                    |
+| ------------------ | ----------------------------------------------------------- |
 | Server won't start | Check error, fix issue, retry (don't proceed to checkpoint) |
-| Port in use | Kill stale process or use alternate port |
-| Missing dependency | Run `npm install`, retry |
-| Build error | Fix the error first (bug, not checkpoint issue) |
-| Auth error | Create auth gate checkpoint |
-| Network timeout | Retry with backoff, then checkpoint if persistent |
+| Port in use        | Kill stale process or use alternate port                    |
+| Missing dependency | Run `npm install`, retry                                    |
+| Build error        | Fix the error first (bug, not checkpoint issue)             |
+| Auth error         | Create auth gate checkpoint                                 |
+| Network timeout    | Retry with backoff, then checkpoint if persistent           |
 
 **Never present a checkpoint with broken verification environment.** If the local server isn't responding, don't ask user to "visit localhost:3000".
 
@@ -515,28 +539,29 @@ timeout 30 bash -c 'until node -e "fetch(\"http://localhost:3000\").then(r=>{pro
 
 ## Automatable Quick Reference
 
-| Action | Automatable? | OpenCode does it? |
-|--------|--------------|-----------------|
-| Deploy to Vercel | Yes (`vercel`) | YES |
-| Create Stripe webhook | Yes (API) | YES |
-| write .env file | Yes (write tool) | YES |
-| Create Upstash DB | Yes (`upstash`) | YES |
-| Run tests | Yes (`npm test`) | YES |
-| Start dev server | Yes (`npm run dev`) | YES |
-| Add env vars to Convex | Yes (`npx convex env set`) | YES |
-| Add env vars to Vercel | Yes (`vercel env add`) | YES |
-| Seed database | Yes (CLI/API) | YES |
-| Click email verification link | No | NO |
-| Enter credit card with 3DS | No | NO |
-| Complete OAuth in browser | No | NO |
-| Visually verify UI looks correct | No | NO |
-| Test interactive user flows | No | NO |
+| Action                           | Automatable?               | OpenCode does it? |
+| -------------------------------- | -------------------------- | ----------------- |
+| Deploy to Vercel                 | Yes (`vercel`)             | YES               |
+| Create Stripe webhook            | Yes (API)                  | YES               |
+| write .env file                  | Yes (write tool)           | YES               |
+| Create Upstash DB                | Yes (`upstash`)            | YES               |
+| Run tests                        | Yes (`npm test`)           | YES               |
+| Start dev server                 | Yes (`npm run dev`)        | YES               |
+| Add env vars to Convex           | Yes (`npx convex env set`) | YES               |
+| Add env vars to Vercel           | Yes (`vercel env add`)     | YES               |
+| Seed database                    | Yes (CLI/API)              | YES               |
+| Click email verification link    | No                         | NO                |
+| Enter credit card with 3DS       | No                         | NO                |
+| Complete OAuth in browser        | No                         | NO                |
+| Visually verify UI looks correct | No                         | NO                |
+| Test interactive user flows      | No                         | NO                |
 
 </automation_reference>
 
 <writing_guidelines>
 
 **DO:**
+
 - Automate everything with CLI/API before checkpoint
 - Be specific: "Visit https://myapp.vercel.app" not "check deployment"
 - Number verification steps
@@ -544,12 +569,14 @@ timeout 30 bash -c 'until node -e "fetch(\"http://localhost:3000\").then(r=>{pro
 - Provide context: why this checkpoint exists
 
 **DON'T:**
+
 - Ask human to do work OpenCode can automate ❌
 - Assume knowledge: "Configure the usual settings" ❌
 - Skip steps: "Set up database" (too vague) ❌
 - Mix multiple verifications in one checkpoint ❌
 
 **Placement:**
+
 - **After automation completes** - not before OpenCode does the work
 - **After UI buildout** - before declaring phase complete
 - **Before dependent work** - decisions before implementation
@@ -628,6 +655,7 @@ timeout 30 bash -c 'until node -e "fetch(\"http://localhost:3000\").then(r=>{pro
   <resume-signal>Type "approved" or describe issues</resume-signal>
 </task>
 ```
+
 </examples>
 
 <anti_patterns>
@@ -767,12 +795,14 @@ timeout 30 bash -c 'until node -e "fetch(\"http://localhost:3000\").then(r=>{pro
 **Purpose:** Collaborative review of TDD gate compliance across all `type: tdd` plans in the phase. Advisory — does not block execution.
 
 **Use for:**
+
 - Verifying RED/GREEN/REFACTOR commit sequence for each TDD plan
 - Surfacing gate violations (missing RED or GREEN commits)
 - Reviewing test quality (tests fail for the right reason)
 - Confirming minimal GREEN implementations
 
 **Structure:**
+
 ```xml
 <task type="checkpoint:tdd-review" gate="advisory">
   <what-checked>TDD gate compliance for {count} plans in Phase {X}</what-checked>
@@ -796,11 +826,13 @@ Checkpoints formalize human-in-the-loop points for verification and decisions, n
 **The golden rule:** If OpenCode CAN automate it, OpenCode MUST automate it.
 
 **Checkpoint priority:**
+
 1. **checkpoint:human-verify** (90%) - OpenCode automated everything, human confirms visual/functional correctness
 2. **checkpoint:decision** (9%) - Human makes architectural/technology choices
 3. **checkpoint:human-action** (1%) - Truly unavoidable manual steps with no API/CLI
 
 **When NOT to use checkpoints:**
+
 - Things OpenCode can verify programmatically (tests, builds)
 - File operations (OpenCode can read files)
 - Code correctness (tests and static analysis)

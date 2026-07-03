@@ -3,12 +3,13 @@ name: gsd-progress
 description: Check project progress, show context, and route to next action (execute or plan). Use --forensic to append a 6-check integrity audit after the standard report.
 argument-hint: "[--forensic]"
 permissions:
-   read: true
-   bash: true
-   grep: true
-   glob: true
-   task: true
+  read: true
+  bash: true
+  grep: true
+  glob: true
+  task: true
 ---
+
 <objective>
 Check project progress, summarize recent work and what's ahead, then intelligently route to the next action - either executing an existing plan or creating the next one.
 

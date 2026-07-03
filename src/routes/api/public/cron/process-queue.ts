@@ -175,7 +175,7 @@ export async function processOnce() {
 
     if (activeConversations && activeConversations.length > 0) {
       const currentStepIds = activeConversations.map((c: any) => c.current_step_id);
-      
+
       const { data: currentSteps } = await dbAdmin
         .from("bot_steps")
         .select("id, next_step_id")
@@ -183,7 +183,7 @@ export async function processOnce() {
 
       if (currentSteps && currentSteps.length > 0) {
         const nextStepIds = currentSteps.map((s: any) => s.next_step_id).filter(Boolean);
-        
+
         if (nextStepIds.length > 0) {
           const { data: inactivitySteps } = await dbAdmin
             .from("bot_steps")
@@ -192,9 +192,7 @@ export async function processOnce() {
             .in("id", nextStepIds);
 
           if (inactivitySteps && inactivitySteps.length > 0) {
-            const inactivityMap = Object.fromEntries(
-              inactivitySteps.map((s: any) => [s.id, s])
-            );
+            const inactivityMap = Object.fromEntries(inactivitySteps.map((s: any) => [s.id, s]));
 
             for (const conv of activeConversations) {
               const currentStep = currentSteps.find((s: any) => s.id === conv.current_step_id);
@@ -208,14 +206,16 @@ export async function processOnce() {
               const minutesPassed = (Date.now() - lastInt.getTime()) / (60 * 1000);
 
               if (minutesPassed >= timeoutMinutes) {
-                console.log(`[Queue] Inatividade de bot detectada para ${conv.contact_number} (passados ${minutesPassed.toFixed(1)}m, limite ${timeoutMinutes}m)`);
+                console.log(
+                  `[Queue] Inatividade de bot detectada para ${conv.contact_number} (passados ${minutesPassed.toFixed(1)}m, limite ${timeoutMinutes}m)`,
+                );
                 const { executeInactivityStep } = await import("@/lib/botflow-executor.server");
                 await executeInactivityStep(
                   inactivityStep,
                   conv.contact_number,
                   conv.instance_id,
                   conv.user_id,
-                  conv.channel
+                  conv.channel,
                 );
               }
             }
@@ -346,7 +346,9 @@ export async function processOnce() {
           .update({
             status: "failed",
             failed_at: new Date().toISOString(),
-            error: { message: "Instagram/Messenger não são permitidos em campanhas de disparo em massa." },
+            error: {
+              message: "Instagram/Messenger não são permitidos em campanhas de disparo em massa.",
+            },
           })
           .eq("id", m.id);
         processed++;
@@ -574,7 +576,7 @@ export async function processOnce() {
     for (const cid of campIds) {
       const rows = (await db.query(
         "SELECT status, COUNT(*) as count FROM campaign_messages WHERE campaign_id = ? GROUP BY status",
-        [cid]
+        [cid],
       )) as any[];
 
       const totals = {

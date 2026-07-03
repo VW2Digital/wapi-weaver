@@ -99,16 +99,16 @@ Checklist of frequent bug patterns to scan before forming hypotheses. Ordered by
 
 ### Symptom-to-Category Quick Map
 
-| Symptom | Check First |
-|---------|------------|
-| "Cannot read property of undefined/null" | Null/Undefined Access |
-| "X is not a function" | Import/Module, Type/Coercion |
-| Works sometimes, fails sometimes | Async/Timing, State Management |
-| Works locally, fails in CI/prod | Environment/Config |
-| Wrong data displayed | Data Shape, State Management |
-| Off by one item / missing last item | Off-by-One/Boundary |
-| "Unexpected token" / parse error | Data Shape, Type/Coercion |
-| Memory leak / growing resource usage | Async/Timing (cleanup), Scope/Closure |
-| Infinite loop / max call stack | State Management, Async/Timing |
+| Symptom                                  | Check First                           |
+| ---------------------------------------- | ------------------------------------- |
+| "Cannot read property of undefined/null" | Null/Undefined Access                 |
+| "X is not a function"                    | Import/Module, Type/Coercion          |
+| Works sometimes, fails sometimes         | Async/Timing, State Management        |
+| Works locally, fails in CI/prod          | Environment/Config                    |
+| Wrong data displayed                     | Data Shape, State Management          |
+| Off by one item / missing last item      | Off-by-One/Boundary                   |
+| "Unexpected token" / parse error         | Data Shape, Type/Coercion             |
+| Memory leak / growing resource usage     | Async/Timing (cleanup), Scope/Closure |
+| Infinite loop / max call stack           | State Management, Async/Timing        |
 
 </usage>

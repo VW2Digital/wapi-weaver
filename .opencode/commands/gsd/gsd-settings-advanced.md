@@ -2,16 +2,17 @@
 name: gsd-settings-advanced
 description: Power-user configuration — plan bounce, timeouts, branch templates, cross-AI execution, runtime knobs
 permissions:
-   read: true
-   write: true
-   bash: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  question: true
 ---
 
 <objective>
 Interactive configuration of GSD power-user knobs that don't belong in the common-case `/gsd-settings` prompt.
 
 Routes to the settings-advanced workflow which handles:
+
 - Config existence ensuring (workstream-aware path resolution)
 - Current settings reading and parsing
 - Sectioned prompts: Planning Tuning, Execution Tuning, Discussion Tuning, Cross-AI Execution, Git Customization, Runtime / Output
@@ -29,6 +30,7 @@ Use `/gsd-settings` for the common-case toggles (model profile, research/plan_ch
 **Follow the settings-advanced workflow** from `@./.opencode/get-shit-done/workflows/settings-advanced.md`.
 
 The workflow handles all logic including:
+
 1. Config file creation with defaults if missing (via `gsd-sdk query config-ensure-section`)
 2. Current config reading
 3. Six sectioned question batches with current values pre-selected
@@ -36,4 +38,4 @@ The workflow handles all logic including:
 5. Answer parsing and config merging (preserves unrelated keys)
 6. File writing (atomic)
 7. Confirmation table display
-</process>
+   </process>

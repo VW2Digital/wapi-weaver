@@ -21,7 +21,7 @@ export class LicenseClient {
       "https://admin.blivcrm.com",
       "https://painel.blivcrm.com",
       "http://85.155.186.146",
-      "http://134.195.88.7"
+      "http://134.195.88.7",
     ];
   }
   private get appId() {
@@ -33,17 +33,17 @@ export class LicenseClient {
 
   private stableStringify(value: any): string | undefined {
     if (value === undefined) return undefined;
-    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (value === null || typeof value !== "object") return JSON.stringify(value);
 
     if (Array.isArray(value)) {
-      return `[${value.map((item) => this.stableStringify(item) ?? 'null').join(',')}]`;
+      return `[${value.map((item) => this.stableStringify(item) ?? "null").join(",")}]`;
     }
 
     return `{${Object.keys(value)
       .sort()
       .filter((key) => value[key] !== undefined)
       .map((key) => `${JSON.stringify(key)}:${this.stableStringify(value[key])}`)
-      .join(',')}}`;
+      .join(",")}}`;
   }
 
   private generateSignature(timestamp: number, bodyJson: string): string {
@@ -53,7 +53,11 @@ export class LicenseClient {
       .digest("hex");
   }
 
-  private async request(endpoint: string, payload: any, useHmac: boolean = true): Promise<LicenseResponse> {
+  private async request(
+    endpoint: string,
+    payload: any,
+    useHmac: boolean = true,
+  ): Promise<LicenseResponse> {
     const urls = this.serverUrls;
     let lastErrorResponse: LicenseResponse | null = null;
 
@@ -94,30 +98,36 @@ export class LicenseClient {
           try {
             data = JSON.parse(text);
           } catch {
-            console.error(`[LicenseClient] Falha ao parsear JSON. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}`);
+            console.error(
+              `[LicenseClient] Falha ao parsear JSON. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}`,
+            );
             lastErrorResponse = {
               valid: false,
               status: "error",
               error: "json_parse_error",
-              message: "Painel retornou HTML em vez de JSON"
+              message: "Painel retornou HTML em vez de JSON",
             };
             continue;
           }
         } else {
-          console.error(`[LicenseClient] Resposta não-JSON recebida. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text.slice(0, 200)}`);
+          console.error(
+            `[LicenseClient] Resposta não-JSON recebida. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text.slice(0, 200)}`,
+          );
           if (text.trim().startsWith("<")) {
             lastErrorResponse = {
               valid: false,
               status: "error",
               error: "html_response",
-              message: "Painel retornou HTML em vez de JSON"
+              message: "Painel retornou HTML em vez de JSON",
             };
             continue;
           }
         }
 
         if (!res.ok) {
-          console.error(`[LicenseClient] Erro HTTP recebido. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text}`);
+          console.error(
+            `[LicenseClient] Erro HTTP recebido. URL: ${baseUrl}, Endpoint: ${endpoint}, Status: ${res.status}, Body: ${text}`,
+          );
           let message = data.reason || data.message || `Erro HTTP ${res.status}`;
           if (res.status === 401) {
             message = "Assinatura inválida";
@@ -136,7 +146,7 @@ export class LicenseClient {
             valid: false,
             status: "error",
             error: data.error || `HTTP_${res.status}`,
-            message
+            message,
           };
           continue;
         }
@@ -144,8 +154,10 @@ export class LicenseClient {
         return data as LicenseResponse;
       } catch (err: any) {
         clearTimeout(id);
-        console.error(`[LicenseClient] Erro de comunicação com o Painel. URL: ${baseUrl}, Endpoint: ${endpoint}, Erro: ${err.message || err}`);
-        
+        console.error(
+          `[LicenseClient] Erro de comunicação com o Painel. URL: ${baseUrl}, Endpoint: ${endpoint}, Erro: ${err.message || err}`,
+        );
+
         let message = "Servidor de licenças inacessível";
         if (err.name === "AbortError") {
           message = "Tempo limite de conexão esgotado (Timeout)";
@@ -159,18 +171,20 @@ export class LicenseClient {
           valid: false,
           status: "network_error",
           error: err.code || "network_error",
-          message
+          message,
         };
         continue;
       }
     }
 
-    return lastErrorResponse || {
-      valid: false,
-      status: "network_error",
-      error: "no_servers_available",
-      message: "Nenhum servidor de licenças disponível"
-    };
+    return (
+      lastErrorResponse || {
+        valid: false,
+        status: "network_error",
+        error: "no_servers_available",
+        message: "Nenhum servidor de licenças disponível",
+      }
+    );
   }
 
   public async activate(
@@ -178,7 +192,7 @@ export class LicenseClient {
     domain: string,
     installationId: string,
     appUrl: string,
-    appVersion: string = "1.0.0"
+    appVersion: string = "1.0.0",
   ): Promise<LicenseResponse> {
     return this.request("/api/licenses/activate", {
       license_key: licenseKey,
@@ -195,7 +209,7 @@ export class LicenseClient {
     domain: string,
     installationId: string,
     appUrl: string,
-    appVersion: string = "1.0.0"
+    appVersion: string = "1.0.0",
   ): Promise<LicenseResponse> {
     const response = await this.request(
       "/api/v1/license/validate",
@@ -204,7 +218,7 @@ export class LicenseClient {
         domain,
         instance_id: installationId,
       },
-      false
+      false,
     );
 
     if (response.valid) {

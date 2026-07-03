@@ -65,8 +65,7 @@ export function StepInspector({
       return `Palavra-chave: ${step.trigger_value}`;
     if (step.trigger_type === "button" && step.trigger_value && !isUUID(step.trigger_value))
       return `Botão: ${step.trigger_value}`;
-    if (step.trigger_type === "inactivity")
-      return `Inatividade: ${step.trigger_value || "30"}m`;
+    if (step.trigger_type === "inactivity") return `Inatividade: ${step.trigger_value || "30"}m`;
 
     const text = String(step.message_content || "").trim();
     if (text) {
@@ -142,10 +141,7 @@ export function StepInspector({
               }
 
               return (
-                <div
-                  key={idx}
-                  className="space-y-2 bg-background/50 p-2.5 border rounded-md"
-                >
+                <div key={idx} className="space-y-2 bg-background/50 p-2.5 border rounded-md">
                   <div className="flex gap-1.5 items-center">
                     <span className="text-xs font-semibold text-muted-foreground w-4 text-center">
                       {idx + 1}
@@ -196,7 +192,10 @@ export function StepInspector({
                               id: newId,
                             },
                           };
-                          updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                          updateConfig({
+                            ...config,
+                            action: { ...config.action, buttons: newBtns },
+                          });
                         }}
                       >
                         <SelectTrigger className="text-[10px] h-7 px-1.5">
@@ -239,7 +238,10 @@ export function StepInspector({
                               id: newId,
                             },
                           };
-                          updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                          updateConfig({
+                            ...config,
+                            action: { ...config.action, buttons: newBtns },
+                          });
                         }}
                       >
                         <SelectTrigger className="text-[10px] h-7 px-1.5">
@@ -273,7 +275,10 @@ export function StepInspector({
                               id: newId,
                             },
                           };
-                          updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
+                          updateConfig({
+                            ...config,
+                            action: { ...config.action, buttons: newBtns },
+                          });
                         }}
                       >
                         <SelectTrigger className="text-[10px] h-7 px-1.5">
@@ -383,7 +388,9 @@ export function StepInspector({
                             className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
                             onClick={() => {
                               const newSecs = [...sections];
-                              newSecs[secIdx].rows = newSecs[secIdx].rows.filter((_: any, i: number) => i !== rowIdx);
+                              newSecs[secIdx].rows = newSecs[secIdx].rows.filter(
+                                (_: any, i: number) => i !== rowIdx,
+                              );
                               updateConfig({
                                 ...config,
                                 action: { ...config.action, sections: newSecs },

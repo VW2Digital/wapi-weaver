@@ -112,6 +112,7 @@ Complete the full planning workflow. Do NOT return until planning is complete an
 ```
 
 After agent returns, verify plans were created:
+
 ```bash
 PLAN_COUNT=$(ls ${phase_dir}/${padded_phase}-*-PLAN.md 2>/dev/null | wc -l)
 ```
@@ -176,6 +177,7 @@ Your final response MUST also include this section immediately after the CYCLE_S
 ```
 
 After agent returns, verify REVIEWS.md exists:
+
 ```bash
 REVIEWS_FILE=$(ls ${phase_dir}/${padded_phase}-REVIEWS.md 2>/dev/null)
 ```
@@ -217,6 +219,7 @@ node "./.opencode/get-shit-done/bin/gsd-tools.cjs" state planned-phase --phase "
 ```
 
 Display:
+
 ```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► CONVERGENCE COMPLETE ✓
@@ -238,6 +241,7 @@ Exit — convergence achieved.
 Display: `◆ Cycle {cycle}/{MAX_CYCLES} — {HIGH_COUNT} HIGH concerns found`
 
 **Stall detection:** If `HIGH_COUNT >= prev_high_count`:
+
 ```text
 ⚠ Convergence stalled — HIGH concern count not decreasing
   ({HIGH_COUNT} HIGH concerns, previous cycle had {prev_high_count})
@@ -246,6 +250,7 @@ Display: `◆ Cycle {cycle}/{MAX_CYCLES} — {HIGH_COUNT} HIGH concerns found`
 **Max cycles check:** If `cycle >= MAX_CYCLES`:
 
 If `TEXT_MODE` is true, present as plain-text numbered list:
+
 ```text
 Plan convergence did not complete after {MAX_CYCLES} cycles.
 {HIGH_COUNT} HIGH concerns remain:
@@ -261,28 +266,38 @@ Enter number:
 ```
 
 Otherwise use question:
+
 ```js
 question([
   {
-    question: "Plan convergence did not complete after {MAX_CYCLES} cycles. {HIGH_COUNT} HIGH concerns remain:\n\n{HIGH_LINES}\n\nHow would you like to proceed?",
+    question:
+      "Plan convergence did not complete after {MAX_CYCLES} cycles. {HIGH_COUNT} HIGH concerns remain:\n\n{HIGH_LINES}\n\nHow would you like to proceed?",
     header: "Convergence",
     multiSelect: false,
     options: [
-      { label: "Proceed anyway", description: "Accept plans with remaining HIGH concerns and move to execution" },
-      { label: "Manual review", description: "Stop here — review REVIEWS.md and address concerns manually" }
-    ]
-  }
-])
+      {
+        label: "Proceed anyway",
+        description: "Accept plans with remaining HIGH concerns and move to execution",
+      },
+      {
+        label: "Manual review",
+        description: "Stop here — review REVIEWS.md and address concerns manually",
+      },
+    ],
+  },
+]);
 ```
 
 If "Proceed anyway": Display final status and exit.
 If "Manual review":
+
 ```text
 Review the concerns in: {REVIEWS_FILE}
 
 To replan manually:  /gsd-plan-phase {PHASE} --reviews
 To restart loop:     /gsd-plan-review-convergence {PHASE} {REVIEWER_FLAGS}
 ```
+
 Exit workflow.
 
 ### 5d. Replan (Spawn Agent)
@@ -313,6 +328,7 @@ After agent returns → go back to **step 5a** (review again).
 </process>
 
 <success_criteria>
+
 - [ ] Config gate checked before running — exits with enable instructions if workflow.plan_review_convergence is false
 - [ ] Initial planning via Agent → skill("gsd-plan-phase") if no plans exist
 - [ ] Review via Agent → skill("gsd-review") — isolated, not inline; {GSD_WS} forwarded
@@ -326,4 +342,4 @@ After agent returns → go back to **step 5a** (review again).
 - [ ] Loop exits on: no HIGH concerns (converged) OR max cycles (escalation)
 - [ ] Stall detection reported when HIGH count not decreasing
 - [ ] STATE.md updated on convergence completion
-</success_criteria>
+      </success_criteria>

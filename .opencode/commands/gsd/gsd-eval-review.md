@@ -3,14 +3,15 @@ name: gsd-eval-review
 description: Retroactively audit an executed AI phase's evaluation coverage — scores each eval dimension as COVERED/PARTIAL/MISSING and produces an actionable EVAL-REVIEW.md with remediation plan
 argument-hint: "[phase number]"
 permissions:
-   read: true
-   write: true
-   bash: true
-   glob: true
-   grep: true
-   task: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  glob: true
+  grep: true
+  task: true
+  question: true
 ---
+
 <objective>
 Conduct a retroactive evaluation coverage audit of a completed AI phase.
 Checks whether the evaluation strategy from AI-SPEC.md was implemented.

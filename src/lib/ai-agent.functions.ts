@@ -18,10 +18,9 @@ export const getAiAgentSettings = createServerFn({ method: "GET" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const profiles = (await db.query(
-      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?",
-      [effectiveUserId],
-    )) as any[];
+    const profiles = (await db.query("SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?", [
+      effectiveUserId,
+    ])) as any[];
     const p = profiles?.[0];
 
     if (!p?.whatsapp_phone_number_id)
@@ -38,9 +37,18 @@ export const getAiAgentSettings = createServerFn({ method: "GET" })
       await db.query(
         `INSERT INTO ai_agent_settings (id, user_id, instance_id, is_active, model, system_prompt)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, effectiveUserId, p.whatsapp_phone_number_id, false, "gemini-2.5-flash", "Você é um assistente virtual útil e educado."],
+        [
+          id,
+          effectiveUserId,
+          p.whatsapp_phone_number_id,
+          false,
+          "gemini-2.5-flash",
+          "Você é um assistente virtual útil e educado.",
+        ],
       );
-      const newRows = (await db.query("SELECT * FROM ai_agent_settings WHERE id = ?", [id])) as any[];
+      const newRows = (await db.query("SELECT * FROM ai_agent_settings WHERE id = ?", [
+        id,
+      ])) as any[];
       settings = newRows?.[0] ?? null;
       if (!settings) return { ok: false, error: "Falha ao criar configurações padrão." };
     }
@@ -63,17 +71,23 @@ export const saveAiAgentSettings = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const profiles = (await db.query(
-      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?",
-      [effectiveUserId],
-    )) as any[];
+    const profiles = (await db.query("SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?", [
+      effectiveUserId,
+    ])) as any[];
     const p = profiles?.[0];
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
 
     await db.query(
       "UPDATE ai_agent_settings SET is_active = ?, api_key = ?, model = ?, system_prompt = ? WHERE instance_id = ? AND user_id = ?",
-      [data.is_active ? 1 : 0, data.api_key || null, data.model, data.system_prompt || null, p.whatsapp_phone_number_id, effectiveUserId],
+      [
+        data.is_active ? 1 : 0,
+        data.api_key || null,
+        data.model,
+        data.system_prompt || null,
+        p.whatsapp_phone_number_id,
+        effectiveUserId,
+      ],
     );
 
     return { ok: true };
@@ -86,10 +100,9 @@ export const getKnowledgeBase = createServerFn({ method: "GET" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const profiles = (await db.query(
-      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?",
-      [effectiveUserId],
-    )) as any[];
+    const profiles = (await db.query("SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?", [
+      effectiveUserId,
+    ])) as any[];
     const p = profiles?.[0];
 
     if (!p?.whatsapp_phone_number_id) return [];
@@ -122,10 +135,9 @@ export const saveKnowledgeBase = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const profiles = (await db.query(
-      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?",
-      [effectiveUserId],
-    )) as any[];
+    const profiles = (await db.query("SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?", [
+      effectiveUserId,
+    ])) as any[];
     const p = profiles?.[0];
 
     if (!p?.whatsapp_phone_number_id) return { ok: false, error: "Sem instância." };
@@ -138,12 +150,10 @@ export const saveKnowledgeBase = createServerFn({ method: "POST" })
     if (!settings) return { ok: false, error: "Settings não encontradas." };
 
     if (data.id) {
-      await db.query("UPDATE knowledge_base SET title = ?, content = ? WHERE id = ? AND user_id = ?", [
-        data.title,
-        data.content,
-        data.id,
-        effectiveUserId
-      ]);
+      await db.query(
+        "UPDATE knowledge_base SET title = ?, content = ? WHERE id = ? AND user_id = ?",
+        [data.title, data.content, data.id, effectiveUserId],
+      );
     } else {
       await db.query(
         "INSERT INTO knowledge_base (id, user_id, ai_agent_settings_id, title, content) VALUES (?, ?, ?, ?, ?)",
@@ -161,6 +171,9 @@ export const deleteKnowledgeBase = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    await db.query("DELETE FROM knowledge_base WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
+    await db.query("DELETE FROM knowledge_base WHERE id = ? AND user_id = ?", [
+      data.id,
+      effectiveUserId,
+    ]);
     return { ok: true, error: undefined as string | undefined };
   });

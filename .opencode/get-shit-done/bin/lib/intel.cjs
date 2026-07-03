@@ -8,22 +8,22 @@
  * All public functions gate on intel.enabled config (no-op when false).
  */
 
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const INTEL_DIR = '.planning/intel';
+const INTEL_DIR = ".planning/intel";
 
 const INTEL_FILES = {
-  files: 'file-roles.json',
-  apis: 'api-map.json',
-  deps: 'dependency-graph.json',
-  arch: 'arch-decisions.json',
-  stack: 'stack.json'
+  files: "file-roles.json",
+  apis: "api-map.json",
+  deps: "dependency-graph.json",
+  arch: "arch-decisions.json",
+  stack: "stack.json",
 };
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ const INTEL_FILES = {
  * @returns {string} Full path to .planning/intel/
  */
 function ensureIntelDir(planningDir) {
-  const intelPath = path.join(planningDir, 'intel');
+  const intelPath = path.join(planningDir, "intel");
   if (!fs.existsSync(intelPath)) {
     fs.mkdirSync(intelPath, { recursive: true });
   }
@@ -52,9 +52,9 @@ function ensureIntelDir(planningDir) {
  */
 function isIntelEnabled(planningDir) {
   try {
-    const configPath = path.join(planningDir, 'config.json');
+    const configPath = path.join(planningDir, "config.json");
     if (!fs.existsSync(configPath)) return false;
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (config && config.intel && config.intel.enabled === true) return true;
     return false;
   } catch (_e) {
@@ -67,7 +67,10 @@ function isIntelEnabled(planningDir) {
  * @returns {{ disabled: true, message: string }}
  */
 function disabledResponse() {
-  return { disabled: true, message: 'Intel system disabled. Set intel.enabled=true in config.json to activate.' };
+  return {
+    disabled: true,
+    message: "Intel system disabled. Set intel.enabled=true in config.json to activate.",
+  };
 }
 
 /**
@@ -77,7 +80,7 @@ function disabledResponse() {
  * @returns {string}
  */
 function intelFilePath(planningDir, filename) {
-  return path.join(planningDir, 'intel', filename);
+  return path.join(planningDir, "intel", filename);
 }
 
 /**
@@ -90,7 +93,7 @@ function intelFilePath(planningDir, filename) {
 function safeReadJson(filePath) {
   try {
     if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (_e) {
     return null;
   }
@@ -106,8 +109,8 @@ function safeReadJson(filePath) {
 function hashFile(filePath) {
   try {
     if (!fs.existsSync(filePath)) return null;
-    const content = fs.readFileSync(filePath, 'utf8');
-    return crypto.createHash('sha256').update(content).digest('hex');
+    const content = fs.readFileSync(filePath, "utf8");
+    return crypto.createHash("sha256").update(content).digest("hex");
   } catch (_e) {
     return null;
   }
@@ -122,16 +125,16 @@ function hashFile(filePath) {
  * @returns {Array<{ key: string, value: * }>}
  */
 function searchJsonEntries(data, term) {
-  if (!data || typeof data !== 'object') return [];
+  if (!data || typeof data !== "object") return [];
 
   const entries = data.entries || data;
-  if (!entries || typeof entries !== 'object') return [];
+  if (!entries || typeof entries !== "object") return [];
 
   const lowerTerm = term.toLowerCase();
   const matches = [];
 
   for (const [key, value] of Object.entries(entries)) {
-    if (key === '_meta') continue;
+    if (key === "_meta") continue;
 
     // Check key match
     if (key.toLowerCase().includes(lowerTerm)) {
@@ -156,14 +159,14 @@ function searchJsonEntries(data, term) {
  * @returns {boolean}
  */
 function matchesInValue(value, lowerTerm) {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value.toLowerCase().includes(lowerTerm);
   }
   if (Array.isArray(value)) {
-    return value.some(v => matchesInValue(v, lowerTerm));
+    return value.some((v) => matchesInValue(v, lowerTerm));
   }
-  if (value && typeof value === 'object') {
-    return Object.values(value).some(v => matchesInValue(v, lowerTerm));
+  if (value && typeof value === "object") {
+    return Object.values(value).some((v) => matchesInValue(v, lowerTerm));
   }
   return false;
 }
@@ -179,10 +182,10 @@ function matchesInValue(value, lowerTerm) {
 function searchArchMd(filePath, term) {
   try {
     if (!fs.existsSync(filePath)) return [];
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, "utf8");
     const lowerTerm = term.toLowerCase();
     const lines = content.split(/\r?\n/);
-    return lines.filter(line => line.toLowerCase().includes(lowerTerm));
+    return lines.filter((line) => line.toLowerCase().includes(lowerTerm));
   } catch (_e) {
     return [];
   }
@@ -275,7 +278,7 @@ function intelStatus(planningDir) {
 function intelDiff(planningDir) {
   if (!isIntelEnabled(planningDir)) return disabledResponse();
 
-  const snapshotPath = intelFilePath(planningDir, '.last-refresh.json');
+  const snapshotPath = intelFilePath(planningDir, ".last-refresh.json");
   const snapshot = safeReadJson(snapshotPath);
 
   if (!snapshot) {
@@ -315,8 +318,8 @@ function intelUpdate(planningDir) {
   if (!isIntelEnabled(planningDir)) return disabledResponse();
 
   return {
-    action: 'spawn_agent',
-    message: 'Run gsd-tools intel update or spawn gsd-intel-updater agent for full refresh'
+    action: "spawn_agent",
+    message: "Run gsd-tools intel update or spawn gsd-intel-updater agent for full refresh",
   };
 }
 
@@ -342,12 +345,20 @@ function saveRefreshSnapshot(planningDir) {
   }
 
   const timestamp = new Date().toISOString();
-  const snapshotPath = path.join(intelPath, '.last-refresh.json');
-  fs.writeFileSync(snapshotPath, JSON.stringify({
-    hashes,
-    timestamp,
-    version: 1
-  }, null, 2), 'utf8');
+  const snapshotPath = path.join(intelPath, ".last-refresh.json");
+  fs.writeFileSync(
+    snapshotPath,
+    JSON.stringify(
+      {
+        hashes,
+        timestamp,
+        version: 1,
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
 
   return { saved: true, timestamp, files: fileCount };
 }
@@ -394,7 +405,7 @@ function intelValidate(planningDir) {
     // Parse JSON
     let data;
     try {
-      data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      data = JSON.parse(fs.readFileSync(filePath, "utf8"));
     } catch (e) {
       errors.push(`${filename}: invalid JSON — ${e.message}`);
       continue;
@@ -404,21 +415,25 @@ function intelValidate(planningDir) {
     if (data._meta && data._meta.updated_at) {
       const age = now - new Date(data._meta.updated_at).getTime();
       if (age > STALE_MS) {
-        warnings.push(`${filename}: _meta.updated_at is ${Math.round(age / 3600000)} hours old (>24 hr)`);
+        warnings.push(
+          `${filename}: _meta.updated_at is ${Math.round(age / 3600000)} hours old (>24 hr)`,
+        );
       }
     } else {
       warnings.push(`${filename}: missing _meta.updated_at`);
     }
 
     // Validate entries are objects with expected fields
-    if (data.entries && typeof data.entries === 'object') {
+    if (data.entries && typeof data.entries === "object") {
       // files.json: check exports are actual symbol names (no spaces)
-      if (key === 'files') {
+      if (key === "files") {
         for (const [entryPath, entry] of Object.entries(data.entries)) {
           if (entry.exports && Array.isArray(entry.exports)) {
             for (const exp of entry.exports) {
-              if (typeof exp === 'string' && exp.includes(' ')) {
-                warnings.push(`${filename}: "${entryPath}" export "${exp}" looks like a description (contains space)`);
+              if (typeof exp === "string" && exp.includes(" ")) {
+                warnings.push(
+                  `${filename}: "${entryPath}" export "${exp}" looks like a description (contains space)`,
+                );
               }
             }
           }
@@ -433,14 +448,14 @@ function intelValidate(planningDir) {
       }
 
       // deps.json: check entries have version, type, used_by
-      if (key === 'deps') {
+      if (key === "deps") {
         for (const [depName, entry] of Object.entries(data.entries)) {
           const missing = [];
-          if (!entry.version) missing.push('version');
-          if (!entry.type) missing.push('type');
-          if (!entry.used_by) missing.push('used_by');
+          if (!entry.version) missing.push("version");
+          if (!entry.type) missing.push("type");
+          if (!entry.used_by) missing.push("used_by");
           if (missing.length > 0) {
-            warnings.push(`${filename}: "${depName}" missing fields: ${missing.join(', ')}`);
+            warnings.push(`${filename}: "${depName}" missing fields: ${missing.join(", ")}`);
           }
         }
       }
@@ -466,7 +481,7 @@ function intelPatchMeta(filePath) {
       return { patched: false, error: `File not found: ${filePath}` };
     }
 
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, "utf8");
     let data;
     try {
       data = JSON.parse(content);
@@ -482,7 +497,7 @@ function intelPatchMeta(filePath) {
     data._meta.updated_at = timestamp;
     data._meta.version = (data._meta.version || 0) + 1;
 
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
 
     return { patched: true, file: filePath, timestamp };
   } catch (e) {
@@ -501,12 +516,12 @@ function intelPatchMeta(filePath) {
  */
 function intelExtractExports(filePath) {
   if (!fs.existsSync(filePath)) {
-    return { file: filePath, exports: [], method: 'none' };
+    return { file: filePath, exports: [], method: "none" };
   }
 
-  const content = fs.readFileSync(filePath, 'utf8');
+  const content = fs.readFileSync(filePath, "utf8");
   let exports = [];
-  let method = 'none';
+  let method = "none";
 
   // Try module.exports = { ... } pattern (handle multi-line)
   // Find the LAST module.exports assignment (the actual one, not references in code)
@@ -518,18 +533,18 @@ function intelExtractExports(filePath) {
     let depth = 1;
     let endIdx = startIdx;
     while (endIdx < content.length && depth > 0) {
-      if (content[endIdx] === '{') depth++;
-      else if (content[endIdx] === '}') depth--;
+      if (content[endIdx] === "{") depth++;
+      else if (content[endIdx] === "}") depth--;
       if (depth > 0) endIdx++;
     }
     const block = content.substring(startIdx, endIdx);
-    method = 'module.exports';
+    method = "module.exports";
     // Extract key names from lines like "  keyName," or "  keyName: value,"
-    const lines = block.split('\n');
+    const lines = block.split("\n");
     for (const line of lines) {
       const trimmed = line.trim();
       // Skip comments and empty lines
-      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+      if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
       // Match identifier at start of line (before comma, colon, end of line)
       const keyMatch = trimmed.match(/^(\w+)\s*[,}:]/) || trimmed.match(/^(\w+)$/);
       if (keyMatch) {
@@ -544,7 +559,7 @@ function intelExtractExports(filePath) {
   while ((im = individualPattern.exec(content)) !== null) {
     if (!exports.includes(im[1])) {
       exports.push(im[1]);
-      if (method === 'none') method = 'exports.X';
+      if (method === "none") method = "exports.X";
     }
   }
 
@@ -563,7 +578,7 @@ function intelExtractExports(filePath) {
   // export default (without named function/class)
   const defaultAnonPattern = /^export\s+default\s+(?!function\s|class\s)/gm;
   if (defaultAnonPattern.test(content) && esmExports.length === 0) {
-    if (!esmExports.includes('default')) esmExports.push('default');
+    if (!esmExports.includes("default")) esmExports.push("default");
   }
 
   // export function X( / export async function X(
@@ -587,7 +602,7 @@ function intelExtractExports(filePath) {
   // export { X, Y, Z } — strip "as alias" parts
   const exportBlockPattern = /^export\s*\{([^}]+)\}/gm;
   while ((em = exportBlockPattern.exec(content)) !== null) {
-    const items = em[1].split(',');
+    const items = em[1].split(",");
     for (const item of items) {
       const trimmed = item.trim();
       if (!trimmed) continue;
@@ -605,9 +620,9 @@ function intelExtractExports(filePath) {
   // Determine method
   const hadEsm = esmExports.length > 0;
   if (hadCjs && hadEsm) {
-    method = 'mixed';
+    method = "mixed";
   } else if (hadEsm && !hadCjs) {
-    method = 'esm';
+    method = "esm";
   }
 
   return { file: filePath, exports, method };
@@ -635,5 +650,5 @@ module.exports = {
 
   // Constants
   INTEL_FILES,
-  INTEL_DIR
+  INTEL_DIR,
 };

@@ -12,7 +12,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
 import {
   Table,
@@ -20,28 +20,20 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Loader2,
-  Trash2,
-  Globe,
-  CheckCircle,
-  XCircle,
-  Database
-} from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Globe, CheckCircle, XCircle, Database } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
   getLicenseDetail,
   updateLicense,
   deleteActivation,
-  getLicenseRole
+  getLicenseRole,
 } from "@/lib/license-admin.functions";
 
 export const Route = createFileRoute("/_app/licenses/$id")({
-  component: LicenseDetailPage
+  component: LicenseDetailPage,
 });
 
 function LicenseDetailPage() {
@@ -59,13 +51,13 @@ function LicenseDetailPage() {
   const { data: roleData, isLoading: roleLoading } = useQuery({
     queryKey: ["license-role"],
     queryFn: () => fetchLicenseRole({}),
-    staleTime: 60_000
+    staleTime: 60_000,
   });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["license-detail", numericId],
     queryFn: () => fetchDetail({ data: { id: numericId } }),
-    enabled: roleData?.role === "panel" && !!roleData?.isAdmin
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
   });
 
   // Edit fields state
@@ -84,7 +76,7 @@ function LicenseDetailPage() {
       setPlan(lic.plan || "basic");
       setStatus(lic.status || "active");
       setNotes(lic.notes || "");
-      
+
       if (lic.expires_at) {
         const d = new Date(lic.expires_at);
         const yyyy = d.getFullYear();
@@ -106,7 +98,7 @@ function LicenseDetailPage() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao atualizar domínio.");
-    }
+    },
   });
 
   const revokeMutation = useMutation({
@@ -117,7 +109,7 @@ function LicenseDetailPage() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao remover instancia.");
-    }
+    },
   });
 
   const handleUpdate = (e: React.FormEvent) => {
@@ -130,7 +122,7 @@ function LicenseDetailPage() {
       status,
       max_activations: 99,
       expires_at: expiresAt || null,
-      notes
+      notes,
     });
   };
 
@@ -159,7 +151,8 @@ function LicenseDetailPage() {
       <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
         <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Você não possui privilégios de administrador ou esta instalação não está configurada como Painel de Licenças.
+          Você não possui privilégios de administrador ou esta instalação não está configurada como
+          Painel de Licenças.
         </p>
         <Button asChild>
           <Link to="/">Voltar para o início</Link>
@@ -200,7 +193,9 @@ function LicenseDetailPage() {
         </Button>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-bold tracking-tight">{license.license_key_preview}</h1>
+            <h1 className="font-display text-2xl font-bold tracking-tight">
+              {license.license_key_preview}
+            </h1>
             <Badge variant="outline" className="capitalize">
               {license.plan}
             </Badge>
@@ -278,11 +273,7 @@ function LicenseDetailPage() {
 
               <div className="grid gap-2">
                 <Label htmlFor="notes">Notas Internas</Label>
-                <Input
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
+                <Input id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 
               <Button type="submit" className="w-full" disabled={updateMutation.isPending}>
@@ -329,7 +320,9 @@ function LicenseDetailPage() {
                               {act.installation_id}
                             </TableCell>
                             <TableCell className="text-sm">{lastCheck}</TableCell>
-                            <TableCell className="text-sm font-mono">{act.ip_address || "N/A"}</TableCell>
+                            <TableCell className="text-sm font-mono">
+                              {act.ip_address || "N/A"}
+                            </TableCell>
                             <TableCell className="text-right">
                               <Button
                                 size="icon"
@@ -387,12 +380,20 @@ function LicenseDetailPage() {
                                 ) : (
                                   <XCircle className="h-4 w-4 text-red-500" />
                                 )}
-                                <span className={isSuccess ? "text-green-600 text-xs font-semibold" : "text-red-600 text-xs font-semibold"}>
+                                <span
+                                  className={
+                                    isSuccess
+                                      ? "text-green-600 text-xs font-semibold"
+                                      : "text-red-600 text-xs font-semibold"
+                                  }
+                                >
                                   {log.result}
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm font-mono">{log.ip_address || "N/A"}</TableCell>
+                            <TableCell className="text-sm font-mono">
+                              {log.ip_address || "N/A"}
+                            </TableCell>
                           </TableRow>
                         );
                       })}

@@ -19,29 +19,29 @@
  *   node set-profile.cjs --dry-run genius     # Preview changes
  */
 
-const fs = require('fs');
-const path = require('path');
-const { output, error, createBackup } = require('../gsd-oc-lib/oc-core.cjs');
-const { applyProfileWithValidation } = require('../gsd-oc-lib/oc-profile-config.cjs');
-const { getModelCatalog } = require('../gsd-oc-lib/oc-models.cjs');
-const { applyProfileToOpencode } = require('../gsd-oc-lib/oc-config.cjs');
+const fs = require("fs");
+const path = require("path");
+const { output, error, createBackup } = require("../gsd-oc-lib/oc-core.cjs");
+const { applyProfileWithValidation } = require("../gsd-oc-lib/oc-profile-config.cjs");
+const { getModelCatalog } = require("../gsd-oc-lib/oc-models.cjs");
+const { applyProfileToOpencode } = require("../gsd-oc-lib/oc-config.cjs");
 
 /**
  * Error codes for set-profile operations
  */
 const ERROR_CODES = {
-  CONFIG_NOT_FOUND: 'CONFIG_NOT_FOUND',
-  INVALID_JSON: 'INVALID_JSON',
-  INVALID_SYNTAX: 'INVALID_SYNTAX',
-  PROFILE_NOT_FOUND: 'PROFILE_NOT_FOUND',
-  PROFILE_EXISTS: 'PROFILE_EXISTS',
-  INVALID_MODELS: 'INVALID_MODELS',
-  INCOMPLETE_PROFILE: 'INCOMPLETE_PROFILE',
-  WRITE_FAILED: 'WRITE_FAILED',
-  APPLY_FAILED: 'APPLY_FAILED',
-  ROLLBACK_FAILED: 'ROLLBACK_FAILED',
-  MISSING_CURRENT_PROFILE: 'MISSING_CURRENT_PROFILE',
-  INVALID_ARGS: 'INVALID_ARGS'
+  CONFIG_NOT_FOUND: "CONFIG_NOT_FOUND",
+  INVALID_JSON: "INVALID_JSON",
+  INVALID_SYNTAX: "INVALID_SYNTAX",
+  PROFILE_NOT_FOUND: "PROFILE_NOT_FOUND",
+  PROFILE_EXISTS: "PROFILE_EXISTS",
+  INVALID_MODELS: "INVALID_MODELS",
+  INCOMPLETE_PROFILE: "INCOMPLETE_PROFILE",
+  WRITE_FAILED: "WRITE_FAILED",
+  APPLY_FAILED: "APPLY_FAILED",
+  ROLLBACK_FAILED: "ROLLBACK_FAILED",
+  MISSING_CURRENT_PROFILE: "MISSING_CURRENT_PROFILE",
+  INVALID_ARGS: "INVALID_ARGS",
 };
 
 /**
@@ -74,12 +74,12 @@ function parseInlineProfile(arg) {
  * @returns {Object} {valid: boolean, missingKeys: string[]}
  */
 function validateInlineProfile(profile) {
-  const requiredKeys = ['planning', 'execution', 'verification'];
-  const missingKeys = requiredKeys.filter(key => !profile[key]);
+  const requiredKeys = ["planning", "execution", "verification"];
+  const missingKeys = requiredKeys.filter((key) => !profile[key]);
 
   return {
     valid: missingKeys.length === 0,
-    missingKeys
+    missingKeys,
   };
 }
 
@@ -92,11 +92,11 @@ function validateInlineProfile(profile) {
  */
 function validateProfileModels(profile, validModels) {
   const modelsToCheck = [profile.planning, profile.execution, profile.verification].filter(Boolean);
-  const invalidModels = modelsToCheck.filter(model => !validModels.includes(model));
+  const invalidModels = modelsToCheck.filter((model) => !validModels.includes(model));
 
   return {
     valid: invalidModels.length === 0,
-    invalidModels
+    invalidModels,
   };
 }
 
@@ -107,35 +107,38 @@ function validateProfileModels(profile, validModels) {
  * @param {string[]} args - Command line arguments
  */
 function setProfilePhase16(cwd, args) {
-  const verbose = args.includes('--verbose');
-  const dryRun = args.includes('--dry-run');
-  const raw = args.includes('--raw');
+  const verbose = args.includes("--verbose");
+  const dryRun = args.includes("--dry-run");
+  const raw = args.includes("--raw");
 
-  const log = verbose ? (...args) => console.error('[set-profile]', ...args) : () => {};
-  const configPath = path.join(cwd, '.planning', 'oc_config.json');
-  const opencodePath = path.join(cwd, 'opencode.json');
-  const backupsDir = path.join(cwd, '.planning', 'backups');
+  const log = verbose ? (...args) => console.error("[set-profile]", ...args) : () => {};
+  const configPath = path.join(cwd, ".planning", "oc_config.json");
+  const opencodePath = path.join(cwd, "opencode.json");
+  const backupsDir = path.join(cwd, ".planning", "backups");
 
-  log('Starting set-profile command');
+  log("Starting set-profile command");
 
   // Filter flags to get profile argument
-  const profileArgs = args.filter(arg => !arg.startsWith('--'));
+  const profileArgs = args.filter((arg) => !arg.startsWith("--"));
 
   // Check for too many arguments
   if (profileArgs.length > 1) {
-    error('Too many arguments. Usage: set-profile [profile-name | profileName:JSON] [--dry-run]', 'INVALID_ARGS');
+    error(
+      "Too many arguments. Usage: set-profile [profile-name | profileName:JSON] [--dry-run]",
+      "INVALID_ARGS",
+    );
   }
 
   const profileArg = profileArgs.length > 0 ? profileArgs[0] : null;
 
   // ========== MODE 3: Inline profile definition ==========
-  if (profileArg && profileArg.includes(':')) {
+  if (profileArg && profileArg.includes(":")) {
     const parsed = parseInlineProfile(profileArg);
 
     if (!parsed) {
       error(
         'Invalid profile syntax. Use: profileName:{"planning":"...", "execution":"...", "verification":"..."}',
-        'INVALID_SYNTAX'
+        "INVALID_SYNTAX",
       );
     }
 
@@ -146,8 +149,8 @@ function setProfilePhase16(cwd, args) {
     const validation = validateInlineProfile(profile);
     if (!validation.valid) {
       error(
-        `Profile definition missing required keys: ${validation.missingKeys.join(', ')}`,
-        'INCOMPLETE_PROFILE'
+        `Profile definition missing required keys: ${validation.missingKeys.join(", ")}`,
+        "INCOMPLETE_PROFILE",
       );
     }
 
@@ -160,13 +163,10 @@ function setProfilePhase16(cwd, args) {
     // Validate models against whitelist
     const modelValidation = validateProfileModels(profile, catalogResult.models);
     if (!modelValidation.valid) {
-      error(
-        `Invalid models: ${modelValidation.invalidModels.join(', ')}`,
-        'INVALID_MODELS'
-      );
+      error(`Invalid models: ${modelValidation.invalidModels.join(", ")}`, "INVALID_MODELS");
     }
 
-    log('Inline profile validation passed');
+    log("Inline profile validation passed");
 
     // Dry-run mode
     if (dryRun) {
@@ -174,10 +174,10 @@ function setProfilePhase16(cwd, args) {
         success: true,
         data: {
           dryRun: true,
-          action: 'create_profile',
+          action: "create_profile",
           profile: profileName,
-          models: profile
-        }
+          models: profile,
+        },
       });
       process.exit(0);
     }
@@ -186,9 +186,9 @@ function setProfilePhase16(cwd, args) {
     let config = {};
     if (fs.existsSync(configPath)) {
       try {
-        config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        config = JSON.parse(fs.readFileSync(configPath, "utf8"));
       } catch (err) {
-        error(`Failed to parse oc_config.json: ${err.message}`, 'INVALID_JSON');
+        error(`Failed to parse oc_config.json: ${err.message}`, "INVALID_JSON");
       }
     }
 
@@ -209,10 +209,10 @@ function setProfilePhase16(cwd, args) {
 
     // write oc_config.json
     try {
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
-      log('Updated oc_config.json');
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+      log("Updated oc_config.json");
     } catch (err) {
-      error(`Failed to write oc_config.json: ${err.message}`, 'WRITE_FAILED');
+      error(`Failed to write oc_config.json: ${err.message}`, "WRITE_FAILED");
     }
 
     // Apply to opencode.json
@@ -226,10 +226,13 @@ function setProfilePhase16(cwd, args) {
       } catch (rollbackErr) {
         error(
           `Failed to apply profile AND failed to rollback: ${rollbackErr.message}`,
-          'ROLLBACK_FAILED'
+          "ROLLBACK_FAILED",
         );
       }
-      error(`Failed to apply profile to opencode.json: ${applyResult.error.message}`, 'APPLY_FAILED');
+      error(
+        `Failed to apply profile to opencode.json: ${applyResult.error.message}`,
+        "APPLY_FAILED",
+      );
     }
 
     output({
@@ -238,8 +241,8 @@ function setProfilePhase16(cwd, args) {
         profile: profileName,
         models: profile,
         backup: backupPath,
-        configPath
-      }
+        configPath,
+      },
     });
     process.exit(0);
   }
@@ -249,12 +252,15 @@ function setProfilePhase16(cwd, args) {
   let config;
   if (fs.existsSync(configPath)) {
     try {
-      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     } catch (err) {
-      error(`Failed to parse oc_config.json: ${err.message}`, 'INVALID_JSON');
+      error(`Failed to parse oc_config.json: ${err.message}`, "INVALID_JSON");
     }
   } else {
-    error('.planning/oc_config.json not found. Create it with an inline profile definition first.', 'CONFIG_NOT_FOUND');
+    error(
+      ".planning/oc_config.json not found. Create it with an inline profile definition first.",
+      "CONFIG_NOT_FOUND",
+    );
   }
 
   const presets = config.profiles?.presets || {};
@@ -266,15 +272,18 @@ function setProfilePhase16(cwd, args) {
 
     // Check profile exists
     if (!presets[profileArg]) {
-      const available = Object.keys(presets).join(', ') || 'none';
-      error(`Profile "${profileArg}" not found. Available profiles: ${available}`, 'PROFILE_NOT_FOUND');
+      const available = Object.keys(presets).join(", ") || "none";
+      error(
+        `Profile "${profileArg}" not found. Available profiles: ${available}`,
+        "PROFILE_NOT_FOUND",
+      );
     }
 
     // Use applyProfileWithValidation for Mode 2
     const result = applyProfileWithValidation(cwd, profileArg, { dryRun, verbose });
 
     if (!result.success) {
-      error(result.error.message, result.error.code || 'UNKNOWN_ERROR');
+      error(result.error.message, result.error.code || "UNKNOWN_ERROR");
     }
 
     if (result.dryRun) {
@@ -282,11 +291,11 @@ function setProfilePhase16(cwd, args) {
         success: true,
         data: {
           dryRun: true,
-          action: 'switch_profile',
+          action: "switch_profile",
           profile: profileArg,
           models: result.preview.models,
-          changes: result.preview.changes
-        }
+          changes: result.preview.changes,
+        },
       });
     } else {
       output({
@@ -296,36 +305,33 @@ function setProfilePhase16(cwd, args) {
           models: result.data.models,
           backup: result.data.backup,
           updated: result.data.updated,
-          configPath: result.data.configPath
-        }
+          configPath: result.data.configPath,
+        },
       });
     }
     process.exit(0);
   }
 
   // ========== MODE 1: No profile name - validate current profile ==========
-  log('Mode 1: Validating current profile');
+  log("Mode 1: Validating current profile");
 
   if (!currentProfile) {
-    const available = Object.keys(presets).join(', ') || 'none';
+    const available = Object.keys(presets).join(", ") || "none";
     error(
       `current_oc_profile not set. Available profiles: ${available}`,
-      'MISSING_CURRENT_PROFILE'
+      "MISSING_CURRENT_PROFILE",
     );
   }
 
   if (!presets[currentProfile]) {
-    error(
-      `Current profile "${currentProfile}" not found in profiles.presets`,
-      'PROFILE_NOT_FOUND'
-    );
+    error(`Current profile "${currentProfile}" not found in profiles.presets`, "PROFILE_NOT_FOUND");
   }
 
   // Use applyProfileWithValidation for Mode 1
   const result = applyProfileWithValidation(cwd, currentProfile, { dryRun, verbose });
 
   if (!result.success) {
-    error(result.error.message, result.error.code || 'UNKNOWN_ERROR');
+    error(result.error.message, result.error.code || "UNKNOWN_ERROR");
   }
 
   if (result.dryRun) {
@@ -333,11 +339,11 @@ function setProfilePhase16(cwd, args) {
       success: true,
       data: {
         dryRun: true,
-        action: 'validate_current',
+        action: "validate_current",
         profile: currentProfile,
         models: result.preview.models,
-        changes: result.preview.changes
-      }
+        changes: result.preview.changes,
+      },
     });
   } else {
     output({
@@ -347,8 +353,8 @@ function setProfilePhase16(cwd, args) {
         models: result.data.models,
         backup: result.data.backup,
         updated: result.data.updated,
-        configPath: result.data.configPath
-      }
+        configPath: result.data.configPath,
+      },
     });
   }
   process.exit(0);

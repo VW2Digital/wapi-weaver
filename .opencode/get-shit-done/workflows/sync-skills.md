@@ -8,12 +8,12 @@ Sync managed `gsd-*` skill directories from one canonical runtime's skills root 
 
 ## Arguments
 
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `--from <runtime>` | Yes | *(none)* | Source runtime — the canonical runtime to copy from |
-| `--to <runtime\|all>` | Yes | *(none)* | Destination runtime or `all` supported runtimes |
-| `--dry-run` | No | *on by default* | Preview changes without writing anything |
-| `--apply` | No | *off* | Execute the diff (overrides dry-run) |
+| Flag                  | Required | Default         | Description                                         |
+| --------------------- | -------- | --------------- | --------------------------------------------------- |
+| `--from <runtime>`    | Yes      | _(none)_        | Source runtime — the canonical runtime to copy from |
+| `--to <runtime\|all>` | Yes      | _(none)_        | Destination runtime or `all` supported runtimes     |
+| `--dry-run`           | No       | _on by default_ | Preview changes without writing anything            |
+| `--apply`             | No       | _off_           | Execute the diff (overrides dry-run)                |
 
 If neither `--dry-run` nor `--apply` is specified, dry-run is the default.
 
@@ -47,6 +47,7 @@ fi
 ```
 
 **Validation:**
+
 - If `--from` is missing or unrecognized: print error and exit
 - If `--to` is missing or unrecognized: print error and exit
 - If `--from` == `--to` (single destination): print `[no-op: source and destination are the same runtime]` and exit
@@ -71,11 +72,13 @@ done
 ```
 
 **Guard:** If the source skills root does not exist, print:
+
 ```
 error: source skills root not found: <path>
        Is GSD installed globally for the '<runtime>' runtime?
        Run: node ./.opencode/get-shit-done/bin/install.js --global --<runtime>
 ```
+
 Then exit.
 
 **Guard:** If `--to` contains the same runtime as `--from`, skip that destination silently.
@@ -129,6 +132,7 @@ dry-run only. use --apply to execute.    ← omit this line if --apply
 If a destination root does not exist and `--apply` is true, print `CREATE DIR: <path>` before its entries.
 
 If all destinations are already up to date:
+
 ```
 All destinations are up to date. No changes needed.
 ```

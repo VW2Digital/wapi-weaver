@@ -8,8 +8,9 @@ Orchestrator stays lean: parse gaps, spawn agents, collect results, update UAT.
 
 <available_agent_types>
 Valid GSD subagent types (use exact names — do not fall back to 'general'):
+
 - gsd-debugger — Diagnoses and fixes issues
-</available_agent_types>
+  </available_agent_types>
 
 <paths>
 DEBUG_DIR=.planning/debug
@@ -32,6 +33,7 @@ With diagnosis: "Comment doesn't refresh" → "useEffect missing dependency" →
 **Extract gaps from UAT.md:**
 
 read the "Gaps" section (YAML format):
+
 ```yaml
 - truth: "Comment appears immediately after submission"
   status: failed
@@ -45,6 +47,7 @@ read the "Gaps" section (YAML format):
 For each gap, also read the corresponding test from "Tests" section to get full context.
 
 Build gap list:
+
 ```
 gaps = [
   {truth: "Comment appears immediately...", severity: "major", test_num: 2, reason: "..."},
@@ -52,6 +55,7 @@ gaps = [
   ...
 ]
 ```
+
 </step>
 
 <step name="report_plan">
@@ -81,6 +85,7 @@ Each agent will:
 
 This runs in parallel - all gaps investigated simultaneously.
 ```
+
 </step>
 
 <step name="spawn_agents">
@@ -102,6 +107,7 @@ For each gap, fill the debug-subagent-prompt template and spawn:
 **All agents spawn in single message** (parallel execution).
 
 Template placeholders:
+
 - `{truth}`: The expected behavior that failed
 - `{expected}`: From UAT test
 - `{actual}`: Verbatim user description from reason field
@@ -110,12 +116,13 @@ Template placeholders:
 - `{timeline}`: "Discovered during UAT"
 - `{goal}`: `find_root_cause_only` (UAT flow - plan-phase --gaps handles fixes)
 - `{slug}`: Generated from truth
-</step>
+  </step>
 
 <step name="collect_results">
 **Collect root causes from agents:**
 
 Each agent returns with:
+
 ```
 ## ROOT CAUSE FOUND
 
@@ -136,16 +143,18 @@ Each agent returns with:
 ```
 
 Parse each return to extract:
+
 - root_cause: The diagnosed cause
 - files: Files involved
 - debug_path: Path to debug session file
 - suggested_fix: Hint for gap closure plan
 
 If agent returns `## INVESTIGATION INCONCLUSIVE`:
+
 - root_cause: "Investigation inconclusive - manual review needed"
 - Note which issue needs manual attention
 - Include remaining possibilities from agent return
-</step>
+  </step>
 
 <step name="update_uat">
 **Update UAT.md gaps with diagnosis:**
@@ -171,15 +180,18 @@ For each gap in the Gaps section, add artifacts and missing fields:
 Update status in frontmatter to "diagnosed".
 
 Commit the updated UAT.md:
+
 ```bash
 gsd-sdk query commit "docs({phase_num}): add root causes from diagnosis" ".planning/phases/XX-name/{phase_num}-UAT.md"
 ```
+
 </step>
 
 <step name="report_results">
 **Report diagnosis results and hand off:**
 
 Display:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► DIAGNOSIS COMPLETE
@@ -209,25 +221,29 @@ Agents only diagnose—plan-phase --gaps handles fixes (no fix application).
 
 <failure_handling>
 **Agent fails to find root cause:**
+
 - Mark gap as "needs manual review"
 - Continue with other gaps
 - Report incomplete diagnosis
 
 **Agent times out:**
+
 - Check DEBUG-{slug}.md for partial progress
 - Can resume with /gsd-debug
 
 **All agents fail:**
+
 - Something systemic (permissions, git, etc.)
 - Report for manual investigation
 - Fall back to plan-phase --gaps without root causes (less precise)
-</failure_handling>
+  </failure_handling>
 
 <success_criteria>
+
 - [ ] Gaps parsed from UAT.md
 - [ ] Debug agents spawned in parallel
 - [ ] Root causes collected from all agents
 - [ ] UAT.md gaps updated with artifacts and missing
 - [ ] Debug sessions saved to ${DEBUG_DIR}/
 - [ ] Hand off to verify-work for automatic planning
-</success_criteria>
+      </success_criteria>

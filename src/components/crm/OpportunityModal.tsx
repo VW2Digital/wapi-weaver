@@ -9,12 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -389,7 +384,10 @@ export function OpportunityModal({
 
   return (
     <Sheet open={!!opportunityId} onOpenChange={onClose}>
-      <SheetContent showCloseButton={false} className="w-full data-[side=right]:sm:max-w-5xl h-full flex flex-col p-0 overflow-hidden bg-card border-l border-muted-foreground/15 gap-0">
+      <SheetContent
+        showCloseButton={false}
+        className="w-full data-[side=right]:sm:max-w-5xl h-full flex flex-col p-0 overflow-hidden bg-card border-l border-muted-foreground/15 gap-0"
+      >
         <SheetHeader className="p-6 border-b border-muted-foreground/10 flex flex-row items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Briefcase className="w-5 h-5 text-primary" />

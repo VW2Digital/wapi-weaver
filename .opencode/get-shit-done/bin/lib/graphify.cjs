@@ -1,9 +1,9 @@
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
-const childProcess = require('child_process');
-const { atomicWriteFileSync } = require('./core.cjs');
+const fs = require("fs");
+const path = require("path");
+const childProcess = require("child_process");
+const { atomicWriteFileSync } = require("./core.cjs");
 
 // ─── Config Gate ─────────────────────────────────────────────────────────────
 
@@ -17,9 +17,9 @@ const { atomicWriteFileSync } = require('./core.cjs');
  */
 function isGraphifyEnabled(planningDir) {
   try {
-    const configPath = path.join(planningDir, 'config.json');
+    const configPath = path.join(planningDir, "config.json");
     if (!fs.existsSync(configPath)) return false;
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (config && config.graphify && config.graphify.enabled === true) return true;
     return false;
   } catch (_e) {
@@ -32,7 +32,10 @@ function isGraphifyEnabled(planningDir) {
  * @returns {{ disabled: true, message: string }}
  */
 function disabledResponse() {
-  return { disabled: true, message: 'graphify is not enabled. Enable with: gsd-tools config-set graphify.enabled true' };
+  return {
+    disabled: true,
+    message: "graphify is not enabled. Enable with: gsd-tools config-set graphify.enabled true",
+  };
 }
 
 // ─── Subprocess Helper ───────────────────────────────────────────────────────
@@ -47,32 +50,32 @@ function disabledResponse() {
  */
 function execGraphify(cwd, args, options = {}) {
   const timeout = options.timeout ?? 30000;
-  const result = childProcess.spawnSync('graphify', args, {
+  const result = childProcess.spawnSync("graphify", args, {
     cwd,
-    stdio: 'pipe',
-    encoding: 'utf-8',
+    stdio: "pipe",
+    encoding: "utf-8",
     timeout,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: { ...process.env, PYTHONUNBUFFERED: "1" },
   });
 
   // ENOENT -- graphify binary not found on PATH
-  if (result.error && result.error.code === 'ENOENT') {
-    return { exitCode: 127, stdout: '', stderr: 'graphify not found on PATH' };
+  if (result.error && result.error.code === "ENOENT") {
+    return { exitCode: 127, stdout: "", stderr: "graphify not found on PATH" };
   }
 
   // Timeout -- subprocess killed via SIGTERM
-  if (result.signal === 'SIGTERM') {
+  if (result.signal === "SIGTERM") {
     return {
       exitCode: 124,
-      stdout: (result.stdout ?? '').toString().trim(),
-      stderr: 'graphify timed out after ' + timeout + 'ms',
+      stdout: (result.stdout ?? "").toString().trim(),
+      stderr: "graphify timed out after " + timeout + "ms",
     };
   }
 
   return {
     exitCode: result.status ?? 1,
-    stdout: (result.stdout ?? '').toString().trim(),
-    stderr: (result.stderr ?? '').toString().trim(),
+    stdout: (result.stdout ?? "").toString().trim(),
+    stderr: (result.stderr ?? "").toString().trim(),
   };
 }
 
@@ -85,16 +88,17 @@ function execGraphify(cwd, args, options = {}) {
  * @returns {{ installed: boolean, message?: string }}
  */
 function checkGraphifyInstalled() {
-  const result = childProcess.spawnSync('graphify', ['--help'], {
-    stdio: 'pipe',
-    encoding: 'utf-8',
+  const result = childProcess.spawnSync("graphify", ["--help"], {
+    stdio: "pipe",
+    encoding: "utf-8",
     timeout: 5000,
   });
 
   if (result.error) {
     return {
       installed: false,
-      message: 'graphify is not installed.\n\nInstall with:\n  uv pip install graphifyy && graphify install',
+      message:
+        "graphify is not installed.\n\nInstall with:\n  uv pip install graphifyy && graphify install",
     };
   }
 
@@ -108,28 +112,35 @@ function checkGraphifyInstalled() {
  * @returns {{ version: string|null, compatible: boolean|null, warning: string|null }}
  */
 function checkGraphifyVersion() {
-  const result = childProcess.spawnSync('python3', [
-    '-c',
-    'from importlib.metadata import version; print(version("graphifyy"))',
-  ], {
-    stdio: 'pipe',
-    encoding: 'utf-8',
-    timeout: 5000,
-  });
+  const result = childProcess.spawnSync(
+    "python3",
+    ["-c", 'from importlib.metadata import version; print(version("graphifyy"))'],
+    {
+      stdio: "pipe",
+      encoding: "utf-8",
+      timeout: 5000,
+    },
+  );
 
   if (result.status !== 0 || !result.stdout || !result.stdout.trim()) {
-    return { version: null, compatible: null, warning: 'Could not determine graphify version' };
+    return { version: null, compatible: null, warning: "Could not determine graphify version" };
   }
 
   const versionStr = result.stdout.trim();
-  const parts = versionStr.split('.').map(Number);
+  const parts = versionStr.split(".").map(Number);
 
   if (parts.length < 2 || parts.some(isNaN)) {
-    return { version: versionStr, compatible: null, warning: 'Could not parse version: ' + versionStr };
+    return {
+      version: versionStr,
+      compatible: null,
+      warning: "Could not parse version: " + versionStr,
+    };
   }
 
   const compatible = parts[0] === 0 && parts[1] >= 4;
-  const warning = compatible ? null : 'graphify version ' + versionStr + ' is outside tested range >=0.4.0,<1.0';
+  const warning = compatible
+    ? null
+    : "graphify version " + versionStr + " is outside tested range >=0.4.0,<1.0";
 
   return { version: versionStr, compatible, warning };
 }
@@ -146,7 +157,7 @@ function checkGraphifyVersion() {
 function safeReadJson(filePath) {
   try {
     if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (_e) {
     return null;
   }
@@ -162,10 +173,10 @@ function safeReadJson(filePath) {
  */
 function buildAdjacencyMap(graph) {
   const adj = {};
-  for (const node of (graph.nodes || [])) {
+  for (const node of graph.nodes || []) {
     adj[node.id] = [];
   }
-  for (const edge of (graph.edges || graph.links || [])) {
+  for (const edge of graph.edges || graph.links || []) {
     if (!adj[edge.source]) adj[edge.source] = [];
     if (!adj[edge.target]) adj[edge.target] = [];
     adj[edge.source].push({ target: edge.target, edge });
@@ -185,27 +196,28 @@ function buildAdjacencyMap(graph) {
  */
 function seedAndExpand(graph, term, maxHops = 2) {
   const lowerTerm = term.toLowerCase();
-  const nodeMap = Object.fromEntries((graph.nodes || []).map(n => [n.id, n]));
+  const nodeMap = Object.fromEntries((graph.nodes || []).map((n) => [n.id, n]));
   const adj = buildAdjacencyMap(graph);
 
   // Seed: match on label and description (case-insensitive substring)
-  const seeds = (graph.nodes || []).filter(n =>
-    (n.label || '').toLowerCase().includes(lowerTerm) ||
-    (n.description || '').toLowerCase().includes(lowerTerm)
+  const seeds = (graph.nodes || []).filter(
+    (n) =>
+      (n.label || "").toLowerCase().includes(lowerTerm) ||
+      (n.description || "").toLowerCase().includes(lowerTerm),
   );
 
   // BFS expand from seeds
-  const visitedNodes = new Set(seeds.map(n => n.id));
+  const visitedNodes = new Set(seeds.map((n) => n.id));
   const collectedEdges = [];
   const seenEdgeKeys = new Set();
-  let frontier = seeds.map(n => n.id);
+  let frontier = seeds.map((n) => n.id);
 
   for (let hop = 0; hop < maxHops && frontier.length > 0; hop++) {
     const nextFrontier = [];
     for (const nodeId of frontier) {
-      for (const entry of (adj[nodeId] || [])) {
+      for (const entry of adj[nodeId] || []) {
         // Deduplicate edges by source::target::label key
-        const edgeKey = `${entry.edge.source}::${entry.edge.target}::${entry.edge.label || ''}`;
+        const edgeKey = `${entry.edge.source}::${entry.edge.target}::${entry.edge.label || ""}`;
         if (!seenEdgeKeys.has(edgeKey)) {
           seenEdgeKeys.add(edgeKey);
           collectedEdges.push(entry.edge);
@@ -219,8 +231,8 @@ function seedAndExpand(graph, term, maxHops = 2) {
     frontier = nextFrontier;
   }
 
-  const resultNodes = [...visitedNodes].map(id => nodeMap[id]).filter(Boolean);
-  return { nodes: resultNodes, edges: collectedEdges, seeds: new Set(seeds.map(n => n.id)) };
+  const resultNodes = [...visitedNodes].map((id) => nodeMap[id]).filter(Boolean);
+  return { nodes: resultNodes, edges: collectedEdges, seeds: new Set(seeds.map((n) => n.id)) };
 }
 
 /**
@@ -235,7 +247,7 @@ function seedAndExpand(graph, term, maxHops = 2) {
 function applyBudget(result, budgetTokens) {
   if (!budgetTokens) return result;
 
-  const CONFIDENCE_ORDER = ['AMBIGUOUS', 'INFERRED', 'EXTRACTED'];
+  const CONFIDENCE_ORDER = ["AMBIGUOUS", "INFERRED", "EXTRACTED"];
   let edges = [...result.edges];
   let omitted = 0;
 
@@ -245,7 +257,7 @@ function applyBudget(result, budgetTokens) {
     if (estimateTokens({ nodes: result.nodes, edges }) <= budgetTokens) break;
     const before = edges.length;
     // Check both confidence and confidence_score field names (Open question 1)
-    edges = edges.filter(e => (e.confidence || e.confidence_score) !== tier);
+    edges = edges.filter((e) => (e.confidence || e.confidence_score) !== tier);
     omitted += before - edges.length;
   }
 
@@ -256,7 +268,9 @@ function applyBudget(result, budgetTokens) {
     reachableNodes.add(edge.target);
   }
   // Always keep seed nodes
-  const nodes = result.nodes.filter(n => reachableNodes.has(n.id) || (result.seeds && result.seeds.has(n.id)));
+  const nodes = result.nodes.filter(
+    (n) => reachableNodes.has(n.id) || (result.seeds && result.seeds.has(n.id)),
+  );
   const unreachable = result.nodes.length - nodes.length;
 
   return {
@@ -280,17 +294,17 @@ function applyBudget(result, budgetTokens) {
  * @returns {object}
  */
 function graphifyQuery(cwd, term, options = {}) {
-  const planningDir = path.join(cwd, '.planning');
+  const planningDir = path.join(cwd, ".planning");
   if (!isGraphifyEnabled(planningDir)) return disabledResponse();
 
-  const graphPath = path.join(planningDir, 'graphs', 'graph.json');
+  const graphPath = path.join(planningDir, "graphs", "graph.json");
   if (!fs.existsSync(graphPath)) {
-    return { error: 'No graph built yet. Run graphify build first.' };
+    return { error: "No graph built yet. Run graphify build first." };
   }
 
   const graph = safeReadJson(graphPath);
   if (!graph) {
-    return { error: 'Failed to parse graph.json' };
+    return { error: "Failed to parse graph.json" };
   }
 
   let result = seedAndExpand(graph, term);
@@ -316,18 +330,18 @@ function graphifyQuery(cwd, term, options = {}) {
  * @returns {object}
  */
 function graphifyStatus(cwd) {
-  const planningDir = path.join(cwd, '.planning');
+  const planningDir = path.join(cwd, ".planning");
   if (!isGraphifyEnabled(planningDir)) return disabledResponse();
 
-  const graphPath = path.join(planningDir, 'graphs', 'graph.json');
+  const graphPath = path.join(planningDir, "graphs", "graph.json");
   if (!fs.existsSync(graphPath)) {
-    return { exists: false, message: 'No graph built yet. Run graphify build to create one.' };
+    return { exists: false, message: "No graph built yet. Run graphify build to create one." };
   }
 
   const stat = fs.statSync(graphPath);
   const graph = safeReadJson(graphPath);
   if (!graph) {
-    return { error: 'Failed to parse graph.json' };
+    return { error: "Failed to parse graph.json" };
   }
 
   const STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -351,46 +365,58 @@ function graphifyStatus(cwd) {
  * @returns {object}
  */
 function graphifyDiff(cwd) {
-  const planningDir = path.join(cwd, '.planning');
+  const planningDir = path.join(cwd, ".planning");
   if (!isGraphifyEnabled(planningDir)) return disabledResponse();
 
-  const snapshotPath = path.join(planningDir, 'graphs', '.last-build-snapshot.json');
-  const graphPath = path.join(planningDir, 'graphs', 'graph.json');
+  const snapshotPath = path.join(planningDir, "graphs", ".last-build-snapshot.json");
+  const graphPath = path.join(planningDir, "graphs", "graph.json");
 
   if (!fs.existsSync(snapshotPath)) {
-    return { no_baseline: true, message: 'No previous snapshot. Run graphify build first, then build again to generate a diff baseline.' };
+    return {
+      no_baseline: true,
+      message:
+        "No previous snapshot. Run graphify build first, then build again to generate a diff baseline.",
+    };
   }
 
   if (!fs.existsSync(graphPath)) {
-    return { error: 'No current graph. Run graphify build first.' };
+    return { error: "No current graph. Run graphify build first." };
   }
 
   const current = safeReadJson(graphPath);
   const snapshot = safeReadJson(snapshotPath);
 
   if (!current || !snapshot) {
-    return { error: 'Failed to parse graph or snapshot file' };
+    return { error: "Failed to parse graph or snapshot file" };
   }
 
   // Diff nodes
-  const currentNodeMap = Object.fromEntries((current.nodes || []).map(n => [n.id, n]));
-  const snapshotNodeMap = Object.fromEntries((snapshot.nodes || []).map(n => [n.id, n]));
+  const currentNodeMap = Object.fromEntries((current.nodes || []).map((n) => [n.id, n]));
+  const snapshotNodeMap = Object.fromEntries((snapshot.nodes || []).map((n) => [n.id, n]));
 
-  const nodesAdded = Object.keys(currentNodeMap).filter(id => !snapshotNodeMap[id]);
-  const nodesRemoved = Object.keys(snapshotNodeMap).filter(id => !currentNodeMap[id]);
-  const nodesChanged = Object.keys(currentNodeMap).filter(id =>
-    snapshotNodeMap[id] && JSON.stringify(currentNodeMap[id]) !== JSON.stringify(snapshotNodeMap[id])
+  const nodesAdded = Object.keys(currentNodeMap).filter((id) => !snapshotNodeMap[id]);
+  const nodesRemoved = Object.keys(snapshotNodeMap).filter((id) => !currentNodeMap[id]);
+  const nodesChanged = Object.keys(currentNodeMap).filter(
+    (id) =>
+      snapshotNodeMap[id] &&
+      JSON.stringify(currentNodeMap[id]) !== JSON.stringify(snapshotNodeMap[id]),
   );
 
   // Diff edges (keyed by source+target+relation)
-  const edgeKey = (e) => `${e.source}::${e.target}::${e.relation || e.label || ''}`;
-  const currentEdgeMap = Object.fromEntries((current.edges || current.links || []).map(e => [edgeKey(e), e]));
-  const snapshotEdgeMap = Object.fromEntries((snapshot.edges || snapshot.links || []).map(e => [edgeKey(e), e]));
+  const edgeKey = (e) => `${e.source}::${e.target}::${e.relation || e.label || ""}`;
+  const currentEdgeMap = Object.fromEntries(
+    (current.edges || current.links || []).map((e) => [edgeKey(e), e]),
+  );
+  const snapshotEdgeMap = Object.fromEntries(
+    (snapshot.edges || snapshot.links || []).map((e) => [edgeKey(e), e]),
+  );
 
-  const edgesAdded = Object.keys(currentEdgeMap).filter(k => !snapshotEdgeMap[k]);
-  const edgesRemoved = Object.keys(snapshotEdgeMap).filter(k => !currentEdgeMap[k]);
-  const edgesChanged = Object.keys(currentEdgeMap).filter(k =>
-    snapshotEdgeMap[k] && JSON.stringify(currentEdgeMap[k]) !== JSON.stringify(snapshotEdgeMap[k])
+  const edgesAdded = Object.keys(currentEdgeMap).filter((k) => !snapshotEdgeMap[k]);
+  const edgesRemoved = Object.keys(snapshotEdgeMap).filter((k) => !currentEdgeMap[k]);
+  const edgesChanged = Object.keys(currentEdgeMap).filter(
+    (k) =>
+      snapshotEdgeMap[k] &&
+      JSON.stringify(currentEdgeMap[k]) !== JSON.stringify(snapshotEdgeMap[k]),
   );
 
   return {
@@ -410,7 +436,7 @@ function graphifyDiff(cwd) {
  * @returns {object}
  */
 function graphifyBuild(cwd) {
-  const planningDir = path.join(cwd, '.planning');
+  const planningDir = path.join(cwd, ".planning");
   if (!isGraphifyEnabled(planningDir)) return disabledResponse();
 
   const installed = checkGraphifyInstalled();
@@ -419,21 +445,21 @@ function graphifyBuild(cwd) {
   const version = checkGraphifyVersion();
 
   // Ensure output directory exists (D-05)
-  const graphsDir = path.join(planningDir, 'graphs');
+  const graphsDir = path.join(planningDir, "graphs");
   fs.mkdirSync(graphsDir, { recursive: true });
 
   // read build timeout from config -- default 300s per D-02
-  const config = safeReadJson(path.join(planningDir, 'config.json')) || {};
+  const config = safeReadJson(path.join(planningDir, "config.json")) || {};
   const timeoutSec = (config.graphify && config.graphify.build_timeout) || 300;
 
   return {
-    action: 'spawn_agent',
+    action: "spawn_agent",
     graphs_dir: graphsDir,
-    graphify_out: path.join(cwd, 'graphify-out'),
+    graphify_out: path.join(cwd, "graphify-out"),
     timeout_seconds: timeoutSec,
     version: version.version,
     version_warning: version.warning,
-    artifacts: ['graph.json', 'graph.html', 'GRAPH_REPORT.md'],
+    artifacts: ["graph.json", "graph.html", "GRAPH_REPORT.md"],
   };
 }
 
@@ -446,9 +472,9 @@ function graphifyBuild(cwd) {
  * @returns {object}
  */
 function writeSnapshot(cwd) {
-  const graphPath = path.join(cwd, '.planning', 'graphs', 'graph.json');
+  const graphPath = path.join(cwd, ".planning", "graphs", "graph.json");
   const graph = safeReadJson(graphPath);
-  if (!graph) return { error: 'Cannot write snapshot: graph.json not parseable' };
+  if (!graph) return { error: "Cannot write snapshot: graph.json not parseable" };
 
   const snapshot = {
     version: 1,
@@ -457,7 +483,7 @@ function writeSnapshot(cwd) {
     edges: graph.edges || graph.links || [],
   };
 
-  const snapshotPath = path.join(cwd, '.planning', 'graphs', '.last-build-snapshot.json');
+  const snapshotPath = path.join(cwd, ".planning", "graphs", ".last-build-snapshot.json");
   atomicWriteFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
   return {
     saved: true,

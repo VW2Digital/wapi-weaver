@@ -142,7 +142,9 @@ function LoginPage() {
             Sua operação omnichannel com WhatsApp, Instagram, Messenger e IA.
           </h1>
           <p className="text-sidebar-foreground/70">
-            Integre WhatsApp, Instagram e Messenger em um único painel, crie campanhas de disparo em massa, monitore métricas, construa fluxos de bots e escale atendimentos com agentes de IA ilimitados.
+            Integre WhatsApp, Instagram e Messenger em um único painel, crie campanhas de disparo em
+            massa, monitore métricas, construa fluxos de bots e escale atendimentos com agentes de
+            IA ilimitados.
           </p>
         </div>
         <p className="text-xs text-sidebar-foreground/50">
@@ -234,7 +236,6 @@ function LoginPage() {
                 <Button type="submit" className="w-full h-10" disabled={busy}>
                   {mode === "signin" ? "Entrar" : "Criar conta"}
                 </Button>
-
               </form>
 
               <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>

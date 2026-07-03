@@ -30,14 +30,25 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
     const id = crypto.randomUUID();
     await db.query(
       "INSERT INTO bot_settings (id, user_id, instance_id, channel, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, effectiveUserId, channel === "whatsapp" ? p?.whatsapp_phone_number_id || null : null, channel, false, 60],
+      [
+        id,
+        effectiveUserId,
+        channel === "whatsapp" ? p?.whatsapp_phone_number_id || null : null,
+        channel,
+        false,
+        60,
+      ],
     );
     const rows = (await db.query("SELECT * FROM bot_settings WHERE id = ?", [id])) as any[];
     settings = rows?.[0] ?? null;
     if (!settings) {
       return { ok: false as const, error: "Erro ao criar configurações do bot" };
     }
-  } else if (channel === "whatsapp" && p?.whatsapp_phone_number_id && settings.instance_id !== p.whatsapp_phone_number_id) {
+  } else if (
+    channel === "whatsapp" &&
+    p?.whatsapp_phone_number_id &&
+    settings.instance_id !== p.whatsapp_phone_number_id
+  ) {
     await db.query("UPDATE bot_settings SET instance_id = ? WHERE id = ?", [
       p.whatsapp_phone_number_id,
       settings.id,
@@ -59,7 +70,9 @@ export const getBotSettings = createServerFn({ method: "GET" })
 
 export const toggleBotStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ isActive: z.boolean(), channel: z.string().optional() }).parse(d))
+  .validator((d: any) =>
+    z.object({ isActive: z.boolean(), channel: z.string().optional() }).parse(d),
+  )
   .handler(async ({ data, context }: { data: any; context: any }) => {
     const { default: db } = await import("./db");
     const result = await getOrCreateBotSettings(context, data.channel);
@@ -113,111 +126,142 @@ const saveBotStepInput = z.object({
 
 const saveBotStepsBatchInput = z.object({
   channel: z.string().optional(),
-  steps: z.array(saveBotStepInput)
+  steps: z.array(saveBotStepInput),
 });
 
 export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
-  .handler(async ({ data, context }: { data: { channel?: string; steps: any[] }; context: any }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+  .handler(
+    async ({ data, context }: { data: { channel?: string; steps: any[] }; context: any }) => {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const result = await getOrCreateBotSettings(context, data.channel);
-    if (!result.ok)
-      return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
+      const result = await getOrCreateBotSettings(context, data.channel);
+      if (!result.ok)
+        return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
 
-    const settings = result.settings;
-    const incomingIds = data.steps.map((s) => s.id).filter(Boolean);
+      const settings = result.settings;
+      const incomingIds = data.steps.map((s) => s.id).filter(Boolean);
 
-    // Remove steps que não estão mais no fluxo
-    if (incomingIds.length > 0) {
-      const placeholders = incomingIds.map(() => "?").join(",");
-      await db.query(
-        `DELETE FROM bot_steps WHERE bot_settings_id = ? AND id NOT IN (${placeholders})`,
-        [settings.id, ...incomingIds],
-      );
-    } else {
-      await db.query("DELETE FROM bot_steps WHERE bot_settings_id = ?", [settings.id]);
-    }
-
-    // 1ª passagem: upsert de todos os steps SEM next_step_id (evita FK circular)
-    for (const step of data.steps) {
-      const stepId = step.id || crypto.randomUUID();
-      const payload = {
-        bot_settings_id: settings.id,
-        user_id: effectiveUserId,
-        step_order: step.step_order,
-        trigger_type: step.trigger_type,
-        trigger_value: step.trigger_value || null,
-        message_type: step.message_type || "text",
-        message_content: step.message_content || null,
-        media_url: step.media_url || null,
-        media_caption: step.media_caption || null,
-        footer_text: step.footer_text || null,
-        buttons_config: step.buttons_config ? JSON.stringify(step.buttons_config) : null,
-        next_step_id: null,
-        delay_seconds: Number(step.delay_seconds || 0),
-        position_x: step.position_x || 0,
-        position_y: step.position_y || 0,
-        assign_team_id: step.assign_team_id || null,
-        assign_user_id: step.assign_user_id || null,
-        handoff_message: step.handoff_message || null,
-        card_color: step.card_color || null,
-      };
-
-      // Verifica se o step já existe no banco
-      const existing = (await db.query(
-        "SELECT id FROM bot_steps WHERE id = ?",
-        [stepId],
-      )) as any[];
-
-      if (existing?.length > 0) {
+      // Remove steps que não estão mais no fluxo
+      if (incomingIds.length > 0) {
+        const placeholders = incomingIds.map(() => "?").join(",");
         await db.query(
-          `UPDATE bot_steps SET bot_settings_id = ?, user_id = ?, step_order = ?, trigger_type = ?, trigger_value = ?,
+          `DELETE FROM bot_steps WHERE bot_settings_id = ? AND id NOT IN (${placeholders})`,
+          [settings.id, ...incomingIds],
+        );
+      } else {
+        await db.query("DELETE FROM bot_steps WHERE bot_settings_id = ?", [settings.id]);
+      }
+
+      // 1ª passagem: upsert de todos os steps SEM next_step_id (evita FK circular)
+      for (const step of data.steps) {
+        const stepId = step.id || crypto.randomUUID();
+        const payload = {
+          bot_settings_id: settings.id,
+          user_id: effectiveUserId,
+          step_order: step.step_order,
+          trigger_type: step.trigger_type,
+          trigger_value: step.trigger_value || null,
+          message_type: step.message_type || "text",
+          message_content: step.message_content || null,
+          media_url: step.media_url || null,
+          media_caption: step.media_caption || null,
+          footer_text: step.footer_text || null,
+          buttons_config: step.buttons_config ? JSON.stringify(step.buttons_config) : null,
+          next_step_id: null,
+          delay_seconds: Number(step.delay_seconds || 0),
+          position_x: step.position_x || 0,
+          position_y: step.position_y || 0,
+          assign_team_id: step.assign_team_id || null,
+          assign_user_id: step.assign_user_id || null,
+          handoff_message: step.handoff_message || null,
+          card_color: step.card_color || null,
+        };
+
+        // Verifica se o step já existe no banco
+        const existing = (await db.query("SELECT id FROM bot_steps WHERE id = ?", [
+          stepId,
+        ])) as any[];
+
+        if (existing?.length > 0) {
+          await db.query(
+            `UPDATE bot_steps SET bot_settings_id = ?, user_id = ?, step_order = ?, trigger_type = ?, trigger_value = ?,
            message_type = ?, message_content = ?, media_url = ?, media_caption = ?, footer_text = ?,
            buttons_config = ?, next_step_id = ?, delay_seconds = ?, position_x = ?, position_y = ?,
            assign_team_id = ?, assign_user_id = ?, handoff_message = ?, card_color = ?
            WHERE id = ?`,
-          [
-            payload.bot_settings_id, payload.user_id, payload.step_order, payload.trigger_type,
-            payload.trigger_value, payload.message_type, payload.message_content, payload.media_url,
-            payload.media_caption, payload.footer_text, payload.buttons_config, payload.next_step_id,
-            payload.delay_seconds, payload.position_x, payload.position_y, payload.assign_team_id,
-            payload.assign_user_id, payload.handoff_message, payload.card_color, stepId,
-          ],
-        );
-      } else {
-        await db.query(
-          `INSERT INTO bot_steps (id, bot_settings_id, user_id, step_order, trigger_type, trigger_value,
+            [
+              payload.bot_settings_id,
+              payload.user_id,
+              payload.step_order,
+              payload.trigger_type,
+              payload.trigger_value,
+              payload.message_type,
+              payload.message_content,
+              payload.media_url,
+              payload.media_caption,
+              payload.footer_text,
+              payload.buttons_config,
+              payload.next_step_id,
+              payload.delay_seconds,
+              payload.position_x,
+              payload.position_y,
+              payload.assign_team_id,
+              payload.assign_user_id,
+              payload.handoff_message,
+              payload.card_color,
+              stepId,
+            ],
+          );
+        } else {
+          await db.query(
+            `INSERT INTO bot_steps (id, bot_settings_id, user_id, step_order, trigger_type, trigger_value,
            message_type, message_content, media_url, media_caption, footer_text, buttons_config,
            next_step_id, delay_seconds, position_x, position_y, assign_team_id, assign_user_id,
            handoff_message, card_color)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            stepId, payload.bot_settings_id, payload.user_id, payload.step_order, payload.trigger_type,
-            payload.trigger_value, payload.message_type, payload.message_content, payload.media_url,
-            payload.media_caption, payload.footer_text, payload.buttons_config, payload.next_step_id,
-            payload.delay_seconds, payload.position_x, payload.position_y, payload.assign_team_id,
-            payload.assign_user_id, payload.handoff_message, payload.card_color,
-          ],
-        );
-        step.id = stepId;
+            [
+              stepId,
+              payload.bot_settings_id,
+              payload.user_id,
+              payload.step_order,
+              payload.trigger_type,
+              payload.trigger_value,
+              payload.message_type,
+              payload.message_content,
+              payload.media_url,
+              payload.media_caption,
+              payload.footer_text,
+              payload.buttons_config,
+              payload.next_step_id,
+              payload.delay_seconds,
+              payload.position_x,
+              payload.position_y,
+              payload.assign_team_id,
+              payload.assign_user_id,
+              payload.handoff_message,
+              payload.card_color,
+            ],
+          );
+          step.id = stepId;
+        }
       }
-    }
 
-    // 2ª passagem: resolve links next_step_id agora que todos existem
-    for (const step of data.steps) {
-      if (!step.next_step_id) continue;
-      await db.query("UPDATE bot_steps SET next_step_id = ? WHERE id = ?", [
-        step.next_step_id,
-        step.id,
-      ]);
-    }
+      // 2ª passagem: resolve links next_step_id agora que todos existem
+      for (const step of data.steps) {
+        if (!step.next_step_id) continue;
+        await db.query("UPDATE bot_steps SET next_step_id = ? WHERE id = ?", [
+          step.next_step_id,
+          step.id,
+        ]);
+      }
 
-    return { ok: true };
-  });
+      return { ok: true };
+    },
+  );
 
 export const saveBotStep = createServerFn({ method: "POST" })
   .middleware([requireAuth])
@@ -262,10 +306,10 @@ export const saveBotStep = createServerFn({ method: "POST" })
       await db.query(`UPDATE bot_steps SET ${setClause} WHERE id = ?`, [...vals, stepId]);
     } else {
       const placeholders = cols.map(() => "?").join(", ");
-      await db.query(
-        `INSERT INTO bot_steps (id, ${cols.join(", ")}) VALUES (?, ${placeholders})`,
-        [stepId, ...vals],
-      );
+      await db.query(`INSERT INTO bot_steps (id, ${cols.join(", ")}) VALUES (?, ${placeholders})`, [
+        stepId,
+        ...vals,
+      ]);
     }
 
     const rows = (await db.query("SELECT * FROM bot_steps WHERE id = ?", [stepId])) as any[];

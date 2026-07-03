@@ -23,6 +23,7 @@ standard `default.md` discussion flow.
 ## Calibration tier
 
 Resolve `vendor_philosophy` calibration tier:
+
 1. **Priority 1:** read `config.json` > `preferences.vendor_philosophy`
    (project-level override)
 2. **Priority 2:** read USER-PROFILE.md `Vendor Choices/Philosophy` rating
@@ -31,11 +32,13 @@ Resolve `vendor_philosophy` calibration tier:
    is `UNSCORED`
 
 Map to calibration tier:
+
 - `conservative` OR `thorough-evaluator` → `full_maturity`
 - `opinionated` → `minimal_decisive`
 - `pragmatic-fast` OR any other value OR empty → `standard`
 
 Resolve advisor model:
+
 ```bash
 ADVISOR_MODEL=$(gsd-sdk query resolve-model gsd-advisor-researcher --raw)
 ```
@@ -49,12 +52,14 @@ PROFILE_CONTENT=$(cat "./.opencode/get-shit-done/USER-PROFILE.md" 2>/dev/null ||
 ```
 
 Set `NON_TECHNICAL_OWNER = true` if ANY of the following are present:
+
 - `learning_style: guided`
 - The word `jargon` appears in a `frustration_triggers` section
 - `explanation_depth: practical-detailed` (without a technical modifier)
 - `explanation_depth: high-level`
 
 **Tie-breaker / precedence (when signals conflict):**
+
 1. An explicit `technical_background: true` (or any `explanation_depth` value
    tagged with a technical modifier such as `practical-detailed:technical`)
    **overrides** all inferred non-technical signals — set
@@ -77,6 +82,7 @@ the same underlying decision — only change the framing:
   - "Caching strategy: SWR vs React Query" → "Loading speed: should screens show saved data right away or wait for fresh data"
 
 This reframing applies to:
+
 1. Gray area labels and descriptions in `present_gray_areas`
 2. Advisor research rationale rewrites in the synthesis step below
 
@@ -110,13 +116,13 @@ research agents.
    a. Parse the markdown comparison table and rationale paragraph
    b. Verify all 5 columns present (Option | Pros | Cons | Complexity | Recommendation) — fill any missing columns rather than showing broken table
    c. Verify option count matches calibration tier:
-      - `full_maturity`: 3-5 options acceptable
-      - `standard`: 2-4 options acceptable
-      - `minimal_decisive`: 1-2 options acceptable
-      If agent returned too many, trim least viable. If too few, accept as-is.
-   d. Rewrite rationale paragraph to weave in project context and ongoing discussion context that the agent did not have access to
-   e. If agent returned only 1 option, convert from table format to direct recommendation: "Standard approach for {area}: {option}. {rationale}"
-   f. **If `NON_TECHNICAL_OWNER` is true:** apply a plain language rewrite to the rationale paragraph. Replace implementation-level terms with outcome descriptions the user can reason about without technical context. The Recommendation column value and the table structure remain intact. Do not remove detail; translate it. Example: "SWR uses stale-while-revalidate to serve cached responses immediately" → "This approach shows you something right away, then quietly updates in the background — users see data instantly."
+   - `full_maturity`: 3-5 options acceptable
+   - `standard`: 2-4 options acceptable
+   - `minimal_decisive`: 1-2 options acceptable
+     If agent returned too many, trim least viable. If too few, accept as-is.
+     d. Rewrite rationale paragraph to weave in project context and ongoing discussion context that the agent did not have access to
+     e. If agent returned only 1 option, convert from table format to direct recommendation: "Standard approach for {area}: {option}. {rationale}"
+     f. **If `NON_TECHNICAL_OWNER` is true:** apply a plain language rewrite to the rationale paragraph. Replace implementation-level terms with outcome descriptions the user can reason about without technical context. The Recommendation column value and the table structure remain intact. Do not remove detail; translate it. Example: "SWR uses stale-while-revalidate to serve cached responses immediately" → "This approach shows you something right away, then quietly updates in the background — users see data instantly."
 
 4. Store synthesized tables for use in `discuss_areas` (table-first flow).
 
@@ -158,6 +164,7 @@ For each selected area:
 ## Scope creep handling (advisor mode)
 
 If user mentions something outside the phase domain:
+
 ```
 "[Feature] sounds like a new capability — that belongs in its own phase.
 I'll note it as a deferred idea.

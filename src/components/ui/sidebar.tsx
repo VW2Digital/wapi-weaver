@@ -146,7 +146,17 @@ function SidebarProvider({
       sidebarWidth,
       setSidebarWidth,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth, setSidebarWidth],
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+      sidebarWidth,
+      setSidebarWidth,
+    ],
   );
 
   return (
@@ -311,8 +321,9 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       hasDragged.current = false;
 
       dragData.current.startX = e.clientX;
-      const container = (e.target as HTMLElement)
-        .closest("[data-slot=sidebar-container]") as HTMLElement;
+      const container = (e.target as HTMLElement).closest(
+        "[data-slot=sidebar-container]",
+      ) as HTMLElement;
       if (container) {
         dragData.current.initialWidth = container.offsetWidth;
       }

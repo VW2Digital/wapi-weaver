@@ -6,14 +6,16 @@ User tests, OpenCode records. One test at a time. Plain text responses.
 
 <available_agent_types>
 Valid GSD subagent types (use exact names — do not fall back to 'general'):
+
 - gsd-planner — Creates detailed plans from phase scope
 - gsd-plan-checker — Reviews plan quality before execution
-</available_agent_types>
+  </available_agent_types>
 
 <philosophy>
 **Show expected, ask if reality matches.**
 
 OpenCode presents what SHOULD happen. User confirms or describes what's different.
+
 - "yes" / "y" / "next" / empty → pass
 - Anything else → logged as issue, severity inferred
 
@@ -116,6 +118,7 @@ checkpoint questions defined in this workflow unchanged. This step is entirely
 conditional: if Playwright-MCP is not configured, behavior is unchanged from today.
 
 **Display summary line before proceeding:**
+
 ```
 UI checkpoints: {N} auto-verified, {M} queued for manual review
 ```
@@ -138,16 +141,19 @@ read each SUMMARY.md to extract testable deliverables.
 **Extract testable deliverables from SUMMARY.md:**
 
 Parse for:
+
 1. **Accomplishments** - Features/functionality added
 2. **User-facing changes** - UI, workflows, interactions
 
 Focus on USER-OBSERVABLE outcomes, not implementation details.
 
 For each deliverable, create a test:
+
 - name: Brief test name
 - expected: What the user should see/experience (specific, observable)
 
 Examples:
+
 - Accomplishment: "Added comment threading with infinite nesting"
   → Test: "Reply to a Comment"
   → Expected: "Clicking Reply opens inline composer below comment. Submitting shows reply nested under parent with visual indentation."
@@ -189,21 +195,24 @@ updated: [ISO timestamp]
 ---
 
 ## Current Test
+
 <!-- OVERWRITE each test - shows where we are -->
 
 number: 1
 name: [first test name]
 expected: |
-  [what user should observe]
+[what user should observe]
 awaiting: user response
 
 ## Tests
 
 ### 1. [Test Name]
+
 expected: [observable behavior]
 result: [pending]
 
 ### 2. [Test Name]
+
 expected: [observable behavior]
 result: [pending]
 
@@ -244,10 +253,10 @@ Display the returned checkpoint EXACTLY as-is:
 ```
 
 **Critical response hygiene:**
+
 - Your entire response MUST equal `{CHECKPOINT}` byte-for-byte.
 - Do NOT add commentary before or after the block.
 - If you notice protocol/meta markers such as `to=all:`, role-routing text, XML system tags, hidden instruction markers, ad copy, or any unrelated suffix, discard the draft and output `{CHECKPOINT}` only.
-
 
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 Wait for user response (plain text, no question).
@@ -257,9 +266,11 @@ Wait for user response (plain text, no question).
 **Process user response and update file:**
 
 **If response indicates pass:**
+
 - Empty response, "yes", "y", "ok", "pass", "next", "approved", "✓"
 
 Update Tests section:
+
 ```
 ### {N}. {name}
 expected: {expected}
@@ -267,9 +278,11 @@ result: pass
 ```
 
 **If response indicates skip:**
+
 - "skip", "can't test", "n/a"
 
 Update Tests section:
+
 ```
 ### {N}. {name}
 expected: {expected}
@@ -278,10 +291,12 @@ reason: [user's reason if provided]
 ```
 
 **If response indicates blocked:**
+
 - "blocked", "can't test - server not running", "need physical device", "need release build"
 - Or any response containing: "server", "blocked", "not running", "physical device", "release build"
 
 Infer blocked_by tag from response:
+
 - Contains: server, not running, gateway, API → `server`
 - Contains: physical, device, hardware, real phone → `physical-device`
 - Contains: release, preview, build, EAS → `release-build`
@@ -290,6 +305,7 @@ Infer blocked_by tag from response:
 - Default: `other`
 
 Update Tests section:
+
 ```
 ### {N}. {name}
 expected: {expected}
@@ -301,9 +317,11 @@ reason: "{verbatim user response}"
 Note: Blocked tests do NOT go into the Gaps section (they aren't code issues — they're prerequisite gates).
 
 **If response is anything else:**
+
 - Treat as issue description
 
 Infer severity from description:
+
 - Contains: crash, error, exception, fails, broken, unusable → blocker
 - Contains: doesn't work, wrong, missing, can't → major
 - Contains: slow, weird, off, minor, small → minor
@@ -311,6 +329,7 @@ Infer severity from description:
 - Default if unclear: major
 
 Update Tests section:
+
 ```
 ### {N}. {name}
 expected: {expected}
@@ -320,14 +339,15 @@ severity: {inferred}
 ```
 
 Append to Gaps section (structured YAML for plan-phase --gaps):
+
 ```yaml
 - truth: "{expected behavior from test}"
   status: failed
   reason: "User reported: {verbatim user response}"
-  severity: {inferred}
-  test: {N}
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  severity: { inferred }
+  test: { N }
+  artifacts: [] # Filled by diagnosis
+  missing: [] # Filled by diagnosis
 ```
 
 **After any response:**
@@ -347,6 +367,7 @@ read the full UAT file.
 Find first test with `result: [pending]`.
 
 Announce:
+
 ```
 Resuming: Phase {phase} UAT
 Progress: {passed + issues + skipped}/{total}
@@ -365,6 +386,7 @@ Proceed to `present_test`.
 **Determine final status:**
 
 Count results:
+
 - `pending_count`: tests with `result: [pending]`
 - `blocked_count`: tests with `result: blocked`
 - `skipped_no_reason`: tests with `result: skipped` and no `reason` field
@@ -379,10 +401,12 @@ else:
 ```
 
 Update frontmatter:
+
 - status: {computed status}
 - updated: [now]
 
 Clear Current Test section:
+
 ```
 ## Current Test
 
@@ -390,11 +414,13 @@ Clear Current Test section:
 ```
 
 Commit the UAT file:
+
 ```bash
 gsd-sdk query commit "test({phase_num}): complete UAT - {passed} passed, {issues} issues" ".planning/phases/XX-name/{phase_num}-UAT.md"
 ```
 
 Present summary:
+
 ```
 ## UAT Complete: Phase {phase}
 
@@ -420,6 +446,7 @@ SECURITY_FILE=$(ls "${PHASE_DIR}"/*-SECURITY.md 2>/dev/null | head -1)
 ```
 
 If `SECURITY_CFG` is `true` AND `SECURITY_FILE` is empty:
+
 ```
 ⚠ Security enforcement enabled — /gsd-secure-phase {phase} has not run.
 Run before advancing to the next phase.
@@ -433,6 +460,7 @@ All tests passed. Ready to continue.
 ```
 
 If `SECURITY_CFG` is `true` AND `SECURITY_FILE` exists: check frontmatter `threats_open`. If > 0:
+
 ```
 ⚠ Security gate: {threats_open} threats open
   /gsd-secure-phase {phase} — resolve before advancing
@@ -456,6 +484,7 @@ All tests passed. Phase {phase} marked complete.
 - `/gsd-secure-phase {phase}` — security review
 - `/gsd-ui-review {phase}` — visual quality audit (if frontend files were modified)
 ```
+
 </step>
 
 <step name="scan_phase_artifacts">
@@ -468,11 +497,13 @@ gsd-sdk query audit-open --json
 ```
 
 Parse the JSON output. For the CURRENT PHASE ONLY, surface:
+
 - UAT files with status != 'complete'
 - VERIFICATION.md with status 'gaps_found' or 'human_needed'
 - CONTEXT.md with non-empty open_questions
 
 If any are found, display:
+
 ```
 Phase {N} Artifact Check
 ─────────────────────────────────────────────────
@@ -512,6 +543,7 @@ Diagnosis runs automatically - no user prompt. Parallel agents investigate simul
 **Auto-plan fixes from diagnosed gaps:**
 
 Display:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► PLANNING FIXES
@@ -547,14 +579,16 @@ Plans must be executable prompts.
 ```
 
 On return:
+
 - **PLANNING COMPLETE:** Proceed to `verify_gap_plans`
 - **PLANNING INCONCLUSIVE:** Report and offer manual intervention
-</step>
+  </step>
 
 <step name="verify_gap_plans">
 **Verify fix plans with checker:**
 
 Display:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► VERIFYING FIX PLANS
@@ -591,9 +625,10 @@ Return one of:
 ```
 
 On return:
+
 - **VERIFICATION PASSED:** Proceed to `present_ready`
 - **ISSUES FOUND:** Proceed to `revision_loop`
-</step>
+  </step>
 
 <step name="revision_loop">
 **Iterate planner ↔ checker until plans pass (max 3):**
@@ -637,6 +672,7 @@ Increment iteration_count
 Display: `Max iterations reached. {N} issues remain.`
 
 Offer options:
+
 1. Force proceed (execute despite issues)
 2. Provide guidance (user gives direction, retry)
 3. Abandon (exit, user runs /gsd-plan-phase manually)
@@ -671,6 +707,7 @@ Plans verified and ready for execution.
 
 ───────────────────────────────────────────────────────────────
 ```
+
 </step>
 
 </process>
@@ -679,18 +716,19 @@ Plans verified and ready for execution.
 **Batched writes for efficiency:**
 
 Keep results in memory. write to file only when:
+
 1. **Issue found** — Preserve the problem immediately
 2. **Session complete** — Final write before commit
 3. **Checkpoint** — Every 5 passed tests (safety net)
 
-| Section | Rule | When Written |
-|---------|------|--------------|
-| Frontmatter.status | OVERWRITE | Start, complete |
+| Section             | Rule      | When Written      |
+| ------------------- | --------- | ----------------- |
+| Frontmatter.status  | OVERWRITE | Start, complete   |
 | Frontmatter.updated | OVERWRITE | On any file write |
-| Current Test | OVERWRITE | On any file write |
-| Tests.{N}.result | OVERWRITE | On any file write |
-| Summary | OVERWRITE | On any file write |
-| Gaps | APPEND | When issue found |
+| Current Test        | OVERWRITE | On any file write |
+| Tests.{N}.result    | OVERWRITE | On any file write |
+| Summary             | OVERWRITE | On any file write |
+| Gaps                | APPEND    | When issue found  |
 
 On context reset: File shows last checkpoint. Resume from there.
 </update_rules>
@@ -698,12 +736,12 @@ On context reset: File shows last checkpoint. Resume from there.
 <severity_inference>
 **Infer severity from user's natural language:**
 
-| User says | Infer |
-|-----------|-------|
-| "crashes", "error", "exception", "fails completely" | blocker |
-| "doesn't work", "nothing happens", "wrong behavior" | major |
-| "works but...", "slow", "weird", "minor issue" | minor |
-| "color", "spacing", "alignment", "looks off" | cosmetic |
+| User says                                           | Infer    |
+| --------------------------------------------------- | -------- |
+| "crashes", "error", "exception", "fails completely" | blocker  |
+| "doesn't work", "nothing happens", "wrong behavior" | major    |
+| "works but...", "slow", "weird", "minor issue"      | minor    |
+| "color", "spacing", "alignment", "looks off"        | cosmetic |
 
 Default to **major** if unclear. User can correct if needed.
 
@@ -711,6 +749,7 @@ Default to **major** if unclear. User can correct if needed.
 </severity_inference>
 
 <success_criteria>
+
 - [ ] UAT file created with all tests from SUMMARY.md
 - [ ] Tests presented one at a time with expected behavior
 - [ ] User responses processed as pass/issue/skip
@@ -722,4 +761,4 @@ Default to **major** if unclear. User can correct if needed.
 - [ ] If issues: gsd-plan-checker verifies fix plans
 - [ ] If issues: revision loop until plans pass (max 3 iterations)
 - [ ] Ready for `/gsd-execute-phase --gaps-only` when complete
-</success_criteria>
+      </success_criteria>

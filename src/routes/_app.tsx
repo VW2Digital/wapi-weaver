@@ -156,7 +156,7 @@ function AppLayout() {
     if (!contactsQuery.data) return 0;
     return (contactsQuery.data ?? []).reduce(
       (acc: number, c: any) => acc + (c.unread_count || 0),
-      0
+      0,
     );
   }, [contactsQuery.data]);
 
@@ -212,7 +212,8 @@ function AppLayout() {
     const raw = sidebarOrderData?.order;
     if (!raw) return [...navItems];
     try {
-      const pathsOrder = typeof raw === "string" ? JSON.parse(raw) as string[] : raw as string[];
+      const pathsOrder =
+        typeof raw === "string" ? (JSON.parse(raw) as string[]) : (raw as string[]);
       if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...navItems];
 
       const navDefaults = navItems.map((item, idx) => ({ to: item.to, defaultIdx: idx }));
@@ -224,8 +225,8 @@ function AppLayout() {
         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
         // Both are NOT in saved order — preserve default order
         if (idxA === -1 && idxB === -1) {
-          const defA = navDefaults.find(n => n.to === a.to)?.defaultIdx ?? 999;
-          const defB = navDefaults.find(n => n.to === b.to)?.defaultIdx ?? 999;
+          const defA = navDefaults.find((n) => n.to === a.to)?.defaultIdx ?? 999;
+          const defB = navDefaults.find((n) => n.to === b.to)?.defaultIdx ?? 999;
           return defA - defB;
         }
         // One is in saved order, the other is not — put unsaved after saved
@@ -266,11 +267,16 @@ function AppLayout() {
   useEffect(() => {
     if (!loading && !user) {
       // #region debug-point E:app-redirect-login
-      reportServerFnAbortDebug("E", "_app.tsx:redirect-login", "Redirecting to /login from AppLayout", {
-        loading,
-        hasUser: Boolean(user),
-        pathname: loc.pathname,
-      });
+      reportServerFnAbortDebug(
+        "E",
+        "_app.tsx:redirect-login",
+        "Redirecting to /login from AppLayout",
+        {
+          loading,
+          hasUser: Boolean(user),
+          pathname: loc.pathname,
+        },
+      );
       // #endregion
       router.navigate({ to: "/login", replace: true });
     }
@@ -539,61 +545,77 @@ function AppLayout() {
     <>
       <SeoHead noindex />
       <SidebarProvider>
-      <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        {SidebarBody}
-        <SidebarRail />
-      </Sidebar>
+        <Sidebar
+          collapsible="icon"
+          className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+        >
+          {SidebarBody}
+          <SidebarRail />
+        </Sidebar>
 
-      <div className="h-dvh overflow-hidden bg-background flex flex-col flex-1">
-        {/* Mobile top bar */}
-        <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="Abrir menu">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] bg-sidebar p-0 text-sidebar-foreground">
-              <SheetTitle className="sr-only">Menu</SheetTitle>
-              {SidebarBody}
-            </SheetContent>
-          </Sheet>
-          <div className="flex items-center gap-2">
-            <img
-              src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
-              alt="Bliv Logo"
-              className="h-8 w-8 object-contain rounded-lg shadow-sm"
-            />
-            <span className="font-display text-sm font-semibold">Bliv</span>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-hidden flex flex-col">
-          {!isAccessAllowed ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
-              <div className="h-16 w-16 bg-destructive/10 text-destructive flex items-center justify-center rounded-full mb-6">
-                <ShieldAlert className="h-8 w-8 animate-pulse" />
-              </div>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-2">
-                Acesso Bloqueado — Conta Não Autorizada
-              </h2>
-              <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                Sua conta ou assinatura não está ativa ou expirou o período de validade. O uso do disparador e de todos os recursos da plataforma foi suspenso. Por favor, entre em contato com o suporte para regularizar seu acesso.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
-                <Button asChild variant="default" className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebd56] text-white border-none shadow-sm hover:text-white cursor-pointer">
-                  <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20o%20acesso%20da%20minha%20conta%20no%20sistema." target="_blank" rel="noopener noreferrer">
-                    Falar com o Suporte
-                  </a>
+        <div className="h-dvh overflow-hidden bg-background flex flex-col flex-1">
+          {/* Mobile top bar */}
+          <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <Button size="icon" variant="ghost" aria-label="Abrir menu">
+                  <Menu className="h-5 w-5" />
                 </Button>
-              </div>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[280px] bg-sidebar p-0 text-sidebar-foreground"
+              >
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                {SidebarBody}
+              </SheetContent>
+            </Sheet>
+            <div className="flex items-center gap-2">
+              <img
+                src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+                alt="Bliv Logo"
+                className="h-8 w-8 object-contain rounded-lg shadow-sm"
+              />
+              <span className="font-display text-sm font-semibold">Bliv</span>
             </div>
-          ) : (
-            <Outlet />
-          )}
-        </main>
-      </div>
-    </SidebarProvider>
+          </header>
+
+          <main className="flex-1 overflow-hidden flex flex-col">
+            {!isAccessAllowed ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
+                <div className="h-16 w-16 bg-destructive/10 text-destructive flex items-center justify-center rounded-full mb-6">
+                  <ShieldAlert className="h-8 w-8 animate-pulse" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-foreground mb-2">
+                  Acesso Bloqueado — Conta Não Autorizada
+                </h2>
+                <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                  Sua conta ou assinatura não está ativa ou expirou o período de validade. O uso do
+                  disparador e de todos os recursos da plataforma foi suspenso. Por favor, entre em
+                  contato com o suporte para regularizar seu acesso.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
+                  <Button
+                    asChild
+                    variant="default"
+                    className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebd56] text-white border-none shadow-sm hover:text-white cursor-pointer"
+                  >
+                    <a
+                      href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20o%20acesso%20da%20minha%20conta%20no%20sistema."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Falar com o Suporte
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Outlet />
+            )}
+          </main>
+        </div>
+      </SidebarProvider>
     </>
   );
 }

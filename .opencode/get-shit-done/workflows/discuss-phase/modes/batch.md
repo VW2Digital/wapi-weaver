@@ -7,6 +7,7 @@
 ## Argument parsing
 
 Parse optional `--batch` from `$ARGUMENTS`:
+
 - Accept `--batch`, `--batch=N`, or `--batch N`
 - Default to **4 questions per batch** when no number is provided
 - Clamp explicit sizes to **2–5** so a batch stays answerable
@@ -32,6 +33,7 @@ area, instead of the default 4 single-question question turns.
 ## Philosophy
 
 Stay adaptive, but let the user choose the pacing.
+
 - Default mode: 4 single-question turns, then check whether to continue
 - `--batch` mode: 1 grouped turn with 2–5 numbered questions, then check
   whether to continue

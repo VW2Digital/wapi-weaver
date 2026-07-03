@@ -88,7 +88,10 @@ export async function processBotFlow(
       .from("bot_steps")
       .select("*")
       .eq("user_id", userId)
-      .in("bot_settings_id", sortedFlows.map((f: any) => f.id));
+      .in(
+        "bot_settings_id",
+        sortedFlows.map((f: any) => f.id),
+      );
 
     // Determinar expiração da sessão (24 horas)
     let isSessionExpired = false;
@@ -100,7 +103,15 @@ export async function processBotFlow(
     }
 
     // Comandos de interrupção explícita
-    const globalInterruptionKeywords = ["menu", "início", "inicio", "atendente", "humano", "cancelar", "reiniciar"];
+    const globalInterruptionKeywords = [
+      "menu",
+      "início",
+      "inicio",
+      "atendente",
+      "humano",
+      "cancelar",
+      "reiniciar",
+    ];
     const isInterruption = globalInterruptionKeywords.includes(messageBody.trim().toLowerCase());
 
     // Processamento de botão interativo (alta precedência)
@@ -123,7 +134,8 @@ export async function processBotFlow(
       // Executa a atribuição se fornecida
       if (assignTeamId || assignAgentId) {
         try {
-          await dbAdmin.from("conversation_assignments")
+          await dbAdmin
+            .from("conversation_assignments")
             .update({ is_active: false, unassigned_at: new Date().toISOString() })
             .eq("user_id", userId)
             .eq("contact_phone", phoneDigits)
@@ -141,7 +153,7 @@ export async function processBotFlow(
                GROUP BY tm.user_id
                ORDER BY active_chats ASC, RAND()
                LIMIT 1`,
-              [userId, assignTeamId]
+              [userId, assignTeamId],
             );
             if (agents && agents.length > 0) {
               finalAgentId = agents[0].agent_id;
@@ -156,7 +168,7 @@ export async function processBotFlow(
             team_id: assignTeamId,
             agent_id: finalAgentId || null,
             assigned_by: null,
-            is_active: true
+            is_active: true,
           });
         } catch (err: any) {
           logError("Erro ao processar atribuição do botão", { error: err.message });
@@ -190,7 +202,8 @@ export async function processBotFlow(
         const targetStep = allSteps?.find((s: any) => s.id === nextStepId);
         if (targetStep) {
           stepToExecute = targetStep;
-          activeFlow = sortedFlows.find((f: any) => f.id === targetStep.bot_settings_id) || activeFlow;
+          activeFlow =
+            sortedFlows.find((f: any) => f.id === targetStep.bot_settings_id) || activeFlow;
           isButtonRedirect = true;
         }
       }
@@ -202,7 +215,8 @@ export async function processBotFlow(
         const queuedStep = allSteps?.find((s: any) => s.id === state.current_step_id);
         if (queuedStep) {
           stepToExecute = queuedStep;
-          activeFlow = sortedFlows.find((f: any) => f.id === queuedStep.bot_settings_id) || activeFlow;
+          activeFlow =
+            sortedFlows.find((f: any) => f.id === queuedStep.bot_settings_id) || activeFlow;
         }
       }
 
@@ -210,7 +224,7 @@ export async function processBotFlow(
       if (!stepToExecute) {
         if (isInterruption) {
           logInfo("Interrupção global do bot solicitada pelo usuário", { messageBody });
-          
+
           // Se for comando de handoff/atendente humano, pausamos o bot
           if (["atendente", "humano"].includes(messageBody.trim().toLowerCase())) {
             const updateData = {
@@ -240,13 +254,22 @@ export async function processBotFlow(
           if (f.trigger_type === "keyword" && f.trigger_value) {
             return messageBody.toLowerCase() === f.trigger_value.toLowerCase();
           }
-          const startStep = allSteps?.find((s: any) => s.bot_settings_id === f.id && s.trigger_type === "keyword");
-          return startStep?.trigger_value && messageBody.toLowerCase() === startStep.trigger_value.toLowerCase();
+          const startStep = allSteps?.find(
+            (s: any) => s.bot_settings_id === f.id && s.trigger_type === "keyword",
+          );
+          return (
+            startStep?.trigger_value &&
+            messageBody.toLowerCase() === startStep.trigger_value.toLowerCase()
+          );
         });
 
         if (keywordMatch) {
           activeFlow = keywordMatch;
-          const startStep = allSteps?.find((s: any) => s.bot_settings_id === activeFlow.id && (s.trigger_type === "keyword" || s.trigger_type === "start"));
+          const startStep = allSteps?.find(
+            (s: any) =>
+              s.bot_settings_id === activeFlow.id &&
+              (s.trigger_type === "keyword" || s.trigger_type === "start"),
+          );
           if (startStep) stepToExecute = startStep;
         }
 
@@ -255,7 +278,9 @@ export async function processBotFlow(
           const defaultFlow = sortedFlows.find((f: any) => f.is_default);
           if (defaultFlow) {
             activeFlow = defaultFlow;
-            const startStep = allSteps?.find((s: any) => s.bot_settings_id === activeFlow.id && s.trigger_type === "start");
+            const startStep = allSteps?.find(
+              (s: any) => s.bot_settings_id === activeFlow.id && s.trigger_type === "start",
+            );
             if (startStep) stepToExecute = startStep;
           }
         }
@@ -264,7 +289,9 @@ export async function processBotFlow(
 
     // Regra 7: Se nenhum fluxo compatível for encontrado, salvar a mensagem e deixar para atendimento humano
     if (!stepToExecute) {
-      logInfo("Nenhum fluxo compatível encontrado. Mensagem deixada para atendimento humano.", { messageBody });
+      logInfo("Nenhum fluxo compatível encontrado. Mensagem deixada para atendimento humano.", {
+        messageBody,
+      });
       return;
     }
 
@@ -288,7 +315,11 @@ export async function processBotFlow(
       return;
     }
 
-    logInfo("Executando step do bot", { stepId: stepToExecute.id, flowId: activeFlow.id, messageBody });
+    logInfo("Executando step do bot", {
+      stepId: stepToExecute.id,
+      flowId: activeFlow.id,
+      messageBody,
+    });
 
     const isHandoff = stepToExecute.next_step_id === "-999";
     const updateData = {
@@ -340,16 +371,23 @@ export async function processBotFlow(
       } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
         payload.type = stepToExecute.message_type;
         const mediaObj: any = { link: stepToExecute.media_url || "" };
-        if (stepToExecute.media_caption && ["image", "video", "document"].includes(stepToExecute.message_type)) {
+        if (
+          stepToExecute.media_caption &&
+          ["image", "video", "document"].includes(stepToExecute.message_type)
+        ) {
           mediaObj.caption = stepToExecute.media_caption;
         }
         payload[stepToExecute.message_type] = mediaObj;
-      } else if (["buttons", "list"].includes(stepToExecute.message_type) && stepToExecute.buttons_config) {
+      } else if (
+        ["buttons", "list"].includes(stepToExecute.message_type) &&
+        stepToExecute.buttons_config
+      ) {
         try {
-          const configObj = typeof stepToExecute.buttons_config === "string"
-            ? JSON.parse(stepToExecute.buttons_config)
-            : stepToExecute.buttons_config;
-          
+          const configObj =
+            typeof stepToExecute.buttons_config === "string"
+              ? JSON.parse(stepToExecute.buttons_config)
+              : stepToExecute.buttons_config;
+
           payload.type = "interactive";
           payload.interactive = configObj.interactive || configObj;
         } catch (e: any) {
@@ -511,7 +549,10 @@ export async function executeInactivityStep(
       } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
         payload.type = stepToExecute.message_type;
         const mediaObj: any = { link: stepToExecute.media_url || "" };
-        if (stepToExecute.media_caption && ["image", "video", "document"].includes(stepToExecute.message_type)) {
+        if (
+          stepToExecute.media_caption &&
+          ["image", "video", "document"].includes(stepToExecute.message_type)
+        ) {
           mediaObj.caption = stepToExecute.media_caption;
         }
         payload[stepToExecute.message_type] = mediaObj;
@@ -643,4 +684,3 @@ export async function executeInactivityStep(
     logError("Exceção fatal no executeInactivityStep", { error: err.message });
   }
 }
-

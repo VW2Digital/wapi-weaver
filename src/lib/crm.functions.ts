@@ -961,10 +961,18 @@ export const createOpportunity = createServerFn({ method: "POST" })
       }
 
       // Log audit
-      await logAudit(conn, context.userId, oppId, "create", null, {
-        title: data.title,
-        value: data.value,
-      });
+      await logAudit(
+        conn,
+        effectiveUserId,
+        oppId,
+        "create",
+        null,
+        {
+          title: data.title,
+          value: data.value,
+        },
+        context.userId,
+      );
     });
 
     return { id: oppId };
@@ -1087,7 +1095,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
       }
 
       // Log audit
-      await logAudit(conn, context.userId, data.id, "update", existingOpp, data.data);
+      await logAudit(conn, effectiveUserId, data.id, "update", existingOpp, data.data, context.userId);
     });
 
     return { ok: true };
@@ -1099,20 +1107,29 @@ export const deleteOpportunity = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    // Soft delete
-    await db.query(
-      "UPDATE opportunities SET deleted_at = NOW(), updated_by_user_id = ? WHERE id = ? AND user_id = ?",
-      [context.userId, data.id, effectiveUserId],
-    );
+    
+    await db.transaction(async (conn) => {
+      // Fetch title before delete/update
+      const [opps] = (await conn.execute("SELECT title FROM opportunities WHERE id = ?", [data.id])) as any[];
+      const opp = opps?.[0];
 
-    // Audit log
-    const auditConn = db;
-    const opp = await db.query("SELECT title FROM opportunities WHERE id = ?", [data.id]);
-    await auditConn.query(
-      `INSERT INTO opportunity_audit_logs (id, user_id, opportunity_id, action, new_values)
-       VALUES (UUID(), ?, ?, 'delete', ?)`,
-      [context.userId, data.id, JSON.stringify({ title: opp?.[0]?.title ?? "", deleted: true })],
-    );
+      // Soft delete
+      await conn.execute(
+        "UPDATE opportunities SET deleted_at = NOW(), updated_by_user_id = ? WHERE id = ? AND user_id = ?",
+        [context.userId, data.id, effectiveUserId],
+      );
+
+      // Audit log
+      await logAudit(
+        conn,
+        effectiveUserId,
+        data.id,
+        "delete",
+        null,
+        { title: opp?.title ?? "", deleted: true },
+        context.userId,
+      );
+    });
 
     return { ok: true };
   });
@@ -1262,11 +1279,12 @@ export const moveOpportunity = createServerFn({ method: "POST" })
       // Audit Log
       await logAudit(
         conn,
-        context.userId,
+        effectiveUserId,
         data.id,
         "move_stage",
         { stage_id: oldStageId, status: oldStatus },
         { stage_id: data.to_stage_id, status: newStatus },
+        context.userId,
       );
 
       return {
@@ -1336,11 +1354,12 @@ export const markOpportunityWon = createServerFn({ method: "POST" })
 
       await logAudit(
         conn,
-        context.userId,
+        effectiveUserId,
         data.id,
         "mark_won",
         { status: opportunity.status },
         { status: "won", stage_id: wonStageId },
+        context.userId,
       );
     });
 
@@ -1424,11 +1443,12 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
 
       await logAudit(
         conn,
-        context.userId,
+        effectiveUserId,
         data.id,
         "mark_lost",
         { status: opportunity.status },
         { status: "lost", lost_reason_id: data.lost_reason_id },
+        context.userId,
       );
     });
 
@@ -1487,11 +1507,12 @@ export const reopenOpportunity = createServerFn({ method: "POST" })
 
       await logAudit(
         conn,
-        context.userId,
+        effectiveUserId,
         data.id,
         "reopen",
         { status: opportunity.status },
         { status: "open", stage_id: data.target_stage_id },
+        context.userId,
       );
     });
 
@@ -1556,11 +1577,12 @@ export const changeOpportunityFunnel = createServerFn({ method: "POST" })
       // Audit Log
       await logAudit(
         conn,
-        context.userId,
+        effectiveUserId,
         data.id,
         "change_funnel",
         { funnel_id: opportunity.funnel_id },
         { funnel_id: data.to_funnel_id, stage_id: data.to_stage_id },
+        context.userId,
       );
     });
 
@@ -1646,9 +1668,9 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
         );
       }
 
-      await logAudit(conn, context.userId, newId, "duplicate_from", null, {
+      await logAudit(conn, effectiveUserId, newId, "duplicate_from", null, {
         original_opportunity_id: data.id,
-      });
+      }, context.userId);
     });
 
     return { id: newId };
@@ -2105,11 +2127,12 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
 
           await logAudit(
             conn,
-            context.userId,
+            effectiveUserId,
             oppId,
             "update_stage",
             { stage_id: oldRow?.[0]?.stage_id },
             { stage_id: data.stageId },
+            context.userId,
           );
         } else {
           // Create new opportunity
@@ -2158,11 +2181,11 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
             [effectiveUserId, oppId, contactId],
           );
 
-          await logAudit(conn, context.userId, oppId, "create", null, {
+          await logAudit(conn, effectiveUserId, oppId, "create", null, {
             funnel_id: data.funnelId,
             stage_id: data.stageId,
             title,
-          });
+          }, context.userId);
         }
       }
     });

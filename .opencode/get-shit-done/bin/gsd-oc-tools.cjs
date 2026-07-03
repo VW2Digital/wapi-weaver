@@ -20,16 +20,16 @@
  *   help                    Show this help message
  */
 
-const path = require('path');
-const { output, error } = require('./gsd-oc-lib/oc-core.cjs');
+const path = require("path");
+const { output, error } = require("./gsd-oc-lib/oc-core.cjs");
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const command = args[0];
 const flags = args.slice(1);
 
-const verbose = flags.includes('--verbose');
-const raw = flags.includes('--raw');
+const verbose = flags.includes("--verbose");
+const raw = flags.includes("--raw");
 
 // Current working directory
 const cwd = process.cwd();
@@ -77,56 +77,56 @@ Examples:
 }
 
 // Command routing
-if (!command || command === 'help') {
+if (!command || command === "help") {
   showHelp();
 }
 
 switch (command) {
-  case 'check-opencode-json': {
-    const checkOpencodeJson = require('./gsd-oc-commands/check-opencode-json.cjs');
+  case "check-opencode-json": {
+    const checkOpencodeJson = require("./gsd-oc-commands/check-opencode-json.cjs");
     checkOpencodeJson(cwd, flags);
     break;
   }
 
-  case 'check-config-json': {
+  case "check-config-json": {
     // Updated implementation: validates .planning/oc_config.json (migrated from old config.json format)
-    const checkOcConfigJson = require('./gsd-oc-commands/check-oc-config-json.cjs');
+    const checkOcConfigJson = require("./gsd-oc-commands/check-oc-config-json.cjs");
     checkOcConfigJson(cwd, flags);
     break;
   }
 
-  case 'check-oc-config-json': {
-    const checkOcConfigJson = require('./gsd-oc-commands/check-oc-config-json.cjs');
+  case "check-oc-config-json": {
+    const checkOcConfigJson = require("./gsd-oc-commands/check-oc-config-json.cjs");
     checkOcConfigJson(cwd, flags);
     break;
   }
 
-  case 'update-opencode-json': {
-    const updateOpencodeJson = require('./gsd-oc-commands/update-opencode-json.cjs');
+  case "update-opencode-json": {
+    const updateOpencodeJson = require("./gsd-oc-commands/update-opencode-json.cjs");
     updateOpencodeJson(cwd, flags);
     break;
   }
 
-  case 'validate-models': {
-    const validateModels = require('./gsd-oc-commands/validate-models.cjs');
+  case "validate-models": {
+    const validateModels = require("./gsd-oc-commands/validate-models.cjs");
     validateModels(cwd, flags);
     break;
   }
 
-  case 'set-profile': {
-    const setProfile = require('./gsd-oc-commands/set-profile.cjs');
+  case "set-profile": {
+    const setProfile = require("./gsd-oc-commands/set-profile.cjs");
     setProfile(cwd, flags);
     break;
   }
 
-  case 'get-profile': {
-    const getProfile = require('./gsd-oc-commands/get-profile.cjs');
+  case "get-profile": {
+    const getProfile = require("./gsd-oc-commands/get-profile.cjs");
     getProfile(cwd, flags);
     break;
   }
 
-  case 'allow-read-config': {
-    const allowReadConfig = require('./gsd-oc-commands/allow-read-config.cjs');
+  case "allow-read-config": {
+    const allowReadConfig = require("./gsd-oc-commands/allow-read-config.cjs");
     allowReadConfig(cwd, flags);
     break;
   }

@@ -3,15 +3,16 @@ name: gsd-secure-phase
 description: Retroactively verify threat mitigations for a completed phase
 argument-hint: "[phase number]"
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   glob: true
-   grep: true
-   task: true
-   question: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  glob: true
+  grep: true
+  task: true
+  question: true
 ---
+
 <objective>
 Verify threat mitigations for a completed phase. Three states:
 - (A) SECURITY.md exists — audit and verify mitigations

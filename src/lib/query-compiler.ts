@@ -191,7 +191,9 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
   ]);
 
   if (adminOnlyTables.has(table) && !isSenderAdmin) {
-    throw new Error(`Acesso negado: apenas administradores master têm permissão para acessar a tabela '${table}'`);
+    throw new Error(
+      `Acesso negado: apenas administradores master têm permissão para acessar a tabela '${table}'`,
+    );
   }
 
   const enforceUserRestriction = hasUserIdColumn(table) && !isSenderAdmin;

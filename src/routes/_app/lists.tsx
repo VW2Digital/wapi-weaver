@@ -72,13 +72,12 @@ function ListsPage() {
   });
 
   const memberIds = new Set((members.data ?? []).map((m: any) => m.contact_id));
-  const filteredContacts = (contacts.data ?? [])
-    .filter(
-      (c: any) =>
-        !search ||
-        c.phone_e164.includes(search) ||
-        c.name?.toLowerCase().includes(search.toLowerCase()),
-    );
+  const filteredContacts = (contacts.data ?? []).filter(
+    (c: any) =>
+      !search ||
+      c.phone_e164.includes(search) ||
+      c.name?.toLowerCase().includes(search.toLowerCase()),
+  );
 
   const handleSelectAll = () => {
     const newPicked = new Set(picked);
@@ -111,16 +110,17 @@ function ListsPage() {
         if (!line) continue;
 
         const sep = line.includes(";") ? ";" : ",";
-        const cols = line.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ""));
+        const cols = line.split(sep).map((c) => c.trim().replace(/^["']|["']$/g, ""));
 
-        if (i === 0 && (
-          line.toLowerCase().includes("phone") ||
-          line.toLowerCase().includes("telefone") ||
-          line.toLowerCase().includes("name") ||
-          line.toLowerCase().includes("nome") ||
-          line.toLowerCase().includes("email") ||
-          line.toLowerCase().includes("e-mail")
-        )) {
+        if (
+          i === 0 &&
+          (line.toLowerCase().includes("phone") ||
+            line.toLowerCase().includes("telefone") ||
+            line.toLowerCase().includes("name") ||
+            line.toLowerCase().includes("nome") ||
+            line.toLowerCase().includes("email") ||
+            line.toLowerCase().includes("e-mail"))
+        ) {
           continue;
         }
 
@@ -158,8 +158,12 @@ function ListsPage() {
       }
 
       try {
-        const res = await importCsv({ data: { list_id: selectedList.id, contacts: parsedContacts } });
-        toast.success(`${res.importedCount} contatos processados (${res.newContactsCount} novos adicionados)`);
+        const res = await importCsv({
+          data: { list_id: selectedList.id, contacts: parsedContacts },
+        });
+        toast.success(
+          `${res.importedCount} contatos processados (${res.newContactsCount} novos adicionados)`,
+        );
         qc.invalidateQueries({ queryKey: ["lists"] });
         qc.invalidateQueries({ queryKey: ["contacts"] });
         qc.invalidateQueries({ queryKey: ["list-members", selectedList.id] });
@@ -300,7 +304,12 @@ function ListsPage() {
           </Card>
 
           {/* Dialog de edição de lista */}
-          <Dialog open={!!editingList} onOpenChange={(o) => { if (!o) setEditingList(null); }}>
+          <Dialog
+            open={!!editingList}
+            onOpenChange={(o) => {
+              if (!o) setEditingList(null);
+            }}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Editar lista</DialogTitle>
@@ -317,7 +326,9 @@ function ListsPage() {
                   <Label>Descrição</Label>
                   <Input
                     value={editingList?.description ?? ""}
-                    onChange={(e) => setEditingList((p: any) => ({ ...p, description: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingList((p: any) => ({ ...p, description: e.target.value }))
+                    }
                   />
                 </div>
                 <Button
@@ -422,7 +433,9 @@ function ListsPage() {
                       );
                     })}
                     {filteredContacts.length === 0 && (
-                      <p className="p-3 text-xs text-muted-foreground text-center">Nenhum contato disponível.</p>
+                      <p className="p-3 text-xs text-muted-foreground text-center">
+                        Nenhum contato disponível.
+                      </p>
                     )}
                   </div>
                   {filteredContacts.length > 500 && (
@@ -510,7 +523,10 @@ function ListsPage() {
             <div className="flex flex-wrap gap-2">
               {(tags.data ?? []).map((t: any) =>
                 editingTag?.id === t.id ? (
-                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
+                  <span
+                    key={t.id}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-1"
+                  >
                     <input
                       type="color"
                       className="h-5 w-5 rounded-full border-none p-0 cursor-pointer"

@@ -13,10 +13,10 @@
  *   4. JSON injection: malformed JSON crashes or corrupts state
  *   5. Regex DoS: crafted input causes catastrophic backtracking
  */
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 // ─── Path Traversal Prevention ──────────────────────────────────────────────
 
@@ -31,17 +31,17 @@ const path = require('path');
  * @returns {{ safe: boolean, resolved: string, error?: string }}
  */
 function validatePath(filePath, baseDir, opts = {}) {
-  if (!filePath || typeof filePath !== 'string') {
-    return { safe: false, resolved: '', error: 'Empty or invalid file path' };
+  if (!filePath || typeof filePath !== "string") {
+    return { safe: false, resolved: "", error: "Empty or invalid file path" };
   }
 
-  if (!baseDir || typeof baseDir !== 'string') {
-    return { safe: false, resolved: '', error: 'Empty or invalid base directory' };
+  if (!baseDir || typeof baseDir !== "string") {
+    return { safe: false, resolved: "", error: "Empty or invalid base directory" };
   }
 
   // Reject null bytes (can bypass path checks in some environments)
-  if (filePath.includes('\0')) {
-    return { safe: false, resolved: '', error: 'Path contains null bytes' };
+  if (filePath.includes("\0")) {
+    return { safe: false, resolved: "", error: "Path contains null bytes" };
   }
 
   // Resolve symlinks in base directory to handle macOS /var -> /private/var
@@ -57,7 +57,7 @@ function validatePath(filePath, baseDir, opts = {}) {
 
   if (path.isAbsolute(filePath)) {
     if (!opts.allowAbsolute) {
-      return { safe: false, resolved: '', error: 'Absolute paths not allowed' };
+      return { safe: false, resolved: "", error: "Absolute paths not allowed" };
     }
     resolvedPath = path.resolve(filePath);
   } else {
@@ -103,7 +103,7 @@ function validatePath(filePath, baseDir, opts = {}) {
 function requireSafePath(filePath, baseDir, label, opts = {}) {
   const result = validatePath(filePath, baseDir, opts);
   if (!result.safe) {
-    throw new Error(`${label || 'Path'} validation failed: ${result.error}`);
+    throw new Error(`${label || "Path"} validation failed: ${result.error}`);
   }
   return result.resolved;
 }
@@ -128,7 +128,7 @@ const INJECTION_PATTERNS = [
 
   // Role/identity manipulation
   /you\s+are\s+now\s+(?:a|an|the)\s+/i,
-  /act\s+as\s+(?:a|an|the)\s+(?!plan|phase|wave)/i,  // allow "act as a plan"
+  /act\s+as\s+(?:a|an|the)\s+(?!plan|phase|wave)/i, // allow "act as a plan"
   /pretend\s+(?:you(?:'re| are)\s+|to\s+be\s+)/i,
   /from\s+now\s+on,?\s+you\s+(?:are|will|should|must)/i,
 
@@ -163,11 +163,11 @@ const OBFUSCATION_PATTERN_ENTRIES = [
   },
   {
     pattern: /<\/?(system|human|assistant|user)\s*>/i,
-    message: 'Delimiter injection pattern: <system>/<human>/<assistant>/<user> tag detected',
+    message: "Delimiter injection pattern: <system>/<human>/<assistant>/<user> tag detected",
   },
   {
     pattern: /0x[0-9a-fA-F]{16,}/,
-    message: 'Long hex sequence detected — possible encoded payload',
+    message: "Long hex sequence detected — possible encoded payload",
   },
 ];
 
@@ -181,7 +181,7 @@ const OBFUSCATION_PATTERN_ENTRIES = [
  * @returns {{ clean: boolean, findings: string[] }}
  */
 function scanForInjection(text, opts = {}) {
-  if (!text || typeof text !== 'string') {
+  if (!text || typeof text !== "string") {
     return { clean: true, findings: [] };
   }
 
@@ -204,20 +204,24 @@ function scanForInjection(text, opts = {}) {
     // Check for suspicious Unicode that could hide instructions
     // (zero-width chars, RTL override, homoglyph attacks)
     if (/[\u200B-\u200F\u2028-\u202F\uFEFF\u00AD]/.test(text)) {
-      findings.push('Contains suspicious zero-width or invisible Unicode characters');
+      findings.push("Contains suspicious zero-width or invisible Unicode characters");
     }
 
     // Layer 1: Unicode tag block U+E0000–U+E007F (2025 supply-chain attack vector)
     // These characters are invisible and can embed hidden instructions
     if (/[\uDB40\uDC00-\uDB40\uDC7F]/u.test(text) || /[\u{E0000}-\u{E007F}]/u.test(text)) {
-      findings.push('Contains Unicode tag block characters (U+E0000–E007F) — invisible instruction injection vector');
+      findings.push(
+        "Contains Unicode tag block characters (U+E0000–E007F) — invisible instruction injection vector",
+      );
     }
 
     // Check for extremely long strings that could be prompt stuffing.
     // Normalize CRLF → LF before measuring so Windows checkouts don't inflate the count.
-    const normalizedLength = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').length;
+    const normalizedLength = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").length;
     if (normalizedLength > 50000) {
-      findings.push(`Suspicious text length: ${normalizedLength} chars (potential prompt stuffing)`);
+      findings.push(
+        `Suspicious text length: ${normalizedLength} chars (potential prompt stuffing)`,
+      );
     }
   }
 
@@ -235,25 +239,30 @@ function scanForInjection(text, opts = {}) {
  * @returns {string} Sanitized text
  */
 function sanitizeForPrompt(text) {
-  if (!text || typeof text !== 'string') return text;
+  if (!text || typeof text !== "string") return text;
 
   let sanitized = text;
 
   // Strip zero-width characters that could hide instructions
-  sanitized = sanitized.replace(/[\u200B-\u200F\u2028-\u202F\uFEFF\u00AD]/g, '');
+  sanitized = sanitized.replace(/[\u200B-\u200F\u2028-\u202F\uFEFF\u00AD]/g, "");
 
   // Neutralize XML/HTML tags that mimic system boundaries
   // Replace < > with full-width equivalents to prevent tag interpretation
   // Note: <instructions> is excluded — GSD uses it as legitimate prompt structure
   // Matches system|assistant|human|user with optional whitespace before the closing >
-  sanitized = sanitized.replace(/<(\/?)\s*(?:system|assistant|human|user)\s*>/gi,
-    (_, slash) => `＜${slash || ''}system-text＞`);
+  sanitized = sanitized.replace(
+    /<(\/?)\s*(?:system|assistant|human|user)\s*>/gi,
+    (_, slash) => `＜${slash || ""}system-text＞`,
+  );
 
   // Neutralize [SYSTEM] / [INST] / [/INST] markers — both opening and closing variants
-  sanitized = sanitized.replace(/\[(\/?)(SYSTEM|INST)\]/gi, (_, slash, tag) => `[${slash}${tag.toUpperCase()}-TEXT]`);
+  sanitized = sanitized.replace(
+    /\[(\/?)(SYSTEM|INST)\]/gi,
+    (_, slash, tag) => `[${slash}${tag.toUpperCase()}-TEXT]`,
+  );
 
   // Neutralize <<SYS>> and <</SYS>> markers (Llama-style delimiters)
-  sanitized = sanitized.replace(/<<\/?\s*SYS\s*>>/gi, '«SYS-TEXT»');
+  sanitized = sanitized.replace(/<<\/?\s*SYS\s*>>/gi, "«SYS-TEXT»");
 
   return sanitized;
 }
@@ -266,7 +275,7 @@ function sanitizeForPrompt(text) {
  * @returns {string} Sanitized text
  */
 function sanitizeForDisplay(text) {
-  if (!text || typeof text !== 'string') return text;
+  if (!text || typeof text !== "string") return text;
 
   let sanitized = sanitizeForPrompt(text);
 
@@ -276,9 +285,9 @@ function sanitizeForDisplay(text) {
   ];
 
   sanitized = sanitized
-    .split('\n')
-    .filter(line => !protocolLeakPatterns.some(pattern => pattern.test(line)))
-    .join('\n');
+    .split("\n")
+    .filter((line) => !protocolLeakPatterns.some((pattern) => pattern.test(line)))
+    .join("\n");
 
   return sanitized;
 }
@@ -295,18 +304,18 @@ function sanitizeForDisplay(text) {
  * @returns {string} The validated value
  */
 function validateShellArg(value, label) {
-  if (!value || typeof value !== 'string') {
-    throw new Error(`${label || 'Argument'}: empty or invalid value`);
+  if (!value || typeof value !== "string") {
+    throw new Error(`${label || "Argument"}: empty or invalid value`);
   }
 
   // Reject null bytes
-  if (value.includes('\0')) {
-    throw new Error(`${label || 'Argument'}: contains null bytes`);
+  if (value.includes("\0")) {
+    throw new Error(`${label || "Argument"}: contains null bytes`);
   }
 
   // Reject command substitution attempts
   if (/[$`]/.test(value) && /\$\(|`/.test(value)) {
-    throw new Error(`${label || 'Argument'}: contains potential command substitution`);
+    throw new Error(`${label || "Argument"}: contains potential command substitution`);
   }
 
   return value;
@@ -326,14 +335,17 @@ function validateShellArg(value, label) {
  */
 function safeJsonParse(text, opts = {}) {
   const maxLength = opts.maxLength || 1048576;
-  const label = opts.label || 'JSON';
+  const label = opts.label || "JSON";
 
-  if (!text || typeof text !== 'string') {
+  if (!text || typeof text !== "string") {
     return { ok: false, error: `${label}: empty or invalid input` };
   }
 
   if (text.length > maxLength) {
-    return { ok: false, error: `${label}: input exceeds ${maxLength} byte limit (got ${text.length})` };
+    return {
+      ok: false,
+      error: `${label}: input exceeds ${maxLength} byte limit (got ${text.length})`,
+    };
   }
 
   try {
@@ -355,8 +367,8 @@ function safeJsonParse(text, opts = {}) {
  * @returns {{ valid: boolean, normalized?: string, error?: string }}
  */
 function validatePhaseNumber(phase) {
-  if (!phase || typeof phase !== 'string') {
-    return { valid: false, error: 'Phase number is required' };
+  if (!phase || typeof phase !== "string") {
+    return { valid: false, error: "Phase number is required" };
   }
 
   const trimmed = phase.trim();
@@ -382,8 +394,8 @@ function validatePhaseNumber(phase) {
  * @returns {{ valid: boolean, error?: string }}
  */
 function validateFieldName(field) {
-  if (!field || typeof field !== 'string') {
-    return { valid: false, error: 'Field name is required' };
+  if (!field || typeof field !== "string") {
+    return { valid: false, error: "Field name is required" };
   }
 
   // Allow typical field names: "Current Phase", "active_plan", "Phase 1.2"
@@ -397,8 +409,14 @@ function validateFieldName(field) {
 // ─── Layer 3: Structural Schema Validation ───────────────────────────────────
 
 const KNOWN_VALID_TAGS = new Set([
-  'objective', 'process', 'step', 'success_criteria', 'critical_rules',
-  'available_agent_types', 'purpose', 'required_reading',
+  "objective",
+  "process",
+  "step",
+  "success_criteria",
+  "critical_rules",
+  "available_agent_types",
+  "purpose",
+  "required_reading",
 ]);
 
 /**
@@ -410,11 +428,11 @@ const KNOWN_VALID_TAGS = new Set([
  * @returns {{ valid: boolean, violations: string[] }}
  */
 function validatePromptStructure(text, fileType) {
-  if (!text || typeof text !== 'string') {
+  if (!text || typeof text !== "string") {
     return { valid: true, violations: [] };
   }
 
-  if (fileType !== 'agent' && fileType !== 'workflow') {
+  if (fileType !== "agent" && fileType !== "workflow") {
     return { valid: true, violations: [] };
   }
 
@@ -455,7 +473,7 @@ function shannonEntropy(text) {
  * @returns {{ clean: boolean, findings: string[] }}
  */
 function scanEntropyAnomalies(text) {
-  if (!text || typeof text !== 'string') {
+  if (!text || typeof text !== "string") {
     return { clean: true, findings: [] };
   }
 
@@ -467,7 +485,7 @@ function scanEntropyAnomalies(text) {
     const entropy = shannonEntropy(para);
     if (entropy > 5.5) {
       findings.push(
-        `High-entropy paragraph detected (${entropy.toFixed(2)} bits/char) — possible encoded payload`
+        `High-entropy paragraph detected (${entropy.toFixed(2)} bits/char) — possible encoded payload`,
       );
     }
   }

@@ -45,13 +45,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   Trash2,
   Upload,
@@ -105,10 +99,19 @@ function ContactsPage() {
 
   const [editingContact, setEditingContact] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
-    phone: "", name: "", email: "",
-    source: "", channel: "whatsapp", external_contact_id: "",
-    custom_fields: "", opted_out: false, is_pinned: false, is_archived: false,
-    chat_status: "aberto", is_unread: false, kanban_stage_id: "",
+    phone: "",
+    name: "",
+    email: "",
+    source: "",
+    channel: "whatsapp",
+    external_contact_id: "",
+    custom_fields: "",
+    opted_out: false,
+    is_pinned: false,
+    is_archived: false,
+    chat_status: "aberto",
+    is_unread: false,
+    kanban_stage_id: "",
   });
   const [kanbanStages, setKanbanStages] = useState<any[]>([]);
   const [currentKanbanStage, setCurrentKanbanStage] = useState<any | null>(null);
@@ -120,10 +123,19 @@ function ContactsPage() {
       toast.success("Contato atualizado");
       setEditingContact(null);
       setEditForm({
-        phone: "", name: "", email: "",
-        source: "", channel: "whatsapp", external_contact_id: "",
-        custom_fields: "", opted_out: false, is_pinned: false, is_archived: false,
-        chat_status: "aberto", is_unread: false, kanban_stage_id: "",
+        phone: "",
+        name: "",
+        email: "",
+        source: "",
+        channel: "whatsapp",
+        external_contact_id: "",
+        custom_fields: "",
+        opted_out: false,
+        is_pinned: false,
+        is_archived: false,
+        chat_status: "aberto",
+        is_unread: false,
+        kanban_stage_id: "",
       });
       qc.invalidateQueries({ queryKey: ["contacts"] });
     },
@@ -353,7 +365,7 @@ function ContactsPage() {
                   <span className="truncate">Novo contato</span>
                 </Button>
               </SheetTrigger>
-        <SheetContent className="bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+              <SheetContent className="bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
                 <SheetHeader className="mb-4">
                   <SheetTitle>Novo contato</SheetTitle>
                 </SheetHeader>
@@ -763,7 +775,9 @@ function ContactsPage() {
                 value={editForm.channel}
                 onValueChange={(v) => setEditForm({ ...editForm, channel: v as any })}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="whatsapp">WhatsApp</SelectItem>
                   <SelectItem value="instagram">Instagram</SelectItem>
@@ -823,7 +837,11 @@ function ContactsPage() {
                 onValueChange={(v) => setEditForm({ ...editForm, kanban_stage_id: v })}
                 disabled={loadingKanban}
               >
-                <SelectTrigger><SelectValue placeholder={loadingKanban ? "Carregando..." : "Selecione uma etapa"} /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={loadingKanban ? "Carregando..." : "Selecione uma etapa"}
+                  />
+                </SelectTrigger>
                 <SelectContent>
                   {kanbanStages.map((st: any) => (
                     <SelectItem key={st.id} value={st.id}>
@@ -844,7 +862,9 @@ function ContactsPage() {
                     </SelectItem>
                   ))}
                   {!loadingKanban && kanbanStages.length === 0 && (
-                    <SelectItem value="_none" disabled>Nenhuma etapa disponível</SelectItem>
+                    <SelectItem value="_none" disabled>
+                      Nenhuma etapa disponível
+                    </SelectItem>
                   )}
                 </SelectContent>
               </Select>
@@ -868,7 +888,9 @@ function ContactsPage() {
                     if (editForm.custom_fields?.trim()) {
                       custom_fields = JSON.parse(editForm.custom_fields);
                     }
-                  } catch { custom_fields = null; }
+                  } catch {
+                    custom_fields = null;
+                  }
                   const payload: any = {
                     id: editingContact.id,
                     ...editForm,

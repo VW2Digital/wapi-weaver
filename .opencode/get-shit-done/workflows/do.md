@@ -11,7 +11,6 @@ read all files referenced by the invoking prompt's execution_context before star
 <step name="validate">
 **Check for input.**
 
-
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 If `$ARGUMENTS` is empty, ask via question:
 
@@ -37,28 +36,28 @@ Track whether `.planning/` exists — some routes require it, others don't.
 
 Evaluate `$ARGUMENTS` against these routing rules. Apply the **first matching** rule:
 
-| If the text describes... | Route to | Why |
-|--------------------------|----------|-----|
-| Starting a new project, "set up", "initialize" | `/gsd-new-project` | Needs full project initialization |
-| Mapping or analyzing an existing codebase | `/gsd-map-codebase` | Codebase discovery |
-| A bug, error, crash, failure, or something broken | `/gsd-debug` | Needs systematic investigation |
-| Spiking, "test if", "will this work", "experiment", "prove this out", validate feasibility | `/gsd-spike` | Throwaway experiment to validate feasibility |
-| Sketching, "mockup", "what would this look like", "prototype the UI", "design this", explore visual direction | `/gsd-sketch` | Throwaway HTML mockups to explore design |
-| Wrapping up spikes, "package the spikes", "consolidate spike findings" | `/gsd-spike-wrap-up` | Package spike findings into reusable skill |
-| Wrapping up sketches, "package the designs", "consolidate sketch findings" | `/gsd-sketch-wrap-up` | Package sketch findings into reusable skill |
-| Exploring, researching, comparing, or "how does X work" | `/gsd-research-phase` | Domain research before planning |
-| Discussing vision, "how should X look", brainstorming | `/gsd-discuss-phase` | Needs context gathering |
-| A complex task: refactoring, migration, multi-file architecture, system redesign | `/gsd-add-phase` | Needs a full phase with plan/build cycle |
-| Planning a specific phase or "plan phase N" | `/gsd-plan-phase` | Direct planning request |
-| Executing a phase or "build phase N", "run phase N" | `/gsd-execute-phase` | Direct execution request |
-| Running all remaining phases automatically | `/gsd-autonomous` | Full autonomous execution |
-| A review or quality concern about existing work | `/gsd-verify-work` | Needs verification |
-| Checking progress, status, "where am I" | `/gsd-progress` | Status check |
-| Resuming work, "pick up where I left off" | `/gsd-resume-work` | Session restoration |
-| A note, idea, or "remember to..." | `/gsd-add-todo` | Capture for later |
-| Adding tests, "write tests", "test coverage" | `/gsd-add-tests` | Test generation |
-| Completing a milestone, shipping, releasing | `/gsd-complete-milestone` | Milestone lifecycle |
-| A specific, actionable, small task (add feature, fix typo, update config) | `/gsd-quick` | Self-contained, single executor |
+| If the text describes...                                                                                      | Route to                  | Why                                          |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------- |
+| Starting a new project, "set up", "initialize"                                                                | `/gsd-new-project`        | Needs full project initialization            |
+| Mapping or analyzing an existing codebase                                                                     | `/gsd-map-codebase`       | Codebase discovery                           |
+| A bug, error, crash, failure, or something broken                                                             | `/gsd-debug`              | Needs systematic investigation               |
+| Spiking, "test if", "will this work", "experiment", "prove this out", validate feasibility                    | `/gsd-spike`              | Throwaway experiment to validate feasibility |
+| Sketching, "mockup", "what would this look like", "prototype the UI", "design this", explore visual direction | `/gsd-sketch`             | Throwaway HTML mockups to explore design     |
+| Wrapping up spikes, "package the spikes", "consolidate spike findings"                                        | `/gsd-spike-wrap-up`      | Package spike findings into reusable skill   |
+| Wrapping up sketches, "package the designs", "consolidate sketch findings"                                    | `/gsd-sketch-wrap-up`     | Package sketch findings into reusable skill  |
+| Exploring, researching, comparing, or "how does X work"                                                       | `/gsd-research-phase`     | Domain research before planning              |
+| Discussing vision, "how should X look", brainstorming                                                         | `/gsd-discuss-phase`      | Needs context gathering                      |
+| A complex task: refactoring, migration, multi-file architecture, system redesign                              | `/gsd-add-phase`          | Needs a full phase with plan/build cycle     |
+| Planning a specific phase or "plan phase N"                                                                   | `/gsd-plan-phase`         | Direct planning request                      |
+| Executing a phase or "build phase N", "run phase N"                                                           | `/gsd-execute-phase`      | Direct execution request                     |
+| Running all remaining phases automatically                                                                    | `/gsd-autonomous`         | Full autonomous execution                    |
+| A review or quality concern about existing work                                                               | `/gsd-verify-work`        | Needs verification                           |
+| Checking progress, status, "where am I"                                                                       | `/gsd-progress`           | Status check                                 |
+| Resuming work, "pick up where I left off"                                                                     | `/gsd-resume-work`        | Session restoration                          |
+| A note, idea, or "remember to..."                                                                             | `/gsd-add-todo`           | Capture for later                            |
+| Adding tests, "write tests", "test coverage"                                                                  | `/gsd-add-tests`          | Test generation                              |
+| Completing a milestone, shipping, releasing                                                                   | `/gsd-complete-milestone` | Milestone lifecycle                          |
+| A specific, actionable, small task (add feature, fix typo, update config)                                     | `/gsd-quick`              | Self-contained, single executor              |
 
 **Requires `.planning/` directory:** All routes except `/gsd-new-project`, `/gsd-map-codebase`, `/gsd-spike`, `/gsd-sketch`, `/gsd-help`, and `/gsd-join-discord`. If the project doesn't exist and the route requires it, suggest `/gsd-new-project` first.
 
@@ -71,6 +70,7 @@ Evaluate `$ARGUMENTS` against these routing rules. Apply the **first matching** 
 
 Which approach fits better?
 ```
+
 </step>
 
 <step name="display">
@@ -85,6 +85,7 @@ Which approach fits better?
 **Routing to:** {chosen command}
 **Reason:** {one-line explanation}
 ```
+
 </step>
 
 <step name="dispatch">
@@ -100,6 +101,7 @@ After invoking the command, stop. The dispatched command handles everything from
 </process>
 
 <success_criteria>
+
 - [ ] Input validated (not empty)
 - [ ] Intent matched to exactly one GSD command
 - [ ] Ambiguity resolved via user question (if needed)
@@ -107,4 +109,4 @@ After invoking the command, stop. The dispatched command handles everything from
 - [ ] Routing decision displayed before dispatch
 - [ ] Command invoked with appropriate arguments
 - [ ] No work done directly — dispatcher only
-</success_criteria>
+      </success_criteria>

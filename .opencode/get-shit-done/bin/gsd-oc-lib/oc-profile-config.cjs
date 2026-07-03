@@ -6,24 +6,24 @@
  * Follows validate-then-modify pattern with atomic transactions.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { output, error: outputError, createBackup } = require('./oc-core.cjs');
-const { getModelCatalog } = require('./oc-models.cjs');
-const { applyProfileToOpencode } = require('./oc-config.cjs');
+const fs = require("fs");
+const path = require("path");
+const { output, error: outputError, createBackup } = require("./oc-core.cjs");
+const { getModelCatalog } = require("./oc-models.cjs");
+const { applyProfileToOpencode } = require("./oc-config.cjs");
 
 /**
  * Error codes for oc_config.json operations
  */
 const ERROR_CODES = {
-  CONFIG_NOT_FOUND: 'CONFIG_NOT_FOUND',
-  INVALID_JSON: 'INVALID_JSON',
-  PROFILE_NOT_FOUND: 'PROFILE_NOT_FOUND',
-  INVALID_MODELS: 'INVALID_MODELS',
-  INCOMPLETE_PROFILE: 'INCOMPLETE_PROFILE',
-  WRITE_FAILED: 'WRITE_FAILED',
-  APPLY_FAILED: 'APPLY_FAILED',
-  ROLLBACK_FAILED: 'ROLLBACK_FAILED'
+  CONFIG_NOT_FOUND: "CONFIG_NOT_FOUND",
+  INVALID_JSON: "INVALID_JSON",
+  PROFILE_NOT_FOUND: "PROFILE_NOT_FOUND",
+  INVALID_MODELS: "INVALID_MODELS",
+  INCOMPLETE_PROFILE: "INCOMPLETE_PROFILE",
+  WRITE_FAILED: "WRITE_FAILED",
+  APPLY_FAILED: "APPLY_FAILED",
+  ROLLBACK_FAILED: "ROLLBACK_FAILED",
 };
 
 /**
@@ -34,25 +34,25 @@ const ERROR_CODES = {
  */
 function loadOcProfileConfig(cwd) {
   try {
-    const configPath = path.join(cwd, '.planning', 'oc_config.json');
+    const configPath = path.join(cwd, ".planning", "oc_config.json");
 
     if (!fs.existsSync(configPath)) {
       return {
         success: false,
         error: {
           code: ERROR_CODES.CONFIG_NOT_FOUND,
-          message: `.planning/oc_config.json not found at ${configPath}`
-        }
+          message: `.planning/oc_config.json not found at ${configPath}`,
+        },
       };
     }
 
-    const content = fs.readFileSync(configPath, 'utf8');
+    const content = fs.readFileSync(configPath, "utf8");
     const config = JSON.parse(content);
 
     return {
       success: true,
       config,
-      configPath
+      configPath,
     };
   } catch (err) {
     if (err instanceof SyntaxError) {
@@ -60,16 +60,16 @@ function loadOcProfileConfig(cwd) {
         success: false,
         error: {
           code: ERROR_CODES.INVALID_JSON,
-          message: `Invalid JSON in oc_config.json: ${err.message}`
-        }
+          message: `Invalid JSON in oc_config.json: ${err.message}`,
+        },
       };
     }
     return {
       success: false,
       error: {
         code: ERROR_CODES.CONFIG_NOT_FOUND,
-        message: `Failed to read oc_config.json: ${err.message}`
-      }
+        message: `Failed to read oc_config.json: ${err.message}`,
+      },
     };
   }
 }
@@ -91,7 +91,7 @@ function validateProfile(config, profileName, validModels) {
     errors.push({
       code: ERROR_CODES.PROFILE_NOT_FOUND,
       message: `Profile "${profileName}" not found in profiles.presets`,
-      field: 'profiles.presets'
+      field: "profiles.presets",
     });
     return { valid: false, errors };
   }
@@ -99,15 +99,15 @@ function validateProfile(config, profileName, validModels) {
   const profile = presets[profileName];
 
   // Check for complete profile definition (all three keys required)
-  const requiredKeys = ['planning', 'execution', 'verification'];
-  const missingKeys = requiredKeys.filter(key => !profile[key]);
+  const requiredKeys = ["planning", "execution", "verification"];
+  const missingKeys = requiredKeys.filter((key) => !profile[key]);
 
   if (missingKeys.length > 0) {
     errors.push({
       code: ERROR_CODES.INCOMPLETE_PROFILE,
-      message: `Profile "${profileName}" is missing required keys: ${missingKeys.join(', ')}`,
-      field: 'profiles.presets.' + profileName,
-      missingKeys
+      message: `Profile "${profileName}" is missing required keys: ${missingKeys.join(", ")}`,
+      field: "profiles.presets." + profileName,
+      missingKeys,
     });
     // Return early - can't validate models if profile is incomplete
     return { valid: false, errors };
@@ -121,7 +121,7 @@ function validateProfile(config, profileName, validModels) {
       invalidModels.push({
         key,
         model: modelId,
-        reason: 'Model ID not found in opencode models catalog'
+        reason: "Model ID not found in opencode models catalog",
       });
     }
   }
@@ -130,14 +130,14 @@ function validateProfile(config, profileName, validModels) {
     errors.push({
       code: ERROR_CODES.INVALID_MODELS,
       message: `Profile "${profileName}" contains ${invalidModels.length} invalid model ID(s)`,
-      field: 'profiles.presets.' + profileName,
-      invalidModels
+      field: "profiles.presets." + profileName,
+      invalidModels,
     });
   }
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
@@ -154,7 +154,7 @@ function validateProfile(config, profileName, validModels) {
  */
 function applyProfileWithValidation(cwd, profileName, options = {}) {
   const { dryRun = false, verbose = false, inlineProfile = null } = options;
-  const log = verbose ? (...args) => console.error('[oc-profile-config]', ...args) : () => {};
+  const log = verbose ? (...args) => console.error("[oc-profile-config]", ...args) : () => {};
 
   // Step 1: Load oc_config.json
   const loadResult = loadOcProfileConfig(cwd);
@@ -168,7 +168,7 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
 
   // Step 2: Handle inline profile definition (Mode 3)
   if (inlineProfile) {
-    log('Processing inline profile definition');
+    log("Processing inline profile definition");
 
     // Check if profile already exists
     const presets = config.profiles?.presets || {};
@@ -176,24 +176,24 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
       return {
         success: false,
         error: {
-          code: 'PROFILE_EXISTS',
-          message: `Profile "${profileName}" already exists. Use a different name or remove --inline flag.`
-        }
+          code: "PROFILE_EXISTS",
+          message: `Profile "${profileName}" already exists. Use a different name or remove --inline flag.`,
+        },
       };
     }
 
     // Validate inline profile has all required keys
-    const requiredKeys = ['planning', 'execution', 'verification'];
-    const missingKeys = requiredKeys.filter(key => !inlineProfile[key]);
+    const requiredKeys = ["planning", "execution", "verification"];
+    const missingKeys = requiredKeys.filter((key) => !inlineProfile[key]);
 
     if (missingKeys.length > 0) {
       return {
         success: false,
         error: {
           code: ERROR_CODES.INCOMPLETE_PROFILE,
-          message: `Inline profile is missing required keys: ${missingKeys.join(', ')}`,
-          missingKeys
-        }
+          message: `Inline profile is missing required keys: ${missingKeys.join(", ")}`,
+          missingKeys,
+        },
       };
     }
 
@@ -202,13 +202,13 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
     // Step 2: Use existing profile from config
     const presets = config.profiles?.presets;
     if (!presets || !presets[profileName]) {
-      const availableProfiles = presets ? Object.keys(presets).join(', ') : 'none';
+      const availableProfiles = presets ? Object.keys(presets).join(", ") : "none";
       return {
         success: false,
         error: {
           code: ERROR_CODES.PROFILE_NOT_FOUND,
-          message: `Profile "${profileName}" not found in profiles.presets. Available profiles: ${availableProfiles}`
-        }
+          message: `Profile "${profileName}" not found in profiles.presets. Available profiles: ${availableProfiles}`,
+        },
       };
     }
     profileToUpdate = presets[profileName];
@@ -225,7 +225,7 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
   const validation = validateProfile(
     { profiles: { presets: { [targetProfileName]: profileToUpdate } } },
     targetProfileName,
-    validModels
+    validModels,
   );
 
   if (!validation.valid) {
@@ -234,16 +234,16 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
       error: {
         code: validation.errors[0].code,
         message: validation.errors[0].message,
-        details: validation.errors
-      }
+        details: validation.errors,
+      },
     };
   }
 
-  log('Profile validation passed');
+  log("Profile validation passed");
 
   // Step 5: Dry-run mode - return preview without modifications
   if (dryRun) {
-    const opencodePath = path.join(cwd, 'opencode.json');
+    const opencodePath = path.join(cwd, "opencode.json");
     return {
       success: true,
       dryRun: true,
@@ -252,36 +252,38 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
         models: {
           planning: profileToUpdate.planning,
           execution: profileToUpdate.execution,
-          verification: profileToUpdate.verification
+          verification: profileToUpdate.verification,
         },
         changes: {
           oc_config: {
             path: configPath,
             updates: {
               current_oc_profile: targetProfileName,
-              ...(inlineProfile ? { 'profiles.presets': { [targetProfileName]: profileToUpdate } } : {})
-            }
+              ...(inlineProfile
+                ? { "profiles.presets": { [targetProfileName]: profileToUpdate } }
+                : {}),
+            },
           },
           opencode: {
             path: opencodePath,
-            action: fs.existsSync(opencodePath) ? 'update' : 'create',
-            agentsToUpdate: getAgentsForProfile(profileToUpdate)
-          }
-        }
-      }
+            action: fs.existsSync(opencodePath) ? "update" : "create",
+            agentsToUpdate: getAgentsForProfile(profileToUpdate),
+          },
+        },
+      },
     };
   }
 
   // Step 6: Create backup of oc_config.json
-  log('Creating backup of oc_config.json');
-  const backupPath = createBackup(configPath, path.join(cwd, '.planning', 'backups'));
+  log("Creating backup of oc_config.json");
+  const backupPath = createBackup(configPath, path.join(cwd, ".planning", "backups"));
   if (!backupPath) {
     return {
       success: false,
       error: {
-        code: 'BACKUP_FAILED',
-        message: 'Failed to create backup of oc_config.json'
-      }
+        code: "BACKUP_FAILED",
+        message: "Failed to create backup of oc_config.json",
+      },
     };
   }
 
@@ -298,36 +300,36 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
     }
 
     // write updated oc_config.json
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
-    log('Updated oc_config.json');
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+    log("Updated oc_config.json");
   } catch (err) {
     return {
       success: false,
       error: {
         code: ERROR_CODES.WRITE_FAILED,
-        message: `Failed to write oc_config.json: ${err.message}`
-      }
+        message: `Failed to write oc_config.json: ${err.message}`,
+      },
     };
   }
 
   // Step 8: Apply to opencode.json
-  const opencodePath = path.join(cwd, 'opencode.json');
+  const opencodePath = path.join(cwd, "opencode.json");
   const applyResult = applyProfileToOpencode(opencodePath, configPath, targetProfileName);
 
   if (!applyResult.success) {
     // Step 9: Rollback oc_config.json on failure
-    log('Applying to opencode.json failed, rolling back');
+    log("Applying to opencode.json failed, rolling back");
     try {
-      const backupContent = fs.readFileSync(backupPath, 'utf8');
-      fs.writeFileSync(configPath, backupContent, 'utf8');
+      const backupContent = fs.readFileSync(backupPath, "utf8");
+      fs.writeFileSync(configPath, backupContent, "utf8");
       return {
         success: false,
         error: {
           code: ERROR_CODES.APPLY_FAILED,
           message: applyResult.error.message,
           rolledBack: true,
-          backupPath
-        }
+          backupPath,
+        },
       };
     } catch (rollbackErr) {
       return {
@@ -336,13 +338,13 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
           code: ERROR_CODES.ROLLBACK_FAILED,
           message: `Failed to apply profile AND failed to rollback: ${rollbackErr.message}`,
           originalError: applyResult.error,
-          backupPath
-        }
+          backupPath,
+        },
       };
     }
   }
 
-  log('Successfully applied profile');
+  log("Successfully applied profile");
 
   // Step 10: Return success with details
   return {
@@ -352,12 +354,12 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
       models: {
         planning: profileToUpdate.planning,
         execution: profileToUpdate.execution,
-        verification: profileToUpdate.verification
+        verification: profileToUpdate.verification,
       },
       backup: backupPath,
       updated: applyResult.updated,
-      configPath
-    }
+      configPath,
+    },
   };
 }
 
@@ -371,22 +373,16 @@ function applyProfileWithValidation(cwd, profileName, options = {}) {
 function getAgentsForProfile(profile) {
   const PROFILE_AGENT_MAPPING = {
     planning: [
-      'gsd-planner',
-      'gsd-plan-checker',
-      'gsd-phase-researcher',
-      'gsd-roadmapper',
-      'gsd-project-researcher',
-      'gsd-research-synthesizer',
-      'gsd-codebase-mapper'
+      "gsd-planner",
+      "gsd-plan-checker",
+      "gsd-phase-researcher",
+      "gsd-roadmapper",
+      "gsd-project-researcher",
+      "gsd-research-synthesizer",
+      "gsd-codebase-mapper",
     ],
-    execution: [
-      'gsd-executor',
-      'gsd-debugger'
-    ],
-    verification: [
-      'gsd-verifier',
-      'gsd-integration-checker'
-    ]
+    execution: ["gsd-executor", "gsd-debugger"],
+    verification: ["gsd-verifier", "gsd-integration-checker"],
   };
 
   const agents = [];
@@ -405,5 +401,5 @@ module.exports = {
   validateProfile,
   applyProfileWithValidation,
   getAgentsForProfile,
-  ERROR_CODES
+  ERROR_CODES,
 };

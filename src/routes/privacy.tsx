@@ -110,9 +110,7 @@ function PrivacyPage() {
               <h2 className="font-display text-xl font-semibold">3. Como Usamos seus Dados</h2>
             </div>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>
-                Fornecer, operar e manter a plataforma Bliv funcionando corretamente.
-              </li>
+              <li>Fornecer, operar e manter a plataforma Bliv funcionando corretamente.</li>
               <li>
                 Processar e enviar mensagens via WhatsApp Cloud API conforme suas configurações de
                 campanha.
@@ -251,10 +249,7 @@ function PrivacyPage() {
             <p className="text-sm leading-relaxed text-muted-foreground">
               Se tiver dúvidas sobre esta Política de Privacidade ou sobre o tratamento dos seus
               dados, entre em contato pelo e-mail:{" "}
-              <a
-                href="mailto:privacidade@bliv.com.br"
-                className="text-primary hover:underline"
-              >
+              <a href="mailto:privacidade@bliv.com.br" className="text-primary hover:underline">
                 privacidade@bliv.com.br
               </a>
             </p>

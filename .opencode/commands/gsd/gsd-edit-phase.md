@@ -3,21 +3,22 @@ name: gsd-edit-phase
 description: edit any field of an existing roadmap phase in place, preserving number and position
 argument-hint: "<phase-number> [--force]"
 permissions:
-   read: true
-   write: true
-   bash: true
+  read: true
+  write: true
+  bash: true
 ---
 
 <objective>
 Modify any field of an existing phase in ROADMAP.md in place.
 
 Supports:
+
 - Editing individual fields (title, description/goal, requirements, success criteria, depends_on)
 - Full regeneration of all fields from a clarified intent
 - Guarded edits: refuses in_progress/completed phases unless --force is passed
 - Depends-on validation: blocks invalid references with a clear error
 - Diff + confirmation before writing
-</objective>
+  </objective>
 
 <execution_context>
 @./.opencode/get-shit-done/workflows/edit-phase.md

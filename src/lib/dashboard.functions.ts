@@ -45,22 +45,22 @@ async function countContactsCreatedSince(userId: string, isoDate: string): Promi
 }
 
 async function getAverageWaitTime(userId: string, startIso: string): Promise<number> {
-  const rows: any[] = await db.query(
+  const rows: any[] = (await db.query(
     `SELECT AVG(TIMESTAMPDIFF(SECOND, started_at, answered_at)) AS avg_wait 
      FROM chat_sessions 
      WHERE user_id = ? AND started_at >= ? AND answered_at IS NOT NULL`,
-    [userId, startIso]
-  ) as any[];
+    [userId, startIso],
+  )) as any[];
   return Math.round(Number(rows?.[0]?.avg_wait || 0));
 }
 
 async function getAverageConversationTime(userId: string, startIso: string): Promise<number> {
-  const rows: any[] = await db.query(
+  const rows: any[] = (await db.query(
     `SELECT AVG(TIMESTAMPDIFF(SECOND, answered_at, closed_at)) AS avg_conv 
      FROM chat_sessions 
      WHERE user_id = ? AND started_at >= ? AND closed_at IS NOT NULL AND answered_at IS NOT NULL`,
-    [userId, startIso]
-  ) as any[];
+    [userId, startIso],
+  )) as any[];
   return Math.round(Number(rows?.[0]?.avg_conv || 0));
 }
 
@@ -68,7 +68,7 @@ function formatDuration(seconds: number): string {
   if (!seconds) return "00h 00m";
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m`;
+  return `${hours.toString().padStart(2, "0")}h ${minutes.toString().padStart(2, "0")}m`;
 }
 
 async function countDeliveredBetween(
@@ -118,8 +118,8 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       countBefore(effectiveUserId, "campaigns", sevenAgo.toISOString()),
       countDeliveredBetween(effectiveUserId, sevenAgo.toISOString(), now.toISOString()),
       countDeliveredBetween(effectiveUserId, fourteenAgo.toISOString(), sevenAgo.toISOString()),
-      countActiveSessionsByStatus(effectiveUserId, 'aberto'),
-      countActiveSessionsByStatus(effectiveUserId, 'aguardando'),
+      countActiveSessionsByStatus(effectiveUserId, "aberto"),
+      countActiveSessionsByStatus(effectiveUserId, "aguardando"),
       countClosedSessionsToday(effectiveUserId, startOfToday.toISOString()),
       countContactsCreatedSince(effectiveUserId, startOfToday.toISOString()),
       getAverageWaitTime(effectiveUserId, startOfToday.toISOString()),
@@ -138,6 +138,6 @@ export const getDashboardStats = createServerFn({ method: "GET" })
         novosContatos: novosContatosHoje,
         tmConversa: formatDuration(avgConversationSec),
         tmEspera: formatDuration(avgWaitSec),
-      }
+      },
     };
   });

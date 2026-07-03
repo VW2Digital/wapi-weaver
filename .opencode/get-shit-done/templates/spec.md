@@ -7,6 +7,7 @@ Template for `.planning/phases/XX-name/{phase_num}-SPEC.md` — locks requiremen
 **Key principle:** Every requirement must be falsifiable — you can write a test or check that proves it was met or not. Vague requirements like "improve performance" are not allowed.
 
 **Downstream consumers:**
+
 - `discuss-phase` — reads SPEC.md at startup; treats Requirements, Boundaries, and Acceptance Criteria as locked; skips "what/why" questions
 - `gsd-planner` — reads locked requirements to constrain plan scope
 - `gsd-verifier` — uses acceptance criteria as explicit pass/fail checks
@@ -47,10 +48,12 @@ Template for `.planning/phases/XX-name/{phase_num}-SPEC.md` — locks requiremen
 ## Boundaries
 
 **In scope:**
+
 - [Explicit list of what this phase produces]
 - [Each item is a concrete deliverable or behavior]
 
 **Out of scope:**
+
 - [Explicit list of what this phase does NOT do] — [brief reason why it's excluded]
 - [Adjacent problems excluded from this phase] — [brief reason]
 
@@ -70,13 +73,13 @@ No "should feel good", "looks reasonable", or "generally works" — those are no
 
 ## Ambiguity Report
 
-| Dimension          | Score | Min  | Status | Notes                              |
-|--------------------|-------|------|--------|------------------------------------|
-| Goal Clarity       |       | 0.75 |        |                                    |
-| Boundary Clarity   |       | 0.70 |        |                                    |
-| Constraint Clarity |       | 0.65 |        |                                    |
-| Acceptance Criteria|       | 0.70 |        |                                    |
-| **Ambiguity**      |       | ≤0.20|        |                                    |
+| Dimension           | Score | Min   | Status | Notes |
+| ------------------- | ----- | ----- | ------ | ----- |
+| Goal Clarity        |       | 0.75  |        |       |
+| Boundary Clarity    |       | 0.70  |        |       |
+| Constraint Clarity  |       | 0.65  |        |       |
+| Acceptance Criteria |       | 0.70  |        |       |
+| **Ambiguity**       |       | ≤0.20 |        |       |
 
 Status: ✓ = met minimum, ⚠ = below minimum (planner treats as assumption)
 
@@ -84,19 +87,19 @@ Status: ✓ = met minimum, ⚠ = below minimum (planner treats as assumption)
 
 [Key decisions made during the Socratic interview. Format: round → question → answer → decision locked.]
 
-| Round | Perspective    | question summary         | Decision locked                    |
-|-------|----------------|-------------------------|------------------------------------|
-| 1     | Researcher     | [what was asked]        | [what was decided]                 |
-| 2     | Simplifier     | [what was asked]        | [what was decided]                 |
-| 3     | Boundary Keeper| [what was asked]        | [what was decided]                 |
+| Round | Perspective     | question summary | Decision locked    |
+| ----- | --------------- | ---------------- | ------------------ |
+| 1     | Researcher      | [what was asked] | [what was decided] |
+| 2     | Simplifier      | [what was asked] | [what was decided] |
+| 3     | Boundary Keeper | [what was asked] | [what was decided] |
 
 [If --auto mode: note "auto-selected" decisions with the reasoning OpenCode used.]
 
 ---
 
-*Phase: [XX-name]*
-*Spec created: [date]*
-*Next step: /gsd-discuss-phase [X] — implementation decisions (how to build what's specified above)*
+_Phase: [XX-name]_
+_Spec created: [date]_
+_Next step: /gsd-discuss-phase [X] — implementation decisions (how to build what's specified above)_
 ```
 
 <good_examples>
@@ -143,6 +146,7 @@ The database has a `posts` table and `follows` table. No feed query or feed UI e
 ## Boundaries
 
 **In scope:**
+
 - Feed query (backend) — posts from followed accounts, paginated
 - Feed list UI (frontend) — post cards with author, timestamp, content, reaction counts
 - Pull-to-refresh gesture
@@ -150,6 +154,7 @@ The database has a `posts` table and `follows` table. No feed query or feed UI e
 - Empty state when user follows no one or no posts exist
 
 **Out of scope:**
+
 - Creating posts — that is Phase 4
 - Reacting to posts — that is Phase 5
 - Following/unfollowing accounts — that is Phase 2 (already done)
@@ -171,28 +176,28 @@ The database has a `posts` table and `follows` table. No feed query or feed UI e
 
 ## Ambiguity Report
 
-| Dimension          | Score | Min  | Status | Notes                            |
-|--------------------|-------|------|--------|----------------------------------|
-| Goal Clarity       | 0.92  | 0.75 | ✓      |                                  |
-| Boundary Clarity   | 0.95  | 0.70 | ✓      | Explicit out-of-scope list       |
-| Constraint Clarity | 0.80  | 0.65 | ✓      | Cursor pagination required       |
-| Acceptance Criteria| 0.85  | 0.70 | ✓      | 6 pass/fail criteria             |
-| **Ambiguity**      | 0.12  | ≤0.20| ✓      |                                  |
+| Dimension           | Score | Min   | Status | Notes                      |
+| ------------------- | ----- | ----- | ------ | -------------------------- |
+| Goal Clarity        | 0.92  | 0.75  | ✓      |                            |
+| Boundary Clarity    | 0.95  | 0.70  | ✓      | Explicit out-of-scope list |
+| Constraint Clarity  | 0.80  | 0.65  | ✓      | Cursor pagination required |
+| Acceptance Criteria | 0.85  | 0.70  | ✓      | 6 pass/fail criteria       |
+| **Ambiguity**       | 0.12  | ≤0.20 | ✓      |                            |
 
 ## Interview Log
 
-| Round | Perspective     | question summary              | Decision locked                         |
-|-------|-----------------|------------------------------|-----------------------------------------|
-| 1     | Researcher      | What exists in posts today?  | posts + follows tables exist, no feed  |
-| 2     | Simplifier      | Minimum viable feed?         | Cards + pull-refresh, no auto-scroll   |
-| 3     | Boundary Keeper | What's NOT this phase?       | Creating posts, reactions out of scope |
-| 3     | Boundary Keeper | What does done look like?    | Scrollable feed with 4 card fields     |
+| Round | Perspective     | question summary            | Decision locked                        |
+| ----- | --------------- | --------------------------- | -------------------------------------- |
+| 1     | Researcher      | What exists in posts today? | posts + follows tables exist, no feed  |
+| 2     | Simplifier      | Minimum viable feed?        | Cards + pull-refresh, no auto-scroll   |
+| 3     | Boundary Keeper | What's NOT this phase?      | Creating posts, reactions out of scope |
+| 3     | Boundary Keeper | What does done look like?   | Scrollable feed with 4 card fields     |
 
 ---
 
-*Phase: 03-post-feed*
-*Spec created: 2025-01-20*
-*Next step: /gsd-discuss-phase 3 — implementation decisions (card layout, loading skeleton, etc.)*
+_Phase: 03-post-feed_
+_Spec created: 2025-01-20_
+_Next step: /gsd-discuss-phase 3 — implementation decisions (card layout, loading skeleton, etc.)_
 ```
 
 **Example 2: CLI tool (Database backup)**
@@ -232,12 +237,14 @@ No backup tooling exists. The project uses PostgreSQL. Developers currently use 
 ## Boundaries
 
 **In scope:**
+
 - `gsd backup` subcommand (full dump only)
 - Output to `./backups/` directory (created if missing)
 - Network retry (3 attempts)
 - Partial file cleanup on failure
 
 **Out of scope:**
+
 - `gsd restore` — that is Phase 3
 - Incremental backups — separate backlog item (full dump only for now)
 - S3 or remote storage — separate backlog item
@@ -259,28 +266,28 @@ No backup tooling exists. The project uses PostgreSQL. Developers currently use 
 
 ## Ambiguity Report
 
-| Dimension          | Score | Min  | Status | Notes                          |
-|--------------------|-------|------|--------|--------------------------------|
-| Goal Clarity       | 0.90  | 0.75 | ✓      |                                |
-| Boundary Clarity   | 0.95  | 0.70 | ✓      | Explicit out-of-scope list     |
-| Constraint Clarity | 0.75  | 0.65 | ✓      | pg_dump required               |
-| Acceptance Criteria| 0.80  | 0.70 | ✓      | 5 pass/fail criteria           |
-| **Ambiguity**      | 0.15  | ≤0.20| ✓      |                                |
+| Dimension           | Score | Min   | Status | Notes                      |
+| ------------------- | ----- | ----- | ------ | -------------------------- |
+| Goal Clarity        | 0.90  | 0.75  | ✓      |                            |
+| Boundary Clarity    | 0.95  | 0.70  | ✓      | Explicit out-of-scope list |
+| Constraint Clarity  | 0.75  | 0.65  | ✓      | pg_dump required           |
+| Acceptance Criteria | 0.80  | 0.70  | ✓      | 5 pass/fail criteria       |
+| **Ambiguity**       | 0.15  | ≤0.20 | ✓      |                            |
 
 ## Interview Log
 
-| Round | Perspective     | question summary              | Decision locked                         |
-|-------|-----------------|------------------------------|-----------------------------------------|
-| 1     | Researcher      | What backup tooling exists?  | None — pg_dump manual only             |
-| 2     | Simplifier      | Minimum viable backup?       | Full dump only, local only             |
-| 3     | Boundary Keeper | What's NOT this phase?       | Restore, S3, encryption excluded       |
-| 4     | Failure Analyst | What goes wrong on failure?  | Partial files, CI fail-fast needed     |
+| Round | Perspective     | question summary            | Decision locked                    |
+| ----- | --------------- | --------------------------- | ---------------------------------- |
+| 1     | Researcher      | What backup tooling exists? | None — pg_dump manual only         |
+| 2     | Simplifier      | Minimum viable backup?      | Full dump only, local only         |
+| 3     | Boundary Keeper | What's NOT this phase?      | Restore, S3, encryption excluded   |
+| 4     | Failure Analyst | What goes wrong on failure? | Partial files, CI fail-fast needed |
 
 ---
 
-*Phase: 02-backup-command*
-*Spec created: 2025-01-20*
-*Next step: /gsd-discuss-phase 2 — implementation decisions (progress reporting, flag design, etc.)*
+_Phase: 02-backup-command_
+_Spec created: 2025-01-20_
+_Next step: /gsd-discuss-phase 2 — implementation decisions (progress reporting, flag design, etc.)_
 ```
 
 </good_examples>
@@ -300,6 +307,7 @@ No backup tooling exists. The project uses PostgreSQL. Developers currently use 
 **SPEC.md is a one-way door for requirements.** discuss-phase will treat these as locked. If requirements change after SPEC.md is written, the user should update SPEC.md first, then re-run discuss-phase.
 
 **SPEC.md does NOT replace CONTEXT.md.** They serve different purposes:
+
 - SPEC.md: what the phase delivers (requirements, boundaries, acceptance criteria)
 - CONTEXT.md: how the phase will be implemented (decisions, patterns, tradeoffs)
 

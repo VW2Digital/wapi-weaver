@@ -3,21 +3,22 @@ name: gsd-discuss-phase
 description: Gather phase context through adaptive questioning before planning. Use --all to skip area selection and discuss all gray areas interactively. Use --auto to skip interactive questions (OpenCode picks recommended defaults). Use --chain for interactive discuss followed by automatic plan+execute. Use --power for bulk question generation into a file-based UI (answer at your own pace).
 argument-hint: "<phase> [--all] [--auto] [--chain] [--batch] [--analyze] [--text] [--power]"
 permissions:
-   read: true
-   write: true
-   bash: true
-   glob: true
-   grep: true
-   question: true
-   task: true
-   mcp__context7__resolve-library-id: true
-   mcp__context7__query-docs: true
+  read: true
+  write: true
+  bash: true
+  glob: true
+  grep: true
+  question: true
+  task: true
+  mcp__context7__resolve-library-id: true
+  mcp__context7__query-docs: true
 ---
 
 <objective>
 Extract implementation decisions that downstream agents need — researcher and planner will use CONTEXT.md to know what to investigate and what choices are locked.
 
 **How it works:**
+
 1. Load prior context (PROJECT.md, REQUIREMENTS.md, STATE.md, prior CONTEXT.md files)
 2. Scout codebase for reusable assets and patterns
 3. Analyze phase — skip gray areas already decided in prior phases
@@ -59,6 +60,7 @@ If `DISCUSS_MODE` is `"discuss"` (or unset, or any other value): read and execut
 </process>
 
 <success_criteria>
+
 - Prior context loaded and applied (no re-asking decided questions)
 - Gray areas identified through intelligent analysis
 - User chose which areas to discuss
@@ -66,4 +68,4 @@ If `DISCUSS_MODE` is `"discuss"` (or unset, or any other value): read and execut
 - Scope creep redirected to deferred ideas
 - CONTEXT.md captures decisions, not vague vision
 - User knows next steps
-</success_criteria>
+  </success_criteria>

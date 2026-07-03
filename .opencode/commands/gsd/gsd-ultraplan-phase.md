@@ -3,10 +3,10 @@ name: gsd-ultraplan-phase
 description: "[BETA] Offload plan phase to OpenCode's ultraplan cloud — drafts remotely while terminal stays free, review in browser with inline comments, import back via /gsd-import. OpenCode only."
 argument-hint: "[phase-number]"
 permissions:
-   read: true
-   bash: true
-   glob: true
-   grep: true
+  read: true
+  bash: true
+  glob: true
+  grep: true
 ---
 
 <objective>

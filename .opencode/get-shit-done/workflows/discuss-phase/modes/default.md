@@ -16,11 +16,13 @@ file and run for every mode.
 For each selected area, conduct a focused discussion loop.
 
 **Research-before-questions mode:** Check if `workflow.research_before_questions` is enabled in config (from init context or `.planning/config.json`). When enabled, before presenting questions for each area:
+
 1. Do a brief web search for best practices related to the area topic
 2. Summarize the top findings in 2-3 bullet points
 3. Present the research alongside the question so the user can make a more informed decision
 
 Example with research enabled:
+
 ```text
 Let's talk about [Authentication Strategy].
 
@@ -40,6 +42,7 @@ check whether to continue. Each answer should reveal the next question.
 **For each area:**
 
 1. **Announce the area:**
+
    ```text
    Let's talk about [Area].
    ```
@@ -83,6 +86,7 @@ check whether to continue. Each answer should reveal the next question.
 
 **Canonical ref accumulation during discussion:**
 When the user references a doc, spec, or ADR during any answer — e.g., "read adr-014", "check the MCP spec", "per browse-spec.md" — immediately:
+
 1. read the referenced doc (or confirm it exists)
 2. Add it to the canonical refs accumulator with full relative path
 3. Use what you learned from the doc to inform subsequent questions
@@ -90,6 +94,7 @@ When the user references a doc, spec, or ADR during any answer — e.g., "read a
 These user-referenced docs are often MORE important than ROADMAP.md refs because they represent docs the user specifically wants downstream agents to follow. Never drop them.
 
 **question design:**
+
 - Options should be concrete, not abstract ("Cards" not "Option A")
 - Each answer should inform the next question or next batch
 - If user picks "Other" to provide freeform input (e.g., "let me describe it", "something else", or an open-ended reply), ask your follow-up as plain text — NOT another question. Wait for them to type at the normal prompt, then reflect their input back and confirm before resuming question or the next numbered batch.
@@ -109,6 +114,7 @@ If yes: provide 3-5 bullet analysis (what each optimizes/sacrifices, alignment w
 
 **Scope creep handling:**
 If user mentions something outside the phase domain:
+
 ```text
 "[Feature] sounds like a new capability — that belongs in its own phase.
 I'll note it as a deferred idea.
@@ -133,6 +139,7 @@ deletes the checkpoint.
 
 **Track discussion log data internally:**
 For each question asked, accumulate:
+
 - Area name
 - All options presented (label + description)
 - Which option the user selected (or their free-text response)

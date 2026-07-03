@@ -9,6 +9,7 @@ Rules and patterns for scaffolding iOS applications. Apply when any plan involve
 **NEVER use `Package.swift` with `.executableTarget` (or `.target`) to scaffold an iOS app.** Swift Package Manager executable targets compile as macOS command-line tools — they do not produce `.app` bundles, cannot be signed for iOS devices, and cannot be submitted to the App Store.
 
 **Prohibited pattern:**
+
 ```swift
 // Package.swift — DO NOT USE for iOS apps
 .executableTarget(name: "MyApp", dependencies: [])
@@ -92,19 +93,20 @@ MyApp/
 
 Always verify SwiftUI API availability against the project's `IPHONEOS_DEPLOYMENT_TARGET` before using any SwiftUI component.
 
-| API | Minimum iOS |
-|-----|-------------|
-| `NavigationView` | iOS 13 |
-| `NavigationStack` | iOS 16 |
-| `NavigationSplitView` | iOS 16 |
-| `List(selection:)` with multi-select | iOS 17 |
-| `ScrollView` scroll position APIs | iOS 17 |
-| `Observable` macro (`@Observable`) | iOS 17 |
-| `SwiftData` | iOS 17 |
-| `@Bindable` | iOS 17 |
-| `TipKit` | iOS 17 |
+| API                                  | Minimum iOS |
+| ------------------------------------ | ----------- |
+| `NavigationView`                     | iOS 13      |
+| `NavigationStack`                    | iOS 16      |
+| `NavigationSplitView`                | iOS 16      |
+| `List(selection:)` with multi-select | iOS 17      |
+| `ScrollView` scroll position APIs    | iOS 17      |
+| `Observable` macro (`@Observable`)   | iOS 17      |
+| `SwiftData`                          | iOS 17      |
+| `@Bindable`                          | iOS 17      |
+| `TipKit`                             | iOS 17      |
 
 **Rule:** If a plan requires a SwiftUI API that exceeds the project's deployment target, either:
+
 1. Raise the deployment target in `project.yml` (and document the decision), or
 2. Wrap the call in `if #available(iOS NN, *) { ... }` with a fallback implementation.
 

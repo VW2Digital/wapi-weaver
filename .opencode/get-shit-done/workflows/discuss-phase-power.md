@@ -8,6 +8,7 @@ Power user mode for discuss-phase. Generates ALL questions upfront into a JSON s
 This workflow executes when `--power` flag is present in ARGUMENTS to `/gsd-discuss-phase`.
 
 The caller (discuss-phase.md) has already:
+
 - Validated the phase exists
 - Provided init context: `phase_dir`, `padded_phase`, `phase_number`, `phase_name`, `phase_slug`
 
@@ -84,6 +85,7 @@ write all questions to:
 ```
 
 **Field rules:**
+
 - `stats.total`: count of all questions across all sections
 - `stats.answered`: count where `answer` is not null and not empty string
 - `stats.chat_more`: count where `chat_more` has content
@@ -92,7 +94,7 @@ write all questions to:
 - `question.context`: concrete codebase or prior-decision annotation (not generic)
 - `question.answer`: null until user sets it; once answered, the selected option id or free-text
 - `question.status`: "unanswered" | "answered" | "chat-more" (has chat_more but no answer yet)
-</step>
+  </step>
 
 <step name="generate_html">
 write a self-contained HTML companion file to:
@@ -124,15 +126,18 @@ The file must be a single self-contained HTML file with inline CSS and JavaScrip
 ```
 
 **Stats bar:**
+
 - Total questions, answered count, remaining count
 - A simple CSS progress bar (green fill = answered / total)
 
 **Section headers:**
+
 - Collapsible via click — show/hide questions in the section
 - Show answered count for the section (e.g., "2/4 answered")
 
 **question cards (3-column grid):**
 Each card contains:
+
 - question ID badge (e.g., "Q-01") and title
 - Context annotation (gray italic text)
 - Option list: radio buttons with bold label + description text
@@ -140,6 +145,7 @@ Each card contains:
 - Card highlighted green when answered
 
 **JavaScript behavior:**
+
 - On radio button select: mark question as answered in page state; update stats bar
 - On textarea input: update chat_more content in page state; show orange border if content present
 - "Save answers" button at top and bottom: serializes page state back to the JSON file path
@@ -153,18 +159,21 @@ Then return to OpenCode and say "refresh" to process your answers.
 ```
 
 **Answered question styling:**
+
 - Card border: `2px solid #22c55e` (green)
 - Card background: `#f0fdf4` (light green tint)
 
 **Unanswered question styling:**
+
 - Card border: `1px solid #e2e8f0` (gray)
 - Card background: `white`
 
 **Chat more textarea:**
+
 - Placeholder: "Add context, nuance, or clarification for this question..."
 - Normal border: `1px solid #e2e8f0`
 - Active (has content) border: `2px solid #f97316` (orange)
-</step>
+  </step>
 
 <step name="notify_user">
 After writing both files, print this message to the user:
@@ -185,6 +194,7 @@ When ready, tell me:
   "explain Q-05"   — elaborate on a specific question
   "exit power mode" — return to standard one-by-one discussion (answers carry over)
 ```
+
 </step>
 
 <step name="wait_loop">
@@ -238,9 +248,11 @@ Proceed to the **finalize** step.
 
 **Any other message:**
 Respond helpfully, then remind the user of available commands:
+
 ```
 (Power mode active — say "refresh", "finalize", "explain Q-N", or "exit power mode")
 ```
+
 </step>
 
 <step name="finalize">
@@ -262,6 +274,7 @@ Process all answered questions from the JSON file and generate CONTEXT.md.
    - `<canonical_refs>` section (MANDATORY — paths to relevant specs/docs)
 
 6. If fewer than 50% of questions were answered, warn the user:
+
 ```
 Warning: Only {answered}/{total} questions answered ({pct}%).
 CONTEXT.md generated with available decisions. Unanswered questions listed as deferred.
@@ -269,6 +282,7 @@ Consider running /gsd-discuss-phase {N} again to refine before planning.
 ```
 
 7. Print completion message:
+
 ```
 CONTEXT.md written: {phase_dir}/{padded_phase}-CONTEXT.md
 
@@ -277,9 +291,11 @@ CONTEXT.md written: {phase_dir}/{padded_phase}-CONTEXT.md
 
 Next step: /gsd-plan-phase {N}
 ```
+
 </step>
 
 <success_criteria>
+
 - Questions generated into well-structured JSON covering all identified gray areas
 - HTML companion file is self-contained and usable without a server
 - Stats bar accurately reflects answered/remaining counts after each refresh
@@ -288,4 +304,4 @@ Next step: /gsd-plan-phase {N}
 - Unanswered questions preserved as deferred items (not silently dropped)
 - `canonical_refs` section always present in CONTEXT.md (MANDATORY)
 - User knows how to refresh, finalize, explain, or exit power mode
-</success_criteria>
+  </success_criteria>

@@ -11,10 +11,10 @@ read all files referenced by the invoking prompt's execution_context before star
 <context>
 ## What Gets Validated
 
-| Check | File | Validates |
-|-------|------|-----------|
-| `check-opencode-json` | `opencode.json` | All agent model IDs exist in the opencode models catalog |
-| `check-config-json` | `.planning/oc_config.json` | gsd-opencode profile structure is valid, current profile exists in presets, all stage model IDs exist in catalog |
+| Check                 | File                       | Validates                                                                                                        |
+| --------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `check-opencode-json` | `opencode.json`            | All agent model IDs exist in the opencode models catalog                                                         |
+| `check-config-json`   | `.planning/oc_config.json` | gsd-opencode profile structure is valid, current profile exists in presets, all stage model IDs exist in catalog |
 
 ## CLI Tool
 
@@ -23,6 +23,7 @@ All validation runs through `gsd-oc-tools.cjs`. Both commands output a JSON enve
 ## JSON Response Shapes
 
 **check-opencode-json** (exit 0 or 1):
+
 ```json
 {
   "success": true,
@@ -34,6 +35,7 @@ All validation runs through `gsd-oc-tools.cjs`. Both commands output a JSON enve
 Note: When `opencode.json` does not exist, the tool returns exit 1 with `error.code = "CONFIG_NOT_FOUND"`. This is **not** an error for gsd-opencode profile validation — see Step 2 for handling.
 
 **check-config-json** (exit 0 or 1):
+
 ```json
 {
   "success": true|false,
@@ -41,6 +43,7 @@ Note: When `opencode.json` does not exist, the tool returns exit 1 with `error.c
   "error": { "code": "INVALID_PROFILE|CONFIG_NOT_FOUND|INVALID_JSON", "message": "..." }
 }
 ```
+
 </context>
 
 <behavior>
@@ -63,25 +66,26 @@ Parse both JSON responses.
 
 ### opencode.json classification
 
-| Tool result | Severity | Meaning |
-|-------------|----------|---------|
-| exit 0, `data.valid = true` | OK | All model IDs valid |
-| exit 1, `error.code = "CONFIG_NOT_FOUND"` | WARNING | No `opencode.json` — agents will use the default/current model. This is acceptable. |
-| exit 1, `error.code = "INVALID_MODEL_ID"` | ERROR | One or more model IDs are invalid. Must be fixed. |
-| exit 1, `error.code = "INVALID_JSON"` | ERROR | File is malformed JSON. Must be fixed. |
+| Tool result                               | Severity | Meaning                                                                             |
+| ----------------------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| exit 0, `data.valid = true`               | OK       | All model IDs valid                                                                 |
+| exit 1, `error.code = "CONFIG_NOT_FOUND"` | WARNING  | No `opencode.json` — agents will use the default/current model. This is acceptable. |
+| exit 1, `error.code = "INVALID_MODEL_ID"` | ERROR    | One or more model IDs are invalid. Must be fixed.                                   |
+| exit 1, `error.code = "INVALID_JSON"`     | ERROR    | File is malformed JSON. Must be fixed.                                              |
 
 ### .planning/oc_config.json classification
 
-| Tool result | Severity | Meaning |
-|-------------|----------|---------|
-| exit 0, `data.passed = true` | OK | gsd-opencode profile configuration valid |
-| exit 1, `error.code = "CONFIG_NOT_FOUND"` | ERROR | No gsd-opencode profile configured yet |
-| exit 1, `error.code = "INVALID_PROFILE"` | ERROR | gsd-opencode profile structure is invalid |
-| exit 1, `error.code = "INVALID_JSON"` | ERROR | File is malformed JSON |
+| Tool result                               | Severity | Meaning                                   |
+| ----------------------------------------- | -------- | ----------------------------------------- |
+| exit 0, `data.passed = true`              | OK       | gsd-opencode profile configuration valid  |
+| exit 1, `error.code = "CONFIG_NOT_FOUND"` | ERROR    | No gsd-opencode profile configured yet    |
+| exit 1, `error.code = "INVALID_PROFILE"`  | ERROR    | gsd-opencode profile structure is invalid |
+| exit 1, `error.code = "INVALID_JSON"`     | ERROR    | File is malformed JSON                    |
 
 ## Step 3: Report results
 
 Determine the overall status:
+
 - **All OK (no ERRORs, no WARNINGs)**: report success
 - **WARNINGs only (no ERRORs)**: report success with warnings
 - **Any ERRORs**: report errors with fix instructions

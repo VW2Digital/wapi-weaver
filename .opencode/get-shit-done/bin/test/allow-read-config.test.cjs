@@ -8,13 +8,13 @@
  * - Backup creation
  */
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { execSync } = require('child_process');
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { execSync } = require("child_process");
 
-const CLI_PATH = path.join(__dirname, '../gsd-oc-commands/allow-read-config.cjs');
-const TOOLS_PATH = path.join(__dirname, '../gsd-oc-tools.cjs');
+const CLI_PATH = path.join(__dirname, "../gsd-oc-commands/allow-read-config.cjs");
+const TOOLS_PATH = path.join(__dirname, "../gsd-oc-tools.cjs");
 
 /**
  * Create a temporary test directory
@@ -38,8 +38,8 @@ function cleanupTestDir(testDir) {
  * Run CLI command and parse JSON output
  */
 function runCLI(testDir, args) {
-  const cmd = `node ${TOOLS_PATH} allow-read-config ${args.join(' ')}`;
-  const output = execSync(cmd, { cwd: testDir, encoding: 'utf8' });
+  const cmd = `node ${TOOLS_PATH} allow-read-config ${args.join(" ")}`;
+  const output = execSync(cmd, { cwd: testDir, encoding: "utf8" });
   return JSON.parse(output);
 }
 
@@ -47,40 +47,40 @@ function runCLI(testDir, args) {
  * Test: Create new opencode.json with permission
  */
 function testCreatePermission() {
-  console.log('Test: Create new opencode.json with permission...');
-  
+  console.log("Test: Create new opencode.json with permission...");
+
   const testDir = createTestDir();
-  
+
   try {
     const result = runCLI(testDir, []);
-    
+
     if (!result.success) {
       throw new Error(`Expected success, got: ${JSON.stringify(result)}`);
     }
-    
-    if (result.data.action !== 'add_permission') {
+
+    if (result.data.action !== "add_permission") {
       throw new Error(`Expected action 'add_permission', got: ${result.data.action}`);
     }
-    
+
     if (result.data.created !== true) {
       throw new Error(`Expected created=true, got: ${result.data.created}`);
     }
-    
+
     // Verify opencode.json was created
-    const opencodePath = path.join(testDir, 'opencode.json');
+    const opencodePath = path.join(testDir, "opencode.json");
     if (!fs.existsSync(opencodePath)) {
-      throw new Error('opencode.json was not created');
+      throw new Error("opencode.json was not created");
     }
-    
-    const content = JSON.parse(fs.readFileSync(opencodePath, 'utf8'));
+
+    const content = JSON.parse(fs.readFileSync(opencodePath, "utf8"));
     if (!content.permission?.external_directory) {
-      throw new Error('Permission not added to opencode.json');
+      throw new Error("Permission not added to opencode.json");
     }
-    
-    console.log('✓ PASS: Create permission\n');
+
+    console.log("✓ PASS: Create permission\n");
     return true;
   } catch (err) {
-    console.error('✗ FAIL:', err.message, '\n');
+    console.error("✗ FAIL:", err.message, "\n");
     return false;
   } finally {
     cleanupTestDir(testDir);
@@ -91,29 +91,29 @@ function testCreatePermission() {
  * Test: Idempotency - detect existing permission
  */
 function testIdempotency() {
-  console.log('Test: Idempotency (detect existing permission)...');
-  
+  console.log("Test: Idempotency (detect existing permission)...");
+
   const testDir = createTestDir();
-  
+
   try {
     // First call - create permission
     runCLI(testDir, []);
-    
+
     // Second call - should detect existing
     const result = runCLI(testDir, []);
-    
+
     if (!result.success) {
       throw new Error(`Expected success, got: ${JSON.stringify(result)}`);
     }
-    
-    if (result.data.action !== 'permission_exists') {
+
+    if (result.data.action !== "permission_exists") {
       throw new Error(`Expected action 'permission_exists', got: ${result.data.action}`);
     }
-    
-    console.log('✓ PASS: Idempotency\n');
+
+    console.log("✓ PASS: Idempotency\n");
     return true;
   } catch (err) {
-    console.error('✗ FAIL:', err.message, '\n');
+    console.error("✗ FAIL:", err.message, "\n");
     return false;
   } finally {
     cleanupTestDir(testDir);
@@ -124,31 +124,31 @@ function testIdempotency() {
  * Test: Dry-run mode
  */
 function testDryRun() {
-  console.log('Test: Dry-run mode...');
-  
+  console.log("Test: Dry-run mode...");
+
   const testDir = createTestDir();
-  
+
   try {
-    const result = runCLI(testDir, ['--dry-run']);
-    
+    const result = runCLI(testDir, ["--dry-run"]);
+
     if (!result.success) {
       throw new Error(`Expected success, got: ${JSON.stringify(result)}`);
     }
-    
+
     if (result.data.dryRun !== true) {
       throw new Error(`Expected dryRun=true, got: ${result.data.dryRun}`);
     }
-    
+
     // Verify opencode.json was NOT created
-    const opencodePath = path.join(testDir, 'opencode.json');
+    const opencodePath = path.join(testDir, "opencode.json");
     if (fs.existsSync(opencodePath)) {
-      throw new Error('opencode.json should not be created in dry-run mode');
+      throw new Error("opencode.json should not be created in dry-run mode");
     }
-    
-    console.log('✓ PASS: Dry-run mode\n');
+
+    console.log("✓ PASS: Dry-run mode\n");
     return true;
   } catch (err) {
-    console.error('✗ FAIL:', err.message, '\n');
+    console.error("✗ FAIL:", err.message, "\n");
     return false;
   } finally {
     cleanupTestDir(testDir);
@@ -159,44 +159,44 @@ function testDryRun() {
  * Test: Backup creation on update
  */
 function testBackupCreation() {
-  console.log('Test: Backup creation on update...');
-  
+  console.log("Test: Backup creation on update...");
+
   const testDir = createTestDir();
-  
+
   try {
     // Create initial opencode.json
-    const opencodePath = path.join(testDir, 'opencode.json');
+    const opencodePath = path.join(testDir, "opencode.json");
     const initialContent = {
-      "$schema": "https://opencode.ai/config.json",
-      "model": "test/model"
+      $schema: "https://opencode.ai/config.json",
+      model: "test/model",
     };
-    fs.writeFileSync(opencodePath, JSON.stringify(initialContent, null, 2) + '\n');
-    
+    fs.writeFileSync(opencodePath, JSON.stringify(initialContent, null, 2) + "\n");
+
     // Run allow-read-config
     const result = runCLI(testDir, []);
-    
+
     if (!result.success) {
       throw new Error(`Expected success, got: ${JSON.stringify(result)}`);
     }
-    
+
     if (!result.data.backup) {
-      throw new Error('Expected backup path, got none');
+      throw new Error("Expected backup path, got none");
     }
-    
+
     if (!fs.existsSync(result.data.backup)) {
       throw new Error(`Backup file does not exist: ${result.data.backup}`);
     }
-    
+
     // Verify backup content matches original
-    const backupContent = JSON.parse(fs.readFileSync(result.data.backup, 'utf8'));
+    const backupContent = JSON.parse(fs.readFileSync(result.data.backup, "utf8"));
     if (JSON.stringify(backupContent) !== JSON.stringify(initialContent)) {
-      throw new Error('Backup content does not match original');
+      throw new Error("Backup content does not match original");
     }
-    
-    console.log('✓ PASS: Backup creation\n');
+
+    console.log("✓ PASS: Backup creation\n");
     return true;
   } catch (err) {
-    console.error('✗ FAIL:', err.message, '\n');
+    console.error("✗ FAIL:", err.message, "\n");
     return false;
   } finally {
     cleanupTestDir(testDir);
@@ -207,20 +207,20 @@ function testBackupCreation() {
  * Test: Verbose output
  */
 function testVerbose() {
-  console.log('Test: Verbose output...');
-  
+  console.log("Test: Verbose output...");
+
   const testDir = createTestDir();
-  
+
   try {
     const cmd = `node ${TOOLS_PATH} allow-read-config --verbose`;
-    const output = execSync(cmd, { cwd: testDir, encoding: 'utf8', stdio: 'pipe' });
-    
+    const output = execSync(cmd, { cwd: testDir, encoding: "utf8", stdio: "pipe" });
+
     // Verbose output should contain log messages to stderr
     // We just verify it doesn't crash
-    console.log('✓ PASS: Verbose output\n');
+    console.log("✓ PASS: Verbose output\n");
     return true;
   } catch (err) {
-    console.error('✗ FAIL:', err.message, '\n');
+    console.error("✗ FAIL:", err.message, "\n");
     return false;
   } finally {
     cleanupTestDir(testDir);
@@ -231,26 +231,26 @@ function testVerbose() {
  * Run all tests
  */
 function runTests() {
-  console.log('Running allow-read-config tests...\n');
-  console.log('=' .repeat(50));
+  console.log("Running allow-read-config tests...\n");
+  console.log("=".repeat(50));
   console.log();
-  
+
   const results = [
     testCreatePermission(),
     testIdempotency(),
     testDryRun(),
     testBackupCreation(),
-    testVerbose()
+    testVerbose(),
   ];
-  
-  const passed = results.filter(r => r).length;
+
+  const passed = results.filter((r) => r).length;
   const total = results.length;
-  
-  console.log('=' .repeat(50));
+
+  console.log("=".repeat(50));
   console.log(`Results: ${passed}/${total} tests passed`);
-  
+
   if (passed === total) {
-    console.log('✓ All tests passed!\n');
+    console.log("✓ All tests passed!\n");
     process.exit(0);
   } else {
     console.error(`✗ ${total - passed} test(s) failed\n`);

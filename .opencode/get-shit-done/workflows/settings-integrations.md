@@ -7,7 +7,7 @@ preserved, never clobbered.
 
 This command is deliberately separate from `/gsd-settings` (workflow toggles)
 and any `/gsd-settings-advanced` tuning surface. It exists because API keys and
-cross-tool routing are *connectivity* concerns, not workflow or tuning knobs.
+cross-tool routing are _connectivity_ concerns, not workflow or tuning knobs.
 </objective>
 
 <security>
@@ -16,10 +16,10 @@ cross-tool routing are *connectivity* concerns, not workflow or tuning knobs.
 permissions are the security boundary. The UI must never display, echo, or
 log the plaintext value. The workflow follows these rules:
 
-- **Masking convention: `****<last-4>`** (e.g. `sk-abc123def456` → `****f456`).
-  Strings shorter than 8 characters render as `****` with no tail so a short
-  secret does not leak a meaningful fraction of its bytes. Unset values render
-  as `(unset)`.
+- **Masking convention: `\*\***<last-4>`** (e.g. `sk-abc123def456`→`\***\*f456`).
+Strings shorter than 8 characters render as `\*\***`with no tail so a short
+secret does not leak a meaningful fraction of its bytes. Unset values render
+as`(unset)`.
 - **Plaintext is never echoed by question descriptions, confirmation
   tables, or any log line.** It is not written to any file under `.planning/`
   other than `config.json` itself.
@@ -30,7 +30,7 @@ log the plaintext value. The workflow follows these rules:
   `review.models.<cli>` keys are matched against `^[a-zA-Z0-9_-]+$`. Inputs
   containing path separators (`/`, `\`, `..`), whitespace, or shell
   metacharacters are rejected. This closes off skill-injection attacks.
-</security>
+  </security>
 
 <required_reading>
 read all files referenced by the invoking prompt's execution_context before starting.
@@ -142,6 +142,7 @@ For "Clear", write `null`:
 ```bash
 gsd-sdk query config-set brave_search null
 ```
+
 </step>
 
 <step name="section_2_review_models">
@@ -267,15 +268,17 @@ Quick commands:
 - /gsd-settings — workflow toggles and model profile
 - /gsd-set-profile <profile> — switch model profile
 ```
+
 </step>
 
 </process>
 
 <success_criteria>
+
 - [ ] Current config read from `$GSD_CONFIG_PATH`
 - [ ] User presented with three sections: Search Integrations, Review CLI Routing, Agent Skills Injection
 - [ ] API keys written plaintext only to `config.json`; never echoed, never logged, never displayed
 - [ ] Masked confirmation table uses `****<last-4>` for set keys and `(unset)` for null
 - [ ] `review.models.<cli>` and `agent_skills.<agent-type>` keys validated against `[a-zA-Z0-9_-]+` before write
 - [ ] Config merge preserves all keys outside the three sections this workflow owns
-</success_criteria>
+      </success_criteria>

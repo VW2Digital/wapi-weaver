@@ -2,10 +2,10 @@
 name: gsd-settings-integrations
 description: Configure third-party API keys, code-review CLI routing, and agent-skill injection
 permissions:
-   read: true
-   write: true
-   bash: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  question: true
 ---
 
 <objective>
@@ -20,7 +20,7 @@ API keys are stored plaintext in `.planning/config.json` but are masked
 echoes plaintext to stdout, stderr, or any log.
 
 This command is deliberately distinct from `/gsd-settings` (workflow toggles)
-and any `/gsd-settings-advanced` tuning surface. It handles *connectivity*,
+and any `/gsd-settings-advanced` tuning surface. It handles _connectivity_,
 not pipeline shape.
 </objective>
 
@@ -33,6 +33,7 @@ not pipeline shape.
 `@./.opencode/get-shit-done/workflows/settings-integrations.md`.
 
 The workflow handles:
+
 1. Resolving `$GSD_CONFIG_PATH` (flat vs workstream)
 2. Reading current integration values (masked for display)
 3. Section 1 — Search Integrations: Brave / Firecrawl / Exa / search_gitignored
@@ -41,4 +42,4 @@ The workflow handles:
 6. Writing values via `gsd-sdk query config-set` (which merges, preserving
    unrelated keys)
 7. Masked confirmation display
-</process>
+   </process>

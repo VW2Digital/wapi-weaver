@@ -3,14 +3,14 @@ name: gsd-import
 description: Ingest external plans with conflict detection against project decisions before writing anything.
 argument-hint: "--from <filepath>"
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   glob: true
-   grep: true
-   question: true
-   task: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  glob: true
+  grep: true
+  question: true
+  task: true
 ---
 
 <objective>

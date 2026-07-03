@@ -19,8 +19,8 @@ Version: $ARGUMENTS (optional — defaults to current milestone)
 Core planning files are resolved in-workflow (`init milestone-op`) and loaded only as needed.
 
 **Completed Work:**
-glob: .planning/phases/*/*-SUMMARY.md
-glob: .planning/phases/*/*-VERIFICATION.md
+glob: .planning/phases/_/_-SUMMARY.md
+glob: .planning/phases/_/_-VERIFICATION.md
 </context>
 
 <process>

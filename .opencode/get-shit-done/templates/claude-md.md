@@ -11,6 +11,7 @@ The profile section is managed exclusively by `generate-claude-profile`.
 ## Section Templates
 
 ### Project Section
+
 ```
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
@@ -20,11 +21,13 @@ The profile section is managed exclusively by `generate-claude-profile`.
 ```
 
 **Fallback text:**
+
 ```
 Project not yet initialized. Run /gsd-new-project to set up.
 ```
 
 ### Stack Section
+
 ```
 <!-- GSD:stack-start source:STACK.md -->
 ## Technology Stack
@@ -34,11 +37,13 @@ Project not yet initialized. Run /gsd-new-project to set up.
 ```
 
 **Fallback text:**
+
 ```
 Technology stack not yet documented. Will populate after codebase mapping or first phase.
 ```
 
 ### Conventions Section
+
 ```
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
@@ -48,11 +53,13 @@ Technology stack not yet documented. Will populate after codebase mapping or fir
 ```
 
 **Fallback text:**
+
 ```
 Conventions not yet established. Will populate as patterns emerge during development.
 ```
 
 ### Architecture Section
+
 ```
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
@@ -62,11 +69,13 @@ Conventions not yet established. Will populate as patterns emerge during develop
 ```
 
 **Fallback text:**
+
 ```
 Architecture not yet mapped. Follow existing patterns found in the codebase.
 ```
 
 ### Skills Section
+
 ```
 <!-- GSD:skills-start source:skills/ -->
 ## Project Skills
@@ -78,17 +87,20 @@ Architecture not yet mapped. Follow existing patterns found in the codebase.
 ```
 
 **Fallback text:**
+
 ```
 No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, or `.github/skills/` with a `SKILL.md` index file.
 ```
 
 **Discovery behavior:**
+
 - Scans `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/` for subdirectories containing `SKILL.md`
 - Extracts `name` and `description` from YAML frontmatter (supports multi-line descriptions)
 - Skips GSD's own installed skills (directories starting with `gsd-`)
 - Deduplicates by skill name across directories
 
 ### Workflow Enforcement Section
+
 ```
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
@@ -105,6 +117,7 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 ```
 
 ### Profile Section (Placeholder Only)
+
 ```
 <!-- GSD:profile-start -->
 ## Developer Profile
@@ -140,6 +153,7 @@ AGENTS.md file and no profile section exists yet.
 ## Fallback Behavior
 
 When a source file is missing, fallback text provides OpenCode-actionable guidance:
+
 - Guides OpenCode's behavior in the absence of data
 - Not placeholder ads or "missing" notices
 - Each fallback tells OpenCode what to do, not just what's absent

@@ -22,11 +22,11 @@ Template for `.planning/phases/XX-name/{phase_num}-DISCUSSION-LOG.md` — audit 
 
 ## [Area 1 Name]
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| [Option 1] | [Brief description] | |
-| [Option 2] | [Brief description] | ✓ |
-| [Option 3] | [Brief description] | |
+| Option     | Description         | Selected |
+| ---------- | ------------------- | -------- |
+| [Option 1] | [Brief description] |          |
+| [Option 2] | [Brief description] | ✓        |
+| [Option 3] | [Brief description] |          |
 
 **User's choice:** [Selected option or verbatim free-text response]
 **Notes:** [Any clarifications or rationale provided during discussion]
@@ -49,8 +49,8 @@ Template for `.planning/phases/XX-name/{phase_num}-DISCUSSION-LOG.md` — audit 
 
 ---
 
-*Phase: XX-name*
-*Discussion log generated: [date]*
+_Phase: XX-name_
+_Discussion log generated: [date]_
 ```
 
 ## Rules

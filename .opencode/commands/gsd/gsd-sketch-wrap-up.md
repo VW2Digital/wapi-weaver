@@ -2,14 +2,15 @@
 name: gsd-sketch-wrap-up
 description: Package sketch design findings into a persistent project skill for future build conversations
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   grep: true
-   glob: true
-   question: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  grep: true
+  glob: true
+  question: true
 ---
+
 <objective>
 Curate sketch design findings and package them into a persistent project skill that OpenCode
 auto-loads when building the real UI. Also writes a summary to `.planning/sketches/` for

@@ -15,10 +15,9 @@ export async function resolveContactUserId(
   phone: string,
   currentUserId: string,
 ): Promise<string | null> {
-  const rows: any[] = (await db.query(
-    `SELECT user_id FROM contacts WHERE phone_e164 = ? LIMIT 1`,
-    [phone],
-  )) as any[];
+  const rows: any[] = (await db.query(`SELECT user_id FROM contacts WHERE phone_e164 = ? LIMIT 1`, [
+    phone,
+  ])) as any[];
   const contactUserId = rows?.[0]?.user_id;
   if (!contactUserId) return null;
   if (contactUserId === currentUserId) return contactUserId;
@@ -40,7 +39,8 @@ export async function resolveContactUserIdById(
   )) as any[];
   const contact = rows?.[0];
   if (!contact) return null;
-  if (contact.user_id === currentUserId) return { userId: contact.user_id, phone: contact.phone_e164 };
+  if (contact.user_id === currentUserId)
+    return { userId: contact.user_id, phone: contact.phone_e164 };
   const assignments: any[] = (await db.query(
     `SELECT id FROM conversation_assignments
      WHERE contact_phone = ? AND agent_id = ? AND is_active = true LIMIT 1`,

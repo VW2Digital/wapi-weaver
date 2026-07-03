@@ -8,27 +8,27 @@
  * Add entries here whenever a new workflow produces a .planning/ root file.
  */
 
-'use strict';
+"use strict";
 
 // Exact-match canonical file names at .planning/ root
 const CANONICAL_EXACT = new Set([
-  'PROJECT.md',
-  'ROADMAP.md',
-  'STATE.md',
-  'REQUIREMENTS.md',
-  'MILESTONES.md',
-  'BACKLOG.md',
-  'LEARNINGS.md',
-  'THREADS.md',
-  'config.json',
-  'AGENTS.md',
+  "PROJECT.md",
+  "ROADMAP.md",
+  "STATE.md",
+  "REQUIREMENTS.md",
+  "MILESTONES.md",
+  "BACKLOG.md",
+  "LEARNINGS.md",
+  "THREADS.md",
+  "config.json",
+  "AGENTS.md",
 ]);
 
 // Pattern-match canonical file names (regex tests on the basename)
 // Each pattern includes the name of the workflow that produces it as a comment.
 const CANONICAL_PATTERNS = [
-  /^v\d+\.\d+(?:\.\d+)?-MILESTONE-AUDIT\.md$/i,  // gsd-complete-milestone (pre-archive)
-  /^v\d+\.\d+(?:\.\d+)?-.*\.md$/i,               // other version-stamped planning docs
+  /^v\d+\.\d+(?:\.\d+)?-MILESTONE-AUDIT\.md$/i, // gsd-complete-milestone (pre-archive)
+  /^v\d+\.\d+(?:\.\d+)?-.*\.md$/i, // other version-stamped planning docs
 ];
 
 /**

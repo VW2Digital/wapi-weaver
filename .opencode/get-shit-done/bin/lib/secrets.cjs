@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Secrets handling — masking convention for API keys and other
@@ -13,21 +13,17 @@
  * are the fields documented as secrets in docs/CONFIGURATION.md.
  */
 
-const SECRET_CONFIG_KEYS = new Set([
-  'brave_search',
-  'firecrawl',
-  'exa_search',
-]);
+const SECRET_CONFIG_KEYS = new Set(["brave_search", "firecrawl", "exa_search"]);
 
 function isSecretKey(keyPath) {
   return SECRET_CONFIG_KEYS.has(keyPath);
 }
 
 function maskSecret(value) {
-  if (value === null || value === undefined || value === '') return '(unset)';
+  if (value === null || value === undefined || value === "") return "(unset)";
   const s = String(value);
-  if (s.length < 8) return '****';
-  return '****' + s.slice(-4);
+  if (s.length < 8) return "****";
+  return "****" + s.slice(-4);
 }
 
 module.exports = { SECRET_CONFIG_KEYS, isSecretKey, maskSecret };

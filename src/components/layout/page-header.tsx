@@ -12,8 +12,16 @@ export function PageHeader({
       <div className="flex items-center justify-between gap-4 w-full md:w-auto min-w-0">
         {(title || subtitle) && (
           <div className="min-w-0">
-            {title && <h1 className="font-display text-xl md:text-2xl font-semibold tracking-tight truncate">{title}</h1>}
-            {subtitle && <p className="mt-1 text-xs md:text-sm text-muted-foreground hidden md:block">{subtitle}</p>}
+            {title && (
+              <h1 className="font-display text-xl md:text-2xl font-semibold tracking-tight truncate">
+                {title}
+              </h1>
+            )}
+            {subtitle && (
+              <p className="mt-1 text-xs md:text-sm text-muted-foreground hidden md:block">
+                {subtitle}
+              </p>
+            )}
           </div>
         )}
         {/* Mobile Action Trigger */}
@@ -21,7 +29,9 @@ export function PageHeader({
       </div>
       {subtitle && <p className="text-xs text-muted-foreground block md:hidden mt-0">{subtitle}</p>}
       {/* Desktop Actions Wrapper */}
-      {action && <div className="hidden md:flex shrink-0 flex-wrap items-center gap-2">{action}</div>}
+      {action && (
+        <div className="hidden md:flex shrink-0 flex-wrap items-center gap-2">{action}</div>
+      )}
     </div>
   );
 }

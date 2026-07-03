@@ -4,16 +4,16 @@ Static mockups are barely better than screenshots. Every interactive element in 
 
 ## Required Interactivity
 
-| Element | Must Have |
-|---------|-----------|
-| Buttons | Click handler with visible feedback (state change, animation, toast) |
-| Forms | Input validation on blur, submit handler that shows success state |
-| Lists | Add/remove items, empty state, populated state |
-| Toggles/switches | Working toggle with visible state change |
-| Tabs/nav | Click to switch content |
-| Modals/drawers | Open/close with transition |
-| Hover states | Every clickable element needs a hover effect |
-| Dropdowns | Open/close, item selection |
+| Element          | Must Have                                                            |
+| ---------------- | -------------------------------------------------------------------- |
+| Buttons          | Click handler with visible feedback (state change, animation, toast) |
+| Forms            | Input validation on blur, submit handler that shows success state    |
+| Lists            | Add/remove items, empty state, populated state                       |
+| Toggles/switches | Working toggle with visible state change                             |
+| Tabs/nav         | Click to switch content                                              |
+| Modals/drawers   | Open/close with transition                                           |
+| Hover states     | Every clickable element needs a hover effect                         |
+| Dropdowns        | Open/close, item selection                                           |
 
 ## Transitions
 
@@ -34,8 +34,8 @@ Use vanilla JS in inline `<script>` tags. No frameworks, no build step. Keep it 
 ```html
 <script>
   // Toggle a panel
-  document.querySelector('.panel-toggle').addEventListener('click', (e) => {
-    e.target.closest('.panel').classList.toggle('collapsed');
+  document.querySelector(".panel-toggle").addEventListener("click", (e) => {
+    e.target.closest(".panel").classList.toggle("collapsed");
   });
 </script>
 ```

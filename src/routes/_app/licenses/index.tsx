@@ -13,14 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
 import {
   Table,
@@ -28,7 +28,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
@@ -41,7 +41,7 @@ import {
   ShieldCheck,
   Ban,
   Calendar,
-  ShieldAlert
+  ShieldAlert,
 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
@@ -49,11 +49,11 @@ import {
   createLicense,
   deleteLicense,
   getLicenseStats,
-  getLicenseRole
+  getLicenseRole,
 } from "@/lib/license-admin.functions";
 
 export const Route = createFileRoute("/_app/licenses/")({
-  component: LicensesPage
+  component: LicensesPage,
 });
 
 function LicensesPage() {
@@ -83,20 +83,20 @@ function LicensesPage() {
   const { data: roleData, isLoading: roleLoading } = useQuery({
     queryKey: ["license-role"],
     queryFn: () => fetchLicenseRole({}),
-    staleTime: 60_000
+    staleTime: 60_000,
   });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["licenses", { search, status, plan, page }],
     queryFn: () => fetchLicenses({ data: { search, status, plan, page, limit: 15 } }),
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
   });
 
   const { data: statsData } = useQuery({
     queryKey: ["licenses-stats"],
     queryFn: () => fetchStats({}),
-    enabled: roleData?.role === "panel" && !!roleData?.isAdmin
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
   });
 
   if (roleLoading) {
@@ -112,7 +112,8 @@ function LicensesPage() {
       <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
         <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Você não possui privilégios de administrador ou esta instalação não está configurada como Painel de Licenças.
+          Você não possui privilégios de administrador ou esta instalação não está configurada como
+          Painel de Licenças.
         </p>
         <Button asChild>
           <Link to="/">Voltar para o início</Link>
@@ -121,15 +122,13 @@ function LicensesPage() {
     );
   }
 
-
-
   const createMutation = useMutation({
     mutationFn: (payload: any) => createLicenseMut({ data: payload }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
       queryClient.invalidateQueries({ queryKey: ["licenses-stats"] });
       setIsCreateOpen(false);
-      
+
       // Reset form
       setClientName("");
       setClientEmail("");
@@ -142,7 +141,7 @@ function LicensesPage() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Falha ao autorizar domínio.");
-    }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -154,7 +153,7 @@ function LicensesPage() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Falha ao remover domínio.");
-    }
+    },
   });
 
   const handleDelete = async (id: number, domainName: string) => {
@@ -185,7 +184,7 @@ function LicensesPage() {
       domain: domain.trim().toLowerCase(),
       plan: selectedPlan,
       expires_at: expiresAt || null,
-      notes
+      notes,
     });
   };
 
@@ -193,8 +192,12 @@ function LicensesPage() {
     <div className="space-y-8 p-6 pb-16">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Gerenciamento de Clientes</h1>
-          <p className="text-muted-foreground">Gerencie os acessos, planos e datas de validade de cada cliente/instância.</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight">
+            Gerenciamento de Clientes
+          </h1>
+          <p className="text-muted-foreground">
+            Gerencie os acessos, planos e datas de validade de cada cliente/instância.
+          </p>
         </div>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -310,7 +313,9 @@ function LicensesPage() {
             <Calendar className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{statsData?.totals.expired ?? 0}</div>
+            <div className="text-2xl font-bold text-amber-600">
+              {statsData?.totals.expired ?? 0}
+            </div>
             <p className="text-xs text-muted-foreground">Acesso suspenso</p>
           </CardContent>
         </Card>
@@ -396,7 +401,9 @@ function LicensesPage() {
             <div className="flex flex-col items-center justify-center py-12 text-destructive">
               <ShieldAlert className="h-10 w-10 mb-4 opacity-50 animate-pulse" />
               <div className="font-semibold text-base">Falha ao carregar domínios</div>
-              <div className="text-sm opacity-80 mt-1">{(error as any).message || "Erro de conexão"}</div>
+              <div className="text-sm opacity-80 mt-1">
+                {(error as any).message || "Erro de conexão"}
+              </div>
             </div>
           ) : !data?.licenses.length ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -418,14 +425,20 @@ function LicensesPage() {
                 </TableHeader>
                 <TableBody>
                   {data.licenses.map((lic) => {
-                    const expires = lic.expires_at ? new Date(lic.expires_at).toLocaleDateString() : "Nunca";
+                    const expires = lic.expires_at
+                      ? new Date(lic.expires_at).toLocaleDateString()
+                      : "Nunca";
                     return (
                       <TableRow key={lic.id}>
-                        <TableCell className="font-semibold text-primary">{lic.license_key_preview}</TableCell>
+                        <TableCell className="font-semibold text-primary">
+                          {lic.license_key_preview}
+                        </TableCell>
                         <TableCell>
                           <div>
                             <div className="font-medium">{lic.client_name}</div>
-                            <div className="text-xs text-muted-foreground">{lic.client_email || "N/A"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {lic.client_email || "N/A"}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="capitalize">{lic.plan}</TableCell>
@@ -438,7 +451,11 @@ function LicensesPage() {
                                 : ""
                             }`}
                           >
-                            {lic.status === "active" ? "Ativo" : lic.status === "blocked" ? "Bloqueado" : "Expirado"}
+                            {lic.status === "active"
+                              ? "Ativo"
+                              : lic.status === "blocked"
+                                ? "Bloqueado"
+                                : "Expirado"}
                           </Badge>
                         </TableCell>
                         <TableCell>{expires}</TableCell>

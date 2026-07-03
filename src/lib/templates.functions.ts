@@ -104,7 +104,10 @@ function extractTemplatePlaceholders(text: string) {
  * A Meta pode retornar valores em minúsculo ('approved'), com sufixos extras
  * ('IN_APPEAL', 'PENDING_DELETION', 'DELETED') ou outros valores inesperados.
  */
-function normalizeTemplateStatus(rawStatus: string | undefined | null, fallback = "PENDING"): string {
+function normalizeTemplateStatus(
+  rawStatus: string | undefined | null,
+  fallback = "PENDING",
+): string {
   if (!rawStatus) return fallback;
   const upper = rawStatus.toUpperCase();
   const STATUS_MAP: Record<string, string> = {
@@ -347,10 +350,12 @@ export const updateTemplate = createServerFn({ method: "POST" })
         cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
         message_send_ttl_seconds: data.message_send_ttl_seconds,
         sub_category: data.sub_category,
-          ...(data.display_format ? { display_format: data.display_format } : { display_format: tpl.display_format }),
-          is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
-          meta_template_id,
-          synced_at: new Date().toISOString(),
+        ...(data.display_format
+          ? { display_format: data.display_format }
+          : { display_format: tpl.display_format }),
+        is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
+        meta_template_id,
+        synced_at: new Date().toISOString(),
       })
       .eq("id", data.id)
       .select()
@@ -484,10 +489,9 @@ export const listAllTemplates = createServerFn({ method: "GET" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    const data: any[] = (await db.query(
-      `SELECT * FROM templates WHERE user_id = ? ORDER BY name`,
-      [effectiveUserId],
-    )) as any[];
+    const data: any[] = (await db.query(`SELECT * FROM templates WHERE user_id = ? ORDER BY name`, [
+      effectiveUserId,
+    ])) as any[];
     return data ?? [];
   });
 

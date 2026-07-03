@@ -54,7 +54,8 @@ If no `.planning/` directory exists, inform the user to run `/gsd-new-project` f
 </process>
 
 <success_criteria>
+
 - [ ] Statistics gathered from project state
 - [ ] Results formatted clearly
 - [ ] Displayed to user
-</success_criteria>
+      </success_criteria>

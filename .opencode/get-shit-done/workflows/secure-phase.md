@@ -8,8 +8,9 @@ Verify threat mitigations for a completed phase. Confirm PLAN.md threat register
 
 <available_agent_types>
 Valid GSD subagent types (use exact names — do not fall back to 'general'):
+
 - gsd-security-auditor — Verifies threat mitigation coverage
-</available_agent_types>
+  </available_agent_types>
 
 <process>
 
@@ -62,10 +63,10 @@ Per threat: `{ threat_id, category, component, disposition, mitigation_pattern, 
 
 Classify each threat:
 
-| Status | Criteria |
-|--------|----------|
+| Status | Criteria                                                                           |
+| ------ | ---------------------------------------------------------------------------------- |
 | CLOSED | mitigation found OR accepted risk documented in SECURITY.md OR transfer documented |
-| OPEN | none of the above |
+| OPEN   | none of the above                                                                  |
 
 Build: `{ threat_id, category, component, disposition, status, evidence }`
 
@@ -73,9 +74,9 @@ If `threats_open: 0` → skip to Step 6 directly.
 
 ## 4. Present Threat Plan
 
-
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 Call question with threat table and options:
+
 1. "Verify all open threats" → Step 5
 2. "Accept all open — document in accepted risks log" → add to SECURITY.md accepted risks, set all CLOSED, Step 6
 3. "Cancel" → exit
@@ -87,6 +88,7 @@ Call question with threat table and options:
 ```
 
 Handle return:
+
 - `## SECURED` → record closures → Step 6
 - `## OPEN_THREATS` → record closed + open, present user with accept/block choice → Step 6
 - `## ESCALATE` → present to user → Step 6
@@ -94,20 +96,23 @@ Handle return:
 ## 6. write/Update SECURITY.md
 
 **State B (create):**
+
 1. read template from `./.opencode/get-shit-done/templates/SECURITY.md`
 2. Fill: frontmatter, threat register, accepted risks, audit trail
 3. write to `${PHASE_DIR}/${PADDED_PHASE}-SECURITY.md`
 
 **State A (update):**
+
 1. Update threat register statuses, append to audit trail:
 
 ```markdown
 ## Security Audit {date}
-| Metric | Count |
-|--------|-------|
-| Threats found | {N} |
-| Closed | {M} |
-| Open | {K} |
+
+| Metric        | Count |
+| ------------- | ----- |
+| Threats found | {N}   |
+| Closed        | {M}   |
+| Open          | {K}   |
 ```
 
 **ENFORCING GATE:** If `threats_open > 0` after all options exhausted (user did not accept, not all verified closed):
@@ -130,6 +135,7 @@ gsd-sdk query commit "docs(phase-${PHASE}): add/update security threat verificat
 ## 8. Results + Routing
 
 **Secured (threats_open: 0):**
+
 ```
 GSD > PHASE {N} THREAT-SECURE
 threats_open: 0 — all threats have dispositions.
@@ -142,6 +148,7 @@ Display `/new` reminder.
 </process>
 
 <success_criteria>
+
 - [ ] Security enforcement checked — exit if false
 - [ ] Input state detected (A/B/C) — state C exits cleanly
 - [ ] PLAN.md threat model parsed, register built
@@ -153,4 +160,4 @@ Display `/new` reminder.
 - [ ] SECURITY.md created or updated
 - [ ] threats_open > 0 BLOCKS advancement (no next-phase routing emitted)
 - [ ] Results with routing presented on success
-</success_criteria>
+      </success_criteria>

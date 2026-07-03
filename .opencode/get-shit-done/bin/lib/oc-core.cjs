@@ -5,8 +5,8 @@
  * Follows gsd-tools.cjs architecture pattern.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Output result in JSON envelope format
@@ -29,8 +29,8 @@ function output(result, raw = false, rawValue = null) {
 
   // Large payload handling (>50KB)
   if (outputStr.length > 50 * 1024) {
-    const tempFile = path.join(require('os').tmpdir(), `gsd-oc-${Date.now()}.json`);
-    fs.writeFileSync(tempFile, outputStr, 'utf8');
+    const tempFile = path.join(require("os").tmpdir(), `gsd-oc-${Date.now()}.json`);
+    fs.writeFileSync(tempFile, outputStr, "utf8");
     console.log(`@file:${tempFile}`);
   } else {
     console.log(outputStr);
@@ -43,13 +43,13 @@ function output(result, raw = false, rawValue = null) {
  * @param {string} message - Error message
  * @param {string} code - Error code (e.g., 'CONFIG_NOT_FOUND', 'INVALID_JSON')
  */
-function error(message, code = 'UNKNOWN_ERROR') {
+function error(message, code = "UNKNOWN_ERROR") {
   const errorEnvelope = {
     success: false,
     error: {
       code,
-      message
-    }
+      message,
+    },
   };
   console.error(JSON.stringify(errorEnvelope, null, 2));
   process.exit(1);
@@ -63,7 +63,7 @@ function error(message, code = 'UNKNOWN_ERROR') {
  */
 function safeReadFile(filePath) {
   try {
-    return fs.readFileSync(filePath, 'utf8');
+    return fs.readFileSync(filePath, "utf8");
   } catch (err) {
     return null;
   }
@@ -76,7 +76,7 @@ function safeReadFile(filePath) {
  * @param {string} backupDir - Directory for backups (.opencode-backups/)
  * @returns {string|null} Backup file path or null on failure
  */
-function createBackup(filePath, backupDir = '.opencode-backups') {
+function createBackup(filePath, backupDir = ".opencode-backups") {
   try {
     // Ensure backup directory exists
     if (!fs.existsSync(backupDir)) {
@@ -84,21 +84,22 @@ function createBackup(filePath, backupDir = '.opencode-backups') {
     }
 
     // read original file
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, "utf8");
 
     // Create timestamped filename (YYYYMMDD-HHmmss-SSS format)
     const now = new Date();
-    const timestamp = now.toISOString()
-      .replace(/[-:T]/g, '')
-      .replace(/\.\d{3}Z$/, '')
-      .replace(/(\d{8})(\d{6})(\d{3})/, '$1-$2-$3');
+    const timestamp = now
+      .toISOString()
+      .replace(/[-:T]/g, "")
+      .replace(/\.\d{3}Z$/, "")
+      .replace(/(\d{8})(\d{6})(\d{3})/, "$1-$2-$3");
 
     const fileName = path.basename(filePath);
     const backupFileName = `${timestamp}-${fileName}`;
     const backupPath = path.join(backupDir, backupFileName);
 
     // write backup
-    fs.writeFileSync(backupPath, content, 'utf8');
+    fs.writeFileSync(backupPath, content, "utf8");
 
     return backupPath;
   } catch (err) {
@@ -110,5 +111,5 @@ module.exports = {
   output,
   error,
   safeReadFile,
-  createBackup
+  createBackup,
 };

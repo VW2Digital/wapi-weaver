@@ -21,8 +21,7 @@ export const Route = createFileRoute("/data-deletion")({
       { title: "Exclusão de Dados do Usuário — Bliv" },
       {
         name: "description",
-        content:
-          "Solicite a exclusão completa da sua conta e dados pessoais da plataforma Bliv.",
+        content: "Solicite a exclusão completa da sua conta e dados pessoais da plataforma Bliv.",
       },
       { property: "og:title", content: "Exclusão de Dados do Usuário — Bliv" },
       {
@@ -191,10 +190,7 @@ function DataDeletionPage() {
               </li>
               <li>
                 <strong>Por e-mail:</strong> envie um pedido de exclusão para{" "}
-                <a
-                  href="mailto:privacidade@bliv.com.br"
-                  className="text-primary hover:underline"
-                >
+                <a href="mailto:privacidade@bliv.com.br" className="text-primary hover:underline">
                   privacidade@bliv.com.br
                 </a>{" "}
                 com o assunto "Solicitação de exclusão de dados". Inclua o e-mail cadastrado na
@@ -219,9 +215,7 @@ function DataDeletionPage() {
                 className="mt-6"
                 variant="destructive"
                 onClick={() => {
-                  const subject = encodeURIComponent(
-                    "Solicitação de exclusão de dados - Bliv",
-                  );
+                  const subject = encodeURIComponent("Solicitação de exclusão de dados - Bliv");
                   const body = encodeURIComponent(
                     `Olá,\n\n` +
                       `Solicito a exclusão completa da minha conta e de todos os meus dados pessoais da plataforma Bliv, conforme previsto na LGPD.\n\n` +

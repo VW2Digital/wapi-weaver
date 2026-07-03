@@ -33,8 +33,8 @@ Each theme defines CSS custom properties only — no component styles, no layout
   --color-success: #22c55e;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -59,9 +59,9 @@ Each theme defines CSS custom properties only — no component styles, no layout
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
 }
 ```
 
@@ -72,7 +72,7 @@ Adapt the default theme to match the mood/direction established during intake. T
 Every sketch links to the theme:
 
 ```html
-<link rel="stylesheet" href="../themes/default.css">
+<link rel="stylesheet" href="../themes/default.css" />
 ```
 
 ## Creating New Themes
@@ -86,7 +86,10 @@ Name themes descriptively: `midnight.css`, `warm-minimal.css`, `brutalist.css`.
 Include in every sketch (part of the sketch toolbar):
 
 ```html
-<select id="theme-switcher" onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+<select
+  id="theme-switcher"
+  onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'"
+>
   <option value="default">Default</option>
 </select>
 ```

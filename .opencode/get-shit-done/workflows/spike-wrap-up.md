@@ -29,16 +29,20 @@ read all files referenced by the invoking prompt's execution_context before star
    - If no: all spikes are candidates
 
 If no unprocessed spikes exist:
+
 ```
 No unprocessed spikes found in `.planning/spikes/`.
 Run `/gsd-spike` first to create experiments.
 ```
+
 Exit.
 
 Check `commit_docs` config:
+
 ```bash
 COMMIT_DOCS=$(gsd-sdk query config-get commit_docs 2>/dev/null || echo "true")
 ```
+
 </step>
 
 <step name="auto_include">
@@ -54,10 +58,11 @@ Processing N spikes:
 ```
 
 Every spike carries forward:
+
 - **VALIDATED** spikes provide proven patterns
 - **PARTIAL** spikes provide constrained patterns
 - **INVALIDATED** spikes provide landmines and dead ends
-</step>
+  </step>
 
 <step name="group">
 ## Auto-Group by Feature Area
@@ -88,7 +93,7 @@ For each included spike:
    - Lock files (`package-lock.json`, `yarn.lock`, etc.)
    - `.git/`, `.DS_Store`
 2. Copy the README.md and core source files into `sources/NNN-spike-name/` inside the generated skill directory
-</step>
+   </step>
 
 <step name="synthesize">
 ## Synthesize Reference Files
@@ -119,6 +124,7 @@ For each feature-area group, write a reference file at `references/[feature-area
 Synthesized from spikes: NNN, NNN, NNN
 Source files available in: sources/NNN-spike-name/, sources/NNN-spike-name/
 ```
+
 </step>
 
 <step name="write_skill">
@@ -147,13 +153,14 @@ Spike sessions wrapped: [date(s)]
 
 - [requirement 1]
 - [requirement 2]
-</requirements>
+  </requirements>
 
 <findings_index>
+
 ## Feature Areas
 
-| Area | Reference | Key Finding |
-|------|-----------|-------------|
+| Area   | Reference            | Key Finding        |
+| ------ | -------------------- | ------------------ |
 | [Name] | references/[name].md | [One-line summary] |
 
 ## Source Files
@@ -168,8 +175,9 @@ Original spike source files are preserved in `sources/` for complete reference.
 
 - 001-spike-name
 - 002-spike-name
-</metadata>
+  </metadata>
 ```
+
 </step>
 
 <step name="write_summary">
@@ -186,12 +194,15 @@ write `.planning/spikes/WRAP-UP-SUMMARY.md` for project history:
 **skill output:** `./.claude/skills/spike-findings-[project]/`
 
 ## Processed Spikes
-| # | Name | Type | Verdict | Feature Area |
-|---|------|------|---------|--------------|
+
+| #   | Name | Type | Verdict | Feature Area |
+| --- | ---- | ---- | ------- | ------------ |
 
 ## Key Findings
+
 [consolidated findings summary]
 ```
+
 </step>
 
 <step name="update_claude_md">
@@ -209,7 +220,7 @@ If this routing line already exists (append mode), leave it as-is.
 <step name="generate_conventions">
 ## Generate or Update CONVENTIONS.md
 
-Analyze all processed spikes for recurring patterns and write `.planning/spikes/CONVENTIONS.md`. This file tells future spike sessions *how we spike* — the stack, structure, and patterns that have been established.
+Analyze all processed spikes for recurring patterns and write `.planning/spikes/CONVENTIONS.md`. This file tells future spike sessions _how we spike_ — the stack, structure, and patterns that have been established.
 
 1. read all spike source code and READMEs looking for:
    - **Stack choices** — What language/framework/runtime appears across multiple spikes?
@@ -225,22 +236,26 @@ Analyze all processed spikes for recurring patterns and write `.planning/spikes/
 Patterns and stack choices established across spike sessions. New spikes follow these unless the question requires otherwise.
 
 ## Stack
+
 [What we use for frontend, backend, scripts, and why — derived from what repeated across spikes]
 
 ## Structure
+
 [Common file layouts, port assignments, naming patterns]
 
 ## Patterns
+
 [Recurring approaches: how we handle auth, how we style, how we serve, etc.]
 
 ## Tools & Libraries
+
 [Preferred packages with versions that worked, and any to avoid]
 ```
 
 3. Only include patterns that appeared in 2+ spikes or were explicitly chosen by the user.
 
 4. If `CONVENTIONS.md` already exists (append mode), update sections with new patterns. Remove entries contradicted by newer spikes.
-</step>
+   </step>
 
 <step name="commit">
 Commit all artifacts (if `COMMIT_DOCS` is true):
@@ -248,6 +263,7 @@ Commit all artifacts (if `COMMIT_DOCS` is true):
 ```bash
 gsd-sdk query commit "docs(spike-wrap-up): package [N] spike findings into project skill" .planning/spikes/WRAP-UP-SUMMARY.md .planning/spikes/CONVENTIONS.md
 ```
+
 </step>
 
 <step name="report">
@@ -264,6 +280,7 @@ gsd-sdk query commit "docs(spike-wrap-up): package [N] spike findings into proje
 **AGENTS.md:** routing line added
 
 The spike-findings skill will auto-load in future build conversations.
+
 ```
 </step>
 
@@ -304,3 +321,4 @@ After the summary, present next-step options:
 - [ ] Summary presented
 - [ ] Next-step options presented (including frontier spike exploration via `/gsd-spike`)
 </success_criteria>
+```

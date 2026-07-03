@@ -3,12 +3,12 @@ name: gsd-plan-review-convergence
 description: "Cross-AI plan convergence loop — replan with review feedback until no HIGH concerns remain (max 3 cycles)"
 argument-hint: "<phase> [--codex] [--gemini] [--claude] [--opencode] [--ollama] [--lm-studio] [--llama-cpp] [--text] [--ws <name>] [--all] [--max-cycles N]"
 permissions:
-   read: true
-   write: true
-   bash: true
-   glob: true
-   grep: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  glob: true
+  grep: true
+  question: true
 ---
 
 <objective>
@@ -37,6 +37,7 @@ Replaces gsd-plan-phase's internal gsd-plan-checker with external AI reviewers (
 Phase number: extracted from $ARGUMENTS (required)
 
 **Flags:**
+
 - `--codex` — Use Codex CLI as reviewer (default if no reviewer specified)
 - `--gemini` — Use Gemini CLI as reviewer
 - `--claude` — Use OpenCode CLI as reviewer (separate session)

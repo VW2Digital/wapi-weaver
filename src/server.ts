@@ -77,7 +77,9 @@ async function migrateRoles() {
   try {
     console.log("[Roles Migration] Starting role schema and data migration...");
     try {
-      await db.query("ALTER TABLE user_roles MODIFY COLUMN role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user', 'admin') NOT NULL DEFAULT 'user'");
+      await db.query(
+        "ALTER TABLE user_roles MODIFY COLUMN role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user', 'admin') NOT NULL DEFAULT 'user'",
+      );
       console.log("[Roles Migration] Column enum altered successfully.");
     } catch (alterErr: any) {
       console.warn("[Roles Migration] Warning altering user_roles table:", alterErr.message);
@@ -92,7 +94,9 @@ async function migrateRoles() {
 
     // Ensure no orphaned rows exist in user_roles (references invalid users)
     try {
-      const orphans = await db.query("DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users)") as any;
+      const orphans = (await db.query(
+        "DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users)",
+      )) as any;
       if (orphans && orphans.affectedRows > 0) {
         console.log(`[Roles Migration] Removed ${orphans.affectedRows} orphaned user_roles.`);
       }
@@ -117,86 +121,133 @@ async function migrateRoles() {
 
     if (roleMode === "panel") {
       if (adminEmail) {
-        const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail.trim().toLowerCase()]) as any[];
+        const userRows = (await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [
+          adminEmail.trim().toLowerCase(),
+        ])) as any[];
         if (userRows.length > 0) {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')", [userId]);
+          await db.query(
+            "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+            [userId],
+          );
           console.log(`[Roles Migration] Updated master user ${adminEmail} to adminmaster.`);
-          
-          const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')", [userId]);
+
+          const cleaned = await db.query(
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')",
+            [userId],
+          );
           if (cleaned.affectedRows > 0) {
-            console.log(`[Roles Migration] Cleaned up ${cleaned.affectedRows} unauthorized administrators in Panel mode.`);
+            console.log(
+              `[Roles Migration] Cleaned up ${cleaned.affectedRows} unauthorized administrators in Panel mode.`,
+            );
           }
         }
       }
     } else {
       if (adminEmail) {
-        const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [adminEmail.trim().toLowerCase()]) as any[];
+        const userRows = (await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [
+          adminEmail.trim().toLowerCase(),
+        ])) as any[];
         if (userRows.length > 0) {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [userId]);
+          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
+            userId,
+          ]);
           console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to owner.`);
-          
-          const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')", [userId]);
+
+          const cleaned = await db.query(
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')",
+            [userId],
+          );
           if (cleaned.affectedRows > 0) {
-            console.log(`[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user in SaaS mode.`);
+            console.log(
+              `[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user in SaaS mode.`,
+            );
           }
         }
       } else {
-        const users = await db.query("SELECT id, email FROM users ORDER BY created_at ASC") as any[];
+        const users = (await db.query(
+          "SELECT id, email FROM users ORDER BY created_at ASC",
+        )) as any[];
         if (users.length > 0) {
           const firstUserId = users[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [firstUserId]);
-          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [firstUserId]);
+          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
+            firstUserId,
+          ]);
           console.log(`[Roles Migration] Set first user ${users[0].email} as owner.`);
-          
-          const cleaned = await db.query("UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin', 'owner')", [firstUserId]);
+
+          const cleaned = await db.query(
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin', 'owner')",
+            [firstUserId],
+          );
           if (cleaned.affectedRows > 0) {
-            console.log(`[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user.`);
+            console.log(
+              `[Roles Migration] Converted ${cleaned.affectedRows} other administrators to user.`,
+            );
           }
         }
       }
     }
 
     // Link existing licenses to their owners by email if tenant_id is not set
-    const allUsers = await db.query("SELECT id, email FROM users") as any[];
+    const allUsers = (await db.query("SELECT id, email FROM users")) as any[];
     for (const u of allUsers) {
       const emailNormalized = String(u.email).trim().toLowerCase();
-      
-      const emailLicenses = await db.query(
+
+      const emailLicenses = (await db.query(
         "SELECT id, tenant_id FROM licenses WHERE LOWER(TRIM(client_email)) = ?",
-        [emailNormalized]
-      ) as any[];
+        [emailNormalized],
+      )) as any[];
 
       if (emailLicenses.length > 0) {
-        const linkedLicense = emailLicenses.find(l => l.tenant_id === u.id);
-        const unlinkedLicense = emailLicenses.find(l => !l.tenant_id);
+        const linkedLicense = emailLicenses.find((l) => l.tenant_id === u.id);
+        const unlinkedLicense = emailLicenses.find((l) => !l.tenant_id);
 
         if (unlinkedLicense) {
           if (linkedLicense) {
-            console.log(`[License Migration] Found duplicate licenses for ${emailNormalized}. Keeping main license ${unlinkedLicense.id} and deleting trial license ${linkedLicense.id}`);
+            console.log(
+              `[License Migration] Found duplicate licenses for ${emailNormalized}. Keeping main license ${unlinkedLicense.id} and deleting trial license ${linkedLicense.id}`,
+            );
             await db.query("DELETE FROM licenses WHERE id = ?", [linkedLicense.id]);
           }
-          
-          await db.query("UPDATE licenses SET tenant_id = ? WHERE id = ?", [u.id, unlinkedLicense.id]);
-          console.log(`[License Migration] Linked license ${unlinkedLicense.id} to user ${emailNormalized} (${u.id})`);
+
+          await db.query("UPDATE licenses SET tenant_id = ? WHERE id = ?", [
+            u.id,
+            unlinkedLicense.id,
+          ]);
+          console.log(
+            `[License Migration] Linked license ${unlinkedLicense.id} to user ${emailNormalized} (${u.id})`,
+          );
         }
       }
     }
 
     // Auto-create a license subscription record for any owner/adminmaster user that doesn't have one
-    const owners = await db.query("SELECT u.id, u.email, p.display_name FROM users u JOIN user_roles r ON u.id = r.user_id LEFT JOIN profiles p ON p.id = u.id WHERE r.role IN ('owner', 'adminmaster')") as any[];
+    const owners = (await db.query(
+      "SELECT u.id, u.email, p.display_name FROM users u JOIN user_roles r ON u.id = r.user_id LEFT JOIN profiles p ON p.id = u.id WHERE r.role IN ('owner', 'adminmaster')",
+    )) as any[];
     for (const owner of owners) {
-      const existingSub = await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [owner.id]) as any[];
+      const existingSub = (await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [
+        owner.id,
+      ])) as any[];
       if (existingSub.length === 0) {
         const licenseKey = owner.email;
         const keyHash = createHash("sha256").update(licenseKey).digest("hex");
         await db.query(
           `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [keyHash, owner.email, owner.display_name || owner.email, owner.email, "basic", "active", owner.id]
+          [
+            keyHash,
+            owner.email,
+            owner.display_name || owner.email,
+            owner.email,
+            "basic",
+            "active",
+            owner.id,
+          ],
         );
         console.log(`[Roles Migration] Auto-provisioned subscription for owner: ${owner.email}`);
       }
@@ -313,7 +364,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const url = new URL(request.url);
-      
+
       if (url.pathname === "/api/license/debug") {
         const serverUrls = process.env.LICENSE_SERVER_URL
           ? [process.env.LICENSE_SERVER_URL]
@@ -321,7 +372,7 @@ export default {
               "https://admin.blivcrm.com",
               "https://painel.blivcrm.com",
               "http://85.155.186.146",
-              "http://134.195.88.7"
+              "http://134.195.88.7",
             ];
         const appId = process.env.LICENSE_APP_ID || "meu-saas";
         const results = [];
@@ -330,7 +381,7 @@ export default {
           let canReach = false;
           let panelResponse: any = null;
           let errMessage: string | null = null;
-          
+
           try {
             const healthUrl = `${serverUrl.replace(/\/+$/, "")}/api/licenses/health`;
             const controller = new AbortController();
@@ -352,20 +403,20 @@ export default {
             license_server_url: serverUrl,
             can_reach_panel: canReach,
             panel_health_response: panelResponse,
-            error: errMessage
+            error: errMessage,
           });
         }
-        
+
         return new Response(
           JSON.stringify({
             role: "saas",
             app_id: appId,
-            results
+            results,
           }),
           {
             status: 200,
-            headers: { "Content-Type": "application/json" }
-          }
+            headers: { "Content-Type": "application/json" },
+          },
         );
       }
 
@@ -379,7 +430,7 @@ export default {
             {
               status: 402,
               headers: { "Content-Type": "application/json" },
-            }
+            },
           );
         }
       }

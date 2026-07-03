@@ -28,6 +28,7 @@ CONTEXT   | D-04    | 15min access / 7day refresh  | 02    | COVERED   |
 ### What is NOT a Gap
 
 Do not flag these as MISSING:
+
 - Items in `## Deferred Ideas` in CONTEXT.md — developer chose to defer these
 - Items scoped to a different phase via `phase_req_ids` — not assigned to this phase
 - Items in RESEARCH.md explicitly marked "out of scope" or "future work" by the researcher
@@ -61,11 +62,13 @@ If ALL rows are COVERED → return `## PLANNING COMPLETE` as normal.
 The planner's only legitimate reasons to split or flag a feature are **constraints**, not judgments about difficulty:
 
 **Valid (constraints):**
+
 - ✓ "This task touches 9 files and would consume ~45% context — split into two tasks"
 - ✓ "No API key or endpoint is defined in any source artifact — need developer input"
 - ✓ "This feature depends on the auth system built in Phase 03, which is not yet complete"
 
 **Invalid (difficulty judgments):**
+
 - ✗ "This is complex and would be difficult to implement correctly"
 - ✗ "Integrating with an external service could take a long time"
 - ✗ "This is a challenging feature that might be better left to a future phase"

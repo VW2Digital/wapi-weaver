@@ -3,11 +3,11 @@ name: gsd-plant-seed
 description: Capture a forward-looking idea with trigger conditions — surfaces automatically at the right milestone
 argument-hint: "[idea summary]"
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   question: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  question: true
 ---
 
 <objective>

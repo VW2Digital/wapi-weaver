@@ -6,7 +6,7 @@ Paste this document (or `@sdk/HANDOVER-PARITY-DOCS.md`) at the start of a new ch
 
 ## Goal for this session
 
-1. **Parity “exceptions” documentation** — A clear, maintainable description of where **full JSON equality** between `gsd-tools.cjs` and `createRegistry()` is **not** expected or not attempted, and why (stubs, structural-only tests, environment-dependent fields, ordering, etc.). Map this to **#2007 / #2302** expectations: no *undocumented* gap.
+1. **Parity “exceptions” documentation** — A clear, maintainable description of where **full JSON equality** between `gsd-tools.cjs` and `createRegistry()` is **not** expected or not attempted, and why (stubs, structural-only tests, environment-dependent fields, ordering, etc.). Map this to **#2007 / #2302** expectations: no _undocumented_ gap.
 2. **CJS-only matrix** — A **single authoritative table**: each relevant `gsd-tools.cjs` surface (top-level command or documented cluster) → **registered in SDK** vs **permanent CLI-only** vs **alias / naming difference**, with a **one-line justification** where not registered.
 
 ## Parent tracking
@@ -35,17 +35,15 @@ Add or extend a dedicated section (prefer `QUERY-HANDLERS.md` under a heading li
 
 Cover at least:
 
-
-| Category                      | Examples to document                                                                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **Full JSON parity**          | Commands where tests use `toEqual` on `sdkResult.data` vs CJS stdout JSON.                                                            |
-| **Structural / field subset** | Tests that compare only selected keys (e.g. `frontmatter.get`, `find-phase` — SDK subset vs CJS). Full parity for `roadmap.analyze`, `init.*` (except `init.quick` volatile keys), etc. — see `QUERY-HANDLERS.md` matrix. |
-| **Normalized comparison**     | e.g. `docs-init`: `existing_docs` sorted by path; `agents_installed` / `missing_agents` omitted between subprocess vs in-process. |
-| **CLI parity without in-process refresh** | `intel.update` — JSON matches CJS `intel.cjs` (spawn hint or disabled); refresh is agent-driven.                                                                                    |
-| **Conditional behavior**      | `skill-manifest`: writes only with `--write`; not in `QUERY_MUTATION_COMMANDS`.                                                   |
-| **Environment / time**        | `current-timestamp`: structure and format, not same instant.                                                                      |
-| **Not in golden suite**       | Commands registered but not (yet) covered — list as **coverage gap** or **out of scope for golden** with rationale.                   |
-
+| Category                                  | Examples to document                                                                                                                                                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Full JSON parity**                      | Commands where tests use `toEqual` on `sdkResult.data` vs CJS stdout JSON.                                                                                                                                                |
+| **Structural / field subset**             | Tests that compare only selected keys (e.g. `frontmatter.get`, `find-phase` — SDK subset vs CJS). Full parity for `roadmap.analyze`, `init.*` (except `init.quick` volatile keys), etc. — see `QUERY-HANDLERS.md` matrix. |
+| **Normalized comparison**                 | e.g. `docs-init`: `existing_docs` sorted by path; `agents_installed` / `missing_agents` omitted between subprocess vs in-process.                                                                                         |
+| **CLI parity without in-process refresh** | `intel.update` — JSON matches CJS `intel.cjs` (spawn hint or disabled); refresh is agent-driven.                                                                                                                          |
+| **Conditional behavior**                  | `skill-manifest`: writes only with `--write`; not in `QUERY_MUTATION_COMMANDS`.                                                                                                                                           |
+| **Environment / time**                    | `current-timestamp`: structure and format, not same instant.                                                                                                                                                              |
+| **Not in golden suite**                   | Commands registered but not (yet) covered — list as **coverage gap** or **out of scope for golden** with rationale.                                                                                                       |
 
 ### B) CJS-only matrix
 
@@ -66,7 +64,6 @@ Optional: footnote that `detect-custom-files` skips multi-repo root resolution i
 
 ## Files likely to edit
 
-
 | Path                              | Role                                                              |
 | --------------------------------- | ----------------------------------------------------------------- |
 | `sdk/src/query/QUERY-HANDLERS.md` | Primary home for exceptions + matrix, or link hub.                |
@@ -74,8 +71,7 @@ Optional: footnote that `detect-custom-files` skips multi-repo root resolution i
 | `docs/CLI-TOOLS.md`               | Short “Parity & registry” subsection with links into `sdk/` docs. |
 | `sdk/HANDOVER-GOLDEN-PARITY.md`   | Optional one-line pointer to new parity doc section when done.    |
 
-
-## Out of scope for *this* handover session
+## Out of scope for _this_ handover session
 
 - Implementing runner alignment (`GSDTools` → registry) — separate #2302 work.
 - Adding `@deprecated` headers to `gsd-tools.cjs` — separate task.
@@ -94,4 +90,4 @@ Optional: footnote that `detect-custom-files` skips multi-repo root resolution i
 
 ---
 
-*Created for handoff to “parity exceptions + CJS-only matrix” session. Update when the canonical doc location or golden coverage changes.*
+_Created for handoff to “parity exceptions + CJS-only matrix” session. Update when the canonical doc location or golden coverage changes._

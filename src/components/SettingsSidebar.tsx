@@ -1,9 +1,25 @@
-import React from 'react';
-import { KeyRound, Phone, MessageSquare, Facebook, Database, QrCode, Settings, Monitor, ShieldCheck, ChevronRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import React from "react";
+import {
+  KeyRound,
+  Phone,
+  MessageSquare,
+  Facebook,
+  Database,
+  QrCode,
+  Settings,
+  Monitor,
+  ShieldCheck,
+  ChevronRight,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
-export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form }: {
+export function SettingsSidebar({
+  activeSection,
+  setActiveSection,
+  isAdmin,
+  form,
+}: {
   activeSection: string | null;
   setActiveSection: (section: string) => void;
   isAdmin: boolean;
@@ -19,7 +35,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
         <div className="flex flex-col gap-1 mt-2">
           {/* Conexão Meta */}
           <button
-            onClick={() => setActiveSection('meta')}
+            onClick={() => setActiveSection("meta")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -33,10 +49,12 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
                     variant="secondary"
                     className={cn(
                       "text-[10px] border-none font-semibold",
-                      form.whatsapp_access_token ? "bg-success/15 text-success hover:bg-success/20" : "bg-muted text-muted-foreground"
+                      form.whatsapp_access_token
+                        ? "bg-success/15 text-success hover:bg-success/20"
+                        : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {form.whatsapp_access_token ? 'Configurado' : 'Pendente'}
+                    {form.whatsapp_access_token ? "Configurado" : "Pendente"}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -49,7 +67,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
 
           {/* WhatsApp WABA */}
           <button
-            onClick={() => setActiveSection('waba')}
+            onClick={() => setActiveSection("waba")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -63,10 +81,12 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
                     variant="secondary"
                     className={cn(
                       "text-[10px] border-none font-semibold",
-                      form.whatsapp_phone_number_id ? "bg-success/15 text-success hover:bg-success/20" : "bg-muted text-muted-foreground"
+                      form.whatsapp_phone_number_id
+                        ? "bg-success/15 text-success hover:bg-success/20"
+                        : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {form.whatsapp_phone_number_id ? 'Configurado' : 'Pendente'}
+                    {form.whatsapp_phone_number_id ? "Configurado" : "Pendente"}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -79,7 +99,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
 
           {/* Instagram */}
           <button
-            onClick={() => setActiveSection('instagram')}
+            onClick={() => setActiveSection("instagram")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -98,7 +118,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
 
           {/* Facebook */}
           <button
-            onClick={() => setActiveSection('facebook')}
+            onClick={() => setActiveSection("facebook")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -125,7 +145,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
         <div className="flex flex-col gap-1 mt-2">
           {/* CRM */}
           <button
-            onClick={() => setActiveSection('crm')}
+            onClick={() => setActiveSection("crm")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -144,7 +164,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
 
           {/* QR Codes */}
           <button
-            onClick={() => setActiveSection('qrcodes')}
+            onClick={() => setActiveSection("qrcodes")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -171,7 +191,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
         <div className="flex flex-col gap-1 mt-2">
           {/* Ferramentas Avançadas */}
           <button
-            onClick={() => setActiveSection('advanced')}
+            onClick={() => setActiveSection("advanced")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -190,7 +210,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
 
           {/* Geral & Legal */}
           <button
-            onClick={() => setActiveSection('general')}
+            onClick={() => setActiveSection("general")}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -210,7 +230,7 @@ export function SettingsSidebar({ activeSection, setActiveSection, isAdmin, form
           {/* Administração */}
           {isAdmin && (
             <button
-              onClick={() => setActiveSection('admin')}
+              onClick={() => setActiveSection("admin")}
               className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
             >
               <div className="flex items-center gap-4">

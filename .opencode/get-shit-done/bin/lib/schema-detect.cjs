@@ -7,7 +7,7 @@
  * build/types pass on a broken state.
  */
 
-'use strict';
+"use strict";
 
 // ─── ORM Patterns ────────────────────────────────────────────────────────────
 //
@@ -16,24 +16,24 @@
 
 const SCHEMA_PATTERNS = [
   // Payload CMS
-  { pattern: /^src\/collections\/.*\.ts$/, orm: 'payload' },
-  { pattern: /^src\/globals\/.*\.ts$/, orm: 'payload' },
+  { pattern: /^src\/collections\/.*\.ts$/, orm: "payload" },
+  { pattern: /^src\/globals\/.*\.ts$/, orm: "payload" },
 
   // Prisma
-  { pattern: /^prisma\/schema\.prisma$/, orm: 'prisma' },
-  { pattern: /^prisma\/schema\/.*\.prisma$/, orm: 'prisma' },
+  { pattern: /^prisma\/schema\.prisma$/, orm: "prisma" },
+  { pattern: /^prisma\/schema\/.*\.prisma$/, orm: "prisma" },
 
   // Drizzle
-  { pattern: /^drizzle\/schema\.ts$/, orm: 'drizzle' },
-  { pattern: /^src\/db\/schema\.ts$/, orm: 'drizzle' },
-  { pattern: /^drizzle\/.*\.ts$/, orm: 'drizzle' },
+  { pattern: /^drizzle\/schema\.ts$/, orm: "drizzle" },
+  { pattern: /^src\/db\/schema\.ts$/, orm: "drizzle" },
+  { pattern: /^drizzle\/.*\.ts$/, orm: "drizzle" },
 
   // Supabase
-  { pattern: /^supabase\/migrations\/.*\.sql$/, orm: 'supabase' },
+  { pattern: /^supabase\/migrations\/.*\.sql$/, orm: "supabase" },
 
   // TypeORM
-  { pattern: /^src\/entities\/.*\.ts$/, orm: 'typeorm' },
-  { pattern: /^src\/migrations\/.*\.ts$/, orm: 'typeorm' },
+  { pattern: /^src\/entities\/.*\.ts$/, orm: "typeorm" },
+  { pattern: /^src\/migrations\/.*\.ts$/, orm: "typeorm" },
 ];
 
 // ─── Push Commands & Evidence Patterns ───────────────────────────────────────
@@ -44,18 +44,17 @@ const SCHEMA_PATTERNS = [
 
 const ORM_INFO = {
   payload: {
-    pushCommand: 'npx payload migrate',
-    envHint: 'CI=true PAYLOAD_MIGRATING=true npx payload migrate',
-    interactiveWarning: 'Payload migrate may require interactive prompts — use CI=true PAYLOAD_MIGRATING=true to suppress',
-    evidencePatterns: [
-      /payload\s+migrate/i,
-      /PAYLOAD_MIGRATING/,
-    ],
+    pushCommand: "npx payload migrate",
+    envHint: "CI=true PAYLOAD_MIGRATING=true npx payload migrate",
+    interactiveWarning:
+      "Payload migrate may require interactive prompts — use CI=true PAYLOAD_MIGRATING=true to suppress",
+    evidencePatterns: [/payload\s+migrate/i, /PAYLOAD_MIGRATING/],
   },
   prisma: {
-    pushCommand: 'npx prisma db push',
-    envHint: 'npx prisma db push --accept-data-loss (if destructive changes are intended)',
-    interactiveWarning: 'Prisma db push may prompt for confirmation on destructive changes — use --accept-data-loss to bypass',
+    pushCommand: "npx prisma db push",
+    envHint: "npx prisma db push --accept-data-loss (if destructive changes are intended)",
+    interactiveWarning:
+      "Prisma db push may prompt for confirmation on destructive changes — use --accept-data-loss to bypass",
     evidencePatterns: [
       /prisma\s+db\s+push/i,
       /prisma\s+migrate\s+deploy/i,
@@ -63,31 +62,23 @@ const ORM_INFO = {
     ],
   },
   drizzle: {
-    pushCommand: 'npx drizzle-kit push',
-    envHint: 'npx drizzle-kit push',
+    pushCommand: "npx drizzle-kit push",
+    envHint: "npx drizzle-kit push",
     interactiveWarning: null,
-    evidencePatterns: [
-      /drizzle-kit\s+push/i,
-      /drizzle-kit\s+migrate/i,
-    ],
+    evidencePatterns: [/drizzle-kit\s+push/i, /drizzle-kit\s+migrate/i],
   },
   supabase: {
-    pushCommand: 'supabase db push',
-    envHint: 'supabase db push',
-    interactiveWarning: 'Supabase db push may require authentication — ensure SUPABASE_ACCESS_TOKEN is set',
-    evidencePatterns: [
-      /supabase\s+db\s+push/i,
-      /supabase\s+migration\s+up/i,
-    ],
+    pushCommand: "supabase db push",
+    envHint: "supabase db push",
+    interactiveWarning:
+      "Supabase db push may require authentication — ensure SUPABASE_ACCESS_TOKEN is set",
+    evidencePatterns: [/supabase\s+db\s+push/i, /supabase\s+migration\s+up/i],
   },
   typeorm: {
-    pushCommand: 'npx typeorm migration:run',
-    envHint: 'npx typeorm migration:run -d src/data-source.ts',
+    pushCommand: "npx typeorm migration:run",
+    envHint: "npx typeorm migration:run -d src/data-source.ts",
     interactiveWarning: null,
-    evidencePatterns: [
-      /typeorm\s+migration:run/i,
-      /typeorm\s+schema:sync/i,
-    ],
+    evidencePatterns: [/typeorm\s+migration:run/i, /typeorm\s+schema:sync/i],
   },
 };
 
@@ -105,7 +96,7 @@ function detectSchemaFiles(files) {
 
   for (const rawFile of files) {
     // Normalize Windows backslash paths
-    const file = rawFile.replace(/\\/g, '/');
+    const file = rawFile.replace(/\\/g, "/");
 
     for (const { pattern, orm } of SCHEMA_PATTERNS) {
       if (pattern.test(file)) {
@@ -153,7 +144,7 @@ function checkSchemaDrift(changedFiles, executionLog, options = {}) {
       schemaFiles: [],
       orms: [],
       unpushedOrms: [],
-      message: '',
+      message: "",
     };
   }
 
@@ -165,7 +156,7 @@ function checkSchemaDrift(changedFiles, executionLog, options = {}) {
     const info = ORM_INFO[orm];
     if (!info) continue;
 
-    const hasPushEvidence = info.evidencePatterns.some(p => p.test(executionLog));
+    const hasPushEvidence = info.evidencePatterns.some((p) => p.test(executionLog));
     if (hasPushEvidence) {
       pushedOrms.add(orm);
     } else {
@@ -182,30 +173,30 @@ function checkSchemaDrift(changedFiles, executionLog, options = {}) {
       schemaFiles: detection.matches,
       orms: detection.orms,
       unpushedOrms: [],
-      message: '',
+      message: "",
     };
   }
 
   // Build actionable message
   const pushCommands = unpushedOrms
-    .map(orm => {
+    .map((orm) => {
       const info = ORM_INFO[orm];
       return info ? `  ${orm}: ${info.envHint || info.pushCommand}` : null;
     })
     .filter(Boolean)
-    .join('\n');
+    .join("\n");
 
   const message = [
-    'Schema drift detected: schema-relevant files changed but no database push was executed.',
-    '',
-    `Schema files changed: ${detection.matches.join(', ')}`,
-    `ORMs requiring push: ${unpushedOrms.join(', ')}`,
-    '',
-    'Required push commands:',
+    "Schema drift detected: schema-relevant files changed but no database push was executed.",
+    "",
+    `Schema files changed: ${detection.matches.join(", ")}`,
+    `ORMs requiring push: ${unpushedOrms.join(", ")}`,
+    "",
+    "Required push commands:",
     pushCommands,
-    '',
-    'Run the appropriate push command, or set GSD_SKIP_SCHEMA_CHECK=true to bypass this gate.',
-  ].join('\n');
+    "",
+    "Run the appropriate push command, or set GSD_SKIP_SCHEMA_CHECK=true to bypass this gate.",
+  ].join("\n");
 
   if (skipCheck) {
     return {
@@ -215,7 +206,7 @@ function checkSchemaDrift(changedFiles, executionLog, options = {}) {
       schemaFiles: detection.matches,
       orms: detection.orms,
       unpushedOrms,
-      message: 'Schema drift detected but check was skipped (GSD_SKIP_SCHEMA_CHECK=true).',
+      message: "Schema drift detected but check was skipped (GSD_SKIP_SCHEMA_CHECK=true).",
     };
   }
 

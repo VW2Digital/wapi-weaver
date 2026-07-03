@@ -6,12 +6,10 @@
   "areas_remaining": ["Area 3", "Area 4"],
   "decisions": {
     "Area 1": [
-      {"question": "...", "answer": "...", "options_presented": ["..."]},
-      {"question": "...", "answer": "...", "options_presented": ["..."]}
+      { "question": "...", "answer": "...", "options_presented": ["..."] },
+      { "question": "...", "answer": "...", "options_presented": ["..."] }
     ],
-    "Area 2": [
-      {"question": "...", "answer": "...", "options_presented": ["..."]}
-    ]
+    "Area 2": [{ "question": "...", "answer": "...", "options_presented": ["..."] }]
   },
   "deferred_ideas": ["..."],
   "canonical_refs": ["..."]

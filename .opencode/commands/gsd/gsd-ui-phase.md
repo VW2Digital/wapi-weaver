@@ -3,16 +3,17 @@ name: gsd-ui-phase
 description: Generate UI design contract (UI-SPEC.md) for frontend phases
 argument-hint: "[phase]"
 permissions:
-   read: true
-   write: true
-   bash: true
-   glob: true
-   grep: true
-   task: true
-   webfetch: true
-   question: true
-   mcp__context7__*: true
+  read: true
+  write: true
+  bash: true
+  glob: true
+  grep: true
+  task: true
+  webfetch: true
+  question: true
+  mcp__context7__*: true
 ---
+
 <objective>
 Create a UI design contract (UI-SPEC.md) for a frontend phase.
 Orchestrates gsd-ui-researcher and gsd-ui-checker.

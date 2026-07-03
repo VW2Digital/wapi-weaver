@@ -7,10 +7,10 @@
  * Usage: node check-opencode-json.cjs [cwd] [--verbose]
  */
 
-const fs = require('fs');
-const path = require('path');
-const { output, error } = require('../gsd-oc-lib/oc-core.cjs');
-const { getModelCatalog, validateModelIds } = require('../gsd-oc-lib/oc-models.cjs');
+const fs = require("fs");
+const path = require("path");
+const { output, error } = require("../gsd-oc-lib/oc-core.cjs");
+const { getModelCatalog, validateModelIds } = require("../gsd-oc-lib/oc-models.cjs");
 
 /**
  * Main command function
@@ -19,12 +19,12 @@ const { getModelCatalog, validateModelIds } = require('../gsd-oc-lib/oc-models.c
  * @param {string[]} args - Command line arguments
  */
 function checkOpencodeJson(cwd, args) {
-  const verbose = args.includes('--verbose');
-  const opencodePath = path.join(cwd, 'opencode.json');
+  const verbose = args.includes("--verbose");
+  const opencodePath = path.join(cwd, "opencode.json");
 
   // Check if opencode.json exists
   if (!fs.existsSync(opencodePath)) {
-    error('opencode.json not found in current directory', 'CONFIG_NOT_FOUND');
+    error("opencode.json not found in current directory", "CONFIG_NOT_FOUND");
   }
 
   if (verbose) {
@@ -33,7 +33,7 @@ function checkOpencodeJson(cwd, args) {
 
   // Fetch model catalog
   if (verbose) {
-    console.error('[verbose] Fetching model catalog from opencode models...');
+    console.error("[verbose] Fetching model catalog from opencode models...");
   }
 
   const catalogResult = getModelCatalog();
@@ -47,7 +47,7 @@ function checkOpencodeJson(cwd, args) {
 
   // Validate model IDs
   if (verbose) {
-    console.error('[verbose] Validating model IDs...');
+    console.error("[verbose] Validating model IDs...");
   }
 
   try {
@@ -55,7 +55,7 @@ function checkOpencodeJson(cwd, args) {
 
     const result = {
       success: true,
-      data: validationResult
+      data: validationResult,
     };
 
     // Exit code based on validation result
@@ -65,19 +65,19 @@ function checkOpencodeJson(cwd, args) {
     } else {
       // Add error details for invalid models
       result.error = {
-        code: 'INVALID_MODEL_ID',
-        message: `${validationResult.invalidCount} invalid model ID(s) found`
+        code: "INVALID_MODEL_ID",
+        message: `${validationResult.invalidCount} invalid model ID(s) found`,
       };
       output(result);
       process.exit(1);
     }
   } catch (err) {
-    if (err.message === 'CONFIG_NOT_FOUND') {
-      error('opencode.json not found', 'CONFIG_NOT_FOUND');
-    } else if (err.message === 'INVALID_JSON') {
-      error('opencode.json is not valid JSON', 'INVALID_JSON');
+    if (err.message === "CONFIG_NOT_FOUND") {
+      error("opencode.json not found", "CONFIG_NOT_FOUND");
+    } else if (err.message === "INVALID_JSON") {
+      error("opencode.json is not valid JSON", "INVALID_JSON");
     } else {
-      error(err.message, 'VALIDATION_FAILED');
+      error(err.message, "VALIDATION_FAILED");
     }
   }
 }

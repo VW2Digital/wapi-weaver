@@ -103,15 +103,16 @@ export function WhatsAppPreview({
             {/* Bubble Tail SVG */}
             <div className="absolute top-0 -right-2 text-[#d9fdd3] dark:text-[#005c4b]">
               <svg width="8" height="13" viewBox="0 0 8 13">
-                <path
-                  d="M1.533 3.568L8 0v13H0S.186 5.86 1.533 3.568z"
-                  fill="currentColor"
-                />
+                <path d="M1.533 3.568L8 0v13H0S.186 5.86 1.533 3.568z" fill="currentColor" />
               </svg>
             </div>
 
             {headerImage && (
-              <img src={headerImage} alt="" className="mb-2 h-32 w-full rounded-lg object-cover shadow-xs" />
+              <img
+                src={headerImage}
+                alt=""
+                className="mb-2 h-32 w-full rounded-lg object-cover shadow-xs"
+              />
             )}
             {header?.format === "VIDEO" && (
               <div className="mb-2 flex h-32 w-full items-center justify-center rounded-lg bg-neutral-200/50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400">
@@ -148,7 +149,9 @@ export function WhatsAppPreview({
               </p>
             )}
             {footer?.text && (
-              <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">{renderText(footer.text, variables)}</p>
+              <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                {renderText(footer.text, variables)}
+              </p>
             )}
 
             {/* Time & Double Checkmark */}

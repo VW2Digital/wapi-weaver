@@ -55,10 +55,12 @@ If phase is detected, proceed with phase handoff path. Otherwise use the first m
 Ask user for clarifications if needed via conversational questions.
 
 **Also inspect SUMMARY.md files for false completions:**
+
 ```bash
 # Check for placeholder content in existing summaries
 grep -l "To be filled\|placeholder\|TBD" .planning/phases/*/*.md 2>/dev/null || true
 ```
+
 Report any summaries with placeholder content as incomplete items.
 </step>
 
@@ -103,6 +105,7 @@ timestamp=$(gsd-sdk query current-timestamp full --raw)
   "context_notes": "{mental state, approach, what you were thinking}"
 }
 ```
+
 </step>
 
 <step name="write">
@@ -131,10 +134,10 @@ _If no constraints have been identified yet, remove this section._
 
 ## Critical Anti-Patterns
 
-| Pattern | Description | Severity | Prevention Mechanism |
-|---------|-------------|----------|---------------------|
+| Pattern        | Description                        | Severity | Prevention Mechanism                                            |
+| -------------- | ---------------------------------- | -------- | --------------------------------------------------------------- |
 | [pattern name] | [what it is and how it manifested] | blocking | [structural step that prevents recurrence — not acknowledgment] |
-| [pattern name] | [what it is and how it manifested] | advisory | [guidance for avoiding it] |
+| [pattern name] | [what it is and how it manifested] | advisory | [guidance for avoiding it]                                      |
 
 **Severity values:** `blocking` — resuming agent must pass understanding check before proceeding. `advisory` — important context, does not gate resumption.
 
@@ -147,43 +150,52 @@ _Remove rows that do not apply. The discuss-phase and execute-phase workflows pa
 <completed_work>
 
 Completed Tasks:
+
 - task 1: [name] - Done
 - task 2: [name] - Done
 - task 3: [name] - In progress, [what's done]
-</completed_work>
+  </completed_work>
 
 <remaining_work>
 
 - task 3: [what's left]
 - task 4: Not started
 - task 5: Not started
-</remaining_work>
+  </remaining_work>
 
 <decisions_made>
 
 - Decided to use [X] because [reason]
 - Chose [approach] over [alternative] because [reason]
-</decisions_made>
+  </decisions_made>
 
 <blockers>
 - [Blocker 1]: [status/workaround]
 </blockers>
 
 ## Required Reading (in order)
+
 <!-- List documents the resuming agent must read before acting -->
+
 1. [document] — [why it matters]
 1. `.planning/METHODOLOGY.md` (if it exists) — project analytical lenses; apply before any assumption analysis
 
 ## Critical Anti-Patterns (do NOT repeat these)
+
 <!-- Mistakes discovered this session that must be structurally avoided -->
+
 - [ANTI-PATTERN]: [what it is] → [structural mitigation]
 
 ## Infrastructure State
+
 <!-- Running services, external state, environment specifics -->
+
 - [service/env]: [current state]
 
 ## Pre-Execution Critique Required
+
 <!-- Fill in ONLY if pausing between design and execution (e.g. spike design done, not yet run) -->
+
 - Design artifact: [path]
 - Critique focus: [key questions the critic should probe]
 - Gate: Do NOT begin execution until critique is complete and design is revised
@@ -200,9 +212,11 @@ Start with: [specific first action when resuming]
 Be specific enough for a fresh OpenCode to understand immediately.
 
 Use `current-timestamp` for last_updated field. You can use init todos (which provides timestamps) or call directly:
+
 ```bash
 timestamp=$(gsd-sdk query current-timestamp full --raw)
 ```
+
 </step>
 
 <step name="commit">
@@ -241,3 +255,4 @@ To resume: /gsd-resume-work
 - [ ] Committed as WIP
 - [ ] User knows location and how to resume
 </success_criteria>
+```

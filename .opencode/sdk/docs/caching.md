@@ -8,12 +8,12 @@ Use `cache_control` with a 1-hour TTL on system prompts that include GSD workflo
 
 ```typescript
 const response = await client.messages.create({
-  model: 'claude-sonnet-4-20250514',
+  model: "claude-sonnet-4-20250514",
   system: [
     {
-      type: 'text',
+      type: "text",
       text: executorPrompt, // GSD workflow instructions — large, stable across requests
-      cache_control: { type: 'ephemeral', ttl: '1h' },
+      cache_control: { type: "ephemeral", ttl: "1h" },
     },
   ],
   messages,
@@ -33,12 +33,12 @@ With a 1-hour TTL:
 
 ### Which prompts to cache
 
-| Prompt | Cache? | Reason |
-|--------|--------|--------|
-| Executor system prompt | Yes | Large (~10K tokens), identical across tasks in a phase |
-| Planner system prompt | Yes | Large, stable within a planning session |
-| Verifier system prompt | Yes | Large, stable within a verification session |
-| User/task-specific content | No | Changes per request |
+| Prompt                     | Cache? | Reason                                                 |
+| -------------------------- | ------ | ------------------------------------------------------ |
+| Executor system prompt     | Yes    | Large (~10K tokens), identical across tasks in a phase |
+| Planner system prompt      | Yes    | Large, stable within a planning session                |
+| Verifier system prompt     | Yes    | Large, stable within a verification session            |
+| User/task-specific content | No     | Changes per request                                    |
 
 ### SDK integration point
 

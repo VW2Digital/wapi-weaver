@@ -18,6 +18,7 @@ TARGET=${1:-main}
 ```
 
 Check preconditions:
+
 - Must be on a feature branch (not main/master)
 - Must have commits ahead of target
 
@@ -30,6 +31,7 @@ fi
 ```
 
 Display:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► PR BRANCH
@@ -39,6 +41,7 @@ Branch: {CURRENT_BRANCH}
 Target: {TARGET}
 Commits: {AHEAD} ahead
 ```
+
 </step>
 
 <step name="analyze_commits">
@@ -50,6 +53,7 @@ git log --oneline "$TARGET".."$CURRENT_BRANCH" --no-merges
 ```
 
 **Structural planning files** — always preserved (repository planning state):
+
 - `.planning/STATE.md`
 - `.planning/ROADMAP.md`
 - `.planning/MILESTONES.md`
@@ -58,6 +62,7 @@ git log --oneline "$TARGET".."$CURRENT_BRANCH" --no-merges
 - `.planning/milestones/**`
 
 **Transient planning files** — excluded from PR branch (reviewer noise):
+
 - `.planning/phases/**` (PLAN.md, SUMMARY.md, CONTEXT.md, RESEARCH.md, etc.)
 - `.planning/quick/**`
 - `.planning/research/**`
@@ -79,18 +84,21 @@ TRANSIENT_ONLY=$(echo "$FILES" | grep "^\.planning/" | grep -vE "^\.planning/(ST
 ```
 
 Classify:
+
 - **Code commits**: Touch at least one non-.planning/ file → INCLUDE
-- **Structural planning commits**: Touch only structural .planning/ files (STATE.md, ROADMAP.md, MILESTONES.md, PROJECT.md, REQUIREMENTS.md, milestones/**) → INCLUDE
+- **Structural planning commits**: Touch only structural .planning/ files (STATE.md, ROADMAP.md, MILESTONES.md, PROJECT.md, REQUIREMENTS.md, milestones/\*\*) → INCLUDE
 - **Transient planning commits**: Touch only transient .planning/ files (phases/, quick/, research/, etc.) → EXCLUDE
 - **Mixed commits**: Touch code + any planning files → INCLUDE (transient planning changes come along; acceptable in mixed context)
 
 Display analysis:
+
 ```
 Commits to include: {N} (code changes + structural planning)
 Commits to exclude: {N} (transient planning-only)
 Mixed commits: {N} (code + planning — included)
 Structural planning commits: {N} (STATE/ROADMAP/milestone updates — included)
 ```
+
 </step>
 
 <step name="create_pr_branch">
@@ -98,8 +106,10 @@ Structural planning commits: {N} (STATE/ROADMAP/milestone updates — included)
 PR_BRANCH="${CURRENT_BRANCH}-pr"
 
 # Create PR branch from target
+
 git checkout -b "$PR_BRANCH" "$TARGET"
-```
+
+````
 
 Cherry-pick code commits and structural planning commits (in order):
 
@@ -114,12 +124,14 @@ for HASH in $CODE_AND_STRUCTURAL_COMMITS; do
   done
   git commit -C "$HASH"
 done
-```
+````
 
 Return to original branch:
+
 ```bash
 git checkout "$CURRENT_BRANCH"
 ```
+
 </step>
 
 <step name="verify">
@@ -131,6 +143,7 @@ PR_COMMITS=$(git rev-list --count "$TARGET".."$PR_BRANCH")
 ```
 
 Display results:
+
 ```
 ✅ PR branch created: {PR_BRANCH}
 
@@ -144,14 +157,16 @@ Next steps:
 
 Or use /gsd-ship to create the PR automatically.
 ```
+
 </step>
 
 </process>
 
 <success_criteria>
+
 - [ ] PR branch created from target
 - [ ] Planning-only commits excluded
 - [ ] No .planning/ files in PR branch diff
 - [ ] Commit messages preserved from original
 - [ ] User shown next steps
-</success_criteria>
+      </success_criteria>

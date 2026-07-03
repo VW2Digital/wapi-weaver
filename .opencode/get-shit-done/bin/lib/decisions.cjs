@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Shared parser for CONTEXT.md `<decisions>` blocks.
@@ -27,7 +27,7 @@
  * @returns {Array<{id: string, text: string}>}
  */
 function parseDecisions(contextMd) {
-  if (!contextMd || typeof contextMd !== 'string') return [];
+  if (!contextMd || typeof contextMd !== "string") return [];
   const blockMatch = contextMd.match(/<decisions>([\s\S]*?)<\/decisions>/);
   if (!blockMatch) return [];
   const block = blockMatch[1];

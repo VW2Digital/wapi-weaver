@@ -24,6 +24,7 @@
    and no `--chain`), clear the ephemeral chain flag from any previous
    interrupted `--auto` chain. This does NOT touch `workflow.auto_advance`
    (the user's persistent settings preference):
+
    ```bash
    if [[ ! "$ARGUMENTS" =~ --auto ]] && [[ ! "$ARGUMENTS" =~ --chain ]]; then
      gsd-sdk query config-set workflow._auto_chain_active false || true
@@ -31,12 +32,14 @@
    ```
 
 3. read consolidated auto-mode (`active` = chain flag OR user preference):
+
    ```bash
    AUTO_MODE=$(gsd-sdk query check auto-mode --pick active 2>/dev/null || echo "false")
    ```
 
 4. **If `--auto` or `--chain` flag present AND `AUTO_MODE` is not true:**
    Persist chain flag to config (handles direct usage without new-project):
+
    ```bash
    gsd-sdk query config-set workflow._auto_chain_active true
    ```
@@ -45,6 +48,7 @@
    true:** display banner and launch plan-phase.
 
    Banner:
+
    ```
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     GSD ► AUTO-ADVANCING TO PLAN
@@ -55,6 +59,7 @@
 
    Launch plan-phase using the skill tool to avoid nested task sessions
    (which cause runtime freezes due to deep agent nesting — see #686):
+
    ```
    skill(skill="gsd-plan-phase", args="${PHASE} --auto ${GSD_WS}")
    ```
@@ -64,8 +69,8 @@
    task agents.
 
 6. **Handle plan-phase return:**
-
    - **PHASE COMPLETE** → Full chain succeeded. Display:
+
      ```
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       GSD ► PHASE ${PHASE} COMPLETE
@@ -77,6 +82,7 @@
 
      Next: /gsd-discuss-phase ${NEXT_PHASE} ${WAS_CHAIN ? "--chain" : "--auto"} ${GSD_WS}
      ```
+
    - **PLANNING COMPLETE** → Planning done, execution didn't complete:
      ```
      Auto-advance partial: Planning complete, execution did not finish.

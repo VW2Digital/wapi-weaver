@@ -3,10 +3,11 @@ name: gsd-do
 description: Route freeform text to the right GSD command automatically
 argument-hint: "<description of what you want to do>"
 permissions:
-   read: true
-   bash: true
-   question: true
+  read: true
+  bash: true
+  question: true
 ---
+
 <objective>
 Analyze freeform natural language input and dispatch to the most appropriate GSD command.
 

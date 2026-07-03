@@ -67,8 +67,8 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">1. Aceitação dos Termos</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Ao acessar e utilizar a plataforma Bliv, você concorda integralmente com
-              estes Termos de Serviço, bem como com nossa{" "}
+              Ao acessar e utilizar a plataforma Bliv, você concorda integralmente com estes Termos
+              de Serviço, bem como com nossa{" "}
               <Link to="/privacy" className="text-primary hover:underline">
                 Política de Privacidade
               </Link>
@@ -83,8 +83,8 @@ function TermsPage() {
               <h2 className="font-display text-xl font-semibold">2. Descrição do Serviço</h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A Bliv é uma plataforma de gerenciamento e disparo de mensagens via WhatsApp
-              Cloud API oficial da Meta. Nossos serviços incluem:
+              A Bliv é uma plataforma de gerenciamento e disparo de mensagens via WhatsApp Cloud API
+              oficial da Meta. Nossos serviços incluem:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
               <li>Criação e gestão de contatos e listas de distribuição.</li>
@@ -182,8 +182,8 @@ function TermsPage() {
               </h2>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A Bliv atua como intermediadora tecnológica entre você e a WhatsApp Cloud API
-              da Meta. Não somos responsáveis por:
+              A Bliv atua como intermediadora tecnológica entre você e a WhatsApp Cloud API da Meta.
+              Não somos responsáveis por:
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
               <li>

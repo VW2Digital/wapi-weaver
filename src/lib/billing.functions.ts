@@ -29,7 +29,7 @@ export const getBillingReport = createServerFn({ method: "POST" })
 
     // Mensagens de campanha (com dados de cobrança detalhados)
     const campaignRows = (await db.query(
-      "SELECT status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at FROM campaign_messages WHERE user_id = ? AND created_at >= ? AND created_at < ?",
+      "SELECT status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at FROM campaign_messages WHERE user_id = ? AND COALESCE(sent_at, created_at) >= ? AND COALESCE(sent_at, created_at) < ?",
       [effectiveUserId, start, end],
     )) as any[];
 

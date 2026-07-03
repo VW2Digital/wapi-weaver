@@ -13,19 +13,19 @@
  *   node allow-read-config.cjs --verbose          # Verbose output
  */
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { output, error, createBackup } = require('../gsd-oc-lib/oc-core.cjs');
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { output, error, createBackup } = require("../gsd-oc-lib/oc-core.cjs");
 
 /**
  * Error codes for allow-read-config operations
  */
 const ERROR_CODES = {
-  WRITE_FAILED: 'WRITE_FAILED',
-  APPLY_FAILED: 'APPLY_FAILED',
-  ROLLBACK_FAILED: 'ROLLBACK_FAILED',
-  INVALID_ARGS: 'INVALID_ARGS'
+  WRITE_FAILED: "WRITE_FAILED",
+  APPLY_FAILED: "APPLY_FAILED",
+  ROLLBACK_FAILED: "ROLLBACK_FAILED",
+  INVALID_ARGS: "INVALID_ARGS",
 };
 
 /**
@@ -39,9 +39,9 @@ function getGsdConfigDir() {
   if (envDir) {
     return envDir;
   }
-  
+
   const homeDir = os.homedir();
-  return path.join(homeDir, '.config', 'opencode', 'get-shit-done');
+  return path.join(homeDir, ".config", "opencode", "get-shit-done");
 }
 
 /**
@@ -64,18 +64,18 @@ function buildPermissionPattern(gsdDir) {
  */
 function permissionExists(opencodeData, pattern) {
   const permissions = opencodeData.permission;
-  
+
   if (!permissions) {
     return false;
   }
-  
+
   const externalDirPerms = permissions.external_directory;
-  if (!externalDirPerms || typeof externalDirPerms !== 'object') {
+  if (!externalDirPerms || typeof externalDirPerms !== "object") {
     return false;
   }
-  
+
   // Check if the pattern exists and is set to "allow"
-  return externalDirPerms[pattern] === 'allow';
+  return externalDirPerms[pattern] === "allow";
 }
 
 /**
@@ -85,93 +85,91 @@ function permissionExists(opencodeData, pattern) {
  * @param {string[]} args - Command line arguments
  */
 function allowReadConfig(cwd, args) {
-  const verbose = args.includes('--verbose');
-  const dryRun = args.includes('--dry-run');
-  const raw = args.includes('--raw');
-  
-  const log = verbose ? (...args) => console.error('[allow-read-config]', ...args) : () => {};
-  
-  const opencodePath = path.join(cwd, 'opencode.json');
-  const backupsDir = path.join(cwd, '.planning', 'backups');
+  const verbose = args.includes("--verbose");
+  const dryRun = args.includes("--dry-run");
+  const raw = args.includes("--raw");
+
+  const log = verbose ? (...args) => console.error("[allow-read-config]", ...args) : () => {};
+
+  const opencodePath = path.join(cwd, "opencode.json");
+  const backupsDir = path.join(cwd, ".planning", "backups");
   const gsdConfigDir = getGsdConfigDir();
   const permissionPattern = buildPermissionPattern(gsdConfigDir);
-  
-  log('Starting allow-read-config command');
+
+  log("Starting allow-read-config command");
   log(`GSD config directory: ${gsdConfigDir}`);
   log(`Permission pattern: ${permissionPattern}`);
-  
+
   // Check for invalid arguments
-  const validFlags = ['--verbose', '--dry-run', '--raw'];
-  const invalidArgs = args.filter(arg => 
-    arg.startsWith('--') && !validFlags.includes(arg)
-  );
-  
+  const validFlags = ["--verbose", "--dry-run", "--raw"];
+  const invalidArgs = args.filter((arg) => arg.startsWith("--") && !validFlags.includes(arg));
+
   if (invalidArgs.length > 0) {
-    error(`Unknown arguments: ${invalidArgs.join(', ')}`, 'INVALID_ARGS');
+    error(`Unknown arguments: ${invalidArgs.join(", ")}`, "INVALID_ARGS");
   }
-  
+
   // Load or create opencode.json
   let opencodeData;
   let fileExisted = false;
-  
+
   if (fs.existsSync(opencodePath)) {
     try {
-      const content = fs.readFileSync(opencodePath, 'utf8');
+      const content = fs.readFileSync(opencodePath, "utf8");
       opencodeData = JSON.parse(content);
       fileExisted = true;
-      log('Loaded existing opencode.json');
+      log("Loaded existing opencode.json");
     } catch (err) {
-      error(`Failed to parse opencode.json: ${err.message}`, 'INVALID_JSON');
+      error(`Failed to parse opencode.json: ${err.message}`, "INVALID_JSON");
     }
   } else {
     // Create initial opencode.json structure
     opencodeData = {
-      "$schema": "https://opencode.ai/config.json"
+      $schema: "https://opencode.ai/config.json",
     };
-    log('Creating new opencode.json');
+    log("Creating new opencode.json");
   }
-  
+
   // Check if permission already exists
   const exists = permissionExists(opencodeData, permissionPattern);
-  
+
   if (exists) {
-    log('Permission already exists');
+    log("Permission already exists");
     output({
       success: true,
       data: {
         dryRun: dryRun,
-        action: 'permission_exists',
+        action: "permission_exists",
         pattern: permissionPattern,
-        message: 'Permission already configured'
-      }
+        message: "Permission already configured",
+      },
     });
     process.exit(0);
   }
-  
+
   // Dry-run mode - preview changes
   if (dryRun) {
-    log('Dry-run mode - no changes will be made');
-    
+    log("Dry-run mode - no changes will be made");
+
     const changes = [];
     if (!fileExisted) {
-      changes.push('Create opencode.json');
+      changes.push("Create opencode.json");
     }
     changes.push(`Add external_directory permission: ${permissionPattern}`);
-    
+
     output({
       success: true,
       data: {
         dryRun: true,
-        action: 'add_permission',
+        action: "add_permission",
         pattern: permissionPattern,
         gsdConfigDir: gsdConfigDir,
         changes: changes,
-        message: fileExisted ? 'Would update opencode.json' : 'Would create opencode.json'
-      }
+        message: fileExisted ? "Would update opencode.json" : "Would create opencode.json",
+      },
     });
     process.exit(0);
   }
-  
+
   // Create backup if file exists
   let backupPath = null;
   if (fileExisted) {
@@ -179,29 +177,29 @@ function allowReadConfig(cwd, args) {
     if (!fs.existsSync(backupsDir)) {
       fs.mkdirSync(backupsDir, { recursive: true });
     }
-    
+
     backupPath = createBackup(opencodePath, backupsDir);
     log(`Backup created: ${backupPath}`);
   }
-  
+
   // Initialize permission structure if needed
   if (!opencodeData.permission) {
     opencodeData.permission = {};
   }
-  
+
   if (!opencodeData.permission.external_directory) {
     opencodeData.permission.external_directory = {};
   }
-  
+
   // Add the permission
-  opencodeData.permission.external_directory[permissionPattern] = 'allow';
-  
-  log('Permission added to opencode.json');
-  
+  opencodeData.permission.external_directory[permissionPattern] = "allow";
+
+  log("Permission added to opencode.json");
+
   // Write updated opencode.json
   try {
-    fs.writeFileSync(opencodePath, JSON.stringify(opencodeData, null, 2) + '\n', 'utf8');
-    log('Updated opencode.json');
+    fs.writeFileSync(opencodePath, JSON.stringify(opencodeData, null, 2) + "\n", "utf8");
+    log("Updated opencode.json");
   } catch (err) {
     // Rollback if backup exists
     if (backupPath) {
@@ -210,24 +208,24 @@ function allowReadConfig(cwd, args) {
       } catch (rollbackErr) {
         error(
           `Failed to write opencode.json AND failed to rollback: ${rollbackErr.message}`,
-          'ROLLBACK_FAILED'
+          "ROLLBACK_FAILED",
         );
       }
     }
-    error(`Failed to write opencode.json: ${err.message}`, 'WRITE_FAILED');
+    error(`Failed to write opencode.json: ${err.message}`, "WRITE_FAILED");
   }
-  
+
   output({
     success: true,
     data: {
-      action: 'add_permission',
+      action: "add_permission",
       pattern: permissionPattern,
       gsdConfigDir: gsdConfigDir,
       opencodePath: opencodePath,
       backup: backupPath,
       created: !fileExisted,
-      message: fileExisted ? 'opencode.json updated' : 'opencode.json created'
-    }
+      message: fileExisted ? "opencode.json updated" : "opencode.json created",
+    },
   });
   process.exit(0);
 }

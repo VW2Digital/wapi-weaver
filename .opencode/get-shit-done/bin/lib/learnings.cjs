@@ -11,17 +11,17 @@
  * Deduplication: SHA-256 of learning text + source_project
  */
 
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-const os = require('os');
-const { output, error: coreError } = require('./core.cjs');
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const os = require("os");
+const { output, error: coreError } = require("./core.cjs");
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const DEFAULT_STORE_DIR = path.join(os.homedir(), '.gsd', 'knowledge');
+const DEFAULT_STORE_DIR = path.join(os.homedir(), ".gsd", "knowledge");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,9 +53,10 @@ function ensureStoreDir(dir) {
  * @returns {string}
  */
 function contentHash(learning, sourceProject) {
-  return crypto.createHash('sha256')
-    .update(learning + '\n' + sourceProject)
-    .digest('hex');
+  return crypto
+    .createHash("sha256")
+    .update(learning + "\n" + sourceProject)
+    .digest("hex");
 }
 
 /**
@@ -64,7 +65,7 @@ function contentHash(learning, sourceProject) {
  */
 function generateId() {
   const ts = Date.now().toString(36);
-  const rand = crypto.randomBytes(4).toString('hex');
+  const rand = crypto.randomBytes(4).toString("hex");
   return `${ts}-${rand}`;
 }
 
@@ -76,7 +77,7 @@ function generateId() {
  */
 function readLearningFile(filePath) {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(content);
   } catch (err) {
     process.stderr.write(`Warning: skipping malformed file ${filePath}: ${err.message}\n`);
@@ -106,7 +107,7 @@ function learningsWrite(entry, opts) {
   const hash = contentHash(entry.learning, entry.source_project);
 
   // Check for duplicate by scanning existing files
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
   for (const file of files) {
     const existing = readLearningFile(path.join(dir, file));
     if (existing && existing.content_hash === hash) {
@@ -119,13 +120,13 @@ function learningsWrite(entry, opts) {
     id,
     source_project: entry.source_project,
     date: new Date().toISOString(),
-    context: entry.context || '',
+    context: entry.context || "",
     learning: entry.learning,
     tags: entry.tags || [],
     content_hash: hash,
   };
 
-  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(record, null, 2), 'utf-8');
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(record, null, 2), "utf-8");
   return { id, created: true, content_hash: hash };
 }
 
@@ -156,7 +157,7 @@ function learningsList(opts) {
   const dir = getStoreDir(opts);
   if (!fs.existsSync(dir)) return [];
 
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
   const results = [];
   for (const file of files) {
     const record = readLearningFile(path.join(dir, file));
@@ -180,7 +181,7 @@ function learningsList(opts) {
 function learningsQuery(query, opts) {
   const all = learningsList(opts);
   if (query && query.tag) {
-    return all.filter(r => r.tags && r.tags.includes(query.tag));
+    return all.filter((r) => r.tags && r.tags.includes(query.tag));
   }
   return all;
 }
@@ -220,13 +221,14 @@ function learningsDelete(id, opts) {
  * @returns {{ total: number, created: number, skipped: number }}
  */
 function learningsCopyFromProject(planningDir, opts) {
-  const learningsPath = path.join(planningDir, 'LEARNINGS.md');
+  const learningsPath = path.join(planningDir, "LEARNINGS.md");
   if (!fs.existsSync(learningsPath)) {
     return { total: 0, created: 0, skipped: 0 };
   }
 
-  const content = fs.readFileSync(learningsPath, 'utf-8');
-  const sourceProject = (opts && opts.sourceProject) || path.basename(path.resolve(planningDir, '..'));
+  const content = fs.readFileSync(learningsPath, "utf-8");
+  const sourceProject =
+    (opts && opts.sourceProject) || path.basename(path.resolve(planningDir, ".."));
 
   // Parse markdown: split on ## headings
   const sections = content.split(/^## /m).slice(1); // skip preamble before first ##
@@ -234,20 +236,26 @@ function learningsCopyFromProject(planningDir, opts) {
   let skipped = 0;
 
   for (const section of sections) {
-    const lines = section.trim().split('\n');
+    const lines = section.trim().split("\n");
     const title = lines[0].trim();
-    const body = lines.slice(1).join('\n').trim();
+    const body = lines.slice(1).join("\n").trim();
     if (!body) continue;
 
     // Extract tags from title (simple: use words as tags)
-    const tags = title.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const tags = title
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 2);
 
-    const result = learningsWrite({
-      source_project: sourceProject,
-      learning: body,
-      context: title,
-      tags,
-    }, opts);
+    const result = learningsWrite(
+      {
+        source_project: sourceProject,
+        learning: body,
+        context: title,
+        tags,
+      },
+      opts,
+    );
 
     if (result.created) {
       created++;
@@ -279,7 +287,7 @@ function learningsPrune(olderThan, opts) {
 
   if (!fs.existsSync(dir)) return { removed: 0, kept: 0 };
 
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
   let removed = 0;
   let kept = 0;
 
@@ -327,7 +335,7 @@ function cmdLearningsQuery(tag, raw) {
  * @param {boolean} raw - Raw output flag
  */
 function cmdLearningsCopy(cwd, raw) {
-  const planningDir = path.join(cwd, '.planning');
+  const planningDir = path.join(cwd, ".planning");
   const result = learningsCopyFromProject(planningDir);
   output(result, raw);
 }

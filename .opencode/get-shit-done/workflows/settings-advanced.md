@@ -44,6 +44,7 @@ Parse the following current values. If a key is absent, fall back to the documen
 shown in parentheses:
 
 Planning Tuning:
+
 - `workflow.plan_bounce` (default: `false`)
 - `workflow.plan_bounce_passes` (default: `2`)
 - `workflow.plan_bounce_script` (default: `null`)
@@ -51,24 +52,29 @@ Planning Tuning:
 - `workflow.inline_plan_threshold` (default: `3`)
 
 Execution Tuning:
+
 - `workflow.node_repair` (default: `true`)
 - `workflow.node_repair_budget` (default: `2`)
 - `workflow.auto_prune_state` (default: `false`)
 
 Discussion Tuning:
+
 - `workflow.max_discuss_passes` (default: `3`)
 
 Cross-AI Execution:
+
 - `workflow.cross_ai_execution` (default: `false`)
 - `workflow.cross_ai_command` (default: `null`)
 - `workflow.cross_ai_timeout` (default: `300`)
 
 Git Customization:
+
 - `git.base_branch` (default: `main`)
 - `git.phase_branch_template` (default: `gsd/phase-{phase}-{slug}`)
 - `git.milestone_branch_template` (default: `gsd/{milestone}-{slug}`)
 
 Runtime / Output:
+
 - `response_language` (default: `null`)
 - `context_window` (default: `200000`)
 - `search_gitignored` (default: `false`)
@@ -419,11 +425,13 @@ and /gsd-ship runs.
 For common-case toggles (model profile, research/plan_check/verifier, branching strategy,
 UI/AI phase gates), use /gsd-settings.
 ```
+
 </step>
 
 </process>
 
 <success_criteria>
+
 - [ ] Current config read from resolved `$GSD_CONFIG_PATH`
 - [ ] Six sections rendered (Planning, Execution, Discussion, Cross-AI, Git, Runtime)
 - [ ] Every field pre-selected to its current value (or documented default if absent)
@@ -432,4 +440,4 @@ UI/AI phase gates), use /gsd-settings.
 - [ ] Null-allowed fields accept an empty input as a clear
 - [ ] Writes routed through `gsd-sdk query config-set` so unrelated keys are preserved
 - [ ] Confirmation table rendered listing all 19 fields
-</success_criteria>
+      </success_criteria>

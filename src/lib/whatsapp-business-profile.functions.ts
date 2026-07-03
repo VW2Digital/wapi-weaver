@@ -67,7 +67,7 @@ export const getWhatsAppBusinessProfile = createServerFn({ method: "GET" })
 
     const rows: any = await db.query(
       "SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version FROM profiles WHERE id = ? LIMIT 1",
-      [effectiveUserId]
+      [effectiveUserId],
     );
     const p = rows?.[0];
 
@@ -110,7 +110,7 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
 
     const rows: any = await db.query(
       "SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version FROM profiles WHERE id = ? LIMIT 1",
-      [effectiveUserId]
+      [effectiveUserId],
     );
     const p = rows?.[0];
 

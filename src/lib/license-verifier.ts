@@ -7,10 +7,10 @@ export async function checkLicense(tenantId?: string, ignoreGrace = false): Prom
   }
 
   try {
-    const rows = await dbAdmin.query(
+    const rows = (await dbAdmin.query(
       "SELECT status, expires_at FROM licenses WHERE tenant_id = ? LIMIT 1",
-      [tenantId]
-    ) as any[];
+      [tenantId],
+    )) as any[];
 
     if (!rows || rows.length === 0) {
       return false;
@@ -25,7 +25,10 @@ export async function checkLicense(tenantId?: string, ignoreGrace = false): Prom
   }
 }
 
-export async function activateLicense(key: string, reqHost?: string): Promise<{ success: boolean; error?: string }> {
+export async function activateLicense(
+  key: string,
+  reqHost?: string,
+): Promise<{ success: boolean; error?: string }> {
   // Key activation is no longer used in the simplified local SaaS model
   return { success: true };
 }

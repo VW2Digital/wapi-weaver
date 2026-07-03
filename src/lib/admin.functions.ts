@@ -66,7 +66,10 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
       .eq("user_id", context.userId);
     if (error) throw error;
     const roles = (data ?? []).map((r: { role: string }) => r.role);
-    return { roles, isAdmin: roles.includes("admin") || roles.includes("owner") || roles.includes("adminmaster") };
+    return {
+      roles,
+      isAdmin: roles.includes("admin") || roles.includes("owner") || roles.includes("adminmaster"),
+    };
   });
 
 export const getPlatformSettings = createServerFn({ method: "GET" })
@@ -101,9 +104,9 @@ export const getDetailedLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const { default: db } = await import("./db");
-    const rows = await db.query("SELECT * FROM license_settings WHERE id = 1 LIMIT 1") as any[];
+    const rows = (await db.query("SELECT * FROM license_settings WHERE id = 1 LIMIT 1")) as any[];
     const data = rows?.[0] ?? null;
-      
+
     if (!data) {
       return {
         status: "missing",
@@ -111,17 +114,17 @@ export const getDetailedLicenseStatus = createServerFn({ method: "GET" })
         domain: null,
         expires_at: null,
         last_validated_at: null,
-        last_error: "Licença não encontrada localmente."
+        last_error: "Licença não encontrada localmente.",
       };
     }
-    
+
     return {
       status: data.license_status || "missing",
       plan: data.plan,
       domain: data.domain,
       expires_at: data.expires_at,
       last_validated_at: data.last_validated_at,
-      last_error: data.last_error
+      last_error: data.last_error,
     };
   });
 
@@ -495,17 +498,17 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
     const { default: db } = await import("./db");
 
     // First try by tenant_id
-    let rows = await db.query(
+    let rows = (await db.query(
       "SELECT status, expires_at FROM licenses WHERE tenant_id = ? LIMIT 1",
-      [tenantId]
-    ) as any[];
+      [tenantId],
+    )) as any[];
 
     // Fallback: search by email if not found by tenant_id
     if ((!rows || rows.length === 0) && email) {
-      rows = await db.query(
+      rows = (await db.query(
         "SELECT status, expires_at FROM licenses WHERE LOWER(TRIM(client_email)) = ? LIMIT 1",
-        [String(email).trim().toLowerCase()]
-      ) as any[];
+        [String(email).trim().toLowerCase()],
+      )) as any[];
     }
 
     if (!rows || rows.length === 0) {

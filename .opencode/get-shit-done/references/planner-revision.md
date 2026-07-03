@@ -29,14 +29,14 @@ Group by plan, dimension, severity.
 
 ### Step 3: Revision Strategy
 
-| Dimension | Strategy |
-|-----------|----------|
-| requirement_coverage | Add task(s) for missing requirement |
-| task_completeness | Add missing elements to existing task |
-| dependency_correctness | Fix depends_on, recompute waves |
-| key_links_planned | Add wiring task or update action |
-| scope_sanity | Split into multiple plans |
-| must_haves_derivation | Derive and add must_haves to frontmatter |
+| Dimension              | Strategy                                 |
+| ---------------------- | ---------------------------------------- |
+| requirement_coverage   | Add task(s) for missing requirement      |
+| task_completeness      | Add missing elements to existing task    |
+| dependency_correctness | Fix depends_on, recompute waves          |
+| key_links_planned      | Add wiring task or update action         |
+| scope_sanity           | Split into multiple plans                |
+| must_haves_derivation  | Derive and add must_haves to frontmatter |
 
 ### Step 4: Make Targeted Updates
 
@@ -67,10 +67,10 @@ gsd-sdk query commit "fix($PHASE): revise plans based on checker feedback" .plan
 
 ### Changes Made
 
-| Plan | Change | Issue Addressed |
-|------|--------|-----------------|
-| 16-01 | Added <verify> to task 2 | task_completeness |
-| 16-02 | Added logout task | requirement_coverage (AUTH-02) |
+| Plan  | Change                   | Issue Addressed                |
+| ----- | ------------------------ | ------------------------------ |
+| 16-01 | Added <verify> to task 2 | task_completeness              |
+| 16-02 | Added logout task        | requirement_coverage (AUTH-02) |
 
 ### Files Updated
 
@@ -81,7 +81,7 @@ gsd-sdk query commit "fix($PHASE): revise plans based on checker feedback" .plan
 
 ### Unaddressed Issues
 
-| Issue | Reason |
-|-------|--------|
+| Issue   | Reason                                               |
+| ------- | ---------------------------------------------------- |
 | {issue} | {why - needs user input, architectural change, etc.} |
 ```

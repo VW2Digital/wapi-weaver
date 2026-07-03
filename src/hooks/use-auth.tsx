@@ -53,31 +53,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const { data: sub } = db.auth.onAuthStateChange((_event: string, s: Session | null) => {
       // #region debug-point B:auth-state-change
-      reportServerFnAbortDebug(
-        "B",
-        "use-auth.tsx:onAuthStateChange",
-        "Auth state changed",
-        {
-          event: _event,
-          hasSession: Boolean(s),
-          userId: s?.user?.id ?? null,
-        },
-      );
+      reportServerFnAbortDebug("B", "use-auth.tsx:onAuthStateChange", "Auth state changed", {
+        event: _event,
+        hasSession: Boolean(s),
+        userId: s?.user?.id ?? null,
+      });
       // #endregion
       if (!cancelled) setSession(s);
     });
     db.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       // #region debug-point C:get-session-resolved
-      reportServerFnAbortDebug(
-        "C",
-        "use-auth.tsx:getSession",
-        "Initial getSession resolved",
-        {
-          cancelled,
-          hasSession: Boolean(data.session),
-          userId: data.session?.user?.id ?? null,
-        },
-      );
+      reportServerFnAbortDebug("C", "use-auth.tsx:getSession", "Initial getSession resolved", {
+        cancelled,
+        hasSession: Boolean(data.session),
+        userId: data.session?.user?.id ?? null,
+      });
       // #endregion
       if (!cancelled) {
         setSession(data.session);
@@ -87,12 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       // #region debug-point D:auth-provider-unmount
-      reportServerFnAbortDebug(
-        "D",
-        "use-auth.tsx:cleanup",
-        "AuthProvider cleanup executed",
-        {},
-      );
+      reportServerFnAbortDebug("D", "use-auth.tsx:cleanup", "AuthProvider cleanup executed", {});
       // #endregion
       sub.subscription.unsubscribe();
     };

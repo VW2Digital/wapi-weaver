@@ -63,11 +63,11 @@ export const Route = createFileRoute("/api/auth/register")({
             const keyHash = crypto.createHash("sha256").update(licenseKey).digest("hex");
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 15); // 15 days trial
-            
+
             await conn.execute(
               `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, expires_at, tenant_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [keyHash, email, displayName || email, email, "basic", "active", expiresAt, userId]
+              [keyHash, email, displayName || email, email, "basic", "active", expiresAt, userId],
             );
           });
 

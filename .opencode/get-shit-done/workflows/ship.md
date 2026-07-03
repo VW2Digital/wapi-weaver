@@ -19,6 +19,7 @@ if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 Parse from init JSON: `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `padded_phase`, `commit_docs`.
 
 Also load config for branching strategy:
+
 ```bash
 CONFIG=$(gsd-sdk query state.load)
 ```
@@ -26,6 +27,7 @@ CONFIG=$(gsd-sdk query state.load)
 Extract: `branching_strategy`, `branch_name`.
 
 Detect base branch for PRs and merges:
+
 ```bash
 BASE_BRANCH=$(gsd-sdk query config-get git.base_branch 2>/dev/null || echo "")
 if [ -z "$BASE_BRANCH" ] || [ "$BASE_BRANCH" = "null" ]; then
@@ -33,35 +35,44 @@ if [ -z "$BASE_BRANCH" ] || [ "$BASE_BRANCH" = "null" ]; then
   BASE_BRANCH="${BASE_BRANCH:-main}"
 fi
 ```
+
 </step>
 
 <step name="preflight_checks">
 Verify the work is ready to ship:
 
 1. **Verification passed?**
+
    ```bash
    VERIFICATION=$(cat ${PHASE_DIR}/*-VERIFICATION.md 2>/dev/null)
    ```
+
    Check for `status: passed` or `status: human_needed` (with human approval).
    If no VERIFICATION.md or status is `gaps_found`: warn and ask user to confirm.
 
 2. **Clean working tree?**
+
    ```bash
    git status --short
    ```
+
    If uncommitted changes exist: ask user to commit or stash first.
 
 3. **On correct branch?**
+
    ```bash
    CURRENT_BRANCH=$(git branch --show-current)
    ```
+
    If on `${BASE_BRANCH}`: warn — should be on a feature branch.
    If branching_strategy is `none`: offer to create a branch now.
 
 4. **Remote configured?**
+
    ```bash
    git remote -v | head -2
    ```
+
    Detect `origin` remote. If no remote: error — can't create PR.
 
 5. **`gh` CLI available?**
@@ -69,7 +80,7 @@ Verify the work is ready to ship:
    which gh && gh auth status 2>&1
    ```
    If `gh` not found or not authenticated: provide setup instructions and exit.
-</step>
+   </step>
 
 <step name="push_branch">
 Push the current branch to remote:
@@ -79,6 +90,7 @@ git push origin ${CURRENT_BRANCH} 2>&1
 ```
 
 If push fails (e.g., no upstream): set upstream:
+
 ```bash
 git push --set-upstream origin ${CURRENT_BRANCH} 2>&1
 ```
@@ -90,9 +102,11 @@ Report: "Pushed `{branch}` to origin ({commit_count} commits ahead of ${BASE_BRA
 Auto-generate a rich PR body from planning artifacts:
 
 **1. Title:**
+
 ```
 Phase {phase_number}: {phase_name}
 ```
+
 Or for milestone: `Milestone {version}: {name}`
 
 **2. Summary section:**
@@ -110,10 +124,12 @@ read ROADMAP.md for phase goal. read VERIFICATION.md for verification status.
 
 **3. Changes section:**
 For each SUMMARY.md in the phase directory:
+
 ```markdown
 ## Changes
 
 ### Plan {plan_id}: {plan_name}
+
 {one_liner from SUMMARY.md frontmatter}
 
 **Key files:**
@@ -121,6 +137,7 @@ For each SUMMARY.md in the phase directory:
 ```
 
 **4. Requirements section:**
+
 ```markdown
 ## Requirements Addressed
 
@@ -128,6 +145,7 @@ For each SUMMARY.md in the phase directory:
 ```
 
 **5. Testing section:**
+
 ```markdown
 ## Verification
 
@@ -136,11 +154,13 @@ For each SUMMARY.md in the phase directory:
 ```
 
 **6. Decisions section:**
+
 ```markdown
 ## Key Decisions
 
 {Decisions from STATE.md accumulated context relevant to this phase}
 ```
+
 </step>
 
 <step name="create_pr">
@@ -171,18 +191,21 @@ REVIEW_CMD=$(gsd-sdk query config-get workflow.code_review_command 2>/dev/null |
 If `REVIEW_CMD` is non-empty and not `"null"`, run the external review:
 
 1. **Generate diff and stats:**
+
    ```bash
    DIFF=$(git diff ${BASE_BRANCH}...HEAD)
    DIFF_STATS=$(git diff --stat ${BASE_BRANCH}...HEAD)
    ```
 
 2. **Load phase context from STATE.md:**
+
    ```bash
    STATE_STATUS=$(gsd-sdk query state.load 2>/dev/null | head -20)
    ```
 
 3. **Build review prompt and pipe to command via stdin:**
    Construct a review prompt containing the diff, diff stats, and phase context, then pipe it to the configured command:
+
    ```bash
    REVIEW_PROMPT="You are reviewing a pull request.\n\nDiff stats:\n${DIFF_STATS}\n\nPhase context:\n${STATE_STATUS}\n\nFull diff:\n${DIFF}\n\nRespond with JSON: { \"verdict\": \"APPROVED\" or \"REVISE\", \"confidence\": 0-100, \"summary\": \"...\", \"issues\": [{\"severity\": \"...\", \"file\": \"...\", \"line_range\": \"...\", \"description\": \"...\", \"suggestion\": \"...\"}] }"
    REVIEW_OUTPUT=$(echo "${REVIEW_PROMPT}" | timeout 120 ${REVIEW_CMD} 2>/tmp/gsd-review-stderr.log)
@@ -191,6 +214,7 @@ If `REVIEW_CMD` is non-empty and not `"null"`, run the external review:
 
 4. **Handle timeout (120s) and failure:**
    If `REVIEW_EXIT` is non-zero or the command times out:
+
    ```bash
    if [ $REVIEW_EXIT -ne 0 ]; then
      REVIEW_STDERR=$(cat /tmp/gsd-review-stderr.log 2>/dev/null)
@@ -198,10 +222,12 @@ If `REVIEW_CMD` is non-empty and not `"null"`, run the external review:
      echo "Continuing with manual review flow..."
    fi
    ```
+
    On failure, warn with stderr output and fall through to the manual review flow below.
 
 5. **Parse JSON result:**
    If the command succeeded, parse the JSON output and report the verdict:
+
    ```bash
    # Parse verdict and summary from REVIEW_OUTPUT JSON
    VERDICT=$(echo "${REVIEW_OUTPUT}" | node -e "
@@ -211,6 +237,7 @@ If `REVIEW_CMD` is non-empty and not `"null"`, run the external review:
      });
    ")
    ```
+
    - If `verdict` is `"APPROVED"`: report approval with confidence and summary.
    - If `verdict` is `"REVISE"`: report issues found, list each issue with severity, file, line_range, description, and suggestion.
    - If JSON is invalid (`INVALID_JSON`): warn "External review returned invalid JSON" with stderr and continue.
@@ -222,7 +249,6 @@ If `REVIEW_CMD` is non-empty and not `"null"`, run the external review:
 **Manual review options:**
 
 Ask if user wants to trigger a code review:
-
 
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 
@@ -239,6 +265,7 @@ question:
 ```
 
 **If "Request review":**
+
 ```bash
 gh pr edit ${PR_NUMBER} --add-reviewer "${REVIEWER}"
 ```
@@ -256,9 +283,11 @@ gsd-sdk query state.update "Status" "Phase ${PHASE_NUMBER} shipped — PR #${PR_
 ```
 
 If `commit_docs` is true:
+
 ```bash
 gsd-sdk query commit "docs(${padded_phase}): ship phase ${PHASE_NUMBER} — PR #${PR_NUMBER}" .planning/STATE.md
 ```
+
 </step>
 
 <step name="report">
@@ -274,12 +303,14 @@ Verification: ✓ Passed
 Requirements: {N} REQ-IDs addressed
 
 Next steps:
+
 - Review/approve PR
 - Merge when CI passes
 - /gsd-complete-milestone (if last phase in milestone)
 - /gsd-progress (to see what's next)
 
 ───────────────────────────────────────────────────────────────
+
 ```
 </step>
 
@@ -300,3 +331,4 @@ After shipping:
 - [ ] STATE.md updated with shipping status
 - [ ] User knows PR number and next steps
 </success_criteria>
+```

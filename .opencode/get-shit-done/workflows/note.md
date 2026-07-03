@@ -38,12 +38,12 @@ promoted: false
 <step name="parse_subcommand">
 **Parse subcommand from $ARGUMENTS (after stripping --global).**
 
-| Condition | Subcommand |
-|-----------|------------|
-| Arguments are exactly `list` (case-insensitive) | **list** |
-| Arguments are exactly `promote <N>` where N is a number | **promote** |
-| Arguments are empty (no text at all) | **list** |
-| Anything else | **append** (the text IS the note) |
+| Condition                                               | Subcommand                        |
+| ------------------------------------------------------- | --------------------------------- |
+| Arguments are exactly `list` (case-insensitive)         | **list**                          |
+| Arguments are exactly `promote <N>` where N is a number | **promote**                       |
+| Arguments are empty (no text at all)                    | **list**                          |
+| Anything else                                           | **append** (the text IS the note) |
 
 **Critical**: `list` is only a subcommand when it's the ENTIRE argument. `/gsd-note list of groceries` saves a note with text "list of groceries". Same for `promote` — only a subcommand when followed by exactly one number.
 </step>
@@ -61,10 +61,11 @@ promoted: false
    - Where `{scope}` is "project" or "global"
 
 **Constraints:**
+
 - **Never modify the note text** — capture verbatim, including typos
 - **Never ask questions** — just write and confirm
 - **Timestamp format**: Use local time, `YYYY-MM-DD HH:mm` (24-hour, no seconds)
-</step>
+  </step>
 
 <step name="list">
 **Subcommand: list — show notes from both scopes.**
@@ -132,11 +133,12 @@ Promoted from quick note captured on {original date}.
 
 9. Mark the source note file as promoted: update its frontmatter to `promoted: true`
 10. Confirm: `Promoted note {N} to todo {id}: {note text}`
-</step>
+    </step>
 
 </process>
 
 <edge_cases>
+
 1. **"list" as note text**: `/gsd-note list of things` saves note "list of things" (subcommand only when `list` is the entire arg)
 2. **No `.planning/`**: Falls back to global `./.opencode/notes/` — works in any directory
 3. **Promote without project**: Warns that todos require `.planning/`, suggests `/gsd-new-project`
@@ -145,9 +147,10 @@ Promoted from quick note captured on {original date}.
 6. **`--global` position**: Stripped from anywhere — `--global my idea` and `my idea --global` both save "my idea" globally
 7. **Promote already-promoted**: Tell user "Note {N} is already promoted" and stop
 8. **Empty note text after stripping flags**: Treat as `list` subcommand
-</edge_cases>
+   </edge_cases>
 
 <success_criteria>
+
 - [ ] Append: Note file written with correct frontmatter and verbatim text
 - [ ] Append: No questions asked — instant capture
 - [ ] List: Both scopes shown with sequential numbering
@@ -155,4 +158,4 @@ Promoted from quick note captured on {original date}.
 - [ ] Promote: Todo created with correct format
 - [ ] Promote: Source note marked as promoted
 - [ ] Global fallback: Works when no `.planning/` exists
-</success_criteria>
+      </success_criteria>

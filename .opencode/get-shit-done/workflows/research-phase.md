@@ -6,8 +6,9 @@ Standalone research command. For most workflows, use `/gsd-plan-phase` which int
 
 <available_agent_types>
 Valid GSD subagent types (use exact names — do not fall back to 'general'):
+
 - gsd-phase-researcher — Researches technical approaches for a phase
-</available_agent_types>
+  </available_agent_types>
 
 <process>
 
@@ -16,6 +17,7 @@ Valid GSD subagent types (use exact names — do not fall back to 'general'):
 @./.opencode/get-shit-done/references/model-profile-resolution.md
 
 Resolve model for:
+
 - `gsd-phase-researcher`
 
 ## Step 1: Normalize and Validate Phase

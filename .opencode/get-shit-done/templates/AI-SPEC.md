@@ -10,10 +10,13 @@
 **System Type:** <!-- RAG | Multi-Agent | Conversational | Extraction | Autonomous Agent | Content Generation | Code Automation | Hybrid -->
 
 **Description:**
+
 <!-- One-paragraph description of what this AI system does, who uses it, and what "good" looks like -->
 
 **Critical Failure Modes:**
+
 <!-- The 3-5 behaviors that absolutely cannot go wrong in this system -->
+
 1.
 2.
 3.
@@ -47,8 +50,8 @@
 
 ### Domain Expert Roles for Evaluation
 
-| Role | Responsibility |
-|------|---------------|
+| Role                               | Responsibility                                                       |
+| ---------------------------------- | -------------------------------------------------------------------- |
 | <!-- e.g., Senior practitioner --> | <!-- Dataset labeling / rubric calibration / production sampling --> |
 
 ---
@@ -60,13 +63,14 @@
 **Version:** <!-- Pin the version -->
 
 **Rationale:**
+
 <!-- Why this framework fits this system type, team context, and production requirements -->
 
 **Alternatives Considered:**
 
 | Framework | Ruled Out Because |
-|-----------|------------------|
-| | |
+| --------- | ----------------- |
+|           |                   |
 
 **Vendor Lock-In Accepted:** <!-- Yes / No / Partial — document the trade-off consciously -->
 
@@ -77,33 +81,41 @@
 > Fetched from official docs by `gsd-ai-researcher`. Distilled for this specific use case.
 
 ### Installation
+
 ```bash
 # Install command(s)
 ```
 
 ### Core Imports
+
 ```python
 # Key imports for this use case
 ```
 
 ### Entry Point Pattern
+
 ```python
 # Minimal working example for this system type
 ```
 
 ### Key Abstractions
+
 <!-- Framework-specific concepts the developer must understand before coding -->
+
 | Concept | What It Is | When You Use It |
-|---------|-----------|-----------------|
-| | | |
+| ------- | ---------- | --------------- |
+|         |            |                 |
 
 ### Common Pitfalls
+
 <!-- Gotchas specific to this framework and system type — from docs, issues, and community reports -->
+
 1.
 2.
 3.
 
 ### Recommended Project Structure
+
 ```
 project/
 ├── # Framework-specific folder layout
@@ -114,18 +126,23 @@ project/
 ## 4. Implementation Guidance
 
 **Model Configuration:**
+
 <!-- Which model(s), temperature, max tokens, and other key parameters -->
 
 **Core Pattern:**
+
 <!-- The primary implementation pattern for this system type in this framework -->
 
 **Tool Use:**
+
 <!-- Tools/integrations needed and how to configure them -->
 
 **State Management:**
+
 <!-- How state is persisted, retrieved, and updated -->
 
 **Context Window Strategy:**
+
 <!-- How to manage context limits for this system type -->
 
 ---
@@ -165,20 +182,22 @@ project/
 
 ### Dimensions
 
-| Dimension | Rubric (Pass/Fail or 1-5) | Measurement Approach | Priority |
-|-----------|--------------------------|---------------------|----------|
-| | | Code / LLM Judge / Human | Critical / High / Medium |
+| Dimension | Rubric (Pass/Fail or 1-5) | Measurement Approach     | Priority                 |
+| --------- | ------------------------- | ------------------------ | ------------------------ |
+|           |                           | Code / LLM Judge / Human | Critical / High / Medium |
 
 ### Eval Tooling
 
 **Primary Tool:** <!-- e.g., RAGAS + Langfuse -->
 
 **Setup:**
+
 ```bash
 # Install and configure
 ```
 
 **CI/CD Integration:**
+
 ```bash
 # Command to run evals in CI/CD pipeline
 ```
@@ -188,9 +207,11 @@ project/
 **Size:** <!-- e.g., 20 examples to start -->
 
 **Composition:**
+
 <!-- What scenario types the dataset covers: critical paths, edge cases, failure modes -->
 
 **Labeling:**
+
 <!-- Who labels examples and how (domain expert, LLM judge with calibration, etc.) -->
 
 ---
@@ -199,15 +220,15 @@ project/
 
 ### Online (Real-Time)
 
-| Guardrail | Trigger | Intervention |
-|-----------|---------|--------------|
-| | | Block / Escalate / Flag |
+| Guardrail | Trigger | Intervention            |
+| --------- | ------- | ----------------------- |
+|           |         | Block / Escalate / Flag |
 
 ### Offline (Flywheel)
 
 | Metric | Sampling Strategy | Action on Degradation |
-|--------|------------------|----------------------|
-| | | |
+| ------ | ----------------- | --------------------- |
+|        |                   |                       |
 
 ---
 
@@ -216,12 +237,15 @@ project/
 **Tracing Tool:** <!-- e.g., Langfuse self-hosted -->
 
 **Key Metrics to Track:**
+
 <!-- 3-5 metrics that will be monitored in production -->
 
 **Alert Thresholds:**
+
 <!-- When to page/alert -->
 
 **Smart Sampling Strategy:**
+
 <!-- How to select interactions for human review — signal-based filters -->
 
 ---

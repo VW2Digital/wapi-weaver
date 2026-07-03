@@ -2,18 +2,18 @@
  * One-off generator: extracts PROFILING_QUESTIONS + CLAUDE_INSTRUCTIONS from profile-output.cjs
  * Run: node scripts/gen-profile-questionnaire-data.mjs
  */
-import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..', '..');
-const cjs = fs.readFileSync(join(root, 'get-shit-done/bin/lib/profile-output.cjs'), 'utf-8');
+const root = join(__dirname, "..", "..");
+const cjs = fs.readFileSync(join(root, "get-shit-done/bin/lib/profile-output.cjs"), "utf-8");
 
 const m1 = cjs.match(/const PROFILING_QUESTIONS = (\[[\s\S]*?\]);/);
 const m2 = cjs.match(/const CLAUDE_INSTRUCTIONS = (\{[\s\S]*?\n\});/);
 if (!m1 || !m2) {
-  console.error('regex extract failed');
+  console.error("regex extract failed");
   process.exit(1);
 }
 
@@ -54,6 +54,6 @@ export function generateClaudeInstruction(dimension: string, rating: string): st
 }
 `;
 
-const outPath = join(root, 'sdk/src/query/profile-questionnaire-data.ts');
+const outPath = join(root, "sdk/src/query/profile-questionnaire-data.ts");
 fs.writeFileSync(outPath, header);
-console.log('wrote', outPath);
+console.log("wrote", outPath);

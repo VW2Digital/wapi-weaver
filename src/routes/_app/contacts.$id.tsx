@@ -69,7 +69,8 @@ function ContactDetailPage() {
   const [notePinned, setNotePinned] = useState(false);
 
   const addNoteMut = useMutation({
-    mutationFn: (body: string) => addNoteFn({ data: { contact_id: id, body, is_pinned: notePinned } }),
+    mutationFn: (body: string) =>
+      addNoteFn({ data: { contact_id: id, body, is_pinned: notePinned } }),
     onSuccess: () => {
       toast.success("Nota adicionada");
       setNoteBody("");
@@ -97,7 +98,9 @@ function ContactDetailPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <p className="text-muted-foreground">Contato não encontrado.</p>
         <Button variant="outline" asChild>
-          <Link to="/contacts"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar para contatos</Link>
+          <Link to="/contacts">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para contatos
+          </Link>
         </Button>
       </div>
     );
@@ -106,9 +109,7 @@ function ContactDetailPage() {
   const { contact, messages, opportunities, notes, metrics } = data;
 
   const avatarUrl =
-    (contact.custom_fields as any)?.avatar_url ||
-    (contact.custom_fields as any)?.photo_url ||
-    null;
+    (contact.custom_fields as any)?.avatar_url || (contact.custom_fields as any)?.photo_url || null;
 
   const tabs = [
     { key: "trajetoria" as const, label: "Trajetória", icon: Activity },
@@ -191,10 +192,20 @@ function ContactDetailPage() {
 
           <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border/40">
             {contact.opted_out ? (
-              <Badge variant="destructive" className="text-[10px]">Opt-out</Badge>
+              <Badge variant="destructive" className="text-[10px]">
+                Opt-out
+              </Badge>
             ) : null}
-            {contact.is_pinned ? <Badge variant="secondary" className="text-[10px]">Fixado</Badge> : null}
-            {contact.is_archived ? <Badge variant="secondary" className="text-[10px]">Arquivado</Badge> : null}
+            {contact.is_pinned ? (
+              <Badge variant="secondary" className="text-[10px]">
+                Fixado
+              </Badge>
+            ) : null}
+            {contact.is_archived ? (
+              <Badge variant="secondary" className="text-[10px]">
+                Arquivado
+              </Badge>
+            ) : null}
           </div>
         </aside>
 
@@ -304,7 +315,11 @@ function ContactDetailPage() {
                         <div className="flex items-start justify-between gap-2 mb-1.5">
                           <div className="flex items-center gap-2 min-w-0">
                             {note.is_pinned && (
-                              <svg className="h-3 w-3 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                              <svg
+                                className="h-3 w-3 text-amber-500 shrink-0"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                              >
                                 <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2Z" />
                               </svg>
                             )}
@@ -314,7 +329,9 @@ function ContactDetailPage() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {note.creator_name && (
-                              <span className="text-[10px] text-muted-foreground">{note.creator_name}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {note.creator_name}
+                              </span>
                             )}
                             <span className="text-[10px] text-muted-foreground">
                               {new Date(note.created_at).toLocaleString("pt-BR", {
@@ -381,7 +398,9 @@ function ContactDetailPage() {
                                   style={{ backgroundColor: opp.stage_color }}
                                 />
                               )}
-                              <span className="text-xs text-muted-foreground">{opp.stage_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {opp.stage_name}
+                              </span>
                               <Badge variant="outline" className="text-[10px]">
                                 {opp.status}
                               </Badge>

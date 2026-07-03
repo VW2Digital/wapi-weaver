@@ -1,8 +1,8 @@
-
 <role>
 You are executing the `/gsd-set-profile` command. Switch the project's active model profile (simple/smart/genius) with optional model reuse.
 
 This command reads/writes:
+
 - `.planning/oc_config.json` — source of truth for profile state (profile_type, stage-to-model mapping)
 - `opencode.json` — agent model assignments (derived from profile; updated automatically by CLI)
 - `opencode.json` — external_directory permissions for reading GSD config folder (added automatically)
@@ -18,19 +18,19 @@ Do NOT modify agent .md files. Profile switching only updates these two JSON fil
 
 ## Stage-to-Agent Mapping (11 agents)
 
-| Stage        | Agents |
-|--------------|--------|
+| Stage        | Agents                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Planning     | gsd-planner, gsd-plan-checker, gsd-phase-researcher, gsd-roadmapper, gsd-project-researcher, gsd-research-synthesizer, gsd-codebase-mapper |
-| Execution    | gsd-executor, gsd-debugger |
-| Verification | gsd-verifier, gsd-integration-checker |
+| Execution    | gsd-executor, gsd-debugger                                                                                                                 |
+| Verification | gsd-verifier, gsd-integration-checker                                                                                                      |
 
 ## Profile Types
 
-| Profile  | Models | Stage assignment |
-|----------|--------|-----------------|
-| Simple   | 1      | All stages use the same model |
-| Smart    | 2      | Planning + Execution share one model; Verification uses a different model |
-| Genius   | 3      | Each stage uses a different model |
+| Profile | Models | Stage assignment                                                          |
+| ------- | ------ | ------------------------------------------------------------------------- |
+| Simple  | 1      | All stages use the same model                                             |
+| Smart   | 2      | Planning + Execution share one model; Verification uses a different model |
+| Genius  | 3      | Each stage uses a different model                                         |
 
 ## Output Format (reused throughout)
 
@@ -45,6 +45,7 @@ Active profile: **{profile_name}**
 | Execution    | {models.execution} |
 | Verification | {models.verification} |
 ```
+
 </context>
 
 <behavior>
@@ -58,10 +59,12 @@ node ./.opencode/get-shit-done/bin/gsd-oc-tools.cjs allow-read-config --dry-run
 ```
 
 Parse the response:
+
 - **`success: true` with `action: "permission_exists"`** — Permission already configured. Continue to Step 1.
 - **`success: true` with `action: "add_permission"`** — Permission would be added. Execute without `--dry-run`:
 
 Attempt to switch to the saved profile:
+
 ```bash
 node ./.opencode/get-shit-done/bin/gsd-oc-tools.cjs allow-read-config
 ```
@@ -90,6 +93,7 @@ Parse the JSON response:
 If the user typed `/gsd-set-profile {type}` where `{type}` is one of `simple`, `smart`, `genius`:
 
 Attempt to switch to the saved profile:
+
 ```bash
 node ./.opencode/get-shit-done/bin/gsd-oc-tools.cjs set-profile {type}
 ```
@@ -107,7 +111,10 @@ Prompt the user to choose a profile type using the question tool:
   "question": "Select a profile type for model configuration",
   "options": [
     { "label": "Simple", "description": "1 model for all GSD stages (easiest setup)" },
-    { "label": "Smart", "description": "2 models: advanced for planning & execution, cheaper for verification" },
+    {
+      "label": "Smart",
+      "description": "2 models: advanced for planning & execution, cheaper for verification"
+    },
     { "label": "Genius", "description": "3 models: different model for each stage" },
     { "label": "Cancel", "description": "Exit without changes" }
   ]
@@ -124,6 +131,7 @@ Based on the selected profile type, collect model choices. If a current profile 
 ### Simple (1 model)
 
 Ask the user (via question tool) if they want to keep the current model (only if one exists from Step 1).
+
 - **Yes:** Use existing model for all three stages. Go to Step 4.
 - **No** (or no current model exists): Load the `gsd-oc-select-model` skill. Select one model for "Simple Profile - All stages".
 

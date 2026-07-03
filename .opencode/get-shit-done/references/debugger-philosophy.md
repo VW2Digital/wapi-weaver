@@ -5,12 +5,14 @@ Evergreen debugging disciplines — applies across every bug, every language, ev
 ## User = Reporter, OpenCode = Investigator
 
 The user knows:
+
 - What they expected to happen
 - What actually happened
 - Error messages they saw
 - When it started / if it ever worked
 
 The user does NOT know (don't ask):
+
 - What's causing the bug
 - Which file has the problem
 - What the fix should be
@@ -22,11 +24,13 @@ Ask about experience. Investigate the cause yourself.
 When debugging code you wrote, you're fighting your own mental model.
 
 **Why this is harder:**
+
 - You made the design decisions - they feel obviously correct
 - You remember intent, not what you actually implemented
 - Familiarity breeds blindness to bugs
 
 **The discipline:**
+
 1. **Treat your code as foreign** - read it as if someone else wrote it
 2. **question your design decisions** - Your implementation decisions are hypotheses, not facts
 3. **Admit your mental model might be wrong** - The code's behavior is truth; your model is a guess
@@ -44,12 +48,12 @@ When debugging, return to foundational truths:
 
 ## Cognitive Biases to Avoid
 
-| Bias | Trap | Antidote |
-|------|------|----------|
-| **Confirmation** | Only look for evidence supporting your hypothesis | Actively seek disconfirming evidence. "What would prove me wrong?" |
-| **Anchoring** | First explanation becomes your anchor | Generate 3+ independent hypotheses before investigating any |
-| **Availability** | Recent bugs → assume similar cause | Treat each bug as novel until evidence suggests otherwise |
-| **Sunk Cost** | Spent 2 hours on one path, keep going despite evidence | Every 30 min: "If I started fresh, is this still the path I'd take?" |
+| Bias             | Trap                                                   | Antidote                                                             |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------- |
+| **Confirmation** | Only look for evidence supporting your hypothesis      | Actively seek disconfirming evidence. "What would prove me wrong?"   |
+| **Anchoring**    | First explanation becomes your anchor                  | Generate 3+ independent hypotheses before investigating any          |
+| **Availability** | Recent bugs → assume similar cause                     | Treat each bug as novel until evidence suggests otherwise            |
+| **Sunk Cost**    | Spent 2 hours on one path, keep going despite evidence | Every 30 min: "If I started fresh, is this still the path I'd take?" |
 
 ## Systematic Investigation Disciplines
 
@@ -62,6 +66,7 @@ When debugging, return to foundational truths:
 ## When to Restart
 
 Consider starting over when:
+
 1. **2+ hours with no progress** - You're likely tunnel-visioned
 2. **3+ "fixes" that didn't work** - Your mental model is wrong
 3. **You can't explain the current behavior** - Don't add changes on top of confusion
@@ -69,6 +74,7 @@ Consider starting over when:
 5. **The fix works but you don't know why** - This isn't fixed, this is luck
 
 **Restart protocol:**
+
 1. Close all files and terminals
 2. write down what you know for certain
 3. write down what you've ruled out

@@ -10,6 +10,7 @@ gsd-sdk query phase.next-decimal 6
 ```
 
 Output:
+
 ```json
 {
   "found": true,
@@ -20,6 +21,7 @@ Output:
 ```
 
 With existing decimals:
+
 ```json
 {
   "found": true,
@@ -37,6 +39,7 @@ BASE_PHASE=$(gsd-sdk query phase.next-decimal "${AFTER_PHASE}" --pick base_phase
 ```
 
 Or with --raw flag:
+
 ```bash
 DECIMAL_PHASE=$(gsd-sdk query phase.next-decimal "${AFTER_PHASE}" --raw)
 # Returns just: 06.1
@@ -44,12 +47,12 @@ DECIMAL_PHASE=$(gsd-sdk query phase.next-decimal "${AFTER_PHASE}" --raw)
 
 ## Examples
 
-| Existing Phases | Next Phase |
-|-----------------|------------|
-| 06 only | 06.1 |
-| 06, 06.1 | 06.2 |
-| 06, 06.1, 06.2 | 06.3 |
-| 06, 06.1, 06.3 (gap) | 06.4 |
+| Existing Phases      | Next Phase |
+| -------------------- | ---------- |
+| 06 only              | 06.1       |
+| 06, 06.1             | 06.2       |
+| 06, 06.1, 06.2       | 06.3       |
+| 06, 06.1, 06.3 (gap) | 06.4       |
 
 ## Directory Naming
 

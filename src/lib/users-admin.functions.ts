@@ -153,10 +153,11 @@ export const updateUserProfile = createServerFn({ method: "POST" })
   .validator((d) => updateProfileSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    await db.query(
-      "UPDATE profiles SET display_name = ?, full_name = ? WHERE id = ?",
-      [data.display_name ?? null, data.full_name ?? null, data.user_id],
-    );
+    await db.query("UPDATE profiles SET display_name = ?, full_name = ? WHERE id = ?", [
+      data.display_name ?? null,
+      data.full_name ?? null,
+      data.user_id,
+    ]);
     return { ok: true };
   });
 

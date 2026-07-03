@@ -36,6 +36,7 @@ cat "$GSD_CONFIG_PATH"
 ```
 
 Parse current values (default to `true` if not present):
+
 - `workflow.research` — spawn researcher during plan-phase
 - `workflow.plan_check` — spawn plan checker during plan-phase
 - `workflow.verifier` — spawn verifier during execute-phase
@@ -54,7 +55,7 @@ Parse current values (default to `true` if not present):
 - `model_profile` — which model each agent uses (default: `simple`)
 - `git.branching_strategy` — branching approach (default: `"none"`)
 - `workflow.use_worktrees` — whether parallel executor agents run in worktree isolation (default: `true`)
-</step>
+  </step>
 
 <step name="present_settings">
 
@@ -81,21 +82,27 @@ Use question with current values pre-selected. Questions are grouped into six vi
 Section layout:
 
 ### Planning
+
 Research, Plan Checker, Pattern Mapper, Nyquist, UI Phase, UI Gate, AI Phase
 
 ### Execution
+
 Verifier, TDD Mode, Code Review, Code Review Depth _(conditional — only when code_review=on)_, UI Review
 
 ### Docs & Output
+
 Commit Docs, Skip Discuss, Worktrees
 
 ### Features
+
 Intel, Graphify
 
 ### Model & Pipeline
+
 Model Profile, Auto-Advance, Branching
 
 ### Misc
+
 Context Warnings, Research Qs
 
 **Conditional visibility — code_review_depth:** This question is shown only when the user's chosen `code_review` value (after they answer that question, or the pre-selected value if unchanged) is on. If `code_review` is off, omit the `code_review_depth` question from the question block and preserve the existing `workflow.code_review_depth` value in config (do not overwrite). Implementation: ask the Model + Planning + Execution-up-to-Code-Review questions first; if `code_review=on`, include `code_review_depth` in the same batch; otherwise skip it. Conceptually this is a one-branch split on the `code_review` answer.
@@ -311,6 +318,7 @@ question([
   }
 ])
 ```
+
 </step>
 
 <step name="update_config">
@@ -387,6 +395,7 @@ mkdir -p ~/.gsd
 ```
 
 write `~/.gsd/defaults.json` with:
+
 ```json
 {
   "mode": <current>,
@@ -420,6 +429,7 @@ write `~/.gsd/defaults.json` with:
   }
 }
 ```
+
 </step>
 
 <step name="confirm">
@@ -464,14 +474,16 @@ Quick commands:
 - /gsd-plan-phase --skip-verify — skip plan check
 - /gsd-settings-advanced — power-user tuning (plan bounce, timeouts, branch templates, cross-AI, context window)
 ```
+
 </step>
 
 </process>
 
 <success_criteria>
+
 - [ ] Current config read
 - [ ] User presented with 22 settings (profile + workflow toggles + features + git branching + ctx warnings), grouped into six sections: Planning, Execution, Docs & Output, Features, Model & Pipeline, Misc. `code_review_depth` is conditional on `code_review=on`.
 - [ ] Config updated with model_profile, workflow, and git sections
 - [ ] User offered to save as global defaults (~/.gsd/defaults.json)
 - [ ] Changes confirmed to user
-</success_criteria>
+      </success_criteria>

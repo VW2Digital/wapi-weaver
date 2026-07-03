@@ -16,10 +16,16 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
           const pathParts = url.pathname.split("/").filter(Boolean); // ["api", "whatsapp", "groups", ...]
 
           if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
-            return Response.json({
-              success: false,
-              error: { code: "WHATSAPP_GROUPS_DISABLED", message: "Módulo de grupos desativado." }
-            }, { status: 403 });
+            return Response.json(
+              {
+                success: false,
+                error: {
+                  code: "WHATSAPP_GROUPS_DISABLED",
+                  message: "Módulo de grupos desativado.",
+                },
+              },
+              { status: 403 },
+            );
           }
 
           // GET /api/whatsapp/groups/:id
@@ -41,7 +47,10 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
           });
           return Response.json(result);
         } catch (e: any) {
-          return Response.json({ success: false, error: { code: "UNAUTHORIZED", message: e.message } }, { status: 401 });
+          return Response.json(
+            { success: false, error: { code: "UNAUTHORIZED", message: e.message } },
+            { status: 401 },
+          );
         }
       },
       POST: async ({ request }) => {
@@ -50,10 +59,16 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
           const pathParts = url.pathname.split("/").filter(Boolean); // ["api", "whatsapp", "groups", ...]
 
           if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
-            return Response.json({
-              success: false,
-              error: { code: "WHATSAPP_GROUPS_DISABLED", message: "Módulo de grupos desativado." }
-            }, { status: 403 });
+            return Response.json(
+              {
+                success: false,
+                error: {
+                  code: "WHATSAPP_GROUPS_DISABLED",
+                  message: "Módulo de grupos desativado.",
+                },
+              },
+              { status: 403 },
+            );
           }
 
           const body = await request.json().catch(() => ({}));
@@ -85,7 +100,10 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
           });
           return Response.json(result);
         } catch (e: any) {
-          return Response.json({ success: false, error: { code: "BAD_REQUEST", message: e.message } }, { status: 400 });
+          return Response.json(
+            { success: false, error: { code: "BAD_REQUEST", message: e.message } },
+            { status: 400 },
+          );
         }
       },
     },

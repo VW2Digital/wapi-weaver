@@ -48,6 +48,7 @@ Every entry requires `Found:` plus one of `Expected:`/`Impact:`/`Note:` plus (fo
 **If any [BLOCKER] exists:**
 
 Display:
+
 ```
 GSD > BLOCKED: {N} blockers must be resolved before {operation} can proceed.
 ```

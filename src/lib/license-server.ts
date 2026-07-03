@@ -2,11 +2,14 @@ import crypto from "crypto";
 import db from "./db";
 
 export function normalizeLicenseKey(key: string): string {
-  return String(key || "").trim().toUpperCase();
+  return String(key || "")
+    .trim()
+    .toUpperCase();
 }
 
 export function licenseHash(key: string): string {
-  const secret = process.env.LICENSE_HASH_SECRET || process.env.LICENSE_API_SECRET || "license-hash-secret";
+  const secret =
+    process.env.LICENSE_HASH_SECRET || process.env.LICENSE_API_SECRET || "license-hash-secret";
   return crypto.createHmac("sha256", secret).update(normalizeLicenseKey(key)).digest("hex");
 }
 
@@ -65,28 +68,32 @@ export interface LicenseRecord {
 }
 
 export async function findLicenseByKey(key: string): Promise<LicenseRecord | null> {
-  const rows = await db.query(
-    "SELECT * FROM licenses WHERE license_key_hash = ? LIMIT 1",
-    [licenseHash(key)]
-  );
+  const rows = await db.query("SELECT * FROM licenses WHERE license_key_hash = ? LIMIT 1", [
+    licenseHash(key),
+  ]);
   return (rows as LicenseRecord[])[0] || null;
 }
 
 export async function findLicenseByDomain(domain: string): Promise<LicenseRecord | null> {
-  const normalized = String(domain || "").trim().toLowerCase();
+  const normalized = String(domain || "")
+    .trim()
+    .toLowerCase();
   const rows = await db.query(
     "SELECT * FROM licenses WHERE LOWER(license_key_preview) = ? LIMIT 1",
-    [normalized]
+    [normalized],
   );
   return (rows as LicenseRecord[])[0] || null;
 }
 
-export function checkLicense(license: LicenseRecord | null, appId?: string): { ok: boolean; status: string; reason: string } {
+export function checkLicense(
+  license: LicenseRecord | null,
+  appId?: string,
+): { ok: boolean; status: string; reason: string } {
   if (!license) {
     return {
       ok: false,
       status: "not_found",
-      reason: "Licença não encontrada."
+      reason: "Licença não encontrada.",
     };
   }
 
@@ -94,7 +101,7 @@ export function checkLicense(license: LicenseRecord | null, appId?: string): { o
     return {
       ok: false,
       status: "app_id_invalid",
-      reason: "Licença não pertence a este aplicativo."
+      reason: "Licença não pertence a este aplicativo.",
     };
   }
 
@@ -102,7 +109,7 @@ export function checkLicense(license: LicenseRecord | null, appId?: string): { o
     return {
       ok: false,
       status: license.status,
-      reason: `Licença com status ${license.status}.`
+      reason: `Licença com status ${license.status}.`,
     };
   }
 
@@ -110,7 +117,7 @@ export function checkLicense(license: LicenseRecord | null, appId?: string): { o
     return {
       ok: false,
       status: "expired",
-      reason: "Licença expirada."
+      reason: "Licença expirada.",
     };
   }
 
@@ -131,7 +138,7 @@ export function publicLicenseResponse(license: LicenseRecord, extra: any = {}) {
     plan: license.plan,
     expires_at: license.expires_at ? new Date(license.expires_at).toISOString() : null,
     features,
-    ...extra
+    ...extra,
   };
 }
 
@@ -160,8 +167,8 @@ export async function logPanelValidation(data: {
         data.app_id || null,
         data.result || "unknown",
         data.reason || null,
-        JSON.stringify(data.payload || {})
-      ]
+        JSON.stringify(data.payload || {}),
+      ],
     );
   } catch (error: any) {
     console.error("[License] Falha ao gravar log:", error.message);

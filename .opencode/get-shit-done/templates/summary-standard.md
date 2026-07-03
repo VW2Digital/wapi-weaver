@@ -23,26 +23,32 @@ completed: YYYY-MM-DD
 **[Substantive one-liner describing outcome]**
 
 ## Performance
+
 - **Duration:** [time]
 - **Tasks:** [count completed]
 - **Files modified:** [count]
 
 ## Accomplishments
+
 - [Key outcome 1]
 - [Key outcome 2]
 
 ## task Commits
+
 1. **task 1: [task name]** - `hash`
 2. **task 2: [task name]** - `hash`
 3. **task 3: [task name]** - `hash`
 
 ## Files Created/Modified
+
 - `path/to/file.ts` - What it does
 - `path/to/another.ts` - What it does
 
 ## Decisions & Deviations
+
 [Key decisions or "None - followed plan as specified"]
 [Minor deviations if any, or "None"]
 
 ## Next Phase Readiness
+
 [What's ready for next phase]

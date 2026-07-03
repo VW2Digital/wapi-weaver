@@ -3,11 +3,12 @@ name: gsd-new-workspace
 description: Create an isolated workspace with repo copies and independent .planning/
 argument-hint: "--name <name> [--repos repo1,repo2] [--path /target] [--strategy worktree|clone] [--branch name] [--auto]"
 permissions:
-   read: true
-   bash: true
-   write: true
-   question: true
+  read: true
+  bash: true
+  write: true
+  question: true
 ---
+
 <context>
 **Flags:**
 - `--name` (required) — Workspace name
@@ -22,10 +23,12 @@ permissions:
 Create a physical workspace directory containing copies of specified git repos (as worktrees or clones) with an independent `.planning/` directory for isolated GSD sessions.
 
 **Use cases:**
+
 - Multi-repo orchestration: work on a subset of repos in parallel with isolated GSD state
 - Feature branch isolation: create a worktree of the current repo with its own `.planning/`
 
 **Creates:**
+
 - `<path>/WORKSPACE.md` — workspace manifest
 - `<path>/.planning/` — independent planning directory
 - `<path>/<repo>/` — git worktree or clone for each specified repo

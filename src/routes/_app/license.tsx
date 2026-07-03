@@ -52,7 +52,9 @@ function LicensePage() {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
         <h2 className="text-xl font-bold">Acesso Negado</h2>
-        <p className="text-muted-foreground mt-2">Apenas administradores podem gerenciar a licença do sistema.</p>
+        <p className="text-muted-foreground mt-2">
+          Apenas administradores podem gerenciar a licença do sistema.
+        </p>
       </div>
     );
   }
@@ -67,7 +69,9 @@ function LicensePage() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
         <Key className="w-8 h-8 text-primary" />
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Gerenciamento de Licença</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          Gerenciamento de Licença
+        </h1>
       </div>
 
       <Card>
@@ -87,21 +91,33 @@ function LicensePage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-muted/50 p-4 rounded-lg">
-              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Status</span>
+              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">
+                Status
+              </span>
               <span className={`font-medium ${isValida ? "text-green-600" : "text-destructive"}`}>
-                {data?.status === "active" ? "Ativa" : data?.status === "missing" ? "Ausente" : "Inválida/Bloqueada"}
+                {data?.status === "active"
+                  ? "Ativa"
+                  : data?.status === "missing"
+                    ? "Ausente"
+                    : "Inválida/Bloqueada"}
               </span>
             </div>
             <div className="bg-muted/50 p-4 rounded-lg">
-              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Plano</span>
+              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">
+                Plano
+              </span>
               <span className="font-medium capitalize">{data?.plan || "N/A"}</span>
             </div>
             <div className="bg-muted/50 p-4 rounded-lg">
-              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Domínio Autorizado</span>
+              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">
+                Domínio Autorizado
+              </span>
               <span className="font-medium">{data?.domain || "N/A"}</span>
             </div>
             <div className="bg-muted/50 p-4 rounded-lg">
-              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Data de Expiração</span>
+              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">
+                Data de Expiração
+              </span>
               <span className="font-medium">
                 {data?.expires_at
                   ? format(new Date(data.expires_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
@@ -109,7 +125,9 @@ function LicensePage() {
               </span>
             </div>
             <div className="bg-muted/50 p-4 rounded-lg col-span-2">
-              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Última Validação</span>
+              <span className="block text-xs font-semibold uppercase text-muted-foreground mb-1">
+                Última Validação
+              </span>
               <span className="font-medium">
                 {data?.last_validated_at
                   ? format(new Date(data.last_validated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })

@@ -3,10 +3,10 @@ name: gsd-list-phase-assumptions
 description: Surface OpenCode's assumptions about a phase approach before planning
 argument-hint: "[phase]"
 permissions:
-   read: true
-   bash: true
-   grep: true
-   glob: true
+  read: true
+  bash: true
+  grep: true
+  glob: true
 ---
 
 <objective>

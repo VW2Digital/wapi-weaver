@@ -33,7 +33,8 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
 
         logInfo("GET recebido", { mode, token });
 
-        const verifyToken = process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;
+        const verifyToken =
+          process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;
 
         if (mode === "subscribe" && token === verifyToken) {
           logInfo("GET validado com sucesso");
@@ -136,7 +137,7 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
                           external_contact_id: senderId,
                           source: "messenger",
                         },
-                        { onConflict: "user_id,channel,external_contact_id" }
+                        { onConflict: "user_id,channel,external_contact_id" },
                       )
                       .select("id")
                       .single();
@@ -155,7 +156,7 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
                         status: "delivered",
                         metadata: { raw: item },
                       },
-                      { onConflict: "user_id,channel,provider_message_id" }
+                      { onConflict: "user_id,channel,provider_message_id" },
                     );
 
                     // 3. Chamar executor do Bot

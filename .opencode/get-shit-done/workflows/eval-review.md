@@ -24,6 +24,7 @@ AUDITOR_MODEL=$(gsd-sdk query resolve-model gsd-eval-auditor 2>/dev/null | jq -r
 ```
 
 Display banner:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► EVAL AUDIT — PHASE {N}: {name}
@@ -42,9 +43,9 @@ EVAL_REVIEW_FILE=$(ls "${PHASE_DIR}"/*-EVAL-REVIEW.md 2>/dev/null | head -1)
 **State B** — SUMMARY.md exists, no AI-SPEC.md: Audit against general best practices
 **State C** — No SUMMARY.md: Exit — "Phase {N} not executed. Run /gsd-execute-phase {N} first."
 
-
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 **If `EVAL_REVIEW_FILE` non-empty:** Use question:
+
 - header: "Existing Eval Review"
 - question: "EVAL-REVIEW.md already exists for Phase {N}."
 - options:
@@ -55,16 +56,19 @@ If "View": display file, exit.
 If "Re-audit": continue.
 
 **If State B (no AI-SPEC.md):** Warn:
+
 ```
 No AI-SPEC.md found for Phase {N}.
 Audit will evaluate against general AI eval best practices rather than a phase-specific plan.
 Consider running /gsd-ai-integration-phase {N} before implementation next time.
 ```
+
 Continue (non-blocking).
 
 ## 2. Gather Context Paths
 
 Build file list for auditor:
+
 - AI-SPEC.md (if exists — the planned eval strategy)
 - All SUMMARY.md files in phase dir
 - All PLAN.md files in phase dir
@@ -87,10 +91,11 @@ Conduct evaluation coverage audit of Phase {phase_number}: {phase_name}
 </objective>
 
 <files_to_read>
+
 - {summary_paths}
 - {plan_paths}
 - {ai_spec_path if exists}
-</files_to_read>
+  </files_to_read>
 
 <input>
 ai_spec_path: {ai_spec_path or "none"}
@@ -107,6 +112,7 @@ Spawn as task with model `AUDITOR_MODEL`.
 ## 4. Parse Auditor Result
 
 read the written EVAL-REVIEW.md. Extract:
+
 - `overall_score`
 - `verdict` (PRODUCTION READY | NEEDS WORK | SIGNIFICANT GAPS | NOT IMPLEMENTED)
 - `critical_gap_count`
@@ -137,6 +143,7 @@ read the written EVAL-REVIEW.md. Extract:
 ## 6. Commit
 
 **If `commit_docs` is true:**
+
 ```bash
 git add "${EVAL_REVIEW_FILE}"
 git commit -m "docs({phase_slug}): add EVAL-REVIEW.md — score {overall_score}/100 ({verdict})"
@@ -145,6 +152,7 @@ git commit -m "docs({phase_slug}): add EVAL-REVIEW.md — score {overall_score}/
 </process>
 
 <success_criteria>
+
 - [ ] Phase execution state detected correctly
 - [ ] AI-SPEC.md presence handled (with or without)
 - [ ] gsd-eval-auditor spawned with correct context
@@ -152,4 +160,4 @@ git commit -m "docs({phase_slug}): add EVAL-REVIEW.md — score {overall_score}/
 - [ ] Score and verdict displayed to user
 - [ ] Appropriate next steps surfaced based on verdict
 - [ ] Committed if commit_docs enabled
-</success_criteria>
+      </success_criteria>

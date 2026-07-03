@@ -7,25 +7,26 @@
 
 ## Quick Picks
 
-| Situation | Pick |
-|-----------|------|
-| Simplest path to a working agent (OpenAI) | OpenAI Agents SDK |
-| Simplest path to a working agent (model-agnostic) | CrewAI |
-| Production RAG / document Q&A | LlamaIndex |
-| Complex stateful workflows with branching | LangGraph |
-| Multi-agent teams with defined roles | CrewAI |
-| Code-aware autonomous agents (Anthropic) | OpenCode Agent SDK |
-| "I don't know my requirements yet" | LangChain |
-| Regulated / audit-trail required | LangGraph |
-| Enterprise Microsoft/.NET shops | AutoGen/AG2 |
-| Google Cloud / Gemini-committed teams | Google ADK |
-| Pure NLP pipelines with explicit control | Haystack |
+| Situation                                         | Pick               |
+| ------------------------------------------------- | ------------------ |
+| Simplest path to a working agent (OpenAI)         | OpenAI Agents SDK  |
+| Simplest path to a working agent (model-agnostic) | CrewAI             |
+| Production RAG / document Q&A                     | LlamaIndex         |
+| Complex stateful workflows with branching         | LangGraph          |
+| Multi-agent teams with defined roles              | CrewAI             |
+| Code-aware autonomous agents (Anthropic)          | OpenCode Agent SDK |
+| "I don't know my requirements yet"                | LangChain          |
+| Regulated / audit-trail required                  | LangGraph          |
+| Enterprise Microsoft/.NET shops                   | AutoGen/AG2        |
+| Google Cloud / Gemini-committed teams             | Google ADK         |
+| Pure NLP pipelines with explicit control          | Haystack           |
 
 ---
 
 ## Framework Profiles
 
 ### CrewAI
+
 - **Type:** Multi-agent orchestration
 - **Language:** Python only
 - **Model support:** Model-agnostic
@@ -37,6 +38,7 @@
 - **Eval concerns:** task decomposition accuracy, inter-agent handoff, goal completion rate, loop detection
 
 ### LlamaIndex
+
 - **Type:** RAG and data ingestion
 - **Language:** Python + TypeScript
 - **Model support:** Model-agnostic
@@ -48,6 +50,7 @@
 - **Eval concerns:** Context faithfulness, hallucination, answer relevance, retrieval precision/recall
 
 ### LangChain
+
 - **Type:** General-purpose LLM framework
 - **Language:** Python + TypeScript
 - **Model support:** Model-agnostic (widest ecosystem)
@@ -59,6 +62,7 @@
 - **Eval concerns:** End-to-end task completion, chain correctness, retrieval quality
 
 ### LangGraph
+
 - **Type:** Stateful agent workflows (graph-based)
 - **Language:** Python + TypeScript (full parity)
 - **Model support:** Model-agnostic (inherits LangChain integrations)
@@ -70,6 +74,7 @@
 - **Eval concerns:** State transition correctness, goal completion rate, tool use accuracy, safety guardrails
 
 ### OpenAI Agents SDK
+
 - **Type:** Native OpenAI agent framework
 - **Language:** Python + TypeScript
 - **Model support:** Optimized for OpenAI (supports 100+ via Chat Completions compatibility)
@@ -81,6 +86,7 @@
 - **Eval concerns:** Instruction following, safety guardrails, escalation accuracy, tone consistency
 
 ### OpenCode Agent SDK (Anthropic)
+
 - **Type:** Code-aware autonomous agent framework
 - **Language:** Python + TypeScript
 - **Model support:** OpenCode models only
@@ -92,6 +98,7 @@
 - **Eval concerns:** Tool use correctness, safety, code quality, instruction following
 
 ### AutoGen / AG2 / Microsoft Agent Framework
+
 - **Type:** Multi-agent conversational framework
 - **Language:** Python (AG2), Python + .NET (Microsoft Agent Framework)
 - **Model support:** Model-agnostic
@@ -103,6 +110,7 @@
 - **Eval concerns:** Conversation goal completion, consensus quality, code execution correctness
 
 ### Google ADK (Agent Development Kit)
+
 - **Type:** Multi-agent orchestration framework
 - **Language:** Python + Java
 - **Model support:** Optimized for Gemini; supports other models via LiteLLM
@@ -114,6 +122,7 @@
 - **Eval concerns:** Multi-agent task decomposition, tool use correctness, session state consistency, goal completion rate
 
 ### Haystack
+
 - **Type:** NLP pipeline framework
 - **Language:** Python
 - **Model support:** Model-agnostic
@@ -130,34 +139,34 @@
 
 ### By System Type
 
-| System Type | Primary Framework(s) | Key Eval Concerns |
-|-------------|---------------------|-------------------|
-| RAG / Knowledge Q&A | LlamaIndex, LangChain | Context faithfulness, hallucination, retrieval precision/recall |
-| Multi-agent orchestration | CrewAI, LangGraph, Google ADK | task decomposition, handoff quality, goal completion |
-| Conversational assistants | OpenAI Agents SDK, OpenCode Agent SDK | Tone, safety, instruction following, escalation |
-| Structured data extraction | LangChain, LlamaIndex | Schema compliance, extraction accuracy |
-| Autonomous task agents | LangGraph, OpenAI Agents SDK | Safety guardrails, tool correctness, cost adherence |
-| Content generation | OpenCode Agent SDK, OpenAI Agents SDK | Brand voice, factual accuracy, tone |
-| Code automation | OpenCode Agent SDK | Code correctness, safety, test pass rate |
+| System Type                | Primary Framework(s)                  | Key Eval Concerns                                               |
+| -------------------------- | ------------------------------------- | --------------------------------------------------------------- |
+| RAG / Knowledge Q&A        | LlamaIndex, LangChain                 | Context faithfulness, hallucination, retrieval precision/recall |
+| Multi-agent orchestration  | CrewAI, LangGraph, Google ADK         | task decomposition, handoff quality, goal completion            |
+| Conversational assistants  | OpenAI Agents SDK, OpenCode Agent SDK | Tone, safety, instruction following, escalation                 |
+| Structured data extraction | LangChain, LlamaIndex                 | Schema compliance, extraction accuracy                          |
+| Autonomous task agents     | LangGraph, OpenAI Agents SDK          | Safety guardrails, tool correctness, cost adherence             |
+| Content generation         | OpenCode Agent SDK, OpenAI Agents SDK | Brand voice, factual accuracy, tone                             |
+| Code automation            | OpenCode Agent SDK                    | Code correctness, safety, test pass rate                        |
 
 ### By Team Size and Stage
 
-| Context | Recommendation |
-|---------|----------------|
-| Solo dev, prototyping | OpenAI Agents SDK or CrewAI (fastest to running) |
-| Solo dev, RAG | LlamaIndex (batteries included) |
-| Team, production, stateful | LangGraph (best fault tolerance) |
-| Team, evolving requirements | LangChain (broadest escape hatches) |
-| Team, multi-agent | CrewAI (simplest role abstraction) |
-| Enterprise, .NET | AutoGen AG2 / Microsoft Agent Framework |
+| Context                     | Recommendation                                   |
+| --------------------------- | ------------------------------------------------ |
+| Solo dev, prototyping       | OpenAI Agents SDK or CrewAI (fastest to running) |
+| Solo dev, RAG               | LlamaIndex (batteries included)                  |
+| Team, production, stateful  | LangGraph (best fault tolerance)                 |
+| Team, evolving requirements | LangChain (broadest escape hatches)              |
+| Team, multi-agent           | CrewAI (simplest role abstraction)               |
+| Enterprise, .NET            | AutoGen AG2 / Microsoft Agent Framework          |
 
 ### By Model Commitment
 
-| Preference | Framework |
-|-----------|-----------|
-| OpenAI-only | OpenAI Agents SDK |
-| Anthropic/OpenCode-only | OpenCode Agent SDK |
-| Google/Gemini-committed | Google ADK |
+| Preference                        | Framework                                          |
+| --------------------------------- | -------------------------------------------------- |
+| OpenAI-only                       | OpenAI Agents SDK                                  |
+| Anthropic/OpenCode-only           | OpenCode Agent SDK                                 |
+| Google/Gemini-committed           | Google ADK                                         |
 | Model-agnostic (full flexibility) | LangChain, LlamaIndex, CrewAI, LangGraph, Haystack |
 
 ---
@@ -177,10 +186,10 @@
 
 ## Combination Plays (Multi-Framework Stacks)
 
-| Production Pattern | Stack |
-|-------------------|-------|
-| RAG with observability | LlamaIndex + LangSmith or Langfuse |
-| Stateful agent with RAG | LangGraph + LlamaIndex |
-| Multi-agent with tracing | CrewAI + Langfuse |
-| OpenAI agents with evals | OpenAI Agents SDK + Promptfoo or Braintrust |
+| Production Pattern       | Stack                                           |
+| ------------------------ | ----------------------------------------------- |
+| RAG with observability   | LlamaIndex + LangSmith or Langfuse              |
+| Stateful agent with RAG  | LangGraph + LlamaIndex                          |
+| Multi-agent with tracing | CrewAI + Langfuse                               |
+| OpenAI agents with evals | OpenAI Agents SDK + Promptfoo or Braintrust     |
 | OpenCode agents with MCP | OpenCode Agent SDK + LangSmith or Arize Phoenix |

@@ -11,13 +11,13 @@ npm install @gsd-build/sdk
 ## Quickstart — programmatic
 
 ```typescript
-import { GSD, createRegistry } from '@gsd-build/sdk';
+import { GSD, createRegistry } from "@gsd-build/sdk";
 
-const gsd = new GSD({ projectDir: process.cwd(), sessionId: 'my-run' });
+const gsd = new GSD({ projectDir: process.cwd(), sessionId: "my-run" });
 const tools = gsd.createTools();
 
-const registry = createRegistry(gsd.eventStream, 'my-run');
-const { data } = await registry.dispatch('state.json', [], process.cwd());
+const registry = createRegistry(gsd.eventStream, "my-run");
+const { data } = await registry.dispatch("state.json", [], process.cwd());
 ```
 
 ## Quickstart — CLI
@@ -33,12 +33,12 @@ If no native handler is registered for a command, the CLI can transparently shel
 
 ## What ships
 
-| Area | Entry |
-|------|--------|
+| Area           | Entry                                                                         |
+| -------------- | ----------------------------------------------------------------------------- |
 | Query registry | `createRegistry()` in `src/query/index.ts` — same handlers as `gsd-sdk query` |
-| Tools bridge | `GSDTools` — native dispatch with optional CJS subprocess fallback |
-| Orchestrators | `PhaseRunner`, `InitRunner`, `GSD` |
-| CLI | `gsd-sdk` — `query`, `run`, `init`, `auto` |
+| Tools bridge   | `GSDTools` — native dispatch with optional CJS subprocess fallback            |
+| Orchestrators  | `PhaseRunner`, `InitRunner`, `GSD`                                            |
+| CLI            | `gsd-sdk` — `query`, `run`, `init`, `auto`                                    |
 
 ## Guides
 
@@ -47,7 +47,7 @@ If no native handler is registered for a command, the CLI can transparently shel
 
 ## Environment
 
-| Variable | Purpose |
-|----------|---------|
-| `GSD_QUERY_FALLBACK` | `off` / `never` disables CLI fallback to `gsd-tools.cjs` for unknown commands |
-| `GSD_AGENTS_DIR` | Override directory scanned for installed GSD agents (`./.opencode/agents` by default) |
+| Variable             | Purpose                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `GSD_QUERY_FALLBACK` | `off` / `never` disables CLI fallback to `gsd-tools.cjs` for unknown commands         |
+| `GSD_AGENTS_DIR`     | Override directory scanned for installed GSD agents (`./.opencode/agents` by default) |

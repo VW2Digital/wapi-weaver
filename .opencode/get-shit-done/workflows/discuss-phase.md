@@ -15,20 +15,20 @@ You are a thinking partner, not an interviewer. The user is the visionary — yo
 this file under the 500-line workflow budget (#2551, mirrors #2361's agent
 budget). read only the files needed for the current invocation:
 
-| When | read |
-|---|---|
-| `--power` in $ARGUMENTS | `workflows/discuss-phase/modes/power.md` (then exit standard flow) |
-| `--all` in $ARGUMENTS | `workflows/discuss-phase/modes/all.md` overlay |
-| `--auto` in $ARGUMENTS | `workflows/discuss-phase/modes/auto.md` + `workflows/discuss-phase/modes/chain.md` (auto-advance) |
-| `--chain` in $ARGUMENTS | `workflows/discuss-phase/modes/default.md` + `workflows/discuss-phase/modes/chain.md` |
-| `--text` in $ARGUMENTS or `workflow.text_mode: true` | `workflows/discuss-phase/modes/text.md` overlay |
-| `--batch` in $ARGUMENTS | `workflows/discuss-phase/modes/batch.md` overlay |
-| `--analyze` in $ARGUMENTS | `workflows/discuss-phase/modes/analyze.md` overlay |
-| ADVISOR_MODE = true (USER-PROFILE.md exists) | `workflows/discuss-phase/modes/advisor.md` |
-| no flags above | `workflows/discuss-phase/modes/default.md` |
-| in `write_context` step | `workflows/discuss-phase/templates/context.md` |
-| in `git_commit` step | `workflows/discuss-phase/templates/discussion-log.md` |
-| writing checkpoints | `workflows/discuss-phase/templates/checkpoint.json` |
+| When                                                 | read                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `--power` in $ARGUMENTS                              | `workflows/discuss-phase/modes/power.md` (then exit standard flow)                                |
+| `--all` in $ARGUMENTS                                | `workflows/discuss-phase/modes/all.md` overlay                                                    |
+| `--auto` in $ARGUMENTS                               | `workflows/discuss-phase/modes/auto.md` + `workflows/discuss-phase/modes/chain.md` (auto-advance) |
+| `--chain` in $ARGUMENTS                              | `workflows/discuss-phase/modes/default.md` + `workflows/discuss-phase/modes/chain.md`             |
+| `--text` in $ARGUMENTS or `workflow.text_mode: true` | `workflows/discuss-phase/modes/text.md` overlay                                                   |
+| `--batch` in $ARGUMENTS                              | `workflows/discuss-phase/modes/batch.md` overlay                                                  |
+| `--analyze` in $ARGUMENTS                            | `workflows/discuss-phase/modes/analyze.md` overlay                                                |
+| ADVISOR_MODE = true (USER-PROFILE.md exists)         | `workflows/discuss-phase/modes/advisor.md`                                                        |
+| no flags above                                       | `workflows/discuss-phase/modes/default.md`                                                        |
+| in `write_context` step                              | `workflows/discuss-phase/templates/context.md`                                                    |
+| in `git_commit` step                                 | `workflows/discuss-phase/templates/discussion-log.md`                                             |
+| writing checkpoints                                  | `workflows/discuss-phase/templates/checkpoint.json`                                               |
 
 Do not read mode files unless the corresponding flag/condition is set.
 </progressive_disclosure>
@@ -63,6 +63,7 @@ Ask about vision and implementation choices. Capture decisions for downstream ag
 **Heuristic:** Does this clarify how we implement what's already in the phase, or does it add a new capability that could be its own phase?
 
 **When user suggests scope creep:**
+
 ```
 "[Feature X] would be a new capability — that's its own phase.
 Want me to note it for the roadmap backlog?
@@ -119,10 +120,12 @@ Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phas
 **If `response_language` is set:** All user-facing questions, prompts, and explanations in this workflow MUST be presented in `{response_language}`. Technical terms, code, file paths, and subagent prompts stay in English — only user-facing output is translated.
 
 **If `phase_found` is false:**
+
 ```
 Phase [X] not found in roadmap.
 Use /gsd-progress ${GSD_WS} to see available phases.
 ```
+
 Exit workflow.
 
 **Mode dispatch — read mode files lazily based on flags in $ARGUMENTS:**
@@ -162,6 +165,7 @@ ls ${phase_dir}/.continue-here.md 2>/dev/null || true
 If `.continue-here.md` exists, parse its "Critical Anti-Patterns" table for rows with `severity` = `blocking`.
 
 **If one or more `blocking` anti-patterns are found:** the agent must demonstrate understanding of each by answering all three questions for each one:
+
 1. **What is this anti-pattern?** — Describe it in your own words.
 2. **How did it manifest?** — Explain the specific failure that caused it to be recorded.
 3. **What structural mechanism (not acknowledgment) prevents it?** — Name the concrete step or enforcement mechanism that stops recurrence.
@@ -179,6 +183,7 @@ ls ${phase_dir}/*-SPEC.md 2>/dev/null | grep -v AI-SPEC | head -1 || true
 ```
 
 **If SPEC.md is found:**
+
 1. read the SPEC.md file.
 2. Count requirements (numbered items in `## Requirements`).
 3. Display: `Found SPEC.md — {N} requirements locked. Focusing on implementation decisions.`
@@ -206,6 +211,7 @@ ls ${phase_dir}/*-CONTEXT.md 2>/dev/null || true
 **If doesn't exist:**
 
 Check for an interrupted discussion checkpoint:
+
 ```bash
 ls ${phase_dir}/*-DISCUSS-CHECKPOINT.json 2>/dev/null || true
 ```
@@ -243,6 +249,7 @@ read at most **3** prior CONTEXT.md files (most recent 3 phases before current).
 For each CONTEXT.md read: extract `<decisions>` (locked preferences), `<specifics>` (particular references), and patterns (e.g., "user prefers minimal UI", "user rejected single-key shortcuts").
 
 **Spike/sketch findings:** Check for project-local skills:
+
 ```bash
 SPIKE_FINDINGS=$(ls ./.claude/skills/spike-findings-*/SKILL.md 2>/dev/null | head -1)
 SKETCH_FINDINGS=$(ls ./.claude/skills/sketch-findings-*/SKILL.md 2>/dev/null | head -1)
@@ -281,10 +288,11 @@ Parse JSON for: `todo_count`, `matches[]` (each with `file`, `title`, `area`, `s
 Lightweight scan of existing code to inform gray area identification (~10% context).
 
 read `@./.opencode/get-shit-done/references/scout-codebase.md` — it contains the phase-type→map selection table, single-read rule, no-maps fallback, and `<codebase_context>` output schema. Then execute:
+
 1. `ls .planning/codebase/*.md` to find existing maps
 2. Select 2–3 maps via the reference's table; or grep fallback if none exist
 3. Build internal `<codebase_context>` per the reference's output schema
-</step>
+   </step>
 
 <step name="analyze_phase">
 Analyze the phase to identify gray areas. Use both `prior_decisions` and `codebase_context` to ground the analysis.
@@ -292,11 +300,12 @@ Analyze the phase to identify gray areas. Use both `prior_decisions` and `codeba
 1. **Domain boundary** — What capability is this phase delivering? State it clearly.
 
 1b. **Initialize canonical refs accumulator** — Start building `<canonical_refs>` for CONTEXT.md. Sources:
-   - **Now:** Copy `Canonical refs:` from ROADMAP.md for this phase. Expand each to a full relative path. Check REQUIREMENTS.md and PROJECT.md for specs/ADRs referenced.
-   - **`scout_codebase`:** If existing code references docs (e.g., comments citing ADRs), add those.
-   - **`discuss_areas`:** When the user says "read X", "check Y", or references any doc/spec/ADR — add it immediately. These are often the MOST important refs.
 
-   This list is MANDATORY in CONTEXT.md. Every ref must have a full relative path. If no external docs exist, note that explicitly.
+- **Now:** Copy `Canonical refs:` from ROADMAP.md for this phase. Expand each to a full relative path. Check REQUIREMENTS.md and PROJECT.md for specs/ADRs referenced.
+- **`scout_codebase`:** If existing code references docs (e.g., comments citing ADRs), add those.
+- **`discuss_areas`:** When the user says "read X", "check Y", or references any doc/spec/ADR — add it immediately. These are often the MOST important refs.
+
+This list is MANDATORY in CONTEXT.md. Every ref must have a full relative path. If no external docs exist, note that explicitly.
 
 2. **Check prior decisions** — Scan `<prior_decisions>` for already-decided gray areas; mark them pre-answered.
 
@@ -326,9 +335,11 @@ We'll clarify HOW to implement this. (New capabilities belong in other phases.)
 **If `--auto` or `--all`** (per `modes/auto.md` or `modes/all.md`): Auto-select ALL gray areas. Log: `[--auto/--all] Selected all gray areas: [list area names].` Skip the question below and continue directly to `discuss_areas` with all areas selected.
 
 **Otherwise, use question (multiSelect: true):**
+
 - header: "Discuss"
 - question: "Which areas do you want to discuss for [phase name]?"
 - options: 3-4 phase-specific gray areas, each with a concrete label (not generic), 1-2 questions in description, and code-context / prior-decision annotations:
+
   ```
   ☐ Layout style — Cards vs list vs timeline?
     (You already have a Card component with shadow/rounded variants. Reusing it keeps the app consistent.)
@@ -350,6 +361,7 @@ Discussion behavior is defined by the active mode file(s):
 - **Default (no flags):** follow `workflows/discuss-phase/modes/default.md` — 4 single-question turns per area, then check whether to continue.
 
 Overlays (combine with the active mode):
+
 - `--text` → `workflows/discuss-phase/modes/text.md` (replace question with plain-text numbered lists)
 - `--batch` → `workflows/discuss-phase/modes/batch.md` (group 2–5 questions per turn)
 - `--analyze` → `workflows/discuss-phase/modes/analyze.md` (trade-off table before each question)
@@ -364,7 +376,7 @@ All modes preserve the universal rules below.
 - **Scope creep** — if user mentions something outside the phase domain, capture as deferred idea and redirect.
 - **Incremental checkpoint** — after each area completes, write `${phase_dir}/${padded_phase}-DISCUSS-CHECKPOINT.json`. read `workflows/discuss-phase/templates/checkpoint.json` for the schema. The checkpoint is structured state, not the canonical CONTEXT.md (`write_context` produces the canonical output). On session resume, the parent's `check_existing` step detects the checkpoint and offers to resume.
 - **Discussion log accumulation** — for each question asked, accumulate area name, options presented, user's selection, follow-up notes. Used by `git_commit` to write DISCUSSION-LOG.md.
-</step>
+  </step>
 
 <step name="write_context">
 Create CONTEXT.md and DISCUSSION-LOG.md.
@@ -374,6 +386,7 @@ DISCUSSION-LOG.md is for human reference only (audits, retrospectives) and is NO
 **Find or create phase directory:**
 
 Use values from init: `phase_dir`, `phase_slug`, `padded_phase`. If `phase_dir` is null:
+
 ```bash
 mkdir -p ".planning/phases/${padded_phase}-${phase_slug}"
 ```
@@ -381,6 +394,7 @@ mkdir -p ".planning/phases/${padded_phase}-${phase_slug}"
 **File location:** `${phase_dir}/${padded_phase}-CONTEXT.md`
 
 **read the CONTEXT.md template now (lazy-loaded):**
+
 ```
 read(workflows/discuss-phase/templates/context.md)
 ```
@@ -388,6 +402,7 @@ read(workflows/discuss-phase/templates/context.md)
 The template documents variable substitutions and conditional sections. Substitute live values for `[X]`, `[Name]`, `[date]`, `${padded_phase}`, `{N}`. Include `<spec_lock>` only when `spec_loaded = true`. Include "Folded Todos" / "Reviewed Todos" subsections only when the `cross_reference_todos` step folded or reviewed todos.
 
 **SPEC.md integration** — If `spec_loaded = true`:
+
 - Add the `<spec_lock>` section immediately after `<domain>`.
 - Add the SPEC.md file to `<canonical_refs>` with note "Locked requirements — MUST read before planning".
 - Do NOT duplicate requirements text from SPEC.md into `<decisions>` — agents read SPEC.md directly.
@@ -424,6 +439,7 @@ Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 **Also available:** `--chain` for auto plan+execute after; `/gsd-plan-phase ${PHASE} --skip-research ${GSD_WS}` to plan without research; `/gsd-ui-phase ${PHASE} ${GSD_WS}` for UI design contracts; review/edit CONTEXT.md before continuing.
 ```
+
 </step>
 
 <step name="git_commit">
@@ -432,6 +448,7 @@ Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 **File location:** `${phase_dir}/${padded_phase}-DISCUSSION-LOG.md`
 
 **read the DISCUSSION-LOG.md template now (lazy-loaded):**
+
 ```
 read(workflows/discuss-phase/templates/discussion-log.md)
 ```
@@ -439,11 +456,13 @@ read(workflows/discuss-phase/templates/discussion-log.md)
 Substitute live values from the discussion log accumulator (area names, options presented, user selections, notes, deferred ideas, OpenCode's discretion items). write the file.
 
 **Clean up checkpoint file** — CONTEXT.md is now the canonical record:
+
 ```bash
 rm -f "${phase_dir}/${padded_phase}-DISCUSS-CHECKPOINT.json"
 ```
 
 Commit phase context and discussion log:
+
 ```bash
 gsd-sdk query commit "docs(${padded_phase}): capture phase context" "${phase_dir}/${padded_phase}-CONTEXT.md" "${phase_dir}/${padded_phase}-DISCUSSION-LOG.md"
 ```
@@ -461,6 +480,7 @@ gsd-sdk query state.record-session \
 
 gsd-sdk query commit "docs(state): record phase ${PHASE} context session" .planning/STATE.md
 ```
+
 </step>
 
 <step name="auto_advance">
@@ -474,6 +494,7 @@ Otherwise, route to `confirm_creation` (manual next steps).
 </process>
 
 <success_criteria>
+
 - Phase validated against roadmap
 - Prior context loaded (PROJECT.md, REQUIREMENTS.md, STATE.md, prior CONTEXT.md files)
 - Already-decided questions not re-asked (carried forward from prior phases)
@@ -494,4 +515,4 @@ Otherwise, route to `confirm_creation` (manual next steps).
 - `--chain` triggers interactive discuss followed by auto plan+execute (no auto-answering)
 - `--chain` and `--auto` both persist chain flag and auto-advance to plan-phase
 - Per-mode bodies, templates, and advisor flow are lazy-loaded — parent stays under the workflow size budget enforced by `tests/workflow-size-budget.test.cjs`
-</success_criteria>
+  </success_criteria>

@@ -3,15 +3,16 @@ name: gsd-validate-phase
 description: Retroactively audit and fill Nyquist validation gaps for a completed phase
 argument-hint: "[phase number]"
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   glob: true
-   grep: true
-   task: true
-   question: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  glob: true
+  grep: true
+  task: true
+  question: true
 ---
+
 <objective>
 Audit Nyquist validation coverage for a completed phase. Three states:
 - (A) VALIDATION.md exists — audit and fill gaps

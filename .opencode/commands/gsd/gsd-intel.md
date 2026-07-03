@@ -3,9 +3,9 @@ name: gsd-intel
 description: "Query, inspect, or refresh codebase intelligence files in .planning/intel/"
 argument-hint: "[query <term>|status|diff|refresh]"
 permissions:
-   read: true
-   bash: true
-   task: true
+  read: true
+  bash: true
+  task: true
 ---
 
 <objective>
@@ -57,13 +57,13 @@ Then run /gsd-intel refresh to build the initial index.
 
 Parse `$ARGUMENTS` to determine the operation mode:
 
-| Argument | Action |
-|----------|--------|
-| `query <term>` | Run inline query (Step 2a) |
-| `status` | Run inline status check (Step 2b) |
-| `diff` | Run inline diff check (Step 2c) |
-| `refresh` | Spawn intel-updater agent (Step 3) |
-| No argument or unknown | Show usage message |
+| Argument               | Action                             |
+| ---------------------- | ---------------------------------- |
+| `query <term>`         | Run inline query (Step 2a)         |
+| `status`               | Run inline status check (Step 2b)  |
+| `diff`                 | Run inline diff check (Step 2c)    |
+| `refresh`              | Spawn intel-updater agent (Step 3) |
+| No argument or unknown | Show usage message                 |
 
 **Usage message** (shown when no argument or unrecognized argument):
 
@@ -88,6 +88,7 @@ gsd-sdk query intel.query <term>
 ```
 
 Parse the JSON output and display results:
+
 - If the output contains `"disabled": true`, display the disabled message from Step 1 and **STOP**
 - If no matches found, display: `No intel matches for '<term>'. Try /gsd-intel refresh to build the index.`
 - Otherwise, display matching entries grouped by intel file
@@ -103,6 +104,7 @@ gsd-sdk query intel.status
 ```
 
 Parse the JSON output and display each intel file with:
+
 - File name
 - Last `updated_at` timestamp
 - STALE or FRESH status (stale if older than 24 hours or missing)
@@ -118,6 +120,7 @@ gsd-sdk query intel.diff
 ```
 
 Parse the JSON output and display:
+
 - Added entries since last snapshot
 - Removed entries since last snapshot
 - Changed entries since last snapshot
@@ -169,6 +172,7 @@ gsd-sdk query intel.status
 ```
 
 Display a summary showing:
+
 - Which intel files were written or updated
 - Last update timestamps
 - Overall health of the intel index

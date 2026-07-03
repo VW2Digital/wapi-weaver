@@ -7,6 +7,7 @@ There is no `/gsd-transition` command. This workflow is invoked automatically by
 verification. Users should never be told to run `/gsd-transition`.
 
 **Valid user commands for phase progression:**
+
 - `/gsd-discuss-phase {N}` — discuss a phase before planning
 - `/gsd-plan-phase {N}` — plan a phase
 - `/gsd-execute-phase {N}` — execute a phase
@@ -167,6 +168,7 @@ TRANSITION=$(gsd-sdk query phase.complete "${current_phase}")
 ```
 
 The CLI handles:
+
 - Marking the phase checkbox as `[x]` complete with today's date
 - Updating plan count to final (e.g., "3/3 plans complete")
 - Updating the Progress table (Status → Complete, adding date)
@@ -222,7 +224,8 @@ Make the edits inline. Update "Last updated" footer:
 
 ```markdown
 ---
-*Last updated: [date] after Phase [X]*
+
+_Last updated: [date] after Phase [X]_
 ```
 
 **Example evolution:**
@@ -402,12 +405,14 @@ Resume file: None
 **Use the transition result from `gsd-sdk query phase.complete`:**
 
 The `is_last_phase` field from the phase complete result tells you directly:
+
 - `is_last_phase: false` → More phases remain → Go to **Route A**
 - `is_last_phase: true` → Last phase done → **Check for workstream collisions first**
 
 The `next_phase` and `next_phase_name` fields give you the next phase details.
 
 If you need additional context, use:
+
 ```bash
 ROADMAP=$(gsd-sdk query roadmap.analyze)
 ```
@@ -597,6 +602,7 @@ Do NOT auto-invoke any further slash commands.
 **Route B: Milestone complete (all phases done)**
 
 **This route is only reached when:**
+
 - `is_last_phase: true` AND no other active workstreams exist (or flat mode)
 
 **Clear auto-advance chain flag** — milestone boundary is the natural stopping point:

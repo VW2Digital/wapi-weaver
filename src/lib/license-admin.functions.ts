@@ -7,17 +7,19 @@ import {
   licenseHash,
   previewLicenseKey,
   mysqlDate,
-  parseJson
+  parseJson,
 } from "./license-server";
 
 // Helper to assert administrator privileges in panel mode
 async function assertAdmin(ctx: { userId: string }) {
   const rows = (await db.query(
     "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
-    [ctx.userId]
+    [ctx.userId],
   )) as any[];
   if (!rows.length) {
-    throw new Error("Acesso negado: apenas o administrador master (adminmaster) da plataforma tem permissão.");
+    throw new Error(
+      "Acesso negado: apenas o administrador master (adminmaster) da plataforma tem permissão.",
+    );
   }
 }
 
@@ -30,8 +32,8 @@ export const listLicenses = createServerFn({ method: "GET" })
       status: z.string().optional(),
       plan: z.string().optional(),
       page: z.number().default(1),
-      limit: z.number().default(20)
-    })
+      limit: z.number().default(20),
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
@@ -72,10 +74,10 @@ export const listLicenses = createServerFn({ method: "GET" })
     return {
       licenses: rows.map((r: any) => ({
         ...r,
-        features_json: parseJson(r.features_json)
+        features_json: parseJson(r.features_json),
       })),
       total,
-      pages: Math.ceil(total / limit)
+      pages: Math.ceil(total / limit),
     };
   });
 
@@ -95,8 +97,8 @@ export const createLicense = createServerFn({ method: "POST" })
       max_activations: z.number().default(99),
       max_users: z.number().nullable().optional(),
       features_json: z.record(z.string(), z.any()).optional(),
-      notes: z.string().optional()
-    })
+      notes: z.string().optional(),
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
@@ -104,7 +106,9 @@ export const createLicense = createServerFn({ method: "POST" })
     // Link tenant_id if user exists
     let tenantId = null;
     if (input.client_email) {
-      const userRows = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [input.client_email.trim().toLowerCase()]) as any[];
+      const userRows = (await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [
+        input.client_email.trim().toLowerCase(),
+      ])) as any[];
       if (userRows.length > 0) {
         tenantId = userRows[0].id;
       }
@@ -136,14 +140,14 @@ export const createLicense = createServerFn({ method: "POST" })
           input.max_users || null,
           JSON.stringify(features),
           input.notes || null,
-          tenantId
-        ]
+          tenantId,
+        ],
       );
 
       return {
         success: true,
         licenseKey,
-        preview: keyPreview
+        preview: keyPreview,
       };
     } catch (err: any) {
       if (err.code === "ER_DUP_ENTRY") {
@@ -160,18 +164,26 @@ export const getLicenseStats = createServerFn({ method: "GET" })
     await assertAdmin(context);
 
     const totalRes = (await db.query("SELECT COUNT(*) AS total FROM licenses")) as any[];
-    const activeRes = (await db.query("SELECT COUNT(*) AS total FROM licenses WHERE status = 'active'")) as any[];
-    const expiredRes = (await db.query("SELECT COUNT(*) AS total FROM licenses WHERE status = 'expired' OR (expires_at IS NOT NULL AND expires_at < NOW())")) as any[];
-    const blockedRes = (await db.query("SELECT COUNT(*) AS total FROM licenses WHERE status = 'blocked'")) as any[];
+    const activeRes = (await db.query(
+      "SELECT COUNT(*) AS total FROM licenses WHERE status = 'active'",
+    )) as any[];
+    const expiredRes = (await db.query(
+      "SELECT COUNT(*) AS total FROM licenses WHERE status = 'expired' OR (expires_at IS NOT NULL AND expires_at < NOW())",
+    )) as any[];
+    const blockedRes = (await db.query(
+      "SELECT COUNT(*) AS total FROM licenses WHERE status = 'blocked'",
+    )) as any[];
 
-    const totalActivations = (await db.query("SELECT COUNT(*) AS total FROM license_activations WHERE status = 'active'")) as any[];
+    const totalActivations = (await db.query(
+      "SELECT COUNT(*) AS total FROM license_activations WHERE status = 'active'",
+    )) as any[];
 
     // Recent 10 activations
     const recentActivations = (await db.query(
       `SELECT la.*, l.client_name, l.license_key_preview
        FROM license_activations la
        JOIN licenses l ON la.license_id = l.id
-       ORDER BY la.activated_at DESC LIMIT 10`
+       ORDER BY la.activated_at DESC LIMIT 10`,
     )) as any[];
 
     return {
@@ -180,9 +192,9 @@ export const getLicenseStats = createServerFn({ method: "GET" })
         active: activeRes[0]?.total || 0,
         expired: expiredRes[0]?.total || 0,
         blocked: blockedRes[0]?.total || 0,
-        activations: totalActivations[0]?.total || 0
+        activations: totalActivations[0]?.total || 0,
       },
-      recentActivations
+      recentActivations,
     };
   });
 
@@ -193,7 +205,9 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
-    const licenseRows = (await db.query("SELECT * FROM licenses WHERE id = ? LIMIT 1", [input.id])) as any[];
+    const licenseRows = (await db.query("SELECT * FROM licenses WHERE id = ? LIMIT 1", [
+      input.id,
+    ])) as any[];
     if (!licenseRows.length) {
       throw new Error("Licença não encontrada");
     }
@@ -204,19 +218,19 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
     // Get activations
     const activations = (await db.query(
       "SELECT * FROM license_activations WHERE license_id = ? ORDER BY activated_at DESC",
-      [input.id]
+      [input.id],
     )) as any[];
 
     // Get logs
     const logs = (await db.query(
       "SELECT * FROM license_validation_logs WHERE license_id = ? ORDER BY created_at DESC LIMIT 100",
-      [input.id]
+      [input.id],
     )) as any[];
 
     return {
       license,
       activations,
-      logs
+      logs,
     };
   });
 
@@ -233,8 +247,8 @@ export const updateLicense = createServerFn({ method: "POST" })
       expires_at: z.string().nullable().optional(),
       max_activations: z.number(),
       max_users: z.number().nullable().optional(),
-      notes: z.string().nullable().optional()
-    })
+      notes: z.string().nullable().optional(),
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
@@ -244,7 +258,10 @@ export const updateLicense = createServerFn({ method: "POST" })
     // Re-resolve tenant_id from updated email
     let tenantId: string | null = null;
     if (input.client_email) {
-      const userRows = await db.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1", [input.client_email]) as any[];
+      const userRows = (await db.query(
+        "SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1",
+        [input.client_email],
+      )) as any[];
       if (userRows.length > 0) {
         tenantId = userRows[0].id;
       }
@@ -264,8 +281,8 @@ export const updateLicense = createServerFn({ method: "POST" })
         input.max_users || null,
         input.notes || null,
         tenantId,
-        input.id
-      ]
+        input.id,
+      ],
     );
 
     return { success: true };
@@ -300,7 +317,7 @@ export const getLicenseRole = createServerFn({ method: "GET" })
     try {
       const rows = (await db.query(
         "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
-        [context.userId]
+        [context.userId],
       )) as any[];
       if (rows.length > 0) {
         isAdmin = true;

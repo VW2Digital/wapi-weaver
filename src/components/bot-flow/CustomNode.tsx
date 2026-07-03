@@ -21,7 +21,8 @@ const getMediaType = (url: string, type: string) => {
   if (cleanUrl.match(/\.(mp4|webm|ogg|mov|3gp)$/)) return "video";
   if (cleanUrl.match(/\.(mp3|wav|ogg|aac|m4a)$/)) return "audio";
   if (cleanUrl.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip)$/)) return "document";
-  if (url.includes("images.unsplash.com") || url.includes("img") || url.includes("image")) return "image";
+  if (url.includes("images.unsplash.com") || url.includes("img") || url.includes("image"))
+    return "image";
   if (url.includes("video")) return "video";
   if (url.includes("audio")) return "audio";
   return "link";
@@ -83,9 +84,17 @@ export function CustomNode({ data, selected }: any) {
     const isUUID = (val: string) =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-    if (stepLike.trigger_type === "keyword" && stepLike.trigger_value && !isUUID(stepLike.trigger_value))
+    if (
+      stepLike.trigger_type === "keyword" &&
+      stepLike.trigger_value &&
+      !isUUID(stepLike.trigger_value)
+    )
       return `Palavra-chave: ${stepLike.trigger_value}`;
-    if (stepLike.trigger_type === "button" && stepLike.trigger_value && !isUUID(stepLike.trigger_value))
+    if (
+      stepLike.trigger_type === "button" &&
+      stepLike.trigger_value &&
+      !isUUID(stepLike.trigger_value)
+    )
       return `Botão: ${stepLike.trigger_value}`;
     const text = String(stepLike.message_content || "").trim();
     if (text) return text.length > 24 ? `${text.slice(0, 24)}...` : text;
@@ -149,7 +158,9 @@ export function CustomNode({ data, selected }: any) {
               const isUUID = (val: string) =>
                 /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
               if (step.trigger_type === "keyword") {
-                return isUUID(step.trigger_value) ? "Palavra-chave" : `Keyword: ${step.trigger_value}`;
+                return isUUID(step.trigger_value)
+                  ? "Palavra-chave"
+                  : `Keyword: ${step.trigger_value}`;
               }
               if (step.trigger_type === "button") {
                 return isUUID(step.trigger_value) ? "Botão" : `Botão: ${step.trigger_value}`;
@@ -202,7 +213,9 @@ export function CustomNode({ data, selected }: any) {
                   <Music className="w-4 h-4 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] font-semibold truncate">Mensagem de Áudio</div>
-                    <div className="text-[8px] text-muted-foreground truncate">{step.media_url.split("/").pop()}</div>
+                    <div className="text-[8px] text-muted-foreground truncate">
+                      {step.media_url.split("/").pop()}
+                    </div>
                   </div>
                 </div>
               );
@@ -212,8 +225,12 @@ export function CustomNode({ data, selected }: any) {
                 <div className="p-2 flex items-center gap-1.5 bg-blue-500/5 text-blue-600 dark:text-blue-400">
                   <FileText className="w-4 h-4 shrink-0 text-red-500" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-semibold truncate">Documento PDF / Arquivo</div>
-                    <div className="text-[8px] text-muted-foreground truncate">{step.media_url.split("/").pop()}</div>
+                    <div className="text-[10px] font-semibold truncate">
+                      Documento PDF / Arquivo
+                    </div>
+                    <div className="text-[8px] text-muted-foreground truncate">
+                      {step.media_url.split("/").pop()}
+                    </div>
                   </div>
                 </div>
               );
@@ -336,12 +353,7 @@ export function CustomNode({ data, selected }: any) {
                   )}
                   {linkType === "video" && (
                     <div className="relative w-full h-24 bg-black/10 dark:bg-black/40 flex items-center justify-center">
-                      <video
-                        src={url}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                      />
+                      <video src={url} className="w-full h-full object-cover" muted playsInline />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                         <Video className="w-6 h-6 text-white drop-shadow-md" />
                       </div>
@@ -352,7 +364,9 @@ export function CustomNode({ data, selected }: any) {
                       <Music className="w-4 h-4 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-semibold truncate">Link de Áudio</div>
-                        <div className="text-[8px] text-muted-foreground truncate">{url.split("/").pop()}</div>
+                        <div className="text-[8px] text-muted-foreground truncate">
+                          {url.split("/").pop()}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -361,7 +375,9 @@ export function CustomNode({ data, selected }: any) {
                       <FileText className="w-4 h-4 shrink-0 text-red-500" />
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-semibold truncate">Link de Arquivo</div>
-                        <div className="text-[8px] text-muted-foreground truncate">{url.split("/").pop()}</div>
+                        <div className="text-[8px] text-muted-foreground truncate">
+                          {url.split("/").pop()}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -369,7 +385,9 @@ export function CustomNode({ data, selected }: any) {
                     <div className="p-2 flex items-center gap-1.5 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400">
                       <Link className="w-4 h-4 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-[10px] font-semibold truncate">Pré-visualização do Link</div>
+                        <div className="text-[10px] font-semibold truncate">
+                          Pré-visualização do Link
+                        </div>
                         <div className="text-[8px] text-muted-foreground truncate">{url}</div>
                       </div>
                     </div>

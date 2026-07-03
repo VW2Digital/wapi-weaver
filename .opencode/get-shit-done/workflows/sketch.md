@@ -4,9 +4,10 @@ Each sketch produces 2-3 variants for comparison. Saves artifacts to `.planning/
 Companion to `/gsd-sketch-wrap-up`.
 
 Supports two modes:
+
 - **Idea mode** (default) — user describes a design idea to sketch
 - **Frontier mode** — no argument or "frontier" / "what should I sketch?" — analyzes existing sketch landscape and proposes consistency and frontier sketches
-</objective>
+  </objective>
 
 <required_reading>
 read all files referenced by the invoking prompt's execution_context before starting.
@@ -27,6 +28,7 @@ read all files referenced by the invoking prompt's execution_context before star
 ```
 
 Parse `$ARGUMENTS` for:
+
 - `--quick` flag → set `QUICK_MODE=true`
 - `--text` flag → set `TEXT_MODE=true`
 - `frontier` or empty → set `FRONTIER_MODE=true`
@@ -40,7 +42,7 @@ Parse `$ARGUMENTS` for:
 
 - **FRONTIER_MODE is true** → Jump to `frontier_mode`
 - **Otherwise** → Continue to `setup_directory`
-</step>
+  </step>
 
 <step name="frontier_mode">
 ## Frontier Mode — Propose What to Sketch Next
@@ -93,14 +95,17 @@ mkdir -p .planning/sketches/themes
 ```
 
 Check for existing sketches to determine numbering:
+
 ```bash
 ls -d .planning/sketches/[0-9][0-9][0-9]-* 2>/dev/null | sort | tail -1
 ```
 
 Check `commit_docs` config:
+
 ```bash
 COMMIT_DOCS=$(gsd-sdk query config-get commit_docs 2>/dev/null || echo "true")
 ```
+
 </step>
 
 <step name="mood_intake">
@@ -135,6 +140,7 @@ If spikes exist for this project, read them to ground the sketches in reality. M
 **c.** read `.planning/spikes/CONVENTIONS.md` if it exists — the established stack informs what's buildable and what interaction patterns are idiomatic.
 
 **How spike context improves sketches:**
+
 - Use real field names and data shapes from spike findings instead of generic placeholders
 - Show realistic UI states that match what the spikes proved (e.g., if streaming was validated, show a streaming message state)
 - Reference real component names and patterns from the target stack
@@ -146,18 +152,20 @@ If spikes exist for this project, read them to ground the sketches in reality. M
 <step name="decompose">
 Break the idea into 2-5 design questions. Present as a table:
 
-| Sketch | Design question | Approach | Risk |
-|--------|----------------|----------|------|
-| 001 | Does a two-panel layout feel right? | Sidebar + main, variants: fixed/collapsible/floating | **High** — sets page structure |
-| 002 | How should the form controls look? | Grouped cards, variants: stacked/inline/floating labels | Medium |
+| Sketch | Design question                     | Approach                                                | Risk                           |
+| ------ | ----------------------------------- | ------------------------------------------------------- | ------------------------------ |
+| 001    | Does a two-panel layout feel right? | Sidebar + main, variants: fixed/collapsible/floating    | **High** — sets page structure |
+| 002    | How should the form controls look?  | Grouped cards, variants: stacked/inline/floating labels | Medium                         |
 
 Each sketch answers one specific visual question. Good sketches:
+
 - "Does this layout feel right?" — build with real-ish content
 - "How should these controls be grouped?" — build with actual labels and inputs
 - "What does this interaction feel like?" — build the hover/click/transition
 - "Does this color palette work?" — apply to actual UI, not a swatch grid
 
 Bad sketches:
+
 - "Design the whole app" — too broad
 - "Set up the component library" — that's implementation
 - "Pick a color palette" — apply it to UI instead
@@ -173,11 +181,13 @@ Before sketching, ground the design in what's actually buildable. Sketches are H
 **a. Identify the target stack.** Check for package.json, Cargo.toml, etc. If the user mentioned a framework (React, SwiftUI, Flutter, etc.), note it.
 
 **b. Check component/pattern availability.** Use context7 (resolve-library-id → query-docs) or web search to answer:
+
 - What layout primitives does the target framework provide?
 - Are there existing component libraries in use? What components are available?
 - What interaction patterns are idiomatic?
 
 **c. Note constraints that affect design:**
+
 - Platform conventions (iOS nav patterns, desktop menu bars, terminal grid constraints)
 - Framework limitations (what's easy vs requires custom work)
 - Existing design tokens or theme systems already in the project
@@ -194,15 +204,17 @@ Create or update `.planning/sketches/MANIFEST.md`:
 # Sketch Manifest
 
 ## Design Direction
+
 [One paragraph capturing the mood/feel/direction from the intake conversation]
 
 ## Reference Points
+
 [Apps/sites the user referenced]
 
 ## Sketches
 
-| # | Name | Design question | Winner | Tags |
-|---|------|----------------|--------|------|
+| #   | Name | Design question | Winner | Tags |
+| --- | ---- | --------------- | ------ | ---- |
 ```
 
 If MANIFEST.md already exists, append new sketches to the existing table.
@@ -229,6 +241,7 @@ Build each sketch in order.
 **Subsequent rounds — refinements:** Subtler variations within the chosen direction.
 
 Each variant is a page/tab in the same HTML file. Include:
+
 - Tab navigation to switch between variants (see `sketch-variant-patterns.md`)
 - Clear labels: "Variant A: Sidebar Layout", "Variant B: Top Nav", etc.
 - The sketch toolbar (see `sketch-tooling.md`)
@@ -252,24 +265,28 @@ tags: [layout, dashboard]
 # Sketch NNN: Descriptive Name
 
 ## Design question
+
 [The specific visual question this sketch answers]
 
 ## How to View
+
 open .planning/sketches/NNN-descriptive-name/index.html
 
 ## Variants
+
 - **A: [name]** — [one-line description of this approach]
 - **B: [name]** — [one-line description]
 - **C: [name]** — [one-line description]
 
 ## What to Look For
+
 [Specific things to pay attention to when comparing variants]
 ```
 
 **e.** Present to the user with a checkpoint:
 
 ╔══════════════════════════════════════════════════════════════╗
-║  CHECKPOINT: Verification Required                           ║
+║ CHECKPOINT: Verification Required ║
 ╚══════════════════════════════════════════════════════════════╝
 
 **Sketch {NNN}: {name}**
@@ -283,6 +300,7 @@ Compare: {what to look for between variants}
 ──────────────────────────────────────────────────────────────
 
 **f.** Handle feedback:
+
 - **Pick a direction:** mark winner, move to next sketch
 - **Cherry-pick elements:** build synthesis as new variant, show again
 - **Want more exploration:** build new variants
@@ -290,21 +308,25 @@ Compare: {what to look for between variants}
 Iterate until satisfied.
 
 **g.** Finalize:
+
 1. Mark winning variant in README frontmatter (`winner: "B"`)
 2. Add ★ indicator to winning tab in HTML
 3. Update `.planning/sketches/MANIFEST.md`
 
 **h.** Commit (if `COMMIT_DOCS` is true):
+
 ```bash
 gsd-sdk query commit "docs(sketch-NNN): [winning direction] — [key visual insight]" .planning/sketches/NNN-descriptive-name/ .planning/sketches/MANIFEST.md
 ```
 
 **i.** Report:
+
 ```
 ◆ Sketch NNN: {name}
   Winner: Variant {X} — {description}
   Insight: {key visual decision made}
 ```
+
 </step>
 
 <step name="report">
@@ -336,6 +358,7 @@ After all sketches complete:
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
+
 - `/gsd-sketch` — sketch more (or run with no argument for frontier mode)
 - `/gsd-plan-phase` — start building the real UI
 - `/gsd-spike` — spike technical feasibility of a design pattern
@@ -346,6 +369,7 @@ After all sketches complete:
 </process>
 
 <success_criteria>
+
 - [ ] `.planning/sketches/` created (auto-creates if needed, no project init required)
 - [ ] Design direction explored conversationally before any code (unless --quick)
 - [ ] Spike context loaded — real data shapes, requirements, and conventions inform mockups
@@ -357,4 +381,4 @@ After all sketches complete:
 - [ ] MANIFEST.md is current
 - [ ] Commits use `docs(sketch-NNN): [winner]` format
 - [ ] Summary presented with next-step routing
-</success_criteria>
+      </success_criteria>

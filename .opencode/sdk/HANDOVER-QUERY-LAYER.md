@@ -9,13 +9,11 @@ Paste this document (or `@sdk/HANDOVER-QUERY-LAYER.md`) at the start of a new se
 
 ### Scope anchors (do not confuse issues)
 
-
-| Role                                    | GitHub                                                                                 | Notes                                                                                                                                                                                                                                       |
-| --------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role                                    | GitHub                                                                               | Notes                                                                                                                                                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Product / requirements anchor**       | [#2007](https://github.com/rokicool/gsd-opencode/issues/2007)                        | Problem statement, user stories, and target architecture for the SDK-first migration. **Do not** treat its original acceptance-checklist boxes as proof of what is merged upstream; work was split into phased PRs after maintainer review. |
 | **Phase 3 execution scope**             | [#2302](https://github.com/rokicool/gsd-opencode/issues/2302) **+ this handover**    | What this branch is actually doing now: registry/CLI parity, docs, harness gaps, runner alignment follow-ups as listed below.                                                                                                               |
 | **patch mine (if local tree is short)** | [PR #2008](https://github.com/rokicool/gsd-opencode/pull/2008) and matching branches | Large pre-phasing PR; cherry-pick or compare when something looks missing vs that line of work.                                                                                                                                             |
-
 
 ---
 
@@ -54,13 +52,11 @@ Previously `state.json` and `state.load` were easy to confuse: CJS has two diffe
 
 ## Query surface completeness (snapshot)
 
-
-| Status                   | Surface                                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| Status                   | Surface                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
 | **Registered**           | Essentially all `gsd-tools.cjs` `runCommand` surfaces, including `phase.add-batch`.          |
-| **CLI-only (by design)** | `graphify`, `from-gsd2` — not in `createRegistry()`; documented in `QUERY-HANDLERS.md`.  |
+| **CLI-only (by design)** | `graphify`, `from-gsd2` — not in `createRegistry()`; documented in `QUERY-HANDLERS.md`.      |
 | **SDK-only extra**       | `phases.archive` — no `gsd-tools phases archive` subcommand (CJS has `list` / `clear` only). |
-
 
 **Programmatic API:** `createRegistry()` / `registry.dispatch('dotted.name', args, projectDir)`.
 
@@ -72,17 +68,15 @@ Previously `state.json` and `state.load` were easy to confuse: CJS has two diffe
 
 ## Canonical files
 
-
-| Path                                        | Role                                                                                   |
-| ------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `sdk/src/query/index.ts`                    | `createRegistry()`, `QUERY_MUTATION_COMMANDS`, handler wiring.                         |
+| Path                                        | Role                                                                           |
+| ------------------------------------------- | ------------------------------------------------------------------------------ |
+| `sdk/src/query/index.ts`                    | `createRegistry()`, `QUERY_MUTATION_COMMANDS`, handler wiring.                 |
 | `sdk/src/query/state-project-load.ts`       | `state.load` — CJS `cmdStateLoad` parity (`loadConfig` + `state_raw` + flags). |
-| `sdk/src/query/normalize-query-command.ts`  | CLI argv → registry command string.                                                    |
-| `sdk/src/cli.ts`                            | `gsd-sdk query` path (uses `normalizeQueryCommand`).                                   |
-| `sdk/src/query/QUERY-HANDLERS.md`           | Registry contracts, parity tiers, CJS matrix, mutation notes.                          |
-| `sdk/src/golden/golden.integration.test.ts` | Golden parity vs `captureGsdToolsOutput()`.                                            |
-| `docs/CLI-TOOLS.md`                         | User-facing CLI; links to parity sections.                                             |
-
+| `sdk/src/query/normalize-query-command.ts`  | CLI argv → registry command string.                                            |
+| `sdk/src/cli.ts`                            | `gsd-sdk query` path (uses `normalizeQueryCommand`).                           |
+| `sdk/src/query/QUERY-HANDLERS.md`           | Registry contracts, parity tiers, CJS matrix, mutation notes.                  |
+| `sdk/src/golden/golden.integration.test.ts` | Golden parity vs `captureGsdToolsOutput()`.                                    |
+| `docs/CLI-TOOLS.md`                         | User-facing CLI; links to parity sections.                                     |
 
 Related handovers: `HANDOVER-GOLDEN-PARITY.md`, `HANDOVER-PARITY-DOCS.md` (older parity-doc brief; content largely folded into `QUERY-HANDLERS.md`).
 
@@ -92,12 +86,10 @@ Related handovers: `HANDOVER-GOLDEN-PARITY.md`, `HANDOVER-PARITY-DOCS.md` (older
 
 Work that moves **deterministic** orchestration out of AI/bash and into **SDK queries** (historically `gsd-tools.cjs`) has **two layers**. Do not confuse them:
 
-
-| Layer                    | Goal                                                                                                                                                                         | What “done” looks like                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Parity / migration**   | Existing CLI behavior is **stable and testable** in the registry so callers can use `gsd-sdk query` instead of `node …/gsd-tools.cjs` without silent drift.                  | Goldens + `QUERY-HANDLERS.md`; same JSON/`--raw` contracts as CJS.                      |
+| Layer                    | Goal                                                                                                                                                                                  | What “done” looks like                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Parity / migration**   | Existing CLI behavior is **stable and testable** in the registry so callers can use `gsd-sdk query` instead of `node …/gsd-tools.cjs` without silent drift.                           | Goldens + `QUERY-HANDLERS.md`; same JSON/`--raw` contracts as CJS.                      |
 | **Offloading decisions** | **New or consolidated** queries replace repeated `grep`, `ls` piped to `wc -l`, many `config-get`s, and inline `node -e` in workflows — so the model does less parsing and branching. | Fewer inline shell blocks; measurable token/step reduction on representative workflows. |
-
 
 Phase 3–style registry work mainly advances **parity**. The `decision-routing-audit.md` proposals are mostly **offloading** — they assume parity exists for commands workflows already call.
 
@@ -105,18 +97,18 @@ Phase 3–style registry work mainly advances **parity**. The `decision-routing-
 
 Source: `.planning/research/decision-routing-audit.md` §3. **Tier** = priority from §5 (implementation order). **Do not implement** = explicitly rejected in the audit.
 
-| # | Proposed command | Tier | Notes |
-|---|------------------|------|--------|
-| 3.1 | `route next-action` | **1** | Next slash-command from `/gsd-next`-style routing. |
-| 3.2 | `check gates <workflow>` | 3 | Safety gates (continue-here, error state, verification debt). |
-| 3.3 | `check config-gates <workflow>` | **1** | Batch `workflow.*` config for orchestration (replaces many `config-get`s). |
-| 3.4 | `check phase-ready <phase>` | **1** | Phase directory readiness + `next_step` hint. |
-| 3.5 | `check auto-mode` | 2 | `auto_advance` + `_auto_chain_active` → single boolean. |
-| 3.6 | `detect phase-type <phase>` | 2 | Structured UI/schema detection (replaces fragile grep). |
-| 3.7 | `check completion <scope>` | 2 | Phase or milestone completion rollup. |
-| 3.8 | `check verification-status <phase>` | 3 | VERIFICATION.md parsing for routing. |
-| 3.9 | `check ship-ready <phase>` | 3 | Ship preflight (`ship.md`). |
-| 3.10 | `route workflow-steps <workflow>` | ❌ **Do not implement** | Pre-computed step lists are unsound when mid-workflow writes change state. See `review-and-risks.md` §3.6. |
+| #    | Proposed command                    | Tier                    | Notes                                                                                                      |
+| ---- | ----------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 3.1  | `route next-action`                 | **1**                   | Next slash-command from `/gsd-next`-style routing.                                                         |
+| 3.2  | `check gates <workflow>`            | 3                       | Safety gates (continue-here, error state, verification debt).                                              |
+| 3.3  | `check config-gates <workflow>`     | **1**                   | Batch `workflow.*` config for orchestration (replaces many `config-get`s).                                 |
+| 3.4  | `check phase-ready <phase>`         | **1**                   | Phase directory readiness + `next_step` hint.                                                              |
+| 3.5  | `check auto-mode`                   | 2                       | `auto_advance` + `_auto_chain_active` → single boolean.                                                    |
+| 3.6  | `detect phase-type <phase>`         | 2                       | Structured UI/schema detection (replaces fragile grep).                                                    |
+| 3.7  | `check completion <scope>`          | 2                       | Phase or milestone completion rollup.                                                                      |
+| 3.8  | `check verification-status <phase>` | 3                       | VERIFICATION.md parsing for routing.                                                                       |
+| 3.9  | `check ship-ready <phase>`          | 3                       | Ship preflight (`ship.md`).                                                                                |
+| 3.10 | `route workflow-steps <workflow>`   | ❌ **Do not implement** | Pre-computed step lists are unsound when mid-workflow writes change state. See `review-and-risks.md` §3.6. |
 
 **Not in audit:** `phase-artifact-counts` was only an example in an older handover line; there is no §3.11 for it — add via a new research doc if needed.
 
@@ -167,4 +159,4 @@ npx vitest run src/golden/golden.integration.test.ts --project integration
 
 ---
 
-*Created/updated for query-layer handoff. Revise when registry surface, golden coverage, or the parity/offloading roadmap changes materially.*
+_Created/updated for query-layer handoff. Revise when registry surface, golden coverage, or the parity/offloading roadmap changes materially._

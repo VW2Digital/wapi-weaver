@@ -22,20 +22,25 @@ completed: YYYY-MM-DD
 **[Substantive one-liner describing outcome]**
 
 ## Performance
+
 - **Duration:** [time]
 - **Tasks:** [count]
 - **Files modified:** [count]
 
 ## Accomplishments
+
 - [Most important outcome]
 - [Second key accomplishment]
 
 ## task Commits
+
 1. **task 1: [task name]** - `hash`
 2. **task 2: [task name]** - `hash`
 
 ## Files Created/Modified
+
 - `path/to/file.ts` - What it does
 
 ## Next Phase Readiness
+
 [Ready for next phase]

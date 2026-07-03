@@ -115,7 +115,10 @@ function Dashboard() {
   const isLicenseValid = lic.data?.isValid !== false;
 
   const totals = (c.data ?? []).reduce(
-    (acc: { sent: number; delivered: number; read: number; failed: number; completed: number }, x: any) => {
+    (
+      acc: { sent: number; delivered: number; read: number; failed: number; completed: number },
+      x: any,
+    ) => {
       const t = normalizeCampaignTotals(x.totals);
       acc.sent += t.sent;
       acc.delivered += t.delivered;
@@ -127,11 +130,19 @@ function Dashboard() {
     { sent: 0, delivered: 0, read: 0, failed: 0, completed: 0 },
   );
 
-  const deliverRate = totals.completed ? Math.round((totals.delivered / totals.completed) * 100) : 0;
+  const deliverRate = totals.completed
+    ? Math.round((totals.delivered / totals.completed) * 100)
+    : 0;
   const readRate = totals.delivered ? Math.round((totals.read / totals.delivered) * 100) : 0;
 
   const notifications = useMemo(() => {
-    const list: { id: string; type: "success" | "error" | "info"; title: string; desc: string; date?: string }[] = [];
+    const list: {
+      id: string;
+      type: "success" | "error" | "info";
+      title: string;
+      desc: string;
+      date?: string;
+    }[] = [];
 
     // 1. Campaign dispatch completions
     const completedCampaigns = (c.data ?? []).filter((x: any) => x.status === "done");
@@ -142,7 +153,7 @@ function Dashboard() {
         type: "success",
         title: "Envio de Campanha Concluído",
         desc: `A campanha "${x.name}" foi concluída. ${t.delivered} entregues, ${t.failed} falhas.`,
-        date: x.updated_at ? new Date(x.updated_at).toLocaleDateString("pt-BR") : undefined
+        date: x.updated_at ? new Date(x.updated_at).toLocaleDateString("pt-BR") : undefined,
       });
     });
 
@@ -158,7 +169,7 @@ function Dashboard() {
         type: "error",
         title: "Mensagens com Falha",
         desc: `A campanha "${x.name}" registrou ${t.failed} falhas de envio.`,
-        date: x.updated_at ? new Date(x.updated_at).toLocaleDateString("pt-BR") : undefined
+        date: x.updated_at ? new Date(x.updated_at).toLocaleDateString("pt-BR") : undefined,
       });
     });
 
@@ -258,11 +269,17 @@ function Dashboard() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header com o Título e o Sino de Notificações */}
       <div className="flex items-center justify-between border-b px-4 py-4 sm:px-6 shrink-0 bg-card">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-        
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
+          Dashboard
+        </h1>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full border bg-background hover:bg-muted">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative h-9 w-9 rounded-full border bg-background hover:bg-muted"
+            >
               <Bell className="h-4 w-4" />
               {notifications.length > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse">
@@ -280,18 +297,27 @@ function Dashboard() {
               </div>
             ) : (
               notifications.map((n) => {
-                const Icon = n.type === "success" ? CheckCircle2 : n.type === "error" ? AlertTriangle : Info;
-                const iconColor = n.type === "success" ? "text-success" : n.type === "error" ? "text-destructive" : "text-primary";
+                const Icon =
+                  n.type === "success" ? CheckCircle2 : n.type === "error" ? AlertTriangle : Info;
+                const iconColor =
+                  n.type === "success"
+                    ? "text-success"
+                    : n.type === "error"
+                      ? "text-destructive"
+                      : "text-primary";
                 return (
-                  <DropdownMenuItem key={n.id} className="flex flex-col items-start p-3 focus:bg-muted/50 cursor-pointer gap-1">
+                  <DropdownMenuItem
+                    key={n.id}
+                    className="flex flex-col items-start p-3 focus:bg-muted/50 cursor-pointer gap-1"
+                  >
                     <div className="flex w-full items-start gap-2">
                       <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", iconColor)} />
                       <div className="flex-1 space-y-1">
                         <p className="text-xs font-semibold leading-none">{n.title}</p>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">{n.desc}</p>
-                        {n.date && (
-                          <p className="text-[9px] text-muted-foreground/60">{n.date}</p>
-                        )}
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          {n.desc}
+                        </p>
+                        {n.date && <p className="text-[9px] text-muted-foreground/60">{n.date}</p>}
                       </div>
                     </div>
                   </DropdownMenuItem>
@@ -308,41 +334,64 @@ function Dashboard() {
             {(() => {
               const graceDaysRemaining = Number(lic.data?.graceDaysRemaining ?? 3);
               return (
-            <Alert variant="destructive" className="border-destructive/35 bg-destructive/5 text-destructive flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
-                  <AlertTitle className="font-semibold text-sm">
-                    {lic.data?.isAccessAllowed === false 
-                      ? "Acesso Bloqueado — Licença Expirada ou Ausente" 
-                      : "Licença Inválida ou Expirada"}
-                  </AlertTitle>
-                  <AlertDescription className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                    {lic.data?.isAccessAllowed === false 
-                      ? "Sua instalação está sem uma licença ativa válida e o envio de mensagens foi suspenso. Por favor, regularize sua licença com o suporte para restabelecer o serviço imediatamente." 
-                      : `Sua instalação está sem uma licença ativa válida. Evite o bloqueio do envio de mensagens em até ${graceDaysRemaining} ${graceDaysRemaining === 1 ? 'dia' : 'dias'}. Entre em contato com o suporte.`}
-                  </AlertDescription>
-                </div>
-              </div>
-              <Button asChild size="sm" className="shrink-0 bg-[#25D366] hover:bg-[#1ebd56] text-white font-semibold gap-2 border-none shadow-sm transition-colors duration-200">
-                <a href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20a%20minha%20licen%C3%A7a%20do%20sistema." target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="shrink-0">
-                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.458L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.623-1.023-5.086-2.885-6.948C16.59 2.016 14.133.997 11.512.997 6.079.997 1.656 5.369 1.65 10.799c-.001 1.7.453 3.36 1.317 4.81l-.994 3.63 3.734-.974.36.214zM17.306 14.37c-.327-.164-1.938-.957-2.244-1.069-.306-.113-.528-.169-.749.162-.222.33-.86 1.069-1.055 1.293-.195.223-.39.248-.717.084a9.043 9.043 0 0 1-2.66-1.636 9.97 9.97 0 0 1-1.842-2.292c-.193-.328-.02-.505.143-.668.147-.146.327-.38.49-.57.164-.189.219-.324.327-.54.109-.217.055-.407-.027-.571-.082-.164-.75-1.809-1.028-2.48-.27-.65-.564-.56-.75-.56h-.638c-.222 0-.584.083-.89.416-.306.33-1.169 1.142-1.169 2.782 0 1.64 1.196 3.22 1.358 3.44.163.22 2.353 3.591 5.698 5.037.796.344 1.418.549 1.904.704.8.254 1.528.218 2.102.132.64-.096 1.938-.793 2.21-1.558.272-.765.272-1.422.19-1.557-.08-.134-.306-.217-.638-.38z"/>
-                  </svg>
-                  Falar com o Suporte
-                </a>
-              </Button>
-            </Alert>
+                <Alert
+                  variant="destructive"
+                  className="border-destructive/35 bg-destructive/5 text-destructive flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div>
+                      <AlertTitle className="font-semibold text-sm">
+                        {lic.data?.isAccessAllowed === false
+                          ? "Acesso Bloqueado — Licença Expirada ou Ausente"
+                          : "Licença Inválida ou Expirada"}
+                      </AlertTitle>
+                      <AlertDescription className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                        {lic.data?.isAccessAllowed === false
+                          ? "Sua instalação está sem uma licença ativa válida e o envio de mensagens foi suspenso. Por favor, regularize sua licença com o suporte para restabelecer o serviço imediatamente."
+                          : `Sua instalação está sem uma licença ativa válida. Evite o bloqueio do envio de mensagens em até ${graceDaysRemaining} ${graceDaysRemaining === 1 ? "dia" : "dias"}. Entre em contato com o suporte.`}
+                      </AlertDescription>
+                    </div>
+                  </div>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="shrink-0 bg-[#25D366] hover:bg-[#1ebd56] text-white font-semibold gap-2 border-none shadow-sm transition-colors duration-200"
+                  >
+                    <a
+                      href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20a%20minha%20licen%C3%A7a%20do%20sistema."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="currentColor"
+                        className="shrink-0"
+                      >
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.458L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.623-1.023-5.086-2.885-6.948C16.59 2.016 14.133.997 11.512.997 6.079.997 1.656 5.369 1.65 10.799c-.001 1.7.453 3.36 1.317 4.81l-.994 3.63 3.734-.974.36.214zM17.306 14.37c-.327-.164-1.938-.957-2.244-1.069-.306-.113-.528-.169-.749.162-.222.33-.86 1.069-1.055 1.293-.195.223-.39.248-.717.084a9.043 9.043 0 0 1-2.66-1.636 9.97 9.97 0 0 1-1.842-2.292c-.193-.328-.02-.505.143-.668.147-.146.327-.38.49-.57.164-.189.219-.324.327-.54.109-.217.055-.407-.027-.571-.082-.164-.75-1.809-1.028-2.48-.27-.65-.564-.56-.75-.56h-.638c-.222 0-.584.083-.89.416-.306.33-1.169 1.142-1.169 2.782 0 1.64 1.196 3.22 1.358 3.44.163.22 2.353 3.591 5.698 5.037.796.344 1.418.549 1.904.704.8.254 1.528.218 2.102.132.64-.096 1.938-.793 2.21-1.558.272-.765.272-1.422.19-1.557-.08-.134-.306-.217-.638-.38z" />
+                      </svg>
+                      Falar com o Suporte
+                    </a>
+                  </Button>
+                </Alert>
               );
             })()}
           </div>
         )}
 
         <section aria-labelledby="chat-metrics" className="p-4 sm:p-6 pb-0">
-          <h2 id="chat-metrics" className="sr-only">Métricas de Atendimento</h2>
+          <h2 id="chat-metrics" className="sr-only">
+            Métricas de Atendimento
+          </h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {chatStats.map((s, i) => (
-              <Card key={i} className="flex flex-col gap-2 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+              <Card
+                key={i}
+                className="flex flex-col gap-2 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+              >
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <s.icon className="h-4 w-4" aria-hidden />
                   <p className="truncate text-[10px] font-semibold uppercase tracking-wider">
@@ -357,8 +406,6 @@ function Dashboard() {
           </div>
         </section>
 
-
-
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 px-4 pb-6 sm:px-6">
           {/* Performance de Entrega */}
           <Card className="lg:col-span-2 p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
@@ -366,16 +413,17 @@ function Dashboard() {
               <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
                 PERFORMANCE DE ENTREGA
               </h3>
-              <p className="text-xs text-muted-foreground/60 mt-0.5">
-                Entrega vs. leitura
-              </p>
+              <p className="text-xs text-muted-foreground/60 mt-0.5">Entrega vs. leitura</p>
             </div>
 
             <div className="flex items-center justify-around py-4 flex-1">
               {/* Taxa de entrega */}
               <div className="flex flex-col items-center gap-2">
                 <div className="relative h-28 w-28 flex items-center justify-center">
-                  <svg className="absolute transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                  <svg
+                    className="absolute transform -rotate-90 w-full h-full"
+                    viewBox="0 0 100 100"
+                  >
                     <circle
                       cx="50"
                       cy="50"
@@ -407,7 +455,10 @@ function Dashboard() {
               {/* Taxa de leitura */}
               <div className="flex flex-col items-center gap-2">
                 <div className="relative h-28 w-28 flex items-center justify-center">
-                  <svg className="absolute transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                  <svg
+                    className="absolute transform -rotate-90 w-full h-full"
+                    viewBox="0 0 100 100"
+                  >
                     <circle
                       cx="50"
                       cy="50"
@@ -462,8 +513,15 @@ function Dashboard() {
                 const totalCampaigns = c.data?.length ?? s.data?.campaigns.current ?? 0;
                 const totalDelivered = s.data?.delivered.current ?? totals.delivered;
                 const totalFailed = totals.failed;
-                const maxVal = Math.max(totalContacts, totalTemplates, totalCampaigns, totalDelivered, totalFailed, 1);
-                
+                const maxVal = Math.max(
+                  totalContacts,
+                  totalTemplates,
+                  totalCampaigns,
+                  totalDelivered,
+                  totalFailed,
+                  1,
+                );
+
                 const pct = (item.value / maxVal) * 100;
                 const widthStyle = item.value > 0 ? `${Math.max(pct, 1.5)}%` : "0.5%";
                 return (
@@ -517,7 +575,14 @@ function Dashboard() {
                   read: n.read,
                   failed: n.failed,
                 };
-                const distKeys = ["pending", "sending", "sentOnly", "deliveredOnly", "read", "failed"];
+                const distKeys = [
+                  "pending",
+                  "sending",
+                  "sentOnly",
+                  "deliveredOnly",
+                  "read",
+                  "failed",
+                ];
                 return (
                   <Link
                     key={x.id}
@@ -549,7 +614,9 @@ function Dashboard() {
                       </div>
                     </div>
                     <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">Pendente:</span>
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">
+                        Pendente:
+                      </span>
                       {n.pending}
                     </div>
                     <div className="text-right text-sm tabular-nums md:col-span-1">
@@ -557,7 +624,9 @@ function Dashboard() {
                       {n.sent}
                     </div>
                     <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">Entregue:</span>
+                      <span className="md:hidden text-xs text-muted-foreground mr-1">
+                        Entregue:
+                      </span>
                       {n.delivered}
                     </div>
                     <div className="text-right text-sm tabular-nums md:col-span-1">

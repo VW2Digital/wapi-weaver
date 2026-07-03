@@ -68,6 +68,7 @@ If the remap succeeds: log `Codebase drift auto-remap completed for paths:
 {affected_paths}` and continue to `verify_phase_goal`.
 
 The two relevant config keys (continue on error / failure if either is invalid):
+
 - `workflow.drift_threshold` (integer, default 3) — minimum drift elements before action
 - `workflow.drift_action` — `warn` (default) or `auto-remap`
 

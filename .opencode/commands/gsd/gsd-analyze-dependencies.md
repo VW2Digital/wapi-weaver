@@ -2,13 +2,14 @@
 name: gsd-analyze-dependencies
 description: Analyze phase dependencies and suggest Depends on entries for ROADMAP.md
 permissions:
-   read: true
-   write: true
-   bash: true
-   glob: true
-   grep: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  glob: true
+  grep: true
+  question: true
 ---
+
 <objective>
 Analyze the phase dependency graph for the current milestone. For each phase pair, determine if there is a dependency relationship based on:
 - File overlap (phases that modify the same files must be ordered)

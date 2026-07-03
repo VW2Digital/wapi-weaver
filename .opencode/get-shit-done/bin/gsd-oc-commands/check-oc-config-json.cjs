@@ -11,10 +11,10 @@
  * Usage: node check-oc-config-json.cjs [cwd]
  */
 
-const fs = require('fs');
-const path = require('path');
-const { output, error } = require('../gsd-oc-lib/oc-core.cjs');
-const { getModelCatalog } = require('../gsd-oc-lib/oc-models.cjs');
+const fs = require("fs");
+const path = require("path");
+const { output, error } = require("../gsd-oc-lib/oc-core.cjs");
+const { getModelCatalog } = require("../gsd-oc-lib/oc-models.cjs");
 
 /**
  * Main command function
@@ -23,24 +23,24 @@ const { getModelCatalog } = require('../gsd-oc-lib/oc-models.cjs');
  * @param {string[]} args - Command line arguments
  */
 function checkOcConfigJson(cwd, args) {
-  const verbose = args.includes('--verbose');
-  const configPath = path.join(cwd, '.planning', 'oc_config.json');
+  const verbose = args.includes("--verbose");
+  const configPath = path.join(cwd, ".planning", "oc_config.json");
 
   // Check if oc_config.json exists
   if (!fs.existsSync(configPath)) {
-    error('.planning/oc_config.json not found', 'CONFIG_NOT_FOUND');
+    error(".planning/oc_config.json not found", "CONFIG_NOT_FOUND");
   }
 
   // read and parse config
   let config;
   try {
-    const content = fs.readFileSync(configPath, 'utf8');
+    const content = fs.readFileSync(configPath, "utf8");
     config = JSON.parse(content);
   } catch (err) {
     if (err instanceof SyntaxError) {
-      error('.planning/oc_config.json is not valid JSON', 'INVALID_JSON');
+      error(".planning/oc_config.json is not valid JSON", "INVALID_JSON");
     }
-    error(`Failed to read config: ${err.message}`, 'READ_FAILED');
+    error(`Failed to read config: ${err.message}`, "READ_FAILED");
   }
 
   const issues = [];
@@ -52,25 +52,25 @@ function checkOcConfigJson(cwd, args) {
   // Validate current_oc_profile field (required)
   if (currentOcProfile === undefined) {
     issues.push({
-      field: 'current_oc_profile',
-      value: '(missing)',
-      reason: 'current_oc_profile field is required'
+      field: "current_oc_profile",
+      value: "(missing)",
+      reason: "current_oc_profile field is required",
     });
-  } else if (presets && typeof presets === 'object' && !presets[currentOcProfile]) {
-    const availableProfiles = presets ? Object.keys(presets).join(', ') : 'none';
+  } else if (presets && typeof presets === "object" && !presets[currentOcProfile]) {
+    const availableProfiles = presets ? Object.keys(presets).join(", ") : "none";
     issues.push({
-      field: 'current_oc_profile',
+      field: "current_oc_profile",
       value: currentOcProfile,
-      reason: `Profile "${currentOcProfile}" not found in profiles.presets. Available: ${availableProfiles}`
+      reason: `Profile "${currentOcProfile}" not found in profiles.presets. Available: ${availableProfiles}`,
     });
   }
 
   // Validate profiles.presets section exists
-  if (!presets || typeof presets !== 'object') {
+  if (!presets || typeof presets !== "object") {
     issues.push({
-      field: 'profiles.presets',
-      value: '(missing or invalid)',
-      reason: 'profiles.presets section is required'
+      field: "profiles.presets",
+      value: "(missing or invalid)",
+      reason: "profiles.presets section is required",
     });
     const result = {
       success: false,
@@ -78,12 +78,12 @@ function checkOcConfigJson(cwd, args) {
         passed: false,
         current_oc_profile: currentOcProfile || null,
         profile_data: null,
-        issues
+        issues,
       },
       error: {
-        code: 'INVALID_PROFILE',
-        message: `${issues.length} invalid profile configuration(s) found`
-      }
+        code: "INVALID_PROFILE",
+        message: `${issues.length} invalid profile configuration(s) found`,
+      },
     };
     output(result);
     process.exit(1);
@@ -94,26 +94,26 @@ function checkOcConfigJson(cwd, args) {
     const profile = presets[currentOcProfile];
 
     // Validate that profile has required keys: planning, execution, verification
-    const requiredKeys = ['planning', 'execution', 'verification'];
+    const requiredKeys = ["planning", "execution", "verification"];
     for (const key of requiredKeys) {
       if (profile[key] === undefined) {
         issues.push({
           field: `profiles.presets.${currentOcProfile}.${key}`,
-          value: '(missing)',
-          reason: `${key} model is required for ${currentOcProfile} profile`
+          value: "(missing)",
+          reason: `${key} model is required for ${currentOcProfile} profile`,
         });
-      } else if (typeof profile[key] !== 'string') {
+      } else if (typeof profile[key] !== "string") {
         issues.push({
           field: `profiles.presets.${currentOcProfile}.${key}`,
           value: profile[key],
-          reason: `${key} must be a string model ID`
+          reason: `${key} must be a string model ID`,
         });
       }
     }
 
     // Validate model IDs against catalog
     if (verbose) {
-      console.error('[verbose] Fetching model catalog...');
+      console.error("[verbose] Fetching model catalog...");
     }
 
     const catalogResult = getModelCatalog();
@@ -125,19 +125,21 @@ function checkOcConfigJson(cwd, args) {
 
     if (verbose) {
       console.error(`[verbose] Found ${validModels.length} models in catalog`);
-      console.error('[verbose] Validating profile model IDs...');
+      console.error("[verbose] Validating profile model IDs...");
     }
 
     for (const key of requiredKeys) {
-      if (profile[key] && typeof profile[key] === 'string') {
+      if (profile[key] && typeof profile[key] === "string") {
         if (!validModels.includes(profile[key])) {
           issues.push({
             field: `profiles.presets.${currentOcProfile}.${key}`,
             value: profile[key],
-            reason: `Model ID not found in opencode models catalog`
+            reason: `Model ID not found in opencode models catalog`,
           });
         } else if (verbose) {
-          console.error(`[verbose] ✓ profiles.presets.${currentOcProfile}.${key}: ${profile[key]} (valid)`);
+          console.error(
+            `[verbose] ✓ profiles.presets.${currentOcProfile}.${key}: ${profile[key]} (valid)`,
+          );
         }
       }
     }
@@ -151,14 +153,14 @@ function checkOcConfigJson(cwd, args) {
       passed,
       current_oc_profile: currentOcProfile || null,
       profile_data: currentOcProfile && presets ? presets[currentOcProfile] : null,
-      issues
-    }
+      issues,
+    },
   };
 
   if (!passed) {
     result.error = {
-      code: 'INVALID_PROFILE',
-      message: `${issues.length} invalid profile configuration(s) found`
+      code: "INVALID_PROFILE",
+      message: `${issues.length} invalid profile configuration(s) found`,
     };
   }
 

@@ -47,6 +47,7 @@ The prompt provides:
 **Per-doc override:** If a classification has a non-null `precedence` integer, it overrides the default for that doc only. Lower integer = higher precedence.
 
 **LOCKED decisions:**
+
 - An ADR with `locked: true` produces decisions that cannot be auto-overridden by any source, including another LOCKED ADR.
 - **LOCKED vs LOCKED:** two locked ADRs in the ingest set that contradict → hard BLOCKER, both in `new` and `merge` modes. Never auto-resolve.
 - **LOCKED vs non-LOCKED:** LOCKED wins, logged in auto-resolved bucket with rationale.
@@ -69,6 +70,7 @@ If any classification is `UNKNOWN` with `low` confidence, note it — these will
 Build a directed graph from `cross_refs`. Run cycle detection (DFS with three-color marking).
 
 If cycles exist:
+
 - Record each cycle as an unresolved-blocker entry
 - Do NOT proceed with synthesis on the cyclic set — synthesis loops produce garbage
 - Docs outside the cycle may still be synthesized
@@ -110,10 +112,11 @@ Walk the extracted intel to find conflicts. Apply precedence rules to classify e
 7. **Cycle-detection blockers** (from previous step) — `unresolved-blockers`
 
 Apply the `doc-conflict-engine` severity semantics:
+
 - `unresolved-blockers` maps to [BLOCKER] — gate the workflow
 - `competing-variants` maps to [WARNING] — user must pick before routing
 - `auto-resolved` maps to [INFO] — recorded for transparency
-</step>
+  </step>
 
 <step name="write_conflicts_report">
 write `CONFLICTS_PATH` using the format from `references/doc-conflict-engine.md`. Three buckets, plain text, no tables.
@@ -189,6 +192,7 @@ Do NOT dump intel contents. The orchestrator reads the files directly.
 
 <anti_patterns>
 Do NOT:
+
 - Pick a winner between two LOCKED ADRs — always BLOCK
 - Merge competing PRD acceptance criteria into a single "combined" criterion — preserve all variants
 - write PROJECT.md, REQUIREMENTS.md, ROADMAP.md, or STATE.md — those are the roadmapper's job
@@ -196,9 +200,10 @@ Do NOT:
 - Use markdown tables in the conflicts report — violates the doc-conflict-engine contract
 - Auto-resolve by filename order, timestamp, or arbitrary tiebreaker — precedence rules only
 - Silently drop `UNKNOWN`-confidence-low docs — they must surface as blockers
-</anti_patterns>
+  </anti_patterns>
 
 <success_criteria>
+
 - [ ] All classifications in CLASSIFICATIONS_DIR consumed
 - [ ] Cycle detection run on cross-ref graph
 - [ ] Per-type intel files written to INTEL_DIR
@@ -207,4 +212,4 @@ Do NOT:
 - [ ] LOCKED-vs-LOCKED contradictions surface as BLOCKERs, never auto-resolved
 - [ ] Competing acceptance variants preserved, never merged
 - [ ] Confirmation returned (≤ 10 lines)
-</success_criteria>
+      </success_criteria>

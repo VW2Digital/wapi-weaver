@@ -2,14 +2,15 @@
 name: gsd-explore
 description: Socratic ideation and idea routing — think through ideas before committing to plans
 permissions:
-   read: true
-   write: true
-   bash: true
-   grep: true
-   glob: true
-   task: true
-   question: true
+  read: true
+  write: true
+  bash: true
+  grep: true
+  glob: true
+  task: true
+  question: true
 ---
+
 <objective>
 Open-ended Socratic ideation session. Guides the developer through exploring an idea via
 probing questions, optionally spawns research, then routes outputs to the appropriate GSD

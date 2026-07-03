@@ -34,10 +34,12 @@ if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
 
 Check `roadmap_exists` from init JSON. If false:
+
 ```
 ERROR: No roadmap found (.planning/ROADMAP.md)
 Run /gsd-new-project to initialize.
 ```
+
 Exit.
 </step>
 
@@ -49,6 +51,7 @@ RESULT=$(gsd-sdk query phase.add "${description}")
 ```
 
 The CLI handles:
+
 - Finding the highest existing integer phase number
 - Calculating next phase number (max + 1)
 - Generating slug from description
@@ -99,14 +102,16 @@ Roadmap updated: .planning/ROADMAP.md
 
 ---
 ```
+
 </step>
 
 </process>
 
 <success_criteria>
+
 - [ ] `gsd-sdk query phase.add` executed successfully
 - [ ] Phase directory created
 - [ ] Roadmap updated with new phase entry
 - [ ] STATE.md updated with roadmap evolution note
 - [ ] User informed of next steps
-</success_criteria>
+      </success_criteria>

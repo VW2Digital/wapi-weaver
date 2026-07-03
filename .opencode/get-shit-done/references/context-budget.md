@@ -20,10 +20,10 @@ Every workflow that spawns agents or reads significant content must follow these
 
 ## read Depth by Context Window
 
-| Context Window | Subagent Output Reading | SUMMARY.md | VERIFICATION.md | PLAN.md (other phases) |
-|---------------|------------------------|------------|-----------------|------------------------|
-| < 500k (200k model) | Frontmatter only | Frontmatter only | Frontmatter only | Current phase only |
-| >= 500k (1M model) | Full body permitted | Full body permitted | Full body permitted | Current phase only |
+| Context Window      | Subagent Output Reading | SUMMARY.md          | VERIFICATION.md     | PLAN.md (other phases) |
+| ------------------- | ----------------------- | ------------------- | ------------------- | ---------------------- |
+| < 500k (200k model) | Frontmatter only        | Frontmatter only    | Frontmatter only    | Current phase only     |
+| >= 500k (1M model)  | Full body permitted     | Full body permitted | Full body permitted | Current phase only     |
 
 **How to check:** read `.planning/config.json` and inspect `context_window`. If the field is absent, treat as 200k (conservative default).
 
@@ -31,12 +31,12 @@ Every workflow that spawns agents or reads significant content must follow these
 
 Monitor context usage and adjust behavior accordingly:
 
-| Tier | Usage | Behavior |
-|------|-------|----------|
-| PEAK | 0-30% | Full operations. read bodies, spawn multiple agents, inline results. |
-| GOOD | 30-50% | Normal operations. Prefer frontmatter reads, delegate aggressively. |
-| DEGRADING | 50-70% | Economize. Frontmatter-only reads, minimal inlining, warn user about budget. |
-| POOR | 70%+ | Emergency mode. Checkpoint progress immediately. No new reads unless critical. |
+| Tier      | Usage  | Behavior                                                                       |
+| --------- | ------ | ------------------------------------------------------------------------------ |
+| PEAK      | 0-30%  | Full operations. read bodies, spawn multiple agents, inline results.           |
+| GOOD      | 30-50% | Normal operations. Prefer frontmatter reads, delegate aggressively.            |
+| DEGRADING | 50-70% | Economize. Frontmatter-only reads, minimal inlining, warn user about budget.   |
+| POOR      | 70%+   | Emergency mode. Checkpoint progress immediately. No new reads unless critical. |
 
 ## Context Degradation Warning Signs
 

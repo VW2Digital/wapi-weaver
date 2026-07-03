@@ -17,10 +17,10 @@ Return:
 **Phase:** {phase-name}
 **Plans:** {N} plan(s) in {M} wave(s)
 
-| Plan ID | Objective | Wave | Depends On | Requirements |
-|---------|-----------|------|-----------|-------------|
-| {padded_phase}-01 | [brief objective] | 1 | none | REQ-001, REQ-002 |
-| {padded_phase}-02 | [brief objective] | 1 | none | REQ-003 |
+| Plan ID           | Objective         | Wave | Depends On | Requirements     |
+| ----------------- | ----------------- | ---- | ---------- | ---------------- |
+| {padded_phase}-01 | [brief objective] | 1    | none       | REQ-001, REQ-002 |
+| {padded_phase}-02 | [brief objective] | 1    | none       | REQ-003          |
 ```
 
 The orchestrator reads this table, then spawns one single-plan task per row.

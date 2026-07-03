@@ -39,6 +39,7 @@ passes. This creates a self-feeding loop where each pass generates references
 that the next pass treats as gaps, consuming unbounded time and resources.
 
 Check the pass cap from config:
+
 ```bash
 MAX_PASSES=$(gsd-sdk query config-get workflow.max_discuss_passes 2>/dev/null || echo "3")
 ```

@@ -7,6 +7,7 @@ Standard pattern for iterative agent revision with feedback. Used when a checker
 ## Pattern: Check-Revise-Escalate (max 3 iterations)
 
 This pattern applies whenever:
+
 1. An agent produces output (plans, imports, gap-closure plans)
 2. A checker/validator evaluates that output
 3. Issues are found that need revision
@@ -74,18 +75,18 @@ If issues persist after 3 revision cycles:
    question: "Issues remain after 3 revision attempts. Proceed with current output?"
    header: "Proceed?"
    options:
-     - label: "Proceed anyway"   description: "Accept output with remaining issues"
-     - label: "Adjust approach"  description: "Discuss a different approach"
+   - label: "Proceed anyway" description: "Accept output with remaining issues"
+   - label: "Adjust approach" description: "Discuss a different approach"
 3. If "Proceed anyway": accept current output and continue
 4. If "Adjust approach" or "Other": discuss with user, then re-enter the producing step with updated context
 
 ### Workflow-Specific Variations
 
-| Workflow | Producer Agent | Checker Agent | Notes |
-|----------|---------------|---------------|-------|
-| plan-phase | gsd-planner | gsd-plan-checker | Revision prompt via planner-revision.md |
-| execute-phase | gsd-executor | gsd-verifier | Post-execution verification |
-| discuss-phase | orchestrator | gsd-plan-checker | Inline revision by orchestrator |
+| Workflow      | Producer Agent | Checker Agent    | Notes                                   |
+| ------------- | -------------- | ---------------- | --------------------------------------- |
+| plan-phase    | gsd-planner    | gsd-plan-checker | Revision prompt via planner-revision.md |
+| execute-phase | gsd-executor   | gsd-verifier     | Post-execution verification             |
+| discuss-phase | orchestrator   | gsd-plan-checker | Inline revision by orchestrator         |
 
 ---
 

@@ -4,9 +4,9 @@
  * Provides functions for fetching and validating model IDs against opencode models output.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
 
 /**
  * Fetch model catalog from opencode models command
@@ -15,28 +15,28 @@ const { execSync } = require('child_process');
  */
 function getModelCatalog() {
   try {
-    const output = execSync('opencode models', {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe']
+    const output = execSync("opencode models", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     // Parse output (one model per line)
     const models = output
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
     return {
       success: true,
-      models
+      models,
     };
   } catch (err) {
     return {
       success: false,
       error: {
-        code: 'FETCH_FAILED',
-        message: `Failed to fetch model catalog: ${err.message}`
-      }
+        code: "FETCH_FAILED",
+        message: `Failed to fetch model catalog: ${err.message}`,
+      },
     };
   }
 }
@@ -55,7 +55,7 @@ function validateModelIds(opencodePath, validModels) {
   let invalidCount = 0;
 
   try {
-    const content = fs.readFileSync(opencodePath, 'utf8');
+    const content = fs.readFileSync(opencodePath, "utf8");
     const opencodeData = JSON.parse(content);
 
     // Look for agent model assignments
@@ -63,22 +63,22 @@ function validateModelIds(opencodePath, validModels) {
     const assignments = [];
 
     // Check for agents at root level
-    if (opencodeData.agent && typeof opencodeData.agent === 'object') {
+    if (opencodeData.agent && typeof opencodeData.agent === "object") {
       Object.entries(opencodeData.agent).forEach(([agentName, config]) => {
-        if (typeof config === 'string') {
+        if (typeof config === "string") {
           assignments.push({ agent: `agent.${agentName}`, model: config });
-        } else if (config && typeof config === 'object' && config.model) {
+        } else if (config && typeof config === "object" && config.model) {
           assignments.push({ agent: `agent.${agentName}`, model: config.model });
         }
       });
     }
 
     // Check for profiles
-    if (opencodeData.profiles && typeof opencodeData.profiles === 'object') {
+    if (opencodeData.profiles && typeof opencodeData.profiles === "object") {
       Object.entries(opencodeData.profiles).forEach(([profileName, config]) => {
-        if (config && typeof config === 'object') {
+        if (config && typeof config === "object") {
           Object.entries(config).forEach(([key, value]) => {
-            if (key.includes('model') && typeof value === 'string') {
+            if (key.includes("model") && typeof value === "string") {
               assignments.push({ agent: `profiles.${profileName}.${key}`, model: value });
             }
           });
@@ -87,9 +87,9 @@ function validateModelIds(opencodePath, validModels) {
     }
 
     // Check for models at root level
-    if (opencodeData.models && typeof opencodeData.models === 'object') {
+    if (opencodeData.models && typeof opencodeData.models === "object") {
       Object.entries(opencodeData.models).forEach(([modelName, modelId]) => {
-        if (typeof modelId === 'string') {
+        if (typeof modelId === "string") {
           assignments.push({ agent: `models.${modelName}`, model: modelId });
         }
       });
@@ -105,7 +105,7 @@ function validateModelIds(opencodePath, validModels) {
         issues.push({
           agent,
           model,
-          reason: 'Model ID not found in opencode models catalog'
+          reason: "Model ID not found in opencode models catalog",
         });
       }
     }
@@ -115,13 +115,13 @@ function validateModelIds(opencodePath, validModels) {
       total,
       validCount,
       invalidCount,
-      issues
+      issues,
     };
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      throw new Error('CONFIG_NOT_FOUND');
+    if (err.code === "ENOENT") {
+      throw new Error("CONFIG_NOT_FOUND");
     } else if (err instanceof SyntaxError) {
-      throw new Error('INVALID_JSON');
+      throw new Error("INVALID_JSON");
     }
     throw err;
   }
@@ -129,5 +129,5 @@ function validateModelIds(opencodePath, validModels) {
 
 module.exports = {
   getModelCatalog,
-  validateModelIds
+  validateModelIds,
 };

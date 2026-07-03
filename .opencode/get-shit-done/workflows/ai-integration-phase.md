@@ -2,6 +2,7 @@
 Generate an AI design contract (AI-SPEC.md) for phases that involve building AI systems. Orchestrates gsd-framework-selector → gsd-ai-researcher → gsd-domain-researcher → gsd-eval-planner with a validation gate. Inserts between discuss-phase and plan-phase in the GSD lifecycle.
 
 AI-SPEC.md locks four things before the planner creates tasks:
+
 1. Framework selection (with rationale and alternatives)
 2. Implementation guidance (correct syntax, patterns, pitfalls from official docs)
 3. Domain context (practitioner rubric ingredients, failure modes, regulatory constraints)
@@ -29,6 +30,7 @@ Parse JSON for: `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded
 **File paths:** `state_path`, `roadmap_path`, `requirements_path`, `context_path`.
 
 Resolve agent models:
+
 ```bash
 SELECTOR_MODEL=$(gsd-sdk query resolve-model gsd-framework-selector 2>/dev/null | jq -r '.model' 2>/dev/null || true)
 RESEARCHER_MODEL=$(gsd-sdk query resolve-model gsd-ai-researcher 2>/dev/null | jq -r '.model' 2>/dev/null || true)
@@ -37,14 +39,17 @@ PLANNER_MODEL=$(gsd-sdk query resolve-model gsd-eval-planner 2>/dev/null | jq -r
 ```
 
 Check config:
+
 ```bash
 AI_PHASE_ENABLED=$(gsd-sdk query config-get workflow.ai_integration_phase 2>/dev/null || echo "true")
 ```
 
 **If `AI_PHASE_ENABLED` is `false`:**
+
 ```
 AI phase is disabled in config. Enable via /gsd-settings.
 ```
+
 Exit workflow.
 
 **If `planning_exists` is false:** Error — run `/gsd-new-project` first.
@@ -62,11 +67,13 @@ PHASE_INFO=$(gsd-sdk query roadmap.get-phase "${PHASE}")
 ## 3. Check Prerequisites
 
 **If `has_context` is false:**
+
 ```
 No CONTEXT.md found for Phase {N}.
 Recommended: run /gsd-discuss-phase {N} first to capture framework preferences.
 Continuing without user decisions — framework selector will ask all questions.
 ```
+
 Continue (non-blocking).
 
 ## 4. Check Existing AI-SPEC
@@ -75,9 +82,9 @@ Continue (non-blocking).
 AI_SPEC_FILE=$(ls "${PHASE_DIR}"/*-AI-SPEC.md 2>/dev/null | head -1)
 ```
 
-
 **Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `question` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-OpenCode runtimes (OpenAI Codex, Gemini CLI, etc.) where `question` is not available.
 **If exists:** Use question:
+
 - header: "Existing AI-SPEC"
 - question: "AI-SPEC.md already exists for Phase {N}. What would you like to do?"
 - options:
@@ -92,6 +99,7 @@ If "Update": continue to step 5.
 ## 5. Spawn gsd-framework-selector
 
 Display:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► AI DESIGN CONTRACT — PHASE {N}: {name}
@@ -101,6 +109,7 @@ Display:
 ```
 
 Spawn `gsd-framework-selector` with:
+
 ```markdown
 read ./.opencode/agents/gsd-framework-selector.md for instructions.
 
@@ -127,11 +136,13 @@ Parse selector output for: `primary_framework`, `system_type`, `model_provider`,
 ## 6. Initialize AI-SPEC.md
 
 Copy template:
+
 ```bash
 cp "./.opencode/get-shit-done/templates/AI-SPEC.md" "${PHASE_DIR}/${PADDED_PHASE}-AI-SPEC.md"
 ```
 
 Fill in header fields:
+
 - Phase number and name
 - System classification (from selector)
 - Selected framework (from selector)
@@ -140,11 +151,13 @@ Fill in header fields:
 ## 7. Spawn gsd-ai-researcher
 
 Display:
+
 ```
 ◆ Step 2/4 — Researching {primary_framework} docs + AI systems best practices...
 ```
 
 Spawn `gsd-ai-researcher` with:
+
 ```markdown
 read ./.opencode/agents/gsd-ai-researcher.md for instructions.
 
@@ -170,11 +183,13 @@ phase_context: Phase {phase_number}: {phase_name} — {phase_goal}
 ## 8. Spawn gsd-domain-researcher
 
 Display:
+
 ```
 ◆ Step 3/4 — Researching domain context and expert evaluation criteria...
 ```
 
 Spawn `gsd-domain-researcher` with:
+
 ```markdown
 read ./.opencode/agents/gsd-domain-researcher.md for instructions.
 
@@ -200,11 +215,13 @@ ai_spec_path: {ai_spec_path}
 ## 9. Spawn gsd-eval-planner
 
 Display:
+
 ```
 ◆ Step 4/4 — Designing evaluation strategy from domain + technical context...
 ```
 
 Spawn `gsd-eval-planner` with:
+
 ```markdown
 read ./.opencode/agents/gsd-eval-planner.md for instructions.
 
@@ -233,6 +250,7 @@ ai_spec_path: {ai_spec_path}
 ## 10. Validate AI-SPEC Completeness
 
 read the completed AI-SPEC.md. Check that:
+
 - Section 2 has a framework name (not placeholder)
 - Section 1b has at least one domain rubric ingredient (Good/Bad/Stakes)
 - Section 3 has a non-empty code block (entry point pattern)
@@ -246,6 +264,7 @@ read the completed AI-SPEC.md. Check that:
 ## 11. Commit
 
 **If `commit_docs` is true:**
+
 ```bash
 git add "${AI_SPEC_FILE}"
 git commit -m "docs({phase_slug}): generate AI-SPEC.md — {primary_framework} + domain context + eval strategy"
@@ -272,6 +291,7 @@ Next step:
 </process>
 
 <success_criteria>
+
 - [ ] Framework selected with rationale (Section 2)
 - [ ] AI-SPEC.md created from template
 - [ ] Framework docs + AI best practices researched (Sections 3, 4, 4b populated)
@@ -281,4 +301,4 @@ Next step:
 - [ ] AI-SPEC.md validated (Sections 1b, 2, 3, 4b, 5, 6 all non-empty)
 - [ ] Committed if commit_docs enabled
 - [ ] Next step surfaced to user
-</success_criteria>
+      </success_criteria>

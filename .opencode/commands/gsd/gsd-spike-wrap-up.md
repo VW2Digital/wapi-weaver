@@ -2,14 +2,15 @@
 name: gsd-spike-wrap-up
 description: Package spike findings into a persistent project skill for future build conversations
 permissions:
-   read: true
-   write: true
-   edit: true
-   bash: true
-   grep: true
-   glob: true
-   question: true
+  read: true
+  write: true
+  edit: true
+  bash: true
+  grep: true
+  glob: true
+  question: true
 ---
+
 <objective>
 Curate spike experiment findings and package them into a persistent project skill that OpenCode
 auto-loads in future build conversations. Also writes a summary to `.planning/spikes/` for

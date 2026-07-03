@@ -145,7 +145,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                           external_contact_id: senderId,
                           source: "instagram",
                         },
-                        { onConflict: "user_id,channel,external_contact_id" }
+                        { onConflict: "user_id,channel,external_contact_id" },
                       )
                       .select("id")
                       .single();
@@ -166,7 +166,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                         status: "delivered",
                         metadata: { raw: item },
                       },
-                      { onConflict: "user_id,channel,provider_message_id" }
+                      { onConflict: "user_id,channel,provider_message_id" },
                     );
 
                     // 3. Chamar executor do Bot
