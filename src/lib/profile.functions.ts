@@ -5,6 +5,51 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 import crypto from "crypto";
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getStringField(source: Record<string, unknown> | null, key: string) {
+  const value = source?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function getBooleanField(source: Record<string, unknown> | null, key: string) {
+  const value = source?.[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function getMetaErrorMessage(body: unknown, fallback: string) {
+  const bodyRecord = asRecord(body);
+  const errorRecord = asRecord(bodyRecord?.error);
+  return getStringField(errorRecord, "message") ?? fallback;
+}
+
+interface CoexistencePhoneInfo {
+  id: string | null;
+  display_phone_number: string | null;
+  verified_name: string | null;
+  status: string | null;
+  quality_rating: string | null;
+  platform_type: string | null;
+  is_on_biz_app: boolean | null;
+}
+
+function normalizeCoexistencePhoneInfo(body: unknown): CoexistencePhoneInfo {
+  const record = asRecord(body);
+  return {
+    id: getStringField(record, "id") ?? null,
+    display_phone_number: getStringField(record, "display_phone_number") ?? null,
+    verified_name: getStringField(record, "verified_name") ?? null,
+    status: getStringField(record, "status") ?? null,
+    quality_rating: getStringField(record, "quality_rating") ?? null,
+    platform_type: getStringField(record, "platform_type") ?? null,
+    is_on_biz_app: getBooleanField(record, "is_on_biz_app") ?? null,
+  };
+}
+
 const credSchema = z.object({
   whatsapp_phone_number_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_waba_id: z.string().trim().max(64).nullable().optional(),
@@ -96,7 +141,7 @@ export const pingMeta = createServerFn({ method: "POST" })
     }
     const apiVersion = p.meta_graph_version || "v20.0";
     const fields =
-      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type";
+      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type,is_on_biz_app";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}?fields=${fields}`,
       {
@@ -106,6 +151,124 @@ export const pingMeta = createServerFn({ method: "POST" })
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao consultar Meta" };
     return { ok: true, info: body };
+  });
+
+async function requestSmbAppDataSync(
+  accessToken: string,
+  apiVersion: string,
+  phoneId: string,
+  syncType: "smb_app_state_sync" | "history",
+) {
+  const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneId}/smb_app_data`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      sync_type: syncType,
+    }),
+  });
+
+  const body: unknown = await response.json();
+  if (!response.ok) {
+    return {
+      ok: false as const,
+      error: getMetaErrorMessage(body, "Falha ao iniciar sincronização SMB App Data"),
+    };
+  }
+
+  const bodyRecord = asRecord(body);
+  return {
+    ok: true as const,
+    request_id: getStringField(bodyRecord, "request_id") ?? null,
+  };
+}
+
+export const getCoexistencePhoneStatus = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z
+      .object({
+        phoneId: z.string().trim().min(5).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const phoneId = data.phoneId || p?.whatsapp_phone_number_id;
+    if (!phoneId || !p?.whatsapp_access_token) {
+      return { ok: false, error: "Credenciais não configuradas" };
+    }
+
+    const apiVersion = p.meta_graph_version || "v20.0";
+    const fields =
+      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type,is_on_biz_app";
+    const response = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${phoneId}?fields=${fields}`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
+    const body: unknown = await response.json();
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: getMetaErrorMessage(body, "Falha ao consultar status de coexistência"),
+      };
+    }
+
+    return { ok: true, info: normalizeCoexistencePhoneInfo(body) };
+  });
+
+export const syncCoexistenceContacts = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    return requestSmbAppDataSync(
+      p.whatsapp_access_token,
+      p.meta_graph_version || "v20.0",
+      data.phoneId,
+      "smb_app_state_sync",
+    );
+  });
+
+export const syncCoexistenceHistory = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    return requestSmbAppDataSync(
+      p.whatsapp_access_token,
+      p.meta_graph_version || "v20.0",
+      data.phoneId,
+      "history",
+    );
   });
 
 export const sendTestMessage = createServerFn({ method: "POST" })
@@ -121,7 +284,10 @@ export const sendTestMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const isInstagram = data.to.startsWith("ig_");
     if (isInstagram) {
-      return { ok: false, error: "Teste de envio não suportado para Instagram. Use o chat para testar." };
+      return {
+        ok: false,
+        error: "Teste de envio não suportado para Instagram. Use o chat para testar.",
+      };
     }
     const { data: p } = await context.db
       .from("profiles")
@@ -167,7 +333,10 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
   .validator((d) => z.object({ to: z.string().trim().min(5).max(40) }).parse(d))
   .handler(async ({ data, context }) => {
     if (data.to.startsWith("ig_")) {
-      return { ok: false, error: "Hello World não suportado para Instagram. Use o chat para testar." };
+      return {
+        ok: false,
+        error: "Hello World não suportado para Instagram. Use o chat para testar.",
+      };
     }
     const { data: p } = await context.db
       .from("profiles")
@@ -587,7 +756,7 @@ export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
 
     const apiVersion = p.meta_graph_version || "v20.0";
     const fields =
-      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type";
+      "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type,is_on_biz_app";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.wabaId}/phone_numbers?fields=${fields}`,
       {
@@ -1487,7 +1656,16 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
       `INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, access_token, app_id, app_secret, token_expires_at, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
        ON DUPLICATE KEY UPDATE username = VALUES(username), access_token = VALUES(access_token), app_id = VALUES(app_id), app_secret = VALUES(app_secret), token_expires_at = VALUES(token_expires_at), status = 'active'`,
-      [id, context.userId, data.ig_user_id, data.username, data.access_token, data.app_id || null, data.app_secret || null, data.token_expires_at || null],
+      [
+        id,
+        context.userId,
+        data.ig_user_id,
+        data.username,
+        data.access_token,
+        data.app_id || null,
+        data.app_secret || null,
+        data.token_expires_at || null,
+      ],
     );
     return { ok: true };
   });

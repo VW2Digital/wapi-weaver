@@ -97,6 +97,8 @@ interface WebhookMessageContactCard {
 interface WebhookInboundMessage {
   id?: string;
   from?: string;
+  to?: string;
+  timestamp?: string;
   type?: string;
   group_id?: string | null;
   group_name?: string | null;
@@ -139,13 +141,17 @@ interface WebhookInboundMessage {
 }
 
 interface WebhookValue {
+  messaging_product?: string;
   metadata?: {
     phone_number_id?: string;
     display_phone_number?: string;
   };
   statuses?: WebhookMessageStatus[];
   messages?: WebhookInboundMessage[];
+  message_echoes?: WebhookInboundMessage[];
   contacts?: WebhookContact[];
+  state_sync?: WebhookStateSyncItem[];
+  history?: WebhookHistorySyncItem[];
   message_template_id?: string;
   message_template_name?: string;
   message_template_language?: string;
@@ -177,6 +183,85 @@ interface ContactLookupRow extends ProfileIdRow {
 }
 
 type GroupParticipantRow = ProfileIdRow;
+type DirectMessageDirection = "incoming" | "outgoing";
+type DirectMessageType =
+  | "text"
+  | "reaction"
+  | "image"
+  | "audio"
+  | "video"
+  | "document"
+  | "sticker"
+  | "location"
+  | "contacts";
+
+interface WebhookStateSyncItem {
+  type?: string;
+  action?: string;
+  contact?: {
+    full_name?: string;
+    first_name?: string;
+    phone_number?: string;
+  };
+  metadata?: {
+    timestamp?: string;
+  };
+}
+
+interface WebhookHistorySyncItem {
+  metadata?: {
+    phase?: number;
+    chunk_order?: number;
+    progress?: number;
+  };
+  threads?: WebhookHistoryThread[];
+  errors?: WebhookHistoryError[];
+}
+
+interface WebhookHistoryThread {
+  id?: string;
+  messages?: WebhookHistoryMessage[];
+}
+
+interface WebhookHistoryMessage extends WebhookInboundMessage {
+  history_context?: {
+    status?: string;
+  };
+}
+
+interface WebhookHistoryError {
+  code?: number;
+  title?: string;
+  message?: string;
+  error_data?: {
+    details?: string;
+  };
+}
+
+interface EnsureWhatsAppContactOptions {
+  userId: string;
+  phoneDigits: string;
+  contactName?: string | null;
+  source?: string;
+  markUnread?: boolean;
+  phoneNumberId?: string | null;
+  displayPhoneNumber?: string | null;
+  waId?: string | null;
+  extraCustomFields?: JsonObject;
+}
+
+interface EnsureWhatsAppContactResult {
+  existingContact: ContactLookupRow | null;
+  contactId: string | null;
+  nextChatStatus: string | null;
+}
+
+interface ResolvedDirectMessageContent {
+  type: DirectMessageType;
+  body: string;
+  buttonPayload: string;
+  isHistoryMediaPlaceholder: boolean;
+}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -232,6 +317,192 @@ function getJsonString(source: JsonObject | null, key: string): string | undefin
 function getNestedJsonObject(source: JsonObject | null, key: string): JsonObject | null {
   const value = source?.[key];
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : null;
+}
+
+function normalizePhoneDigits(value: string | null | undefined) {
+  return value ? value.replace(/\D+/g, "") : "";
+}
+
+function toIsoFromUnixTimestamp(value: string | undefined) {
+  if (!value) return null;
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+  return new Date(timestamp * 1000).toISOString();
+}
+
+function mapHistoryStatusToDirectStatus(status: string | undefined) {
+  const normalizedStatus = (status ?? "").toUpperCase();
+  if (normalizedStatus === "READ" || normalizedStatus === "PLAYED") {
+    return "read" as const;
+  }
+  if (normalizedStatus === "DELIVERED") {
+    return "delivered" as const;
+  }
+  if (normalizedStatus === "ERROR") {
+    return "failed" as const;
+  }
+  return "sent" as const;
+}
+
+function resolveDirectMessageContent(message: WebhookInboundMessage): ResolvedDirectMessageContent {
+  let type: DirectMessageType = "text";
+  const allowedTypes = new Set<DirectMessageType>([
+    "text",
+    "reaction",
+    "image",
+    "audio",
+    "video",
+    "document",
+    "sticker",
+    "location",
+    "contacts",
+  ]);
+  const rawType = message.type ?? "text";
+  if (allowedTypes.has(rawType as DirectMessageType)) {
+    type = rawType as DirectMessageType;
+  }
+
+  let body = "";
+  let buttonPayload = "";
+  let isHistoryMediaPlaceholder = false;
+
+  if (message.type === "text") {
+    body = message.text?.body ?? "";
+  } else if (message.type === "reaction") {
+    body = message.reaction?.emoji ?? "";
+  } else if (message.type === "image") {
+    body = message.image?.id ?? "";
+  } else if (message.type === "audio") {
+    body = message.audio?.id ?? "";
+  } else if (message.type === "video") {
+    body = message.video?.id ?? "";
+  } else if (message.type === "document") {
+    body = message.document?.id ?? "";
+  } else if (message.type === "sticker") {
+    body = message.sticker?.id ?? "";
+  } else if (message.type === "location") {
+    body =
+      message.location?.name || `${message.location?.latitude}, ${message.location?.longitude}`;
+  } else if (message.type === "contacts") {
+    body =
+      message.contacts?.[0]?.name?.formatted_name ||
+      message.contacts?.[0]?.phones?.[0]?.phone ||
+      "Contato";
+  } else if (message.type === "button") {
+    body = message.button?.text ?? "[Botão]";
+    buttonPayload = message.button?.payload ?? "";
+  } else if (message.type === "interactive") {
+    body =
+      message.interactive?.button_reply?.title ??
+      message.interactive?.list_reply?.title ??
+      "[Interação recebida]";
+    buttonPayload =
+      message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id ?? "";
+  } else if (message.type === "media_placeholder") {
+    body = "[Mídia histórica sincronizada]";
+    type = "text";
+    isHistoryMediaPlaceholder = true;
+  } else {
+    body = `[Mensagem de tipo ${message.type} recebida]`;
+    type = "text";
+  }
+
+  return { type, body, buttonPayload, isHistoryMediaPlaceholder };
+}
+
+function resolveHistoryDirection(
+  message: WebhookHistoryMessage,
+  businessPhoneDigits: string,
+  contactPhone: string,
+): DirectMessageDirection {
+  const fromDigits = normalizePhoneDigits(message.from);
+  if (businessPhoneDigits && fromDigits && fromDigits === businessPhoneDigits) {
+    return "outgoing";
+  }
+  if (contactPhone && fromDigits && fromDigits === contactPhone) {
+    return "incoming";
+  }
+  return "incoming";
+}
+
+async function ensureWhatsAppContact(
+  options: EnsureWhatsAppContactOptions,
+): Promise<EnsureWhatsAppContactResult> {
+  const {
+    userId,
+    phoneDigits,
+    contactName,
+    source,
+    markUnread = false,
+    phoneNumberId,
+    displayPhoneNumber,
+    waId,
+    extraCustomFields,
+  } = options;
+
+  const { data } = await dbAdmin
+    .from("contacts")
+    .select("id, name, custom_fields, chat_status")
+    .eq("user_id", userId)
+    .eq("phone_e164", phoneDigits)
+    .maybeSingle();
+
+  const existingContact = (data ?? null) as ContactLookupRow | null;
+  const parsedCustomFields = parseJsonObject(existingContact?.custom_fields);
+  const nextCustomFields: JsonObject = parsedCustomFields ? { ...parsedCustomFields } : {};
+
+  if (waId) nextCustomFields.wa_id = waId;
+  if (phoneNumberId) nextCustomFields.phone_number_id = phoneNumberId;
+  if (displayPhoneNumber) nextCustomFields.display_phone_number = displayPhoneNumber;
+  if (extraCustomFields) {
+    for (const [key, value] of Object.entries(extraCustomFields)) {
+      nextCustomFields[key] = value;
+    }
+  }
+
+  const nextChatStatus =
+    markUnread &&
+    (!existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado")
+      ? "aguardando"
+      : null;
+
+  const contactPayload = {
+    name: contactName || existingContact?.name || undefined,
+    source: source ?? undefined,
+    is_unread: markUnread ? true : undefined,
+    chat_status: nextChatStatus ?? undefined,
+    custom_fields: Object.keys(nextCustomFields).length > 0 ? nextCustomFields : undefined,
+  };
+
+  if (existingContact?.id) {
+    await dbAdmin.from("contacts").update(contactPayload).eq("id", existingContact.id);
+  } else {
+    await dbAdmin.from("contacts").insert({
+      id: randomUUID(),
+      user_id: userId,
+      phone_e164: phoneDigits,
+      channel: "whatsapp",
+      ...contactPayload,
+    });
+  }
+
+  const { data: refreshedContact } = await dbAdmin
+    .from("contacts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("phone_e164", phoneDigits)
+    .maybeSingle();
+
+  if (markUnread && nextChatStatus && refreshedContact?.id) {
+    const { startChatSession } = await import("@/lib/chat-sessions.functions");
+    await startChatSession(userId, refreshedContact.id, "aguardando");
+  }
+
+  return {
+    existingContact,
+    contactId: refreshedContact?.id ?? existingContact?.id ?? null,
+    nextChatStatus,
+  };
 }
 
 function logInfo(message: string, data?: unknown) {
@@ -502,7 +773,7 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
     }
 
     const waMessageId = normalizeWaMessageId(m.id);
-    const phoneDigits = from.replace(/\D+/g, "");
+    const phoneDigits = normalizePhoneDigits(from);
 
     // #region debug-point A:webhook-inbound-message
     reportLeadChatDebug("A", "whatsapp-webhook.ts:503", "Inbound individual message received", {
@@ -514,59 +785,26 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
     });
     // #endregion
 
-    // Garante que o contato exista para o chat renderizar a conversa na lista
-    // e preserva custom_fields já existentes, como avatar_url.
     const contactName = waIdToName.get(phoneDigits) || "";
-    const { data: existingContact } = await dbAdmin
-      .from("contacts")
-      .select("id, name, custom_fields, chat_status")
-      .eq("user_id", userId)
-      .eq("phone_e164", phoneDigits)
-      .maybeSingle();
-
-    const parsedExistingCustomFields = parseJsonObject(
-      (existingContact as ContactLookupRow | null)?.custom_fields,
-    );
-    const existingCustomFields = parsedExistingCustomFields
-      ? { ...parsedExistingCustomFields }
-      : {};
-
-    const nextChatStatus =
-      !existingContact || !existingContact.chat_status || existingContact.chat_status === "fechado"
-        ? "aguardando"
-        : undefined;
-
-    const contactPayload = {
-      name: contactName || existingContact?.name || undefined,
-      source: "whatsapp_inbound",
-      is_unread: true,
-      chat_status: nextChatStatus,
-      custom_fields: {
-        ...existingCustomFields,
-        wa_id: m.from,
-        phone_number_id: phoneNumberId,
-        display_phone_number: displayPhoneNumber,
-      },
-    };
+    let contactResult: EnsureWhatsAppContactResult | null = null;
 
     try {
-      if (existingContact?.id) {
-        await dbAdmin.from("contacts").update(contactPayload).eq("id", existingContact.id);
-      } else {
-        await dbAdmin.from("contacts").insert({
-          id: randomUUID(),
-          user_id: userId,
-          phone_e164: phoneDigits,
-          channel: "whatsapp",
-          ...contactPayload,
-        });
-      }
+      contactResult = await ensureWhatsAppContact({
+        userId,
+        phoneDigits,
+        contactName,
+        source: "whatsapp_inbound",
+        markUnread: true,
+        phoneNumberId,
+        displayPhoneNumber,
+        waId: m.from ?? phoneDigits,
+      });
     } catch (error: unknown) {
       // #region debug-point B:webhook-contact-error
       reportLeadChatDebug("B", "whatsapp-webhook.ts:552", "Contact persistence failed", {
         userId,
         phoneDigits,
-        hadExistingContact: Boolean(existingContact?.id),
+        hadExistingContact: Boolean(contactResult?.existingContact?.id),
         error: getErrorMessage(error),
       });
       // #endregion
@@ -577,71 +815,17 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
     reportLeadChatDebug("B", "whatsapp-webhook.ts:550", "Contact persisted for inbound message", {
       userId,
       phoneDigits,
-      contactId: existingContact?.id ?? null,
-      hadExistingContact: Boolean(existingContact?.id),
-      nextChatStatus: nextChatStatus ?? null,
+      contactId: contactResult?.contactId ?? null,
+      hadExistingContact: Boolean(contactResult?.existingContact?.id),
+      nextChatStatus: contactResult?.nextChatStatus ?? null,
     });
     // #endregion
 
-    if (
-      !existingContact ||
-      !existingContact.chat_status ||
-      existingContact.chat_status === "fechado"
-    ) {
-      const { data: refreshedContact } = await dbAdmin
-        .from("contacts")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("phone_e164", phoneDigits)
-        .maybeSingle();
-
-      if (refreshedContact?.id) {
-        const { startChatSession } = await import("@/lib/chat-sessions.functions");
-        await startChatSession(userId, refreshedContact.id, "aguardando");
-      }
-    }
-
-    let type = m.type ?? "text";
-    const allowedTypes = new Set([
-      "text",
-      "reaction",
-      "image",
-      "audio",
-      "video",
-      "document",
-      "sticker",
-      "location",
-      "contacts",
-    ]);
-    if (!allowedTypes.has(type)) {
-      type = "text";
-    }
-
-    let body = "";
-    let buttonPayload = "";
-    if (m.type === "text") {
-      body = m.text?.body ?? "";
-    } else if (m.type === "reaction") {
-      body = m.reaction?.emoji ?? "";
-    } else if (m.type === "image") {
-      body = m.image?.id ?? "";
-    } else if (m.type === "audio") {
-      body = m.audio?.id ?? "";
-    } else if (m.type === "video") {
-      body = m.video?.id ?? "";
-    } else if (m.type === "document") {
-      body = m.document?.id ?? "";
-    } else if (m.type === "sticker") {
-      body = m.sticker?.id ?? "";
-    } else if (m.type === "location") {
-      body = m.location?.name || `${m.location?.latitude}, ${m.location?.longitude}`;
-    } else if (m.type === "contacts") {
-      body =
-        m.contacts?.[0]?.name?.formatted_name || m.contacts?.[0]?.phones?.[0]?.phone || "Contato";
-    } else if (m.type === "button") {
-      body = m.button?.text ?? "[Botão]";
-      buttonPayload = m.button?.payload ?? "";
-    } else if (m.type === "interactive") {
+    const resolvedContent = resolveDirectMessageContent(m);
+    let type = resolvedContent.type;
+    let body = resolvedContent.body;
+    let buttonPayload = resolvedContent.buttonPayload;
+    if (m.type === "interactive") {
       let isFlowReply = false;
       let flowToken = "";
       let responseJsonObj: JsonObject | null = null;
@@ -713,8 +897,6 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
           }
         }
       }
-    } else {
-      body = `[Mensagem de tipo ${m.type} recebida]`;
     }
 
     const reply_to_message_id = m.context?.message_id ?? null;
@@ -839,6 +1021,300 @@ async function processTemplateCategoryUpdate(value: WebhookValue | undefined, us
     .update({ category: newCategory, synced_at: new Date().toISOString() })
     .eq("meta_template_id", metaId)
     .eq("user_id", userId);
+}
+
+async function processStateSync(value: WebhookValue | undefined, userId: string) {
+  const stateSyncItems = value?.state_sync ?? [];
+  const phoneNumberId = value?.metadata?.phone_number_id
+    ? String(value.metadata.phone_number_id)
+    : null;
+  const displayPhoneNumber = value?.metadata?.display_phone_number
+    ? String(value.metadata.display_phone_number)
+    : null;
+
+  for (const item of stateSyncItems) {
+    if (item.type !== "contact") continue;
+
+    const phoneDigits = normalizePhoneDigits(item.contact?.phone_number);
+    if (!phoneDigits) continue;
+
+    const timestamp = item.metadata?.timestamp ?? null;
+    const action = item.action ? String(item.action).toLowerCase() : "update";
+    const contactName = item.contact?.full_name || item.contact?.first_name || null;
+    const extraCustomFields: JsonObject = {
+      coexistence_last_contact_action: action,
+    };
+    if (timestamp) extraCustomFields.coexistence_last_contact_sync_at = timestamp;
+
+    if (action === "remove") {
+      const { data } = await dbAdmin
+        .from("contacts")
+        .select("id, custom_fields")
+        .eq("user_id", userId)
+        .eq("phone_e164", phoneDigits)
+        .maybeSingle();
+
+      if (!data?.id) continue;
+
+      const parsedCustomFields = parseJsonObject((data as ContactLookupRow).custom_fields);
+      const nextCustomFields: JsonObject = parsedCustomFields ? { ...parsedCustomFields } : {};
+      for (const [key, entry] of Object.entries(extraCustomFields)) {
+        nextCustomFields[key] = entry;
+      }
+
+      await dbAdmin.from("contacts").update({ custom_fields: nextCustomFields }).eq("id", data.id);
+      continue;
+    }
+
+    await ensureWhatsAppContact({
+      userId,
+      phoneDigits,
+      contactName,
+      source: "whatsapp_contact_sync",
+      markUnread: false,
+      phoneNumberId,
+      displayPhoneNumber,
+      waId: phoneDigits,
+      extraCustomFields,
+    });
+  }
+}
+
+async function processHistorySync(value: WebhookValue | undefined, userId: string) {
+  const historyItems = value?.history ?? [];
+  const phoneNumberId = value?.metadata?.phone_number_id
+    ? String(value.metadata.phone_number_id)
+    : null;
+  const displayPhoneNumber = value?.metadata?.display_phone_number
+    ? String(value.metadata.display_phone_number)
+    : null;
+  const businessPhoneDigits = normalizePhoneDigits(displayPhoneNumber);
+
+  for (const historyItem of historyItems) {
+    for (const error of historyItem.errors ?? []) {
+      if (error.code === 2593109) {
+        logInfo("Sincronização de histórico recusada pelo negócio", {
+          userId,
+          phoneNumberId,
+          message: error.message ?? error.title ?? "History sync disabled by business",
+        });
+      }
+    }
+
+    for (const thread of historyItem.threads ?? []) {
+      const contactPhone = normalizePhoneDigits(thread.id);
+      if (!contactPhone) continue;
+
+      await ensureWhatsAppContact({
+        userId,
+        phoneDigits: contactPhone,
+        source: "whatsapp_history_sync",
+        markUnread: false,
+        phoneNumberId,
+        displayPhoneNumber,
+        waId: contactPhone,
+        extraCustomFields: {
+          coexistence_history_sync: true,
+        },
+      });
+
+      for (const message of thread.messages ?? []) {
+        const waMessageId = normalizeWaMessageId(message.id);
+        if (!waMessageId) continue;
+
+        const direction = resolveHistoryDirection(message, businessPhoneDigits, contactPhone);
+        const resolvedContent = resolveDirectMessageContent(message);
+        const replyToMessageId = message.context?.message_id ?? null;
+        const createdAt = toIsoFromUnixTimestamp(message.timestamp);
+        const status = mapHistoryStatusToDirectStatus(message.history_context?.status);
+
+        const { data: existingMessage } = await dbAdmin
+          .from("direct_messages")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("wa_message_id", waMessageId)
+          .maybeSingle();
+
+        if (existingMessage?.id) {
+          continue;
+        }
+
+        await dbAdmin.from("direct_messages").insert({
+          id: randomUUID(),
+          user_id: userId,
+          contact_phone: contactPhone,
+          direction,
+          type: resolvedContent.type,
+          body: resolvedContent.body,
+          wa_message_id: waMessageId,
+          status,
+          reply_to_message_id: replyToMessageId,
+          channel: "whatsapp",
+          provider_account_id: phoneNumberId,
+          metadata: {
+            source: "history",
+            history_context: message.history_context ?? null,
+            history_metadata: historyItem.metadata ?? null,
+            message,
+            metadata: value?.metadata ?? null,
+            history_media_placeholder: resolvedContent.isHistoryMediaPlaceholder,
+          },
+          raw_payload: value ?? null,
+          created_at: createdAt ?? undefined,
+        });
+      }
+    }
+  }
+
+  const historyMessages = value?.messages ?? [];
+  for (const message of historyMessages) {
+    const waMessageId = normalizeWaMessageId(message.id);
+    if (!waMessageId) continue;
+
+    const resolvedContent = resolveDirectMessageContent(message);
+    const createdAt = toIsoFromUnixTimestamp(message.timestamp);
+
+    const { data: existingMessage } = await dbAdmin
+      .from("direct_messages")
+      .select("id, contact_phone")
+      .eq("user_id", userId)
+      .eq("wa_message_id", waMessageId)
+      .maybeSingle();
+
+    const inferredContactPhone = existingMessage?.contact_phone
+      ? String(existingMessage.contact_phone)
+      : (() => {
+          const fromDigits = normalizePhoneDigits(message.from);
+          const toDigits = normalizePhoneDigits(message.to);
+          if (fromDigits && fromDigits !== businessPhoneDigits) return fromDigits;
+          if (toDigits && toDigits !== businessPhoneDigits) return toDigits;
+          return "";
+        })();
+
+    if (!inferredContactPhone) continue;
+
+    await ensureWhatsAppContact({
+      userId,
+      phoneDigits: inferredContactPhone,
+      source: "whatsapp_history_sync",
+      markUnread: false,
+      phoneNumberId,
+      displayPhoneNumber,
+      waId: inferredContactPhone,
+      extraCustomFields: {
+        coexistence_history_sync: true,
+      },
+    });
+
+    const direction =
+      normalizePhoneDigits(message.from) === businessPhoneDigits ? "outgoing" : "incoming";
+
+    if (existingMessage?.id) {
+      await dbAdmin
+        .from("direct_messages")
+        .update({
+          type: resolvedContent.type,
+          body: resolvedContent.body,
+          provider_account_id: phoneNumberId,
+          metadata: {
+            source: "history",
+            message,
+            metadata: value?.metadata ?? null,
+            history_media_placeholder: false,
+          },
+          raw_payload: value ?? null,
+          created_at: createdAt ?? undefined,
+        })
+        .eq("id", existingMessage.id);
+      continue;
+    }
+
+    await dbAdmin.from("direct_messages").insert({
+      id: randomUUID(),
+      user_id: userId,
+      contact_phone: inferredContactPhone,
+      direction,
+      type: resolvedContent.type,
+      body: resolvedContent.body,
+      wa_message_id: waMessageId,
+      status: "sent",
+      channel: "whatsapp",
+      provider_account_id: phoneNumberId,
+      metadata: {
+        source: "history",
+        message,
+        metadata: value?.metadata ?? null,
+        history_media_placeholder: false,
+      },
+      raw_payload: value ?? null,
+      created_at: createdAt ?? undefined,
+    });
+  }
+}
+
+async function processMessageEchoes(value: WebhookValue | undefined, userId: string) {
+  const messageEchoes = value?.message_echoes ?? [];
+  const phoneNumberId = value?.metadata?.phone_number_id
+    ? String(value.metadata.phone_number_id)
+    : null;
+  const displayPhoneNumber = value?.metadata?.display_phone_number
+    ? String(value.metadata.display_phone_number)
+    : null;
+
+  for (const message of messageEchoes) {
+    const contactPhone = normalizePhoneDigits(message.to);
+    if (!contactPhone) continue;
+
+    await ensureWhatsAppContact({
+      userId,
+      phoneDigits: contactPhone,
+      source: "whatsapp_message_echo",
+      markUnread: false,
+      phoneNumberId,
+      displayPhoneNumber,
+      waId: contactPhone,
+      extraCustomFields: {
+        coexistence_echo_enabled: true,
+      },
+    });
+
+    const waMessageId = normalizeWaMessageId(message.id);
+    if (!waMessageId) continue;
+
+    const { data: existingMessage } = await dbAdmin
+      .from("direct_messages")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("wa_message_id", waMessageId)
+      .maybeSingle();
+
+    if (existingMessage?.id) {
+      continue;
+    }
+
+    const resolvedContent = resolveDirectMessageContent(message);
+    const createdAt = toIsoFromUnixTimestamp(message.timestamp);
+
+    await dbAdmin.from("direct_messages").insert({
+      id: randomUUID(),
+      user_id: userId,
+      contact_phone: contactPhone,
+      direction: "outgoing",
+      type: resolvedContent.type,
+      body: resolvedContent.body,
+      wa_message_id: waMessageId,
+      status: "sent",
+      channel: "whatsapp",
+      provider_account_id: phoneNumberId,
+      metadata: {
+        source: "smb_message_echoes",
+        message,
+        metadata: value?.metadata ?? null,
+      },
+      raw_payload: value ?? null,
+      created_at: createdAt ?? undefined,
+    });
+  }
 }
 
 async function handleWhatsAppGroupMessage(
@@ -1093,6 +1569,12 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                     await processStatusUpdate(change.value, matchedUserId);
                     await processInboundMessages(change.value, matchedUserId);
                     await processInboundDirectMessages(change.value, matchedUserId);
+                  } else if (change.field === "history") {
+                    await processHistorySync(change.value, matchedUserId);
+                  } else if (change.field === "smb_app_state_sync") {
+                    await processStateSync(change.value, matchedUserId);
+                  } else if (change.field === "smb_message_echoes") {
+                    await processMessageEchoes(change.value, matchedUserId);
                   } else if (change.field === "message_template_status_update") {
                     await processTemplateStatusUpdate(change.value, matchedUserId);
                   } else if (change.field === "template_category_update") {

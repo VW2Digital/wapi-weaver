@@ -30,6 +30,9 @@ import {
   requestVerificationCode,
   verifyVerificationCode,
   deregisterPhoneNumber,
+  getCoexistencePhoneStatus,
+  syncCoexistenceContacts,
+  syncCoexistenceHistory,
   getPhoneSettings,
   updatePhoneSettings,
   getOBAStatus,
@@ -178,6 +181,82 @@ function validateMetaId(v: string, label: string): { error: string | null; ok: b
       ok: false,
     };
   return { error: null, ok: true };
+}
+
+interface CoexistencePhoneInfo {
+  id: string | null;
+  display_phone_number: string | null;
+  verified_name: string | null;
+  status: string | null;
+  quality_rating: string | null;
+  platform_type: string | null;
+  is_on_biz_app: boolean | null;
+}
+
+interface CoexistenceStatusMutationResult {
+  wabaId: string;
+  phoneId: string;
+  info: CoexistencePhoneInfo;
+}
+
+interface CoexistenceSyncMutationResult {
+  ok: true;
+  request_id: string | null;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getStringFromRecord(source: Record<string, unknown> | null, key: string) {
+  const value = source?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function getBooleanFromRecord(source: Record<string, unknown> | null, key: string) {
+  const value = source?.[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function parseCoexistenceStatusResponse(value: unknown) {
+  const record = toRecord(value);
+  if (record?.ok !== true) {
+    return {
+      ok: false as const,
+      error: getStringFromRecord(record, "error") ?? "Erro ao consultar coexistência.",
+    };
+  }
+
+  const infoRecord = toRecord(record.info);
+  return {
+    ok: true as const,
+    info: {
+      id: getStringFromRecord(infoRecord, "id") ?? null,
+      display_phone_number: getStringFromRecord(infoRecord, "display_phone_number") ?? null,
+      verified_name: getStringFromRecord(infoRecord, "verified_name") ?? null,
+      status: getStringFromRecord(infoRecord, "status") ?? null,
+      quality_rating: getStringFromRecord(infoRecord, "quality_rating") ?? null,
+      platform_type: getStringFromRecord(infoRecord, "platform_type") ?? null,
+      is_on_biz_app: getBooleanFromRecord(infoRecord, "is_on_biz_app") ?? null,
+    } satisfies CoexistencePhoneInfo,
+  };
+}
+
+function parseCoexistenceSyncResponse(value: unknown) {
+  const record = toRecord(value);
+  if (record?.ok !== true) {
+    return {
+      ok: false as const,
+      error: getStringFromRecord(record, "error") ?? "Erro ao iniciar sincronização.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    request_id: getStringFromRecord(record, "request_id") ?? null,
+  };
 }
 
 /** Validação em tempo real para o Access Token da Meta. */
@@ -457,8 +536,12 @@ function SettingsPage() {
                       <FileText className="h-5 w-5" />
                     </div>
                     <div>
-                      <h5 className="font-semibold text-sm text-foreground">Guias de Configuração</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Tutoriais passo a passo para conectar canais, webhooks e APIs.</p>
+                      <h5 className="font-semibold text-sm text-foreground">
+                        Guias de Configuração
+                      </h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Tutoriais passo a passo para conectar canais, webhooks e APIs.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -479,18 +562,36 @@ function SettingsPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 bg-[#0064E0]/10 text-[#0064E0] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5"
+                      >
                         <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4zm0 0c2 2.67 4 4 6 4a4 4 0 1 0 0-8c-2 0-4 1.33-6 4z" />
                       </svg>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h5 className="font-semibold text-sm text-foreground">Conexão Meta</h5>
-                        <Badge variant="secondary" className={cn("text-[10px] border-none font-semibold", form.whatsapp_access_token ? "bg-success/15 text-success hover:bg-success/20" : "bg-muted text-muted-foreground")}>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] border-none font-semibold",
+                            form.whatsapp_access_token
+                              ? "bg-success/15 text-success hover:bg-success/20"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
                           {form.whatsapp_access_token ? "Configurado" : "Pendente"}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">Configurações de aplicativo, credenciais e webhook da Meta.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Configurações de aplicativo, credenciais e webhook da Meta.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -510,11 +611,21 @@ function SettingsPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h5 className="font-semibold text-sm text-foreground">WhatsApp (WABA)</h5>
-                        <Badge variant="secondary" className={cn("text-[10px] border-none font-semibold", form.whatsapp_phone_number_id ? "bg-success/15 text-success hover:bg-success/20" : "bg-muted text-muted-foreground")}>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] border-none font-semibold",
+                            form.whatsapp_phone_number_id
+                              ? "bg-success/15 text-success hover:bg-success/20"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
                           {form.whatsapp_phone_number_id ? "Configurado" : "Pendente"}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">Gerenciamento de instâncias, templates e permissões de chamadas.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Gerenciamento de instâncias, templates e permissões de chamadas.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -527,7 +638,15 @@ function SettingsPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 bg-[#E1306C]/10 text-[#E1306C] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5"
+                      >
                         <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
                         <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
                         <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
@@ -535,7 +654,9 @@ function SettingsPage() {
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">Instagram</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Integração de mensagens diretas e automação para Instagram.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Integração de mensagens diretas e automação para Instagram.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -554,7 +675,9 @@ function SettingsPage() {
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">Facebook</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Conexão de páginas para atendimento via Facebook Messenger.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Conexão de páginas para atendimento via Facebook Messenger.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -579,7 +702,9 @@ function SettingsPage() {
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">Integrações CRM</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Conexão com plataformas externas e Webhook de Entrada.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Conexão com plataformas externas e Webhook de Entrada.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -596,7 +721,9 @@ function SettingsPage() {
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">QR Codes</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Gerador de links e QR Codes de conversa rápida.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Gerador de links e QR Codes de conversa rápida.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -620,8 +747,12 @@ function SettingsPage() {
                       <Settings className="h-5 w-5" />
                     </div>
                     <div>
-                      <h5 className="font-semibold text-sm text-foreground">Ferramentas Avançadas</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Sandbox avançada, logs e comandos do sistema.</p>
+                      <h5 className="font-semibold text-sm text-foreground">
+                        Ferramentas Avançadas
+                      </h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Sandbox avançada, logs e comandos do sistema.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -638,7 +769,9 @@ function SettingsPage() {
                     </div>
                     <div>
                       <h5 className="font-semibold text-sm text-foreground">Geral & Legal</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">Termos de uso, políticas de privacidade e tags globais.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Termos de uso, políticas de privacidade e tags globais.
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -656,7 +789,9 @@ function SettingsPage() {
                       </div>
                       <div>
                         <h5 className="font-semibold text-sm text-foreground">Administração</h5>
-                        <p className="text-xs text-muted-foreground mt-0.5">Configurações globais do servidor, auditoria e backups.</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Configurações globais do servidor, auditoria e backups.
+                        </p>
                       </div>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
@@ -695,941 +830,961 @@ function SettingsPage() {
           <div className="flex-1 overflow-y-auto p-6 w-full">
             <Tabs value={activeSection} className="w-full border-none shadow-none bg-transparent">
               <TabsContent value="meta" className="space-y-6 outline-none m-0 border-none p-0">
-            <SetupWizard
-              credentialsComplete={
-                !!(
-                  form.whatsapp_phone_number_id &&
-                  form.whatsapp_waba_id &&
-                  form.whatsapp_access_token
-                )
-              }
-              webhookComplete={!!(form.whatsapp_verify_token && form.whatsapp_app_secret)}
-              testComplete={!!testResult?.ok}
-            >
-              {(step) => (
-                <>
-                  {step === 0 && (
-                    <Card className="p-6 space-y-6">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                          1
-                        </div>
-                        <div className="flex-1">
-                          <h2 className="font-display text-lg font-semibold">
-                            Etapa 1: Conectar suas credenciais da Meta (Facebook)
-                          </h2>
-                          <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                            Preencha os campos abaixo com os dados do painel de desenvolvedor do
-                            Facebook.
-                            <br />
-                            <span className="text-xs">
-                              👉 Se você ainda não tem uma conta, acesse{" "}
-                              <a
-                                href="https://business.facebook.com"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-primary underline font-medium hover:text-primary/80"
-                              >
-                                business.facebook.com
-                              </a>{" "}
-                              para criar o seu gerenciador de negócios.
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Alerta de Cuidado para Iniciantes */}
-                      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-xs text-blue-900 dark:text-blue-200">
-                        <div className="flex items-center gap-2 font-semibold text-sm mb-1">
-                          <AlertTriangle className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                          <span>💡 Dica de Ouro para evitar erros de configuração:</span>
-                        </div>
-                        <p className="leading-relaxed">
-                          Os IDs solicitados abaixo são códigos compostos{" "}
-                          <strong>apenas por números</strong> (geralmente com 15 a 17 dígitos).
-                          <strong className="text-foreground">
-                            {" "}
-                            Nunca coloque letras ou o seu número de telefone celular nestes campos.
-                          </strong>
-                          Confira com atenção qual ID é qual para evitar erros ao disparar
-                          mensagens.
-                        </p>
-                      </div>
-
-                      <div className="grid gap-6 md:grid-cols-2">
-                        <Field
-                          label="ID do Número de Telefone"
-                          sublabel="(Phone Number ID)"
-                          digitsOnly
-                          value={form.whatsapp_phone_number_id}
-                          onChange={(v) => {
-                            const { error } = validateMetaId(v, "Phone Number ID");
-                            setErrors((e) => ({ ...e, whatsapp_phone_number_id: error }));
-                            setForm({ ...form, whatsapp_phone_number_id: v });
-                          }}
-                          placeholder="Ex: 106500000000000"
-                          hint={
-                            "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado como 'ID do número de telefone' (um código longo de 15 dígitos).\n👉 Copie clicando no botão ao lado do ID no painel da Meta.\n🚨 ATENÇÃO: NÃO coloque seu número de telefone aqui! Digite o ID gerado pelo Facebook."
-                          }
-                          success={
-                            validateMetaId(
-                              String(form.whatsapp_phone_number_id ?? ""),
-                              "Phone Number ID",
-                            ).ok
-                              ? `Formato correto · ${String(form.whatsapp_phone_number_id).length} dígitos`
-                              : null
-                          }
-                          error={errors.whatsapp_phone_number_id}
-                          copyLabel="Phone Number ID"
-                          metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
-                        />
-
-                        <Field
-                          label="ID da Conta WhatsApp Business"
-                          sublabel="(WABA ID)"
-                          digitsOnly
-                          value={form.whatsapp_waba_id}
-                          onChange={(v) => {
-                            const { error } = validateMetaId(v, "WABA ID");
-                            setErrors((e) => ({ ...e, whatsapp_waba_id: error }));
-                            setForm({ ...form, whatsapp_waba_id: v });
-                          }}
-                          placeholder="Ex: 112300000000000"
-                          hint={
-                            "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado logo abaixo do Phone Number ID como 'ID da conta do WhatsApp Business'.\n🚨 CUIDADO: Este ID identifica a sua CONTA de negócios inteira, não um número específico. É diferente do Phone Number ID."
-                          }
-                          success={
-                            validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok
-                              ? `Formato correto · ${String(form.whatsapp_waba_id).length} dígitos`
-                              : null
-                          }
-                          error={errors.whatsapp_waba_id}
-                          copyLabel="WABA ID"
-                          metaUrl="https://business.facebook.com/wa/manage/account/"
-                        />
-
-                        <Field
-                          label="Meta App ID (ID do Aplicativo Meta)"
-                          sublabel="(Necessário para Foto de Perfil)"
-                          digitsOnly
-                          value={form.whatsapp_app_id}
-                          onChange={(v) => {
-                            const { error } = validateMetaId(v, "Meta App ID");
-                            setErrors((e) => ({ ...e, whatsapp_app_id: error }));
-                            setForm({ ...form, whatsapp_app_id: v });
-                          }}
-                          placeholder="Ex: 123456789012345"
-                          hint={
-                            "📍 Onde encontrar: developers.facebook.com → Meus Apps → selecione o seu App → copie o ID do aplicativo no topo da página.\n🔒 Necessário para realizar o upload e atualização da imagem de perfil no WhatsApp."
-                          }
-                          success={
-                            validateMetaId(String(form.whatsapp_app_id ?? ""), "Meta App ID").ok
-                              ? `Formato correto · ${String(form.whatsapp_app_id).length} dígitos`
-                              : null
-                          }
-                          error={errors.whatsapp_app_id}
-                          copyLabel="Meta App ID"
-                          metaUrl="https://developers.facebook.com/apps/"
-                        />
-
-                        <Field
-                          label="ID da Conta de Negócios (Business ID)"
-                          sublabel="(Meta Business ID)"
-                          digitsOnly
-                          value={form.whatsapp_business_id}
-                          onChange={(v) => {
-                            const { error } = validateMetaId(v, "Business ID");
-                            setErrors((e) => ({ ...e, whatsapp_business_id: error }));
-                            setForm({ ...form, whatsapp_business_id: v });
-                          }}
-                          placeholder="Ex: 104500000000000"
-                          hint={
-                            "📍 Onde encontrar: Acesse o painel Meta Business Suite (business.facebook.com) → Configurações da empresa → Informações da empresa. O código está listado como 'ID do Gerenciador de Negócios'."
-                          }
-                          success={
-                            validateMetaId(String(form.whatsapp_business_id ?? ""), "Business ID")
-                              .ok
-                              ? `Formato correto · ${String(form.whatsapp_business_id).length} dígitos`
-                              : null
-                          }
-                          error={errors.whatsapp_business_id}
-                          copyLabel="Business ID"
-                          metaUrl="https://business.facebook.com/settings/info"
-                        />
-
-                        <Field
-                          label="Seu Número do WhatsApp"
-                          sublabel="(Apenas identificação visual)"
-                          value={form.whatsapp_business_phone}
-                          onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })}
-                          placeholder="5511999990000"
-                          hint="O número de telefone ativo da sua conta. Digite com DDI do país (55 para Brasil), DDD e o número completo. Ex: 5511999990000"
-                        />
-
-                        <Field
-                          label="Velocidade de Envio"
-                          sublabel="(Mensagens por segundo)"
-                          type="number"
-                          value={form.rate_limit_per_second?.toString() ?? "20"}
-                          onChange={(v) => setForm({ ...form, rate_limit_per_second: Number(v) })}
-                          hint="Recomendamos manter em 20. Altere somente se a sua conta na Meta tiver autorização para limites de velocidade superiores."
-                        />
-
-                        <div className="md:col-span-2 border-t pt-4 mt-2 space-y-3">
-                          <h3 className="font-display text-sm font-semibold flex items-center gap-2">
-                            <Lock className="h-4 w-4 text-primary" />
-                            Registrar Número na Meta (Verificação de 2 Fases)
-                          </h3>
-                          <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                            Se este número ainda não está ativo na Meta Cloud API, insira o PIN de 6
-                            dígitos abaixo para registrá-lo. Isso habilitará o envio de mensagens.
-                          </p>
-                          <div className="flex flex-col sm:flex-row gap-3 items-end">
-                            <div className="flex-1 space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <Label htmlFor="whatsapp_pin_setup">
-                                  PIN de Segurança (2FA - 6 dígitos)
-                                </Label>
-                                <button
-                                  type="button"
-                                  className="text-xs text-primary hover:underline font-medium"
-                                  onClick={() => {
-                                    const pin = Math.floor(
-                                      100000 + Math.random() * 900000,
-                                    ).toString();
-                                    setFormPin(pin);
-                                    toast.success(`PIN gerado: ${pin}`);
-                                  }}
-                                >
-                                  Gerar PIN Aleatório
-                                </button>
-                              </div>
-                              <div className="relative">
-                                <Input
-                                  id="whatsapp_pin_setup"
-                                  type={showSetupPin ? "text" : "password"}
-                                  placeholder="Ex: 123456"
-                                  value={formPin}
-                                  onChange={(e) =>
-                                    setFormPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-                                  }
-                                  className="font-mono text-center tracking-widest text-sm pr-10"
-                                  maxLength={6}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowSetupPin(!showSetupPin)}
-                                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
-                                >
-                                  {showSetupPin ? (
-                                    <EyeOff className="h-4 w-4" />
-                                  ) : (
-                                    <Eye className="h-4 w-4" />
-                                  )}
-                                </button>
-                              </div>
+                <SetupWizard
+                  credentialsComplete={
+                    !!(
+                      form.whatsapp_phone_number_id &&
+                      form.whatsapp_waba_id &&
+                      form.whatsapp_access_token
+                    )
+                  }
+                  webhookComplete={!!(form.whatsapp_verify_token && form.whatsapp_app_secret)}
+                  testComplete={!!testResult?.ok}
+                >
+                  {(step) => (
+                    <>
+                      {step === 0 && (
+                        <Card className="p-6 space-y-6">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                              1
                             </div>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={() => {
-                                if (!form.whatsapp_phone_number_id) {
-                                  toast.error("Preencha o ID do Número de Telefone primeiro.");
-                                  return;
-                                }
-                                if (formPin.length !== 6) {
-                                  toast.error("O PIN deve ter exatamente 6 dígitos.");
-                                  return;
-                                }
-                                saveMut.mutate(
-                                  {
-                                    whatsapp_phone_number_id: form.whatsapp_phone_number_id,
-                                    whatsapp_waba_id: form.whatsapp_waba_id,
-                                    whatsapp_business_id: form.whatsapp_business_id,
-                                    whatsapp_business_phone: form.whatsapp_business_phone,
-                                    whatsapp_access_token: form.whatsapp_access_token,
-                                    whatsapp_app_id: form.whatsapp_app_id || null,
-                                    rate_limit_per_second: form.rate_limit_per_second,
-                                  },
-                                  {
-                                    onSuccess: () => {
-                                      registerMainPhoneMut.mutate({
-                                        phoneId: form.whatsapp_phone_number_id!,
-                                        pin: formPin,
-                                      });
-                                    },
-                                  },
-                                );
-                              }}
-                              disabled={registerMainPhoneMut.isPending || saveMut.isPending}
-                            >
-                              {registerMainPhoneMut.isPending ? (
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                              ) : null}
-                              Registrar Número na Meta
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="md:col-span-2 space-y-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label className="flex items-baseline gap-2">
-                              <span className="font-semibold">
-                                Token de Acesso Permanente (System User Token)
-                              </span>
-                            </Label>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(form.whatsapp_access_token ?? "");
-                                  toast.success("Access Token copiado");
-                                }}
-                                title="Copiar Access Token"
-                              >
-                                <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
-                              </Button>
-                              <Button variant="outline" size="sm" asChild title="Abrir na Meta">
-                                <a
-                                  href="https://business.facebook.com/settings/system-users"
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Configurações do
-                                  Negócio
-                                </a>
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDebugToken()}
-                                disabled={
-                                  debugTokenMut.isPending ||
-                                  !(form.whatsapp_access_token ?? "").trim()
-                                }
-                                title="Verificar validade e permissões do token"
-                              >
-                                {debugTokenMut.isPending ? (
-                                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-                                )}
-                                Testar Validade do Token
-                              </Button>
+                            <div className="flex-1">
+                              <h2 className="font-display text-lg font-semibold">
+                                Etapa 1: Conectar suas credenciais da Meta (Facebook)
+                              </h2>
+                              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                                Preencha os campos abaixo com os dados do painel de desenvolvedor do
+                                Facebook.
+                                <br />
+                                <span className="text-xs">
+                                  👉 Se você ainda não tem uma conta, acesse{" "}
+                                  <a
+                                    href="https://business.facebook.com"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary underline font-medium hover:text-primary/80"
+                                  >
+                                    business.facebook.com
+                                  </a>{" "}
+                                  para criar o seu gerenciador de negócios.
+                                </span>
+                              </p>
                             </div>
                           </div>
 
-                          {/* Alerta explicativo de Token Permanente vs Temporário */}
-                          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-900 dark:text-amber-200">
-                            <div className="flex items-center gap-2 font-semibold text-sm mb-2">
-                              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                              <span>⚠️ Super Importante: Não use o Token Temporário!</span>
+                          {/* Alerta de Cuidado para Iniciantes */}
+                          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-xs text-blue-900 dark:text-blue-200">
+                            <div className="flex items-center gap-2 font-semibold text-sm mb-1">
+                              <AlertTriangle className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span>💡 Dica de Ouro para evitar erros de configuração:</span>
                             </div>
-                            <p className="mb-3 leading-relaxed">
-                              O painel da Meta oferece um token que expira em 24 horas. Se você usar
-                              esse token, o sistema vai parar de funcionar amanhã! Você deve gerar
-                              um <strong>Token Permanente</strong> seguindo o passo a passo abaixo:
+                            <p className="leading-relaxed">
+                              Os IDs solicitados abaixo são códigos compostos{" "}
+                              <strong>apenas por números</strong> (geralmente com 15 a 17 dígitos).
+                              <strong className="text-foreground">
+                                {" "}
+                                Nunca coloque letras ou o seu número de telefone celular nestes
+                                campos.
+                              </strong>
+                              Confira com atenção qual ID é qual para evitar erros ao disparar
+                              mensagens.
                             </p>
-                            <ol className="list-decimal pl-5 space-y-1.5 font-medium leading-relaxed">
-                              <li>
-                                Vá em <strong>Configurações do Negócio</strong> →{" "}
-                                <strong>Usuários do Sistema</strong> (System Users).
-                              </li>
-                              <li>
-                                Clique em <strong>Adicionar</strong>, crie um usuário com função de{" "}
-                                <strong>Administrador</strong> (Admin).
-                              </li>
-                              <li>
-                                Selecione este usuário criado e clique em{" "}
-                                <strong>Gerar Novo Token</strong>.
-                              </li>
-                              <li>
-                                Selecione o seu aplicativo na lista e marque obrigatoriamente as
-                                permissões:{" "}
-                                <code className="text-[10px] bg-background px-1 py-0.5 rounded">
-                                  whatsapp_business_messaging
-                                </code>{" "}
-                                e{" "}
-                                <code className="text-[10px] bg-background px-1 py-0.5 rounded">
-                                  whatsapp_business_management
-                                </code>
-                                .
-                              </li>
-                              <li>
-                                Defina a expiração como <strong>Sem Expiração (Never)</strong>.
-                              </li>
-                              <li>
-                                Gere o token, copie o código longo (começa com{" "}
-                                <code className="text-[10px] font-bold">EAA...</code>) e cole
-                                abaixo.
-                              </li>
-                            </ol>
                           </div>
 
-                          {(() => {
-                            const tokenValue = form.whatsapp_access_token ?? "";
-                            const v = validateAccessToken(tokenValue);
-                            return (
-                              <>
-                                <Textarea
-                                  rows={4}
-                                  value={tokenValue}
-                                  onChange={(e) =>
-                                    setForm({ ...form, whatsapp_access_token: e.target.value })
-                                  }
-                                  placeholder="Cole o token permanente longo aqui (EAA...)"
-                                  className={cn(
-                                    "font-mono text-xs leading-relaxed",
-                                    v.error && "border-destructive focus-visible:ring-destructive",
-                                    !v.error &&
-                                      v.ok &&
-                                      "border-success/60 focus-visible:ring-success",
-                                  )}
-                                />
-                                {v.error && (
-                                  <p className="flex items-start gap-1.5 text-xs text-destructive">
-                                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                    <span>{v.error}</span>
-                                  </p>
-                                )}
-                                {!v.error && v.warning && (
-                                  <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                    <span>{v.warning}</span>
-                                  </p>
-                                )}
-                                {!v.error && !v.warning && v.ok && (
-                                  <p className="flex items-center gap-1.5 text-xs text-success font-medium">
-                                    <Check className="h-3.5 w-3.5" />
-                                    Token formatado corretamente ({tokenValue.trim().length}{" "}
-                                    caracteres)
-                                  </p>
-                                )}
+                          <div className="grid gap-6 md:grid-cols-2">
+                            <Field
+                              label="ID do Número de Telefone"
+                              sublabel="(Phone Number ID)"
+                              digitsOnly
+                              value={form.whatsapp_phone_number_id}
+                              onChange={(v) => {
+                                const { error } = validateMetaId(v, "Phone Number ID");
+                                setErrors((e) => ({ ...e, whatsapp_phone_number_id: error }));
+                                setForm({ ...form, whatsapp_phone_number_id: v });
+                              }}
+                              placeholder="Ex: 106500000000000"
+                              hint={
+                                "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado como 'ID do número de telefone' (um código longo de 15 dígitos).\n👉 Copie clicando no botão ao lado do ID no painel da Meta.\n🚨 ATENÇÃO: NÃO coloque seu número de telefone aqui! Digite o ID gerado pelo Facebook."
+                              }
+                              success={
+                                validateMetaId(
+                                  String(form.whatsapp_phone_number_id ?? ""),
+                                  "Phone Number ID",
+                                ).ok
+                                  ? `Formato correto · ${String(form.whatsapp_phone_number_id).length} dígitos`
+                                  : null
+                              }
+                              error={errors.whatsapp_phone_number_id}
+                              copyLabel="Phone Number ID"
+                              metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
+                            />
 
-                                {debugResult && (
-                                  <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
-                                    <div className="flex justify-between items-center border-b pb-2">
-                                      <span className="font-semibold text-foreground">
-                                        Diagnóstico do Token (Meta API)
-                                      </span>
-                                      <Badge
-                                        variant="secondary"
-                                        className={cn(
-                                          debugResult.is_valid
-                                            ? "bg-success/15 text-success hover:bg-success/20 border-none"
-                                            : "bg-destructive/15 text-destructive hover:bg-destructive/20 border-none",
-                                        )}
-                                      >
-                                        {debugResult.is_valid ? "Válido" : "Inválido"}
-                                      </Badge>
-                                    </div>
-                                    <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
-                                      <p className="text-muted-foreground">
-                                        ID do App:{" "}
-                                        <span className="font-mono text-foreground font-medium">
-                                          {debugResult.app_id}
-                                        </span>
+                            <Field
+                              label="ID da Conta WhatsApp Business"
+                              sublabel="(WABA ID)"
+                              digitsOnly
+                              value={form.whatsapp_waba_id}
+                              onChange={(v) => {
+                                const { error } = validateMetaId(v, "WABA ID");
+                                setErrors((e) => ({ ...e, whatsapp_waba_id: error }));
+                                setForm({ ...form, whatsapp_waba_id: v });
+                              }}
+                              placeholder="Ex: 112300000000000"
+                              hint={
+                                "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado logo abaixo do Phone Number ID como 'ID da conta do WhatsApp Business'.\n🚨 CUIDADO: Este ID identifica a sua CONTA de negócios inteira, não um número específico. É diferente do Phone Number ID."
+                              }
+                              success={
+                                validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID").ok
+                                  ? `Formato correto · ${String(form.whatsapp_waba_id).length} dígitos`
+                                  : null
+                              }
+                              error={errors.whatsapp_waba_id}
+                              copyLabel="WABA ID"
+                              metaUrl="https://business.facebook.com/wa/manage/account/"
+                            />
+
+                            <Field
+                              label="Meta App ID (ID do Aplicativo Meta)"
+                              sublabel="(Necessário para Foto de Perfil)"
+                              digitsOnly
+                              value={form.whatsapp_app_id}
+                              onChange={(v) => {
+                                const { error } = validateMetaId(v, "Meta App ID");
+                                setErrors((e) => ({ ...e, whatsapp_app_id: error }));
+                                setForm({ ...form, whatsapp_app_id: v });
+                              }}
+                              placeholder="Ex: 123456789012345"
+                              hint={
+                                "📍 Onde encontrar: developers.facebook.com → Meus Apps → selecione o seu App → copie o ID do aplicativo no topo da página.\n🔒 Necessário para realizar o upload e atualização da imagem de perfil no WhatsApp."
+                              }
+                              success={
+                                validateMetaId(String(form.whatsapp_app_id ?? ""), "Meta App ID").ok
+                                  ? `Formato correto · ${String(form.whatsapp_app_id).length} dígitos`
+                                  : null
+                              }
+                              error={errors.whatsapp_app_id}
+                              copyLabel="Meta App ID"
+                              metaUrl="https://developers.facebook.com/apps/"
+                            />
+
+                            <Field
+                              label="ID da Conta de Negócios (Business ID)"
+                              sublabel="(Meta Business ID)"
+                              digitsOnly
+                              value={form.whatsapp_business_id}
+                              onChange={(v) => {
+                                const { error } = validateMetaId(v, "Business ID");
+                                setErrors((e) => ({ ...e, whatsapp_business_id: error }));
+                                setForm({ ...form, whatsapp_business_id: v });
+                              }}
+                              placeholder="Ex: 104500000000000"
+                              hint={
+                                "📍 Onde encontrar: Acesse o painel Meta Business Suite (business.facebook.com) → Configurações da empresa → Informações da empresa. O código está listado como 'ID do Gerenciador de Negócios'."
+                              }
+                              success={
+                                validateMetaId(
+                                  String(form.whatsapp_business_id ?? ""),
+                                  "Business ID",
+                                ).ok
+                                  ? `Formato correto · ${String(form.whatsapp_business_id).length} dígitos`
+                                  : null
+                              }
+                              error={errors.whatsapp_business_id}
+                              copyLabel="Business ID"
+                              metaUrl="https://business.facebook.com/settings/info"
+                            />
+
+                            <Field
+                              label="Seu Número do WhatsApp"
+                              sublabel="(Apenas identificação visual)"
+                              value={form.whatsapp_business_phone}
+                              onChange={(v) => setForm({ ...form, whatsapp_business_phone: v })}
+                              placeholder="5511999990000"
+                              hint="O número de telefone ativo da sua conta. Digite com DDI do país (55 para Brasil), DDD e o número completo. Ex: 5511999990000"
+                            />
+
+                            <Field
+                              label="Velocidade de Envio"
+                              sublabel="(Mensagens por segundo)"
+                              type="number"
+                              value={form.rate_limit_per_second?.toString() ?? "20"}
+                              onChange={(v) =>
+                                setForm({ ...form, rate_limit_per_second: Number(v) })
+                              }
+                              hint="Recomendamos manter em 20. Altere somente se a sua conta na Meta tiver autorização para limites de velocidade superiores."
+                            />
+
+                            <div className="md:col-span-2 border-t pt-4 mt-2 space-y-3">
+                              <h3 className="font-display text-sm font-semibold flex items-center gap-2">
+                                <Lock className="h-4 w-4 text-primary" />
+                                Registrar Número na Meta (Verificação de 2 Fases)
+                              </h3>
+                              <p className="text-xs text-muted-foreground leading-relaxed font-medium">
+                                Se este número ainda não está ativo na Meta Cloud API, insira o PIN
+                                de 6 dígitos abaixo para registrá-lo. Isso habilitará o envio de
+                                mensagens.
+                              </p>
+                              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="flex-1 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <Label htmlFor="whatsapp_pin_setup">
+                                      PIN de Segurança (2FA - 6 dígitos)
+                                    </Label>
+                                    <button
+                                      type="button"
+                                      className="text-xs text-primary hover:underline font-medium"
+                                      onClick={() => {
+                                        const pin = Math.floor(
+                                          100000 + Math.random() * 900000,
+                                        ).toString();
+                                        setFormPin(pin);
+                                        toast.success(`PIN gerado: ${pin}`);
+                                      }}
+                                    >
+                                      Gerar PIN Aleatório
+                                    </button>
+                                  </div>
+                                  <div className="relative">
+                                    <Input
+                                      id="whatsapp_pin_setup"
+                                      type={showSetupPin ? "text" : "password"}
+                                      placeholder="Ex: 123456"
+                                      value={formPin}
+                                      onChange={(e) =>
+                                        setFormPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+                                      }
+                                      className="font-mono text-center tracking-widest text-sm pr-10"
+                                      maxLength={6}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowSetupPin(!showSetupPin)}
+                                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                                    >
+                                      {showSetupPin ? (
+                                        <EyeOff className="h-4 w-4" />
+                                      ) : (
+                                        <Eye className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    if (!form.whatsapp_phone_number_id) {
+                                      toast.error("Preencha o ID do Número de Telefone primeiro.");
+                                      return;
+                                    }
+                                    if (formPin.length !== 6) {
+                                      toast.error("O PIN deve ter exatamente 6 dígitos.");
+                                      return;
+                                    }
+                                    saveMut.mutate(
+                                      {
+                                        whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+                                        whatsapp_waba_id: form.whatsapp_waba_id,
+                                        whatsapp_business_id: form.whatsapp_business_id,
+                                        whatsapp_business_phone: form.whatsapp_business_phone,
+                                        whatsapp_access_token: form.whatsapp_access_token,
+                                        whatsapp_app_id: form.whatsapp_app_id || null,
+                                        rate_limit_per_second: form.rate_limit_per_second,
+                                      },
+                                      {
+                                        onSuccess: () => {
+                                          registerMainPhoneMut.mutate({
+                                            phoneId: form.whatsapp_phone_number_id!,
+                                            pin: formPin,
+                                          });
+                                        },
+                                      },
+                                    );
+                                  }}
+                                  disabled={registerMainPhoneMut.isPending || saveMut.isPending}
+                                >
+                                  {registerMainPhoneMut.isPending ? (
+                                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                  ) : null}
+                                  Registrar Número na Meta
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="md:col-span-2 space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="flex items-baseline gap-2">
+                                  <span className="font-semibold">
+                                    Token de Acesso Permanente (System User Token)
+                                  </span>
+                                </Label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(
+                                        form.whatsapp_access_token ?? "",
+                                      );
+                                      toast.success("Access Token copiado");
+                                    }}
+                                    title="Copiar Access Token"
+                                  >
+                                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
+                                  </Button>
+                                  <Button variant="outline" size="sm" asChild title="Abrir na Meta">
+                                    <a
+                                      href="https://business.facebook.com/settings/system-users"
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Configurações
+                                      do Negócio
+                                    </a>
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDebugToken()}
+                                    disabled={
+                                      debugTokenMut.isPending ||
+                                      !(form.whatsapp_access_token ?? "").trim()
+                                    }
+                                    title="Verificar validade e permissões do token"
+                                  >
+                                    {debugTokenMut.isPending ? (
+                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Testar Validade do Token
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Alerta explicativo de Token Permanente vs Temporário */}
+                              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-900 dark:text-amber-200">
+                                <div className="flex items-center gap-2 font-semibold text-sm mb-2">
+                                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                  <span>⚠️ Super Importante: Não use o Token Temporário!</span>
+                                </div>
+                                <p className="mb-3 leading-relaxed">
+                                  O painel da Meta oferece um token que expira em 24 horas. Se você
+                                  usar esse token, o sistema vai parar de funcionar amanhã! Você
+                                  deve gerar um <strong>Token Permanente</strong> seguindo o passo a
+                                  passo abaixo:
+                                </p>
+                                <ol className="list-decimal pl-5 space-y-1.5 font-medium leading-relaxed">
+                                  <li>
+                                    Vá em <strong>Configurações do Negócio</strong> →{" "}
+                                    <strong>Usuários do Sistema</strong> (System Users).
+                                  </li>
+                                  <li>
+                                    Clique em <strong>Adicionar</strong>, crie um usuário com função
+                                    de <strong>Administrador</strong> (Admin).
+                                  </li>
+                                  <li>
+                                    Selecione este usuário criado e clique em{" "}
+                                    <strong>Gerar Novo Token</strong>.
+                                  </li>
+                                  <li>
+                                    Selecione o seu aplicativo na lista e marque obrigatoriamente as
+                                    permissões:{" "}
+                                    <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                                      whatsapp_business_messaging
+                                    </code>{" "}
+                                    e{" "}
+                                    <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                                      whatsapp_business_management
+                                    </code>
+                                    .
+                                  </li>
+                                  <li>
+                                    Defina a expiração como <strong>Sem Expiração (Never)</strong>.
+                                  </li>
+                                  <li>
+                                    Gere o token, copie o código longo (começa com{" "}
+                                    <code className="text-[10px] font-bold">EAA...</code>) e cole
+                                    abaixo.
+                                  </li>
+                                </ol>
+                              </div>
+
+                              {(() => {
+                                const tokenValue = form.whatsapp_access_token ?? "";
+                                const v = validateAccessToken(tokenValue);
+                                return (
+                                  <>
+                                    <Textarea
+                                      rows={4}
+                                      value={tokenValue}
+                                      onChange={(e) =>
+                                        setForm({ ...form, whatsapp_access_token: e.target.value })
+                                      }
+                                      placeholder="Cole o token permanente longo aqui (EAA...)"
+                                      className={cn(
+                                        "font-mono text-xs leading-relaxed",
+                                        v.error &&
+                                          "border-destructive focus-visible:ring-destructive",
+                                        !v.error &&
+                                          v.ok &&
+                                          "border-success/60 focus-visible:ring-success",
+                                      )}
+                                    />
+                                    {v.error && (
+                                      <p className="flex items-start gap-1.5 text-xs text-destructive">
+                                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                        <span>{v.error}</span>
                                       </p>
-                                      <p className="text-muted-foreground">
-                                        Aplicação:{" "}
-                                        <span className="text-foreground font-medium">
-                                          {debugResult.application}
-                                        </span>
+                                    )}
+                                    {!v.error && v.warning && (
+                                      <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                        <span>{v.warning}</span>
                                       </p>
-                                      <p className="text-muted-foreground">
-                                        Expira em:{" "}
-                                        <span className="text-foreground font-medium">
-                                          {debugResult.expires_at === 0
-                                            ? "Nunca"
-                                            : new Date(
-                                                debugResult.expires_at * 1000,
-                                              ).toLocaleString()}
-                                        </span>
+                                    )}
+                                    {!v.error && !v.warning && v.ok && (
+                                      <p className="flex items-center gap-1.5 text-xs text-success font-medium">
+                                        <Check className="h-3.5 w-3.5" />
+                                        Token formatado corretamente ({
+                                          tokenValue.trim().length
+                                        }{" "}
+                                        caracteres)
                                       </p>
-                                      <p className="text-muted-foreground">
-                                        Tipo de Usuário:{" "}
-                                        <span className="text-foreground font-medium">
-                                          {debugResult.type}
-                                        </span>
-                                      </p>
-                                    </div>
-                                    {debugResult.scopes && (
-                                      <div className="pt-2 border-t space-y-1">
-                                        <p className="font-medium text-foreground">
-                                          Permissões (Scopes):
-                                        </p>
-                                        <div className="flex flex-wrap gap-1">
-                                          {debugResult.scopes.map((s: string) => (
-                                            <Badge
-                                              key={s}
-                                              variant="outline"
-                                              className={cn(
-                                                [
-                                                  "whatsapp_business_messaging",
-                                                  "whatsapp_business_management",
-                                                ].includes(s)
-                                                  ? "bg-success/10 text-success border-success/20"
-                                                  : "bg-muted text-muted-foreground",
-                                              )}
-                                            >
-                                              {s}
-                                            </Badge>
-                                          ))}
+                                    )}
+
+                                    {debugResult && (
+                                      <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
+                                        <div className="flex justify-between items-center border-b pb-2">
+                                          <span className="font-semibold text-foreground">
+                                            Diagnóstico do Token (Meta API)
+                                          </span>
+                                          <Badge
+                                            variant="secondary"
+                                            className={cn(
+                                              debugResult.is_valid
+                                                ? "bg-success/15 text-success hover:bg-success/20 border-none"
+                                                : "bg-destructive/15 text-destructive hover:bg-destructive/20 border-none",
+                                            )}
+                                          >
+                                            {debugResult.is_valid ? "Válido" : "Inválido"}
+                                          </Badge>
                                         </div>
+                                        <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+                                          <p className="text-muted-foreground">
+                                            ID do App:{" "}
+                                            <span className="font-mono text-foreground font-medium">
+                                              {debugResult.app_id}
+                                            </span>
+                                          </p>
+                                          <p className="text-muted-foreground">
+                                            Aplicação:{" "}
+                                            <span className="text-foreground font-medium">
+                                              {debugResult.application}
+                                            </span>
+                                          </p>
+                                          <p className="text-muted-foreground">
+                                            Expira em:{" "}
+                                            <span className="text-foreground font-medium">
+                                              {debugResult.expires_at === 0
+                                                ? "Nunca"
+                                                : new Date(
+                                                    debugResult.expires_at * 1000,
+                                                  ).toLocaleString()}
+                                            </span>
+                                          </p>
+                                          <p className="text-muted-foreground">
+                                            Tipo de Usuário:{" "}
+                                            <span className="text-foreground font-medium">
+                                              {debugResult.type}
+                                            </span>
+                                          </p>
+                                        </div>
+                                        {debugResult.scopes && (
+                                          <div className="pt-2 border-t space-y-1">
+                                            <p className="font-medium text-foreground">
+                                              Permissões (Scopes):
+                                            </p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {debugResult.scopes.map((s: string) => (
+                                                <Badge
+                                                  key={s}
+                                                  variant="outline"
+                                                  className={cn(
+                                                    [
+                                                      "whatsapp_business_messaging",
+                                                      "whatsapp_business_management",
+                                                    ].includes(s)
+                                                      ? "bg-success/10 text-success border-success/20"
+                                                      : "bg-muted text-muted-foreground",
+                                                  )}
+                                                >
+                                                  {s}
+                                                </Badge>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        <Button
-                          onClick={() => {
-                            const nextErrors: Record<string, string | null> = {};
-                            const err1 = validateDigitsField(
-                              String(form.whatsapp_phone_number_id ?? ""),
-                              "ID do número de telefone",
-                            );
-                            if (err1) nextErrors.whatsapp_phone_number_id = err1;
-                            const err2 = validateDigitsField(
-                              String(form.whatsapp_waba_id ?? ""),
-                              "ID da conta WhatsApp Business",
-                            );
-                            if (err2) nextErrors.whatsapp_waba_id = err2;
-
-                            const appIdValue = String(form.whatsapp_app_id ?? "").trim();
-                            if (appIdValue && /\D/.test(appIdValue)) {
-                              nextErrors.whatsapp_app_id = "App ID deve conter apenas dígitos.";
-                            }
-
-                            setErrors(nextErrors);
-                            if (Object.keys(nextErrors).length > 0) {
-                              toast.error("Corrija os erros antes de salvar.");
-                              return;
-                            }
-                            saveMut.mutate({
-                              whatsapp_phone_number_id: form.whatsapp_phone_number_id,
-                              whatsapp_waba_id: form.whatsapp_waba_id,
-                              whatsapp_business_id: form.whatsapp_business_id,
-                              whatsapp_business_phone: form.whatsapp_business_phone,
-                              whatsapp_access_token: form.whatsapp_access_token,
-                              whatsapp_app_id: form.whatsapp_app_id || null,
-                              rate_limit_per_second: form.rate_limit_per_second,
-                            });
-                          }}
-                          disabled={saveMut.isPending}
-                        >
-                          Salvar e conectar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            // Pré-validação: identifica EXATAMENTE quais campos faltam ou estão inválidos
-                            const checks: { key: string; label: string; problem: string | null }[] =
-                              [];
-                            const phoneId = String(form.whatsapp_phone_number_id ?? "").trim();
-                            const wabaId = String(form.whatsapp_waba_id ?? "").trim();
-                            const token = String(form.whatsapp_access_token ?? "").trim();
-
-                            checks.push({
-                              key: "whatsapp_phone_number_id",
-                              label: "ID do número de telefone",
-                              problem: !phoneId
-                                ? "está vazio"
-                                : validateDigitsField(phoneId, "ID do número de telefone"),
-                            });
-                            checks.push({
-                              key: "whatsapp_waba_id",
-                              label: "ID da conta WhatsApp Business (WABA ID)",
-                              problem: !wabaId
-                                ? "está vazio"
-                                : validateDigitsField(wabaId, "ID da conta WhatsApp Business"),
-                            });
-                            const tokenCheck = validateAccessToken(token);
-                            checks.push({
-                              key: "whatsapp_access_token",
-                              label: "Token de acesso permanente",
-                              problem: !token ? "está vazio" : (tokenCheck.error ?? null),
-                            });
-
-                            const missing = checks.filter((c) => c.problem);
-                            if (missing.length > 0) {
-                              const nextErrors: Record<string, string | null> = { ...errors };
-                              missing.forEach((m) => {
-                                nextErrors[m.key] = m.problem!;
-                              });
-                              setErrors(nextErrors);
-                              setPingResult({
-                                ok: false,
-                                error:
-                                  missing.length === 1
-                                    ? `Falta preencher: ${missing[0].label}.`
-                                    : `Faltam ${missing.length} campos para testar a conexão.`,
-                                missingFields: missing.map((m) => ({
-                                  label: m.label,
-                                  problem: m.problem,
-                                })),
-                              });
-                              toast.error(
-                                missing.length === 1
-                                  ? `Preencha: ${missing[0].label}`
-                                  : `${missing.length} campos pendentes`,
-                              );
-                              return;
-                            }
-                            setPingResult(null);
-                            pingMut.mutate();
-                          }}
-                          disabled={pingMut.isPending}
-                        >
-                          {pingMut.isPending ? "Testando…" : "Testar agora"}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        💡 Clique em <strong>"Testar agora"</strong> depois de salvar — vamos
-                        verificar a conexão e dizer exatamente o que está faltando, se faltar algo.
-                      </p>
-                      {pingResult && (
-                        <ResultAlert
-                          ok={!!pingResult.ok}
-                          successContent={
-                            <span>
-                              Tudo certo! Conectado a{" "}
-                              <strong>{pingResult.info?.verified_name}</strong> (
-                              {pingResult.info?.display_phone_number}) · qualidade do número:{" "}
-                              {pingResult.info?.quality_rating}
-                            </span>
-                          }
-                          error={pingResult.error}
-                          details={
-                            pingResult.missingFields ? (
-                              <div className="space-y-1">
-                                <p className="font-medium">Campos com problema:</p>
-                                <ul className="list-disc pl-5 space-y-0.5">
-                                  {pingResult.missingFields.map((f: any, i: number) => (
-                                    <li key={i}>
-                                      <strong>{f.label}</strong> — {f.problem}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              (pingResult.details ?? pingResult.error)
-                            )
-                          }
-                          fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
-                        />
-                      )}
-                    </Card>
-                  )}
-
-                  {step === 2 && (
-                    <Card className="p-6">
-                      <h2 className="font-display text-lg font-semibold">
-                        Enviar mensagem de teste
-                      </h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
-                      </p>
-
-                      <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm dark:border-amber-400/30 dark:bg-amber-400/10">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                        <div className="space-y-1">
-                          <p className="font-medium text-amber-900 dark:text-amber-200">
-                            A API pode aceitar e mesmo assim a mensagem não chegar.
-                          </p>
-                          <p className="text-amber-900/80 dark:text-amber-200/80">
-                            Para mensagens de <strong>texto livre</strong> (como este teste), o
-                            destinatário precisa ter te enviado uma mensagem nas{" "}
-                            <strong>últimas 24h</strong>. Fora dessa janela, a Meta confirma o
-                            recebimento (retorna um <code className="text-xs">wamid</code>) mas{" "}
-                            <strong>não entrega</strong>.
-                          </p>
-                          <p className="text-amber-900/80 dark:text-amber-200/80">
-                            Se sua conta WhatsApp Business ainda está em modo de
-                            teste/desenvolvimento, o número também precisa estar cadastrado em{" "}
-                            <em>WhatsApp Manager → Phone Numbers → Test recipients</em>. Para envios
-                            fora da janela, use um <strong>template aprovado</strong>.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
-                        <div className="space-y-1.5">
-                          <Label>Destinatário (E.164 sem +)</Label>
-                          <p className="text-[11px] text-muted-foreground">
-                            Exemplo: 5511999999999
-                          </p>
-                          <Input
-                            value={testTo}
-                            onChange={(e) => setTestTo(onlyDigits(e.target.value))}
-                            placeholder="5511999999999"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Mensagem</Label>
-                          <Input
-                            value={testText}
-                            onChange={(e) => setTestText(e.target.value)}
-                            placeholder="Mensagem de teste"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                          onClick={() => {
-                            if (testTo.length < 8) {
-                              toast.error("Informe um número válido (apenas dígitos).");
-                              return;
-                            }
-                            if (!testText.trim()) {
-                              toast.error("Escreva a mensagem.");
-                              return;
-                            }
-                            setTestResult(null);
-                            setDeliveryStatus(null);
-                            testMut.mutate({ to: testTo, text: testText.trim() });
-                          }}
-                          disabled={testMut.isPending || helloMut.isPending}
-                        >
-                          {testMut.isPending ? "Enviando…" : "Enviar texto livre"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            if (testTo.length < 8) {
-                              toast.error("Informe um número válido (apenas dígitos).");
-                              return;
-                            }
-                            setTestResult(null);
-                            setDeliveryStatus(null);
-                            helloMut.mutate({ to: testTo });
-                          }}
-                          disabled={testMut.isPending || helloMut.isPending}
-                          title="Template pré-aprovado pela Meta — funciona fora da janela de 24h"
-                        >
-                          {helloMut.isPending ? "Enviando…" : "Enviar template hello_world"}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        💡 <strong>Não chegou nada?</strong> Use o <strong>hello_world</strong> — é
-                        um template oficial da Meta que ignora a janela de 24h. Se esse chegar e o
-                        texto livre não, é confirmação de que o problem é a janela.
-                      </p>
-
-                      {testResult && (
-                        <>
-                          <ResultAlert
-                            ok={!!testResult.ok}
-                            successContent={
-                              <span>
-                                Aceito pela Meta para <strong>{testResult.sent_to}</strong>
-                                {testResult.wa_message_id ? (
-                                  <>
-                                    {" "}
-                                    · id <code className="text-xs">{testResult.wa_message_id}</code>
                                   </>
-                                ) : null}
-                              </span>
-                            }
-                            error={testResult.error}
-                            details={testResult.details}
-                            fallback="Falha ao enviar a mensagem de teste."
-                          />
-                          {testResult.ok && (
-                            <DeliveryTimeline
-                              status={deliveryStatus}
-                              hasWebhook={
-                                !!form.whatsapp_app_secret && !!form.whatsapp_verify_token
+                                );
+                              })()}
+                            </div>
+                          </div>
+                          <div className="mt-5 flex flex-wrap gap-2">
+                            <Button
+                              onClick={() => {
+                                const nextErrors: Record<string, string | null> = {};
+                                const err1 = validateDigitsField(
+                                  String(form.whatsapp_phone_number_id ?? ""),
+                                  "ID do número de telefone",
+                                );
+                                if (err1) nextErrors.whatsapp_phone_number_id = err1;
+                                const err2 = validateDigitsField(
+                                  String(form.whatsapp_waba_id ?? ""),
+                                  "ID da conta WhatsApp Business",
+                                );
+                                if (err2) nextErrors.whatsapp_waba_id = err2;
+
+                                const appIdValue = String(form.whatsapp_app_id ?? "").trim();
+                                if (appIdValue && /\D/.test(appIdValue)) {
+                                  nextErrors.whatsapp_app_id = "App ID deve conter apenas dígitos.";
+                                }
+
+                                setErrors(nextErrors);
+                                if (Object.keys(nextErrors).length > 0) {
+                                  toast.error("Corrija os erros antes de salvar.");
+                                  return;
+                                }
+                                saveMut.mutate({
+                                  whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+                                  whatsapp_waba_id: form.whatsapp_waba_id,
+                                  whatsapp_business_id: form.whatsapp_business_id,
+                                  whatsapp_business_phone: form.whatsapp_business_phone,
+                                  whatsapp_access_token: form.whatsapp_access_token,
+                                  whatsapp_app_id: form.whatsapp_app_id || null,
+                                  rate_limit_per_second: form.rate_limit_per_second,
+                                });
+                              }}
+                              disabled={saveMut.isPending}
+                            >
+                              Salvar e conectar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                // Pré-validação: identifica EXATAMENTE quais campos faltam ou estão inválidos
+                                const checks: {
+                                  key: string;
+                                  label: string;
+                                  problem: string | null;
+                                }[] = [];
+                                const phoneId = String(form.whatsapp_phone_number_id ?? "").trim();
+                                const wabaId = String(form.whatsapp_waba_id ?? "").trim();
+                                const token = String(form.whatsapp_access_token ?? "").trim();
+
+                                checks.push({
+                                  key: "whatsapp_phone_number_id",
+                                  label: "ID do número de telefone",
+                                  problem: !phoneId
+                                    ? "está vazio"
+                                    : validateDigitsField(phoneId, "ID do número de telefone"),
+                                });
+                                checks.push({
+                                  key: "whatsapp_waba_id",
+                                  label: "ID da conta WhatsApp Business (WABA ID)",
+                                  problem: !wabaId
+                                    ? "está vazio"
+                                    : validateDigitsField(wabaId, "ID da conta WhatsApp Business"),
+                                });
+                                const tokenCheck = validateAccessToken(token);
+                                checks.push({
+                                  key: "whatsapp_access_token",
+                                  label: "Token de acesso permanente",
+                                  problem: !token ? "está vazio" : (tokenCheck.error ?? null),
+                                });
+
+                                const missing = checks.filter((c) => c.problem);
+                                if (missing.length > 0) {
+                                  const nextErrors: Record<string, string | null> = { ...errors };
+                                  missing.forEach((m) => {
+                                    nextErrors[m.key] = m.problem!;
+                                  });
+                                  setErrors(nextErrors);
+                                  setPingResult({
+                                    ok: false,
+                                    error:
+                                      missing.length === 1
+                                        ? `Falta preencher: ${missing[0].label}.`
+                                        : `Faltam ${missing.length} campos para testar a conexão.`,
+                                    missingFields: missing.map((m) => ({
+                                      label: m.label,
+                                      problem: m.problem,
+                                    })),
+                                  });
+                                  toast.error(
+                                    missing.length === 1
+                                      ? `Preencha: ${missing[0].label}`
+                                      : `${missing.length} campos pendentes`,
+                                  );
+                                  return;
+                                }
+                                setPingResult(null);
+                                pingMut.mutate();
+                              }}
+                              disabled={pingMut.isPending}
+                            >
+                              {pingMut.isPending ? "Testando…" : "Testar agora"}
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-[11px] text-muted-foreground">
+                            💡 Clique em <strong>"Testar agora"</strong> depois de salvar — vamos
+                            verificar a conexão e dizer exatamente o que está faltando, se faltar
+                            algo.
+                          </p>
+                          {pingResult && (
+                            <ResultAlert
+                              ok={!!pingResult.ok}
+                              successContent={
+                                <span>
+                                  Tudo certo! Conectado a{" "}
+                                  <strong>{pingResult.info?.verified_name}</strong> (
+                                  {pingResult.info?.display_phone_number}) · qualidade do número:{" "}
+                                  {pingResult.info?.quality_rating}
+                                </span>
                               }
+                              error={pingResult.error}
+                              details={
+                                pingResult.missingFields ? (
+                                  <div className="space-y-1">
+                                    <p className="font-medium">Campos com problema:</p>
+                                    <ul className="list-disc pl-5 space-y-0.5">
+                                      {pingResult.missingFields.map((f: any, i: number) => (
+                                        <li key={i}>
+                                          <strong>{f.label}</strong> — {f.problem}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : (
+                                  (pingResult.details ?? pingResult.error)
+                                )
+                              }
+                              fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
                             />
                           )}
-                        </>
+                        </Card>
                       )}
-                    </Card>
-                  )}
 
-                  {step === 1 && (
-                    <Card className="p-6">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                          2
-                        </div>
-                        <div className="flex-1">
+                      {step === 2 && (
+                        <Card className="p-6">
                           <h2 className="font-display text-lg font-semibold">
-                            Receber confirmações da Meta (webhook)
+                            Enviar mensagem de teste
                           </h2>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            Isso permite saber quando suas mensagens foram{" "}
-                            <strong>entregues e lidas</strong>. No painel da Meta, vá em{" "}
-                            <strong>App Dashboard → WhatsApp → Configuration</strong> e cole os
-                            dados abaixo. Marque a opção <code className="text-xs">messages</code>.
+                            Envia uma mensagem de texto simples direto pela WhatsApp Cloud API.
                           </p>
-                        </div>
-                      </div>
-                      <div className="mt-5 space-y-4">
-                        <ReadOnly
-                          label="1. Cole esta URL no campo 'Callback URL' da Meta"
-                          value={webhookUrl}
-                          onCopy={() => copy(webhookUrl, "URL do webhook")}
-                        />
-                        <div className="space-y-1.5">
-                          <Label className="flex items-baseline gap-2">
-                            <span>2. Crie uma palavra secreta</span>
-                            <span className="text-[11px] font-normal text-muted-foreground">
-                              (Verify Token)
-                            </span>
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              value={form.whatsapp_verify_token ?? ""}
-                              onChange={(e) =>
-                                setForm({ ...form, whatsapp_verify_token: e.target.value })
-                              }
-                              placeholder="ex: meu_token_super_secreto_123"
-                            />
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => {
-                                navigator.clipboard.writeText(form.whatsapp_verify_token ?? "");
-                                toast.success("Verify Token copiado");
-                              }}
-                              title="Copiar Verify Token"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                saveMut.mutate({
-                                  whatsapp_verify_token: form.whatsapp_verify_token,
-                                })
-                              }
-                            >
-                              Salvar
-                            </Button>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">
-                            Pode ser qualquer texto que só você sabe. Depois cole o{" "}
-                            <strong>mesmo valor</strong> no campo "Verify token" da Meta.
-                          </p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="flex items-baseline gap-2">
-                            <span>3. Cole a Chave Secreta do App</span>
-                            <span className="text-[11px] font-normal text-muted-foreground">
-                              (App Secret)
-                            </span>
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="password"
-                              value={form.whatsapp_app_secret ?? ""}
-                              onChange={(e) =>
-                                setForm({ ...form, whatsapp_app_secret: e.target.value })
-                              }
-                              placeholder="Cole aqui o App Secret"
-                            />
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => {
-                                navigator.clipboard.writeText(form.whatsapp_app_secret ?? "");
-                                toast.success("App Secret copiado");
-                              }}
-                              title="Copiar App Secret"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon" asChild title="Abrir na Meta">
-                              <a
-                                href="https://developers.facebook.com/apps/"
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })
-                              }
-                            >
-                              Salvar
-                            </Button>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">
-                            No painel da Meta:{" "}
-                            <strong>Configurações → Básico → Chave Secreta do App</strong>. Usado
-                            para confirmar que cada aviso veio mesmo da Meta.
-                          </p>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-                </>
-              )}
-            </SetupWizard>
-            <WebhookHealthCard />
-          </TabsContent>
 
-          <TabsContent value="crm" className="outline-none">
-            <Card className="p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <h2 className="font-display text-lg font-semibold">
-                    Conectar com outros sistemas (CRM, automações)
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Use a chave abaixo para receber contatos automaticamente do seu CRM (HubSpot, RD
-                    Station, n8n, Zapier, etc). Se nunca usou isso, pode ignorar esta seção — não é
-                    obrigatório para enviar mensagens.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 space-y-3">
-                <ReadOnly
-                  label="Endereço para envio (POST)"
-                  value={ingestUrl}
-                  onCopy={() => copy(ingestUrl, "Endpoint")}
-                />
-                <div className="space-y-1.5">
-                  <Label>Sua chave de acesso</Label>
-                  <div className="flex gap-2">
-                    <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
-                    <Button
-                      variant="outline"
-                      onClick={() => copy(form.api_key ?? "", "API key")}
-                      title="Copiar"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => rotateMut.mutate()}
-                      disabled={rotateMut.isPending}
-                      title="Gerar nova chave (a antiga deixa de funcionar)"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
+                          <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm dark:border-amber-400/30 dark:bg-amber-400/10">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            <div className="space-y-1">
+                              <p className="font-medium text-amber-900 dark:text-amber-200">
+                                A API pode aceitar e mesmo assim a mensagem não chegar.
+                              </p>
+                              <p className="text-amber-900/80 dark:text-amber-200/80">
+                                Para mensagens de <strong>texto livre</strong> (como este teste), o
+                                destinatário precisa ter te enviado uma mensagem nas{" "}
+                                <strong>últimas 24h</strong>. Fora dessa janela, a Meta confirma o
+                                recebimento (retorna um <code className="text-xs">wamid</code>) mas{" "}
+                                <strong>não entrega</strong>.
+                              </p>
+                              <p className="text-amber-900/80 dark:text-amber-200/80">
+                                Se sua conta WhatsApp Business ainda está em modo de
+                                teste/desenvolvimento, o número também precisa estar cadastrado em{" "}
+                                <em>WhatsApp Manager → Phone Numbers → Test recipients</em>. Para
+                                envios fora da janela, use um <strong>template aprovado</strong>.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid gap-4 md:grid-cols-[1fr,2fr]">
+                            <div className="space-y-1.5">
+                              <Label>Destinatário (E.164 sem +)</Label>
+                              <p className="text-[11px] text-muted-foreground">
+                                Exemplo: 5511999999999
+                              </p>
+                              <Input
+                                value={testTo}
+                                onChange={(e) => setTestTo(onlyDigits(e.target.value))}
+                                placeholder="5511999999999"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Mensagem</Label>
+                              <Input
+                                value={testText}
+                                onChange={(e) => setTestText(e.target.value)}
+                                placeholder="Mensagem de teste"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Button
+                              onClick={() => {
+                                if (testTo.length < 8) {
+                                  toast.error("Informe um número válido (apenas dígitos).");
+                                  return;
+                                }
+                                if (!testText.trim()) {
+                                  toast.error("Escreva a mensagem.");
+                                  return;
+                                }
+                                setTestResult(null);
+                                setDeliveryStatus(null);
+                                testMut.mutate({ to: testTo, text: testText.trim() });
+                              }}
+                              disabled={testMut.isPending || helloMut.isPending}
+                            >
+                              {testMut.isPending ? "Enviando…" : "Enviar texto livre"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                if (testTo.length < 8) {
+                                  toast.error("Informe um número válido (apenas dígitos).");
+                                  return;
+                                }
+                                setTestResult(null);
+                                setDeliveryStatus(null);
+                                helloMut.mutate({ to: testTo });
+                              }}
+                              disabled={testMut.isPending || helloMut.isPending}
+                              title="Template pré-aprovado pela Meta — funciona fora da janela de 24h"
+                            >
+                              {helloMut.isPending ? "Enviando…" : "Enviar template hello_world"}
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            💡 <strong>Não chegou nada?</strong> Use o <strong>hello_world</strong>{" "}
+                            — é um template oficial da Meta que ignora a janela de 24h. Se esse
+                            chegar e o texto livre não, é confirmação de que o problem é a janela.
+                          </p>
+
+                          {testResult && (
+                            <>
+                              <ResultAlert
+                                ok={!!testResult.ok}
+                                successContent={
+                                  <span>
+                                    Aceito pela Meta para <strong>{testResult.sent_to}</strong>
+                                    {testResult.wa_message_id ? (
+                                      <>
+                                        {" "}
+                                        · id{" "}
+                                        <code className="text-xs">{testResult.wa_message_id}</code>
+                                      </>
+                                    ) : null}
+                                  </span>
+                                }
+                                error={testResult.error}
+                                details={testResult.details}
+                                fallback="Falha ao enviar a mensagem de teste."
+                              />
+                              {testResult.ok && (
+                                <DeliveryTimeline
+                                  status={deliveryStatus}
+                                  hasWebhook={
+                                    !!form.whatsapp_app_secret && !!form.whatsapp_verify_token
+                                  }
+                                />
+                              )}
+                            </>
+                          )}
+                        </Card>
+                      )}
+
+                      {step === 1 && (
+                        <Card className="p-6">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                              2
+                            </div>
+                            <div className="flex-1">
+                              <h2 className="font-display text-lg font-semibold">
+                                Receber confirmações da Meta (webhook)
+                              </h2>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Isso permite saber quando suas mensagens foram{" "}
+                                <strong>entregues e lidas</strong>. No painel da Meta, vá em{" "}
+                                <strong>App Dashboard → WhatsApp → Configuration</strong> e cole os
+                                dados abaixo. Marque a opção{" "}
+                                <code className="text-xs">messages</code>.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-5 space-y-4">
+                            <ReadOnly
+                              label="1. Cole esta URL no campo 'Callback URL' da Meta"
+                              value={webhookUrl}
+                              onCopy={() => copy(webhookUrl, "URL do webhook")}
+                            />
+                            <div className="space-y-1.5">
+                              <Label className="flex items-baseline gap-2">
+                                <span>2. Crie uma palavra secreta</span>
+                                <span className="text-[11px] font-normal text-muted-foreground">
+                                  (Verify Token)
+                                </span>
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={form.whatsapp_verify_token ?? ""}
+                                  onChange={(e) =>
+                                    setForm({ ...form, whatsapp_verify_token: e.target.value })
+                                  }
+                                  placeholder="ex: meu_token_super_secreto_123"
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(form.whatsapp_verify_token ?? "");
+                                    toast.success("Verify Token copiado");
+                                  }}
+                                  title="Copiar Verify Token"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  onClick={() =>
+                                    saveMut.mutate({
+                                      whatsapp_verify_token: form.whatsapp_verify_token,
+                                    })
+                                  }
+                                >
+                                  Salvar
+                                </Button>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                Pode ser qualquer texto que só você sabe. Depois cole o{" "}
+                                <strong>mesmo valor</strong> no campo "Verify token" da Meta.
+                              </p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="flex items-baseline gap-2">
+                                <span>3. Cole a Chave Secreta do App</span>
+                                <span className="text-[11px] font-normal text-muted-foreground">
+                                  (App Secret)
+                                </span>
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="password"
+                                  value={form.whatsapp_app_secret ?? ""}
+                                  onChange={(e) =>
+                                    setForm({ ...form, whatsapp_app_secret: e.target.value })
+                                  }
+                                  placeholder="Cole aqui o App Secret"
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(form.whatsapp_app_secret ?? "");
+                                    toast.success("App Secret copiado");
+                                  }}
+                                  title="Copiar App Secret"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" asChild title="Abrir na Meta">
+                                  <a
+                                    href="https://developers.facebook.com/apps/"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                                <Button
+                                  onClick={() =>
+                                    saveMut.mutate({
+                                      whatsapp_app_secret: form.whatsapp_app_secret,
+                                    })
+                                  }
+                                >
+                                  Salvar
+                                </Button>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                No painel da Meta:{" "}
+                                <strong>Configurações → Básico → Chave Secreta do App</strong>.
+                                Usado para confirmar que cada aviso veio mesmo da Meta.
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+                      )}
+                    </>
+                  )}
+                </SetupWizard>
+                <WebhookHealthCard />
+              </TabsContent>
+
+              <TabsContent value="crm" className="outline-none">
+                <Card className="p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <h2 className="font-display text-lg font-semibold">
+                        Conectar com outros sistemas (CRM, automações)
+                      </h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Use a chave abaixo para receber contatos automaticamente do seu CRM
+                        (HubSpot, RD Station, n8n, Zapier, etc). Se nunca usou isso, pode ignorar
+                        esta seção — não é obrigatório para enviar mensagens.
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos para
-                    sua conta.
-                  </p>
-                </div>
-                <details className="rounded-md border bg-muted/30 p-3 text-xs">
-                  <summary className="cursor-pointer font-medium text-foreground">
-                    Exemplo técnico para desenvolvedores
-                  </summary>
-                  <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
-                    {`curl -X POST ${ingestUrl} \\
+                  <div className="mt-4 space-y-3">
+                    <ReadOnly
+                      label="Endereço para envio (POST)"
+                      value={ingestUrl}
+                      onCopy={() => copy(ingestUrl, "Endpoint")}
+                    />
+                    <div className="space-y-1.5">
+                      <Label>Sua chave de acesso</Label>
+                      <div className="flex gap-2">
+                        <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
+                        <Button
+                          variant="outline"
+                          onClick={() => copy(form.api_key ?? "", "API key")}
+                          title="Copiar"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => rotateMut.mutate()}
+                          disabled={rotateMut.isPending}
+                          title="Gerar nova chave (a antiga deixa de funcionar)"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos
+                        para sua conta.
+                      </p>
+                    </div>
+                    <details className="rounded-md border bg-muted/30 p-3 text-xs">
+                      <summary className="cursor-pointer font-medium text-foreground">
+                        Exemplo técnico para desenvolvedores
+                      </summary>
+                      <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
+                        {`curl -X POST ${ingestUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${form.api_key ?? "SUA_API_KEY"}" \\
   -d '{
@@ -1639,79 +1794,79 @@ function SettingsPage() {
     "custom_fields": {"empresa": "Acme"},
     "tags": ["lead-quente"]
   }'`}
-                  </pre>
-                </details>
-              </div>
-            </Card>
-          </TabsContent>
+                      </pre>
+                    </details>
+                  </div>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="qrcodes" className="outline-none">
-            <QRCodeSection />
-          </TabsContent>
+              <TabsContent value="qrcodes" className="outline-none">
+                <QRCodeSection />
+              </TabsContent>
 
-          <TabsContent value="waba" className="outline-none">
-            <WABASection />
-          </TabsContent>
+              <TabsContent value="waba" className="outline-none">
+                <WABASection />
+              </TabsContent>
 
-          <TabsContent value="instagram" className="outline-none">
-            <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
-          </TabsContent>
+              <TabsContent value="instagram" className="outline-none">
+                <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
+              </TabsContent>
 
-          <TabsContent value="facebook" className="outline-none">
-            <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
-          </TabsContent>
+              <TabsContent value="facebook" className="outline-none">
+                <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
+              </TabsContent>
 
-          <TabsContent value="advanced" className="outline-none">
-            <AdvancedToolsSection />
-          </TabsContent>
+              <TabsContent value="advanced" className="outline-none">
+                <AdvancedToolsSection />
+              </TabsContent>
 
-          {isAdmin && (
-            <TabsContent value="admin" className="outline-none">
-              <AdminPlatformSection />
-            </TabsContent>
-          )}
+              {isAdmin && (
+                <TabsContent value="admin" className="outline-none">
+                  <AdminPlatformSection />
+                </TabsContent>
+              )}
 
-          <TabsContent value="general" className="space-y-6 outline-none">
-            <AppearanceCard />
-            <Card className="p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Leia nossos termos e saiba como seus dados são tratados.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <Link
-                  to="/privacy"
-                  className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <Shield className="h-4 w-4 text-primary" />
-                  Política de Privacidade
-                </Link>
-                <Link
-                  to="/terms"
-                  className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <FileText className="h-4 w-4 text-primary" />
-                  Termos de Serviço
-                </Link>
-                <Link
-                  to="/data-deletion"
-                  className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <Trash2 className="h-4 w-4 text-primary" />
-                  Exclusão de Dados
-                </Link>
-              </div>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+              <TabsContent value="general" className="space-y-6 outline-none">
+                <AppearanceCard />
+                <Card className="p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <h2 className="font-display text-lg font-semibold">Documentos legais</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Leia nossos termos e saiba como seus dados são tratados.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <Link
+                      to="/privacy"
+                      className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                    >
+                      <Shield className="h-4 w-4 text-primary" />
+                      Política de Privacidade
+                    </Link>
+                    <Link
+                      to="/terms"
+                      className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                    >
+                      <FileText className="h-4 w-4 text-primary" />
+                      Termos de Serviço
+                    </Link>
+                    <Link
+                      to="/data-deletion"
+                      className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                    >
+                      <Trash2 className="h-4 w-4 text-primary" />
+                      Exclusão de Dados
+                    </Link>
+                  </div>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      )}
     </div>
-  )}
-</div>
   );
 }
 
@@ -2168,7 +2323,8 @@ function AdminPlatformSection() {
       const order = sidebarOrderData.order;
       if (order) {
         try {
-          const parsed = typeof order === "string" ? JSON.parse(order) as string[] : order as string[];
+          const parsed =
+            typeof order === "string" ? (JSON.parse(order) as string[]) : (order as string[]);
           if (Array.isArray(parsed) && parsed.length > 0) {
             const sorted = [...MENU_ITEMS].sort((a, b) => {
               const idxA = parsed.indexOf(a.to);
@@ -2668,7 +2824,8 @@ function AdminPlatformSection() {
                   <KeyRound className="h-4 w-4" /> Licenciamento da Plataforma
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Insira a chave de licença oficial para validar a ativação e permitir o uso das APIs da plataforma.
+                  Insira a chave de licença oficial para validar a ativação e permitir o uso das
+                  APIs da plataforma.
                 </p>
               </div>
               <Button
@@ -3900,6 +4057,9 @@ function WABASection() {
   const subscribeApp = useServerFn(subscribeAppToWABA);
   const getPhoneNumbers = useServerFn(listWABAPhoneNumbers);
   const registerPhone = useServerFn(registerPhoneNumber);
+  const getCoexistenceStatusFn = useServerFn(getCoexistencePhoneStatus);
+  const syncCoexistenceContactsFn = useServerFn(syncCoexistenceContacts);
+  const syncCoexistenceHistoryFn = useServerFn(syncCoexistenceHistory);
   const qc = useQueryClient();
 
   const profileQuery = useQuery({ queryKey: ["profile"] });
@@ -3919,6 +4079,13 @@ function WABASection() {
   const [phonesMap, setPhonesMap] = useState<Record<string, any[]>>({});
   const [loadingPhones, setLoadingPhones] = useState<Record<string, boolean>>({});
   const [subscribing, setSubscribing] = useState<Record<string, boolean>>({});
+  const [checkingCoexistence, setCheckingCoexistence] = useState<Record<string, boolean>>({});
+  const [syncingCoexistenceContacts, setSyncingCoexistenceContacts] = useState<
+    Record<string, boolean>
+  >({});
+  const [syncingCoexistenceHistory, setSyncingCoexistenceHistory] = useState<
+    Record<string, boolean>
+  >({});
 
   // Atribuídas ao Token states
   const fetchAssigned = useServerFn(listAssignedWABAs);
@@ -4286,6 +4453,89 @@ function WABASection() {
     },
   });
 
+  const checkCoexistenceMut = useMutation<
+    CoexistenceStatusMutationResult,
+    Error,
+    { wabaId: string; phoneId: string }
+  >({
+    mutationFn: async (payload: { wabaId: string; phoneId: string }) => {
+      setCheckingCoexistence((state) => ({ ...state, [payload.phoneId]: true }));
+      const res = parseCoexistenceStatusResponse(
+        await getCoexistenceStatusFn({ data: { phoneId: payload.phoneId } }),
+      );
+      if (!res.ok) throw new Error(res.error || "Erro ao consultar coexistência.");
+      return { ...payload, info: res.info };
+    },
+    onSuccess: ({ wabaId, phoneId, info }) => {
+      setPhonesMap((state) => ({
+        ...state,
+        [wabaId]: (state[wabaId] ?? []).map((phone) =>
+          phone.id === phoneId
+            ? {
+                ...phone,
+                ...info,
+              }
+            : phone,
+        ),
+      }));
+      const bizAppStatus =
+        typeof info.is_on_biz_app === "boolean"
+          ? info.is_on_biz_app
+            ? "Coexistência ativa"
+            : "Coexistência inativa"
+          : "Status consultado";
+      toast.success(bizAppStatus);
+    },
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: (_, __, payload) => {
+      setCheckingCoexistence((state) => ({ ...state, [payload.phoneId]: false }));
+    },
+  });
+
+  const syncCoexistenceContactsMut = useMutation<CoexistenceSyncMutationResult, Error, string>({
+    mutationFn: async (phoneId: string) => {
+      setSyncingCoexistenceContacts((state) => ({ ...state, [phoneId]: true }));
+      const res = parseCoexistenceSyncResponse(
+        await syncCoexistenceContactsFn({ data: { phoneId } }),
+      );
+      if (!res.ok) throw new Error(res.error || "Erro ao iniciar sincronização de contatos.");
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        res.request_id
+          ? `Sincronização de contatos iniciada. Request ID: ${res.request_id}`
+          : "Sincronização de contatos iniciada.",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: (_, __, phoneId) => {
+      setSyncingCoexistenceContacts((state) => ({ ...state, [phoneId]: false }));
+    },
+  });
+
+  const syncCoexistenceHistoryMut = useMutation<CoexistenceSyncMutationResult, Error, string>({
+    mutationFn: async (phoneId: string) => {
+      setSyncingCoexistenceHistory((state) => ({ ...state, [phoneId]: true }));
+      const res = parseCoexistenceSyncResponse(
+        await syncCoexistenceHistoryFn({ data: { phoneId } }),
+      );
+      if (!res.ok) throw new Error(res.error || "Erro ao iniciar sincronização de histórico.");
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        res.request_id
+          ? `Sincronização de histórico iniciada. Request ID: ${res.request_id}`
+          : "Sincronização de histórico iniciada.",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: (_, __, phoneId) => {
+      setSyncingCoexistenceHistory((state) => ({ ...state, [phoneId]: false }));
+    },
+  });
+
   const defineActivePhoneMut = useMutation({
     mutationFn: (payload: { phoneId: string; displayPhone: string }) =>
       saveProfile({
@@ -4397,9 +4647,42 @@ function WABASection() {
                     <span>Plataforma: {ph.platform_type}</span>
                   </>
                 )}
+                {typeof ph.is_on_biz_app === "boolean" && (
+                  <>
+                    <span>·</span>
+                    <span>Coexistência: {ph.is_on_biz_app ? "Ativa" : "Inativa"}</span>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+            <div className="flex flex-wrap items-center justify-end gap-1.5 self-end sm:self-center shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px]"
+                onClick={() => checkCoexistenceMut.mutate({ wabaId, phoneId: ph.id })}
+                disabled={checkingCoexistence[ph.id] === true}
+              >
+                {checkingCoexistence[ph.id] === true ? "Consultando..." : "Coexistência"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px]"
+                onClick={() => syncCoexistenceContactsMut.mutate(ph.id)}
+                disabled={syncingCoexistenceContacts[ph.id] === true}
+              >
+                {syncingCoexistenceContacts[ph.id] === true ? "Sincronizando..." : "Sync Contatos"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px]"
+                onClick={() => syncCoexistenceHistoryMut.mutate(ph.id)}
+                disabled={syncingCoexistenceHistory[ph.id] === true}
+              >
+                {syncingCoexistenceHistory[ph.id] === true ? "Sincronizando..." : "Sync Histórico"}
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -6297,7 +6580,15 @@ function AdvancedToolsSection() {
   );
 }
 
-function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: any; saveMut: any }) {
+function InstagramSettingsTab({
+  form,
+  setForm,
+  saveMut,
+}: {
+  form: any;
+  setForm: any;
+  saveMut: any;
+}) {
   const fetchIg = useServerFn(listInstagramAccounts);
   const connectIg = useServerFn(connectInstagramAccount);
   const disconnectIg = useServerFn(disconnectInstagramAccount);
@@ -6379,14 +6670,19 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
               <div className="space-y-6">
                 <Card className="p-6">
                   <form onSubmit={handleConnect} className="space-y-4">
-                    <h2 className="font-display text-lg font-semibold">Passo 1: Conectar sua Conta Profissional do Instagram</h2>
+                    <h2 className="font-display text-lg font-semibold">
+                      Passo 1: Conectar sua Conta Profissional do Instagram
+                    </h2>
                     <p className="text-sm text-muted-foreground">
-                      Insira as credenciais geradas na sua aplicação Meta Developers para o canal do Instagram.
+                      Insira as credenciais geradas na sua aplicação Meta Developers para o canal do
+                      Instagram.
                     </p>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor="ig_user_id">ID da Conta Profissional do Instagram (Instagram Business Account ID)</Label>
+                        <Label htmlFor="ig_user_id">
+                          ID da Conta Profissional do Instagram (Instagram Business Account ID)
+                        </Label>
                         <Input
                           id="ig_user_id"
                           placeholder="Ex: 17841400293049"
@@ -6407,7 +6703,9 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="access_token">Token de Acesso do Usuário do Sistema (Page Access Token)</Label>
+                      <Label htmlFor="access_token">
+                        Token de Acesso do Usuário do Sistema (Page Access Token)
+                      </Label>
                       <Textarea
                         id="access_token"
                         rows={3}
@@ -6440,7 +6738,9 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="token_expires_at">Data de Expiração do Token (opcional)</Label>
+                      <Label htmlFor="token_expires_at">
+                        Data de Expiração do Token (opcional)
+                      </Label>
                       <Input
                         id="token_expires_at"
                         type="datetime-local"
@@ -6448,7 +6748,8 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                         onChange={(e) => setTokenExpiresAt(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Os tokens de longa duração do Meta expiram em 60 dias. Informe a data para acompanhar a validade.
+                        Os tokens de longa duração do Meta expiram em 60 dias. Informe a data para
+                        acompanhar a validade.
                       </p>
                     </div>
 
@@ -6463,7 +6764,9 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                   {isLoading ? (
                     <div className="text-sm text-muted-foreground">Carregando canais...</div>
                   ) : !accounts || accounts.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nenhuma conta conectada ainda.</div>
+                    <div className="text-sm text-muted-foreground">
+                      Nenhuma conta conectada ainda.
+                    </div>
                   ) : (
                     <div className="divide-y divide-border">
                       {accounts.map((acc: any) => (
@@ -6471,10 +6774,16 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                           <div>
                             <p className="font-semibold text-sm">@{acc.username}</p>
                             <p className="text-xs text-muted-foreground">ID: {acc.ig_user_id}</p>
-                            {acc.app_id && <p className="text-xs text-muted-foreground">App ID: {acc.app_id}</p>}
-                            {acc.app_secret && <p className="text-xs text-muted-foreground">App Secret: ••••••••</p>}
+                            {acc.app_id && (
+                              <p className="text-xs text-muted-foreground">App ID: {acc.app_id}</p>
+                            )}
+                            {acc.app_secret && (
+                              <p className="text-xs text-muted-foreground">App Secret: ••••••••</p>
+                            )}
                             {acc.token_expires_at && (
-                              <p className={`text-xs ${new Date(acc.token_expires_at) < new Date() ? "text-destructive" : "text-muted-foreground"}`}>
+                              <p
+                                className={`text-xs ${new Date(acc.token_expires_at) < new Date() ? "text-destructive" : "text-muted-foreground"}`}
+                              >
                                 Expira em: {new Date(acc.token_expires_at).toLocaleString("pt-BR")}
                               </p>
                             )}
@@ -6497,9 +6806,12 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
             {step === 1 && (
               <Card className="p-6 space-y-6">
                 <div>
-                  <h2 className="font-display text-lg font-semibold">Passo 2: Configurar Webhook no Facebook Developers</h2>
+                  <h2 className="font-display text-lg font-semibold">
+                    Passo 2: Configurar Webhook no Facebook Developers
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Configure a Meta para enviar mensagens do Instagram em tempo real para a sua plataforma.
+                    Configure a Meta para enviar mensagens do Instagram em tempo real para a sua
+                    plataforma.
                   </p>
                 </div>
 
@@ -6519,7 +6831,8 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      No Painel Meta do Aplicativo (Instagram &gt; Webhook), cole esta URL de Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
+                      No Painel Meta do Aplicativo (Instagram &gt; Webhook), cole esta URL de
+                      Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
                     </p>
                   </div>
 
@@ -6528,10 +6841,16 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                     <div className="flex gap-2">
                       <Input
                         value={form.whatsapp_verify_token ?? ""}
-                        onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, whatsapp_verify_token: e.target.value })
+                        }
                         placeholder="Insira o seu Verify Token"
                       />
-                      <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>
+                      <Button
+                        onClick={() =>
+                          saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })
+                        }
+                      >
                         Salvar
                       </Button>
                     </div>
@@ -6546,7 +6865,11 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                         onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
                         placeholder="Insira o App Secret"
                       />
-                      <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>
+                      <Button
+                        onClick={() =>
+                          saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })
+                        }
+                      >
                         Salvar
                       </Button>
                     </div>
@@ -6562,7 +6885,8 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
                 </div>
                 <h2 className="text-lg font-semibold">Tudo configurado!</h2>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Sua conta do Instagram está configurada e pronta para receber DMs e responder utilizando a engine de atendimento automático ou chat manual.
+                  Sua conta do Instagram está configurada e pronta para receber DMs e responder
+                  utilizando a engine de atendimento automático ou chat manual.
                 </p>
               </Card>
             )}
@@ -6573,7 +6897,15 @@ function InstagramSettingsTab({ form, setForm, saveMut }: { form: any; setForm: 
   );
 }
 
-function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: any; saveMut: any }) {
+function FacebookSettingsTab({
+  form,
+  setForm,
+  saveMut,
+}: {
+  form: any;
+  setForm: any;
+  saveMut: any;
+}) {
   const fetchFb = useServerFn(listFacebookPages);
   const connectFb = useServerFn(connectFacebookPage);
   const disconnectFb = useServerFn(disconnectFacebookPage);
@@ -6646,9 +6978,12 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
               <div className="space-y-6">
                 <Card className="p-6">
                   <form onSubmit={handleConnect} className="space-y-4">
-                    <h2 className="font-display text-lg font-semibold">Passo 1: Conectar sua Página do Facebook</h2>
+                    <h2 className="font-display text-lg font-semibold">
+                      Passo 1: Conectar sua Página do Facebook
+                    </h2>
                     <p className="text-sm text-muted-foreground">
-                      Insira as credenciais geradas na sua aplicação Meta Developers para a Página do Facebook.
+                      Insira as credenciais geradas na sua aplicação Meta Developers para a Página
+                      do Facebook.
                     </p>
 
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -6674,7 +7009,9 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="page_access_token">Token de Acesso da Página (Page Access Token)</Label>
+                      <Label htmlFor="page_access_token">
+                        Token de Acesso da Página (Page Access Token)
+                      </Label>
                       <Textarea
                         id="page_access_token"
                         rows={3}
@@ -6695,7 +7032,9 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
                   {isLoading ? (
                     <div className="text-sm text-muted-foreground">Carregando páginas...</div>
                   ) : !pages || pages.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nenhuma página conectada ainda.</div>
+                    <div className="text-sm text-muted-foreground">
+                      Nenhuma página conectada ainda.
+                    </div>
                   ) : (
                     <div className="divide-y divide-border">
                       {pages.map((p: any) => (
@@ -6722,9 +7061,12 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
             {step === 1 && (
               <Card className="p-6 space-y-6">
                 <div>
-                  <h2 className="font-display text-lg font-semibold">Passo 2: Configurar Webhook no Facebook</h2>
+                  <h2 className="font-display text-lg font-semibold">
+                    Passo 2: Configurar Webhook no Facebook
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Configure a Meta para enviar mensagens do Messenger em tempo real para a sua plataforma.
+                    Configure a Meta para enviar mensagens do Messenger em tempo real para a sua
+                    plataforma.
                   </p>
                 </div>
 
@@ -6744,7 +7086,8 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      No Painel Meta do Aplicativo (Messenger &gt; Webhook), cole esta URL de Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
+                      No Painel Meta do Aplicativo (Messenger &gt; Webhook), cole esta URL de
+                      Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
                     </p>
                   </div>
 
@@ -6753,10 +7096,16 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
                     <div className="flex gap-2">
                       <Input
                         value={form.whatsapp_verify_token ?? ""}
-                        onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, whatsapp_verify_token: e.target.value })
+                        }
                         placeholder="Insira o seu Verify Token"
                       />
-                      <Button onClick={() => saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })}>
+                      <Button
+                        onClick={() =>
+                          saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })
+                        }
+                      >
                         Salvar
                       </Button>
                     </div>
@@ -6771,7 +7120,11 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
                         onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
                         placeholder="Insira o App Secret"
                       />
-                      <Button onClick={() => saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })}>
+                      <Button
+                        onClick={() =>
+                          saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })
+                        }
+                      >
                         Salvar
                       </Button>
                     </div>
@@ -6787,7 +7140,9 @@ function FacebookSettingsTab({ form, setForm, saveMut }: { form: any; setForm: a
                 </div>
                 <h2 className="text-lg font-semibold">Tudo configurado!</h2>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Sua página do Facebook está configurada e pronta para receber mensagens via Messenger e responder utilizando a engine de atendimento automático ou chat manual.
+                  Sua página do Facebook está configurada e pronta para receber mensagens via
+                  Messenger e responder utilizando a engine de atendimento automático ou chat
+                  manual.
                 </p>
               </Card>
             )}
