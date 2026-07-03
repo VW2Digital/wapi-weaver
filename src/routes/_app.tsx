@@ -51,6 +51,27 @@ import { Card } from "@/components/ui/card";
 import { SidebarProvider, Sidebar, SidebarRail } from "@/components/ui/sidebar";
 import { useEffect, useMemo, useState } from "react";
 
+function reportServerFnAbortDebug(
+  hypothesisId: string,
+  location: string,
+  msg: string,
+  data: Record<string, unknown>,
+) {
+  void fetch("http://127.0.0.1:7777/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "serverfn-aborts",
+      runId: "pre-fix",
+      hypothesisId,
+      location,
+      msg: `[DEBUG] ${msg}`,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+}
+
 function useGravatarUrl(email: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -244,6 +265,13 @@ function AppLayout() {
 
   useEffect(() => {
     if (!loading && !user) {
+      // #region debug-point E:app-redirect-login
+      reportServerFnAbortDebug("E", "_app.tsx:redirect-login", "Redirecting to /login from AppLayout", {
+        loading,
+        hasUser: Boolean(user),
+        pathname: loc.pathname,
+      });
+      // #endregion
       router.navigate({ to: "/login", replace: true });
     }
   }, [loading, user?.id, router]);
@@ -270,6 +298,13 @@ function AppLayout() {
 
   useEffect(() => {
     if (mfaOk === false) {
+      // #region debug-point F:app-redirect-mfa
+      reportServerFnAbortDebug("F", "_app.tsx:redirect-mfa", "Redirecting to /login due to MFA", {
+        pathname: loc.pathname,
+        hasUser: Boolean(user),
+        mfaOk,
+      });
+      // #endregion
       router.navigate({ to: "/login", replace: true });
     }
   }, [mfaOk, router]);
