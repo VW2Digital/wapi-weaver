@@ -12,6 +12,27 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
+function reportLeadChatDebug(
+  hypothesisId: string,
+  location: string,
+  msg: string,
+  data: Record<string, JsonValue>,
+) {
+  void fetch("http://127.0.0.1:7777/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "lead-chat-messages",
+      runId: "pre-fix",
+      hypothesisId,
+      location,
+      msg: `[DEBUG] ${msg}`,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+}
+
 interface WebhookEntry {
   changes?: WebhookChange[];
 }
@@ -483,6 +504,16 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
     const waMessageId = normalizeWaMessageId(m.id);
     const phoneDigits = from.replace(/\D+/g, "");
 
+    // #region debug-point A:webhook-inbound-message
+    reportLeadChatDebug("A", "whatsapp-webhook.ts:503", "Inbound individual message received", {
+      userId,
+      from,
+      phoneDigits,
+      waMessageId,
+      type: m.type ?? "text",
+    });
+    // #endregion
+
     // Garante que o contato exista para o chat renderizar a conversa na lista
     // e preserva custom_fields já existentes, como avatar_url.
     const contactName = waIdToName.get(phoneDigits) || "";
@@ -518,17 +549,39 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
       },
     };
 
-    if (existingContact?.id) {
-      await dbAdmin.from("contacts").update(contactPayload).eq("id", existingContact.id);
-    } else {
-      await dbAdmin.from("contacts").insert({
-        id: randomUUID(),
-        user_id: userId,
-        phone_e164: phoneDigits,
-        channel: "whatsapp",
-        ...contactPayload,
+    try {
+      if (existingContact?.id) {
+        await dbAdmin.from("contacts").update(contactPayload).eq("id", existingContact.id);
+      } else {
+        await dbAdmin.from("contacts").insert({
+          id: randomUUID(),
+          user_id: userId,
+          phone_e164: phoneDigits,
+          channel: "whatsapp",
+          ...contactPayload,
+        });
+      }
+    } catch (error: unknown) {
+      // #region debug-point B:webhook-contact-error
+      reportLeadChatDebug("B", "whatsapp-webhook.ts:552", "Contact persistence failed", {
+        userId,
+        phoneDigits,
+        hadExistingContact: Boolean(existingContact?.id),
+        error: getErrorMessage(error),
       });
+      // #endregion
+      throw error;
     }
+
+    // #region debug-point B:webhook-contact-persisted
+    reportLeadChatDebug("B", "whatsapp-webhook.ts:550", "Contact persisted for inbound message", {
+      userId,
+      phoneDigits,
+      contactId: existingContact?.id ?? null,
+      hadExistingContact: Boolean(existingContact?.id),
+      nextChatStatus: nextChatStatus ?? null,
+    });
+    // #endregion
 
     if (
       !existingContact ||
@@ -674,28 +727,65 @@ async function processInboundDirectMessages(value: WebhookValue | undefined, use
       .maybeSingle();
 
     if (existingMessage?.id) {
+      // #region debug-point C:webhook-duplicate-message
+      reportLeadChatDebug(
+        "C",
+        "whatsapp-webhook.ts:706",
+        "Inbound message skipped because it already exists",
+        {
+          userId,
+          phoneDigits,
+          waMessageId,
+          existingMessageId: existingMessage.id,
+        },
+      );
+      // #endregion
       continue;
     }
 
-    await dbAdmin.from("direct_messages").insert({
-      id: randomUUID(),
-      user_id: userId,
-      contact_phone: phoneDigits,
-      direction: "incoming",
+    try {
+      await dbAdmin.from("direct_messages").insert({
+        id: randomUUID(),
+        user_id: userId,
+        contact_phone: phoneDigits,
+        direction: "incoming",
+        type,
+        body,
+        wa_message_id: waMessageId,
+        status: "delivered",
+        reply_to_message_id,
+        channel: "whatsapp",
+        provider_account_id: phoneNumberId,
+        metadata: {
+          message: m,
+          contacts: waContacts,
+          metadata: value?.metadata ?? null,
+        },
+        raw_payload: value ?? null,
+      });
+    } catch (error: unknown) {
+      // #region debug-point D:webhook-direct-message-error
+      reportLeadChatDebug("D", "whatsapp-webhook.ts:734", "Direct message insert failed", {
+        userId,
+        phoneDigits,
+        waMessageId,
+        type,
+        error: getErrorMessage(error),
+      });
+      // #endregion
+      throw error;
+    }
+
+    // #region debug-point D:webhook-direct-message-inserted
+    reportLeadChatDebug("D", "whatsapp-webhook.ts:728", "Inbound direct message inserted", {
+      userId,
+      phoneDigits,
+      waMessageId,
       type,
       body,
-      wa_message_id: waMessageId,
-      status: "delivered",
-      reply_to_message_id,
-      channel: "whatsapp",
-      provider_account_id: phoneNumberId,
-      metadata: {
-        message: m,
-        contacts: waContacts,
-        metadata: value?.metadata ?? null,
-      },
-      raw_payload: value ?? null,
+      providerAccountId: phoneNumberId,
     });
+    // #endregion
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
     if (phoneNumberId && body) {
