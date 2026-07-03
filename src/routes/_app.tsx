@@ -495,7 +495,7 @@ function AppLayout() {
               <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="end" className="w-64">
+          <DropdownMenuContent side="right" align="end" sideOffset={16} className="w-64 z-[100]">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium truncate">{user.email?.split("@")[0]}</span>
