@@ -16,7 +16,8 @@ export const webhookWorker = new Worker(
       processStateSync,
       processMessageEchoes,
       processTemplateStatusUpdate,
-      processTemplateCategoryUpdate
+      processTemplateCategoryUpdate,
+      processAccountUpdate
     } = await import("../../routes/api/public/whatsapp-webhook");
 
     const { entry, matchedUserId, evRowId } = job.data;
@@ -37,6 +38,8 @@ export const webhookWorker = new Worker(
           await processTemplateStatusUpdate(change.value, matchedUserId);
         } else if (change.field === "template_category_update") {
           await processTemplateCategoryUpdate(change.value, matchedUserId);
+        } else if (change.field === "account_update") {
+          await processAccountUpdate(change.value, matchedUserId);
         }
       }
     }

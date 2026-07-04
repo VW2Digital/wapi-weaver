@@ -198,7 +198,8 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
   .validator((d) => z.object({
     code: z.string(),
     waba_id: z.string().optional(),
-    phone_number_id: z.string().optional()
+    phone_number_id: z.string().optional(),
+    is_coexistence: z.boolean().optional()
   }).parse(d))
   .handler(async ({ context, data }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
@@ -236,19 +237,21 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
         }
       }
 
-      // 3. Registrar o número para uso na Cloud API (coexistência)
-      const registerUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/register`;
-      const registerResp = await fetch(registerUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ messaging_product: 'whatsapp' })
-      });
-      if (!registerResp.ok) {
-        const err = await registerResp.json();
-        throw new Error(err.error?.message || "Erro ao registrar o número.");
+      // 3. Registrar o número para uso na Cloud API (coexistência ignora o registro, pois já está registrado)
+      if (!data.is_coexistence) {
+        const registerUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/register`;
+        const registerResp = await fetch(registerUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ messaging_product: 'whatsapp' })
+        });
+        if (!registerResp.ok) {
+          const err = await registerResp.json();
+          throw new Error(err.error?.message || "Erro ao registrar o número.");
+        }
       }
 
       // 4. Assinar seu app aos webhooks dessa WABA
@@ -262,6 +265,27 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       if (!subscribeResp.ok) {
         const err = await subscribeResp.json();
         throw new Error(err.error?.message || "Erro ao assinar webhooks.");
+      }
+
+      // 4.5. Se for coexistência, solicitar sincronização inicial (smb_app_data)
+      if (data.is_coexistence) {
+        const syncUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/smb_app_data`;
+        const syncResp = await fetch(syncUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            history_sync: true, // Configuração base (você pode optar por history_sync: false se não quiser mensagens antigas)
+            contacts_sync: true
+          })
+        });
+        if (!syncResp.ok) {
+          const err = await syncResp.json();
+          console.warn("Falha ao iniciar sincronização de coexistência:", err.error?.message);
+          // Não abortamos o onboarding se apenas a sincronização falhar.
+        }
       }
 
       // 5. Salvar no banco

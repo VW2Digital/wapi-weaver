@@ -353,7 +353,7 @@ function SettingsPage() {
 
   const doOnboardWhatsApp = useServerFn(onboardWhatsApp);
   const onboardWhatsAppMut = useMutation({
-    mutationFn: (data: { code: string; waba_id?: string; phone_number_id?: string }) => 
+    mutationFn: (data: { code: string; waba_id?: string; phone_number_id?: string; is_coexistence?: boolean }) => 
       doOnboardWhatsApp({ data }),
     onSuccess: (res: any) => {
       if (res.success) {
@@ -374,11 +374,16 @@ function SettingsPage() {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          if (data.event === 'FINISH') {
+          if (data.event === 'FINISH' || data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
             const waba_id = data.data?.waba_id;
             const phone_number_id = data.data?.phone_number_id;
             (window as any).__wa_embedded_waba_id = waba_id;
             (window as any).__wa_embedded_phone_number_id = phone_number_id;
+            if (data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+              (window as any).__wa_embedded_is_coexistence = true;
+            } else {
+              (window as any).__wa_embedded_is_coexistence = false;
+            }
           }
         }
       } catch (e) {
@@ -393,12 +398,30 @@ function SettingsPage() {
       toast.error("SDK do Facebook ainda não carregou.");
       return;
     }
+    
+    // Inicializa o SDK caso ainda não tenha sido inicializado
+    if (!(window as any).fbInitialized) {
+      const appId = import.meta.env.VITE_META_APP_ID || "";
+      if (!appId || appId === "seu-app-id-aqui") {
+        toast.error("O VITE_META_APP_ID não está configurado no arquivo .env");
+        return;
+      }
+      (window as any).FB.init({
+        appId: appId,
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: 'v20.0'
+      });
+      (window as any).fbInitialized = true;
+    }
+
     (window as any).FB.login((response: any) => {
       if (response.authResponse) {
         const code = response.authResponse.code;
         const waba_id = (window as any).__wa_embedded_waba_id;
         const phone_number_id = (window as any).__wa_embedded_phone_number_id;
-        onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id });
+        const is_coexistence = (window as any).__wa_embedded_is_coexistence;
+        onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id, is_coexistence });
       } else {
         toast.error("Você cancelou o login ou não autorizou.");
       }
