@@ -111,6 +111,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
     <html lang="pt-BR">
       <head>
         <HeadContent />
+        <script async defer crossOrigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
       </head>
       <body>
         {children}

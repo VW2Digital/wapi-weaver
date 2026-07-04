@@ -192,3 +192,91 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
       return { success: false, message: e?.message || "Falha ao atualizar perfil empresarial." };
     }
   });
+
+export const onboardWhatsApp = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({
+    code: z.string(),
+    waba_id: z.string().optional(),
+    phone_number_id: z.string().optional()
+  }).parse(d))
+  .handler(async ({ context, data }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const APP_ID = process.env.VITE_META_APP_ID || process.env.META_APP_ID;
+    const APP_SECRET = process.env.META_APP_SECRET;
+    const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || "v20.0";
+
+    if (!APP_ID || !APP_SECRET) {
+      throw new Error("META_APP_ID e META_APP_SECRET precisam estar configurados.");
+    }
+
+    try {
+      // 1. Trocar o "code" por um token de acesso do cliente
+      const tokenUrl = `https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&code=${data.code}`;
+      const tokenResp = await fetch(tokenUrl);
+      const tokenData = await tokenResp.json();
+      
+      if (!tokenResp.ok) {
+        throw new Error(tokenData.error?.message || "Erro ao obter access token.");
+      }
+      
+      const accessToken = tokenData.access_token;
+      let wabaId = data.waba_id;
+      let phoneNumberId = data.phone_number_id;
+
+      // 2. Tentar buscar os IDs se o frontend não enviou (usando token de debug ou chamada direta)
+      // Nota: o ideal é o frontend enviar. Se não enviou e precisar, podemos chamar a Graph API.
+      if (!wabaId || !phoneNumberId) {
+        // Exemplo: debug_token para achar os accounts (se aplicável), mas o ideal é que venha do frontend.
+        // O fluxo do frontend passará os IDs.
+        if (!wabaId || !phoneNumberId) {
+           throw new Error("waba_id e phone_number_id são obrigatórios. O frontend não os enviou.");
+        }
+      }
+
+      // 3. Registrar o número para uso na Cloud API (coexistência)
+      const registerUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/register`;
+      const registerResp = await fetch(registerUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ messaging_product: 'whatsapp' })
+      });
+      if (!registerResp.ok) {
+        const err = await registerResp.json();
+        throw new Error(err.error?.message || "Erro ao registrar o número.");
+      }
+
+      // 4. Assinar seu app aos webhooks dessa WABA
+      const subscribeUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/subscribed_apps`;
+      const subscribeResp = await fetch(subscribeUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      });
+      if (!subscribeResp.ok) {
+        const err = await subscribeResp.json();
+        throw new Error(err.error?.message || "Erro ao assinar webhooks.");
+      }
+
+      // 5. Salvar no banco
+      await db.query(
+        `UPDATE profiles SET 
+          whatsapp_access_token = ?, 
+          whatsapp_phone_number_id = ?, 
+          whatsapp_waba_id = ? 
+        WHERE id = ?`,
+        [accessToken, phoneNumberId, wabaId, effectiveUserId]
+      );
+
+      return { success: true, waba_id: wabaId, phone_number_id: phoneNumberId };
+    } catch (e: any) {
+      console.error("Erro no onboardWhatsApp:", e.message);
+      return { success: false, message: e.message || "Erro desconhecido no onboard." };
+    }
+  });

@@ -54,6 +54,7 @@ import {
   disconnectFacebookPage,
 } from "@/lib/profile.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
+import { onboardWhatsApp } from "@/lib/whatsapp-business-profile.functions";
 import {
   getCurrentUserRoles,
   getPlatformSettings,
@@ -349,6 +350,69 @@ function SettingsPage() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const doOnboardWhatsApp = useServerFn(onboardWhatsApp);
+  const onboardWhatsAppMut = useMutation({
+    mutationFn: (data: { code: string; waba_id?: string; phone_number_id?: string }) => 
+      doOnboardWhatsApp({ data }),
+    onSuccess: (res: any) => {
+      if (res.success) {
+        toast.success("WhatsApp conectado com sucesso!");
+        qc.invalidateQueries({ queryKey: ["profile"] });
+      } else {
+        toast.error(res.message || "Erro ao conectar WhatsApp via Embedded Signup.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
+        return;
+      }
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'WA_EMBEDDED_SIGNUP') {
+          if (data.event === 'FINISH') {
+            const waba_id = data.data?.waba_id;
+            const phone_number_id = data.data?.phone_number_id;
+            (window as any).__wa_embedded_waba_id = waba_id;
+            (window as any).__wa_embedded_phone_number_id = phone_number_id;
+          }
+        }
+      } catch (e) {
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const handleEmbeddedSignup = () => {
+    if (typeof (window as any).FB === 'undefined') {
+      toast.error("SDK do Facebook ainda não carregou.");
+      return;
+    }
+    (window as any).FB.login((response: any) => {
+      if (response.authResponse) {
+        const code = response.authResponse.code;
+        const waba_id = (window as any).__wa_embedded_waba_id;
+        const phone_number_id = (window as any).__wa_embedded_phone_number_id;
+        onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id });
+      } else {
+        toast.error("Você cancelou o login ou não autorizou.");
+      }
+    }, {
+      config_id: import.meta.env.VITE_META_CONFIG_ID || "",
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: {
+        setup: {},
+        featureType: '',
+        sessionInfoVersion: '3'
+      }
+    });
+  };
   const [debugResult, setDebugResult] = useState<any>(null);
 
   const debugTokenMut = useMutation({
@@ -890,6 +954,25 @@ function SettingsPage() {
                               Confira com atenção qual ID é qual para evitar erros ao disparar
                               mensagens.
                             </p>
+                          </div>
+                          
+                          <div className="flex flex-col items-center justify-center py-6 border-b border-dashed mb-4">
+                            <h3 className="font-semibold text-sm mb-2 text-foreground">Conexão Simplificada (Recomendado)</h3>
+                            <p className="text-xs text-muted-foreground text-center max-w-md mb-4">
+                              Use o fluxo de Embedded Signup para conectar seu número existente sem perder o acesso no celular (coexistência).
+                            </p>
+                            <Button 
+                              onClick={handleEmbeddedSignup} 
+                              disabled={onboardWhatsAppMut.isPending}
+                              className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white font-semibold flex items-center gap-2"
+                            >
+                              {onboardWhatsAppMut.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Facebook className="h-4 w-4" />
+                              )}
+                              Conectar WhatsApp
+                            </Button>
                           </div>
 
                           <div className="grid gap-6 md:grid-cols-2">
@@ -1875,11 +1958,15 @@ function SetupWizard({
   webhookComplete,
   testComplete,
   children,
+  handleEmbeddedSignup,
+  isEmbeddedSignupPending,
 }: {
   credentialsComplete: boolean;
   webhookComplete: boolean;
   testComplete: boolean;
   children: (step: number) => React.ReactNode;
+  handleEmbeddedSignup?: () => void;
+  isEmbeddedSignupPending?: boolean;
 }) {
   const steps = useMemo(
     () => [
@@ -4213,6 +4300,7 @@ function WABASection() {
   });
 
   // Deregister phone states & mutations
+
   const deregisterPhone = useServerFn(deregisterPhoneNumber);
   const deregisterPhoneMut = useMutation({
     mutationFn: (phoneId: string) => deregisterPhone({ data: { phoneId } }),
