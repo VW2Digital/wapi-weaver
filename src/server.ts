@@ -128,7 +128,7 @@ async function migrateRoles() {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
           await db.query(
-            "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
             [userId],
           );
           console.log(`[Roles Migration] Updated master user ${adminEmail} to adminmaster.`);
@@ -152,7 +152,7 @@ async function migrateRoles() {
         if (userRows.length > 0) {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
+          await db.query("INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
             userId,
           ]);
           console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to owner.`);
@@ -174,7 +174,7 @@ async function migrateRoles() {
         if (users.length > 0) {
           const firstUserId = users[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [firstUserId]);
-          await db.query("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
+          await db.query("INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
             firstUserId,
           ]);
           console.log(`[Roles Migration] Set first user ${users[0].email} as owner.`);

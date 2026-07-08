@@ -139,16 +139,16 @@ function LoginPage() {
         </div>
         <div className="space-y-4">
           <h1 className="font-display text-4xl font-semibold leading-tight">
-            Sua operação omnichannel com WhatsApp, Instagram, Messenger e IA.
+            Sua operação com WhatsApp e IA.
           </h1>
           <p className="text-sidebar-foreground/70">
-            Integre WhatsApp, Instagram e Messenger em um único painel, crie campanhas de disparo em
+            Configure seu WhatsApp em um painel integrado, crie campanhas de disparo em
             massa, monitore métricas, construa fluxos de bots e escale atendimentos com agentes de
             IA ilimitados.
           </p>
         </div>
         <p className="text-xs text-sidebar-foreground/50">
-          100% integrado às APIs oficiais da Meta. WhatsApp, Instagram, Messenger e IA.
+          100% integrado à API oficial da Meta. WhatsApp e IA.
         </p>
       </div>
 

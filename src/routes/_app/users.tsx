@@ -59,7 +59,7 @@ import {
 } from "@/lib/users-admin.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   listTeams,
   listTeamMembers,
@@ -71,6 +71,39 @@ import {
   removeTeamMember,
 } from "@/lib/assignment.functions";
 import { Edit, Plus, UserCheck } from "lucide-react";
+
+function TabSelector({
+  tabs,
+  activeId,
+  onChange,
+}: {
+  tabs: { id: string; label: string; icon: React.ReactNode }[];
+  activeId: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="flex gap-1 bg-muted/30 p-1 rounded-full w-fit">
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeId;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
+              isActive
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
@@ -107,21 +140,15 @@ function UsersPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="px-8 pt-4 border-b bg-muted/10 shrink-0 flex items-center justify-between">
-        <Tabs
-          value={activeTab}
-          onValueChange={(val: any) => setActiveTab(val)}
-          className="w-[400px]"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <UsersIcon className="h-4 w-4" /> Usuários
-            </TabsTrigger>
-            <TabsTrigger value="teams" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" /> Equipes e Setores
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <div className="shrink-0 px-8 pt-4 pb-4">
+        <TabSelector
+          tabs={[
+            { id: "users", label: "Usuários", icon: <UsersIcon className="h-4 w-4" /> },
+            { id: "teams", label: "Equipes e Setores", icon: <UserCheck className="h-4 w-4" /> },
+          ]}
+          activeId={activeTab}
+          onChange={(id: string) => setActiveTab(id as "users" | "teams")}
+        />
       </div>
 
       <div className="flex-1 overflow-hidden">

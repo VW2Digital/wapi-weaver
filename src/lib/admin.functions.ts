@@ -161,17 +161,18 @@ const settingsSchema = z.object({
     .max(10)
     .regex(/^v\d+\.\d+$/, "Formato deve ser vXX.X")
     .optional(),
-  seo_title: z.string().max(128).optional(),
-  seo_description: z.string().max(320).optional(),
-  head_tags: z.string().max(20000).optional(),
-  body_tags: z.string().max(20000).optional(),
+  seo_title: z.string().max(128).nullable().optional(),
+  seo_description: z.string().max(320).nullable().optional(),
+  head_tags: z.string().max(20000).nullable().optional(),
+  body_tags: z.string().max(20000).nullable().optional(),
   cron_secret: z
     .string()
     .trim()
     .max(128)
     .regex(/^[A-Za-z0-9_-]*$/, "Use apenas letras, dígitos, _ ou -")
+    .nullable()
     .optional(),
-  license_key: z.string().trim().max(256).optional(),
+  license_key: z.string().trim().max(256).nullable().optional(),
 });
 
 export const updatePlatformSettings = createServerFn({ method: "POST" })
@@ -342,12 +343,18 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
     return { sql, generated_at: new Date().toISOString() };
   });
 
-async function assertAdmin(ctx: { supabase: any; userId: string }) {
+async function assertAdmin(ctx: { supabase: any; userId: string; claims?: any }) {
+  // Also accept 'owner' and 'adminmaster' — consistent with getCurrentUserRoles
+  const claimRole = ctx.claims?.role as string | undefined;
+  if (claimRole === "adminmaster") return; // JWT already marks this as platform admin
+
   const { data: roles } = await ctx.supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", ctx.userId);
-  const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+  const isAdmin = (roles ?? []).some(
+    (r: any) => r.role === "admin" || r.role === "owner" || r.role === "adminmaster",
+  );
   if (!isAdmin) throw new Error("forbidden");
 }
 

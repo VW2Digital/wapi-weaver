@@ -1489,51 +1489,7 @@ async function handleWhatsAppGroupMessage(
   }
 }
 
-export async function processMessageEchoes(value: WebhookValue | undefined, userId: string) {
-  const echoes = value?.message_echoes ?? [];
-  const phoneNumberId = value?.metadata?.phone_number_id ?? null;
 
-  for (const m of echoes) {
-    if (!m.id) continue;
-    const waMessageId = normalizeWaMessageId(m.id);
-    const phoneDigits = (m.to ?? "").replace(/\D/g, "");
-
-    const { data: existingMessage } = await dbAdmin
-      .from("direct_messages")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("wa_message_id", waMessageId)
-      .maybeSingle();
-
-    if (existingMessage?.id) continue;
-
-    const resolvedContent = resolveDirectMessageContent(m);
-
-    try {
-      await dbAdmin.from("direct_messages").insert({
-        id: randomUUID(),
-        user_id: userId,
-        contact_phone: phoneDigits,
-        direction: "outgoing",
-        type: resolvedContent.type,
-        body: resolvedContent.body,
-        wa_message_id: waMessageId,
-        status: "sent",
-        channel: "whatsapp",
-        provider_account_id: phoneNumberId,
-        metadata: {
-          source: "smb_message_echoes",
-          message: m,
-          metadata: value?.metadata ?? null,
-        },
-        raw_payload: value ?? null,
-      });
-      logInfo("Message echo persistido com sucesso", { userId, waMessageId, phoneDigits });
-    } catch (error: unknown) {
-      logError("Erro ao inserir message echo", { error: getErrorMessage(error) });
-    }
-  }
-}
 
 export async function processAccountUpdate(value: WebhookValue | undefined, userId: string) {
   const event = value?.event;

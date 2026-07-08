@@ -96,44 +96,6 @@ export function SettingsSidebar({
             </div>
             <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
           </button>
-
-          {/* Instagram */}
-          <button
-            onClick={() => setActiveSection("instagram")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <MessageSquare className="h-5 w-5" />
-              </div>
-              <div>
-                <h5 className="font-semibold text-sm text-foreground">Instagram</h5>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Integração de mensagens diretas e automação para Instagram.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-
-          {/* Facebook */}
-          <button
-            onClick={() => setActiveSection("facebook")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-100 transition-transform">
-                <Facebook className="h-5 w-5" />
-              </div>
-              <div>
-                <h5 className="font-semibold text-sm text-foreground">Facebook</h5>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Conexão de páginas para atendimento via Facebook Messenger.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
         </div>
       </div>
 

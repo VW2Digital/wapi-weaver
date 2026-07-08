@@ -260,6 +260,7 @@ function WhatsAppBusinessProfilePage() {
                     ⚠️ <strong>Meta App ID não configurado.</strong> Preencha o campo App ID nas{" "}
                     <Link
                       to="/settings"
+                      search={{ s: undefined }}
                       className="underline font-bold text-primary hover:text-primary/80"
                     >
                       Configurações

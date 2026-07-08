@@ -27,7 +27,7 @@ const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MIN = 280;
 const SIDEBAR_WIDTH_MAX = 600;
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+const SIDEBAR_WIDTH_ICON = "80px";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 type SidebarContextProps = {

@@ -3239,28 +3239,6 @@ function ChatPage() {
                           <span>Arquivados</span>
                           {filterView === "archived" && <Check className="h-3.5 w-3.5" />}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setFilterView("whatsapp")}
-                          className="flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span>WhatsApp</span>
-                          {filterView === "whatsapp" && <Check className="h-3.5 w-3.5" />}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setFilterView("instagram")}
-                          className="flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span>Instagram</span>
-                          {filterView === "instagram" && <Check className="h-3.5 w-3.5" />}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setFilterView("messenger")}
-                          className="flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span>Messenger</span>
-                          {filterView === "messenger" && <Check className="h-3.5 w-3.5" />}
-                        </DropdownMenuItem>
                       </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                   </DropdownMenuSub>
@@ -6441,35 +6419,35 @@ function ChatPage() {
                   {products.map((prod) => (
                     <div
                       key={prod.id}
-                      className="flex items-center justify-between p-3 rounded-lg border border-neutral-800 bg-neutral-900/50 text-zinc-200"
+                      className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20 text-card-foreground"
                     >
                       <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-sm text-zinc-100">{prod.name}</h4>
-                        <p className="text-xs text-zinc-400 font-semibold mt-0.5">
+                        <h4 className="font-bold text-sm text-foreground">{prod.name}</h4>
+                        <p className="text-xs text-muted-foreground font-semibold mt-0.5">
                           Preço: R${" "}
                           {prod.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] text-zinc-400 mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-1">
                           Estoque: {prod.isUnlimited ? "Ilimitado" : `${prod.stock} un`}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0 ml-4">
                         {!prod.isUnlimited && (
-                          <div className="flex items-center border border-neutral-800 rounded bg-neutral-950">
+                          <div className="flex items-center border border-input rounded bg-background">
                             <button
                               type="button"
-                              className="px-2 py-1 text-xs hover:bg-neutral-800 transition-colors"
+                              className="px-2 py-1 text-xs hover:bg-muted transition-colors"
                               onClick={() =>
                                 updateProductStock(prod.id, Math.max(0, prod.stock - 1))
                               }
                             >
                               -
                             </button>
-                            <span className="px-2 text-xs font-mono select-none">{prod.stock}</span>
+                            <span className="px-2 text-xs font-mono select-none text-foreground">{prod.stock}</span>
                             <button
                               type="button"
-                              className="px-2 py-1 text-xs hover:bg-neutral-800 transition-colors"
+                              className="px-2 py-1 text-xs hover:bg-muted transition-colors"
                               onClick={() => updateProductStock(prod.id, prod.stock + 1)}
                             >
                               +

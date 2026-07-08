@@ -156,8 +156,6 @@ function BotPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="whatsapp">WhatsApp</SelectItem>
-              <SelectItem value="instagram">Instagram</SelectItem>
-              <SelectItem value="messenger">Messenger</SelectItem>
             </SelectContent>
           </Select>
         </div>

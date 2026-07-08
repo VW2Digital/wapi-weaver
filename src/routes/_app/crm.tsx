@@ -495,7 +495,7 @@ function CRMPage() {
                 </Button>
               )}
 
-              <Button variant="outline" size="sm" onClick={() => setNewFunnelOpen(true)}>
+              <Button variant="default" size="sm" onClick={() => setNewFunnelOpen(true)} className="bg-blue-600 text-white hover:bg-blue-700">
                 Novo Funil
               </Button>
 

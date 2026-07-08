@@ -13,7 +13,7 @@ import {
 // Helper to assert administrator privileges in panel mode
 async function assertAdmin(ctx: { userId: string }) {
   const rows = (await db.query(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
+    "SELECT role FROM user_roles WHERE user_id = ? AND role IN ('adminmaster', 'owner') LIMIT 1",
     [ctx.userId],
   )) as any[];
   if (!rows.length) {
@@ -316,7 +316,7 @@ export const getLicenseRole = createServerFn({ method: "GET" })
     let isAdmin = false;
     try {
       const rows = (await db.query(
-        "SELECT role FROM user_roles WHERE user_id = ? AND role = 'adminmaster' LIMIT 1",
+        "SELECT role FROM user_roles WHERE user_id = ? AND role IN ('adminmaster', 'owner') LIMIT 1",
         [context.userId],
       )) as any[];
       if (rows.length > 0) {

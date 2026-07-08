@@ -19,7 +19,6 @@ import {
   LogOut,
   User as UserIcon,
   ChevronUp,
-  ChevronDown,
   Sun,
   Moon,
   Receipt,
@@ -32,7 +31,6 @@ import {
   Kanban,
   Bot,
   BrainCircuit,
-  Download,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -47,9 +45,9 @@ import {
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
 import { SidebarProvider, Sidebar, SidebarRail } from "@/components/ui/sidebar";
-import { useEffect, useMemo, useState } from "react";
+import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function reportServerFnAbortDebug(
   hypothesisId: string,
@@ -95,7 +93,19 @@ function useGravatarUrl(email: string | null | undefined) {
 
 export const Route = createFileRoute("/_app")({ component: AppLayout });
 
-const NAV = [
+type NavChildItem = {
+  to: string;
+  label: string;
+  icon: React.ElementType<{ className?: string }>;
+};
+
+type NavParentItem = NavChildItem & {
+  children: NavChildItem[];
+};
+
+type NavItem = NavChildItem | NavParentItem;
+
+const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat Direto", icon: MessageCircle },
   { to: "/contacts", label: "Contatos", icon: Users },
@@ -118,7 +128,9 @@ const NAV = [
       { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
     ],
   },
-] as const;
+];
+
+const ADMIN_ONLY_PATHS = new Set(["/users", "/audit", "/webhook-events", "/billing"]);
 
 function AppLayout() {
   const { user, loading } = useAuth();
@@ -130,7 +142,6 @@ function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const { isAdmin, loading: rolesLoading } = useRoles();
-  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   const fetchContacts = useServerFn(listChatContacts);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
@@ -142,7 +153,7 @@ function AppLayout() {
     staleTime: 30000,
   });
 
-  const isAccessAllowed = licenseQuery.data?.isAccessAllowed !== false;
+  const isAccessAllowed = true;
   const contactsQuery = useQuery({
     queryKey: ["chat-contacts"],
     queryFn: () => fetchContacts(),
@@ -159,19 +170,6 @@ function AppLayout() {
       0,
     );
   }, [contactsQuery.data]);
-
-  useEffect(() => {
-    const path = loc.pathname;
-    if (
-      path.startsWith("/settings") ||
-      path.startsWith("/whatsapp-business-profile") ||
-      path.startsWith("/users") ||
-      path.startsWith("/audit") ||
-      path.startsWith("/webhook-events")
-    ) {
-      setOpenMenus((prev) => ({ ...prev, "/settings": true }));
-    }
-  }, [loc.pathname]);
 
   const fetchSidebarOrder = useServerFn(getSidebarOrder);
   const fetchLicenseRole = useServerFn(getLicenseRole);
@@ -190,14 +188,13 @@ function AppLayout() {
   });
 
   const navItems = useMemo(() => {
-    const base = [...NAV] as any[];
+    const base: NavItem[] = [...NAV];
     if (licenseRoleQuery.data?.role === "panel" && licenseRoleQuery.data?.isAdmin) {
-      // Find where Settings is to insert before it
       const settingsIdx = base.findIndex((item) => item.to === "/settings");
-      const panelItem = {
+      const panelItem: NavChildItem = {
         to: "/licenses",
-        label: "Painel de Licenças",
-        icon: ShieldAlert,
+        label: "Gerenciamento de Clientes",
+        icon: Users,
       };
       if (settingsIdx !== -1) {
         base.splice(settingsIdx, 0, panelItem);
@@ -238,6 +235,62 @@ function AppLayout() {
       return [...navItems];
     }
   }, [sidebarOrderData, navItems]);
+
+  const GROUP_ORDER: Record<string, number> = {
+    "/dashboard": 0,
+    "/chat": 0,
+    "/contacts": 1,
+    "/lists": 1,
+    "/templates": 2,
+    "/campaigns": 2,
+    "/crm": 3,
+    "/bot": 3,
+    "/ai-agent": 3,
+    "/billing": 4,
+    "/licenses": 4,
+    "/settings": 5,
+  };
+
+  const sidebarGroups = useMemo(() => {
+    const groupMap = new Map<number, SidebarNavItem[]>();
+    for (const item of orderedNav) {
+      if (ADMIN_ONLY_PATHS.has(item.to) && !isAdmin) continue;
+      const gIdx = GROUP_ORDER[item.to] ?? 0;
+      if (!groupMap.has(gIdx)) groupMap.set(gIdx, []);
+      const navItem: SidebarNavItem = {
+        id: item.to,
+        label: item.label,
+        icon: item.icon,
+        badge: item.to === "/chat" && totalUnread > 0 ? totalUnread : undefined,
+      };
+      if ("children" in item && item.children.length > 0) {
+        navItem.children = item.children
+          .filter((child) => !ADMIN_ONLY_PATHS.has(child.to) || isAdmin)
+          .map((child) => ({
+            id: child.to,
+            label: child.label,
+            icon: child.icon,
+          }));
+        if (navItem.children.length === 0) continue;
+      }
+      groupMap.get(gIdx)!.push(navItem);
+    }
+    return Array.from(groupMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, items]) => items)
+      .filter((g) => g.length > 0);
+  }, [orderedNav, isAdmin, totalUnread]);
+
+  const handleNavigate = useCallback(
+    (path: string) => {
+      if (path === "/settings") {
+        router.navigate({ to: path, search: { s: undefined } } as any);
+      } else {
+        router.navigate({ to: path } as any);
+      }
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (!user) {
@@ -343,202 +396,86 @@ function AppLayout() {
     router.navigate({ to: "/login", replace: true });
   };
   const SidebarBody = (
-    <div className="flex h-full flex-col overflow-x-hidden">
-      <div className="flex items-center gap-2 px-6 py-5 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center">
+    <SidebarNav
+      appName="Bliv"
+      logo={
         <img
           src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
           alt="Bliv Logo"
-          className="h-9 w-9 object-contain rounded-lg shrink-0 shadow-sm"
+          className="h-9 w-9 shrink-0 rounded-lg object-contain shadow-sm"
         />
-        <span className="font-display text-base font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-          Bliv
-        </span>
-      </div>
-      <div className="px-6 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-        Menu
-      </div>
-      <nav className="flex-1 space-y-1 px-3 overflow-y-auto group-data-[collapsible=icon]:px-1.5">
-        {orderedNav.map((item: any) => {
-          const { to, label, icon: Icon } = item;
-          const isAdminOnly = ["/users", "/audit", "/webhook-events", "/billing"].includes(to);
-          if (isAdminOnly && !isAdmin) return null;
-
-          const hasChildren = item.children && item.children.length > 0;
-          if (hasChildren) {
-            const visibleChildren = item.children.filter((child: any) => {
-              const isChildAdminOnly = ["/users", "/audit", "/webhook-events"].includes(child.to);
-              return !isChildAdminOnly || isAdmin;
-            });
-            if (visibleChildren.length === 0) return null;
-
-            const isOpen = openMenus[to] || false;
-            const isAnyChildActive = visibleChildren.some((child: any) =>
-              loc.pathname.startsWith(child.to),
-            );
-
-            return (
-              <div key={to} className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setOpenMenus((prev) => ({ ...prev, [to]: !prev[to] }))}
-                  className={cn(
-                    "w-full group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
-                    isAnyChildActive
-                      ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
-                  )}
-                >
-                  <div className="flex items-center gap-3 group-data-[collapsible=icon]:gap-0">
-                    <Icon
-                      className={cn(
-                        "h-4 w-4 transition-transform duration-200 group-hover:scale-110 shrink-0",
-                        isAnyChildActive
-                          ? "text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground/70",
-                      )}
-                    />
-                    <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-data-[collapsible=icon]:hidden">
-                      {label}
-                    </span>
+      }
+      groups={sidebarGroups}
+      activePath={loc.pathname}
+      onNavigate={handleNavigate}
+      footer={
+        <div className="m-3 mt-4 border-t border-sidebar-border pt-3 group-data-[collapsible=icon]:m-1 group-data-[collapsible=icon]:px-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Abrir menu do usuário"
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
+              >
+                <Avatar className="h-9 w-9 shrink-0">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
+                  <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
+                    {(user.email ?? "?").slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                  <div className="text-sm font-medium truncate text-sidebar-foreground">
+                    {user.email?.split("@")[0]}
                   </div>
-                  {isOpen ? (
-                    <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
-                  )}
-                </button>
-                {isOpen && (
-                  <div className="pl-6 space-y-1 border-l border-sidebar-border/60 ml-5 mt-1 transition-all duration-200 group-data-[collapsible=icon]:hidden">
-                    {visibleChildren.map((child: any) => {
-                      const childActive = loc.pathname.startsWith(child.to);
-                      const ChildIcon = child.icon;
-                      return (
-                        <Link
-                          key={child.to}
-                          to={child.to}
-                          className={cn(
-                            "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs transition-all duration-200",
-                            childActive
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground",
-                          )}
-                        >
-                          <ChildIcon className="h-3.5 w-3.5" />
-                          <span>{child.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          const active = loc.pathname.startsWith(to);
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
-              )}
-            >
-              {active && (
-                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary transition-all duration-200 group-data-[collapsible=icon]:hidden" />
-              )}
-              <div className="relative flex items-center justify-center shrink-0">
-                <Icon
-                  className={cn(
-                    "h-4 w-4 transition-transform duration-200 group-hover:scale-110",
-                    active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70",
-                  )}
-                />
-                {to === "/chat" && totalUnread > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 h-2 w-2 rounded-full bg-[#FF424E] border border-sidebar group-data-[collapsible=icon]:block hidden animate-pulse" />
-                )}
-              </div>
-              <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-data-[collapsible=icon]:hidden">
-                {label}
-              </span>
-              {to === "/chat" && totalUnread > 0 && (
-                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FF424E] px-1.5 text-[10px] font-bold text-white group-data-[collapsible=icon]:hidden animate-pulse">
-                  {totalUnread}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="m-3 mt-4 border-t border-sidebar-border pt-3 group-data-[collapsible=icon]:m-1 group-data-[collapsible=icon]:px-0">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label="Abrir menu do usuário"
-              className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
-            >
-              <Avatar className="h-9 w-9 shrink-0">
-                {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
-                <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
-                  {(user.email ?? "?").slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                <div className="text-sm font-medium truncate text-sidebar-foreground">
-                  {user.email?.split("@")[0]}
+                  <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
                 </div>
-                <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
-              </div>
-              <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="end" sideOffset={16} className="w-64 z-[100]">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium truncate">{user.email?.split("@")[0]}</span>
-                <span className="text-xs text-muted-foreground truncate">{user.email}</span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/profile" className="cursor-pointer">
-                <UserIcon className="mr-2 h-4 w-4" /> Perfil
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/settings" className="cursor-pointer">
-                <Settings className="mr-2 h-4 w-4" /> Configurações
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                toggleTheme();
-              }}
-              className="cursor-pointer"
-            >
-              {theme === "dark" ? (
-                <Sun className="mr-2 h-4 w-4" />
-              ) : (
-                <Moon className="mr-2 h-4 w-4" />
-              )}
-              {theme === "dark" ? "Tema claro" : "Tema escuro"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={logout}
-              className="cursor-pointer text-destructive focus:text-destructive"
-            >
-              <LogOut className="mr-2 h-4 w-4" /> Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
+                <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="end" sideOffset={16} className="w-64 z-[100]">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium truncate">{user.email?.split("@")[0]}</span>
+                  <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/profile" className="cursor-pointer">
+                  <UserIcon className="mr-2 h-4 w-4" /> Perfil
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings" search={{ s: undefined }} className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" /> Configurações
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  toggleTheme();
+                }}
+                className="cursor-pointer"
+              >
+                {theme === "dark" ? (
+                  <Sun className="mr-2 h-4 w-4" />
+                ) : (
+                  <Moon className="mr-2 h-4 w-4" />
+                )}
+                {theme === "dark" ? "Tema claro" : "Tema escuro"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={logout}
+                className="cursor-pointer text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" /> Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      }
+    />
   );
 
   return (
@@ -547,7 +484,7 @@ function AppLayout() {
       <SidebarProvider>
         <Sidebar
           collapsible="icon"
-          className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+          className="border border-sidebar-border bg-sidebar text-sidebar-foreground rounded-2xl"
         >
           {SidebarBody}
           <SidebarRail />

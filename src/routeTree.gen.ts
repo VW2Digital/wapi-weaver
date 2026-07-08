@@ -24,7 +24,6 @@ import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
-import { Route as AppLicenseRouteImport } from './routes/_app/license'
 import { Route as AppGroupsRouteImport } from './routes/_app/groups'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCrmRouteImport } from './routes/_app/crm'
@@ -136,11 +135,6 @@ const AppProfileRoute = AppProfileRouteImport.update({
 const AppListsRoute = AppListsRouteImport.update({
   id: '/lists',
   path: '/lists',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppLicenseRoute = AppLicenseRouteImport.update({
-  id: '/license',
-  path: '/license',
   getParentRoute: () => AppRoute,
 } as any)
 const AppGroupsRoute = AppGroupsRouteImport.update({
@@ -350,7 +344,6 @@ export interface FileRoutesByFullPath {
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/groups': typeof AppGroupsRoute
-  '/license': typeof AppLicenseRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -404,7 +397,6 @@ export interface FileRoutesByTo {
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/groups': typeof AppGroupsRoute
-  '/license': typeof AppLicenseRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -460,7 +452,6 @@ export interface FileRoutesById {
   '/_app/crm': typeof AppCrmRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/groups': typeof AppGroupsRoute
-  '/_app/license': typeof AppLicenseRoute
   '/_app/lists': typeof AppListsRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -516,7 +507,6 @@ export interface FileRouteTypes {
     | '/crm'
     | '/dashboard'
     | '/groups'
-    | '/license'
     | '/lists'
     | '/profile'
     | '/settings'
@@ -570,7 +560,6 @@ export interface FileRouteTypes {
     | '/crm'
     | '/dashboard'
     | '/groups'
-    | '/license'
     | '/lists'
     | '/profile'
     | '/settings'
@@ -625,7 +614,6 @@ export interface FileRouteTypes {
     | '/_app/crm'
     | '/_app/dashboard'
     | '/_app/groups'
-    | '/_app/license'
     | '/_app/lists'
     | '/_app/profile'
     | '/_app/settings'
@@ -803,13 +791,6 @@ declare module '@tanstack/react-router' {
       path: '/lists'
       fullPath: '/lists'
       preLoaderRoute: typeof AppListsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/license': {
-      id: '/_app/license'
-      path: '/license'
-      fullPath: '/license'
-      preLoaderRoute: typeof AppLicenseRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/groups': {
@@ -1083,7 +1064,6 @@ interface AppRouteChildren {
   AppCrmRoute: typeof AppCrmRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppGroupsRoute: typeof AppGroupsRoute
-  AppLicenseRoute: typeof AppLicenseRoute
   AppListsRoute: typeof AppListsRoute
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -1108,7 +1088,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppCrmRoute: AppCrmRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppGroupsRoute: AppGroupsRoute,
-  AppLicenseRoute: AppLicenseRoute,
   AppListsRoute: AppListsRoute,
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRoute,

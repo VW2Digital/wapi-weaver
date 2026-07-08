@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -141,6 +141,8 @@ import {
   ScrollText,
   Activity,
   Facebook,
+  Code,
+  BrainCircuit,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -149,7 +151,14 @@ import { cn } from "@/lib/utils";
 import { useRoles } from "@/hooks/use-roles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
+export const Route = createFileRoute("/_app/settings")(
+  {
+    validateSearch: (search: Record<string, unknown>) => ({
+      s: typeof search.s === "string" ? search.s : undefined,
+    }),
+    component: SettingsPage,
+  }
+);
 
 function onlyDigits(v: string) {
   return v.replace(/\D/g, "");
@@ -485,7 +494,13 @@ function SettingsPage() {
     "zapdispatch_settings_legal_collapsed",
     true,
   );
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const navigate = useNavigate({ from: "/settings" });
+  const { s: activeSection } = Route.useSearch();
+  const setActiveSection = (section: string | null) =>
+    navigate({
+      search: (prev) => ({ ...prev, s: section ?? undefined }),
+      replace: true,
+    });
 
   useEffect(() => {
     if (profile) setForm(profile);
@@ -600,7 +615,7 @@ function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      {activeSection === null ? (
+      {!activeSection ? (
         <>
           <PageHeader
             title="Configurações"
@@ -718,57 +733,6 @@ function SettingsPage() {
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </button>
 
-                {/* Instagram */}
-                <button
-                  onClick={() => setActiveSection("instagram")}
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-[#E1306C]/10 text-[#E1306C] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-5 w-5"
-                      >
-                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-sm text-foreground">Instagram</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Integração de mensagens diretas e automação para Instagram.
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-
-                {/* Facebook */}
-                <button
-                  onClick={() => setActiveSection("facebook")}
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h5 className="font-semibold text-sm text-foreground">Facebook</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Conexão de páginas para atendimento via Facebook Messenger.
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </button>
               </div>
             </div>
 
@@ -864,28 +828,134 @@ function SettingsPage() {
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </button>
 
-                {/* Administração */}
-                {isAdmin && (
+              </div>
+            </div>
+
+            {/* ADMINISTRAÇÃO DA PLATAFORMA — só admin vê */}
+            {isAdmin && (
+              <div className="space-y-3">
+                <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Administração da Plataforma
+                </h4>
+                <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+
+                  {/* Credenciais de API */}
                   <button
-                    onClick={() => setActiveSection("admin")}
+                    onClick={() => setActiveSection("admin-meta-creds")}
                     className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
                       <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                        <ShieldCheck className="h-5 w-5" />
+                        <KeyRound className="h-5 w-5" />
                       </div>
                       <div>
-                        <h5 className="font-semibold text-sm text-foreground">Administração</h5>
+                        <h5 className="font-semibold text-sm text-foreground">Credenciais de API</h5>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Configurações globais do servidor, auditoria e backups.
+                          App ID, Config ID, App Secret e versão da Graph API.
                         </p>
                       </div>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                   </button>
-                )}
+
+                  {/* Tags personalizadas */}
+                  <button
+                    onClick={() => setActiveSection("admin-tags")}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                        <Code className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-sm text-foreground">Tags Personalizadas</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Scripts, pixels e snippets injetados em todas as páginas.
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Cron Secret */}
+                  <button
+                    onClick={() => setActiveSection("admin-cron")}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                        <RefreshCw className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-sm text-foreground">Segredo do Cron</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Token de autenticação do agendador (CRON_SECRET).
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* SEO */}
+                  <button
+                    onClick={() => setActiveSection("admin-seo")}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-sm text-foreground">SEO (meta tags globais)</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Título e descrição padrão para buscadores.
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Backups */}
+                  <button
+                    onClick={() => setActiveSection("admin-backups")}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                        <Database className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-sm text-foreground">Backups do Banco</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Schema SQL — exportação manual e histórico automático.
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Organização do Menu */}
+                  <button
+                    onClick={() => setActiveSection("admin-sidebar")}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                        <LayoutDashboard className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-sm text-foreground">Organização do Menu</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Reordene os itens do menu lateral para todos os usuários.
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </>
       ) : (
@@ -911,11 +981,17 @@ function SettingsPage() {
               {activeSection === "advanced" && "Ferramentas Avançadas"}
               {activeSection === "general" && "Geral & Legal"}
               {activeSection === "admin" && "Administração"}
+              {activeSection === "admin-meta-creds" && "Credenciais de API"}
+              {activeSection === "admin-tags" && "Tags Personalizadas"}
+              {activeSection === "admin-cron" && "Segredo do Cron"}
+              {activeSection === "admin-seo" && "SEO (meta tags globais)"}
+              {activeSection === "admin-backups" && "Backups do Banco"}
+              {activeSection === "admin-sidebar" && "Organização do Menu"}
             </h3>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 w-full">
-            <Tabs value={activeSection} className="w-full border-none shadow-none bg-transparent">
+            <Tabs value={activeSection ?? ""} className="w-full border-none shadow-none bg-transparent">
               <TabsContent value="meta" className="space-y-6 outline-none m-0 border-none p-0">
                 <SetupWizard
                   credentialsComplete={
@@ -931,7 +1007,7 @@ function SettingsPage() {
                   {(step) => (
                     <>
                       {step === 0 && (
-                        <Card className="p-6 space-y-6">
+                        <div className="space-y-6">
                           <div className="flex items-start gap-3">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                               1
@@ -1581,11 +1657,11 @@ function SettingsPage() {
                               fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
                             />
                           )}
-                        </Card>
+                        </div>
                       )}
 
                       {step === 2 && (
-                        <Card className="p-6">
+                        <div className="space-y-4">
                           <h2 className="font-display text-lg font-semibold">
                             Enviar mensagem de teste
                           </h2>
@@ -1710,11 +1786,11 @@ function SettingsPage() {
                               )}
                             </>
                           )}
-                        </Card>
+                        </div>
                       )}
 
                       {step === 1 && (
-                        <Card className="p-6">
+                        <div className="space-y-4">
                           <div className="flex items-start gap-3">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                               2
@@ -1830,10 +1906,10 @@ function SettingsPage() {
                                 <strong>Configurações → Básico → Chave Secreta do App</strong>.
                                 Usado para confirmar que cada aviso veio mesmo da Meta.
                               </p>
-                            </div>
-                          </div>
-                        </Card>
-                      )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                     </>
                   )}
                 </SetupWizard>
@@ -1914,22 +1990,35 @@ function SettingsPage() {
                 <WABASection />
               </TabsContent>
 
-              <TabsContent value="instagram" className="outline-none">
-                <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
-              </TabsContent>
-
-              <TabsContent value="facebook" className="outline-none">
-                <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
-              </TabsContent>
 
               <TabsContent value="advanced" className="outline-none">
                 <AdvancedToolsSection />
               </TabsContent>
 
               {isAdmin && (
-                <TabsContent value="admin" className="outline-none">
-                  <AdminPlatformSection />
-                </TabsContent>
+                <>
+                  <TabsContent value="admin" className="outline-none">
+                    <AdminPlatformSection />
+                  </TabsContent>
+                  <TabsContent value="admin-meta-creds" className="outline-none">
+                    <AdminMetaCredsSection />
+                  </TabsContent>
+                  <TabsContent value="admin-tags" className="outline-none">
+                    <AdminTagsSection />
+                  </TabsContent>
+                  <TabsContent value="admin-cron" className="outline-none">
+                    <AdminCronSection />
+                  </TabsContent>
+                  <TabsContent value="admin-seo" className="outline-none">
+                    <AdminSeoSection />
+                  </TabsContent>
+                  <TabsContent value="admin-backups" className="outline-none">
+                    <AdminBackupsSection />
+                  </TabsContent>
+                  <TabsContent value="admin-sidebar" className="outline-none">
+                    <AdminSidebarSection />
+                  </TabsContent>
+                </>
               )}
 
               <TabsContent value="general" className="space-y-6 outline-none">
@@ -2087,7 +2176,7 @@ function SetupWizard({
 
       {!collapsed && (
         <>
-          <div className="p-2 md:p-4">{children(step)}</div>
+          <div className="p-6 border-t">{children(step)}</div>
 
           <div className="flex items-center justify-between border-t bg-muted/20 px-6 py-4">
             <Button
@@ -2400,6 +2489,8 @@ const MENU_ITEMS = [
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
+  { to: "/bot", label: "Bot de Fluxo", icon: Bot },
+  { to: "/ai-agent", label: "Agente de IA", icon: BrainCircuit },
   { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
@@ -2479,7 +2570,6 @@ function AdminPlatformSection() {
   const [cronSecret, setCronSecret] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
-  const [licenseKey, setLicenseKey] = useState("");
   const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
     "zapdispatch_settings_admin_platform_collapsed",
     true,
@@ -2500,10 +2590,6 @@ function AdminPlatformSection() {
     "zapdispatch_settings_meta_creds_collapsed",
     true,
   );
-  const [licenseCollapsed, toggleLicenseCollapsed] = usePersistedCollapsedState(
-    "zapdispatch_settings_license_collapsed",
-    true,
-  );
 
   useEffect(() => {
     if (settings) {
@@ -2515,7 +2601,6 @@ function AdminPlatformSection() {
       setCronSecret((settings as any).cron_secret ?? "");
       setSeoTitle((settings as any).seo_title ?? "");
       setSeoDescription((settings as any).seo_description ?? "");
-      setLicenseKey((settings as any).license_key ?? "");
       setAppSecret("");
     }
   }, [settings]);
@@ -2926,67 +3011,6 @@ function AdminPlatformSection() {
             )}
           </div>
 
-          {/* Licenciamento */}
-          <div className="mt-6 border-t pt-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <h3 className="font-display text-base font-semibold flex items-center gap-2">
-                  <KeyRound className="h-4 w-4" /> Licenciamento da Plataforma
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Insira a chave de licença oficial para validar a ativação e permitir o uso das
-                  APIs da plataforma.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={toggleLicenseCollapsed}
-                aria-expanded={!licenseCollapsed}
-                aria-label={licenseCollapsed ? "Expandir licença" : "Recolher licença"}
-                className="shrink-0 gap-1 mt-0.5"
-              >
-                {licenseCollapsed ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronUp className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline text-xs">
-                  {licenseCollapsed ? "Expandir" : "Recolher"}
-                </span>
-              </Button>
-            </div>
-            {!licenseCollapsed && (
-              <div className="mt-4 grid gap-4">
-                <div className="space-y-1.5">
-                  <Label>Chave de Licença</Label>
-                  <Input
-                    value={licenseKey}
-                    onChange={(e) => setLicenseKey(e.target.value)}
-                    placeholder="Ex: VW2-PRO-XXXX-XXXX-XXXX"
-                    maxLength={255}
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    A licença será ativada automaticamente com o servidor central após salvar.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    disabled={mut.isPending}
-                    onClick={() => {
-                      mut.mutate({
-                        license_key: licenseKey || null,
-                      });
-                    }}
-                  >
-                    {mut.isPending ? "Salvando…" : "Salvar Licença"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
 
           <div className="mt-6 border-t pt-5">
             <h3 className="font-display text-base font-semibold flex items-center gap-2">
@@ -3100,7 +3124,7 @@ function AdminPlatformSection() {
                           });
                           if (!res.ok) throw new Error("Erro de resposta do servidor");
                           toast.success("Ordem do menu lateral salva!");
-                          qc.invalidateQueries({ queryKey: ["sidebar-order"] });
+                          qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
                         } catch (e: any) {
                           toast.error(e.message || "Erro ao salvar");
                         } finally {
@@ -3122,7 +3146,7 @@ function AdminPlatformSection() {
                           if (!res.ok) throw new Error("Erro de resposta do servidor");
                           toast.success("Ordem padrão restaurada!");
                           setLocalNavOrder([...MENU_ITEMS]);
-                          qc.invalidateQueries({ queryKey: ["sidebar-order"] });
+                          qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
                         } catch (e: any) {
                           toast.error(e.message || "Erro ao restaurar");
                         } finally {
@@ -3272,6 +3296,749 @@ function AdminPlatformSection() {
           </div>
         </>
       )}
+    </Card>
+  );
+}
+
+// ─── Admin: Credenciais de API ──────────────────────────────────────────────
+function AdminMetaCredsSection() {
+  const fetchSettings = useServerFn(getPlatformSettings);
+  const saveSettings = useServerFn(updatePlatformSettings);
+  const qc = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: () => fetchSettings(),
+  });
+
+  const [appId, setAppId] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [configId, setConfigId] = useState("");
+  const [graphVersion, setGraphVersion] = useState("v20.0");
+
+  useEffect(() => {
+    if (settings) {
+      setAppId(settings.meta_app_id ?? "");
+      setConfigId(settings.meta_config_id ?? "");
+      setGraphVersion(settings.meta_graph_version ?? "v20.0");
+      setAppSecret("");
+    }
+  }, [settings]);
+
+  const mut = useMutation({
+    mutationFn: (data: any) => saveSettings({ data }),
+    onSuccess: () => {
+      toast.success("Credenciais salvas.");
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+      setAppSecret("");
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
+  });
+
+  return (
+    <Card className="p-6 space-y-6 border-primary/20">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <KeyRound className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold">Credenciais de API</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Configurações de chaves e identificadores da sua conta de desenvolvedor Meta.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Meta App ID</Label>
+          <Input
+            value={appId}
+            onChange={(e) => setAppId(onlyDigits(e.target.value))}
+            placeholder="Ex: 1234567890123456"
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
+            {'📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App ("ID do aplicativo").\n⚠️ Não confunda com o Business ID nem com o WABA ID.'}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Embedded Signup Config ID</Label>
+          <Input
+            value={configId}
+            onChange={(e) => setConfigId(onlyDigits(e.target.value))}
+            placeholder="Ex: 9876543210987654"
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
+            {"📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."}
+          </p>
+        </div>
+
+        <div className="md:col-span-2 space-y-1.5">
+          <Label>App Secret</Label>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <PasswordInput
+                value={appSecret}
+                onChange={(e) => setAppSecret(e.target.value)}
+                placeholder={
+                  settings?.meta_app_secret_set
+                    ? "•••••••••••••••• (já configurado — deixe vazio para manter)"
+                    : "Cole aqui o App Secret"
+                }
+                className="font-mono text-xs"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={!appSecret}
+              onClick={() => {
+                navigator.clipboard.writeText(appSecret);
+                toast.success("App Secret copiado");
+              }}
+              title="Copiar App Secret"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              disabled={!appSecret || mut.isPending}
+              onClick={() => mut.mutate({ meta_app_secret: appSecret })}
+            >
+              {mut.isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </div>
+          <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
+            {"📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."}
+            {settings?.meta_app_secret_set && (
+              <span className="block mt-1 text-success font-medium">✓ Atualmente configurado</span>
+            )}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Graph API Version</Label>
+          <Select value={graphVersion || "v20.0"} onValueChange={setGraphVersion}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione a versão" />
+            </SelectTrigger>
+            <SelectContent>
+              {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
+                <SelectItem key={v} value={v}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5 flex flex-col justify-end">
+          <p className="text-[11px] text-muted-foreground">
+            {settings?.updated_at && (
+              <>Última atualização: {new Date(settings.updated_at).toLocaleString()}</>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-2 border-t">
+        <Button
+          onClick={() =>
+            mut.mutate({
+              meta_app_id: appId || undefined,
+              meta_config_id: configId || undefined,
+              meta_graph_version: graphVersion || undefined,
+            })
+          }
+          disabled={mut.isPending}
+        >
+          {mut.isPending ? "Salvando…" : "Salvar Credenciais"}
+        </Button>
+      </div>
+
+      <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">⚠️ Pré-requisitos na Meta:</p>
+        <p>• Empresa verificada no Business Manager (CNPJ)</p>
+        <p>• App em modo <strong>Live</strong> (não Development)</p>
+        <p>• Permissões <code className="text-[10px]">whatsapp_business_management</code> + <code className="text-[10px]">whatsapp_business_messaging</code> com acesso avançado</p>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Admin: Tags Personalizadas ─────────────────────────────────────────────
+function AdminTagsSection() {
+  const fetchSettings = useServerFn(getPlatformSettings);
+  const saveSettings = useServerFn(updatePlatformSettings);
+  const qc = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: () => fetchSettings(),
+  });
+
+  const [headTags, setHeadTags] = useState("");
+  const [bodyTags, setBodyTags] = useState("");
+
+  useEffect(() => {
+    if (settings) {
+      setHeadTags((settings as any).head_tags ?? "");
+      setBodyTags((settings as any).body_tags ?? "");
+    }
+  }, [settings]);
+
+  const mut = useMutation({
+    mutationFn: (data: any) => saveSettings({ data }),
+    onSuccess: () => {
+      toast.success("Tags salvas.");
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
+  });
+
+  return (
+    <Card className="p-6 space-y-6 border-primary/20">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <Code className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold">Tags Personalizadas (Analytics, Pixel, etc.)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cole snippets completos (com <code className="text-xs">&lt;script&gt;</code>,{" "}
+            <code className="text-xs">&lt;meta&gt;</code>,{" "}
+            <code className="text-xs">&lt;noscript&gt;</code>…). Eles serão injetados em{" "}
+            <strong>todas as páginas</strong> da plataforma para todos os usuários.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        <div className="space-y-1.5">
+          <Label>Tags no &lt;head&gt;</Label>
+          <Textarea
+            rows={6}
+            value={headTags}
+            onChange={(e) => setHeadTags(e.target.value)}
+            placeholder={`<!-- Google Analytics -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXX');</script>`}
+            className="font-mono text-xs"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Ideal para Google Analytics, GTM, Meta Pixel, verificações de domínio, etc.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Tags no final do &lt;body&gt;</Label>
+          <Textarea
+            rows={6}
+            value={bodyTags}
+            onChange={(e) => setBodyTags(e.target.value)}
+            placeholder={`<!-- Chat / widgets -->\n<script src="https://widget.exemplo.com/loader.js"></script>`}
+            className="font-mono text-xs"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Ideal para widgets, scripts que dependem do DOM carregado, fallbacks &lt;noscript&gt;.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-2 border-t">
+        <Button
+          onClick={() => mut.mutate({ head_tags: headTags, body_tags: bodyTags })}
+          disabled={mut.isPending}
+        >
+          {mut.isPending ? "Salvando…" : "Salvar Tags"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Admin: Segredo do Cron ─────────────────────────────────────────────────
+function AdminCronSection() {
+  const fetchSettings = useServerFn(getPlatformSettings);
+  const saveSettings = useServerFn(updatePlatformSettings);
+  const qc = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: () => fetchSettings(),
+  });
+
+  const [cronSecret, setCronSecret] = useState("");
+
+  useEffect(() => {
+    if (settings) {
+      setCronSecret((settings as any).cron_secret ?? "");
+    }
+  }, [settings]);
+
+  const mut = useMutation({
+    mutationFn: (data: any) => saveSettings({ data }),
+    onSuccess: () => {
+      toast.success("Cron Secret salvo.");
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
+  });
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  return (
+    <Card className="p-6 space-y-6 border-primary/20">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <RefreshCw className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold">Segredo do Cron (CRON_SECRET)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Token usado para autenticar o agendador (pg_cron) ao chamar{" "}
+            <code className="text-xs">/api/public/cron/process-queue</code>. Se vazio, o endpoint
+            fica <strong>aberto</strong> (apenas para testes).
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={cronSecret}
+            onChange={(e) => setCronSecret(e.target.value.replace(/[^A-Za-z0-9_-]/g, ""))}
+            placeholder="Clique em Gerar ou cole um token"
+            className="font-mono text-xs"
+          />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const bytes = new Uint8Array(32);
+                crypto.getRandomValues(bytes);
+                const token = Array.from(bytes)
+                  .map((b) => b.toString(16).padStart(2, "0"))
+                  .join("");
+                setCronSecret(token);
+              }}
+            >
+              <RefreshCw className="h-4 w-4" /> Gerar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!cronSecret}
+              onClick={() => {
+                navigator.clipboard.writeText(cronSecret);
+                toast.success("Copiado!");
+              }}
+            >
+              <Copy className="h-4 w-4" /> Copiar
+            </Button>
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Após salvar, envie este valor no header{" "}
+          <code className="text-[10px]">x-cron-secret</code> em cada chamada do cron.
+        </p>
+      </div>
+
+      <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">Endpoint do cron:</p>
+        <p className="font-mono break-all">{origin}/api/public/cron/process-queue</p>
+      </div>
+
+      <div className="flex gap-2 pt-2 border-t">
+        <Button
+          onClick={() => mut.mutate({ cron_secret: cronSecret })}
+          disabled={mut.isPending}
+        >
+          {mut.isPending ? "Salvando…" : "Salvar Cron Secret"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Admin: SEO ─────────────────────────────────────────────────────────────
+function AdminSeoSection() {
+  const fetchSettings = useServerFn(getPlatformSettings);
+  const saveSettings = useServerFn(updatePlatformSettings);
+  const qc = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: () => fetchSettings(),
+  });
+
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+
+  useEffect(() => {
+    if (settings) {
+      setSeoTitle((settings as any).seo_title ?? "");
+      setSeoDescription((settings as any).seo_description ?? "");
+    }
+  }, [settings]);
+
+  const mut = useMutation({
+    mutationFn: (data: any) => saveSettings({ data }),
+    onSuccess: () => {
+      toast.success("SEO salvo.");
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
+  });
+
+  return (
+    <Card className="p-6 space-y-6 border-primary/20">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <FileText className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold">SEO (meta tags globais)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Define o título e a descrição padrão usados na &lt;title&gt; e meta description de toda
+            a plataforma. Útil para aparecer bem nas pesquisas do Google.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        <div className="space-y-1.5">
+          <Label>Título padrão (SEO)</Label>
+          <Input
+            value={seoTitle}
+            onChange={(e) => setSeoTitle(e.target.value)}
+            placeholder="Bliv"
+            maxLength={128}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Será exibido na aba do navegador e nos resultados de busca (Google). Máximo de 128
+            caracteres.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Descrição padrão (SEO)</Label>
+          <Textarea
+            rows={3}
+            value={seoDescription}
+            onChange={(e) => setSeoDescription(e.target.value)}
+            placeholder="Painel de disparo de mensagens via WhatsApp Cloud API oficial da Meta."
+            maxLength={320}
+            className="text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Aparece logo abaixo do título nos resultados de busca. Máximo de 320 caracteres.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-2 border-t">
+        <Button
+          size="sm"
+          disabled={mut.isPending}
+          onClick={() => {
+            mut.mutate({
+              seo_title: seoTitle || null,
+              seo_description: seoDescription || null,
+            });
+          }}
+        >
+          {mut.isPending ? "Salvando…" : "Salvar SEO"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Admin: Backups do Banco ─────────────────────────────────────────────────
+function AdminBackupsSection() {
+  return (
+    <Card className="p-6 space-y-6 border-primary/20">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <Database className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold">Backups do Schema do Banco</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Um backup automático do schema <code className="text-xs">public</code> é gerado
+            diariamente às 03:00 (UTC). Você também pode gerar um backup manual a qualquer momento.
+            As 30 versões mais recentes ficam disponíveis para download.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <ExportSchemaButton />
+      </div>
+      <SchemaBackupsHistory />
+    </Card>
+  );
+}
+
+// ─── Admin: Organização do Menu Lateral ─────────────────────────────────────
+function AdminSidebarSection() {
+  const fetchRoles = useServerFn(getCurrentUserRoles);
+  const fetchSidebarOrder = useServerFn(getSidebarOrder);
+  const saveSidebarOrder = useServerFn(updateSidebarOrder);
+  const qc = useQueryClient();
+
+  const { data: roleData } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
+  const isAdmin = roleData?.isAdmin === true;
+
+  const { data: sidebarOrderData } = useQuery({
+    queryKey: ["sidebar-order"],
+    queryFn: () => fetchSidebarOrder(),
+    enabled: isAdmin,
+  });
+
+  const [localNavOrder, setLocalNavOrder] = useState<any[]>([]);
+  const [savingSidebar, setSavingSidebar] = useState(false);
+
+  useEffect(() => {
+    if (sidebarOrderData) {
+      const order = sidebarOrderData.order;
+      if (order) {
+        try {
+          const parsed =
+            typeof order === "string" ? (JSON.parse(order) as string[]) : (order as string[]);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sorted = [...MENU_ITEMS].sort((a, b) => {
+              const idxA = parsed.indexOf(a.to);
+              const idxB = parsed.indexOf(b.to);
+              if (idxA === -1 && idxB === -1) return 0;
+              if (idxA === -1) return 1;
+              if (idxB === -1) return -1;
+              return idxA - idxB;
+            });
+            setLocalNavOrder(sorted);
+            return;
+          }
+        } catch {}
+      }
+    }
+    setLocalNavOrder([...MENU_ITEMS]);
+  }, [sidebarOrderData]);
+
+  const moveItem = (index: number, direction: "up" | "down") => {
+    const nextIndex = direction === "up" ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= localNavOrder.length) return;
+    const updated = [...localNavOrder];
+    const temp = updated[index];
+    updated[index] = updated[nextIndex];
+    updated[nextIndex] = temp;
+    setLocalNavOrder(updated);
+  };
+
+  return (
+    <Card className="p-6 space-y-6 border-primary/20">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary/10 p-2">
+          <LayoutDashboard className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-display text-lg font-semibold">Organização do Menu Lateral</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Reorganize os itens do menu lateral usando as setas. As alterações afetam todos os
+            usuários da plataforma.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Controles de reordenação */}
+        <div className="space-y-2 rounded-xl border bg-muted/15 p-4">
+          <div className="text-sm font-semibold mb-3 text-foreground">Reordenar Itens</div>
+          <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+            {localNavOrder.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.to}
+                  className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-all hover:border-primary/20"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-medium text-foreground leading-snug">
+                        {item.label}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground leading-none">{item.to}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md"
+                      disabled={idx === 0}
+                      onClick={() => moveItem(idx, "up")}
+                      title="Mover para cima"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md"
+                      disabled={idx === localNavOrder.length - 1}
+                      onClick={() => moveItem(idx, "down")}
+                      title="Mover para baixo"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-2 pt-4 mt-2 border-t">
+            <Button
+              size="sm"
+              onClick={async () => {
+                setSavingSidebar(true);
+                try {
+                  const paths = localNavOrder.map((item) => item.to);
+                  const res = await saveSidebarOrder({ data: { order: JSON.stringify(paths) } });
+                  if (!res.ok) throw new Error("Erro de resposta do servidor");
+                  toast.success("Ordem do menu lateral salva!");
+                  qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
+                } catch (e: any) {
+                  toast.error(e.message || "Erro ao salvar");
+                } finally {
+                  setSavingSidebar(false);
+                }
+              }}
+              disabled={savingSidebar}
+            >
+              {savingSidebar ? "Salvando..." : "Salvar Nova Ordem"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!confirm("Deseja restaurar a ordem padrão do menu?")) return;
+                setSavingSidebar(true);
+                try {
+                  const res = await saveSidebarOrder({ data: { order: null } });
+                  if (!res.ok) throw new Error("Erro de resposta do servidor");
+                  toast.success("Ordem padrão restaurada!");
+                  setLocalNavOrder([...MENU_ITEMS]);
+                  qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
+                } catch (e: any) {
+                  toast.error(e.message || "Erro ao restaurar");
+                } finally {
+                  setSavingSidebar(false);
+                }
+              }}
+              disabled={savingSidebar}
+            >
+              Restaurar Padrão
+            </Button>
+          </div>
+        </div>
+
+        {/* Pré-visualização em tempo real */}
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card p-6 border-dashed">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-4 self-start">
+            Visualização em Tempo Real (Preview)
+          </div>
+
+          <div className="w-[230px] rounded-xl border bg-sidebar p-3 text-sidebar-foreground shadow-lg flex flex-col text-left">
+            <div className="flex items-center gap-2 px-3 py-2 mb-3 border-b border-sidebar-border/30">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sidebar-primary">
+                <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
+              </div>
+              <span className="font-display text-xs font-semibold text-sidebar-foreground">Bliv</span>
+            </div>
+
+            <div className="px-3 pb-1.5 text-[9px] font-medium uppercase tracking-wider text-sidebar-foreground/45">
+              Menu
+            </div>
+
+            <div className="space-y-0.5 max-h-[280px] overflow-y-auto pr-1">
+              {localNavOrder.map((item, index) => {
+                const Icon = item.icon;
+                const active = index === 0;
+                const isSettings = item.to === "/settings";
+
+                if (isSettings) {
+                  return (
+                    <div key={item.to} className="space-y-0.5">
+                      <div className="relative flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors text-sidebar-foreground/75">
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-3.5 w-3.5 text-sidebar-foreground/75" />
+                          <span className="truncate">{item.label}</span>
+                        </div>
+                        <ChevronDown className="h-3 w-3 text-sidebar-foreground/45" />
+                      </div>
+                      <div className="pl-4 space-y-0.5 border-l border-sidebar-border/30 ml-4 mt-0.5">
+                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] bg-sidebar-accent text-sidebar-accent-foreground font-medium">
+                          <Settings className="h-3 w-3 text-sidebar-accent-foreground" />
+                          <span>Geral</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                          <UserCog className="h-3 w-3 text-sidebar-foreground/60" />
+                          <span>Perfil WhatsApp</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                          <ShieldCheck className="h-3 w-3 text-sidebar-foreground/60" />
+                          <span>Usuários</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                          <ScrollText className="h-3 w-3 text-sidebar-foreground/60" />
+                          <span>Auditoria</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
+                          <Activity className="h-3 w-3 text-sidebar-foreground/60" />
+                          <span>Eventos do Webhook</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={item.to}
+                    className={cn(
+                      "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                      active
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        : "text-sidebar-foreground/75",
+                    )}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
+                    )}
+                    <Icon
+                      className={cn(
+                        "h-3.5 w-3.5",
+                        active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/75",
+                      )}
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="text-[11px] text-muted-foreground mt-4 text-center leading-relaxed">
+            💡 O primeiro item da lista é mostrado como ativo nesta pré-visualização.
+            <br />
+            As alterações são aplicadas a todos os usuários após salvar.
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
