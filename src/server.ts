@@ -360,10 +360,100 @@ function startLicenseChecker() {
 startLicenseChecker();
 // ----------------------------------
 
+// --- Rate Limiting (in-memory, per-IP sliding window) ---
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_AUTH = 10;           // max 10 auth requests per minute per IP
+const RATE_LIMIT_WEBHOOK = 200;       // max 200 webhook requests per minute per IP
+
+function getRateLimitKey(ip: string, bucket: string): string {
+  return `${bucket}:${ip}`;
+}
+
+function isRateLimited(ip: string, bucket: string, maxRequests: number): boolean {
+  const key = getRateLimitKey(ip, bucket);
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  entry.count++;
+  return entry.count > maxRequests;
+}
+
+// Cleanup stale entries every 5 minutes to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitStore) {
+    if (now > entry.resetAt) rateLimitStore.delete(key);
+  }
+}, 300_000);
+
+// --- CORS allowed origins ---
+const ALLOWED_ORIGINS = new Set(
+  (process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
+
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("origin") || "";
+
+  // In development, allow all origins. In production, enforce the whitelist.
+  const isAllowed =
+    process.env.NODE_ENV !== "production" ||
+    ALLOWED_ORIGINS.size === 0 ||
+    ALLOWED_ORIGINS.has(origin);
+
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin || "*" : "",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const url = new URL(request.url);
+
+      // --- CORS Preflight ---
+      if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+        return new Response(null, { status: 204, headers: getCorsHeaders(request) });
+      }
+
+      // --- Rate Limiting ---
+      const clientIp =
+        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        request.headers.get("cf-connecting-ip") ||
+        "unknown";
+
+      if (url.pathname.startsWith("/api/auth/")) {
+        if (isRateLimited(clientIp, "auth", RATE_LIMIT_AUTH)) {
+          return new Response(
+            JSON.stringify({ error: "Muitas tentativas. Aguarde um momento." }),
+            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "60" } },
+          );
+        }
+      }
+
+      if (
+        url.pathname.startsWith("/api/public/whatsapp-webhook") ||
+        url.pathname.startsWith("/api/public/facebook-webhook") ||
+        url.pathname.startsWith("/api/public/instagram-webhook")
+      ) {
+        if (isRateLimited(clientIp, "webhook", RATE_LIMIT_WEBHOOK)) {
+          return new Response(
+            JSON.stringify({ error: "Rate limit exceeded" }),
+            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "60" } },
+          );
+        }
+      }
 
       if (url.pathname === "/api/license/debug") {
         const serverUrls = process.env.LICENSE_SERVER_URL

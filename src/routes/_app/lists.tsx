@@ -28,7 +28,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, X, ListChecks, Tags, Pencil } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Trash2, X, ListChecks, Tags, Pencil, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -257,40 +263,48 @@ function ListsPage() {
                       {l.description ?? "—"} · {l.list_contacts?.[0]?.count ?? 0} contatos
                     </p>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingList({ id: l.id, name: l.name, description: l.description ?? "" });
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const ok = await confirm({
-                        title: "Excluir lista?",
-                        description: (
-                          <>
-                            A lista <strong>{l.name}</strong> será removida. Os contatos não serão
-                            excluídos.
-                          </>
-                        ),
-                        destructive: true,
-                        confirmText: "Excluir",
-                      });
-                      if (!ok) return;
-                      await rmList({ data: { id: l.id } });
-                      if (selectedList?.id === l.id) setSelectedList(null);
-                      qc.invalidateQueries({ queryKey: ["lists"] });
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingList({ id: l.id, name: l.name, description: l.description ?? "" });
+                        }}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const ok = await confirm({
+                            title: "Excluir lista?",
+                            description: (
+                              <>
+                                A lista <strong>{l.name}</strong> será removida. Os contatos não serão
+                                excluídos.
+                              </>
+                            ),
+                            destructive: true,
+                            confirmText: "Excluir",
+                          });
+                          if (!ok) return;
+                          await rmList({ data: { id: l.id } });
+                          if (selectedList?.id === l.id) setSelectedList(null);
+                          qc.invalidateQueries({ queryKey: ["lists"] });
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
               {(lists.data ?? []).length === 0 && (

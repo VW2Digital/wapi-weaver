@@ -472,7 +472,10 @@ export async function processOnce() {
         if ((m as any).campaigns.message_type === "template") {
           assertTemplatePayload(payload);
         }
-        console.log("PAYLOAD ENVIADO:", JSON.stringify(payload, null, 2));
+        // Debug payload logging — only in development
+        if (process.env.NODE_ENV !== "production") {
+          console.log("PAYLOAD ENVIADO:", JSON.stringify(payload, null, 2));
+        }
         const r = await fetch(url, {
           method: "POST",
           headers: {

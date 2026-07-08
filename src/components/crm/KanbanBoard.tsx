@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "@tanstack/react-router";
-import { User, Calendar, Sparkles, Settings, Plus, MessageCircle } from "lucide-react";
+import { User, Calendar, Sparkles, Settings, Plus, MessageCircle, MoreHorizontal, Mail, Phone, Clock, CheckSquare } from "lucide-react";
 import { useState } from "react";
 
 interface Owner {
@@ -237,39 +237,40 @@ export function KanbanBoard({
             key={stage.id}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, stage.id)}
-            className="flex flex-col w-[320px] shrink-0 rounded-2xl bg-muted/30 border border-muted-foreground/10 p-3 h-full max-h-full"
+            className="flex flex-col w-[320px] shrink-0 rounded-xl bg-muted/10 border-x border-b border-t-[3px] border-x-transparent border-b-transparent p-3 h-full max-h-full"
+            style={{ borderTopColor: stage.color || "#64748b" }}
           >
             {/* Stage Header */}
-            <div className="flex items-center justify-between mb-3 px-1 group/header">
-              <div className="flex items-center gap-2 min-w-0">
-                <div
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: stage.color || "#64748b" }}
-                />
-                <span
-                  className="font-semibold text-sm tracking-wide truncate max-w-[120px]"
-                  title={stage.name}
-                >
+            <div className="flex flex-col mb-4 px-1 group/header">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-[15px] text-foreground tracking-tight truncate">
                   {stage.name}
-                </span>
-                <span className="text-xs text-muted-foreground bg-muted-foreground/10 px-2 py-0.5 rounded-full shrink-0">
-                  {stageOops.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className="text-xs font-semibold text-muted-foreground">
-                  {formatCurrency(stageTotal, "BRL")}
+                </h3>
+                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                  {onAddStage && (
+                    <button
+                      type="button"
+                      onClick={onAddStage}
+                      className="p-1 rounded hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Adicionar Oportunidade"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
+                  {onEditStage && (
+                    <button
+                      type="button"
+                      onClick={() => onEditStage(stage)}
+                      className="p-1 rounded hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Opções da Etapa"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-                {onEditStage && (
-                  <button
-                    type="button"
-                    onClick={() => onEditStage(stage)}
-                    className="p-1 rounded hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover/header:opacity-100 focus:opacity-100"
-                    title="Editar Etapa"
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              </div>
+              <div className="text-xs text-muted-foreground font-medium mt-1">
+                Total: {formatCurrency(stageTotal, "BRL")} - {stageOops.length} negócio{stageOops.length === 1 ? "" : "s"}
               </div>
             </div>
 
@@ -302,128 +303,115 @@ export function KanbanBoard({
                       onClick={() => onCardClick(opp.id)}
                       className="group relative cursor-pointer select-none rounded-xl border border-muted-foreground/10 bg-card p-4 hover:border-primary/50 transition-all duration-200 shadow-sm hover:shadow-md"
                     >
-                      {/* Tags */}
-                      {opp.tags && opp.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {opp.tags.map((t) => (
-                            <span
-                              key={`${opp.id}-${t.name}-${t.color}`}
-                              className="text-[10px] px-1.5 py-0.5 rounded font-medium border"
-                              style={{
-                                backgroundColor: `${t.color}15`,
-                                borderColor: `${t.color}30`,
-                                color: t.color,
-                              }}
+                      <div className="flex items-center gap-2 mb-3">
+                        {(() => {
+                          const cf = opp.primary_contact_custom_fields || {};
+                          const avatarUrl =
+                            cf.avatar_url ||
+                            cf.photo_url ||
+                            cf.photo ||
+                            cf.picture ||
+                            cf.image_url ||
+                            cf.image;
+                          if (avatarUrl) {
+                            return (
+                              <img
+                                src={avatarUrl}
+                                alt={opp.primary_contact_name || "Sem contato"}
+                                className="w-6 h-6 rounded-full object-cover shrink-0 border border-muted-foreground/10"
+                              />
+                            );
+                          }
+                          const name = opp.primary_contact_name || "S";
+                          const hash = name
+                            .split("")
+                            .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                          const hue = hash % 360;
+                          const avatarBg = `hsl(${hue}, 60%, 45%)`;
+                          return (
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-semibold shrink-0"
+                              style={{ backgroundColor: avatarBg }}
                             >
-                              {t.name}
-                            </span>
-                          ))}
+                              {name.slice(0, 1).toUpperCase()}
+                            </div>
+                          );
+                        })()}
+                        <div className="flex flex-col min-w-0">
+                          <span
+                            className="font-semibold text-sm text-foreground truncate"
+                            title={opp.primary_contact_name || "Sem contato"}
+                          >
+                            {opp.primary_contact_name || "Sem contato"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate" title={opp.title}>
+                            {opp.title} • {formatCurrency(opp.value, opp.currency || "BRL")}
+                          </span>
                         </div>
-                      )}
+                      </div>
 
-                      {/* Card Title */}
-                      <h4 className="font-semibold text-sm text-foreground tracking-tight group-hover:text-primary transition-colors mb-1 line-clamp-1">
-                        {opp.title}
-                      </h4>
-
-                      {/* Contact & Value */}
-                      <div className="flex items-center justify-between text-xs mb-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {opp.primary_contact_name ? (
-                            <>
-                              {/* Avatar */}
-                              {(() => {
-                                const cf = opp.primary_contact_custom_fields || {};
-                                const avatarUrl =
-                                  cf.avatar_url ||
-                                  cf.photo_url ||
-                                  cf.photo ||
-                                  cf.picture ||
-                                  cf.image_url ||
-                                  cf.image;
-                                if (avatarUrl) {
-                                  return (
-                                    <img
-                                      src={avatarUrl}
-                                      alt={opp.primary_contact_name}
-                                      className="w-5 h-5 rounded-full object-cover shrink-0 border border-muted-foreground/10"
-                                    />
-                                  );
-                                }
-                                // Fallback colored avatar
-                                const hash = opp.primary_contact_name
-                                  .split("")
-                                  .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                                const hue = hash % 360;
-                                const avatarBg = `hsl(${hue}, 60%, 45%)`;
-                                return (
-                                  <div
-                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-semibold shrink-0"
-                                    style={{ backgroundColor: avatarBg }}
-                                  >
-                                    {opp.primary_contact_name.slice(0, 1).toUpperCase()}
-                                  </div>
-                                );
-                              })()}
-
-                              <span
-                                className="text-muted-foreground font-medium truncate max-w-[110px]"
-                                title={opp.primary_contact_name}
-                              >
-                                {opp.primary_contact_name}
-                              </span>
-
-                              {opp.primary_contact_phone && (
-                                <button
-                                  type="button"
-                                  onClick={createOpenOpportunityChatHandler(
-                                    opp.primary_contact_id,
-                                    opp.primary_contact_phone,
-                                  )}
-                                  className="p-1 rounded hover:bg-muted text-green-500 hover:text-green-600 transition-colors shrink-0"
-                                  title="Conversar no WhatsApp"
-                                >
-                                  <MessageCircle className="w-3.5 h-3.5 fill-green-500/10" />
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-muted-foreground/60 italic">Sem contato</span>
-                          )}
-                        </div>
-
-                        <span className="font-semibold text-foreground shrink-0">
-                          {formatCurrency(opp.value, opp.currency || "BRL")}
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {opp.tags?.map((t) => (
+                          <span
+                            key={`${opp.id}-${t.name}-${t.color}`}
+                            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{
+                              backgroundColor: `${t.color}15`,
+                              color: t.color,
+                            }}
+                          >
+                            {t.name}
+                          </span>
+                        ))}
+                        {opp.temperature && getTemperatureBadge(opp.temperature)}
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase ${getPriorityColor(opp.priority).replace("border", "border-0")}`}>
+                          {opp.priority}
                         </span>
                       </div>
 
-                      <div className="h-px w-full bg-muted-foreground/10 mb-3" />
-
-                      {/* Card Footer */}
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      {/* Card Footer: Icons and Indicators */}
+                      <div className="flex items-center justify-between text-muted-foreground mt-auto pt-1">
                         <div className="flex items-center gap-1">
-                          <User className="w-3.5 h-3.5" />
-                          <span className="truncate max-w-[90px]">
-                            {getOwnerName(opp.owner_user_id)}
-                          </span>
-                        </div>
-
-                        {/* Right side indicators */}
-                        <div className="flex items-center gap-2">
-                          {nextActivityLabel && (
-                            <div
-                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${isOverdue ? "bg-red-500/10 text-red-500 border border-red-500/20" : "bg-green-500/10 text-green-500"}`}
+                          {opp.primary_contact_phone && (
+                            <button
+                              type="button"
+                              onClick={createOpenOpportunityChatHandler(
+                                opp.primary_contact_id,
+                                opp.primary_contact_phone,
+                              )}
+                              className="p-1.5 rounded hover:bg-muted text-green-500 hover:text-green-600 transition-colors"
+                              title="WhatsApp"
                             >
-                              <Calendar className="w-3 h-3" />
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="p-1.5 rounded hover:bg-muted transition-colors"
+                            title="Telefone"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className="p-1.5 rounded hover:bg-muted transition-colors"
+                            title="E-mail"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] font-medium">
+                          {nextActivityLabel && (
+                            <div className={`flex items-center gap-1 ${isOverdue ? "text-red-500" : ""}`}>
+                              <Clock className="w-3.5 h-3.5" />
                               <span>{nextActivityLabel}</span>
                             </div>
                           )}
-                          {opp.temperature && getTemperatureBadge(opp.temperature)}
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase ${getPriorityColor(opp.priority)}`}
-                          >
-                            {opp.priority}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <CheckSquare className="w-3.5 h-3.5" />
+                            <span>0/1</span>
+                          </div>
                         </div>
                       </div>
                     </div>

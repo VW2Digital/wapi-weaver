@@ -36,16 +36,21 @@ export const Route = createFileRoute("/api/auth/forgot-password")({
             const origin = new URL(request.url).origin;
             const resetLink = `${origin}/reset-password?token=${token}`;
 
-            // Print link directly to server terminal
-            console.log(`\n======================================================`);
-            console.log(`[AUTH] LINK DE RECUPERAÇÃO DE SENHA SOLICITADO`);
-            console.log(`E-mail: ${user.email}`);
-            console.log(`Link:   ${resetLink}`);
-            console.log(`======================================================\n`);
+            // In development, print the link for convenience. In production, only log the event.
+            if (process.env.NODE_ENV !== "production") {
+              console.log(`\n======================================================`);
+              console.log(`[AUTH] LINK DE RECUPERAÇÃO DE SENHA SOLICITADO`);
+              console.log(`E-mail: ${user.email}`);
+              console.log(`Link:   ${resetLink}`);
+              console.log(`======================================================\n`);
+            } else {
+              console.log(`[AUTH] Password reset requested for ${user.email}`);
+            }
           } else {
-            console.log(
-              `\n[AUTH] Recuperação de senha solicitada para e-mail não cadastrado: ${email}\n`,
-            );
+            // Standard security practice: do not reveal whether the email exists
+            if (process.env.NODE_ENV !== "production") {
+              console.log(`\n[AUTH] Recuperação de senha solicitada para e-mail não cadastrado: ${email}\n`);
+            }
           }
 
           // Return success even if email wasn't found (standard security practice)

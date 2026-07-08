@@ -367,6 +367,19 @@ CREATE INDEX idx_direct_messages_wa_id ON direct_messages(wa_message_id);
 CREATE UNIQUE INDEX uq_direct_messages_user_wa_id ON direct_messages(user_id, wa_message_id);
 CREATE UNIQUE INDEX uq_dm_channel_msg ON direct_messages(user_id, channel, provider_message_id);
 
+-- Production performance indexes (high-traffic query columns)
+CREATE INDEX idx_contacts_user_chat_status ON contacts(user_id, chat_status);
+CREATE INDEX idx_contacts_user_archived ON contacts(user_id, is_archived);
+CREATE INDEX idx_contacts_user_pinned ON contacts(user_id, is_pinned);
+CREATE INDEX idx_contacts_user_created ON contacts(user_id, created_at DESC);
+CREATE INDEX idx_dm_user_phone_created ON direct_messages(user_id, contact_phone, created_at DESC);
+CREATE INDEX idx_campaigns_user_status ON campaigns(user_id, status);
+CREATE INDEX idx_templates_user_status ON templates(user_id, status);
+CREATE INDEX idx_whatsapp_flows_user_status ON whatsapp_flows(user_id, status);
+CREATE INDEX idx_contact_tags_user_contact ON contact_tags(user_id, contact_id);
+CREATE INDEX idx_teams_user ON teams(user_id);
+CREATE INDEX idx_team_members_user ON team_members(user_id);
+
 -- Sales Funnels
 CREATE TABLE IF NOT EXISTS sales_funnels (
   id VARCHAR(36) NOT NULL PRIMARY KEY,

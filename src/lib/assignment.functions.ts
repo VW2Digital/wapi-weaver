@@ -183,40 +183,47 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
       await ensureTeamBelongsToWorkspace(data.teamId, effectiveUserId);
 
-      // Busca os membros da equipe ordenados pela menor carga atual de atendimentos ativos,
-      // incluindo todos os agentes cadastrados na equipe
-      const agents = await db.query(
-        `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
-         FROM team_members tm
-         LEFT JOIN conversation_assignments ca 
-           ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
-         WHERE tm.team_id = ?
-         GROUP BY tm.user_id
-         ORDER BY active_chats ASC, RAND()
-         LIMIT 1`,
-        [effectiveUserId, data.teamId],
-      );
+      // Run the full round-robin cycle inside a transaction to prevent race conditions
+      // when multiple webhook messages arrive simultaneously.
+      const result = await db.transaction(async (conn) => {
+        // 1. SELECT the least-loaded agent with a locking read
+        const [agents] = await conn.execute(
+          `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
+           FROM team_members tm
+           LEFT JOIN conversation_assignments ca 
+             ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
+           WHERE tm.team_id = ?
+           GROUP BY tm.user_id
+           ORDER BY active_chats ASC, RAND()
+           LIMIT 1
+           FOR UPDATE`,
+          [effectiveUserId, data.teamId],
+        );
 
-      // Desativa a atribuição anterior
-      await db.query(
-        `UPDATE conversation_assignments 
-         SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
-         WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
-        [effectiveUserId, phone],
-      );
+        // 2. Deactivate previous assignment
+        await conn.execute(
+          `UPDATE conversation_assignments 
+           SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
+           WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
+          [effectiveUserId, phone],
+        );
 
-      const targetAgentId = agents && agents.length > 0 ? agents[0].agent_id : null;
-      const assignmentId = crypto.randomUUID();
+        const agentRows = agents as any[];
+        const targetAgentId = agentRows && agentRows.length > 0 ? agentRows[0].agent_id : null;
+        const assignmentId = crypto.randomUUID();
 
-      // Cria a nova atribuição (ao time + agente selecionado, se disponível)
-      await db.query(
-        `INSERT INTO conversation_assignments 
-          (id, user_id, contact_phone, team_id, agent_id, assigned_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [assignmentId, effectiveUserId, phone, data.teamId, targetAgentId, context.userId],
-      );
+        // 3. Create the new assignment atomically
+        await conn.execute(
+          `INSERT INTO conversation_assignments 
+            (id, user_id, contact_phone, team_id, agent_id, assigned_by)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [assignmentId, effectiveUserId, phone, data.teamId, targetAgentId, context.userId],
+        );
 
-      return { ok: true, agentId: targetAgentId };
+        return { ok: true, agentId: targetAgentId };
+      });
+
+      return result;
     } catch (e: any) {
       console.error("Erro ao auto-atribuir conversa:", e);
       throw new Error(e.message || "Erro ao auto-atribuir conversa");

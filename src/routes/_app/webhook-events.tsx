@@ -228,6 +228,7 @@ function WebhookEventsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "template" | "message" | "inbound">("all");
   const [selected, setSelected] = useState<EventRow | null>(null);
+  const [page, setPage] = useState(1);
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["my-webhook-events"],
@@ -267,6 +268,10 @@ function WebhookEventsPage() {
       );
     });
   }, [enriched, filter, search]);
+
+  const paginated = useMemo(() => {
+    return filtered.slice((page - 1) * 20, page * 20);
+  }, [filtered, page]);
 
   const stats = useMemo(() => {
     let approved = 0,
@@ -343,7 +348,10 @@ function WebhookEventsPage() {
           <Input
             placeholder="Buscar nos eventos…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="md:max-w-sm"
           />
           <div className="flex flex-wrap gap-2">
@@ -357,7 +365,10 @@ function WebhookEventsPage() {
                 key={f.k}
                 size="sm"
                 variant={filter === f.k ? "default" : "outline"}
-                onClick={() => setFilter(f.k as typeof filter)}
+                onClick={() => {
+                  setFilter(f.k as typeof filter);
+                  setPage(1);
+                }}
               >
                 {f.label}
               </Button>
@@ -383,7 +394,7 @@ function WebhookEventsPage() {
             />
           ) : (
             <ul className="divide-y">
-              {filtered.map((e) => {
+              {paginated.map((e) => {
                 const primary = e.summaries[0];
                 const Icon = primary.icon;
                 return (
@@ -425,6 +436,30 @@ function WebhookEventsPage() {
             </ul>
           )}
         </Card>
+
+        {filtered.length > 20 && (
+          <div className="flex items-center justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {page} de {Math.ceil(filtered.length / 20)}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= Math.ceil(filtered.length / 20)}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Próxima
+            </Button>
+          </div>
+        )}
       </div>
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>

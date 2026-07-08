@@ -45,12 +45,16 @@ export const Route = createFileRoute("/api/auth/otp")({
           const origin = new URL(request.url).origin;
           const magicLink = `${origin}/login?token=${token}`;
 
-          // Print link directly to server terminal
-          console.log(`\n======================================================`);
-          console.log(`[AUTH] LINK MÁGICO DE ACESSO SOLICITADO`);
-          console.log(`E-mail: ${user.email}`);
-          console.log(`Link:   ${magicLink}`);
-          console.log(`======================================================\n`);
+          // In development, print the link for convenience. In production, only log the event.
+          if (process.env.NODE_ENV !== "production") {
+            console.log(`\n======================================================`);
+            console.log(`[AUTH] LINK MÁGICO DE ACESSO SOLICITADO`);
+            console.log(`E-mail: ${user.email}`);
+            console.log(`Link:   ${magicLink}`);
+            console.log(`======================================================\n`);
+          } else {
+            console.log(`[AUTH] Magic link requested for ${user.email}`);
+          }
 
           return new Response(JSON.stringify({ success: true }), {
             status: 200,

@@ -69,11 +69,11 @@ import {
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
 
 const STATUS_HEX: Record<string, string> = {
-  pending: "#f59e0b", // Amber-500
-  sent: "#3b82f6", // Blue-500
-  delivered: "#10b981", // Emerald-500
-  read: "#4f46e5", // Indigo-600
-  failed: "#ef4444", // Red-500
+  pending: "#F26A4B", // Brand Color 4
+  sent: "#BF39B6", // Brand Color 3
+  delivered: "#D93B92", // Brand Color 2
+  read: "#F23869", // Brand Color 1
+  failed: "#F23869", // Brand Color 1
 };
 
 const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
@@ -88,14 +88,14 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Falhou",
 };
 const STATUS_COLOR: Record<string, string> = {
-  pending: "bg-amber-500",
-  sending: "bg-sky-400",
-  sent: "bg-blue-500",
-  sentOnly: "bg-blue-500",
-  delivered: "bg-emerald-500",
-  deliveredOnly: "bg-emerald-500",
-  read: "bg-indigo-600",
-  failed: "bg-red-500",
+  pending: "bg-[#F26A4B]",
+  sending: "bg-[#BF39B6]",
+  sent: "bg-[#BF39B6]",
+  sentOnly: "bg-[#BF39B6]",
+  delivered: "bg-[#D93B92]",
+  deliveredOnly: "bg-[#D93B92]",
+  read: "bg-[#F23869]",
+  failed: "bg-[#F23869]",
 };
 
 function Dashboard() {
@@ -634,7 +634,7 @@ function Dashboard() {
                     </div>
                     <div className="text-right text-sm tabular-nums md:col-span-1">
                       <span className="md:hidden text-xs text-muted-foreground mr-1">Falhou:</span>
-                      <span className={n.failed > 0 ? "text-destructive font-medium" : ""}>
+                      <span className={n.failed > 0 ? "text-[#F23869] font-medium" : ""}>
                         {n.failed}
                       </span>
                     </div>

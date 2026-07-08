@@ -224,12 +224,12 @@ function AiAgentPage() {
                   </p>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={saveSettings.isPending}>
+                <Button type="submit" size="xl" className="w-full" disabled={saveSettings.isPending}>
                   {saveSettings.isPending ? (
                     "Salvando..."
                   ) : (
                     <>
-                      <Save className="h-4 w-4 mr-2" /> Salvar Configurações
+                      <Save className="mr-2" /> Salvar Configurações
                     </>
                   )}
                 </Button>

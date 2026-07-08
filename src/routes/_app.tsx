@@ -42,10 +42,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+// Removed Sheet imports
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { SidebarProvider, Sidebar, SidebarRail } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarRail, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -139,7 +139,6 @@ function AppLayout() {
   const { theme, toggleTheme } = useTheme();
   const gravatarUrl = useGravatarUrl(user?.email);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
   const { isAdmin, loading: rolesLoading } = useRoles();
 
@@ -312,10 +311,7 @@ function AppLayout() {
 
   const avatarUrl = profileAvatar || gravatarUrl;
 
-  // Close drawer on navigation
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [loc.pathname]);
+  // Mobile sidebar is managed by useSidebar/SidebarProvider natively now
 
   useEffect(() => {
     if (!loading && !user) {
@@ -402,39 +398,38 @@ function AppLayout() {
         <img
           src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
           alt="Bliv Logo"
-          className="h-9 w-9 shrink-0 rounded-lg object-contain shadow-sm"
+          className="h-11 w-11 shrink-0 rounded-lg object-contain shadow-sm"
         />
       }
       groups={sidebarGroups}
       activePath={loc.pathname}
       onNavigate={handleNavigate}
       footer={
-        <div className="m-3 mt-4 border-t border-sidebar-border pt-3 group-data-[collapsible=icon]:m-1 group-data-[collapsible=icon]:px-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label="Abrir menu do usuário"
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sidebar-foreground hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring transition-colors group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
-              >
-                <Avatar className="h-9 w-9 shrink-0">
-                  {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
-                  <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
-                    {(user.email ?? "?").slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                  <div className="text-sm font-medium truncate text-sidebar-foreground">
-                    {user.email?.split("@")[0]}
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
+                >
+                  <Avatar className="h-8 w-8 shrink-0">
+                    {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
+                    <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary text-xs font-semibold">
+                      {(user.email ?? "?").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate font-medium">{user.email?.split("@")?.[0]}</span>
+                    <span className="truncate text-xs text-sidebar-foreground/60">{user.email}</span>
                   </div>
-                  <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
-                </div>
-                <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
-              </button>
-            </DropdownMenuTrigger>
+                  <ChevronUp className="ml-auto h-4 w-4 group-data-[collapsible=icon]:hidden" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="end" sideOffset={16} className="w-64 z-[100]">
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium truncate">{user.email?.split("@")[0]}</span>
+                  <span className="text-sm font-medium truncate">{user.email?.split("@")?.[0]}</span>
                   <span className="text-xs text-muted-foreground truncate">{user.email}</span>
                 </div>
               </DropdownMenuLabel>
@@ -473,7 +468,8 @@ function AppLayout() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+          </SidebarMenuItem>
+        </SidebarMenu>
       }
     />
   );
@@ -490,30 +486,17 @@ function AppLayout() {
           <SidebarRail />
         </Sidebar>
 
-        <div className="h-dvh overflow-hidden bg-background flex flex-col flex-1">
+        <SidebarInset className="h-dvh overflow-hidden bg-background flex flex-col flex-1 p-0 m-0 border-0 md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none shadow-none">
           {/* Mobile top bar */}
           <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger asChild>
-                <Button size="icon" variant="ghost" aria-label="Abrir menu">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent
-                side="left"
-                className="w-[280px] bg-sidebar p-0 text-sidebar-foreground"
-              >
-                <SheetTitle className="sr-only">Menu</SheetTitle>
-                {SidebarBody}
-              </SheetContent>
-            </Sheet>
-            <div className="flex items-center gap-2">
+            <SidebarTrigger className="h-8 w-8 -ml-1 text-sidebar-foreground/70" />
+            <div className="flex items-center gap-2 ml-1">
               <img
                 src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
                 alt="Bliv Logo"
                 className="h-8 w-8 object-contain rounded-lg shadow-sm"
               />
-              <span className="font-display text-sm font-semibold">Bliv</span>
+              <span className="font-display text-base font-semibold">Bliv</span>
             </div>
           </header>
 
@@ -551,7 +534,7 @@ function AppLayout() {
               <Outlet />
             )}
           </main>
-        </div>
+        </SidebarInset>
       </SidebarProvider>
     </>
   );

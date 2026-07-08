@@ -34,6 +34,12 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ShieldCheck,
   UserPlus,
   Trash2,
@@ -48,6 +54,7 @@ import {
   FileText,
   Tag,
   List as ListIcon,
+  MoreHorizontal,
   Megaphone,
 } from "lucide-react";
 import {
@@ -369,33 +376,38 @@ function AdminUsers() {
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Ver relatório de interação"
-                              onClick={() => setActivityUser({ id: u.id, email: u.email })}
-                            >
-                              <BarChart3 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              disabled={delMut.isPending}
-                              onClick={async () => {
-                                const ok = await confirm({
-                                  title: "Excluir usuário?",
-                                  description: `${u.email} será removido permanentemente. Esta ação não pode ser desfeita.`,
-                                  confirmText: "Excluir",
-                                  destructive: true,
-                                });
-                                if (ok) delMut.mutate(u.id);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setActivityUser({ id: u.id, email: u.email })}
+                                className="cursor-pointer"
+                              >
+                                <BarChart3 className="mr-2 h-4 w-4" />
+                                Relatório
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                                disabled={delMut.isPending}
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: "Excluir usuário?",
+                                    description: `${u.email} será removido permanentemente. Esta ação não pode ser desfeita.`,
+                                    confirmText: "Excluir",
+                                    destructive: true,
+                                  });
+                                  if (ok) delMut.mutate(u.id);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );
@@ -718,32 +730,36 @@ function AdminTeams() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Gerenciar membros"
-                              onClick={() => setMembersTeam(t)}
-                            >
-                              <UserCheck className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Editar equipe"
-                              onClick={() => handleEdit(t)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDelete(t)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setMembersTeam(t)}
+                                className="cursor-pointer"
+                              >
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Membros
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(t)}
+                                className="cursor-pointer"
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                                onClick={() => handleDelete(t)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );

@@ -3039,14 +3039,14 @@ function ChatPage() {
               className={cn(
                 "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
                 mainTab === "conversas"
-                  ? "border-[#FF424E] text-[#FF424E] bg-muted/10"
+                  ? "border-primary text-primary bg-muted/10"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30",
               )}
             >
               <MessageCircle className="h-4 w-4" />
               Conversas
               {unreadConversas > 0 && (
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                   {unreadConversas > 99 ? "99+" : unreadConversas}
                 </span>
               )}
@@ -3057,14 +3057,14 @@ function ChatPage() {
               className={cn(
                 "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
                 mainTab === "grupos"
-                  ? "border-[#FF424E] text-[#FF424E] bg-muted/10"
+                  ? "border-primary text-primary bg-muted/10"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30",
               )}
             >
               <Users className="h-4 w-4" />
               Grupos
               {unreadGrupos > 0 && (
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                   {unreadGrupos > 99 ? "99+" : unreadGrupos}
                 </span>
               )}
@@ -3085,7 +3085,7 @@ function ChatPage() {
                 )}
               >
                 Novos
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                   {novosContacts.length}
                 </span>
               </button>
@@ -3101,7 +3101,7 @@ function ChatPage() {
                 )}
               >
                 Meus
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                   {meusContacts.length}
                 </span>
               </button>
@@ -3117,7 +3117,7 @@ function ChatPage() {
                 )}
               >
                 Outros
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                   {outrosContacts.length}
                 </span>
               </button>

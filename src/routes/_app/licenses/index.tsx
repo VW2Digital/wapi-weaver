@@ -32,6 +32,12 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Globe,
   Plus,
   Search,
@@ -42,6 +48,7 @@ import {
   Ban,
   Calendar,
   ShieldAlert,
+  MoreHorizontal,
 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
@@ -460,19 +467,28 @@ function LicensesPage() {
                         </TableCell>
                         <TableCell>{expires}</TableCell>
                         <TableCell className="flex items-center justify-end gap-2">
-                          <Button size="icon" variant="ghost" asChild>
-                            <Link to="/licenses/$id" params={{ id: String(lic.id) }}>
-                              <ExternalLink className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="text-red-500 hover:text-red-600"
-                            onClick={() => handleDelete(lic.id, lic.license_key_preview)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to="/licenses/$id" params={{ id: String(lic.id) }} className="w-full cursor-pointer">
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  Acessar
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                                onClick={() => handleDelete(lic.id, lic.license_key_preview)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );
