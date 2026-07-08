@@ -172,7 +172,13 @@ export const getUserActivity = createServerFn({ method: "POST" })
 
     const { data: userInfo, error: uErr } = await dbAdmin.auth.admin.getUserById(uid);
     if (uErr) throw uErr;
-    const user = userInfo.user;
+    const user = userInfo.user as { 
+      id: string; 
+      email: string; 
+      created_at: string; 
+      last_sign_in_at?: string; 
+      email_confirmed_at?: string; 
+    };
 
     const [
       campaignsRes,

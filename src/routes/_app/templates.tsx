@@ -488,7 +488,7 @@ function TemplatesPage() {
           className="sm:w-auto sm:px-4"
           onClick={() => seedMut.mutate()}
           disabled={seedMut.isPending}
-          title="Carregar exemplos"
+          aria-label="Carregar exemplos"
         >
           <Sparkles className="h-4 w-4 sm:mr-2" />
           <span className="hidden sm:inline">Carregar exemplos</span>
@@ -499,7 +499,7 @@ function TemplatesPage() {
           className="sm:w-auto sm:px-4"
           onClick={() => syncMut.mutate()}
           disabled={syncMut.isPending}
-          title="Sincronizar"
+          aria-label="Sincronizar"
         >
           <RefreshCw className="h-4 w-4 sm:mr-2" />
           <span className="hidden sm:inline">Sincronizar</span>
@@ -672,9 +672,9 @@ function TemplatesPage() {
                               </span>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button size="icon" variant="ghost" className="h-8 w-8 ml-1">
-                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
+                                   <Button size="icon" variant="ghost" className="h-8 w-8 ml-1" aria-label="Abrir menu">
+                                     <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48">
                                   <DropdownMenuItem onClick={() => toggle(t.id)}>

@@ -27,7 +27,7 @@ function ProfilePage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading, isError } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
   });
@@ -69,7 +69,7 @@ function ProfilePage() {
       const path = `${user.id}/avatar-${Date.now()}.${ext}`;
       const { error: upErr } = await db.storage
         .from("avatars")
-        .upload(path, file, { cacheControl: "3600", upsert: true });
+        .upload(path, file);
       if (upErr) throw upErr;
       const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
       const url = pub.publicUrl;
@@ -150,6 +150,14 @@ function ProfilePage() {
     } finally {
       setPasswordBusy(false);
     }
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-destructive">
+        <p>Erro ao carregar o perfil. Tente novamente mais tarde.</p>
+      </div>
+    );
   }
 
   if (isLoading) {

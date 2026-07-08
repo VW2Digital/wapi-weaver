@@ -485,16 +485,16 @@ class MySQLClient {
           listFactors: async () => {
             return { data: { all: [], totp: [] }, error: null };
           },
-          enroll: async () => {
+          enroll: async (params?: any) => {
             return { data: null, error: null };
           },
-          challenge: async () => {
-            return { data: null, error: null };
+          challenge: async (params: { factorId: string }) => {
+            return { data: { id: "mock-challenge-id" }, error: null };
           },
-          verify: async () => {
-            return { error: null };
+          verify: async (params: { factorId: string; challengeId: string; code: string }) => {
+            return { data: { totp: { recovery_codes: [] } }, error: null };
           },
-          unenroll: async () => {
+          unenroll: async (params: { factorId: string }) => {
             return { error: null };
           },
         };
@@ -573,5 +573,5 @@ class MySQLClient {
   }
 }
 
-export const db = new MySQLClient() as any;
+export const db: MySQLClient = new MySQLClient();
 export { db as supabase };

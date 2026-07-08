@@ -2751,7 +2751,7 @@ function ChatPage() {
       const storagePath = `contacts/${selectedContact.id}/avatar-${Date.now()}.${ext}`;
       const { error: upErr } = await db.storage
         .from("avatars")
-        .upload(storagePath, file, { cacheControl: "3600", upsert: true });
+        .upload(storagePath, file);
       if (upErr) throw new Error(upErr.message || "Falha ao enviar imagem.");
 
       const { data: pub } = db.storage.from("avatars").getPublicUrl(storagePath);

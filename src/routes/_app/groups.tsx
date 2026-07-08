@@ -161,7 +161,7 @@ function GroupsPage() {
     action: (
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogTrigger asChild>
-          <Button className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90 shadow-md">
+          <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md">
             <Plus className="h-4 w-4 mr-2" /> Novo Grupo
           </Button>
         </DialogTrigger>
@@ -210,7 +210,7 @@ function GroupsPage() {
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 disabled={createMutation.isPending}
               >
                 {createMutation.isPending ? "Criando..." : "Criar Grupo"}

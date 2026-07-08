@@ -112,9 +112,7 @@ function LoginPage() {
     if (!forgotEmail) return;
     setForgotBusy(true);
     try {
-      const { error } = await db.auth.resetPasswordForEmail(forgotEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      const { error } = await db.auth.resetPasswordForEmail(forgotEmail);
       if (error) throw error;
       toast.success("Se este email existir, você receberá um link em instantes.");
       setForgotOpen(false);

@@ -20,13 +20,16 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.auth.mfa.listFactors();
+      const { data, error } = (await supabase.auth.mfa.listFactors()) as unknown as { 
+        data?: { totp?: Array<{ id: string; status: string }> }; 
+        error?: { message: string } 
+      };
       if (error) {
         toast.error(error.message);
         setLoading(false);
         return;
       }
-      const totp = (data?.totp ?? []).find((f: any) => f.status === "verified");
+      const totp = (data?.totp ?? []).find((f) => f.status === "verified");
       if (!totp) {
         toast.error("Nenhum fator 2FA encontrado");
         setLoading(false);
@@ -34,8 +37,9 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
       }
       setFactorId(totp.id);
       const ch = await supabase.auth.mfa.challenge({ factorId: totp.id });
-      if (ch.error) toast.error(ch.error.message);
-      else setChallengeId(ch.data!.id);
+      const challenge = ch as unknown as { error?: { message: string }; data?: { id: string } };
+      if (challenge.error) toast.error(challenge.error.message);
+      else if (challenge.data) setChallengeId(challenge.data.id);
       setLoading(false);
     })();
   }, []);
