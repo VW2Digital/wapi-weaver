@@ -620,6 +620,12 @@ export async function ensureDatabaseSchema() {
     );
     await ensureColumnExists(connection, "contacts", "is_unread", "BOOLEAN NOT NULL DEFAULT false");
     await ensureColumnExists(connection, "contacts", "kanban_stage_id", "VARCHAR(36) NULL");
+    await ensureColumnExists(connection, "contacts", "source_type", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "contacts", "source_name", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "contacts", "source_id", "VARCHAR(36) NULL");
+    await ensureColumnExists(connection, "contacts", "external_id", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "contacts", "metadata", "JSON NULL");
+    await ensureColumnExists(connection, "contacts", "last_interaction_at", "DATETIME NULL");
 
     await ensureTableExists(
       connection,
@@ -669,6 +675,31 @@ export async function ensureDatabaseSchema() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
+    );
+
+    await ensureTableExists(
+      connection,
+      "contact_activities",
+      `
+      CREATE TABLE IF NOT EXISTS contact_activities (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        contact_id VARCHAR(36) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        source_type VARCHAR(50) NULL,
+        source_id VARCHAR(36) NULL,
+        payload JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `,
+    );
+    await ensureIndexExists(
+      connection,
+      "contact_activities",
+      "idx_contact_activities_contact",
+      "CREATE INDEX idx_contact_activities_contact ON contact_activities(contact_id)",
     );
 
     // Garantir enum atualizado para direct_messages.type
@@ -1590,6 +1621,300 @@ export async function ensureDatabaseSchema() {
     } catch (err) {
       console.warn("[Schema] Falha ao inserir dados de demonstração (não crítico):", err.message);
     }
+
+    // -------------------------------------------------------------------
+    // WEBHOOKS MODULE (Entrada e Saída)
+    // -------------------------------------------------------------------
+    logSchema("Criando tabelas do módulo de Webhooks...");
+
+    await ensureTableExists(
+      connection,
+      "incoming_webhooks",
+      `
+      CREATE TABLE IF NOT EXISTS incoming_webhooks (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        field_labels JSON NULL,
+        status ENUM('listening','paused') NOT NULL DEFAULT 'listening',
+        events_count INT NOT NULL DEFAULT 0,
+        leads_count INT NOT NULL DEFAULT 0,
+        last_event_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
+
+    await ensureIndexExists(
+      connection,
+      "incoming_webhooks",
+      "idx_incoming_webhooks_token",
+      "CREATE INDEX idx_incoming_webhooks_token ON incoming_webhooks(token)",
+    );
+    await ensureIndexExists(
+      connection,
+      "incoming_webhooks",
+      "idx_incoming_webhooks_tenant",
+      "CREATE INDEX idx_incoming_webhooks_tenant ON incoming_webhooks(tenant_id)",
+    );
+
+    await ensureTableExists(
+      connection,
+      "incoming_webhook_events",
+      `
+      CREATE TABLE IF NOT EXISTS incoming_webhook_events (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        webhook_id VARCHAR(36) NOT NULL,
+        contact_id VARCHAR(36) NULL,
+        idempotency_key VARCHAR(64) NULL,
+        status ENUM('received','processing','processed','failed') NOT NULL DEFAULT 'received',
+        action VARCHAR(50) NULL,
+        raw_payload JSON NOT NULL,
+        mapped_standard_fields JSON NULL,
+        mapped_custom_fields JSON NULL,
+        unmapped_fields JSON NULL,
+        headers JSON NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent TEXT NULL,
+        error_code VARCHAR(50) NULL,
+        error_message TEXT NULL,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        processed_at DATETIME NULL,
+        processing_duration_ms INT UNSIGNED NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_iwe_user (user_id),
+        INDEX idx_iwe_webhook (user_id, webhook_id),
+        INDEX idx_iwe_contact (contact_id),
+        INDEX idx_iwe_status (user_id, status),
+        INDEX idx_iwe_received (user_id, received_at),
+        UNIQUE KEY uq_iwe_idempotency (webhook_id, idempotency_key),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
+
+    // If the table existed with the old schema, migrate columns
+    await ensureColumnExists(connection, "incoming_webhook_events", "user_id", "VARCHAR(36) NOT NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "webhook_id", "VARCHAR(36) NOT NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "contact_id", "VARCHAR(36) NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "idempotency_key", "VARCHAR(64) NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "action", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "raw_payload", "JSON NOT NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "mapped_standard_fields", "JSON NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "mapped_custom_fields", "JSON NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "unmapped_fields", "JSON NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "headers", "JSON NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "ip_address", "VARCHAR(45) NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "user_agent", "TEXT NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "error_code", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "error_message", "TEXT NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "received_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
+    await ensureColumnExists(connection, "incoming_webhook_events", "processed_at", "DATETIME NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "processing_duration_ms", "INT UNSIGNED NULL");
+    await ensureColumnExists(connection, "incoming_webhook_events", "updated_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+
+    await ensureIndexExists(
+      connection,
+      "incoming_webhook_events",
+      "idx_iwe_user",
+      "CREATE INDEX idx_iwe_user ON incoming_webhook_events(user_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "incoming_webhook_events",
+      "idx_iwe_webhook",
+      "CREATE INDEX idx_iwe_webhook ON incoming_webhook_events(user_id, webhook_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "incoming_webhook_events",
+      "idx_iwe_contact",
+      "CREATE INDEX idx_iwe_contact ON incoming_webhook_events(contact_id)",
+    );
+    await ensureIndexExists(
+      connection,
+      "incoming_webhook_events",
+      "idx_iwe_status",
+      "CREATE INDEX idx_iwe_status ON incoming_webhook_events(user_id, status)",
+    );
+    await ensureIndexExists(
+      connection,
+      "incoming_webhook_events",
+      "idx_iwe_received",
+      "CREATE INDEX idx_iwe_received ON incoming_webhook_events(user_id, received_at)",
+    );
+
+    await ensureTableExists(
+      connection,
+      "outgoing_webhooks",
+      `
+      CREATE TABLE IF NOT EXISTS outgoing_webhooks (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        url VARCHAR(500) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        status ENUM('active','paused') NOT NULL DEFAULT 'active',
+        retry_count INT NOT NULL DEFAULT 3,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
+
+    await ensureIndexExists(
+      connection,
+      "outgoing_webhooks",
+      "idx_outgoing_webhooks_tenant",
+      "CREATE INDEX idx_outgoing_webhooks_tenant ON outgoing_webhooks(tenant_id)",
+    );
+
+    await ensureTableExists(
+      connection,
+      "outgoing_webhook_logs",
+      `
+      CREATE TABLE IF NOT EXISTS outgoing_webhook_logs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        outgoing_webhook_id VARCHAR(36) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        payload_sent JSON NOT NULL,
+        response_status INT NULL,
+        response_body TEXT NULL,
+        attempt_number INT NOT NULL DEFAULT 1,
+        success BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (outgoing_webhook_id) REFERENCES outgoing_webhooks(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    );
+
+    await ensureIndexExists(
+      connection,
+      "outgoing_webhook_logs",
+      "idx_outgoing_webhook_logs_webhook",
+      "CREATE INDEX idx_outgoing_webhook_logs_webhook ON outgoing_webhook_logs(outgoing_webhook_id)",
+    );
+
+    await ensureColumnExists(
+      connection,
+      "incoming_webhooks",
+      "field_labels",
+      "JSON NULL",
+    );
+
+    // ── Custom Fields Module ─────────────────────────────────────────
+
+    await ensureTableExists(
+      connection,
+      "contact_custom_fields",
+      `CREATE TABLE IF NOT EXISTS contact_custom_fields (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        label VARCHAR(255) NOT NULL,
+        \`key\` VARCHAR(100) NOT NULL,
+        type ENUM('text','textarea','number','currency','date','datetime','select','multi_select','boolean','email','phone','url') NOT NULL DEFAULT 'text',
+        placeholder TEXT NULL,
+        options JSON NULL,
+        default_value TEXT NULL,
+        required BOOLEAN NOT NULL DEFAULT FALSE,
+        show_on_form BOOLEAN NOT NULL DEFAULT TRUE,
+        show_on_table BOOLEAN NOT NULL DEFAULT FALSE,
+        show_on_details BOOLEAN NOT NULL DEFAULT TRUE,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_field (user_id, \`key\`),
+        INDEX idx_cf_user (user_id),
+        INDEX idx_cf_active (is_active),
+        INDEX idx_cf_sort (user_id, sort_order),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "contact_custom_field_values",
+      `CREATE TABLE IF NOT EXISTS contact_custom_field_values (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        contact_id VARCHAR(36) NOT NULL,
+        custom_field_id VARCHAR(36) NOT NULL,
+        value TEXT NULL,
+        value_json JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_contact_field (user_id, contact_id, custom_field_id),
+        INDEX idx_cfv_user (user_id),
+        INDEX idx_cfv_contact (user_id, contact_id),
+        INDEX idx_cfv_field (custom_field_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+        FOREIGN KEY (custom_field_id) REFERENCES contact_custom_fields(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "webhook_field_mappings",
+      `CREATE TABLE IF NOT EXISTS webhook_field_mappings (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        webhook_id VARCHAR(36) NOT NULL,
+        external_field VARCHAR(255) NOT NULL,
+        target_type ENUM('standard','custom','ignore') NOT NULL,
+        target_key VARCHAR(100) NULL,
+        custom_field_id VARCHAR(36) NULL,
+        transformation VARCHAR(50) NULL,
+        default_value TEXT NULL,
+        is_required BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_webhook_field (user_id, webhook_id, external_field),
+        INDEX idx_wfm_user (user_id),
+        INDEX idx_wfm_webhook (user_id, webhook_id),
+        INDEX idx_wfm_target_type (target_type),
+        INDEX idx_wfm_custom_field (custom_field_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE,
+        FOREIGN KEY (custom_field_id) REFERENCES contact_custom_fields(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    // New columns on contacts
+    await ensureColumnExists(connection, "contacts", "company", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "contacts", "position", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "contacts", "notes", "TEXT NULL");
+    await ensureColumnExists(connection, "contacts", "status", "VARCHAR(50) NULL");
+    await ensureColumnExists(connection, "contacts", "responsible_user_id", "VARCHAR(36) NULL");
+    await ensureColumnExists(connection, "contacts", "normalized_phone", "VARCHAR(50) NULL");
+
+    await ensureIndexExists(
+      connection, "contacts", "idx_contacts_source_type",
+      "CREATE INDEX idx_contacts_source_type ON contacts(user_id, source_type)",
+    );
+    await ensureIndexExists(
+      connection, "contacts", "idx_contacts_source_id",
+      "CREATE INDEX idx_contacts_source_id ON contacts(user_id, source_id)",
+    );
+    await ensureIndexExists(
+      connection, "contacts", "idx_contacts_external_id",
+      "CREATE INDEX idx_contacts_external_id ON contacts(user_id, external_id)",
+    );
+    await ensureIndexExists(
+      connection, "contacts", "idx_contacts_normalized_phone",
+      "CREATE INDEX idx_contacts_normalized_phone ON contacts(user_id, normalized_phone)",
+    );
+
+    // user_id on contact_activities
+    await ensureColumnExists(connection, "contact_activities", "user_id", "VARCHAR(36) NULL");
 
     logSchema("Schema validado com sucesso.");
   } finally {

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -291,19 +291,19 @@ function WebhookEventsPage() {
     return { approved, rejected, pending, delivered, failed, total: events.length };
   }, [enriched, events.length]);
 
+  usePageHeader({
+    title: "Eventos do Webhook",
+    subtitle: "Acompanhe em tempo real o status de aprovação de templates, entregas e respostas dos seus contatos.",
+    action: (
+      <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+        <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
+        Atualizar
+      </Button>
+    ),
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Eventos do Webhook"
-        subtitle="Acompanhe em tempo real o status de aprovação de templates, entregas e respostas dos seus contatos."
-        action={
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
-            Atualizar
-          </Button>
-        }
-      />
-
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-6">

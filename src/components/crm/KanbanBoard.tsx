@@ -408,10 +408,12 @@ export function KanbanBoard({
                               <span>{nextActivityLabel}</span>
                             </div>
                           )}
-                          <div className="flex items-center gap-1">
-                            <CheckSquare className="w-3.5 h-3.5" />
-                            <span>0/1</span>
-                          </div>
+                          {opp.tags && opp.tags.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              <span>{opp.tags.length}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

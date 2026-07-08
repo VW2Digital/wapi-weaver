@@ -63,12 +63,6 @@ import {
   Bell,
   MessageSquare,
   Phone,
-  Upload,
-  Bold,
-  Italic,
-  Underline,
-  List,
-  ListOrdered
 } from "lucide-react";
 
 interface OpportunityModalProps {
@@ -158,6 +152,7 @@ export function OpportunityModal({
   const [companyName, setCompanyName] = useState("");
   const [ownerUserId, setOwnerUserId] = useState("");
   const [value, setValue] = useState(0);
+  const [probabilityPercent, setProbabilityPercent] = useState<number | null>(null);
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [source, setSource] = useState("");
   const [temperature, setTemperature] = useState<"cold" | "warm" | "hot">("cold");
@@ -174,6 +169,7 @@ export function OpportunityModal({
     "call" | "email" | "meeting" | "task" | "note" | "whatsapp" | "proposal" | "follow_up" | "other"
   >("task");
   const [actDue, setActDue] = useState("");
+  const [actDuration, setActDuration] = useState(30);
 
   // Secondary contact association state
   const [selectedAddContactId, setSelectedAddContactId] = useState("");
@@ -195,6 +191,9 @@ export function OpportunityModal({
       setCompanyName(opportunity.company_name || "");
       setOwnerUserId(opportunity.owner_user_id || "");
       setValue(Number(opportunity.value) || 0);
+      setProbabilityPercent(
+        opportunity.probability_percent != null ? Number(opportunity.probability_percent) : null,
+      );
       setExpectedCloseDate(
         opportunity.expected_close_date
           ? new Date(opportunity.expected_close_date).toISOString().split("T")[0]
@@ -225,6 +224,7 @@ export function OpportunityModal({
         owner_user_id: ownerUserId || null,
         value,
         currency: "BRL",
+        probability_percent: probabilityPercent,
         expected_close_date: expectedCloseDate || null,
         source: source || null,
         temperature: temperature || null,
@@ -515,6 +515,21 @@ export function OpportunityModal({
                       type="number"
                       value={value}
                       onChange={(e) => setValue(Number(e.target.value))}
+                      className="bg-muted/10 h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Probabilidade (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={probabilityPercent ?? ""}
+                      onChange={(e) =>
+                        setProbabilityPercent(
+                          e.target.value ? Math.min(100, Math.max(0, Number(e.target.value))) : null,
+                        )
+                      }
                       className="bg-muted/10 h-10"
                     />
                   </div>
@@ -937,29 +952,16 @@ export function OpportunityModal({
                           <Label className="text-[11px] text-muted-foreground">Duração (minutos)</Label>
                           <Input
                             type="number"
-                            defaultValue="30"
+                            value={actDuration}
+                            onChange={(e) => setActDuration(Number(e.target.value))}
                             className="h-10 border-muted-foreground/20 rounded-lg text-sm bg-transparent shadow-none"
                           />
                         </div>
                       </div>
 
-                      {/* Upload Area */}
-                      <div className="mt-4 border-2 border-dashed border-muted-foreground/20 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-muted/5 transition-colors">
-                        <Upload className="w-5 h-5 text-muted-foreground mb-2" />
-                        <span className="text-[11px] text-muted-foreground font-medium">Clique aqui ou arraste o documento a ser salvo</span>
-                      </div>
-                      
-                      {/* Descrição Editor */}
-                      <div className="border border-muted-foreground/20 rounded-xl overflow-hidden bg-transparent mt-2">
-                        {/* Editor Toolbar */}
-                        <div className="flex items-center gap-1 border-b border-muted-foreground/10 px-2 py-1.5 bg-muted/5">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"><Bold className="w-3.5 h-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"><Italic className="w-3.5 h-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"><Underline className="w-3.5 h-3.5" /></Button>
-                          <div className="w-[1px] h-4 bg-muted-foreground/20 mx-1"></div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"><List className="w-3.5 h-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"><ListOrdered className="w-3.5 h-3.5" /></Button>
-                        </div>
+                      {/* Descrição */}
+                      <div className="space-y-1.5 mt-2">
+                        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
                         <Textarea
                           value={actDesc}
                           onChange={(e) => setActDesc(e.target.value)}

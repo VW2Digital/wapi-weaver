@@ -14,7 +14,7 @@ import {
   getContactKanbanStages,
 } from "@/lib/contacts.functions";
 import { listLists, listTags } from "@/lib/lists.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,12 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { listCustomFields, getCustomFieldValuesBatch, saveContactCustomFieldValues } from "@/lib/custom-fields.functions";
+import { CustomFieldInput } from "@/components/contacts/custom-field-input";
+import { ColumnSelector } from "@/components/contacts/column-selector";
+
+const DEFAULT_COLUMNS = ["name", "phone", "email", "company", "status", "created_at"];
+const LS_KEY_PREFIX = "crm_contacts_visible_columns_v1_";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { EmptyState } from "@/components/empty-state";
@@ -87,6 +93,7 @@ function ContactsPage() {
   const bulkAddTag = useServerFn(bulkAddTagToContacts);
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const fetchCustomFields = useServerFn(listCustomFields);
 
   const { data: contacts, isLoading } = useQuery({
     queryKey: ["contacts"],
@@ -94,6 +101,36 @@ function ContactsPage() {
   });
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const tags = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags() });
+  const customFields = useQuery({
+    queryKey: ["custom-fields"],
+    queryFn: () => fetchCustomFields(),
+    staleTime: 60000,
+  });
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("crm_contacts_visible_columns") ?? "null") ?? DEFAULT_COLUMNS; } catch { return DEFAULT_COLUMNS; }
+  });
+  const columnDefs = useMemo(() => {
+    const std: { id: string; label: string; group: "standard" | "custom" }[] = [
+      { id: "name", label: "Nome", group: "standard" },
+      { id: "phone", label: "Telefone", group: "standard" },
+      { id: "email", label: "E-mail", group: "standard" },
+      { id: "company", label: "Empresa", group: "standard" },
+      { id: "position", label: "Cargo", group: "standard" },
+      { id: "status", label: "Status", group: "standard" },
+      { id: "responsible_user_id", label: "Responsável", group: "standard" },
+      { id: "created_at", label: "Criado em", group: "standard" },
+      { id: "last_contacted_at", label: "Último contato", group: "standard" },
+    ];
+    const customDefs = (customFields.data as any[] ?? []).filter((f: any) => f.show_on_table && f.is_active).map((f: any) => ({
+      id: `cf_${f.id}`, label: f.label, group: "custom" as const,
+    }));
+    return [...std, ...customDefs];
+  }, [customFields.data]);
+  const persistVisibleColumns = (ids: string[]) => {
+    setVisibleColumns(ids);
+    try { localStorage.setItem("crm_contacts_visible_columns", JSON.stringify(ids)); } catch {}
+  };
 
   const navigate = useNavigate();
 
@@ -103,8 +140,13 @@ function ContactsPage() {
     name: "",
     email: "",
     source: "",
-    channel: "whatsapp",
+    source_type: "",
+    source_name: "",
+    source_id: "",
+    external_id: "",
     external_contact_id: "",
+    metadata: "",
+    channel: "whatsapp",
     custom_fields: "",
     opted_out: false,
     is_pinned: false,
@@ -127,8 +169,13 @@ function ContactsPage() {
         name: "",
         email: "",
         source: "",
-        channel: "whatsapp",
+        source_type: "",
+        source_name: "",
+        source_id: "",
+        external_id: "",
         external_contact_id: "",
+        metadata: "",
+        channel: "whatsapp",
         custom_fields: "",
         opted_out: false,
         is_pinned: false,
@@ -144,6 +191,7 @@ function ContactsPage() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ phone: "", name: "", email: "" });
@@ -253,16 +301,20 @@ function ContactsPage() {
     }
   };
 
+  const ALL_SOURCES = ["manual", "webhook", "import", "api", "whatsapp", "instagram", "campaign"];
+
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return (contacts ?? []).filter(
-      (c: any) =>
-        !s ||
+    return (contacts ?? []).filter((c: any) => {
+      if (sourceFilter && c.source !== sourceFilter) return false;
+      if (!s) return true;
+      return (
         c.phone_e164.includes(search) ||
         c.name?.toLowerCase().includes(s) ||
-        c.email?.toLowerCase().includes(s),
-    );
-  }, [contacts, search]);
+        c.email?.toLowerCase().includes(s)
+      );
+    });
+  }, [contacts, search, sourceFilter]);
 
   const total = filtered.length;
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -336,77 +388,107 @@ function ContactsPage() {
     setPicked(new Set());
   };
 
+  usePageHeader({
+    title: "Contatos",
+    subtitle: `${contacts?.length ?? 0} contato${(contacts?.length ?? 0) === 1 ? "" : "s"} cadastrado${(contacts?.length ?? 0) === 1 ? "" : "s"}.`,
+    action: (
+      <div className="grid grid-cols-2 gap-2 w-full lg:w-auto">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          hidden
+          onChange={handleFile}
+        />
+        <Button
+          variant="outline"
+          onClick={() => fileRef.current?.click()}
+          className="w-full justify-center"
+        >
+          <Upload className="mr-2 h-4 w-4 shrink-0" />
+          <span className="truncate">Importar CSV/XLSX</span>
+        </Button>
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button className="w-full justify-center">
+              <Plus className="mr-2 h-4 w-4 shrink-0" />
+              <span className="truncate">Novo contato</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+            <SheetHeader className="mb-4">
+              <SheetTitle>Novo contato</SheetTitle>
+            </SheetHeader>
+            <div className="space-y-3 flex-1">
+              <div className="space-y-1.5">
+                <Label>Telefone</Label>
+                <Input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+55 11 99999-0000"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nome</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>E-mail</Label>
+                <Input
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+              {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).length > 0 && (
+                <div className="pt-3 border-t">
+                  <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Campos personalizados</p>
+                  <div className="space-y-3">
+                    {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).map((f: any) => (
+                      <CustomFieldInput
+                        key={f.id}
+                        field={f}
+                        value={customFieldValues[f.id] ?? null}
+                        onChange={(val: any) => setCustomFieldValues({ ...customFieldValues, [f.id]: val })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="pt-4 border-t mt-auto">
+              <Button
+                onClick={() => {
+                  createMut.mutate(form, {
+                    onSuccess: (result: any) => {
+                      if (result?.id && Object.keys(customFieldValues).length > 0) {
+                        saveContactCustomFieldValues({
+                          data: {
+                            contact_id: result.id,
+                            values: Object.entries(customFieldValues).map(([custom_field_id, value]) => ({ custom_field_id, value })),
+                          },
+                        });
+                      }
+                      setCustomFieldValues({});
+                    },
+                  });
+                }}
+                disabled={createMut.isPending}
+                className="w-full"
+              >
+                Adicionar
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+    ),
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Contatos"
-        subtitle={`${contacts?.length ?? 0} contato${(contacts?.length ?? 0) === 1 ? "" : "s"} cadastrado${(contacts?.length ?? 0) === 1 ? "" : "s"}.`}
-        action={
-          <div className="grid grid-cols-2 gap-2 w-full lg:w-auto">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              hidden
-              onChange={handleFile}
-            />
-            <Button
-              variant="outline"
-              onClick={() => fileRef.current?.click()}
-              className="w-full justify-center"
-            >
-              <Upload className="mr-2 h-4 w-4 shrink-0" />
-              <span className="truncate">Importar CSV/XLSX</span>
-            </Button>
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild>
-                <Button className="w-full justify-center">
-                  <Plus className="mr-2 h-4 w-4 shrink-0" />
-                  <span className="truncate">Novo contato</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
-                <SheetHeader className="mb-4">
-                  <SheetTitle>Novo contato</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-3 flex-1">
-                  <div className="space-y-1.5">
-                    <Label>Telefone</Label>
-                    <Input
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      placeholder="+55 11 99999-0000"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Nome</Label>
-                    <Input
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>E-mail</Label>
-                    <Input
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="pt-4 border-t mt-auto">
-                  <Button
-                    onClick={() => createMut.mutate(form)}
-                    disabled={createMut.isPending}
-                    className="w-full"
-                  >
-                    Adicionar
-                  </Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        }
-      />
       <div className="flex-1 overflow-y-auto p-6">
         <Card>
           <div className="flex flex-wrap items-center gap-2 border-b p-3">
@@ -419,6 +501,23 @@ function ContactsPage() {
                 setPage(1);
               }}
             />
+            <div className="flex items-center gap-1" role="group" aria-label="Filtrar por origem">
+              <button
+                className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${!sourceFilter ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                onClick={() => { setSourceFilter(null); setPage(1); }}
+              >
+                Todos
+              </button>
+              {ALL_SOURCES.map((s) => (
+                <button
+                  key={s}
+                  className={`rounded px-2 py-1 text-[11px] font-medium capitalize transition-colors ${sourceFilter === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                  onClick={() => { setSourceFilter(s); setPage(1); }}
+                >
+                  {s === "webhook" ? "Webhook" : s === "import" ? "Importação" : s === "manual" ? "Manual" : s === "api" ? "API" : s}
+                </button>
+              ))}
+            </div>
             {picked.size > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
@@ -523,11 +622,12 @@ function ContactsPage() {
                         aria-label="Selecionar página"
                       />
                     </th>
-                    <th className="p-3">Telefone</th>
-                    <th className="p-3">Nome</th>
-                    <th className="p-3">E-mail</th>
-                    <th className="p-3">Origem</th>
-                    <th className="p-3"></th>
+                    {columnDefs.filter((col) => visibleColumns.includes(col.id)).map((col) => (
+                      <th key={col.id} className="p-3">{col.label}</th>
+                    ))}
+                    <th className="p-3 w-18">
+                      <ColumnSelector columns={columnDefs} visible={visibleColumns} onChange={persistVisibleColumns} />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -544,19 +644,46 @@ function ContactsPage() {
                           aria-label={`Selecionar ${c.phone_e164}`}
                         />
                       </td>
-                      <td className="p-3 font-mono">
-                        +{c.phone_e164}
-                        {(c.opted_out === 1 || c.opted_out === true) && (
-                          <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">
-                            opt-out
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3">{c.name ?? "—"}</td>
-                      <td className="p-3 text-muted-foreground">{c.email ?? "—"}</td>
-                      <td className="p-3 text-xs">
-                        <span className="rounded bg-muted px-2 py-0.5">{c.source ?? "—"}</span>
-                      </td>
+                      {columnDefs.filter((col) => visibleColumns.includes(col.id)).map((col) => {
+                        if (col.id === "phone") {
+                          return (
+                            <td key={col.id} className="p-3 font-mono">
+                              +{c.phone_e164}
+                              {(c.opted_out === 1 || c.opted_out === true) && (
+                                <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">opt-out</span>
+                              )}
+                            </td>
+                          );
+                        }
+                        if (col.id === "name") {
+                          return <td key={col.id} className="p-3">{c.name ?? "—"}</td>;
+                        }
+                        if (col.id === "email") {
+                          return <td key={col.id} className="p-3 text-muted-foreground">{c.email ?? "—"}</td>;
+                        }
+                        if (col.id === "company") {
+                          return <td key={col.id} className="p-3">{c.company ?? "—"}</td>;
+                        }
+                        if (col.id === "position") {
+                          return <td key={col.id} className="p-3">{c.position ?? "—"}</td>;
+                        }
+                        if (col.id === "status") {
+                          return <td key={col.id} className="p-3">{c.status ?? "—"}</td>;
+                        }
+                        if (col.id === "created_at") {
+                          return <td key={col.id} className="p-3 text-muted-foreground">{c.created_at ? new Date(c.created_at).toLocaleDateString("pt-BR") : "—"}</td>;
+                        }
+                        if (col.id === "last_contacted_at") {
+                          return <td key={col.id} className="p-3 text-muted-foreground">{c.last_contacted_at ? new Date(c.last_contacted_at).toLocaleDateString("pt-BR") : "—"}</td>;
+                        }
+                        if (col.id === "responsible_user_id") {
+                          return <td key={col.id} className="p-3">{c.responsible_user_id ?? "—"}</td>;
+                        }
+                        if (col.group === "custom") {
+                          return <td key={col.id} className="p-3">—</td>;
+                        }
+                        return <td key={col.id} className="p-3">—</td>;
+                      })}
                       <td className="p-3 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -569,13 +696,24 @@ function ContactsPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingContact(c);
+                                setCustomFieldValues({});
+                                getCustomFieldValuesBatch({ data: { contact_ids: [c.id] } }).then((vals: any) => {
+                                  const map: Record<string, any> = {};
+                                  (vals ?? []).forEach((v: any) => { map[v.custom_field_id] = v.value_json ?? v.value; });
+                                  setCustomFieldValues(map);
+                                });
                                 setEditForm({
                                   phone: c.phone_e164 || "",
                                   name: c.name || "",
                                   email: c.email || "",
                                   source: c.source || "",
-                                  channel: c.channel || "whatsapp",
+                                  source_type: c.source_type || "",
+                                  source_name: c.source_name || "",
+                                  source_id: c.source_id || "",
+                                  external_id: c.external_id || "",
                                   external_contact_id: c.external_contact_id || "",
+                                  metadata: c.metadata ? JSON.stringify(c.metadata, null, 2) : "",
+                                  channel: c.channel || "whatsapp",
                                   custom_fields: JSON.stringify(c.custom_fields || {}, null, 2),
                                   opted_out: !!c.opted_out,
                                   is_pinned: !!c.is_pinned,
@@ -776,6 +914,35 @@ function ContactsPage() {
               />
             </div>
             <div className="space-y-1.5">
+              <Label>Tipo de origem</Label>
+              <Input
+                value={editForm.source_type}
+                onChange={(e) => setEditForm({ ...editForm, source_type: e.target.value })}
+                placeholder="incoming_webhook, manual..."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nome da origem</Label>
+              <Input
+                value={editForm.source_name}
+                onChange={(e) => setEditForm({ ...editForm, source_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>ID da origem</Label>
+              <Input
+                value={editForm.source_id}
+                onChange={(e) => setEditForm({ ...editForm, source_id: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>External ID</Label>
+              <Input
+                value={editForm.external_id}
+                onChange={(e) => setEditForm({ ...editForm, external_id: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label>Canal</Label>
               <Select
                 value={editForm.channel}
@@ -794,6 +961,15 @@ function ContactsPage() {
               <Input
                 value={editForm.external_contact_id}
                 onChange={(e) => setEditForm({ ...editForm, external_contact_id: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Metadata (JSON)</Label>
+              <textarea
+                className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                value={editForm.metadata}
+                onChange={(e) => setEditForm({ ...editForm, metadata: e.target.value })}
+                rows={3}
               />
             </div>
             <div className="flex items-center gap-4 pt-1">
@@ -882,27 +1058,64 @@ function ContactsPage() {
                 rows={4}
               />
             </div>
+
+            {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).length > 0 && (
+              <div className="pt-3 border-t">
+                <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Campos personalizados</p>
+                <div className="space-y-3">
+                  {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).map((f: any) => (
+                    <CustomFieldInput
+                      key={f.id}
+                      field={f}
+                      value={customFieldValues[f.id] ?? null}
+                      onChange={(val: any) => setCustomFieldValues({ ...customFieldValues, [f.id]: val })}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="pt-4 border-t mt-auto">
             <Button
               onClick={() => {
-                if (editingContact) {
-                  let custom_fields: any = null;
-                  try {
-                    if (editForm.custom_fields?.trim()) {
-                      custom_fields = JSON.parse(editForm.custom_fields);
+                  if (editingContact) {
+                    let custom_fields: any = null;
+                    try {
+                      if (editForm.custom_fields?.trim()) {
+                        custom_fields = JSON.parse(editForm.custom_fields);
+                      }
+                    } catch {
+                      custom_fields = null;
                     }
-                  } catch {
-                    custom_fields = null;
+                    let metadata: any = null;
+                    try {
+                      if (editForm.metadata?.trim()) {
+                        metadata = JSON.parse(editForm.metadata);
+                      }
+                    } catch {
+                      metadata = null;
+                    }
+                    const payload: any = {
+                      id: editingContact.id,
+                      ...editForm,
+                      custom_fields,
+                      metadata,
+                    };
+                    if (!payload.kanban_stage_id) payload.kanban_stage_id = null;
+                    updateMut.mutate(payload, {
+                      onSuccess: () => {
+                        const vals = Object.entries(customFieldValues).filter(([, v]) => v !== null && v !== undefined && v !== "");
+                        if (vals.length > 0) {
+                          saveContactCustomFieldValues({
+                            data: {
+                              contact_id: editingContact.id,
+                              values: vals.map(([custom_field_id, value]) => ({ custom_field_id, value })),
+                            },
+                          });
+                        }
+                      },
+                    });
                   }
-                  const payload: any = {
-                    id: editingContact.id,
-                    ...editForm,
-                    custom_fields,
-                  };
-                  if (!payload.kanban_stage_id) payload.kanban_stage_id = null;
-                  updateMut.mutate(payload);
-                }
               }}
               disabled={updateMut.isPending}
               className="w-full"

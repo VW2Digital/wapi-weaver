@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,8 @@ function AuditPage() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
   const isAdmin = roles?.isAdmin === true;
 
+  usePageHeader({ title: "Log de auditoria", subtitle: isAdmin ? "Todas as ações sensíveis da plataforma." : "Suas ações sensíveis na plataforma." });
+
   const { data, isLoading } = useQuery({
     queryKey: ["audit-logs", page],
     queryFn: () => fetchLogs({ data: { limit: 20, page } }),
@@ -80,14 +82,6 @@ function AuditPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Log de auditoria"
-        subtitle={
-          isAdmin
-            ? "Todas as ações sensíveis da plataforma."
-            : "Suas ações sensíveis na plataforma."
-        }
-      />
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         <Card className="p-4">
           <Input

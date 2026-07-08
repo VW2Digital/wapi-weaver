@@ -7,7 +7,7 @@ import {
   archiveWhatsAppGroup,
 } from "@/lib/groups.functions";
 import { getProfile } from "@/lib/profile.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,76 +155,75 @@ function GroupsPage() {
 
   const groups: WhatsAppGroupRecord[] = groupsQuery.data?.groups ?? [];
 
+  usePageHeader({
+    title: "Grupos de WhatsApp",
+    subtitle: "Crie e gerencie grupos oficiais do WhatsApp diretamente pela API Cloud da Meta.",
+    action: (
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogTrigger asChild>
+          <Button className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90 shadow-md">
+            <Plus className="h-4 w-4 mr-2" /> Novo Grupo
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-md border-border">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Grupo</DialogTitle>
+            <DialogDescription>
+              Cadastre um grupo para uso interno na plataforma. A criação automática oficial
+              na Meta ainda não está disponível neste fluxo.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <label htmlFor="groupName" className="text-xs font-semibold">
+                Nome do Grupo *
+              </label>
+              <Input
+                id="groupName"
+                required
+                placeholder="Ex: Suporte VIP Bliv"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                maxLength={25}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="groupDesc" className="text-xs font-semibold">
+                Descrição (Opcional)
+              </label>
+              <Textarea
+                id="groupDesc"
+                placeholder="Adicione um propósito ou regras para o grupo..."
+                value={newGroupDesc}
+                onChange={(e) => setNewGroupDesc(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateOpen(false)}
+                disabled={createMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90"
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? "Criando..." : "Criar Grupo"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    ),
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="p-6 shrink-0 border-b border-border bg-card">
-        <PageHeader
-          title="Grupos de WhatsApp"
-          subtitle="Crie e gerencie grupos oficiais do WhatsApp diretamente pela API Cloud da Meta."
-          action={
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90 shadow-md">
-                  <Plus className="h-4 w-4 mr-2" /> Novo Grupo
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md border-border">
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Grupo</DialogTitle>
-                  <DialogDescription>
-                    Cadastre um grupo para uso interno na plataforma. A criação automática oficial
-                    na Meta ainda não está disponível neste fluxo.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
-                  <div className="space-y-1.5">
-                    <label htmlFor="groupName" className="text-xs font-semibold">
-                      Nome do Grupo *
-                    </label>
-                    <Input
-                      id="groupName"
-                      required
-                      placeholder="Ex: Suporte VIP Bliv"
-                      value={newGroupName}
-                      onChange={(e) => setNewGroupName(e.target.value)}
-                      maxLength={25}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="groupDesc" className="text-xs font-semibold">
-                      Descrição (Opcional)
-                    </label>
-                    <Textarea
-                      id="groupDesc"
-                      placeholder="Adicione um propósito ou regras para o grupo..."
-                      value={newGroupDesc}
-                      onChange={(e) => setNewGroupDesc(e.target.value)}
-                      rows={3}
-                    />
-                  </div>
-                  <DialogFooter className="pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsCreateOpen(false)}
-                      disabled={createMutation.isPending}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="bg-gradient-to-r from-[#FF424E] to-[#FFA554] text-white hover:opacity-90"
-                      disabled={createMutation.isPending}
-                    >
-                      {createMutation.isPending ? "Criando..." : "Criar Grupo"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          }
-        />
-      </div>
 
       <div className="p-6 flex-1 overflow-y-auto space-y-6">
         {/* Barra de filtros */}

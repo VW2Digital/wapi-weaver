@@ -157,11 +157,26 @@ CREATE TABLE IF NOT EXISTS contacts (
   chat_status VARCHAR(50) NOT NULL DEFAULT 'aberto',
   is_unread BOOLEAN NOT NULL DEFAULT false,
   kanban_stage_id VARCHAR(36) NULL,
+  status VARCHAR(50) NULL,
+  responsible_user_id VARCHAR(36) NULL,
+  source_type VARCHAR(50) NULL,
+  source_name VARCHAR(255) NULL,
+  source_id VARCHAR(36) NULL,
+  company VARCHAR(255) NULL,
+  position VARCHAR(255) NULL,
+  notes TEXT NULL,
+  external_id VARCHAR(255) NULL,
+  metadata JSON NULL,
+  normalized_phone VARCHAR(50) NULL,
+  last_interaction_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_contact (user_id, phone_e164),
   UNIQUE KEY uq_contact_channel_external (user_id, channel, external_contact_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  INDEX idx_contacts_company (user_id, company),
+  INDEX idx_contacts_status (user_id, status),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS contact_tags (
@@ -173,6 +188,24 @@ CREATE TABLE IF NOT EXISTS contact_tags (
   FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS contact_activities (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  contact_id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NULL,
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  source_type VARCHAR(50) NULL,
+  source_id VARCHAR(36) NULL,
+  payload JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ca_user (user_id),
+  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_contact_activities_contact ON contact_activities(contact_id);
 
 CREATE TABLE IF NOT EXISTS whatsapp_flows (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -372,6 +405,11 @@ CREATE INDEX idx_contacts_user_chat_status ON contacts(user_id, chat_status);
 CREATE INDEX idx_contacts_user_archived ON contacts(user_id, is_archived);
 CREATE INDEX idx_contacts_user_pinned ON contacts(user_id, is_pinned);
 CREATE INDEX idx_contacts_user_created ON contacts(user_id, created_at DESC);
+CREATE INDEX idx_contacts_source_type ON contacts(user_id, source_type);
+CREATE INDEX idx_contacts_source_id ON contacts(user_id, source_id);
+CREATE INDEX idx_contacts_external_id ON contacts(user_id, external_id);
+CREATE INDEX idx_contacts_normalized_phone ON contacts(user_id, normalized_phone);
+CREATE INDEX idx_contacts_email ON contacts(user_id, email);
 CREATE INDEX idx_dm_user_phone_created ON direct_messages(user_id, contact_phone, created_at DESC);
 CREATE INDEX idx_campaigns_user_status ON campaigns(user_id, status);
 CREATE INDEX idx_templates_user_status ON templates(user_id, status);
@@ -985,3 +1023,157 @@ CREATE TABLE IF NOT EXISTS facebook_webhook_events (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------------
+-- CUSTOM FIELDS MODULE
+-- -------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS contact_custom_fields (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  `key` VARCHAR(100) NOT NULL,
+  type ENUM('text','textarea','number','currency','date','datetime','select','multi_select','boolean','email','phone','url') NOT NULL DEFAULT 'text',
+  placeholder TEXT NULL,
+  options JSON NULL,
+  default_value TEXT NULL,
+  required BOOLEAN NOT NULL DEFAULT FALSE,
+  show_on_form BOOLEAN NOT NULL DEFAULT TRUE,
+  show_on_table BOOLEAN NOT NULL DEFAULT FALSE,
+  show_on_details BOOLEAN NOT NULL DEFAULT TRUE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_field (user_id, `key`),
+  INDEX idx_cf_user (user_id),
+  INDEX idx_cf_active (is_active),
+  INDEX idx_cf_sort (user_id, sort_order),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS contact_custom_field_values (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  contact_id VARCHAR(36) NOT NULL,
+  custom_field_id VARCHAR(36) NOT NULL,
+  value TEXT NULL,
+  value_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_contact_field (user_id, contact_id, custom_field_id),
+  INDEX idx_cfv_user (user_id),
+  INDEX idx_cfv_contact (user_id, contact_id),
+  INDEX idx_cfv_field (custom_field_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+  FOREIGN KEY (custom_field_id) REFERENCES contact_custom_fields(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS webhook_field_mappings (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  webhook_id VARCHAR(36) NOT NULL,
+  external_field VARCHAR(255) NOT NULL,
+  target_type ENUM('standard','custom','ignore') NOT NULL,
+  target_key VARCHAR(100) NULL,
+  custom_field_id VARCHAR(36) NULL,
+  transformation VARCHAR(50) NULL,
+  default_value TEXT NULL,
+  is_required BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_webhook_field (user_id, webhook_id, external_field),
+  INDEX idx_wfm_user (user_id),
+  INDEX idx_wfm_webhook (user_id, webhook_id),
+  INDEX idx_wfm_target_type (target_type),
+  INDEX idx_wfm_custom_field (custom_field_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE,
+  FOREIGN KEY (custom_field_id) REFERENCES contact_custom_fields(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------------
+-- WEBHOOKS MODULE (Entrada e Saída)
+-- -------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS incoming_webhooks (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  tenant_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  token VARCHAR(64) NOT NULL UNIQUE,
+  status ENUM('listening','paused') NOT NULL DEFAULT 'listening',
+  last_event_at DATETIME NULL,
+  last_contact_id VARCHAR(36) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (last_contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_incoming_webhooks_token ON incoming_webhooks(token);
+CREATE INDEX idx_incoming_webhooks_tenant ON incoming_webhooks(tenant_id);
+
+CREATE TABLE IF NOT EXISTS incoming_webhook_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  webhook_id VARCHAR(36) NOT NULL,
+  contact_id VARCHAR(36) NULL,
+  idempotency_key VARCHAR(64) NULL,
+  status ENUM('received','processing','processed','failed') NOT NULL DEFAULT 'received',
+  action VARCHAR(50) NULL,
+  raw_payload JSON NOT NULL,
+  mapped_standard_fields JSON NULL,
+  mapped_custom_fields JSON NULL,
+  unmapped_fields JSON NULL,
+  headers JSON NULL,
+  ip_address VARCHAR(45) NULL,
+  user_agent TEXT NULL,
+  error_code VARCHAR(50) NULL,
+  error_message TEXT NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at DATETIME NULL,
+  processing_duration_ms INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_iwe_user (user_id),
+  INDEX idx_iwe_webhook (user_id, webhook_id),
+  INDEX idx_iwe_contact (contact_id),
+  INDEX idx_iwe_status (user_id, status),
+  INDEX idx_iwe_received (user_id, received_at),
+  UNIQUE KEY uq_iwe_idempotency (webhook_id, idempotency_key),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE,
+  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_incoming_webhook_events_webhook ON incoming_webhook_events(incoming_webhook_id);
+
+CREATE TABLE IF NOT EXISTS outgoing_webhooks (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  tenant_id VARCHAR(36) NOT NULL,
+  url VARCHAR(500) NOT NULL,
+  event_type VARCHAR(100) NOT NULL,
+  status ENUM('active','paused') NOT NULL DEFAULT 'active',
+  retry_count INT NOT NULL DEFAULT 3,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_outgoing_webhooks_tenant ON outgoing_webhooks(tenant_id);
+
+CREATE TABLE IF NOT EXISTS outgoing_webhook_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  outgoing_webhook_id VARCHAR(36) NOT NULL,
+  event_type VARCHAR(100) NOT NULL,
+  payload_sent JSON NOT NULL,
+  response_status INT NULL,
+  response_body TEXT NULL,
+  attempt_number INT NOT NULL DEFAULT 1,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (outgoing_webhook_id) REFERENCES outgoing_webhooks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_outgoing_webhook_logs_webhook ON outgoing_webhook_logs(outgoing_webhook_id);

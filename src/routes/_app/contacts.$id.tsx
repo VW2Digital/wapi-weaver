@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getContactDetail, addContactNote } from "@/lib/contacts.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { listCustomFields, getCustomFieldValuesBatch } from "@/lib/custom-fields.functions";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +25,7 @@ import {
   Calendar,
   Activity,
   Plus,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -64,7 +66,8 @@ function ContactDetailPage() {
   const qc = useQueryClient();
   const fetch = useServerFn(getContactDetail);
   const addNoteFn = useServerFn(addContactNote);
-  const [tab, setTab] = useState<"trajetoria" | "notas" | "metricas">("trajetoria");
+  const fetchCustomFields = useServerFn(listCustomFields);
+  const [tab, setTab] = useState<"trajetoria" | "notas" | "metricas" | "historico">("trajetoria");
   const [noteBody, setNoteBody] = useState("");
   const [notePinned, setNotePinned] = useState(false);
 
@@ -84,6 +87,19 @@ function ContactDetailPage() {
     queryKey: ["contact-detail", id],
     queryFn: () => fetch({ data: { id } }),
   });
+
+  const customFields = useQuery({
+    queryKey: ["custom-fields"],
+    queryFn: () => fetchCustomFields(),
+    staleTime: 60000,
+  });
+  const cfValues = useQuery({
+    queryKey: ["custom-field-values", id],
+    queryFn: () => getCustomFieldValuesBatch({ data: { contact_ids: [id] } }),
+    enabled: !!data,
+  });
+  const cfValueMap: Record<string, any> = {};
+  (cfValues.data as any[] ?? []).forEach((v: any) => { cfValueMap[v.custom_field_id] = v.value_json ?? v.value; });
 
   if (isLoading) {
     return (
@@ -106,7 +122,7 @@ function ContactDetailPage() {
     );
   }
 
-  const { contact, messages, opportunities, notes, metrics } = data;
+  const { contact, messages, opportunities, notes, activities, metrics } = data;
 
   const avatarUrl =
     (contact.custom_fields as any)?.avatar_url || (contact.custom_fields as any)?.photo_url || null;
@@ -115,29 +131,30 @@ function ContactDetailPage() {
     { key: "trajetoria" as const, label: "Trajetória", icon: Activity },
     { key: "notas" as const, label: "Notas", icon: MessageCircle },
     { key: "metricas" as const, label: "Métricas", icon: TrendingUp },
+    { key: "historico" as const, label: "Histórico", icon: Clock },
   ];
+
+  usePageHeader({
+    title: contact.name || `+${contact.phone_e164}`,
+    subtitle: "Detalhes do contato",
+    action: (
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/chat" search={{ contactId: contact.id, phone: contact.phone_e164 } as any}>
+            <MessageSquare className="mr-2 h-4 w-4" /> Enviar mensagem
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/contacts">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+          </Link>
+        </Button>
+      </div>
+    ),
+  });
 
   return (
     <div className="h-full flex flex-col">
-      <PageHeader
-        title={contact.name || `+${contact.phone_e164}`}
-        subtitle="Detalhes do contato"
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/chat" search={{ contactId: contact.id, phone: contact.phone_e164 } as any}>
-                <MessageSquare className="mr-2 h-4 w-4" /> Enviar mensagem
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/contacts">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-72 shrink-0 border-r border-border/40 p-4 space-y-4 overflow-y-auto">
           <div className="flex flex-col items-center gap-3">
@@ -165,7 +182,27 @@ function ContactDetailPage() {
             {contact.source && (
               <div className="flex items-center gap-2 text-sm">
                 <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{contact.source}</span>
+                <span className="capitalize">{contact.source}</span>
+              </div>
+            )}
+            {contact.source_type && (
+              <div className="flex items-center gap-2 text-sm">
+                <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">
+                  {contact.source_type}{contact.source_name ? `: ${contact.source_name}` : ""}
+                </span>
+              </div>
+            )}
+            {contact.source_id && (
+              <div className="flex items-center gap-2 text-sm">
+                <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground font-mono">ID: {contact.source_id}</span>
+              </div>
+            )}
+            {contact.external_id && (
+              <div className="flex items-center gap-2 text-sm">
+                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground font-mono">Ext: {contact.external_id}</span>
               </div>
             )}
             {contact.channel && (
@@ -207,6 +244,29 @@ function ContactDetailPage() {
               </Badge>
             ) : null}
           </div>
+
+          {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_details && f.is_active).length > 0 && (
+            <div className="pt-2 border-t border-border/40 space-y-2">
+              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <FileText className="h-3 w-3" />
+                Dados personalizados
+              </h4>
+              {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_details && f.is_active).map((f: any) => {
+                const val = cfValueMap[f.id];
+                if (val === null || val === undefined || val === "") return null;
+                let display = String(val);
+                if (f.type === "boolean") display = val === "true" || val === true ? "Sim" : "Não";
+                if (f.type === "multi_select" && Array.isArray(val)) display = val.join(", ");
+                if (f.type === "currency") display = `R$ ${val}`;
+                return (
+                  <div key={f.id} className="text-sm">
+                    <span className="text-muted-foreground text-xs block">{f.label}</span>
+                    <span className="font-medium">{display}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </aside>
 
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -346,6 +406,56 @@ function ContactDetailPage() {
                       </Card>
                     );
                   })
+                )}
+              </div>
+            )}
+
+            {tab === "historico" && (
+              <div className="space-y-3">
+                {activities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Nenhuma atividade registrada.
+                  </p>
+                ) : (
+                  activities.map((act: any) => (
+                    <Card key={act.id} className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge
+                              variant={act.type === "webhook_created" ? "default" : "secondary"}
+                              className="text-[10px]"
+                            >
+                              {act.type === "webhook_created"
+                                ? "Webhook"
+                                : act.type === "webhook_updated"
+                                  ? "Atualizado"
+                                  : act.title || act.type}
+                            </Badge>
+                            {act.source_type && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {act.source_type}
+                              </span>
+                            )}
+                          </div>
+                          {act.description && (
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words line-clamp-2">
+                              {act.description}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {new Date(act.created_at).toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    </Card>
+                  ))
                 )}
               </div>
             )}

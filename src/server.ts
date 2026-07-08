@@ -445,7 +445,8 @@ export default {
       if (
         url.pathname.startsWith("/api/public/whatsapp-webhook") ||
         url.pathname.startsWith("/api/public/facebook-webhook") ||
-        url.pathname.startsWith("/api/public/instagram-webhook")
+        url.pathname.startsWith("/api/public/instagram-webhook") ||
+        url.pathname.startsWith("/api/public/webhooks/incoming/")
       ) {
         if (isRateLimited(clientIp, "webhook", RATE_LIMIT_WEBHOOK)) {
           return new Response(

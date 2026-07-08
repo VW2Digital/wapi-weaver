@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,12 +140,10 @@ function AiAgentPage() {
     }
   }, [settings]);
 
+  usePageHeader({ title: "Agente de IA (AI Agent)", subtitle: "Configure a inteligência artificial para atendimento automático e humanizado." });
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <PageHeader
-        title="Agente de IA (AI Agent)"
-        subtitle="Configure a inteligência artificial para atendimento automático e humanizado."
-      />
 
       {settingsQuery.isLoading ? (
         <p>Carregando configurações...</p>

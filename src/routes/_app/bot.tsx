@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -76,6 +76,8 @@ function BotPage() {
       setSteps(stepsQuery.data);
     }
   }, [stepsQuery.data]);
+
+  usePageHeader({});
 
   const toggleStatus = useMutation({
     mutationFn: async (isActive: boolean) => {

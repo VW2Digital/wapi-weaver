@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 import { listCampaigns, cancelCampaign, deleteCampaign } from "@/lib/campaigns.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,32 +53,32 @@ function CampaignsPage() {
       c.status.includes(search.toLowerCase()),
   );
 
+  usePageHeader({
+    title: "Campanhas",
+    subtitle: "Crie disparos em massa para suas listas de contatos.",
+    action: (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button onClick={() => setEditingCampaign(null)}>
+            <Plus className="mr-2 h-4 w-4" /> Nova campanha
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-4xl">
+          <CampaignWizard
+            initialCampaign={editingCampaign}
+            onDone={() => {
+              setOpen(false);
+              setEditingCampaign(null);
+              qc.invalidateQueries({ queryKey: ["campaigns"] });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    ),
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Campanhas"
-        subtitle="Crie disparos em massa para suas listas de contatos."
-        action={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingCampaign(null)}>
-                <Plus className="mr-2 h-4 w-4" /> Nova campanha
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl">
-              <CampaignWizard
-                initialCampaign={editingCampaign}
-                onDone={() => {
-                  setOpen(false);
-                  setEditingCampaign(null);
-                  qc.invalidateQueries({ queryKey: ["campaigns"] });
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-        }
-      />
-
       <div className="flex-1 overflow-y-auto p-6 space-y-3">
         {(data ?? []).length > 0 && (
           <Input

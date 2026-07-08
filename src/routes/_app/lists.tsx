@@ -16,7 +16,7 @@ import {
   importCsvToList,
 } from "@/lib/lists.functions";
 import { listContacts } from "@/lib/contacts.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,12 +182,10 @@ function ListsPage() {
     e.target.value = "";
   };
 
+  usePageHeader({ title: "Listas & Tags", subtitle: "Organize seus contatos para segmentar campanhas." });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Listas & Tags"
-        subtitle="Organize seus contatos para segmentar campanhas."
-      />
 
       <div className="flex-1 overflow-y-auto grid gap-6 p-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">

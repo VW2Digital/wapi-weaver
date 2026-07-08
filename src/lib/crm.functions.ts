@@ -178,6 +178,7 @@ const opportunitySchema = z.object({
   owner_user_id: z.string().uuid().nullable().optional(),
   value: z.number().min(0),
   currency: z.string().length(3).optional(),
+  probability_percent: z.number().min(0).max(100).nullable().optional(),
   expected_close_date: z.string().nullable().optional(),
   source: z.string().trim().max(100).nullable().optional(),
   temperature: z.enum(["cold", "warm", "hot"]).nullable().optional(),
@@ -889,8 +890,8 @@ export const createOpportunity = createServerFn({ method: "POST" })
       await conn.execute(
         `INSERT INTO opportunities (
            id, user_id, funnel_id, stage_id, title, description, primary_contact_id, company_name,
-           owner_user_id, created_by_user_id, value, currency, expected_close_date, source, temperature, priority, kanban_order
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           owner_user_id, created_by_user_id, value, currency, probability_percent, expected_close_date, source, temperature, priority, kanban_order
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           oppId,
           effectiveUserId,
@@ -904,6 +905,7 @@ export const createOpportunity = createServerFn({ method: "POST" })
           context.userId,
           data.value,
           data.currency ?? "BRL",
+          data.probability_percent ?? null,
           data.expected_close_date ?? null,
           data.source ?? null,
           data.temperature ?? null,
@@ -975,6 +977,19 @@ export const createOpportunity = createServerFn({ method: "POST" })
       );
     });
 
+    // Fire-and-forget: notify outgoing webhooks
+    const { emitEvent } = await import("@/lib/webhooks.server");
+    emitEvent(effectiveUserId, "DEAL_CREATED", {
+      id: oppId,
+      title: data.title,
+      value: data.value,
+      currency: data.currency ?? "BRL",
+      stage_id: data.stage_id,
+      funnel_id: data.funnel_id,
+      primary_contact_id: data.primary_contact_id,
+      owner_user_id: data.owner_user_id ?? effectiveUserId,
+    }).catch(() => {});
+
     return { id: oppId };
   });
 
@@ -1004,7 +1019,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
       await conn.execute(
         `UPDATE opportunities
          SET title = ?, description = ?, funnel_id = ?, stage_id = ?, primary_contact_id = ?, company_name = ?,
-             owner_user_id = ?, value = ?, currency = ?, expected_close_date = ?, source = ?, temperature = ?,
+             owner_user_id = ?, value = ?, currency = ?, probability_percent = ?, expected_close_date = ?, source = ?, temperature = ?,
              priority = ?, updated_by_user_id = ?
          WHERE id = ?`,
         [
@@ -1017,6 +1032,7 @@ export const updateOpportunity = createServerFn({ method: "POST" })
           data.data.owner_user_id ?? effectiveUserId,
           data.data.value,
           data.data.currency ?? "BRL",
+          data.data.probability_percent ?? null,
           data.data.expected_close_date ?? null,
           data.data.source ?? null,
           data.data.temperature ?? null,
@@ -1151,6 +1167,7 @@ export const moveOpportunity = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const { emitEvent } = await import("@/lib/webhooks.server");
     return await db.transaction(async (conn) => {
       // Find opportunity with lock (using plain SELECT first for simplicity, or SELECT ... FOR UPDATE)
       const [oppRows] = (await conn.execute(
@@ -1286,6 +1303,27 @@ export const moveOpportunity = createServerFn({ method: "POST" })
         { stage_id: data.to_stage_id, status: newStatus },
         context.userId,
       );
+
+      // Fire-and-forget: notify outgoing webhooks based on status change
+      if (newStatus === "won") {
+        emitEvent(effectiveUserId, "DEAL_WON", {
+          id: data.id,
+          stage_id: data.to_stage_id,
+          old_stage_id: oldStageId,
+        }).catch(() => {});
+      } else if (newStatus === "lost") {
+        emitEvent(effectiveUserId, "DEAL_LOST", {
+          id: data.id,
+          stage_id: data.to_stage_id,
+          old_stage_id: oldStageId,
+        }).catch(() => {});
+      } else if (oldStageId !== data.to_stage_id) {
+        emitEvent(effectiveUserId, "DEAL_STEP_CHANGED", {
+          id: data.id,
+          stage_id: data.to_stage_id,
+          old_stage_id: oldStageId,
+        }).catch(() => {});
+      }
 
       return {
         id: data.id,
@@ -2075,7 +2113,20 @@ export const listLostReasons = createServerFn({ method: "GET" })
 export const listOwners = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const rows = await db.query("SELECT id, email, display_name, full_name FROM profiles");
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = await db.query(
+      `SELECT p.id, p.email, p.display_name, p.full_name
+       FROM profiles p
+       WHERE p.id = ?
+          OR p.id IN (
+            SELECT tm.user_id FROM team_members tm
+            JOIN teams t ON t.id = tm.team_id
+            WHERE t.user_id = ?
+          )
+       ORDER BY p.display_name ASC`,
+      [effectiveUserId, effectiveUserId],
+    );
     return rows;
   });
 

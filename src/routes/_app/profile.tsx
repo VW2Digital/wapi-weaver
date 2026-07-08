@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getProfile, updateProfile } from "@/lib/profile.functions";
 import { db } from "@/integrations/mysql/client";
 import { useAuth } from "@/hooks/use-auth";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -171,12 +171,10 @@ function ProfilePage() {
     .join("")
     .toUpperCase();
 
+  usePageHeader({ title: "Meu perfil", subtitle: "Gerencie sua foto, dados pessoais e dados da empresa." });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Meu perfil"
-        subtitle="Gerencie sua foto, dados pessoais e dados da empresa."
-      />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         {/* Foto + identificação */}

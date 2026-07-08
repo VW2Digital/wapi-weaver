@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,12 +169,10 @@ function WhatsAppBusinessProfilePage() {
   // A foto exibida é o preview local (se houver) ou a foto da Meta
   const displayedPhoto = photoPreview || photoUrl;
 
+  usePageHeader({ title: "Perfil Empresarial do WhatsApp", subtitle: "Edite os dados públicos do perfil do número conectado à Cloud API." });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Perfil Empresarial do WhatsApp"
-        subtitle="Edite os dados públicos do perfil do número conectado à Cloud API."
-      />
 
       <div className="flex-1 overflow-y-auto p-6">
         {/* Estado de erro */}

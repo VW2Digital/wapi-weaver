@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import {
   Empty,
   EmptyContent,
@@ -186,6 +187,65 @@ function Dashboard() {
     return list;
   }, [c.data, ct.data]);
 
+  usePageHeader({
+    title: "Dashboard",
+    action: (
+      <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9 rounded-full border bg-background hover:bg-muted"
+        >
+          <Bell className="h-4 w-4" />
+          {notifications.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse">
+              {notifications.length}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-[320px] max-h-[400px] overflow-y-auto" align="end">
+        <DropdownMenuLabel className="text-xs font-semibold">Notificações</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {notifications.length === 0 ? (
+          <div className="p-4 text-center text-xs text-muted-foreground">
+            Nenhuma notificação recente.
+          </div>
+        ) : (
+          notifications.map((n) => {
+            const Icon =
+              n.type === "success" ? CheckCircle2 : n.type === "error" ? AlertTriangle : Info;
+            const iconColor =
+              n.type === "success"
+                ? "text-success"
+                : n.type === "error"
+                  ? "text-destructive"
+                  : "text-primary";
+            return (
+              <DropdownMenuItem
+                key={n.id}
+                className="flex flex-col items-start p-3 focus:bg-muted/50 cursor-pointer gap-1"
+              >
+                <div className="flex w-full items-start gap-2">
+                  <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", iconColor)} />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-xs font-semibold leading-none">{n.title}</p>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      {n.desc}
+                    </p>
+                    {n.date && <p className="text-[9px] text-muted-foreground/60">{n.date}</p>}
+                  </div>
+                </div>
+              </DropdownMenuItem>
+            );
+          })
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+    ),
+  });
+
   function trend(current: number, previous: number) {
     if (previous === 0) {
       return { delta: current > 0 ? 100 : 0, raw: current, isNew: current > 0 };
@@ -266,66 +326,7 @@ function Dashboard() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header com o Título e o Sino de Notificações */}
-      <div className="flex items-center justify-between border-b px-4 py-4 sm:px-6 shrink-0 bg-card">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-          Dashboard
-        </h1>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative h-9 w-9 rounded-full border bg-background hover:bg-muted"
-            >
-              <Bell className="h-4 w-4" />
-              {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse">
-                  {notifications.length}
-                </span>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[320px] max-h-[400px] overflow-y-auto" align="end">
-            <DropdownMenuLabel className="text-xs font-semibold">Notificações</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {notifications.length === 0 ? (
-              <div className="p-4 text-center text-xs text-muted-foreground">
-                Nenhuma notificação recente.
-              </div>
-            ) : (
-              notifications.map((n) => {
-                const Icon =
-                  n.type === "success" ? CheckCircle2 : n.type === "error" ? AlertTriangle : Info;
-                const iconColor =
-                  n.type === "success"
-                    ? "text-success"
-                    : n.type === "error"
-                      ? "text-destructive"
-                      : "text-primary";
-                return (
-                  <DropdownMenuItem
-                    key={n.id}
-                    className="flex flex-col items-start p-3 focus:bg-muted/50 cursor-pointer gap-1"
-                  >
-                    <div className="flex w-full items-start gap-2">
-                      <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", iconColor)} />
-                      <div className="flex-1 space-y-1">
-                        <p className="text-xs font-semibold leading-none">{n.title}</p>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">
-                          {n.desc}
-                        </p>
-                        {n.date && <p className="text-[9px] text-muted-foreground/60">{n.date}</p>}
-                      </div>
-                    </div>
-                  </DropdownMenuItem>
-                );
-              })
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
 
       <div className="flex-1 overflow-y-auto">
         {!isLicenseValid && (

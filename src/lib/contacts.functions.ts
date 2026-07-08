@@ -84,11 +84,12 @@ export const createContact = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const { emitEvent } = await import("@/lib/webhooks.server");
 
     const phone = normalizeToE164(data.phone);
     if (!phone) throw new Error("Telefone inválido");
 
-    return await db.transaction(async (conn) => {
+    const contact = await db.transaction(async (conn) => {
       const [existing]: any = await conn.execute(
         "SELECT id, custom_fields FROM contacts WHERE user_id = ? AND phone_e164 = ? FOR UPDATE",
         [effectiveUserId, phone],
@@ -104,8 +105,8 @@ export const createContact = createServerFn({ method: "POST" })
 
       const id = existing?.[0]?.id ?? crypto.randomUUID();
       await conn.execute(
-        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
-         VALUES (?, ?, ?, ?, ?, ?, 'manual')
+        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source, source_type)
+         VALUES (?, ?, ?, ?, ?, ?, 'manual', 'manual')
          ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
         [
           id,
@@ -119,6 +120,16 @@ export const createContact = createServerFn({ method: "POST" })
       const [rows]: any = await conn.execute("SELECT * FROM contacts WHERE id = ?", [id]);
       return rows[0];
     });
+
+    // Fire-and-forget: notify outgoing webhooks
+    emitEvent(effectiveUserId, "LEAD_CREATED", {
+      id: contact.id,
+      phone_e164: contact.phone_e164,
+      name: contact.name,
+      email: contact.email,
+    }).catch(() => {});
+
+    return contact;
   });
 
 export const deleteContact = createServerFn({ method: "POST" })
@@ -165,6 +176,11 @@ const updateContactInput = z.object({
   name: z.string().trim().max(120).nullable().optional(),
   email: z.string().email().max(180).nullable().optional().or(z.literal("")),
   source: z.string().trim().max(255).nullable().optional(),
+  source_type: z.string().trim().max(50).nullable().optional(),
+  source_name: z.string().trim().max(255).nullable().optional(),
+  source_id: z.string().uuid().nullable().optional(),
+  external_id: z.string().trim().max(255).nullable().optional(),
+  metadata: z.record(z.string(), z.any()).nullable().optional(),
   opted_out: z.boolean().optional(),
   channel: z.enum(["whatsapp", "instagram", "messenger"]).optional(),
   external_contact_id: z.string().trim().max(255).nullable().optional(),
@@ -226,6 +242,13 @@ export const updateContact = createServerFn({ method: "POST" })
       ...(data.name !== undefined ? { name: data.name || null } : {}),
       ...(data.email !== undefined ? { email: data.email || null } : {}),
       ...(data.source !== undefined ? { source: data.source || null } : {}),
+      ...(data.source_type !== undefined ? { source_type: data.source_type || null } : {}),
+      ...(data.source_name !== undefined ? { source_name: data.source_name || null } : {}),
+      ...(data.source_id !== undefined ? { source_id: data.source_id || null } : {}),
+      ...(data.external_id !== undefined ? { external_id: data.external_id || null } : {}),
+      ...(data.metadata !== undefined
+        ? { metadata: JSON.stringify(data.metadata) }
+        : {}),
       ...(data.opted_out !== undefined ? { opted_out: data.opted_out ? 1 : 0 } : {}),
       ...(data.channel !== undefined ? { channel: data.channel } : {}),
       ...(data.external_contact_id !== undefined
@@ -356,6 +379,14 @@ export const getContactDetail = createServerFn({ method: "GET" })
       )) as any[];
     }
 
+    const activities = (await db.query(
+      `SELECT id, type, title, description, source_type, source_id, payload, created_at
+       FROM contact_activities
+       WHERE contact_id = ?
+       ORDER BY created_at DESC LIMIT 50`,
+      [data.id],
+    )) as any[];
+
     const msgCount = messages.length;
     const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
     const openOpps = opportunities.filter((o: any) => o.status === "open").length;
@@ -366,8 +397,33 @@ export const getContactDetail = createServerFn({ method: "GET" })
       messages,
       opportunities,
       notes,
+      activities,
       metrics: { msgCount, totalValue, openOpps, wonOpps },
     };
+  });
+
+export const listContactActivities = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ contact_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const webhooks = (await db.query(
+      "SELECT id FROM incoming_webhooks WHERE id = (SELECT source_id FROM contacts WHERE id = ? AND user_id = ? LIMIT 1)",
+      [data.contact_id, effectiveUserId],
+    )) as any[];
+
+    const activities = (await db.query(
+      `SELECT id, type, title, description, source_type, source_id, payload, created_at
+       FROM contact_activities
+       WHERE contact_id = ?
+       ORDER BY created_at DESC LIMIT 50`,
+      [data.contact_id],
+    )) as any[];
+
+    return activities;
   });
 
 export const addContactNote = createServerFn({ method: "POST" })
@@ -496,6 +552,7 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
         email: r.email?.toString().slice(0, 180) || null,
         custom_fields: JSON.stringify(r.custom_fields ?? {}),
         source: "import",
+        source_type: "import",
       });
     }
     if (cleaned.length === 0) return { inserted: 0, invalid };
@@ -503,7 +560,7 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     let inserted = 0;
     for (let i = 0; i < cleaned.length; i += chunkSize) {
       const slice = cleaned.slice(i, i + chunkSize);
-      const placeholders = slice.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
+      const placeholders = slice.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
       const params = slice.flatMap((r) => [
         r.id,
         r.user_id,
@@ -512,9 +569,10 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
         r.email,
         r.custom_fields,
         r.source,
+        r.source_type,
       ]);
       await db.query(
-        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source)
+        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source, source_type)
          VALUES ${placeholders}
          ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
         params,

@@ -26,11 +26,12 @@ import {
   Menu,
   ScrollText,
   UserCog,
-  ShieldAlert,
   Activity,
   Kanban,
   Bot,
   BrainCircuit,
+  Zap,
+  Webhook,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -42,33 +43,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// Removed Sheet imports
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarProvider, Sidebar, SidebarRail, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
+import { PageHeaderProvider } from "@/components/layout/page-header-provider";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-function reportServerFnAbortDebug(
-  hypothesisId: string,
-  location: string,
-  msg: string,
-  data: Record<string, unknown>,
-) {
-  void fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: "serverfn-aborts",
-      runId: "pre-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data,
-      ts: Date.now(),
-    }),
-  }).catch(() => {});
-}
 
 function useGravatarUrl(email: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
@@ -113,8 +92,16 @@ const NAV: NavItem[] = [
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
-  { to: "/bot", label: "Bot de Fluxo", icon: Bot },
-  { to: "/ai-agent", label: "Agente de IA", icon: BrainCircuit },
+  {
+    to: "/automacoes",
+    label: "Automações",
+    icon: Zap,
+    children: [
+      { to: "/bot", label: "Fluxos de Automação", icon: Bot },
+      { to: "/ai-agent", label: "DS Agente", icon: BrainCircuit },
+      { to: "/webhooks", label: "Webhooks", icon: Webhook },
+    ],
+  },
   { to: "/billing", label: "Faturamento", icon: Receipt },
   {
     to: "/settings",
@@ -152,7 +139,6 @@ function AppLayout() {
     staleTime: 30000,
   });
 
-  const isAccessAllowed = true;
   const contactsQuery = useQuery({
     queryKey: ["chat-contacts"],
     queryFn: () => fetchContacts(),
@@ -243,11 +229,10 @@ function AppLayout() {
     "/templates": 2,
     "/campaigns": 2,
     "/crm": 3,
-    "/bot": 3,
-    "/ai-agent": 3,
-    "/billing": 4,
-    "/licenses": 4,
-    "/settings": 5,
+    "/automacoes": 4,
+    "/billing": 5,
+    "/licenses": 5,
+    "/settings": 6,
   };
 
   const sidebarGroups = useMemo(() => {
@@ -283,9 +268,39 @@ function AppLayout() {
   const handleNavigate = useCallback(
     (path: string) => {
       if (path === "/settings") {
-        router.navigate({ to: path, search: { s: undefined } } as any);
+        router.navigate({ to: "/settings", search: { s: undefined } });
+      } else if (path === "/chat") {
+        router.navigate({ to: "/chat" });
+      } else if (path === "/dashboard") {
+        router.navigate({ to: "/dashboard" });
+      } else if (path === "/contacts") {
+        router.navigate({ to: "/contacts" });
+      } else if (path === "/lists") {
+        router.navigate({ to: "/lists" });
+      } else if (path === "/templates") {
+        router.navigate({ to: "/templates" });
+      } else if (path === "/campaigns") {
+        router.navigate({ to: "/campaigns" });
+      } else if (path === "/crm") {
+        router.navigate({ to: "/crm" });
+      } else if (path === "/bot") {
+        router.navigate({ to: "/bot" });
+      } else if (path === "/ai-agent") {
+        router.navigate({ to: "/ai-agent" });
+      } else if (path === "/webhooks") {
+        router.navigate({ to: "/webhooks" });
+      } else if (path === "/billing") {
+        router.navigate({ to: "/billing" });
+      } else if (path === "/whatsapp-business-profile") {
+        router.navigate({ to: "/whatsapp-business-profile" });
+      } else if (path === "/users") {
+        router.navigate({ to: "/users" });
+      } else if (path === "/audit") {
+        router.navigate({ to: "/audit" });
+      } else if (path === "/webhook-events") {
+        router.navigate({ to: "/webhook-events" });
       } else {
-        router.navigate({ to: path } as any);
+        router.navigate({ to: "/settings", search: { s: undefined } });
       }
     },
     [router],
@@ -315,18 +330,6 @@ function AppLayout() {
 
   useEffect(() => {
     if (!loading && !user) {
-      // #region debug-point E:app-redirect-login
-      reportServerFnAbortDebug(
-        "E",
-        "_app.tsx:redirect-login",
-        "Redirecting to /login from AppLayout",
-        {
-          loading,
-          hasUser: Boolean(user),
-          pathname: loc.pathname,
-        },
-      );
-      // #endregion
       router.navigate({ to: "/login", replace: true });
     }
   }, [loading, user?.id, router]);
@@ -353,13 +356,6 @@ function AppLayout() {
 
   useEffect(() => {
     if (mfaOk === false) {
-      // #region debug-point F:app-redirect-mfa
-      reportServerFnAbortDebug("F", "_app.tsx:redirect-mfa", "Redirecting to /login due to MFA", {
-        pathname: loc.pathname,
-        hasUser: Boolean(user),
-        mfaOk,
-      });
-      // #endregion
       router.navigate({ to: "/login", replace: true });
     }
   }, [mfaOk, router]);
@@ -501,38 +497,9 @@ function AppLayout() {
           </header>
 
           <main className="flex-1 overflow-hidden flex flex-col">
-            {!isAccessAllowed ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
-                <div className="h-16 w-16 bg-destructive/10 text-destructive flex items-center justify-center rounded-full mb-6">
-                  <ShieldAlert className="h-8 w-8 animate-pulse" />
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight text-foreground mb-2">
-                  Acesso Bloqueado — Conta Não Autorizada
-                </h2>
-                <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                  Sua conta ou assinatura não está ativa ou expirou o período de validade. O uso do
-                  disparador e de todos os recursos da plataforma foi suspenso. Por favor, entre em
-                  contato com o suporte para regularizar seu acesso.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
-                  <Button
-                    asChild
-                    variant="default"
-                    className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebd56] text-white border-none shadow-sm hover:text-white cursor-pointer"
-                  >
-                    <a
-                      href="https://wa.me/5591936180534?text=Ol%C3%A1%2C%20gostaria%20de%20regularizar%20o%20acesso%20da%20minha%20conta%20no%20sistema."
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Falar com o Suporte
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Outlet />
-            )}
+              <PageHeaderProvider>
+                <Outlet />
+              </PageHeaderProvider>
           </main>
         </SidebarInset>
       </SidebarProvider>

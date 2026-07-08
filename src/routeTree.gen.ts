@@ -18,6 +18,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiQueryRouteImport } from './routes/api/query'
 import { Route as AppWhatsappBusinessProfileRouteImport } from './routes/_app/whatsapp-business-profile'
+import { Route as AppWebhooksRouteImport } from './routes/_app/webhooks'
 import { Route as AppWebhookEventsRouteImport } from './routes/_app/webhook-events'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
@@ -55,12 +56,14 @@ import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
+import { Route as AppSettingsCustomFieldsRouteImport } from './routes/_app/settings/custom-fields'
 import { Route as AppLicensesIdRouteImport } from './routes/_app/licenses/$id'
 import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
+import { Route as ApiPublicWebhooksIncomingTokenRouteImport } from './routes/api/public/webhooks/incoming/$token'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -107,6 +110,11 @@ const AppWhatsappBusinessProfileRoute =
     path: '/whatsapp-business-profile',
     getParentRoute: () => AppRoute,
   } as any)
+const AppWebhooksRoute = AppWebhooksRouteImport.update({
+  id: '/webhooks',
+  path: '/webhooks',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppWebhookEventsRoute = AppWebhookEventsRouteImport.update({
   id: '/webhook-events',
   path: '/webhook-events',
@@ -296,6 +304,11 @@ const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
   path: '/api/admin/schema-dump',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsCustomFieldsRoute = AppSettingsCustomFieldsRouteImport.update({
+  id: '/custom-fields',
+  path: '/custom-fields',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppLicensesIdRoute = AppLicensesIdRouteImport.update({
   id: '/licenses/$id',
   path: '/licenses/$id',
@@ -328,6 +341,12 @@ const ApiPublicContactsIngestRoute = ApiPublicContactsIngestRouteImport.update({
   path: '/api/public/contacts/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWebhooksIncomingTokenRoute =
+  ApiPublicWebhooksIncomingTokenRouteImport.update({
+    id: '/api/public/webhooks/incoming/$token',
+    path: '/api/public/webhooks/incoming/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -346,15 +365,17 @@ export interface FileRoutesByFullPath {
   '/groups': typeof AppGroupsRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/webhook-events': typeof AppWebhookEventsRoute
+  '/webhooks': typeof AppWebhooksRoute
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
   '/licenses/$id': typeof AppLicensesIdRoute
+  '/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -381,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -399,15 +421,17 @@ export interface FileRoutesByTo {
   '/groups': typeof AppGroupsRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
   '/webhook-events': typeof AppWebhookEventsRoute
+  '/webhooks': typeof AppWebhooksRoute
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
   '/licenses/$id': typeof AppLicensesIdRoute
+  '/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -434,6 +458,7 @@ export interface FileRoutesByTo {
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -454,15 +479,17 @@ export interface FileRoutesById {
   '/_app/groups': typeof AppGroupsRoute
   '/_app/lists': typeof AppListsRoute
   '/_app/profile': typeof AppProfileRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/templates': typeof AppTemplatesRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/webhook-events': typeof AppWebhookEventsRoute
+  '/_app/webhooks': typeof AppWebhooksRoute
   '/_app/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/_app/contacts/$id': typeof AppContactsIdRoute
   '/_app/licenses/$id': typeof AppLicensesIdRoute
+  '/_app/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -489,6 +516,7 @@ export interface FileRoutesById {
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -513,11 +541,13 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/webhook-events'
+    | '/webhooks'
     | '/whatsapp-business-profile'
     | '/api/query'
     | '/campaigns/$id'
     | '/contacts/$id'
     | '/licenses/$id'
+    | '/settings/custom-fields'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -544,6 +574,7 @@ export interface FileRouteTypes {
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/public/webhooks/incoming/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -566,11 +597,13 @@ export interface FileRouteTypes {
     | '/templates'
     | '/users'
     | '/webhook-events'
+    | '/webhooks'
     | '/whatsapp-business-profile'
     | '/api/query'
     | '/campaigns/$id'
     | '/contacts/$id'
     | '/licenses/$id'
+    | '/settings/custom-fields'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -597,6 +630,7 @@ export interface FileRouteTypes {
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/public/webhooks/incoming/$token'
   id:
     | '__root__'
     | '/'
@@ -620,11 +654,13 @@ export interface FileRouteTypes {
     | '/_app/templates'
     | '/_app/users'
     | '/_app/webhook-events'
+    | '/_app/webhooks'
     | '/_app/whatsapp-business-profile'
     | '/api/query'
     | '/_app/campaigns/$id'
     | '/_app/contacts/$id'
     | '/_app/licenses/$id'
+    | '/_app/settings/custom-fields'
     | '/api/admin/schema-dump'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
@@ -651,6 +687,7 @@ export interface FileRouteTypes {
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/public/webhooks/incoming/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -684,6 +721,7 @@ export interface RootRouteChildren {
   ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
+  ApiPublicWebhooksIncomingTokenRoute: typeof ApiPublicWebhooksIncomingTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -749,6 +787,13 @@ declare module '@tanstack/react-router' {
       path: '/whatsapp-business-profile'
       fullPath: '/whatsapp-business-profile'
       preLoaderRoute: typeof AppWhatsappBusinessProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/webhooks': {
+      id: '/_app/webhooks'
+      path: '/webhooks'
+      fullPath: '/webhooks'
+      preLoaderRoute: typeof AppWebhooksRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/webhook-events': {
@@ -1010,6 +1055,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSchemaDumpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/settings/custom-fields': {
+      id: '/_app/settings/custom-fields'
+      path: '/custom-fields'
+      fullPath: '/settings/custom-fields'
+      preLoaderRoute: typeof AppSettingsCustomFieldsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/licenses/$id': {
       id: '/_app/licenses/$id'
       path: '/licenses/$id'
@@ -1052,8 +1104,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicContactsIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/incoming/$token': {
+      id: '/api/public/webhooks/incoming/$token'
+      path: '/api/public/webhooks/incoming/$token'
+      fullPath: '/api/public/webhooks/incoming/$token'
+      preLoaderRoute: typeof ApiPublicWebhooksIncomingTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface AppSettingsRouteChildren {
+  AppSettingsCustomFieldsRoute: typeof AppSettingsCustomFieldsRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsCustomFieldsRoute: AppSettingsCustomFieldsRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
 
 interface AppRouteChildren {
   AppAiAgentRoute: typeof AppAiAgentRoute
@@ -1066,10 +1137,11 @@ interface AppRouteChildren {
   AppGroupsRoute: typeof AppGroupsRoute
   AppListsRoute: typeof AppListsRoute
   AppProfileRoute: typeof AppProfileRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTemplatesRoute: typeof AppTemplatesRoute
   AppUsersRoute: typeof AppUsersRoute
   AppWebhookEventsRoute: typeof AppWebhookEventsRoute
+  AppWebhooksRoute: typeof AppWebhooksRoute
   AppWhatsappBusinessProfileRoute: typeof AppWhatsappBusinessProfileRoute
   AppCampaignsIdRoute: typeof AppCampaignsIdRoute
   AppContactsIdRoute: typeof AppContactsIdRoute
@@ -1090,10 +1162,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppGroupsRoute: AppGroupsRoute,
   AppListsRoute: AppListsRoute,
   AppProfileRoute: AppProfileRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTemplatesRoute: AppTemplatesRoute,
   AppUsersRoute: AppUsersRoute,
   AppWebhookEventsRoute: AppWebhookEventsRoute,
+  AppWebhooksRoute: AppWebhooksRoute,
   AppWhatsappBusinessProfileRoute: AppWhatsappBusinessProfileRoute,
   AppCampaignsIdRoute: AppCampaignsIdRoute,
   AppContactsIdRoute: AppContactsIdRoute,
@@ -1150,6 +1223,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
+  ApiPublicWebhooksIncomingTokenRoute: ApiPublicWebhooksIncomingTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

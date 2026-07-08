@@ -11,7 +11,7 @@ import {
   getMetaTemplateDetails,
   listMetaTemplatesDirect,
 } from "@/lib/templates.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -477,42 +477,42 @@ function TemplatesPage() {
     }
   }
 
+  usePageHeader({
+    title: "Templates",
+    subtitle: "Modelos aprovados pela Meta. São obrigatórios para iniciar uma conversa.",
+    action: (
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="sm:w-auto sm:px-4"
+          onClick={() => seedMut.mutate()}
+          disabled={seedMut.isPending}
+          title="Carregar exemplos"
+        >
+          <Sparkles className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Carregar exemplos</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="sm:w-auto sm:px-4"
+          onClick={() => syncMut.mutate()}
+          disabled={syncMut.isPending}
+          title="Sincronizar"
+        >
+          <RefreshCw className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Sincronizar</span>
+        </Button>
+        <Button onClick={() => setEditingTemplate("NEW")}>
+          <Plus className="mr-2 h-4 w-4" /> Novo template
+        </Button>
+      </div>
+    ),
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title="Templates"
-        subtitle="Modelos aprovados pela Meta. São obrigatórios para iniciar uma conversa."
-        action={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="sm:w-auto sm:px-4"
-              onClick={() => seedMut.mutate()}
-              disabled={seedMut.isPending}
-              title="Carregar exemplos"
-            >
-              <Sparkles className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Carregar exemplos</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="sm:w-auto sm:px-4"
-              onClick={() => syncMut.mutate()}
-              disabled={syncMut.isPending}
-              title="Sincronizar"
-            >
-              <RefreshCw className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Sincronizar</span>
-            </Button>
-            <Button onClick={() => setEditingTemplate("NEW")}>
-              <Plus className="mr-2 h-4 w-4" /> Novo template
-            </Button>
-          </div>
-        }
-      />
-
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         <InfoSection />
 

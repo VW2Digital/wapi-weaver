@@ -80,8 +80,16 @@ export async function transaction<T>(
   }
 }
 
-export default {
+export interface DbInterface {
+  query: typeof query;
+  transaction: typeof transaction;
+  pool: mysql.Pool;
+}
+
+const db: DbInterface = {
   query,
   transaction,
   pool,
 };
+
+export default db;

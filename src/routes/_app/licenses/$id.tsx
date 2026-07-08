@@ -2,6 +2,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -183,27 +184,25 @@ function LicenseDetailPage() {
 
   const { license, activations, logs } = data;
 
-  return (
-    <div className="space-y-8 p-6 pb-16">
-      <div className="flex items-center gap-3">
+  usePageHeader({
+    title: license.license_key_preview,
+    subtitle: `Cliente: ${license.client_name}`,
+    action: (
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="capitalize">
+          {license.plan}
+        </Badge>
         <Button variant="outline" size="icon" asChild>
           <Link to="/licenses">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-bold tracking-tight">
-              {license.license_key_preview}
-            </h1>
-            <Badge variant="outline" className="capitalize">
-              {license.plan}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground text-sm">Cliente: {license.client_name}</p>
-        </div>
       </div>
+    ),
+  });
 
+  return (
+    <div className="space-y-8 p-6 pb-16">
       <div className="grid gap-6 md:grid-cols-3">
         {/* Update Form */}
         <Card className="md:col-span-1 shadow-sm h-fit">

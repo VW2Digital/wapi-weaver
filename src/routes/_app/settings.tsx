@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, Outlet, useLocation } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -77,7 +77,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,9 +156,15 @@ export const Route = createFileRoute("/_app/settings")(
     validateSearch: (search: Record<string, unknown>) => ({
       s: typeof search.s === "string" ? search.s : undefined,
     }),
-    component: SettingsPage,
+    component: SettingsLayout,
   }
 );
+
+function SettingsLayout() {
+  const loc = useLocation();
+  if (loc.pathname !== "/settings") return <Outlet />;
+  return <SettingsPage />;
+}
 
 function onlyDigits(v: string) {
   return v.replace(/\D/g, "");
@@ -613,14 +619,12 @@ function SettingsPage() {
     toast.success(`${label} copiado`);
   };
 
+  usePageHeader({ title: "Configurações", subtitle: "Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma." });
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {!activeSection ? (
         <>
-          <PageHeader
-            title="Configurações"
-            subtitle="Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma."
-          />
 
           <div className="flex-1 overflow-y-auto p-6 w-full space-y-8">
             {/* AJUDA & DOCUMENTAÇÃO */}
@@ -827,6 +831,26 @@ function SettingsPage() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </button>
+
+                {/* Campos Personalizados */}
+                <Link
+                  to="/settings/custom-fields"
+                  search={{ s: undefined }}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <ListChecks className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">Campos Personalizados</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Gerencie campos extras dos contatos: texto, números, seleções e mais.
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
 
               </div>
             </div>
@@ -8030,3 +8054,5 @@ function FacebookSettingsTab({
     </div>
   );
 }
+
+

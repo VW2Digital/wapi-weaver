@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { getCampaign, exportCampaignReport } from "@/lib/campaigns.functions";
 import { toFriendlyError } from "@/lib/meta-errors";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -123,50 +123,51 @@ function CampaignDetailPage() {
   const pct = total > 0 ? Math.round((t.sent / total) * 100) : 0;
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
 
+  usePageHeader({
+    title: c.name,
+    subtitle: `Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`,
+    action: (
+      <div className="flex items-center gap-2">
+        <Link to="/campaigns" className="hidden sm:block">
+          <Button variant="ghost">
+            <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+          </Button>
+        </Link>
+        <Button
+          variant="outline"
+          size="icon"
+          className="sm:w-auto sm:px-4"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title="Atualizar"
+        >
+          <RefreshCw className={`h-4 w-4 sm:mr-1 ${isFetching ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Atualizar</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="sm:w-auto sm:px-4"
+          onClick={() => exportMut.mutate()}
+          disabled={exportMut.isPending}
+          title="Exportar CSV"
+        >
+          <Download className="h-4 w-4 sm:mr-1" />
+          <span className="hidden sm:inline">
+            {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
+          </span>
+        </Button>
+        {(c.status === "failed" || c.status === "cancelled") && (
+          <Button variant="outline" onClick={() => setOpenEdit(true)}>
+            <Pencil className="mr-1 h-4 w-4" /> Editar e reenviar
+          </Button>
+        )}
+      </div>
+    ),
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        title={c.name}
-        subtitle={`Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`}
-        action={
-          <div className="flex items-center gap-2">
-            <Link to="/campaigns" className="hidden sm:block">
-              <Button variant="ghost">
-                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              size="icon"
-              className="sm:w-auto sm:px-4"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              title="Atualizar"
-            >
-              <RefreshCw className={`h-4 w-4 sm:mr-1 ${isFetching ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Atualizar</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="sm:w-auto sm:px-4"
-              onClick={() => exportMut.mutate()}
-              disabled={exportMut.isPending}
-              title="Exportar CSV"
-            >
-              <Download className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">
-                {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
-              </span>
-            </Button>
-            {(c.status === "failed" || c.status === "cancelled") && (
-              <Button variant="outline" onClick={() => setOpenEdit(true)}>
-                <Pencil className="mr-1 h-4 w-4" /> Editar e reenviar
-              </Button>
-            )}
-          </div>
-        }
-      />
 
       <div className="flex-1 overflow-y-auto space-y-6 p-6">
         <Dialog open={openEdit} onOpenChange={setOpenEdit}>

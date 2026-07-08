@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { getBillingReport } from "@/lib/billing.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -54,12 +54,10 @@ function BillingPage() {
 
   const totals = data?.totals;
 
+  usePageHeader({ title: "Consumo & Faturamento", subtitle: "Acompanhe quantas conversas e mensagens foram cobradas pela Meta neste período." });
+
   return (
     <div className="flex flex-col h-full">
-      <PageHeader
-        title="Consumo & Faturamento"
-        subtitle="Acompanhe quantas conversas e mensagens foram cobradas pela Meta neste período."
-      />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
         <Card className="p-4 flex flex-row items-center gap-4 py-3">

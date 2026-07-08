@@ -18,7 +18,7 @@ import {
   getCRMStats,
 } from "@/lib/crm.functions";
 import { listContacts } from "@/lib/contacts.functions";
-import { PageHeader } from "@/components/layout/page-header";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,11 +140,13 @@ function CRMPage() {
     queryKey: ["stages", activeId],
     queryFn: () => fetchStages({ data: { funnel_id: activeId } }),
     enabled: !!activeId,
+    refetchInterval: 30_000,
   });
 
   const { data: owners = [] } = useQuery({
     queryKey: ["owners"],
     queryFn: () => fetchOwners(),
+    refetchInterval: 60_000,
   });
 
   const { data: contacts = [] } = useQuery({
@@ -173,6 +175,7 @@ function CRMPage() {
         },
       }),
     enabled: !!activeId,
+    refetchInterval: 30_000,
   });
 
   // Stats query
@@ -180,6 +183,7 @@ function CRMPage() {
     queryKey: ["crm-stats", activeId],
     queryFn: () => fetchStats({ data: { funnel_id: activeId } }),
     enabled: !!activeId,
+    refetchInterval: 30_000,
   });
 
   // Filter opportunities locally for secondary attributes
@@ -457,264 +461,265 @@ function CRMPage() {
     return sum;
   }, [filteredOpps]);
 
-  return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
-      <PageHeader
-        title="Funis de Venda"
-        action={
-          <div className="flex items-center gap-2">
-            {/* Desktop Actions */}
-            <div className="hidden md:flex items-center gap-2">
-              {/* Funnel Selector */}
-              {funnels.length > 0 && (
-                <Select value={activeId} onValueChange={handleFunnelChange}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {funnels.map((f: any) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+  usePageHeader({
+    title: "Funis de Venda",
+    action: (
+      <div className="flex items-center gap-2">
+        {/* Desktop Actions */}
+        <div className="hidden md:flex items-center gap-2">
+          {/* Funnel Selector */}
+          {funnels.length > 0 && (
+            <Select value={activeId} onValueChange={handleFunnelChange}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {funnels.map((f: any) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
-              {/* Manage Stages */}
+          {/* Manage Stages */}
+          {funnels.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStageManagerOpen(true);
+                setStageView("list");
+              }}
+            >
+              <Settings className="w-4 h-4 mr-2" /> Gerenciar Etapas
+            </Button>
+          )}
+
+          <Button variant="default" size="sm" onClick={() => setNewFunnelOpen(true)} className="bg-blue-600 text-white hover:bg-blue-700">
+            Novo Funil
+          </Button>
+
+          <Button size="sm" onClick={() => setNewOppOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Nova Oportunidade
+          </Button>
+        </div>
+
+        {/* Mobile Actions Dropdown */}
+        <div className="flex md:hidden items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9">
+                <MoreVertical className="h-4.5 w-4.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-[200px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200"
+            >
               {funnels.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
+                <>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                      <Filter className="h-4 w-4" />
+                      <span>Selecionar Funil</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+                        {funnels.map((f: any) => (
+                          <DropdownMenuItem
+                            key={f.id}
+                            onClick={() => handleFunnelChange(f.id)}
+                            className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                          >
+                            <span>{f.name}</span>
+                            {activeId === f.id && <Check className="h-4 w-4 text-violet-500" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator className="bg-neutral-800" />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={() => setNewOppOpen(true)}
+                className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Nova Oportunidade</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setNewFunnelOpen(true)}
+                className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Novo Funil</span>
+              </DropdownMenuItem>
+              {funnels.length > 0 && (
+                <DropdownMenuItem
                   onClick={() => {
                     setStageManagerOpen(true);
                     setStageView("list");
                   }}
+                  className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
                 >
-                  <Settings className="w-4 h-4 mr-2" /> Gerenciar Etapas
-                </Button>
+                  <Settings className="h-4 w-4" />
+                  <span>Gerenciar Etapas</span>
+                </DropdownMenuItem>
               )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-              <Button variant="default" size="sm" onClick={() => setNewFunnelOpen(true)} className="bg-blue-600 text-white hover:bg-blue-700">
-                Novo Funil
-              </Button>
-
-              <Button size="sm" onClick={() => setNewOppOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" /> Nova Oportunidade
-              </Button>
+        {/* Render dialogs outside of triggers */}
+        <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
+          <DialogContent className="max-w-md bg-card border border-muted-foreground/15 rounded-xl p-6">
+            <DialogHeader>
+              <DialogTitle>Criar Novo Funil de Vendas</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 my-4">
+              <div className="space-y-1.5">
+                <Label>Nome do Funil</Label>
+                <Input
+                  value={newFunnelName}
+                  onChange={(e: any) => setNewFunnelName(e.target.value)}
+                  placeholder="Ex: Vendas Externas"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descrição</Label>
+                <Textarea
+                  rows={3}
+                  value={newFunnelDesc}
+                  onChange={(e: any) => setNewFunnelDesc(e.target.value)}
+                  placeholder="Descreva o propósito deste pipeline..."
+                />
+              </div>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => funnelMutation.mutate()} disabled={!newFunnelName.trim()}>
+                Criar Funil
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-            {/* Mobile Actions Dropdown */}
-            <div className="flex md:hidden items-center">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9">
-                    <MoreVertical className="h-4.5 w-4.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-[200px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200"
-                >
-                  {funnels.length > 0 && (
-                    <>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
-                          <Filter className="h-4 w-4" />
-                          <span>Selecionar Funil</span>
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuPortal>
-                          <DropdownMenuSubContent className="bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
-                            {funnels.map((f: any) => (
-                              <DropdownMenuItem
-                                key={f.id}
-                                onClick={() => handleFunnelChange(f.id)}
-                                className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
-                              >
-                                <span>{f.name}</span>
-                                {activeId === f.id && <Check className="h-4 w-4 text-violet-500" />}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuPortal>
-                      </DropdownMenuSub>
-                      <DropdownMenuSeparator className="bg-neutral-800" />
-                    </>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => setNewOppOpen(true)}
-                    className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Nova Oportunidade</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setNewFunnelOpen(true)}
-                    className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Novo Funil</span>
-                  </DropdownMenuItem>
-                  {funnels.length > 0 && (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setStageManagerOpen(true);
-                        setStageView("list");
-                      }}
-                      className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
-                    >
-                      <Settings className="h-4 w-4" />
-                      <span>Gerenciar Etapas</span>
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+        <Dialog open={newOppOpen} onOpenChange={setNewOppOpen}>
+          <DialogContent className="max-w-lg bg-card border border-muted-foreground/15 rounded-xl p-6">
+            <DialogHeader>
+              <DialogTitle>Nova Oportunidade Comercial</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 my-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label>Título / Nome do Deal</Label>
+                <Input
+                  value={newOppTitle}
+                  onChange={(e) => setNewOppTitle(e.target.value)}
+                  placeholder="Ex: Licença Premium - Empresa X"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Valor estimado (BRL)</Label>
+                <Input
+                  type="number"
+                  value={newOppValue}
+                  onChange={(e) => setNewOppValue(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Etapa Inicial</Label>
+                <Select value={newOppStageId} onValueChange={setNewOppStageId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stages.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Contato Principal</Label>
+                <Select value={newOppContactId} onValueChange={setNewOppContactId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um contato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contacts.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} ({c.phone_e164})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Responsável (Dono)</Label>
+                <Select value={newOppOwnerId} onValueChange={setNewOppOwnerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolha um responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {owners.map((o: any) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.display_name || o.full_name || o.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Prioridade</Label>
+                <Select value={newOppPriority} onValueChange={(v: any) => setNewOppPriority(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Temperatura</Label>
+                <Select value={newOppTemp} onValueChange={(v: any) => setNewOppTemp(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cold">Frio</SelectItem>
+                    <SelectItem value="warm">Morno</SelectItem>
+                    <SelectItem value="hot">Quente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNewOppOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => oppMutation.mutate()} disabled={!newOppTitle.trim()}>
+                Criar Oportunidade
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    ),
+  });
 
-            {/* Render dialogs outside of triggers */}
-            <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
-              <DialogContent className="max-w-md bg-card border border-muted-foreground/15 rounded-xl p-6">
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Funil de Vendas</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 my-4">
-                  <div className="space-y-1.5">
-                    <Label>Nome do Funil</Label>
-                    <Input
-                      value={newFunnelName}
-                      onChange={(e: any) => setNewFunnelName(e.target.value)}
-                      placeholder="Ex: Vendas Externas"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Descrição</Label>
-                    <Textarea
-                      rows={3}
-                      value={newFunnelDesc}
-                      onChange={(e: any) => setNewFunnelDesc(e.target.value)}
-                      placeholder="Descreva o propósito deste pipeline..."
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => funnelMutation.mutate()} disabled={!newFunnelName.trim()}>
-                    Criar Funil
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={newOppOpen} onOpenChange={setNewOppOpen}>
-              <DialogContent className="max-w-lg bg-card border border-muted-foreground/15 rounded-xl p-6">
-                <DialogHeader>
-                  <DialogTitle>Nova Oportunidade Comercial</DialogTitle>
-                </DialogHeader>
-                <div className="grid grid-cols-2 gap-4 my-4">
-                  <div className="col-span-2 space-y-1.5">
-                    <Label>Título / Nome do Deal</Label>
-                    <Input
-                      value={newOppTitle}
-                      onChange={(e) => setNewOppTitle(e.target.value)}
-                      placeholder="Ex: Licença Premium - Empresa X"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Valor estimado (BRL)</Label>
-                    <Input
-                      type="number"
-                      value={newOppValue}
-                      onChange={(e) => setNewOppValue(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Etapa Inicial</Label>
-                    <Select value={newOppStageId} onValueChange={setNewOppStageId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma etapa" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stages.map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Contato Principal</Label>
-                    <Select value={newOppContactId} onValueChange={setNewOppContactId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um contato" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {contacts.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} ({c.phone_e164})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Responsável (Dono)</Label>
-                    <Select value={newOppOwnerId} onValueChange={setNewOppOwnerId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Escolha um responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {owners.map((o: any) => (
-                          <SelectItem key={o.id} value={o.id}>
-                            {o.display_name || o.full_name || o.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Prioridade</Label>
-                    <Select value={newOppPriority} onValueChange={(v: any) => setNewOppPriority(v)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Baixa</SelectItem>
-                        <SelectItem value="medium">Média</SelectItem>
-                        <SelectItem value="high">Alta</SelectItem>
-                        <SelectItem value="urgent">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Temperatura</Label>
-                    <Select value={newOppTemp} onValueChange={(v: any) => setNewOppTemp(v)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cold">Frio</SelectItem>
-                        <SelectItem value="warm">Morno</SelectItem>
-                        <SelectItem value="hot">Quente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setNewOppOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => oppMutation.mutate()} disabled={!newOppTitle.trim()}>
-                    Criar Oportunidade
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        }
-      />
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-background">
 
       {/* Top metrics bar */}
       <div className="flex gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-muted-foreground/10 bg-muted/10 shrink-0 overflow-x-auto no-scrollbar">

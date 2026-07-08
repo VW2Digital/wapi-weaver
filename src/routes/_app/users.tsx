@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +57,9 @@ import {
   List as ListIcon,
   MoreHorizontal,
   Megaphone,
+  Edit,
+  Plus,
+  UserCheck,
 } from "lucide-react";
 import {
   listUsers,
@@ -77,7 +81,6 @@ import {
   addTeamMember,
   removeTeamMember,
 } from "@/lib/assignment.functions";
-import { Edit, Plus, UserCheck } from "lucide-react";
 
 function TabSelector({
   tabs,
@@ -173,7 +176,7 @@ function AdminUsers() {
   const del = useServerFn(deleteUser);
   const confirm = useConfirm();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => fetchUsers({}),
   });
@@ -234,88 +237,86 @@ function AdminUsers() {
     setForm({ email: "", password: "", display_name: "", role: "user" });
   };
 
+  usePageHeader({
+    title: "Usuários",
+    subtitle: "Crie usuários e defina quem tem acesso administrativo.",
+    action: (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button>
+            <UserPlus className="h-4 w-4 mr-2" /> Novo usuário
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <form onSubmit={submit}>
+            <DialogHeader>
+              <DialogTitle>Criar novo usuário</DialogTitle>
+              <DialogDescription>
+                O usuário receberá acesso imediato (email já confirmado).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="display_name">Nome (opcional)</Label>
+                <Input
+                  id="display_name"
+                  value={form.display_name}
+                  onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha provisória</Label>
+                <Input
+                  id="password"
+                  type="text"
+                  required
+                  minLength={8}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Mínimo 8 caracteres"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Perfil</Label>
+                <Select
+                  value={form.role}
+                  onValueChange={(v) => setForm({ ...form, role: v as "admin" | "user" })}
+                >
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuário</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={createMut.isPending}>
+                {createMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Criar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    ),
+  });
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <header className="border-b px-8 py-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold flex items-center gap-2">
-            <UsersIcon className="h-5 w-5" /> Usuários
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Crie usuários e defina quem tem acesso administrativo.
-          </p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="h-4 w-4 mr-2" /> Novo usuário
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <form onSubmit={submit}>
-              <DialogHeader>
-                <DialogTitle>Criar novo usuário</DialogTitle>
-                <DialogDescription>
-                  O usuário receberá acesso imediato (email já confirmado).
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="display_name">Nome (opcional)</Label>
-                  <Input
-                    id="display_name"
-                    value={form.display_name}
-                    onChange={(e) => setForm({ ...form, display_name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha provisória</Label>
-                  <Input
-                    id="password"
-                    type="text"
-                    required
-                    minLength={8}
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="Mínimo 8 caracteres"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Perfil</Label>
-                  <Select
-                    value={form.role}
-                    onValueChange={(v) => setForm({ ...form, role: v as "admin" | "user" })}
-                  >
-                    <SelectTrigger id="role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user">Usuário</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={createMut.isPending}>
-                  {createMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Criar
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </header>
+
 
       <div className="flex-1 overflow-auto p-8">
         <Card>
@@ -672,21 +673,18 @@ function AdminTeams() {
     }
   };
 
+  usePageHeader({
+    title: "Equipes e Setores",
+    subtitle: "Configure setores e a distribuição automática de conversas para os agentes.",
+    action: (
+      <Button onClick={handleNew}>
+        <Plus className="h-4 w-4 mr-2" /> Nova equipe
+      </Button>
+    ),
+  });
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <header className="border-b px-8 py-6 flex items-center justify-between shrink-0 bg-background">
-        <div>
-          <h1 className="font-display text-2xl font-semibold flex items-center gap-2">
-            <UserCheck className="h-5 w-5" /> Equipes e Setores
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure setores e a distribuição automática de conversas para os agentes.
-          </p>
-        </div>
-        <Button onClick={handleNew}>
-          <Plus className="h-4 w-4 mr-2" /> Nova equipe
-        </Button>
-      </header>
 
       <div className="flex-1 overflow-y-auto p-8 space-y-6">
         <Card>

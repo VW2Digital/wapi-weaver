@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,102 +196,98 @@ function LicensesPage() {
     });
   };
 
+  usePageHeader({
+    title: "Gerenciamento de Clientes",
+    subtitle: "Gerencie os acessos, planos e datas de validade de cada cliente/instância.",
+    action: (
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogTrigger asChild>
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" /> Novo Cliente
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleCreate}>
+            <DialogHeader>
+              <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="domain">Domínio / URL do SaaS *</Label>
+                <Input
+                  id="domain"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  placeholder="ex: app.cliente.com"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nome do Cliente / Responsável *</Label>
+                <Input
+                  id="name"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="ex: João Silva"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">E-mail do Cliente</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  placeholder="ex: joao@empresa.com"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="plan">Plano</Label>
+                <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="basic">Básico</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="expires">Data de Expiração / Validade (Opcional)</Label>
+                <Input
+                  id="expires"
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Notas Internas</Label>
+                <Input
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="ex: Observações gerais..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Liberar Acesso
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    ),
+  });
+
   return (
     <div className="space-y-8 p-6 pb-16">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">
-            Gerenciamento de Clientes
-          </h1>
-          <p className="text-muted-foreground">
-            Gerencie os acessos, planos e datas de validade de cada cliente/instância.
-          </p>
-        </div>
-
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" /> Novo Cliente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <form onSubmit={handleCreate}>
-              <DialogHeader>
-                <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="domain">Domínio / URL do SaaS *</Label>
-                  <Input
-                    id="domain"
-                    value={domain}
-                    onChange={(e) => setDomain(e.target.value)}
-                    placeholder="ex: app.cliente.com"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Nome do Cliente / Responsável *</Label>
-                  <Input
-                    id="name"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="ex: João Silva"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">E-mail do Cliente</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={clientEmail}
-                    onChange={(e) => setClientEmail(e.target.value)}
-                    placeholder="ex: joao@empresa.com"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="plan">Plano</Label>
-                  <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="basic">Básico</SelectItem>
-                      <SelectItem value="premium">Premium</SelectItem>
-                      <SelectItem value="enterprise">Enterprise</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="expires">Data de Expiração / Validade (Opcional)</Label>
-                  <Input
-                    id="expires"
-                    type="date"
-                    value={expiresAt}
-                    onChange={(e) => setExpiresAt(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="notes">Notas Internas</Label>
-                  <Input
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="ex: Observações gerais..."
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Liberar Acesso
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

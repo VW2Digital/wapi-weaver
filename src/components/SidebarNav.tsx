@@ -86,6 +86,7 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
             onClick={toggleSidebar}
             className="text-sidebar-foreground hover:opacity-70 transition-opacity group-data-[collapsible=icon]:hidden flex items-center justify-center"
             title="Recolher Menu"
+            aria-label="Recolher Menu"
           >
             <PanelRightOpen size={24} />
           </button>
@@ -174,14 +175,14 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
                             <Icon className="h-4 w-4 shrink-0" />
                           </span>
                           {state === "collapsed" && !isMobile && item.badge != null && Number(item.badge) > 0 && (
-                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-sidebar bg-[#FF424E]" />
+                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-sidebar bg-destructive" />
                           )}
                         </div>
                         <span className="transition-transform duration-200 group-hover/nav:translate-x-0.5 whitespace-nowrap group-data-[collapsible=icon]:hidden">
                           {item.label}
                         </span>
                         {item.badge != null && Number(item.badge) > 0 && (
-                          <SidebarMenuBadge className="bg-[#FF424E] text-white rounded-full ml-auto group-data-[collapsible=icon]:hidden right-2 h-5 w-5 flex items-center justify-center p-0 text-[10px]">
+                          <SidebarMenuBadge className="bg-destructive text-destructive-foreground rounded-full ml-auto group-data-[collapsible=icon]:hidden right-2 h-5 w-5 flex items-center justify-center p-0 text-[10px]">
                             {item.badge}
                           </SidebarMenuBadge>
                         )}
