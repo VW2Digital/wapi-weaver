@@ -1,4 +1,6 @@
 import "./lib/error-capture";
+import "./lib/queue/webhook-queue";
+import "./lib/queue/campaign-queue";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";

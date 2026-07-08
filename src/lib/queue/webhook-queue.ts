@@ -48,7 +48,7 @@ export const webhookWorker = new Worker(
       await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRowId);
     }
   },
-  { connection: redis as any, autorun: false, concurrency: 5 },
+  { connection: redis as any, autorun: true, concurrency: 5 },
 );
 
 webhookWorker.on("failed", (job, err) => {

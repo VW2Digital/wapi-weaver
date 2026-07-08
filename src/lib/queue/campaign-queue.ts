@@ -17,7 +17,7 @@ export const campaignWorker = new Worker(
       await campaignQueue.add("drain-batch", {}, { delay: 1000 });
     }
   },
-  { connection: redis as any, autorun: false, concurrency: 1 },
+  { connection: redis as any, autorun: true, concurrency: 1 },
 );
 
 campaignWorker.on("failed", (job, err) => {
