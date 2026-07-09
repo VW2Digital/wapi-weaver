@@ -63,7 +63,7 @@ function useGravatarUrl(email: string | null | undefined) {
         const hex = Array.from(new Uint8Array(buf))
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
-        setUrl(`https://www.gravatar.com/avatar/${hex}?s=128&d=404`);
+        setUrl(`https://www.gravatar.com/avatar/${hex}?s=128&d=mp`);
       })
       .catch(() => setUrl(null));
   }, [email]);

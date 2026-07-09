@@ -249,15 +249,40 @@ class QueryBuilder {
   }
 }
 
+const VERIFIED_TOKEN_KEY = "app-verified-token";
+
+function getPersistedVerifiedToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return sessionStorage.getItem(VERIFIED_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setPersistedVerifiedToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) {
+      sessionStorage.setItem(VERIFIED_TOKEN_KEY, token);
+    } else {
+      sessionStorage.removeItem(VERIFIED_TOKEN_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 class MySQLClient {
   private _listeners: any[] = [];
   private _channels = new Map<string, any[]>();
   private _broadcastChannels = new Map<string, BroadcastChannel>();
-  private _verifiedToken: string | null = null;
+  private _verifiedToken: string | null = getPersistedVerifiedToken();
 
   private _expireSession() {
     clearStoredAuth();
     this._verifiedToken = null;
+    setPersistedVerifiedToken(null);
     this._notifyListeners("SIGNED_OUT", null);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
@@ -392,11 +417,17 @@ class MySQLClient {
           });
           if (!res.ok) {
             this._expireSession();
+            // Fire the expired event synchronously so the router can redirect
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+            }
             return { data: { session: null }, error: null };
           }
           this._verifiedToken = token;
+          setPersistedVerifiedToken(token);
           return { data: { session }, error: null };
         } catch (err: any) {
+          // Network error — don't expire session, just return null temporarily
           return { data: { session: null }, error: { message: err.message } };
         }
       },
