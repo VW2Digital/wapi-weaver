@@ -282,26 +282,44 @@ else
   echo "  Gerando .env com segredos seguros..."
 fi
 
-JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-REDIS_PASS_ENV=$(grep '^REDIS_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+DB_ROOT_PASS_ENV=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+REDIS_PASS_ENV=$(grep '^REDIS_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
+LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_AP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_API_SEC_ENV=$(grep '^LICENSE_API_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+
+JWT_SEC="${JWT_SEC:-}"
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
-[ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
+
+DB_PASS="${DB_PASS:-${DB_PASS_ENV}}"
 [ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
+
+DB_ROOT_PASS="${DB_ROOT_PASS_ENV:-}"
 [ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
+
+REDIS_PASS_ENV="${REDIS_PASS_ENV:-}"
 [ -n "${REDIS_PASS_ENV}" ] || REDIS_PASS_ENV=$(openssl rand -hex 16)
 
+LICENSE_SRV_URL="${LICENSE_SRV_URL:-${LICENSE_SRV_URL_ENV}}"
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
+
+LICENSE_AP_ID="${LICENSE_AP_ID:-${LICENSE_AP_ID_ENV}}"
 [ -n "${LICENSE_AP_ID}" ] || LICENSE_AP_ID="meu-saas"
+
+LICENSE_API_SEC="${LICENSE_API_SEC:-${LICENSE_API_SEC_ENV}}"
 [ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
+
+LICENSE_RL="${LICENSE_RL:-${LICENSE_RL_ENV}}"
 [ -n "${LICENSE_RL}" ] || LICENSE_RL="saas"
 
 PROTOCOL="http"
 [ "${INSTALL_SSL:-n}" = "s" ] && PROTOCOL="https"
 
-cat > "${APP_DIR}/.env" <<EOF
+cat > "${APP_DIR:-}/.env" <<EOF
 DB_HOST=banco-mysql
 DB_PORT=3306
 DB_USER=wapi_user
