@@ -129,7 +129,7 @@ fi
 
 # Validador de Senha do BD
 if [ -z "${DB_PASS:-}" ]; then
-  DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- || true)
+  DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
   if [ -n "$DB_PASS_ENV" ]; then
     DB_PASS="$DB_PASS_ENV"
   else
