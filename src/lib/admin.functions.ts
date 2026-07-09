@@ -36,28 +36,6 @@ function toDebugJsonValue(value: unknown): DebugJsonValue {
   return String(value);
 }
 
-function reportSeoServerFnDebug(
-  hypothesisId: string,
-  location: string,
-  msg: string,
-  data: Record<string, unknown>,
-) {
-  if (!import.meta.env.DEV) return;
-  void fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: "seo-serverfn-abort",
-      runId: "pre-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data: toDebugJsonValue(data),
-      ts: Date.now(),
-    }),
-  }).catch(() => {});
-}
-
 export const getCurrentUserRoles = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -233,62 +211,19 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
 
 // Público (sem auth) — retorna seo_title e seo_description para injetar no head.
 export const getSeoSettings = createServerFn({ method: "GET" }).handler(async () => {
-  // #region debug-point A:seo-serverfn-enter
-  reportSeoServerFnDebug("A", "admin.functions.ts:getSeoSettings:start", "getSeoSettings called", {
-    ts: new Date().toISOString(),
-  });
-  // #endregion
   try {
     const { dbAdmin } = await import("@/integrations/mysql/client.server");
-    // #region debug-point B:seo-serverfn-import-ok
-    reportSeoServerFnDebug(
-      "B",
-      "admin.functions.ts:getSeoSettings:after-import",
-      "dbAdmin imported for getSeoSettings",
-      {},
-    );
-    // #endregion
     const { data, error } = await dbAdmin
       .from("platform_settings")
       .select("seo_title, seo_description")
       .eq("id", 1)
       .maybeSingle();
-    // #region debug-point C:seo-serverfn-query-result
-    reportSeoServerFnDebug(
-      "C",
-      "admin.functions.ts:getSeoSettings:after-query",
-      "platform_settings query finished",
-      {
-        hasData: Boolean(data),
-        hasError: Boolean(error),
-        errorMessage: error?.message ?? null,
-        seoTitle: (data as any)?.seo_title ?? null,
-        seoDescription: (data as any)?.seo_description ?? null,
-      },
-    );
-    // #endregion
     if (error) return { seo_title: "", seo_description: "" };
-    // #region debug-point D:seo-serverfn-return-ok
-    reportSeoServerFnDebug(
-      "D",
-      "admin.functions.ts:getSeoSettings:return",
-      "getSeoSettings returned successfully",
-      {
-        seoTitle: (data as any)?.seo_title ?? "",
-        seoDescription: (data as any)?.seo_description ?? "",
-      },
-    );
-    // #endregion
     return {
       seo_title: (data as any)?.seo_title ?? "",
       seo_description: (data as any)?.seo_description ?? "",
     };
   } catch (error: unknown) {
-    // #region debug-point E:seo-serverfn-catch
-    reportSeoServerFnDebug("E", "admin.functions.ts:getSeoSettings:catch", "getSeoSettings threw", {
-      errorMessage: error instanceof Error ? error.message : String(error),
-    });
-    // #endregion
     return { seo_title: "", seo_description: "" };
   }
 });

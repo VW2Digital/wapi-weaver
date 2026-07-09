@@ -12,28 +12,6 @@ interface JsonRecord {
 }
 type ChatMessageType = z.infer<typeof sendMessageInput>["type"] | "system";
 
-function reportLeadChatDebug(
-  hypothesisId: string,
-  location: string,
-  msg: string,
-  data: Record<string, JsonValue>,
-) {
-  if (!import.meta.env.DEV) return;
-  void fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: "lead-chat-messages",
-      runId: "pre-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data,
-      ts: Date.now(),
-    }),
-  }).catch(() => {});
-}
-
 interface ChatContactRow extends JsonRecord {
   id: string;
   user_id: string;
@@ -317,13 +295,6 @@ export const listChatContacts = createServerFn({ method: "GET" })
         custom_fields: parseJsonField(c.custom_fields ?? null),
       }));
 
-      // #region debug-point E:list-chat-contacts
-      reportLeadChatDebug("E", "chat.functions.ts:315", "listChatContacts returned", {
-        userId: effectiveUserId,
-        count: normalizedContacts.length,
-        firstPhone: normalizedContacts[0]?.phone_e164 ?? null,
-      });
-      // #endregion
       return normalizedContacts;
     } catch (e: unknown) {
       console.error("Erro ao listar contatos com mensagens:", e);
@@ -392,16 +363,6 @@ export const getChatMessages = createServerFn({ method: "POST" })
        ORDER BY created_at ASC`,
       [effectiveUserId, phone],
     )) as DirectMessageRow[];
-
-    // #region debug-point F:get-chat-messages-query
-    reportLeadChatDebug("F", "chat.functions.ts:385", "getChatMessages fetched direct_messages", {
-      userId: effectiveUserId,
-      phone,
-      count: messages.length,
-      firstMessageId: messages[0]?.id ?? null,
-      firstMessageDirection: messages[0]?.direction ?? null,
-    });
-    // #endregion
 
     const assignments = (await db.query(
       `SELECT 

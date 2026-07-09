@@ -13,28 +13,6 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
-function reportLeadChatDebug(
-  hypothesisId: string,
-  location: string,
-  msg: string,
-  data: Record<string, JsonValue>,
-) {
-  if (!import.meta.env.DEV) return;
-  void fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: "lead-chat-messages",
-      runId: "pre-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data,
-      ts: Date.now(),
-    }),
-  }).catch(() => {});
-}
-
 interface WebhookEntry {
   changes?: WebhookChange[];
 }
@@ -777,15 +755,6 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
     const waMessageId = normalizeWaMessageId(m.id);
     const phoneDigits = normalizePhoneDigits(from);
 
-    // #region debug-point A:webhook-inbound-message
-    reportLeadChatDebug("A", "whatsapp-webhook.ts:503", "Inbound individual message received", {
-      userId,
-      from,
-      phoneDigits,
-      waMessageId,
-      type: m.type ?? "text",
-    });
-    // #endregion
 
     const contactName = waIdToName.get(phoneDigits) || "";
     let contactResult: EnsureWhatsAppContactResult | null = null;
@@ -802,26 +771,9 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         waId: m.from ?? phoneDigits,
       });
     } catch (error: unknown) {
-      // #region debug-point B:webhook-contact-error
-      reportLeadChatDebug("B", "whatsapp-webhook.ts:552", "Contact persistence failed", {
-        userId,
-        phoneDigits,
-        hadExistingContact: Boolean(contactResult?.existingContact?.id),
-        error: getErrorMessage(error),
-      });
-      // #endregion
       throw error;
     }
 
-    // #region debug-point B:webhook-contact-persisted
-    reportLeadChatDebug("B", "whatsapp-webhook.ts:550", "Contact persisted for inbound message", {
-      userId,
-      phoneDigits,
-      contactId: contactResult?.contactId ?? null,
-      hadExistingContact: Boolean(contactResult?.existingContact?.id),
-      nextChatStatus: contactResult?.nextChatStatus ?? null,
-    });
-    // #endregion
 
     const resolvedContent = resolveDirectMessageContent(m);
     let type = resolvedContent.type;
@@ -911,19 +863,6 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
       .maybeSingle();
 
     if (existingMessage?.id) {
-      // #region debug-point C:webhook-duplicate-message
-      reportLeadChatDebug(
-        "C",
-        "whatsapp-webhook.ts:706",
-        "Inbound message skipped because it already exists",
-        {
-          userId,
-          phoneDigits,
-          waMessageId,
-          existingMessageId: existingMessage.id,
-        },
-      );
-      // #endregion
       continue;
     }
 
@@ -948,28 +887,9 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         raw_payload: value ?? null,
       });
     } catch (error: unknown) {
-      // #region debug-point D:webhook-direct-message-error
-      reportLeadChatDebug("D", "whatsapp-webhook.ts:734", "Direct message insert failed", {
-        userId,
-        phoneDigits,
-        waMessageId,
-        type,
-        error: getErrorMessage(error),
-      });
-      // #endregion
       throw error;
     }
 
-    // #region debug-point D:webhook-direct-message-inserted
-    reportLeadChatDebug("D", "whatsapp-webhook.ts:728", "Inbound direct message inserted", {
-      userId,
-      phoneDigits,
-      waMessageId,
-      type,
-      body,
-      providerAccountId: phoneNumberId,
-    });
-    // #endregion
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
     if (phoneNumberId && body) {

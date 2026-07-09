@@ -14,53 +14,6 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
-function toDebugJsonValue(value: unknown): JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => toDebugJsonValue(item));
-  }
-
-  if (value && typeof value === "object") {
-    const result: JsonObject = {};
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      result[key] = toDebugJsonValue(entry);
-    }
-    return result;
-  }
-
-  return String(value);
-}
-
-function reportTemplateCampaignDebug(
-  hypothesisId: string,
-  location: string,
-  msg: string,
-  data: Record<string, unknown>,
-) {
-  if (!import.meta.env.DEV) return;
-  void fetch("http://127.0.0.1:7777/event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: "template-contact-name",
-      runId: "pre-fix",
-      hypothesisId,
-      location,
-      msg: `[DEBUG] ${msg}`,
-      data: toDebugJsonValue(data),
-      ts: Date.now(),
-    }),
-  }).catch(() => {});
-}
-
 function extractTemplatePlaceholders(components: any[] = []) {
   const placeholders: string[] = [];
 
@@ -424,27 +377,6 @@ export async function processOnce() {
         }
 
         if ((m as any).campaigns.message_type === "template") {
-          // #region debug-point A:template-campaign-input
-          reportTemplateCampaignDebug(
-            "A",
-            "process-queue.ts:template-before-build",
-            "Template campaign input before payload build",
-            {
-              campaignMessageId: m.id,
-              campaignId: (m as any).campaign_id,
-              toPhone: m.to_phone,
-              contactId: m.contact_id ?? null,
-              contactName: (m as any).contacts?.name ?? null,
-              contactCustomFields: (m as any).contacts?.custom_fields ?? null,
-              templateName: campaignPayload.template_name ?? null,
-              language: campaignPayload.language ?? null,
-              parameterFormat: campaignPayload.parameter_format ?? null,
-              templatePlaceholders: campaignPayload.template_placeholders ?? null,
-              variables: campaignPayload.variables ?? null,
-              templateComponents: campaignPayload.template_components ?? null,
-            },
-          );
-          // #endregion
         }
 
         const payload = buildWhatsAppPayload(
@@ -455,19 +387,6 @@ export async function processOnce() {
         );
 
         if ((m as any).campaigns.message_type === "template") {
-          // #region debug-point B:template-campaign-payload
-          reportTemplateCampaignDebug(
-            "B",
-            "process-queue.ts:template-after-build",
-            "Template payload built for Meta send",
-            {
-              campaignMessageId: m.id,
-              campaignId: (m as any).campaign_id,
-              toPhone: m.to_phone,
-              payload,
-            },
-          );
-          // #endregion
         }
 
         if ((m as any).campaigns.message_type === "template") {
@@ -488,20 +407,6 @@ export async function processOnce() {
         const body: any = await r.json();
         if (!r.ok) {
           if ((m as any).campaigns.message_type === "template") {
-            // #region debug-point C:template-campaign-meta-error
-            reportTemplateCampaignDebug(
-              "C",
-              "process-queue.ts:template-meta-error",
-              "Meta rejected template payload",
-              {
-                campaignMessageId: m.id,
-                campaignId: (m as any).campaign_id,
-                toPhone: m.to_phone,
-                payload,
-                metaError: body?.error ?? body,
-              },
-            );
-            // #endregion
           }
           console.error("ERRO META:", JSON.stringify(body?.error ?? body, null, 2));
           await dbAdmin
@@ -517,19 +422,6 @@ export async function processOnce() {
             .eq("id", m.id);
         } else {
           if ((m as any).campaigns.message_type === "template") {
-            // #region debug-point D:template-campaign-meta-success
-            reportTemplateCampaignDebug(
-              "D",
-              "process-queue.ts:template-meta-success",
-              "Meta accepted template payload",
-              {
-                campaignMessageId: m.id,
-                campaignId: (m as any).campaign_id,
-                toPhone: m.to_phone,
-                waMessageId: body?.messages?.[0]?.id ?? null,
-              },
-            );
-            // #endregion
           }
           const waId = body?.messages?.[0]?.id ?? null;
           await dbAdmin
@@ -544,20 +436,6 @@ export async function processOnce() {
         }
       } catch (e: any) {
         if ((m as any).campaigns.message_type === "template") {
-          // #region debug-point E:template-campaign-exception
-          reportTemplateCampaignDebug(
-            "E",
-            "process-queue.ts:template-exception",
-            "Template campaign failed before Meta response",
-            {
-              campaignMessageId: m.id,
-              campaignId: (m as any).campaign_id,
-              toPhone: m.to_phone,
-              errorMessage: e?.message ?? String(e),
-              campaignPayload,
-            },
-          );
-          // #endregion
         }
         await dbAdmin
           .from("campaign_messages")
