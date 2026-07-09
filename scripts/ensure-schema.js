@@ -305,6 +305,11 @@ async function ensureIndexExists(connection, tableName, indexName, definitionSql
     logSchema(`Índice ${indexName} criado com sucesso.`);
   } catch (err) {
     const formattedError = formatDbError(err);
+    if (formattedError?.code === "ER_DUP_KEYNAME" || formattedError?.errno === 1061) {
+      logSchema(`O índice ${indexName} já existe em ${tableName} (tratado via ER_DUP_KEYNAME).`);
+      return;
+    }
+
     console.error(`[Schema] Falha ao criar índice ${indexName} em ${tableName}.`, formattedError);
 
     if (tableName === "direct_messages" && indexName === "uq_direct_messages_user_wa_id") {
@@ -312,8 +317,6 @@ async function ensureIndexExists(connection, tableName, indexName, definitionSql
         "[Schema] Motivo provável: ainda existem duplicidades em direct_messages(user_id, wa_message_id) ou dados inconsistentes impedindo a criação do índice.",
       );
       console.error("[Schema] Execute a rotina de deduplicação ou revise os dados.");
-    } else if (formattedError?.code === "ER_DUP_KEYNAME" || formattedError?.errno === 1061) {
-      console.error(`[Schema] O índice ${indexName} já existe com outro nome ou definição equivalente.`);
     } else if (formattedError?.code === "ER_DUP_ENTRY" || formattedError?.errno === 1062) {
       console.error(
         `[Schema] Existem registros duplicados na combinação exigida pelo índice ${indexName} em ${tableName}.`,
