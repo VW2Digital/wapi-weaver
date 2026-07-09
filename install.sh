@@ -285,20 +285,13 @@ fi
 JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 DB_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-
-LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${LICENSE_SRV_URL:-}" ] || LICENSE_SRV_URL="${LICENSE_SRV_URL_ENV}"
-LICENSE_AP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${LICENSE_AP_ID:-}" ] || LICENSE_AP_ID="${LICENSE_AP_ID_ENV}"
-LICENSE_API_SEC_ENV=$(grep '^LICENSE_API_SECRET=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${LICENSE_API_SEC:-}" ] || LICENSE_API_SEC="${LICENSE_API_SEC_ENV}"
-LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${LICENSE_RL:-}" ] || LICENSE_RL="${LICENSE_RL_ENV}"
+REDIS_PASS_ENV=$(grep '^REDIS_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
 [ -n "${DB_PASS:-}" ] || DB_PASS="${DB_PASS_ENV}"
 [ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
 [ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
+[ -n "${REDIS_PASS_ENV}" ] || REDIS_PASS_ENV=$(openssl rand -hex 16)
 
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
 [ -n "${LICENSE_AP_ID}" ] || LICENSE_AP_ID="meu-saas"
@@ -317,12 +310,15 @@ DB_NAME=wapi_weaver
 JWT_SECRET=${JWT_SEC}
 MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
 LICENSE_SERVER_URL=${LICENSE_SRV_URL}
-LICENSE_APP_ID=${LICENSE_AP_ID}
+LICENSE_APP_ID=${LICENSE_APP_ID}
 LICENSE_API_SECRET=${LICENSE_API_SEC}
 LICENSE_ROLE=${LICENSE_RL}
 APP_URL=${PROTOCOL}://${DOMAIN}
 ADMIN_EMAIL=${ADMIN_EMAIL:-}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=${REDIS_PASS_ENV}
 EOF
 
 print_ok "Configurações aplicadas."
