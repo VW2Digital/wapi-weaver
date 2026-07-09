@@ -357,7 +357,36 @@ docker compose build --no-cache
 docker compose up -d
 
 echo ""
-echo "  Aguardando a aplicação inicializar (healthcheck do MySQL pode levar ~30s)..."
+echo "  Aguardando o container MySQL estar pronto..."
+MYSQL_READY=0
+for attempt in $(seq 1 30); do
+  if docker compose exec -T banco-mysql mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent >/dev/null 2>&1; then
+    MYSQL_READY=1
+    echo "  MySQL está pronto!"
+    break
+  fi
+  echo "  Aguardando o banco... tentativa ${attempt}/30"
+  sleep 2
+done
+
+if [ "$MYSQL_READY" -eq 1 ]; then
+  echo "  Alinhando credenciais e permissões do usuário 'wapi_user'..."
+  docker compose exec -T banco-mysql mysql -u root -p"${DB_ROOT_PASS}" -e "
+    CREATE USER IF NOT EXISTS 'wapi_user'@'%' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';
+    ALTER USER 'wapi_user'@'%' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';
+    GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
+    FLUSH PRIVILEGES;
+  " || echo "  Aviso: Não foi possível atualizar o usuário do banco diretamente, prosseguindo..."
+  
+  # Forçar reinicialização do app para garantir que ele se conecte com as novas credenciais caso estivesse em loop de erro
+  echo "  Reiniciando o container da aplicação para alinhar conexões..."
+  docker compose restart app
+else
+  print_error "MySQL não ficou pronto a tempo."
+fi
+
+echo ""
+echo "  Aguardando a aplicação inicializar..."
 APP_READY=0
 for attempt in $(seq 1 18); do
   if docker compose ps app 2>/dev/null | grep -Eq "(Up|running)" && ! docker compose ps app 2>/dev/null | grep -qi "restarting"; then
@@ -365,7 +394,7 @@ for attempt in $(seq 1 18); do
     break
   fi
   echo "  App ainda iniciando/reiniciando... tentativa ${attempt}/18"
-  sleep 10
+  sleep 5
 done
 
 if [ "$APP_READY" -eq 1 ]; then
