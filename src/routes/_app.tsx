@@ -6,7 +6,7 @@ import { getLicenseRole } from "@/lib/license-admin.functions";
 import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
-import { db } from "@/integrations/mysql/client";
+import { AUTH_EXPIRED_EVENT, db } from "@/integrations/mysql/client";
 import { SeoHead } from "@/components/seo";
 import {
   MessageCircle,
@@ -333,6 +333,14 @@ function AppLayout() {
       router.navigate({ to: "/login", replace: true });
     }
   }, [loading, user?.id, router]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      router.navigate({ to: "/login", replace: true });
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, [router]);
 
   // Garante AAL2 quando o usuário tem 2FA habilitado
   useEffect(() => {

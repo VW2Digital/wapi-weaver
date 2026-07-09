@@ -1,3 +1,36 @@
+const AUTH_EXPIRED_EVENT = "app-auth-expired";
+
+function getStoredSession() {
+  if (typeof window === "undefined") return null;
+  const sessionStr = localStorage.getItem("app-session");
+  if (!sessionStr) return null;
+  try {
+    return JSON.parse(sessionStr);
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredAuth() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("app-token");
+  localStorage.removeItem("sb-token");
+  localStorage.removeItem("app-session");
+}
+
+function isJwtExpired(token: string) {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return true;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded));
+    return typeof decoded.exp === "number" && decoded.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 class QueryBuilder {
   private table: string;
   private client: MySQLClient;
@@ -220,6 +253,16 @@ class MySQLClient {
   private _listeners: any[] = [];
   private _channels = new Map<string, any[]>();
   private _broadcastChannels = new Map<string, BroadcastChannel>();
+  private _verifiedToken: string | null = null;
+
+  private _expireSession() {
+    clearStoredAuth();
+    this._verifiedToken = null;
+    this._notifyListeners("SIGNED_OUT", null);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+    }
+  }
 
   async request(path: string, body: any) {
     const token =
@@ -236,6 +279,10 @@ class MySQLClient {
       headers,
       body: JSON.stringify(body),
     });
+
+    if (res.status === 401) {
+      this._expireSession();
+    }
 
     const text = await res.text();
     let result: any = {};
@@ -317,14 +364,45 @@ class MySQLClient {
   get auth() {
     return {
       getSession: async () => {
-        const sessionStr =
-          typeof window !== "undefined" ? localStorage.getItem("app-session") : null;
-        return { data: { session: sessionStr ? JSON.parse(sessionStr) : null }, error: null };
+        const session = getStoredSession();
+        const token =
+          typeof window !== "undefined"
+            ? localStorage.getItem("app-token") || session?.access_token
+            : null;
+
+        if (!session && !token) {
+          clearStoredAuth();
+          return { data: { session: null }, error: null };
+        }
+
+        if (!session || !token || isJwtExpired(token)) {
+          this._expireSession();
+          return { data: { session: null }, error: null };
+        }
+
+        if (this._verifiedToken === token) {
+          return { data: { session }, error: null };
+        }
+
+        try {
+          const res = await fetch("/api/auth/verify-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ token, mode: "session" }),
+          });
+          if (!res.ok) {
+            this._expireSession();
+            return { data: { session: null }, error: null };
+          }
+          this._verifiedToken = token;
+          return { data: { session }, error: null };
+        } catch (err: any) {
+          return { data: { session: null }, error: { message: err.message } };
+        }
       },
       getUser: async () => {
-        const sessionStr =
-          typeof window !== "undefined" ? localStorage.getItem("app-session") : null;
-        const session = sessionStr ? JSON.parse(sessionStr) : null;
+        const { data } = await this.auth.getSession();
+        const session = data.session;
         return { data: { user: session ? session.user : null }, error: null };
       },
       signInWithPassword: async ({ email, password }: any) => {
@@ -349,6 +427,7 @@ class MySQLClient {
             localStorage.setItem("app-token", data.access_token);
             localStorage.setItem("app-session", JSON.stringify(session));
           }
+          this._verifiedToken = data.access_token;
 
           this._notifyListeners("SIGNED_IN", session);
           return { data: { session, user: data.user }, error: null };
@@ -378,6 +457,7 @@ class MySQLClient {
             localStorage.setItem("app-token", data.access_token);
             localStorage.setItem("app-session", JSON.stringify(session));
           }
+          this._verifiedToken = data.access_token;
 
           this._notifyListeners("SIGNED_IN", session);
           return { data: { session, user: data.user }, error: null };
@@ -386,10 +466,8 @@ class MySQLClient {
         }
       },
       signOut: async () => {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("app-token");
-          localStorage.removeItem("app-session");
-        }
+        clearStoredAuth();
+        this._verifiedToken = null;
         this._notifyListeners("SIGNED_OUT", null);
         return { error: null };
       },
@@ -575,3 +653,4 @@ class MySQLClient {
 
 export const db: MySQLClient = new MySQLClient();
 export { db as supabase };
+export { AUTH_EXPIRED_EVENT, clearStoredAuth };

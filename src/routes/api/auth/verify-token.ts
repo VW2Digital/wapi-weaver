@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/auth/verify-token")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const { token } = await request.json();
+          const { token, mode } = await request.json();
 
           if (!token) {
             return new Response(JSON.stringify({ error: "Token é obrigatório" }), {
@@ -28,7 +28,32 @@ export const Route = createFileRoute("/api/auth/verify-token")({
             });
           }
 
-          if (!decoded || !decoded.sub || !decoded.purpose) {
+          if (!decoded || !decoded.sub) {
+            return new Response(JSON.stringify({ error: "Token inválido." }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          if (mode === "session") {
+            const users = await db.query(
+              "SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1",
+              [decoded.sub],
+            );
+            if (!users || users.length === 0) {
+              return new Response(JSON.stringify({ error: "Usuário não encontrado." }), {
+                status: 401,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+
+            return new Response(JSON.stringify({ user: users[0] }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          if (!decoded.purpose) {
             return new Response(JSON.stringify({ error: "Token inválido." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
