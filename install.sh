@@ -286,9 +286,8 @@ JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut 
 DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 DB_ROOT_PASS_ENV=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 REDIS_PASS_ENV=$(grep '^REDIS_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-
 LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_AP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+LICENSE_APP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 LICENSE_API_SEC_ENV=$(grep '^LICENSE_API_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
@@ -307,8 +306,8 @@ REDIS_PASS_ENV="${REDIS_PASS_ENV:-}"
 LICENSE_SRV_URL="${LICENSE_SRV_URL:-${LICENSE_SRV_URL_ENV}}"
 [ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
 
-LICENSE_AP_ID="${LICENSE_AP_ID:-${LICENSE_AP_ID_ENV}}"
-[ -n "${LICENSE_AP_ID}" ] || LICENSE_AP_ID="meu-saas"
+LICENSE_APP_ID="${LICENSE_APP_ID:-${LICENSE_APP_ID_ENV}}"
+[ -n "${LICENSE_APP_ID}" ] || LICENSE_APP_ID="meu-saas"
 
 LICENSE_API_SEC="${LICENSE_API_SEC:-${LICENSE_API_SEC_ENV}}"
 [ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
