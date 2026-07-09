@@ -9,6 +9,7 @@ function reportServerFnAbortDebug(
   msg: string,
   data: Record<string, unknown>,
 ) {
+  if (!import.meta.env.DEV) return;
   void fetch("http://127.0.0.1:7777/event", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
