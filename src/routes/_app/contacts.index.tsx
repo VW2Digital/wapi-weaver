@@ -139,6 +139,10 @@ function ContactsPage() {
     phone: "",
     name: "",
     email: "",
+    company: "",
+    position: "",
+    status: "",
+    responsible_user_id: "",
     source: "",
     source_type: "",
     source_name: "",
@@ -158,16 +162,20 @@ function ContactsPage() {
   const [kanbanStages, setKanbanStages] = useState<any[]>([]);
   const [currentKanbanStage, setCurrentKanbanStage] = useState<any | null>(null);
   const [loadingKanban, setLoadingKanban] = useState(false);
-
+ 
   const updateMut = useMutation({
     mutationFn: (d: typeof editForm & { id: string }) => update({ data: d as any }),
     onSuccess: () => {
-      toast.success("Contato atualizado");
+      toast.success("Contato updated");
       setEditingContact(null);
       setEditForm({
         phone: "",
         name: "",
         email: "",
+        company: "",
+        position: "",
+        status: "",
+        responsible_user_id: "",
         source: "",
         source_type: "",
         source_name: "",
@@ -194,7 +202,7 @@ function ContactsPage() {
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ phone: "", name: "", email: "" });
+  const [form, setForm] = useState({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "" });
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   // Import wizard states
@@ -208,7 +216,7 @@ function ContactsPage() {
     onSuccess: () => {
       toast.success("Contato adicionado");
       setOpen(false);
-      setForm({ phone: "", name: "", email: "" });
+      setForm({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "" });
       qc.invalidateQueries({ queryKey: ["contacts"] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -680,7 +688,26 @@ function ContactsPage() {
                           return <td key={col.id} className="p-3">{c.responsible_user_id ?? "—"}</td>;
                         }
                         if (col.group === "custom") {
-                          return <td key={col.id} className="p-3">—</td>;
+                          const fieldId = col.id.replace("cf_", "");
+                          const fieldDef = (customFields.data as any[] ?? []).find((f: any) => f.id === fieldId);
+                          let val = "—";
+                          if (fieldDef) {
+                            let customFieldsObj: any = {};
+                            if (c.custom_fields) {
+                              if (typeof c.custom_fields === "string") {
+                                try {
+                                  customFieldsObj = JSON.parse(c.custom_fields);
+                                } catch {}
+                              } else {
+                                customFieldsObj = c.custom_fields;
+                              }
+                            }
+                            const rawVal = customFieldsObj[fieldDef.key];
+                            if (rawVal !== undefined && rawVal !== null && rawVal !== "") {
+                              val = String(rawVal);
+                            }
+                          }
+                          return <td key={col.id} className="p-3">{val}</td>;
                         }
                         return <td key={col.id} className="p-3">—</td>;
                       })}
@@ -1049,15 +1076,7 @@ function ContactsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Custom Fields (JSON)</Label>
-              <textarea
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-                value={editForm.custom_fields}
-                onChange={(e) => setEditForm({ ...editForm, custom_fields: e.target.value })}
-                rows={4}
-              />
-            </div>
+
 
             {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).length > 0 && (
               <div className="pt-3 border-t">
@@ -1079,14 +1098,24 @@ function ContactsPage() {
             <Button
               onClick={() => {
                   if (editingContact) {
-                    let custom_fields: any = null;
+                    let custom_fields_json: Record<string, any> = {};
                     try {
-                      if (editForm.custom_fields?.trim()) {
-                        custom_fields = JSON.parse(editForm.custom_fields);
+                      if (editForm.custom_fields) {
+                        custom_fields_json = typeof editForm.custom_fields === 'string'
+                          ? JSON.parse(editForm.custom_fields)
+                          : editForm.custom_fields;
                       }
-                    } catch {
-                      custom_fields = null;
-                    }
+                    } catch {}
+                    
+                    (customFields.data as any[] ?? []).forEach((f: any) => {
+                      const val = customFieldValues[f.id];
+                      if (val !== undefined && val !== null && val !== "") {
+                        custom_fields_json[f.key] = val;
+                      } else {
+                        delete custom_fields_json[f.key];
+                      }
+                    });
+
                     let metadata: any = null;
                     try {
                       if (editForm.metadata?.trim()) {
@@ -1098,7 +1127,7 @@ function ContactsPage() {
                     const payload: any = {
                       id: editingContact.id,
                       ...editForm,
-                      custom_fields,
+                      custom_fields: custom_fields_json,
                       metadata,
                     };
                     if (!payload.kanban_stage_id) payload.kanban_stage_id = null;

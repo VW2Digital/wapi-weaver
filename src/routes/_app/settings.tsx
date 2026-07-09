@@ -339,6 +339,7 @@ function usePersistedCollapsedState(key: string, defaultValue = true) {
 
 function SettingsPage() {
   const { isAdmin } = useRoles();
+  usePageHeader({ title: "Configurações", subtitle: "Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma." });
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
@@ -618,8 +619,6 @@ function SettingsPage() {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copiado`);
   };
-
-  usePageHeader({ title: "Configurações", subtitle: "Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma." });
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">

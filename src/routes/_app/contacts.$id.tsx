@@ -101,6 +101,27 @@ function ContactDetailPage() {
   const cfValueMap: Record<string, any> = {};
   (cfValues.data as any[] ?? []).forEach((v: any) => { cfValueMap[v.custom_field_id] = v.value_json ?? v.value; });
 
+  const contact = data?.contact;
+
+  usePageHeader({
+    title: contact ? (contact.name || `+${contact.phone_e164}`) : "Carregando...",
+    subtitle: "Detalhes do contato",
+    action: contact ? (
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/chat" search={{ contactId: contact.id, phone: contact.phone_e164 } as any}>
+            <MessageSquare className="mr-2 h-4 w-4" /> Enviar mensagem
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/contacts">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+          </Link>
+        </Button>
+      </div>
+    ) : undefined,
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -122,7 +143,7 @@ function ContactDetailPage() {
     );
   }
 
-  const { contact, messages, opportunities, notes, activities, metrics } = data;
+  const { messages, opportunities, notes, activities, metrics } = data;
 
   const avatarUrl =
     (contact.custom_fields as any)?.avatar_url || (contact.custom_fields as any)?.photo_url || null;
@@ -133,25 +154,6 @@ function ContactDetailPage() {
     { key: "metricas" as const, label: "Métricas", icon: TrendingUp },
     { key: "historico" as const, label: "Histórico", icon: Clock },
   ];
-
-  usePageHeader({
-    title: contact.name || `+${contact.phone_e164}`,
-    subtitle: "Detalhes do contato",
-    action: (
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/chat" search={{ contactId: contact.id, phone: contact.phone_e164 } as any}>
-            <MessageSquare className="mr-2 h-4 w-4" /> Enviar mensagem
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/contacts">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-          </Link>
-        </Button>
-      </div>
-    ),
-  });
 
   return (
     <div className="h-full flex flex-col">
@@ -253,11 +255,13 @@ function ContactDetailPage() {
               </h4>
               {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_details && f.is_active).map((f: any) => {
                 const val = cfValueMap[f.id];
-                if (val === null || val === undefined || val === "") return null;
-                let display = String(val);
-                if (f.type === "boolean") display = val === "true" || val === true ? "Sim" : "Não";
-                if (f.type === "multi_select" && Array.isArray(val)) display = val.join(", ");
-                if (f.type === "currency") display = `R$ ${val}`;
+                let display = "—";
+                if (val !== null && val !== undefined && val !== "") {
+                  display = String(val);
+                  if (f.type === "boolean") display = val === "true" || val === true ? "Sim" : "Não";
+                  if (f.type === "multi_select" && Array.isArray(val)) display = val.join(", ");
+                  if (f.type === "currency") display = `R$ ${val}`;
+                }
                 return (
                   <div key={f.id} className="text-sm">
                     <span className="text-muted-foreground text-xs block">{f.label}</span>

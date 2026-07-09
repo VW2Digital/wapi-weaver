@@ -9,6 +9,10 @@ const contactInput = z.object({
   name: z.string().trim().max(120).nullable().optional(),
   email: z.string().email().max(180).nullable().optional().or(z.literal("")),
   custom_fields: z.record(z.string(), z.any()).optional(),
+  company: z.string().trim().max(255).nullable().optional(),
+  position: z.string().trim().max(255).nullable().optional(),
+  status: z.string().trim().max(50).nullable().optional(),
+  responsible_user_id: z.string().uuid().nullable().optional().or(z.literal("")),
 });
 
 export const updateContactProfilePhoto = createServerFn({ method: "POST" })
@@ -105,9 +109,9 @@ export const createContact = createServerFn({ method: "POST" })
 
       const id = existing?.[0]?.id ?? crypto.randomUUID();
       await conn.execute(
-        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source, source_type)
-         VALUES (?, ?, ?, ?, ?, ?, 'manual', 'manual')
-         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
+        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, company, position, status, responsible_user_id, source, source_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual')
+         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields), company = VALUES(company), position = VALUES(position), status = VALUES(status), responsible_user_id = VALUES(responsible_user_id)`,
         [
           id,
           effectiveUserId,
@@ -115,6 +119,10 @@ export const createContact = createServerFn({ method: "POST" })
           data.name || null,
           data.email || null,
           JSON.stringify(mergedCustomFields),
+          data.company || null,
+          data.position || null,
+          data.status || null,
+          data.responsible_user_id || null,
         ],
       );
       const [rows]: any = await conn.execute("SELECT * FROM contacts WHERE id = ?", [id]);
@@ -175,10 +183,14 @@ const updateContactInput = z.object({
   phone: z.string().trim().min(8).max(32),
   name: z.string().trim().max(120).nullable().optional(),
   email: z.string().email().max(180).nullable().optional().or(z.literal("")),
+  company: z.string().trim().max(255).nullable().optional(),
+  position: z.string().trim().max(255).nullable().optional(),
+  status: z.string().trim().max(50).nullable().optional(),
+  responsible_user_id: z.string().uuid().nullable().optional().or(z.literal("")),
   source: z.string().trim().max(255).nullable().optional(),
   source_type: z.string().trim().max(50).nullable().optional(),
   source_name: z.string().trim().max(255).nullable().optional(),
-  source_id: z.string().uuid().nullable().optional(),
+  source_id: z.string().uuid().nullable().optional().or(z.literal("")),
   external_id: z.string().trim().max(255).nullable().optional(),
   metadata: z.record(z.string(), z.any()).nullable().optional(),
   opted_out: z.boolean().optional(),
@@ -189,7 +201,7 @@ const updateContactInput = z.object({
   is_archived: z.boolean().optional(),
   chat_status: z.string().max(50).optional(),
   is_unread: z.boolean().optional(),
-  kanban_stage_id: z.string().uuid().nullable().optional(),
+  kanban_stage_id: z.string().uuid().nullable().optional().or(z.literal("")),
 });
 
 export const updateContact = createServerFn({ method: "POST" })
@@ -241,6 +253,10 @@ export const updateContact = createServerFn({ method: "POST" })
       phone_e164: phone,
       ...(data.name !== undefined ? { name: data.name || null } : {}),
       ...(data.email !== undefined ? { email: data.email || null } : {}),
+      ...(data.company !== undefined ? { company: data.company || null } : {}),
+      ...(data.position !== undefined ? { position: data.position || null } : {}),
+      ...(data.status !== undefined ? { status: data.status || null } : {}),
+      ...(data.responsible_user_id !== undefined ? { responsible_user_id: data.responsible_user_id || null } : {}),
       ...(data.source !== undefined ? { source: data.source || null } : {}),
       ...(data.source_type !== undefined ? { source_type: data.source_type || null } : {}),
       ...(data.source_name !== undefined ? { source_name: data.source_name || null } : {}),

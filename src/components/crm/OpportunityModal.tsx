@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,7 @@ import {
   reopenOpportunity,
 } from "@/lib/crm.functions";
 import { listContacts } from "@/lib/contacts.functions";
+import { listCustomFields, getCustomFieldValuesBatch } from "@/lib/custom-fields.functions";
 import {
   Trash2,
   Plus,
@@ -63,6 +64,7 @@ import {
   Bell,
   MessageSquare,
   Phone,
+  X,
 } from "lucide-react";
 
 interface OpportunityModalProps {
@@ -142,6 +144,36 @@ export function OpportunityModal({
     queryKey: ["contacts-list"],
     queryFn: () => fetchContacts(),
   });
+
+  const fetchCustomFields = useServerFn(listCustomFields);
+  const fetchCFValues = useServerFn(getCustomFieldValuesBatch);
+
+  const { data: customFields } = useQuery({
+    queryKey: ["custom-fields"],
+    queryFn: () => fetchCustomFields(),
+  });
+
+  const { data: cfValues } = useQuery({
+    queryKey: ["custom-field-values", opportunity?.primary_contact_id],
+    queryFn: () => fetchCFValues({ data: { contact_ids: [opportunity.primary_contact_id] } }),
+    enabled: !!opportunity?.primary_contact_id,
+  });
+
+  const cfValueMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    if (opportunity?.primary_contact_custom_fields) {
+      const pcf = opportunity.primary_contact_custom_fields;
+      (customFields as any[] ?? []).forEach((f: any) => {
+        if (pcf[f.key] !== undefined) {
+          map[f.id] = pcf[f.key];
+        }
+      });
+    }
+    (cfValues as any[] ?? []).forEach((v: any) => {
+      map[v.custom_field_id] = v.value_json ?? v.value;
+    });
+    return map;
+  }, [cfValues, customFields, opportunity?.primary_contact_custom_fields]);
 
   // Local Form state
   const [title, setTitle] = useState("");
@@ -394,7 +426,7 @@ export function OpportunityModal({
   return (
     <Sheet open={!!opportunityId} onOpenChange={onClose}>
       <SheetContent
-        showCloseButton={true}
+        showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
         className="w-full data-[side=right]:sm:max-w-[1100px] h-full flex flex-col p-0 overflow-hidden bg-background border-l border-muted-foreground/15 gap-0"
       >
@@ -460,6 +492,18 @@ export function OpportunityModal({
                 Reabrir Oportunidade
               </Button>
             )}
+            
+            <SheetClose asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0 ml-1 focus:outline-none"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </SheetClose>
           </div>
         </SheetHeader>
 
@@ -687,27 +731,61 @@ export function OpportunityModal({
                   
                   <div className="space-y-3">
                     {opportunity?.primary_contact_id && (
-                      <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-xl relative overflow-hidden">
+                      <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl relative overflow-hidden space-y-4">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                            <User className="w-5 h-5" />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                              <User className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <span className="font-medium text-sm text-foreground block">
+                                {opportunity.primary_contact_name}
+                              </span>
+                              <span className="text-xs text-muted-foreground block font-mono">
+                                +{opportunity.primary_contact_phone}
+                              </span>
+                              {opportunity.primary_contact_email && (
+                                <span className="text-xs text-muted-foreground block truncate max-w-[200px]">
+                                  {opportunity.primary_contact_email}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-medium text-sm text-foreground block">
-                              {opportunity.primary_contact_name}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {opportunity.primary_contact_phone}
-                            </span>
-                          </div>
+                          <Badge
+                            variant="outline"
+                            className="bg-primary/10 text-primary border-primary/20 self-start"
+                          >
+                            Principal
+                          </Badge>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="bg-primary/10 text-primary border-primary/20"
-                        >
-                          Principal
-                        </Badge>
+
+                        {/* Custom Fields */}
+                        {(customFields as any[] ?? []).filter((f: any) => f.show_on_details && f.is_active).length > 0 && (
+                          <div className="pt-3 border-t border-primary/10 space-y-2">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                              Dados Personalizados
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {(customFields as any[] ?? []).filter((f: any) => f.show_on_details && f.is_active).map((f: any) => {
+                                const val = cfValueMap[f.id];
+                                let display = "—";
+                                if (val !== null && val !== undefined && val !== "") {
+                                  display = String(val);
+                                  if (f.type === "boolean") display = val === "true" || val === true ? "Sim" : "Não";
+                                  if (f.type === "multi_select" && Array.isArray(val)) display = val.join(", ");
+                                  if (f.type === "currency") display = `R$ ${val}`;
+                                }
+                                return (
+                                  <div key={f.id} className="text-xs">
+                                    <span className="text-muted-foreground block font-medium">{f.label}</span>
+                                    <span className="font-semibold text-foreground">{display}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
