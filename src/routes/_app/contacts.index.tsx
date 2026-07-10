@@ -12,6 +12,7 @@ import {
   bulkAddContactsToList,
   bulkAddTagToContacts,
   getContactKanbanStages,
+  updateContactProfilePhoto,
 } from "@/lib/contacts.functions";
 import { listLists, listTags } from "@/lib/lists.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
@@ -59,14 +60,19 @@ import {
   Pencil,
   MessageSquare,
   User as UserIcon,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { listCustomFields, getCustomFieldValuesBatch, saveContactCustomFieldValues } from "@/lib/custom-fields.functions";
+import { listAllAgents } from "@/lib/assignment.functions";
 import { CustomFieldInput } from "@/components/contacts/custom-field-input";
 import { ColumnSelector } from "@/components/contacts/column-selector";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { db } from "@/integrations/mysql/client";
 
-const DEFAULT_COLUMNS = ["name", "phone", "email", "company", "status", "created_at"];
+const DEFAULT_COLUMNS = ["avatar_url", "name", "phone", "email", "company", "status", "created_at"];
 const LS_KEY_PREFIX = "crm_contacts_visible_columns_v1_";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -74,6 +80,97 @@ import { EmptyState } from "@/components/empty-state";
 import { DataPagination } from "@/components/data-pagination";
 import { useConfirm } from "@/components/confirm-dialog";
 import { TableSkeleton } from "@/components/table-skeleton";
+
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function ContactAvatarCell({ contact: c }: { contact: any }) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
+
+  const customFields = typeof c.custom_fields === "string"
+    ? (() => { try { return JSON.parse(c.custom_fields); } catch { return {}; } })()
+    : (c.custom_fields || {});
+
+  const avatarUrl = customFields.avatar_url || customFields.photo_url || null;
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 5MB)");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("O arquivo precisa ser uma imagem");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const path = `contacts/${c.id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: upErr } = await db.storage
+        .from("avatars")
+        .upload(path, file);
+
+      if (upErr) throw upErr;
+
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+      const url = pub.publicUrl;
+
+      await updateContactProfilePhoto({ data: { id: c.id, avatar_url: url } });
+
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      toast.success("Foto do contato atualizada");
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao enviar imagem");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div
+      className="relative group h-8 w-8 rounded-full overflow-hidden shrink-0 cursor-pointer"
+      onClick={(e) => {
+        e.stopPropagation();
+        fileInputRef.current?.click();
+      }}
+    >
+      {uploading ? (
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-full">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full z-10">
+          <Camera className="h-4 w-4 text-white" />
+        </div>
+      )}
+      <Avatar className="h-8 w-8">
+        <AvatarImage src={avatarUrl} alt={c.name || ""} />
+        <AvatarFallback className="text-xs">
+          {c.name ? getInitials(c.name) : "?"}
+        </AvatarFallback>
+      </Avatar>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleUpload}
+        accept="image/*"
+        className="hidden"
+      />
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/_app/contacts/")({ component: ContactsPage });
 
@@ -94,6 +191,7 @@ function ContactsPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const fetchCustomFields = useServerFn(listCustomFields);
+  const fetchAgents = useServerFn(listAllAgents);
 
   const { data: contacts, isLoading } = useQuery({
     queryKey: ["contacts"],
@@ -106,12 +204,21 @@ function ContactsPage() {
     queryFn: () => fetchCustomFields(),
     staleTime: 60000,
   });
+  const agents = useQuery({
+    queryKey: ["agents"],
+    queryFn: () => fetchAgents(),
+    staleTime: 60000,
+  });
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
+  const [newContactAvatar, setNewContactAvatar] = useState<string | null>(null);
+  const [newContactAvatarUploading, setNewContactAvatarUploading] = useState(false);
+  const [editingAvatarUploading, setEditingAvatarUploading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("crm_contacts_visible_columns") ?? "null") ?? DEFAULT_COLUMNS; } catch { return DEFAULT_COLUMNS; }
   });
   const columnDefs = useMemo(() => {
     const std: { id: string; label: string; group: "standard" | "custom" }[] = [
+      { id: "avatar_url", label: "Foto", group: "standard" },
       { id: "name", label: "Nome", group: "standard" },
       { id: "phone", label: "Telefone", group: "standard" },
       { id: "email", label: "E-mail", group: "standard" },
@@ -212,11 +319,12 @@ function ContactsPage() {
   const [isMappingOpen, setIsMappingOpen] = useState(false);
 
   const createMut = useMutation({
-    mutationFn: (d: typeof form) => create({ data: d as any }),
+    mutationFn: (d: typeof form & { custom_fields?: any }) => create({ data: d as any }),
     onSuccess: () => {
       toast.success("Contato adicionado");
       setOpen(false);
       setForm({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "" });
+      setNewContactAvatar(null);
       qc.invalidateQueries({ queryKey: ["contacts"] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -428,6 +536,73 @@ function ContactsPage() {
               <SheetTitle>Novo contato</SheetTitle>
             </SheetHeader>
             <div className="space-y-3 flex-1">
+              <div className="flex flex-col items-center gap-2 pb-2">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={newContactAvatar || undefined} />
+                  <AvatarFallback className="text-xl">
+                    {form.name ? getInitials(form.name) : "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    id="new-contact-avatar-file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error("Imagem muito grande (máx 5MB)");
+                        return;
+                      }
+                      if (!file.type.startsWith("image/")) {
+                        toast.error("O arquivo precisa ser uma imagem");
+                        return;
+                      }
+                      setNewContactAvatarUploading(true);
+                      try {
+                        const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+                        const path = `contacts/temp/avatar-${Date.now()}.${ext}`;
+                        const { error: upErr } = await db.storage.from("avatars").upload(path, file);
+                        if (upErr) throw upErr;
+                        const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+                        setNewContactAvatar(pub.publicUrl);
+                        toast.success("Foto carregada");
+                      } catch (err: any) {
+                        toast.error(err.message ?? "Falha ao enviar imagem");
+                      } finally {
+                        setNewContactAvatarUploading(false);
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={newContactAvatarUploading}
+                    onClick={() => document.getElementById("new-contact-avatar-file")?.click()}
+                  >
+                    {newContactAvatarUploading ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Carregar Foto
+                  </Button>
+                  {newContactAvatar && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setNewContactAvatar(null)}
+                    >
+                      Remover
+                    </Button>
+                  )}
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <Label>Telefone</Label>
                 <Input
@@ -450,6 +625,46 @@ function ContactsPage() {
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Empresa</Label>
+                <Input
+                  value={form.company}
+                  onChange={(e) => setForm({ ...form, company: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cargo</Label>
+                <Input
+                  value={form.position}
+                  onChange={(e) => setForm({ ...form, position: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Input
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Responsável</Label>
+                <Select
+                  value={form.responsible_user_id || "_none"}
+                  onValueChange={(v) => setForm({ ...form, responsible_user_id: v === "_none" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Nenhum</SelectItem>
+                    {(agents.data as any[] ?? []).map((ag: any) => (
+                      <SelectItem key={ag.id} value={ag.id}>
+                        {ag.full_name || ag.display_name || ag.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).length > 0 && (
                 <div className="pt-3 border-t">
                   <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Campos personalizados</p>
@@ -469,7 +684,11 @@ function ContactsPage() {
             <div className="pt-4 border-t mt-auto">
               <Button
                 onClick={() => {
-                  createMut.mutate(form, {
+                  const payload = {
+                    ...form,
+                    custom_fields: newContactAvatar ? { avatar_url: newContactAvatar } : undefined,
+                  };
+                  createMut.mutate(payload as any, {
                     onSuccess: (result: any) => {
                       if (result?.id && Object.keys(customFieldValues).length > 0) {
                         saveContactCustomFieldValues({
@@ -653,6 +872,13 @@ function ContactsPage() {
                         />
                       </td>
                       {columnDefs.filter((col) => visibleColumns.includes(col.id)).map((col) => {
+                        if (col.id === "avatar_url") {
+                          return (
+                            <td key={col.id} className="p-3">
+                              <ContactAvatarCell contact={c} />
+                            </td>
+                          );
+                        }
                         if (col.id === "phone") {
                           return (
                             <td key={col.id} className="p-3 font-mono">
@@ -685,7 +911,9 @@ function ContactsPage() {
                           return <td key={col.id} className="p-3 text-muted-foreground">{c.last_contacted_at ? new Date(c.last_contacted_at).toLocaleDateString("pt-BR") : "—"}</td>;
                         }
                         if (col.id === "responsible_user_id") {
-                          return <td key={col.id} className="p-3">{c.responsible_user_id ?? "—"}</td>;
+                          const agent = (agents.data as any[] ?? []).find((a: any) => a.id === c.responsible_user_id);
+                          const display = agent ? (agent.full_name || agent.display_name || agent.email) : "—";
+                          return <td key={col.id} className="p-3">{display}</td>;
                         }
                         if (col.group === "custom") {
                           const fieldId = col.id.replace("cf_", "");
@@ -711,7 +939,7 @@ function ContactsPage() {
                         }
                         return <td key={col.id} className="p-3">—</td>;
                       })}
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button size="icon" variant="ghost" aria-label="Ações">
@@ -733,6 +961,10 @@ function ContactsPage() {
                                   phone: c.phone_e164 || "",
                                   name: c.name || "",
                                   email: c.email || "",
+                                  company: c.company || "",
+                                  position: c.position || "",
+                                  status: c.status || "",
+                                  responsible_user_id: c.responsible_user_id || "",
                                   source: c.source || "",
                                   source_type: c.source_type || "",
                                   source_name: c.source_name || "",
@@ -910,6 +1142,117 @@ function ContactsPage() {
             <SheetTitle>Editar contato</SheetTitle>
           </SheetHeader>
           <div className="space-y-3 flex-1">
+            {editingContact && (() => {
+              const customFields = typeof editingContact.custom_fields === "string"
+                ? (() => { try { return JSON.parse(editingContact.custom_fields); } catch { return {}; } })()
+                : (editingContact.custom_fields || {});
+              const currentAvatar = customFields.avatar_url || customFields.photo_url || null;
+
+              return (
+                <div className="flex flex-col items-center gap-2 pb-2">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={currentAvatar || undefined} />
+                    <AvatarFallback className="text-xl">
+                      {editForm.name ? getInitials(editForm.name) : "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex gap-2">
+                    <input
+                      type="file"
+                      id="edit-contact-avatar-file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error("Imagem muito grande (máx 5MB)");
+                          return;
+                        }
+                        if (!file.type.startsWith("image/")) {
+                          toast.error("O arquivo precisa ser uma imagem");
+                          return;
+                        }
+                        setEditingAvatarUploading(true);
+                        try {
+                          const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+                          const path = `contacts/${editingContact.id}/avatar-${Date.now()}.${ext}`;
+                          const { error: upErr } = await db.storage.from("avatars").upload(path, file);
+                          if (upErr) throw upErr;
+                          const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+
+                          await updateContactProfilePhoto({ data: { id: editingContact.id, avatar_url: pub.publicUrl } });
+
+                          const updatedCustomFields = { ...customFields, avatar_url: pub.publicUrl };
+                          setEditingContact({
+                            ...editingContact,
+                            custom_fields: updatedCustomFields
+                          });
+                          setEditForm({
+                            ...editForm,
+                            custom_fields: JSON.stringify(updatedCustomFields, null, 2)
+                          });
+
+                          qc.invalidateQueries({ queryKey: ["contacts"] });
+                          toast.success("Foto atualizada");
+                        } catch (err: any) {
+                          toast.error(err.message ?? "Falha ao enviar imagem");
+                        } finally {
+                          setEditingAvatarUploading(false);
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={editingAvatarUploading}
+                      onClick={() => document.getElementById("edit-contact-avatar-file")?.click()}
+                    >
+                      {editingAvatarUploading ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Camera className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      Alterar Foto
+                    </Button>
+                    {currentAvatar && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={async () => {
+                          try {
+                            await updateContactProfilePhoto({ data: { id: editingContact.id, avatar_url: null } });
+
+                            const updatedCustomFields = { ...customFields };
+                            delete updatedCustomFields.avatar_url;
+                            delete updatedCustomFields.photo_url;
+
+                            setEditingContact({
+                              ...editingContact,
+                              custom_fields: updatedCustomFields
+                            });
+                            setEditForm({
+                              ...editForm,
+                              custom_fields: JSON.stringify(updatedCustomFields, null, 2)
+                            });
+
+                            qc.invalidateQueries({ queryKey: ["contacts"] });
+                            toast.success("Foto removida");
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          }
+                        }}
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="space-y-1.5">
               <Label>Telefone</Label>
               <Input
@@ -931,6 +1274,46 @@ function ContactsPage() {
                 value={editForm.email}
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Empresa</Label>
+              <Input
+                value={editForm.company}
+                onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Cargo</Label>
+              <Input
+                value={editForm.position}
+                onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Input
+                value={editForm.status}
+                onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Responsável</Label>
+              <Select
+                value={editForm.responsible_user_id || "_none"}
+                onValueChange={(v) => setEditForm({ ...editForm, responsible_user_id: v === "_none" ? "" : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Nenhum</SelectItem>
+                  {(agents.data as any[] ?? []).map((ag: any) => (
+                    <SelectItem key={ag.id} value={ag.id}>
+                      {ag.full_name || ag.display_name || ag.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Origem</Label>

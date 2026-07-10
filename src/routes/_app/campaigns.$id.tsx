@@ -95,6 +95,47 @@ function CampaignDetailPage() {
     onError: (e: any) => toast.error(e.message ?? "Falha ao exportar"),
   });
 
+  const c = data?.campaign;
+
+  usePageHeader({
+    title: c ? c.name : "Carregando...",
+    subtitle: c ? `Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}` : "Detalhes da campanha",
+    action: c ? (
+      <div className="flex items-center gap-2">
+        {(c.status === "failed" || c.status === "cancelled") && (
+          <Button variant="outline" size="sm" onClick={() => setOpenEdit(true)} className="text-xs h-9">
+            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar e reenviar
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportMut.mutate()}
+          disabled={exportMut.isPending}
+          className="text-xs h-9"
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" />
+          {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="h-9 w-9"
+          title="Atualizar"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+        </Button>
+        <Button variant="ghost" size="sm" asChild className="text-xs h-9">
+          <Link to="/campaigns">
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Voltar
+          </Link>
+        </Button>
+      </div>
+    ) : undefined,
+  });
+
   if (isLoading) {
     return (
       <div
@@ -117,54 +158,10 @@ function CampaignDetailPage() {
     );
   }
 
-  const c = data.campaign;
   const t = normalizeCampaignTotals(c.totals);
   const total = t.total;
   const pct = total > 0 ? Math.round((t.sent / total) * 100) : 0;
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
-
-  usePageHeader({
-    title: c.name,
-    subtitle: `Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}`,
-    action: (
-      <div className="flex items-center gap-2">
-        <Link to="/campaigns" className="hidden sm:block">
-          <Button variant="ghost">
-            <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
-          </Button>
-        </Link>
-        <Button
-          variant="outline"
-          size="icon"
-          className="sm:w-auto sm:px-4"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          title="Atualizar"
-        >
-          <RefreshCw className={`h-4 w-4 sm:mr-1 ${isFetching ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Atualizar</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="sm:w-auto sm:px-4"
-          onClick={() => exportMut.mutate()}
-          disabled={exportMut.isPending}
-          title="Exportar CSV"
-        >
-          <Download className="h-4 w-4 sm:mr-1" />
-          <span className="hidden sm:inline">
-            {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
-          </span>
-        </Button>
-        {(c.status === "failed" || c.status === "cancelled") && (
-          <Button variant="outline" onClick={() => setOpenEdit(true)}>
-            <Pencil className="mr-1 h-4 w-4" /> Editar e reenviar
-          </Button>
-        )}
-      </div>
-    ),
-  });
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

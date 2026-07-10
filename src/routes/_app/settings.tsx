@@ -2105,55 +2105,34 @@ function SetupWizard({
 }) {
   const steps = useMemo(
     () => [
-      { label: "Credenciais", icon: KeyRound, done: credentialsComplete },
-      { label: "Webhook", icon: Webhook, done: webhookComplete },
-      { label: "Teste", icon: Send, done: testComplete },
+      { label: "Credenciais", icon: KeyRound, done: credentialsComplete, desc: "Configuração de chaves e IDs" },
+      { label: "Webhook", icon: Webhook, done: webhookComplete, desc: "Link de recebimento de mensagens" },
+      { label: "Teste", icon: Send, done: testComplete, desc: "Envio de mensagem de validação" },
     ],
     [credentialsComplete, webhookComplete, testComplete],
   );
   const [step, setStep] = useState(0);
   const isComplete = credentialsComplete && webhookComplete && testComplete;
-  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
-    "zapdispatch_settings_setup_wizard_collapsed",
-    isComplete,
-  );
   const doneCount = steps.filter((s) => s.done).length;
   const progress = Math.round((doneCount / steps.length) * 100);
 
   return (
-    <Card className="overflow-hidden py-0 gap-0">
-      <div className="border-b bg-muted/30 p-6">
-        <div className="flex items-center justify-between gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
+      {/* COLUNA ESQUERDA (Sidebar de progresso e passos) */}
+      <aside className="space-y-4 lg:sticky lg:top-6">
+        <Card className="p-5 space-y-4">
           <div>
-            <h2 className="font-display text-lg font-semibold">Assistente de configuração</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Etapa {step + 1} de {steps.length} · {doneCount} de {steps.length} concluída(s)
-            </p>
+            <h3 className="font-display text-sm font-bold text-muted-foreground uppercase tracking-widest">
+              Progresso do Canal
+            </h3>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold tracking-tight text-foreground">{progress}%</span>
+              <span className="text-xs text-muted-foreground font-medium">concluído</span>
+            </div>
+            <Progress value={progress} className="h-1.5 mt-3 bg-muted" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              {progress}%
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={toggleCollapsed}
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? "Expandir seção" : "Recolher seção"}
-              className="shrink-0 gap-1"
-            >
-              {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              <span className="hidden sm:inline text-xs">
-                {collapsed ? "Expandir" : "Recolher"}
-              </span>
-            </Button>
-          </div>
-        </div>
-        <Progress value={progress} className="mt-4" />
 
-        {!collapsed && (
-          <div className="mt-5 grid grid-cols-3 gap-2">
+          <div className="border-t border-border/40 pt-4 space-y-1">
             {steps.map((s, i) => {
               const Icon = s.icon;
               const active = i === step;
@@ -2163,17 +2142,17 @@ function SetupWizard({
                   type="button"
                   onClick={() => setStep(i)}
                   className={cn(
-                    "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                    "w-full flex items-center gap-3 rounded-lg px-3.5 py-3 text-left transition-all border",
                     active
-                      ? "border-primary bg-primary/5 text-foreground"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted",
+                      ? "border-primary bg-primary/5 text-foreground shadow-sm font-medium"
+                      : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
                       s.done
-                        ? "bg-success text-success-foreground"
+                        ? "bg-success/15 text-success border border-success/35"
                         : active
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground",
@@ -2181,49 +2160,65 @@ function SetupWizard({
                   >
                     {s.done ? <Check className="h-4 w-4" /> : i + 1}
                   </span>
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-[10px] uppercase tracking-wide opacity-70">
-                      Etapa {i + 1}
-                    </span>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <Icon className="h-3.5 w-3.5" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-semibold leading-tight truncate">
                       {s.label}
                     </span>
-                  </span>
+                    <span className="text-[10px] text-muted-foreground font-normal leading-normal truncate mt-0.5">
+                      {s.desc}
+                    </span>
+                  </div>
                 </button>
               );
             })}
           </div>
-        )}
-      </div>
+        </Card>
+      </aside>
 
-      {!collapsed && (
-        <>
-          <div className="p-6 border-t">{children(step)}</div>
+      {/* COLUNA DIREITA (Conteúdo principal do formulário) */}
+      <div className="space-y-4">
+        <Card className="overflow-hidden border border-border/40 shadow-sm">
+          {/* Header da Etapa */}
+          <div className="border-b border-border/40 bg-card/25 p-5">
+            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
+              Etapa {step + 1} de {steps.length}
+            </span>
+            <h2 className="font-display text-base font-semibold text-foreground mt-1">
+              {steps[step].label}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {steps[step].desc}
+            </p>
+          </div>
 
-          <div className="flex items-center justify-between border-t bg-muted/20 px-6 py-4">
+          {/* Conteúdo dinâmico do formulário */}
+          <div className="p-6">{children(step)}</div>
+
+          {/* Footer de navegação */}
+          <div className="flex items-center justify-between border-t border-border/40 bg-muted/10 px-6 py-4">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0}
+              className="text-xs h-8 px-3 font-medium"
             >
-              <ChevronLeft className="h-4 w-4" /> Voltar
+              <ChevronLeft className="mr-1.5 h-3.5 w-3.5" /> Anterior
             </Button>
-            <span className="text-xs text-muted-foreground">
-              {steps[step].done ? "Etapa concluída ✓" : "Preencha os campos desta etapa"}
+            <span className="text-[11px] text-muted-foreground font-medium">
+              {steps[step].done ? "Etapa concluída ✓" : "Campos pendentes"}
             </span>
             <Button
               size="sm"
               onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
               disabled={step === steps.length - 1}
+              className="text-xs h-8 px-3 font-medium"
             >
-              Próxima <ChevronRight className="h-4 w-4" />
+              Próxima <ChevronRight className="ml-1.5 h-3.5 w-3.5" />
             </Button>
           </div>
-        </>
-      )}
-    </Card>
+        </Card>
+    </div>
   );
 }
 
