@@ -44,8 +44,6 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
     return next({
       context: {
         db,
-        // Alias de compatibilidade — preferir context.db em código novo
-        supabase: db,
         userId: decoded.sub,
         tenantId: effectiveUserId,
         claims: decoded,
@@ -56,4 +54,3 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
     throw new Error("Não autorizado: token inválido");
   }
 });
-export { requireAuth as requireSupabaseAuth };

@@ -1000,7 +1000,7 @@ function TeamMembersDialog({
     enabled: !!team,
   });
 
-  // Carrega todos os agentes cadastrados no Supabase auth
+  // Carrega todos os agentes cadastrados no auth db
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => fetchUsersFn({}),

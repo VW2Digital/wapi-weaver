@@ -683,5 +683,4 @@ class MySQLClient {
 }
 
 export const db: MySQLClient = new MySQLClient();
-export { db as supabase };
 export { AUTH_EXPIRED_EVENT, clearStoredAuth };

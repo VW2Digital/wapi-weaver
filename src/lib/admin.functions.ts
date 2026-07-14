@@ -279,12 +279,12 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
     return { sql, generated_at: new Date().toISOString() };
   });
 
-async function assertAdmin(ctx: { supabase: any; userId: string; claims?: any }) {
+async function assertAdmin(ctx: { db: any; userId: string; claims?: any }) {
   // Also accept 'owner' and 'adminmaster' — consistent with getCurrentUserRoles
   const claimRole = ctx.claims?.role as string | undefined;
   if (claimRole === "adminmaster") return; // JWT already marks this as platform admin
 
-  const { data: roles } = await ctx.supabase
+  const { data: roles } = await ctx.db
     .from("user_roles")
     .select("role")
     .eq("user_id", ctx.userId);

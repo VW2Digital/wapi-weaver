@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db as supabase } from "@/integrations/mysql/client";
+import { db } from "@/integrations/mysql/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,7 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = (await supabase.auth.mfa.listFactors()) as unknown as { 
+      const { data, error } = (await db.auth.mfa.listFactors()) as unknown as { 
         data?: { totp?: Array<{ id: string; status: string }> }; 
         error?: { message: string } 
       };
@@ -36,7 +36,7 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
         return;
       }
       setFactorId(totp.id);
-      const ch = await supabase.auth.mfa.challenge({ factorId: totp.id });
+      const ch = await db.auth.mfa.challenge({ factorId: totp.id });
       const challenge = ch as unknown as { error?: { message: string }; data?: { id: string } };
       if (challenge.error) toast.error(challenge.error.message);
       else if (challenge.data) setChallengeId(challenge.data.id);
@@ -49,13 +49,13 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
     if (!factorId || !challengeId) return;
     if (code.length < 6) return;
     setBusy(true);
-    const { error } = await supabase.auth.mfa.verify({ factorId, challengeId, code });
+    const { error } = await db.auth.mfa.verify({ factorId, challengeId, code });
     setBusy(false);
     if (error) {
       toast.error("Código inválido. Tente novamente.");
       setCode("");
       // novo challenge para o próximo intento
-      const ch = await supabase.auth.mfa.challenge({ factorId });
+      const ch = await db.auth.mfa.challenge({ factorId });
       if (!ch.error) setChallengeId(ch.data!.id);
       return;
     }
@@ -64,7 +64,7 @@ export function MfaChallenge({ onVerified, onCancel }: Props) {
   }
 
   async function cancel() {
-    await supabase.auth.signOut();
+    await db.auth.signOut();
     onCancel?.();
   }
 

@@ -4,8 +4,8 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "./db";
 
-async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase
+async function assertAdmin(ctx: { db: any; userId: string }) {
+  const { data, error } = await ctx.db
     .from("user_roles")
     .select("role")
     .eq("user_id", ctx.userId)

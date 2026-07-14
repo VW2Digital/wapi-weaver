@@ -1,4 +1,5 @@
 -- PostgreSQL Schema Migration for wapi-weaver (CRM & Salvy integration)
+-- [LEGACY / POSTGRES MIGRATION SCHEMA]
 
 -- 1. Custom ENUM Types
 DO $$ 

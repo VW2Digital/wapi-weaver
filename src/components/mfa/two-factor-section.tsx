@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db as supabase } from "@/integrations/mysql/client";
+import { db } from "@/integrations/mysql/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ export function TwoFactorSection() {
 
   async function refresh() {
     setLoading(true);
-    const { data, error } = (await supabase.auth.mfa.listFactors()) as unknown as {
+    const { data, error } = (await db.auth.mfa.listFactors()) as unknown as {
       data?: { all: Factor[] };
       error?: { message: string };
     };
@@ -42,9 +42,9 @@ export function TwoFactorSection() {
     try {
       // Limpa fatores não verificados antigos
       for (const f of factors.filter((x) => x.status === "unverified")) {
-        await supabase.auth.mfa.unenroll({ factorId: f.id });
+        await db.auth.mfa.unenroll({ factorId: f.id });
       }
-      const { data, error } = (await supabase.auth.mfa.enroll({
+      const { data, error } = (await db.auth.mfa.enroll({
         factorType: "totp",
         friendlyName: `App ${new Date().toLocaleDateString("pt-BR")}`,
       })) as unknown as { data?: { id: string; totp: { qr_code: string; secret: string } }; error?: { message: string } };
@@ -65,12 +65,12 @@ export function TwoFactorSection() {
     if (code.length < 6) return toast.error("Informe o código de 6 dígitos");
     setBusy(true);
     try {
-      const { data: ch, error: chErr } = (await supabase.auth.mfa.challenge({
+      const { data: ch, error: chErr } = (await db.auth.mfa.challenge({
         factorId: enrolling.factorId,
       })) as unknown as { data?: { id: string }; error?: { message: string } };
       
       if (chErr) throw chErr;
-      const { error: vErr } = (await supabase.auth.mfa.verify({
+      const { error: vErr } = (await db.auth.mfa.verify({
         factorId: enrolling.factorId,
         challengeId: ch!.id,
         code,
@@ -90,7 +90,7 @@ export function TwoFactorSection() {
 
   async function cancelEnroll() {
     if (!enrolling) return;
-    await supabase.auth.mfa.unenroll({ factorId: enrolling.factorId });
+    await db.auth.mfa.unenroll({ factorId: enrolling.factorId });
     setEnrolling(null);
     setCode("");
     refresh();
@@ -99,7 +99,7 @@ export function TwoFactorSection() {
   async function disable(factorId: string) {
     if (!confirm("Desativar 2FA? Sua conta voltará a depender apenas da senha.")) return;
     setBusy(true);
-    const { error } = (await supabase.auth.mfa.unenroll({ factorId })) as unknown as { error?: { message: string } };
+    const { error } = (await db.auth.mfa.unenroll({ factorId })) as unknown as { error?: { message: string } };
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("2FA desativado");
