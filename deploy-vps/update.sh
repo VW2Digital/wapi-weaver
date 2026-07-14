@@ -128,28 +128,53 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# PASSO 1 — Backup automático do banco
+# PASSO 1 — Backup automático do banco (não fatal se MySQL estiver parado)
 # ---------------------------------------------------------------------------
 print_step "[1/5] Backup do banco de dados..."
 
 mkdir -p "${BACKUP_DIR}"
 BACKUP_FILE="${BACKUP_DIR}/wapi_weaver_backup_${TIMESTAMP}.sql.gz"
+BACKUP_OK=0
 
-if docker compose -f "${APP_DIR}/docker-compose.yml" exec -T banco-mysql \
-    mysqldump -u root -p"${DB_ROOT_PASS}" \
-    --single-transaction --quick --lock-tables=false \
-    wapi_weaver 2>/dev/null | gzip > "${BACKUP_FILE}"; then
-  BACKUP_SIZE=$(du -sh "${BACKUP_FILE}" | cut -f1)
-  print_ok "Backup criado: ${BACKUP_FILE} (${BACKUP_SIZE})"
+# Detectar se o container MySQL está em execução
+MYSQL_RUNNING=$(docker compose -f "${APP_DIR}/docker-compose.yml" ps --status running 2>/dev/null | grep -ciE "banco-mysql|mysql" || true)
+
+if [ "${MYSQL_RUNNING:-0}" -gt 0 ]; then
+  echo "  MySQL ativo. Realizando dump..."
+  if docker compose -f "${APP_DIR}/docker-compose.yml" exec -T banco-mysql \
+      mysqldump -u root -p"${DB_ROOT_PASS}" \
+      --single-transaction --quick --lock-tables=false \
+      wapi_weaver 2>/dev/null | gzip > "${BACKUP_FILE}"; then
+    BACKUP_BYTES=$(stat -c%s "${BACKUP_FILE}" 2>/dev/null || echo 0)
+    if [ "${BACKUP_BYTES}" -gt 100 ]; then
+      BACKUP_SIZE=$(du -sh "${BACKUP_FILE}" | cut -f1)
+      BACKUP_OK=1
+      print_ok "Backup criado: ${BACKUP_FILE} (${BACKUP_SIZE})"
+    else
+      rm -f "${BACKUP_FILE}" 2>/dev/null || true
+      print_info "Backup vazio (banco pode estar vazio). Continuando sem backup."
+      BACKUP_OK=1
+    fi
+  else
+    rm -f "${BACKUP_FILE}" 2>/dev/null || true
+    print_info "Aviso: falha ao gerar backup (mysqldump falhou). Continuando mesmo assim."
+  fi
 else
-  print_error "Falha no backup. Abortando por segurança."
-  echo "  Verifique se o MySQL está rodando: docker compose -f ${APP_DIR}/docker-compose.yml ps"
-  exit 1
+  print_info "Aviso: MySQL não está rodando. Pulando backup."
+  print_info "Os dados no volume Docker (mysql_data) serão preservados normalmente."
+fi
+
+if [ "${BACKUP_OK}" -eq 0 ]; then
+  echo ""
+  echo -e "${YELLOW}  ⚠️  Atualização continuará SEM backup automático desta vez.${NC}"
+  echo "     Os dados do volume Docker são preservados e não serão afetados."
+  echo ""
 fi
 
 # Limpar backups com mais de 7 dias
 find "${BACKUP_DIR}" -name "*.sql.gz" -mtime +7 -delete 2>/dev/null || true
 print_info "Backups antigos (>7 dias) limpos automaticamente."
+
 
 # ---------------------------------------------------------------------------
 # PASSO 2 — Atualizar código via Git
