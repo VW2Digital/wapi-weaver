@@ -8,14 +8,22 @@
  * - `consumeLastCapturedError()` retorna o erro e o limpa do cache.
  */
 
+import fs from "fs";
+
 let lastCapturedError: { error: unknown; at: number } | undefined;
 const TTL_MS = 5_000;
 
 function record(error: unknown) {
   lastCapturedError = { error, at: Date.now() };
+  try {
+    fs.writeFileSync("./ssr_error.log", "GLOBAL ERROR:\n" + (error instanceof Error ? error.stack : String(error)) + "\n");
+  } catch (e) {}
 }
 
-if (typeof globalThis.addEventListener === "function") {
+if (typeof process !== "undefined" && typeof process.on === "function") {
+  process.on("uncaughtException", (error) => record(error));
+  process.on("unhandledRejection", (reason) => record(reason));
+} else if (typeof globalThis.addEventListener === "function") {
   globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
   globalThis.addEventListener("unhandledrejection", (event) =>
     record((event as PromiseRejectionEvent).reason),

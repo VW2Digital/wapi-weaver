@@ -15,6 +15,10 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
       throw error;
     }
     console.error(error);
+    try {
+      const fs = await import("fs");
+      fs.writeFileSync("./ssr_error.log", "START MIDDLEWARE:\n" + (error instanceof Error ? error.stack : String(error)) + "\n");
+    } catch (e) {}
     return new Response(renderErrorPage(), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },

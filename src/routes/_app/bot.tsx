@@ -94,6 +94,31 @@ function BotPage() {
 
   const saveBatch = useMutation({
     mutationFn: async (payload: any[]) => {
+      // Validar nós de gatilho de Webhook
+      for (const step of payload) {
+        if (step.trigger_type === "webhook") {
+          let conditions: any[] = [];
+          try {
+            conditions = typeof step.trigger_value === "string"
+              ? JSON.parse(step.trigger_value || "[]")
+              : step.trigger_value || [];
+          } catch (e) {
+            conditions = [];
+          }
+          if (!Array.isArray(conditions) || conditions.length === 0) {
+            throw new Error(`O Passo #${step.step_order} (Gatilho por Webhook) precisa de pelo menos 1 condição.`);
+          }
+          for (const cond of conditions) {
+            if (!cond.field || !cond.field.trim()) {
+              throw new Error(`Condição no Passo #${step.step_order} tem campo de matching vazio.`);
+            }
+            if (cond.operator !== "exists" && (!cond.value || !cond.value.trim())) {
+              throw new Error(`Condição no Passo #${step.step_order} para o campo "${cond.field}" precisa de um valor.`);
+            }
+          }
+        }
+      }
+
       const res = await saveStepsBatchFn({ data: { channel: selectedChannel, steps: payload } });
       if (!res.ok) throw new Error(res.error || "Erro ao salvar o fluxo");
       return res;

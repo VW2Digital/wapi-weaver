@@ -36,6 +36,7 @@ import {
 import { createOpportunity, createActivity, bulkAssignToKanban } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,6 +102,7 @@ import {
   ChevronRight,
   ExternalLink,
   Paperclip,
+  Mic,
   MapPin,
   Users,
   Video,
@@ -425,7 +427,62 @@ type SendMessagePayload =
     };
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Erro inesperado";
+  if (!error) return "Erro inesperado";
+  
+  let msg = "Erro inesperado";
+  if (error instanceof Error) {
+    msg = error.message;
+  } else if (typeof error === "string") {
+    msg = error;
+  } else if (typeof error === "object" && error !== null && "message" in error) {
+    msg = String((error as any).message);
+  }
+
+  const lower = msg.toLowerCase();
+
+  // 1. Unsupported post request / Object not found (ID do número incorreto ou sem permissão)
+  if (
+    lower.includes("unsupported post request") ||
+    lower.includes("cannot be loaded due to missing permissions") ||
+    lower.includes("does not exist")
+  ) {
+    return "Conexão com WhatsApp inválida ou sem permissão. Verifique suas credenciais da Meta (Token ou ID do Telefone) nas configurações.";
+  }
+
+  // 2. Token inválido/expirado
+  if (
+    lower.includes("invalid oauth access token") ||
+    lower.includes("expired") ||
+    lower.includes("access token")
+  ) {
+    return "O token de acesso do WhatsApp expirou ou é inválido. Por favor, atualize o token em Configurações.";
+  }
+
+  // 3. Janela de 24 horas expirada
+  if (
+    lower.includes("outside the 24-hour window") ||
+    lower.includes("24-hour") ||
+    lower.includes("131047")
+  ) {
+    return "O contato está fora da janela de 24 horas. Você só pode enviar mensagens de modelos (templates) homologados para reiniciar a conversa.";
+  }
+
+  // 4. Parâmetro de telefone inválido
+  if (lower.includes("param to must be a valid phone number") || lower.includes("invalid phone number")) {
+    return "O número do destinatário é inválido ou não está cadastrado no WhatsApp.";
+  }
+
+  // 5. Limite de requisições excedido
+  if (lower.includes("rate limit") || lower.includes("too many requests")) {
+    return "Limite de envio da API atingido. Por favor, aguarde alguns instantes antes de enviar novamente.";
+  }
+
+  // 6. Arquivo não suportado ou erro de mídia
+  if (lower.includes("media") || lower.includes("mime type") || lower.includes("file size")) {
+    return "Erro no envio de mídia. Verifique se o formato ou tamanho do arquivo é compatível com os limites do WhatsApp.";
+  }
+
+  return msg;
 }
 
 function isFlagEnabled(value: ContactFlagValue): boolean {
@@ -1404,6 +1461,11 @@ function ChatPage() {
   const [bulkFunnelId, setBulkFunnelId] = useState("");
   const [bulkStageId, setBulkStageId] = useState("");
   const [typedMessage, setTypedMessage] = useState("");
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [mediaRecorder, setMediaRecorder] = useState<any | null>(null);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [replyingTo, setReplyingTo] = useState<ChatMessageRecord | null>(null);
   const [previewUrl, setPreviewUrl] = useState(false);
   const [metaImageId, setMetaImageId] = useState("");
@@ -2569,6 +2631,113 @@ function ChatPage() {
     setIsImageModalOpen(false);
   };
 
+  // Timer effect for recording duration
+  useEffect(() => {
+    let interval: any;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        const file = new File([audioBlob], "audio.webm", { type: "audio/webm" });
+
+        stream.getTracks().forEach((track) => track.stop());
+
+        setPendingMediaType("audio");
+        if (!selectedPhone) {
+          toast.error("Nenhum contato selecionado para envio de áudio.");
+          return;
+        }
+        const phoneId = profile?.whatsapp_phone_number_id;
+        if (!phoneId) {
+          toast.error("ID do número de telefone não configurado.");
+          return;
+        }
+
+        setUploadingMedia(true);
+        const toastId = toast.loading("Enviando áudio gravado...");
+
+        try {
+          const res = await uploadMetaMediaViaApi(phoneId, file);
+          if (!res.ok || !res.data?.id) {
+            throw new Error(res.error || "Falha no upload de mídia na Meta.");
+          }
+
+          const mediaId = res.data.id;
+          const payload: any = {
+            type: "audio",
+            audio: { id: mediaId },
+            reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+          };
+
+          sendMutation.mutate(payload, {
+            onSuccess: () => {
+              toast.success("Áudio enviado com sucesso!", { id: toastId });
+            },
+            onError: (err: any) => {
+              toast.error(getErrorMessage(err), { id: toastId });
+            },
+          });
+        } catch (err: any) {
+          toast.error(getErrorMessage(err), { id: toastId });
+        } finally {
+          setUploadingMedia(false);
+          setPendingMediaType(null);
+        }
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setAudioChunks(chunks);
+      setRecordingSeconds(0);
+      setIsRecording(true);
+    } catch (err: any) {
+      toast.error("Não foi possível acessar o microfone. Verifique as permissões.");
+      console.error(err);
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleCancelRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.onstop = () => {};
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      setIsRecording(false);
+      setRecordingSeconds(0);
+      toast.info("Gravação de áudio cancelada.");
+    }
+  };
+
   const handleMediaAttachClick = (type: "image" | "audio" | "video" | "document" | "sticker") => {
     setPendingMediaType(type);
     if (mediaInputRef.current) {
@@ -2907,53 +3076,24 @@ function ChatPage() {
           __html: `
         /* Estilos dos Balões estilo WhatsApp */
         .wa-bubble-outgoing {
-          background-color: var(--primary) !important;
-          color: var(--primary-foreground) !important;
-          border-radius: 8px !important;
-          border-top-right-radius: 0 !important;
+          background-color: #1e293b !important;
+          color: #f8fafc !important;
+          border: 1px solid #334155 !important;
+          border-radius: 12px !important;
           position: relative !important;
-          margin-right: 8px !important;
         }
-        .wa-bubble-outgoing::before {
-          content: "";
-          position: absolute;
-          right: -8px;
-          top: 0;
-          width: 8px;
-          height: 13px;
-          background-color: var(--primary);
-          clip-path: polygon(0 0, 0 100%, 100% 0);
+        .light .wa-bubble-outgoing {
+          background-color: #f8fafc !important;
+          color: #0f172a !important;
+          border: 1px solid #e2e8f0 !important;
         }
 
         .wa-bubble-incoming {
           background-color: var(--card) !important;
           color: var(--card-foreground) !important;
           border: 1px solid var(--border) !important;
-          border-radius: 8px !important;
-          border-top-left-radius: 0 !important;
+          border-radius: 12px !important;
           position: relative !important;
-          margin-left: 8px !important;
-        }
-        .wa-bubble-incoming::before {
-          content: "";
-          position: absolute;
-          left: -8px;
-          top: 0;
-          width: 8px;
-          height: 13px;
-          background-color: var(--card);
-          clip-path: polygon(100% 0, 100% 100%, 0 0);
-        }
-        .wa-bubble-incoming::after {
-          content: "";
-          position: absolute;
-          left: -8px;
-          top: -1px;
-          width: 8px;
-          height: 14px;
-          background-color: var(--border);
-          z-index: -1;
-          clip-path: polygon(100% 0, 100% 100%, 0 0);
         }
 
         .wa-quote-reply-outgoing {
@@ -3011,12 +3151,9 @@ function ChatPage() {
         }
 
         .wa-timestamp {
-          color: rgba(255, 255, 255, 0.6) !important;
-        }
-        .wa-bubble-incoming .wa-timestamp {
           color: #8696a0 !important;
         }
-        .light .wa-bubble-incoming .wa-timestamp {
+        .light .wa-timestamp {
           color: #667781 !important;
         }
       `,
@@ -4334,13 +4471,22 @@ function ChatPage() {
                         const showDateSeparator = msgDateStr !== lastDateStr;
                         lastDateStr = msgDateStr;
 
+                        const agentName = profile?.full_name || profile?.display_name || "Atendente";
+                        const agentTeamId = selectedContact?.active_team_id;
+                        const agentTeamName = agentTeamId ? getTeamName(agentTeamId) : null;
+                        const agentLabel = agentTeamName ? `${agentName} (${agentTeamName})` : agentName;
+                        const senderName = (selectedContact?.channel === "whatsapp_group" && msg.sender_name)
+                          ? msg.sender_name
+                          : (selectedContact?.name || selectedContact?.phone_e164 || "Contato");
+
                         return (
                           <div key={msg.id} className="w-full flex flex-col">
                             {showDateSeparator && (
-                              <div className="flex w-full justify-center my-3 select-none">
-                                <div className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-3.5 py-1 rounded-full text-[10px] font-medium text-muted-foreground shadow-xs">
+                              <div className="relative flex items-center justify-center my-4 select-none px-4">
+                                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-px bg-border/60" />
+                                <span className="relative z-10 bg-muted/10 px-3 text-[11px] font-medium text-muted-foreground/70">
                                   {formatDateSeparator(msg.timestamp)}
-                                </div>
+                                </span>
                               </div>
                             )}
 
@@ -4359,61 +4505,84 @@ function ChatPage() {
                                   isOutgoing ? "items-end" : "items-start",
                                 )}
                               >
-                                {/* Container do Balão + Ações */}
-                                <div className="flex items-start gap-2 max-w-[85%] md:max-w-[70%]">
-                                  {/* Ações Rápidas em Menu Único para incoming */}
-                                  {!isOutgoing && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                          title="Opções"
-                                        >
-                                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="start" className="w-56 p-1">
-                                        {/* Reações Rápidas */}
-                                        <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
-                                          {DEFAULT_EMOJIS.map((emoji) => (
-                                            <button
-                                              key={emoji}
-                                              onClick={() =>
-                                                handleSendReaction(msg.wa_message_id, emoji)
-                                              }
-                                              className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
-                                            >
-                                              {emoji}
-                                            </button>
-                                          ))}
-                                        </div>
-
-                                        {/* Responder */}
-                                        <DropdownMenuItem
-                                          onClick={() => setReplyingTo(msg)}
-                                          className="flex items-center gap-2 cursor-pointer text-xs"
-                                        >
-                                          <Reply className="h-3.5 w-3.5 text-muted-foreground" />
-                                          <span>Responder</span>
-                                        </DropdownMenuItem>
-
-                                        {/* Etiquetar */}
-                                        <DropdownMenuSub>
-                                          <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
-                                            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                                            <span>Etiquetar</span>
-                                          </DropdownMenuSubTrigger>
-                                          <DropdownMenuPortal>
-                                            <DropdownMenuSubContent className="p-2 min-w-[200px]">
-                                              {renderMessageTagSubmenu(msg)}
-                                            </DropdownMenuSubContent>
-                                          </DropdownMenuPortal>
-                                        </DropdownMenuSub>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
+                                {/* Container do Balão + Avatar + Ações */}
+                                <div className={cn(
+                                  "flex items-end gap-2 max-w-[85%] md:max-w-[70%]",
+                                  isOutgoing ? "flex-row-reverse" : "flex-row"
+                                )}>
+                                  {/* Avatar (Esquerda para incoming, Direita para outgoing) */}
+                                  {isOutgoing ? (
+                                    <Avatar className="h-7 w-7 shrink-0 mb-1 ring-1 ring-primary/30 shadow-sm">
+                                      <AvatarImage src={profile?.avatar_url || ""} alt={profile?.full_name || profile?.display_name || "A"} />
+                                      <AvatarFallback
+                                        className="text-[10px] font-bold text-white bg-primary"
+                                      >
+                                        {(profile?.full_name || profile?.display_name || "A").slice(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  ) : (
+                                    <Avatar className="h-7 w-7 shrink-0 mb-1 ring-1 ring-border/40 shadow-sm">
+                                      <AvatarImage src={getContactAvatarUrl(selectedContact)} alt={selectedContact?.name || ""} />
+                                      <AvatarFallback
+                                        className="text-[10px] font-bold text-white"
+                                        style={{ backgroundColor: getAvatarColor(selectedContact?.name || selectedContact?.phone_e164 || "C") }}
+                                      >
+                                        {(selectedContact?.name || selectedContact?.phone_e164 || "C").slice(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
                                   )}
+
+                                  {/* Ações Rápidas em Menu Único */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full self-center"
+                                        title="Opções"
+                                      >
+                                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align={isOutgoing ? "end" : "start"} className="w-56 p-1">
+                                      {/* Reações Rápidas */}
+                                      <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
+                                        {DEFAULT_EMOJIS.map((emoji) => (
+                                          <button
+                                            key={emoji}
+                                            onClick={() =>
+                                              handleSendReaction(msg.wa_message_id, emoji)
+                                            }
+                                            className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
+                                          >
+                                            {emoji}
+                                          </button>
+                                        ))}
+                                      </div>
+
+                                      {/* Responder */}
+                                      <DropdownMenuItem
+                                        onClick={() => setReplyingTo(msg)}
+                                        className="flex items-center gap-2 cursor-pointer text-xs"
+                                      >
+                                        <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span>Responder</span>
+                                      </DropdownMenuItem>
+
+                                      {/* Etiquetar */}
+                                      <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
+                                          <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span>Etiquetar</span>
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                          <DropdownMenuSubContent className="p-2 min-w-[200px]">
+                                            {renderMessageTagSubmenu(msg)}
+                                          </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                      </DropdownMenuSub>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
 
                                   {/* Balão em si */}
                                   <div className="flex flex-col relative">
@@ -4544,16 +4713,17 @@ function ChatPage() {
                                             isOutgoing
                                               ? "wa-bubble-outgoing"
                                               : "wa-bubble-incoming",
-                                            isRichCard ? "p-0 rounded-lg" : "p-3",
+                                            isRichCard ? "p-0 rounded-xl" : "px-3.5 py-2.5 flex flex-col gap-1",
                                           )}
                                         >
-                                          {!isOutgoing &&
-                                            selectedContact?.channel === "whatsapp_group" &&
-                                            msg.sender_name && (
-                                              <p className="text-[10px] font-extrabold text-indigo-500 mb-0.5 px-3 pt-1 select-none">
-                                                {msg.sender_name}
-                                              </p>
-                                            )}
+                                          {/* Nome do Remetente */}
+                                          <div className={cn(
+                                            "text-[10px] font-semibold text-muted-foreground select-none",
+                                            isRichCard ? "px-3 pt-2" : ""
+                                          )}>
+                                            {isOutgoing ? agentLabel : senderName}
+                                          </div>
+
                                           {/* Display applied tags in message body */}
                                           {(() => {
                                             const msgTags = (
@@ -4565,8 +4735,8 @@ function ChatPage() {
                                             return (
                                               <div
                                                 className={cn(
-                                                  "flex flex-wrap gap-1 mb-1.5",
-                                                  isRichCard ? "px-3 pt-3" : "",
+                                                  "flex flex-wrap gap-1 mb-1",
+                                                  isRichCard ? "px-3 pt-1" : "",
                                                 )}
                                               >
                                                 {msgTags.map((mt) => (
@@ -4588,7 +4758,7 @@ function ChatPage() {
                                           {/* Quote reply block inside bubble */}
                                           {replyMessage && (
                                             <div
-                                              className={cn("px-3 pt-3", isRichCard ? "" : "pb-1")}
+                                              className={cn("px-3 pt-1", isRichCard ? "" : "pb-0.5")}
                                             >
                                               <button
                                                 onClick={() => scrollToMessage(replyMessage.id)}
@@ -4877,7 +5047,7 @@ function ChatPage() {
                                               bodyText) ||
                                               headerText ||
                                               interactive?.footer?.text) && (
-                                              <div className="px-3 py-2 space-y-1">
+                                              <div className="py-1.5 space-y-1">
                                                 {headerText && (
                                                   <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
                                                     {headerText}
@@ -4980,8 +5150,8 @@ function ChatPage() {
                                           {/* Horário + Status */}
                                           <div
                                             className={cn(
-                                              "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-1.5 pr-2.5 pt-0.5",
-                                              !isRichCard && "px-0 pb-0 pt-1",
+                                              "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-0.5 pt-0.5 self-end",
+                                              isRichCard && "pb-1.5 pr-2.5",
                                             )}
                                           >
                                             <span>
@@ -5016,60 +5186,6 @@ function ChatPage() {
                                       </div>
                                     )}
                                   </div>
-
-                                  {/* Ações Rápidas em Menu Único para outgoing */}
-                                  {isOutgoing && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full"
-                                          title="Opções"
-                                        >
-                                          <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-56 p-1">
-                                        {/* Reações Rápidas */}
-                                        <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
-                                          {DEFAULT_EMOJIS.map((emoji) => (
-                                            <button
-                                              key={emoji}
-                                              onClick={() =>
-                                                handleSendReaction(msg.wa_message_id, emoji)
-                                              }
-                                              className="hover:bg-muted p-1 rounded text-base transition-transform hover:scale-125"
-                                            >
-                                              {emoji}
-                                            </button>
-                                          ))}
-                                        </div>
-
-                                        {/* Responder */}
-                                        <DropdownMenuItem
-                                          onClick={() => setReplyingTo(msg)}
-                                          className="flex items-center gap-2 cursor-pointer text-xs"
-                                        >
-                                          <Reply className="h-3.5 w-3.5 text-muted-foreground" />
-                                          <span>Responder</span>
-                                        </DropdownMenuItem>
-
-                                        {/* Etiquetar */}
-                                        <DropdownMenuSub>
-                                          <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer text-xs">
-                                            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                                            <span>Etiquetar</span>
-                                          </DropdownMenuSubTrigger>
-                                          <DropdownMenuPortal>
-                                            <DropdownMenuSubContent className="p-2 min-w-[200px]">
-                                              {renderMessageTagSubmenu(msg)}
-                                            </DropdownMenuSubContent>
-                                          </DropdownMenuPortal>
-                                        </DropdownMenuSub>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  )}
                                 </div>
                               </div>
                             )}
@@ -5082,397 +5198,183 @@ function ChatPage() {
                 </div>
 
                 {/* Caixa de Texto de Envio */}
-                <div className="border-t bg-card flex flex-col">
-                  {/* Banner de Resposta */}
-                  {replyingTo && (
-                    <div className="flex items-center justify-between bg-muted/60 px-4 py-2 border-b text-xs transition-all duration-300">
-                      <div className="flex-1 min-w-0 border-l-4 border-primary pl-2">
-                        <div className="font-semibold text-primary">
-                          Respondendo a {replyingTo.direction === "incoming" ? "Contato" : "Você"}
+                <div className="bg-transparent flex flex-col px-6 pb-6 pt-2">
+                  <div className="bg-background border border-border/80 rounded-2xl shadow-md overflow-hidden flex flex-col">
+                    {/* Banner de Resposta */}
+                    {replyingTo && (
+                      <div className="flex items-center justify-between bg-muted/60 px-4 py-2 border-b text-xs transition-all duration-300">
+                        <div className="flex-1 min-w-0 border-l-4 border-primary pl-2">
+                          <div className="font-semibold text-primary">
+                            Respondendo a {replyingTo.direction === "incoming" ? "Contato" : "Você"}
+                          </div>
+                          <div className="text-muted-foreground truncate font-mono">
+                            {replyingTo.type === "image" ? "📷 Imagem" : replyingTo.body}
+                          </div>
                         </div>
-                        <div className="text-muted-foreground truncate font-mono">
-                          {replyingTo.type === "image" ? "📷 Imagem" : replyingTo.body}
-                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 shrink-0 rounded-full"
+                          onClick={() => setReplyingTo(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 shrink-0 rounded-full"
-                        onClick={() => setReplyingTo(null)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Área do Input de Texto */}
-                  <div className="p-3 flex items-end gap-2">
+                    {/* Área do Input */}
+                    <div className="p-2.5">
+                      {isRecording ? (
+                        <div className="flex items-center justify-between p-1.5 pr-2 pl-3">
+                          <div className="flex items-center gap-2 text-destructive font-medium text-sm">
+                            <span className="h-2 w-2 rounded-full bg-destructive animate-ping shrink-0" />
+                            <span>Gravando: {formatTime(recordingSeconds)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              title="Cancelar gravação"
+                              onClick={handleCancelRecording}
+                              className="h-9 w-9 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0"
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={handleStopRecording}
+                              className="h-10 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] text-white font-medium flex items-center gap-2 shadow-sm shrink-0"
+                            >
+                              <span>Enviar Áudio</span>
+                              <Send className="h-4 w-4 text-white shrink-0" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 p-1.5 pr-2 pl-3">
+                          {/* Textarea */}
+                          <div className="flex-1">
+                            <Label className="sr-only">Mensagem</Label>
+                            <Textarea
+                              placeholder="Escreva sua mensagem aqui"
+                              className="min-h-[36px] max-h-[120px] py-1 px-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm shadow-none font-sans"
+                              rows={1}
+                              value={typedMessage}
+                              onChange={(e) => setTypedMessage(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendText();
+                                }
+                              }}
+                            />
+                          </div>
+
+
+                    {/* Input de arquivo oculto para upload de mídia */}
+                    <input
+                      ref={mediaInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
+                          type="button"
                           size="icon"
-                          variant="outline"
-                          title="Anexar arquivo ou mídia"
-                          className="shrink-0 h-10 w-10 rounded-full hover:bg-muted"
-                          disabled={uploadingMedia || sendMutation.isPending}
+                          variant="ghost"
+                          title="Anexar mídia"
+                          className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
                         >
-                          {uploadingMedia ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                          ) : (
-                            <Paperclip className="h-5 w-5 text-muted-foreground" />
-                          )}
+                          <Paperclip className="h-5 w-5" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-48 p-1">
-                        <DropdownMenuItem onClick={() => handleMediaAttachClick("image")}>
-                          <ImageIcon className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
+                      <DropdownMenuContent align="end" className="w-48 bg-card border border-border">
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-xs"
+                          onClick={() => handleMediaAttachClick("image")}
+                        >
+                          <ImageIcon className="h-4 w-4 text-blue-500" />
                           <span>Imagem</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleMediaAttachClick("audio")}>
-                          <Volume2 className="h-4 w-4 mr-2 text-orange-600 dark:text-orange-400" />
-                          <span>Áudio</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleMediaAttachClick("video")}>
-                          <Video className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-xs"
+                          onClick={() => handleMediaAttachClick("video")}
+                        >
+                          <Video className="h-4 w-4 text-rose-500" />
                           <span>Vídeo</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleMediaAttachClick("document")}>
-                          <FileText className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" />
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-xs"
+                          onClick={() => handleMediaAttachClick("audio")}
+                        >
+                          <Volume2 className="h-4 w-4 text-emerald-500" />
+                          <span>Áudio</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-xs"
+                          onClick={() => handleMediaAttachClick("document")}
+                        >
+                          <FileText className="h-4 w-4 text-amber-500" />
                           <span>Documento</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleMediaAttachClick("sticker")}>
-                          <Smile className="h-4 w-4 mr-2 text-amber-500 dark:text-amber-400" />
-                          <span>Sticker</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setIsLocationModalOpen(true)}>
-                          <MapPin className="h-4 w-4 mr-2 text-rose-600 dark:text-rose-400" />
-                          <span>Localização</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setIsContactModalOpen(true)}>
-                          <Users className="h-4 w-4 mr-2 text-indigo-600 dark:text-indigo-400" />
-                          <span>Contato</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setIsImageModalOpen(true)}>
-                          <LinkIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span>Imagem por ID</span>
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-xs"
+                          onClick={() => handleMediaAttachClick("sticker")}
+                        >
+                          <Smile className="h-4 w-4 text-indigo-500" />
+                          <span>Figurinha</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Hidden file input */}
-                    <input
-                      type="file"
-                      ref={mediaInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-
-                    {/* Modal de envio de Imagem da Meta por ID */}
-                    <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Enviar Imagem da Meta</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="meta-image-id">ID do Objeto de Imagem na Meta</Label>
-                            <Input
-                              id="meta-image-id"
-                              placeholder="Insira o Meta Object ID (ex: 285938592058)"
-                              value={metaImageId}
-                              onChange={(e) => setMetaImageId(e.target.value)}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              A API oficial do WhatsApp requer que imagens sejam carregadas
-                              previamente na Meta para obter um ID de objeto de mídia.
-                            </p>
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsImageModalOpen(false)}>
-                            Cancelar
-                          </Button>
-                          <Button
-                            onClick={handleSendImage}
-                            disabled={!metaImageId.trim() || sendMutation.isPending}
-                          >
-                            Enviar Imagem
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-
-                    {/* Modal de Envio de Localização */}
-                    <Dialog open={isLocationModalOpen} onOpenChange={setIsLocationModalOpen}>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Enviar Localização</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label htmlFor="loc-lat">Latitude</Label>
-                              <Input
-                                id="loc-lat"
-                                placeholder="Ex: -23.55052"
-                                value={locLat}
-                                onChange={(e) => setLocLat(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="loc-lng">Longitude</Label>
-                              <Input
-                                id="loc-lng"
-                                placeholder="Ex: -46.633308"
-                                value={locLng}
-                                onChange={(e) => setLocLng(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="loc-name">Nome do Local (Opcional)</Label>
-                            <Input
-                              id="loc-name"
-                              placeholder="Ex: Praça da Sé"
-                              value={locName}
-                              onChange={(e) => setLocName(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="loc-address">Endereço (Opcional)</Label>
-                            <Input
-                              id="loc-address"
-                              placeholder="Ex: Praça da Sé, São Paulo - SP"
-                              value={locAddress}
-                              onChange={(e) => setLocAddress(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsLocationModalOpen(false)}>
-                            Cancelar
-                          </Button>
-                          <Button
-                            onClick={handleSendLocation}
-                            disabled={!locLat || !locLng || sendMutation.isPending}
-                          >
-                            Enviar Localização
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-
-                    {/* Modal de Envio de Contato */}
-                    <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Enviar Contato</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-2">
-                          <div className="space-y-1">
-                            <Label htmlFor="contact-name">Nome do Contato</Label>
-                            <Input
-                              id="contact-name"
-                              placeholder="Ex: João Silva"
-                              value={contactNameState}
-                              onChange={(e) => setContactNameState(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="contact-phone">Telefone (com DDI/DDD)</Label>
-                            <Input
-                              id="contact-phone"
-                              placeholder="Ex: 5511999999999"
-                              value={contactPhoneState}
-                              onChange={(e) => setContactPhoneState(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsContactModalOpen(false)}>
-                            Cancelar
-                          </Button>
-                          <Button
-                            onClick={handleSendContact}
-                            disabled={
-                              !contactNameState.trim() ||
-                              !contactPhoneState.trim() ||
-                              sendMutation.isPending
-                            }
-                          >
-                            Enviar Contato
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-
-                    {/* Drawer de Gerenciamento de Etiquetas */}
-                    <Sheet open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen}>
-                      <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
-                        <SheetHeader className="mb-4">
-                          <SheetTitle>Gerenciar Etiquetas</SheetTitle>
-                        </SheetHeader>
-
-                        <div className="space-y-4 py-2 flex-1">
-                          {/* Criar nova tag */}
-                          <div className="space-y-3 border-b pb-4">
-                            <Label className="text-xs font-semibold">Nova etiqueta</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                placeholder="Nome (max 20 caracteres)"
-                                value={newTagName}
-                                maxLength={20}
-                                onChange={(e) => setNewTagName(e.target.value)}
-                                className="flex-1 font-sans"
-                              />
-                              <Button
-                                onClick={async () => {
-                                  if (!newTagName.trim()) return;
-                                  const res = await handleCreateTag(
-                                    newTagName,
-                                    selectedColor,
-                                    selectedIconName,
-                                  );
-                                  if (res) setNewTagName("");
-                                }}
-                              >
-                                Criar
-                              </Button>
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                              <Label className="text-xs text-muted-foreground">Cor e Ícone</Label>
-                              <div className="flex items-center gap-3">
-                                <input
-                                  type="color"
-                                  value={selectedColor}
-                                  onChange={(e) => setSelectedColor(e.target.value)}
-                                  className="w-8 h-8 p-0 border-0 cursor-pointer rounded-lg overflow-hidden shrink-0"
-                                />
-                                <div className="flex gap-1.5 flex-wrap">
-                                  {PREDEFINED_COLORS.map((c) => (
-                                    <button
-                                      key={c}
-                                      type="button"
-                                      className={cn(
-                                        "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110",
-                                        selectedColor === c
-                                          ? "border-foreground"
-                                          : "border-transparent",
-                                      )}
-                                      style={{ backgroundColor: c }}
-                                      onClick={() => setSelectedColor(c)}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Ícone picker */}
-                              <div className="flex gap-2 flex-wrap pt-1">
-                                {Object.keys(TAG_ICONS).map((iconName) => {
-                                  const IconComp = TAG_ICONS[iconName];
-                                  return (
-                                    <button
-                                      key={iconName}
-                                      type="button"
-                                      onClick={() => setSelectedIconName(iconName)}
-                                      className={cn(
-                                        "h-7 w-7 rounded border flex items-center justify-center transition-colors hover:bg-muted",
-                                        selectedIconName === iconName
-                                          ? "bg-primary text-primary-foreground border-primary"
-                                          : "border-transparent text-muted-foreground",
-                                      )}
-                                    >
-                                      <IconComp className="h-4 w-4" />
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Listar tags existentes */}
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold">Etiquetas existentes</Label>
-                            <div className="max-h-60 overflow-y-auto space-y-1 pt-1">
-                              {tagsQuery.isLoading ? (
-                                <div className="text-center py-4 text-xs text-muted-foreground">
-                                  Carregando...
-                                </div>
-                              ) : (tagsQuery.data ?? []).length === 0 ? (
-                                <div className="text-center py-4 text-xs text-muted-foreground">
-                                  Nenhuma etiqueta criada.
-                                </div>
-                              ) : (
-                                ((tagsQuery.data ?? []) as ChatTagRecord[]).map((tag) => {
-                                  const tagId = tag.id;
-                                  if (!tagId) return null;
-                                  return (
-                                    <div
-                                      key={tagId}
-                                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 text-sm"
-                                    >
-                                      <TagBadge tag={tag} className="text-xs px-2 py-1" />
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => handleDeleteTag(tagId)}
-                                        title="Excluir etiqueta"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-
                     <Button
+                      type="button"
                       size="icon"
-                      variant={previewUrl ? "default" : "outline"}
+                      variant="ghost"
                       title={previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"}
                       onClick={() => setPreviewUrl(!previewUrl)}
-                      className="shrink-0 h-10 w-10 rounded-full"
+                      className={cn(
+                        "h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0",
+                        previewUrl && "text-primary bg-primary/10"
+                      )}
                     >
                       <LinkIcon className="h-5 w-5" />
                     </Button>
 
-                    <div className="flex-1 relative">
-                      <Label className="sr-only">Mensagem</Label>
-                      <Textarea
-                        placeholder="Digite sua mensagem..."
-                        className="min-h-[40px] max-h-[120px] py-2 px-3 resize-none rounded-xl pr-10"
-                        rows={1}
-                        value={typedMessage}
-                        onChange={(e) => setTypedMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendText();
-                          }
-                        }}
-                      />
-                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      title="Gravar áudio"
+                      onClick={handleStartRecording}
+                      className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
+                    >
+                      <Mic className="h-5 w-5" />
+                    </Button>
 
                     <Button
-                      size="icon"
-                      className="shrink-0 h-10 w-10 rounded-full"
                       disabled={!typedMessage.trim() || sendMutation.isPending}
                       onClick={handleSendText}
+                      className="h-10 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-2 shadow-sm shrink-0"
                     >
                       {sendMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin text-white" />
                       ) : (
-                        <Send className="h-4 w-4" />
+                        <>
+                          <span>Enviar</span>
+                          <Send className="h-4 w-4 text-white shrink-0" />
+                        </>
                       )}
                     </Button>
                   </div>
-                </div>
+                )}
+              </div>
+            </div>
+          </div>
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 gap-4 bg-muted/5">

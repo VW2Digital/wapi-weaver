@@ -717,3 +717,91 @@ export async function executeInactivityStep(
     logError("Exceção fatal no executeInactivityStep", { error: err.message });
   }
 }
+
+export async function triggerWebhookBotFlow(
+  tenantId: string,
+  contactId: string,
+  payload: Record<string, any>,
+) {
+  const { default: db } = await import("./db");
+  const { matchWebhookPayload } = await import("./webhooks.server");
+
+  try {
+    // 1. Busca todos os passos com gatilho de webhook ativos para o tenant
+    const activeTriggers = (await db.query(
+      `SELECT bs.*, b.name as flow_name, b.channel
+       FROM bot_steps bs
+       JOIN bot_settings b ON bs.bot_settings_id = b.id
+       WHERE b.user_id = ? AND b.is_active = 1 AND bs.trigger_type = 'webhook'`,
+      [tenantId],
+    )) as any[];
+
+    if (!activeTriggers || activeTriggers.length === 0) return;
+
+    // 2. Obtém dados do contato (telefone)
+    const contactRows = (await db.query(
+      "SELECT phone_e164 FROM contacts WHERE id = ? LIMIT 1",
+      [contactId],
+    )) as any[];
+    const contact = contactRows?.[0];
+    if (!contact || !contact.phone_e164) {
+      console.warn("[Webhook Trigger] Contato sem phone_e164, abortando.", { contactId });
+      return;
+    }
+
+    // 3. Obtém o whatsapp_phone_number_id do perfil do tenant
+    const profileRows = (await db.query(
+      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ? LIMIT 1",
+      [tenantId],
+    )) as any[];
+    const profile = profileRows?.[0];
+    const phoneNumberId = profile?.whatsapp_phone_number_id;
+    if (!phoneNumberId) {
+      console.warn("[Webhook Trigger] Tenant sem phoneNumberId, abortando.", { tenantId });
+      return;
+    }
+
+    for (const trigger of activeTriggers) {
+      let conditions: any[] = [];
+      try {
+        conditions = typeof trigger.trigger_value === "string"
+          ? JSON.parse(trigger.trigger_value)
+          : trigger.trigger_value || [];
+      } catch (e) {
+        console.error("[Webhook Trigger] Erro ao parsear condições do trigger:", trigger.id, e);
+        continue;
+      }
+
+      // 4. Avalia se o payload atende a todas as condições (AND)
+      const isMatch = matchWebhookPayload(payload, conditions);
+
+      // 5. Grava log de auditoria
+      await db.query(
+        `INSERT INTO webhook_bot_logs (tenant_id, flow_id, flow_name, contact_id, is_match, raw_conditions, raw_payload)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          tenantId,
+          trigger.bot_settings_id,
+          trigger.flow_name,
+          contactId,
+          isMatch ? 1 : 0,
+          JSON.stringify(conditions),
+          JSON.stringify(payload),
+        ],
+      );
+
+      // 6. Se deu match, inicia a execução enviando a primeira mensagem (nó de webhook)
+      if (isMatch) {
+        await executeInactivityStep(
+          trigger,
+          contact.phone_e164.replace(/\D/g, ""), // apenas dígitos
+          phoneNumberId,
+          tenantId,
+          trigger.channel || "whatsapp",
+        );
+      }
+    }
+  } catch (err: any) {
+    console.error("[Webhook Trigger] Erro ao processar disparo do fluxo:", err);
+  }
+}

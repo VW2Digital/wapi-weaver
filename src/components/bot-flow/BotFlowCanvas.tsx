@@ -104,9 +104,11 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
             if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
               const targetExists = steps.some((step) => step.id === targetId);
               if (targetExists) {
+                const handleId = btn.handleId || btn.reply?.id || `btn-${btnIdx}`;
                 newEdges.push({
-                  id: `e-${s.id}-${targetId}-btn-${btnIdx}`,
+                  id: `e-${s.id}-${targetId}-${handleId}`,
                   source: s.id,
+                  sourceHandle: handleId,
                   target: targetId,
                   type: "smoothstep",
                   label: btn.reply?.title || `Botão ${btnIdx + 1}`,
@@ -144,9 +146,11 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
               if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
                 const targetExists = steps.some((step) => step.id === targetId);
                 if (targetExists) {
+                  const handleId = row.handleId || row.id || `row-${itemIdx}`;
                   newEdges.push({
-                    id: `e-${s.id}-${targetId}-list-${itemIdx}`,
+                    id: `e-${s.id}-${targetId}-${handleId}`,
                     source: s.id,
+                    sourceHandle: handleId,
                     target: targetId,
                     type: "smoothstep",
                     label: row.title || `Item ${itemIdx + 1}`,
@@ -176,6 +180,61 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
       // Update parent state
       const updatedSteps = steps.map((s) => {
         if (s.id === params.source) {
+          if (params.sourceHandle) {
+            let configObj: any = {};
+            try {
+              configObj =
+                typeof s.buttons_config === "string"
+                  ? JSON.parse(s.buttons_config)
+                  : s.buttons_config || {};
+            } catch (e) {
+              configObj = {};
+            }
+
+            let updated = false;
+
+            if (s.message_type === "buttons" && configObj?.action?.buttons) {
+              configObj.action.buttons = configObj.action.buttons.map((btn: any, btnIdx: number) => {
+                const hId = btn.handleId || btn.reply?.id || `btn-${btnIdx}`;
+                if (hId === params.sourceHandle) {
+                  updated = true;
+                  return {
+                    ...btn,
+                    reply: {
+                      ...btn.reply,
+                      id: `step:${params.target}`,
+                    },
+                  };
+                }
+                return btn;
+              });
+            } else if (s.message_type === "list" && configObj?.action?.sections) {
+              configObj.action.sections = configObj.action.sections.map((sec: any) => {
+                if (sec.rows) {
+                  sec.rows = sec.rows.map((row: any, rIdx: number) => {
+                    const hId = row.handleId || row.id || `row-${rIdx}`;
+                    if (hId === params.sourceHandle) {
+                      updated = true;
+                      return {
+                        ...row,
+                        id: `step:${params.target}`,
+                      };
+                    }
+                    return row;
+                  });
+                }
+                return sec;
+              });
+            }
+
+            if (updated) {
+              return {
+                ...s,
+                buttons_config: configObj,
+              };
+            }
+          }
+
           return { ...s, next_step_id: params.target };
         }
         return s;

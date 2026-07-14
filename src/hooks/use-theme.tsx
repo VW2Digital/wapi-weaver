@@ -12,6 +12,7 @@ type Ctx = {
 const ThemeContext = createContext<Ctx | undefined>(undefined);
 
 function getSystemTheme(): Theme {
+  if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
@@ -41,6 +42,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isSystem) return;
+    if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent) => setThemeState(e.matches ? "dark" : "light");
     mq.addEventListener("change", handler);

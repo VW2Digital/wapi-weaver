@@ -41,6 +41,11 @@ services:
       - "3003:3000"
     env_file:
       - .env
+    environment:
+      # Sobrescreve os valores do .env para usar os hostnames corretos
+      # dentro da rede Docker (nome dos serviços, não localhost)
+      DB_HOST: banco-mysql
+      REDIS_HOST: redis
     volumes:
       - wapi_weaver_uploads:/app/public/uploads
     depends_on:

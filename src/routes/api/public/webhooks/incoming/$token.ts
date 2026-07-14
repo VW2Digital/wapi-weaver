@@ -223,6 +223,15 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             });
             await incrementIncomingWebhookStats(webhook.id, contact.created, contact.id);
 
+            try {
+              const { triggerWebhookBotFlow } = await import("@/lib/botflow-executor.server");
+              triggerWebhookBotFlow(webhook.tenant_id, contact.id, body).catch((err) => {
+                console.error("[Webhook Trigger] Error calling triggerWebhookBotFlow:", err);
+              });
+            } catch (err) {
+              console.error("[Webhook Trigger] Error importing triggerWebhookBotFlow:", err);
+            }
+
             return new Response(
               JSON.stringify({
                 ok: true,

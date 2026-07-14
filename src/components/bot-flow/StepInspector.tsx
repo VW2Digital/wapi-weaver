@@ -54,6 +54,9 @@ export function StepInspector({
     return newId;
   };
 
+  const generateHandleId = (prefix: string) =>
+    `${prefix}_${Math.random().toString(36).substring(2, 10)}`;
+
   const getStepTitle = (step: any) => {
     if (!step) return "Passo";
     if (step.trigger_type === "start") return "Início";
@@ -304,7 +307,10 @@ export function StepInspector({
                 size="sm"
                 className="w-full"
                 onClick={() => {
-                  const newBtns = [...buttons, { type: "reply", reply: { id: "", title: "" } }];
+                  const newBtns = [
+                    ...buttons,
+                    { type: "reply", reply: { id: "", title: "" }, handleId: generateHandleId("btn") },
+                  ];
                   updateConfig({ ...config, action: { ...config.action, buttons: newBtns } });
                 }}
               >
@@ -526,7 +532,12 @@ export function StepInspector({
                     onClick={() => {
                       const newSecs = [...sections];
                       if (!newSecs[secIdx].rows) newSecs[secIdx].rows = [];
-                      newSecs[secIdx].rows.push({ id: "", title: "", description: "" });
+                      newSecs[secIdx].rows.push({
+                        id: "",
+                        title: "",
+                        description: "",
+                        handleId: generateHandleId("row"),
+                      });
                       updateConfig({ ...config, action: { ...config.action, sections: newSecs } });
                     }}
                   >
@@ -821,6 +832,7 @@ export function StepInspector({
               <SelectItem value="keyword">Palavra-chave</SelectItem>
               <SelectItem value="button">Resposta de Botão / Lista</SelectItem>
               <SelectItem value="inactivity">Inatividade</SelectItem>
+              <SelectItem value="webhook">Gatilho por Webhook</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -852,6 +864,99 @@ export function StepInspector({
               onChange={(e) => handleUpdateStep("trigger_value", e.target.value)}
               placeholder="Ex: 30"
             />
+          </div>
+        )}
+
+        {selectedStep.trigger_type === "webhook" && (
+          <div className="space-y-3 border rounded-md p-3 bg-muted/20">
+            <Label className="text-xs font-semibold">Condições do Webhook (AND)</Label>
+            {(() => {
+              let conditions: any[] = [];
+              try {
+                conditions = typeof selectedStep.trigger_value === "string"
+                  ? JSON.parse(selectedStep.trigger_value || "[]")
+                  : selectedStep.trigger_value || [];
+                if (!Array.isArray(conditions)) conditions = [];
+              } catch (e) {
+                conditions = [];
+              }
+
+              const updateConditions = (newConds: any[]) => {
+                handleUpdateStep("trigger_value", JSON.stringify(newConds));
+              };
+
+              return (
+                <div className="space-y-2">
+                  {conditions.map((cond: any, idx: number) => (
+                    <div key={idx} className="flex gap-1.5 items-center bg-background p-1.5 border rounded-md">
+                      <Input
+                        placeholder="Campo"
+                        className="text-[10px] h-7 px-1.5 flex-1"
+                        value={cond.field || ""}
+                        onChange={(e) => {
+                          const newConds = [...conditions];
+                          newConds[idx] = { ...cond, field: e.target.value };
+                          updateConditions(newConds);
+                        }}
+                      />
+                      <Select
+                        value={cond.operator || "equals"}
+                        onValueChange={(v) => {
+                          const newConds = [...conditions];
+                          newConds[idx] = { ...cond, operator: v };
+                          updateConditions(newConds);
+                        }}
+                      >
+                        <SelectTrigger className="text-[10px] h-7 w-20 px-1 shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="equals">Igual</SelectItem>
+                          <SelectItem value="contains">Contém</SelectItem>
+                          <SelectItem value="exists">Existe</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {cond.operator !== "exists" && (
+                        <Input
+                          placeholder="Valor"
+                          className="text-[10px] h-7 px-1.5 flex-1"
+                          value={cond.value || ""}
+                          onChange={(e) => {
+                            const newConds = [...conditions];
+                            newConds[idx] = { ...cond, value: e.target.value };
+                            updateConditions(newConds);
+                          }}
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10 shrink-0 h-6 w-6"
+                        onClick={() => {
+                          const newConds = conditions.filter((_, i) => i !== idx);
+                          updateConditions(newConds);
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs h-7"
+                    onClick={() => {
+                      const newConds = [...conditions, { field: "", operator: "equals", value: "" }];
+                      updateConditions(newConds);
+                    }}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1 inline-block" /> Adicionar Condição
+                  </Button>
+                </div>
+              );
+            })()}
           </div>
         )}
 

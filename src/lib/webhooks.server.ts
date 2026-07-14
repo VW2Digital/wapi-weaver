@@ -387,3 +387,35 @@ export async function emitEvent(
     console.error("[Webhook] Error emitting event:", err);
   }
 }
+
+export function matchWebhookPayload(payload: Record<string, any>, conditions: any[]): boolean {
+  if (!Array.isArray(conditions) || conditions.length === 0) return false;
+
+  for (const cond of conditions) {
+    const { field, operator, value } = cond;
+    if (!field) return false;
+
+    const rawVal = resolveDotPath(payload, field);
+
+    switch (operator) {
+      case "equals": {
+        if (rawVal === undefined || rawVal === null) return false;
+        if (String(rawVal).toLowerCase() !== String(value).toLowerCase()) return false;
+        break;
+      }
+      case "contains": {
+        if (rawVal === undefined || rawVal === null) return false;
+        if (!String(rawVal).toLowerCase().includes(String(value).toLowerCase())) return false;
+        break;
+      }
+      case "exists": {
+        if (rawVal === undefined || rawVal === null || String(rawVal).trim() === "") return false;
+        break;
+      }
+      default:
+        return false;
+    }
+  }
+
+  return true;
+}

@@ -261,10 +261,11 @@ export function CustomNode({ data, selected }: any) {
               {buttons.map((btn: any, idx: number) => {
                 const title = btn.reply?.title || `Botão ${idx + 1}`;
                 const dest = getTargetLabel(btn.reply?.id);
+                const handleId = btn.handleId || btn.reply?.id || `btn-${idx}`;
                 return (
                   <div
                     key={idx}
-                    className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm"
+                    className="bg-background border rounded px-2 py-1 text-[11px] flex items-center justify-between shadow-sm relative"
                   >
                     <span className="font-medium truncate">{title}</span>
                     {dest && (
@@ -272,6 +273,13 @@ export function CustomNode({ data, selected }: any) {
                         → {dest}
                       </span>
                     )}
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={handleId}
+                      style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                      className="bg-primary hover:scale-125 transition-transform"
+                    />
                   </div>
                 );
               })}
@@ -300,10 +308,11 @@ export function CustomNode({ data, selected }: any) {
                   )}
                   {(sec.rows || []).map((row: any, rowIdx: number) => {
                     const dest = getTargetLabel(row.id);
+                    const handleId = row.handleId || row.id || `row-${rowIdx}`;
                     return (
                       <div
                         key={rowIdx}
-                        className="bg-background border border-border/80 rounded px-2 py-0.5 text-[10px] flex items-center justify-between"
+                        className="bg-background border border-border/80 rounded px-2 py-0.5 text-[10px] flex items-center justify-between relative"
                       >
                         <span className="font-medium truncate">{row.title || "Item"}</span>
                         {dest && (
@@ -311,6 +320,13 @@ export function CustomNode({ data, selected }: any) {
                             → {dest}
                           </span>
                         )}
+                        <Handle
+                          type="source"
+                          position={Position.Right}
+                          id={handleId}
+                          style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                          className="bg-teal-500 hover:scale-125 transition-transform"
+                        />
                       </div>
                     );
                   })}
@@ -448,7 +464,9 @@ export function CustomNode({ data, selected }: any) {
           );
         })()}
 
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary" />
+      {!["buttons", "list"].includes(step.message_type) && (
+        <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary" />
+      )}
     </div>
   );
 }
