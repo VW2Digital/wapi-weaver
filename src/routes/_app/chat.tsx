@@ -3076,16 +3076,16 @@ function ChatPage() {
           __html: `
         /* Estilos dos Balões estilo WhatsApp */
         .wa-bubble-outgoing {
-          background-color: #1e293b !important;
-          color: #f8fafc !important;
-          border: 1px solid #334155 !important;
-          border-radius: 12px !important;
-          position: relative !important;
-        }
-        .light .wa-bubble-outgoing {
           background-color: #f8fafc !important;
           color: #0f172a !important;
           border: 1px solid #e2e8f0 !important;
+          border-radius: 12px !important;
+          position: relative !important;
+        }
+        .dark .wa-bubble-outgoing {
+          background-color: #1e293b !important;
+          color: #f8fafc !important;
+          border: 1px solid #334155 !important;
         }
 
         .wa-bubble-incoming {
@@ -3097,31 +3097,37 @@ function ChatPage() {
         }
 
         .wa-quote-reply-outgoing {
-          background-color: rgba(0, 0, 0, 0.15) !important;
+          background-color: rgba(0, 0, 0, 0.05) !important;
           border-left: 4px solid currentColor !important;
           border-radius: 4px !important;
           opacity: 0.9;
         }
+        .dark .wa-quote-reply-outgoing {
+          background-color: rgba(0, 0, 0, 0.15) !important;
+        }
         
         .wa-quote-reply-incoming {
-          background-color: rgba(255, 255, 255, 0.05) !important;
-          border-left: 4px solid #00a884 !important;
-          border-radius: 4px !important;
-        }
-        .light .wa-quote-reply-incoming {
           background-color: rgba(0, 0, 0, 0.05) !important;
           border-left: 4px solid #008069 !important;
+          border-radius: 4px !important;
+        }
+        .dark .wa-quote-reply-incoming {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+          border-left: 4px solid #00a884 !important;
         }
 
         .wa-button-separator-outgoing {
           border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
         }
-        
-        .wa-button-separator-incoming {
+        .dark .wa-button-separator-outgoing {
           border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
-        .light .wa-button-separator-incoming {
+        
+        .wa-button-separator-incoming {
           border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+        }
+        .dark .wa-button-separator-incoming {
+          border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
         
         .wa-card-button-outgoing {
@@ -4250,7 +4256,7 @@ function ChatPage() {
                           channel,
                         });
                       }}
-                      className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-neutral-800 text-zinc-400 hover:text-zinc-200 relative"
+                      className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground relative"
                       title={
                         selectedContact.bot_active
                           ? "Desativar Inteligência / Chatbot"
@@ -4261,9 +4267,9 @@ function ChatPage() {
                         <Bot className="h-5 w-5 text-emerald-500" />
                       ) : (
                         <div className="relative h-5 w-5 flex items-center justify-center">
-                          <Bot className="h-5 w-5 text-zinc-400 opacity-60" />
+                          <Bot className="h-5 w-5 text-muted-foreground opacity-60" />
                           <svg
-                            className="absolute inset-0 h-5 w-5 text-zinc-400 opacity-60"
+                            className="absolute inset-0 h-5 w-5 text-muted-foreground opacity-60"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -4282,20 +4288,12 @@ function ChatPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 rounded-full cursor-pointer hover:bg-neutral-800/80 text-zinc-400 hover:text-zinc-200"
+                          className="h-8 w-8 rounded-full cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground"
                         >
-                          <MoreVertical className="h-5 w-5 text-zinc-400" />
+                          <MoreVertical className="h-5 w-5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[220px]">
-                        <DropdownMenuItem
-                          onClick={() => setIsQuickOpportunityOpen(true)}
-                          className="cursor-pointer"
-                        >
-                          <Filter className="mr-2.5 h-4 w-4 text-zinc-400" />
-                          <span>Oportunidade Rápida</span>
-                        </DropdownMenuItem>
-
                         <DropdownMenuItem
                           onClick={() => setAssigningContactData(selectedContact)}
                           className="cursor-pointer"
@@ -4313,35 +4311,11 @@ function ChatPage() {
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
-                          onClick={() => setIsInventoryOpen(true)}
-                          className="cursor-pointer"
-                        >
-                          <Package className="mr-2.5 h-4 w-4 text-zinc-400" />
-                          <span>Gerenciar Estoque</span>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
                           onClick={() => setIsMessageSearchOpen(true)}
                           className="cursor-pointer"
                         >
                           <Search className="mr-2.5 h-4 w-4 text-zinc-400" />
                           <span>Buscar Mensagens</span>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          onClick={() => setIsFollowUpOpen(true)}
-                          className="cursor-pointer"
-                        >
-                          <Clock className="mr-2.5 h-4 w-4 text-zinc-400" />
-                          <span>Agendar Follow-up</span>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          onClick={() => setIsLeadHistoryOpen(true)}
-                          className="cursor-pointer"
-                        >
-                          <History className="mr-2.5 h-4 w-4 text-zinc-400" />
-                          <span>Histórico do Lead</span>
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
@@ -4386,17 +4360,17 @@ function ChatPage() {
 
                 {/* Message Search Bar */}
                 {isMessageSearchOpen && (
-                  <div className="px-4 py-2.5 bg-neutral-950 border-b border-zinc-800 flex items-center gap-2 animate-in slide-in-from-top duration-200">
-                    <Search className="h-3.5 w-3.5 text-zinc-400" />
+                  <div className="px-4 py-2.5 bg-background border-b border-border flex items-center gap-2 animate-in slide-in-from-top duration-200">
+                    <Search className="h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       placeholder="Buscar nas mensagens deste chat..."
                       value={messageSearchQuery}
                       onChange={(e) => setMessageSearchQuery(e.target.value)}
-                      className="flex-1 h-8 text-xs bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-zinc-800 dark:text-zinc-200 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-1"
+                      className="flex-1 h-8 text-xs bg-background border-input text-foreground focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-1"
                       autoFocus
                     />
                     {messageSearchQuery && (
-                      <span className="text-[10px] text-zinc-400 font-semibold px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded">
+                      <span className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 bg-muted border border-border rounded">
                         {
                           displayMessages.filter((m) =>
                             (m.body || "").toLowerCase().includes(messageSearchQuery.toLowerCase()),
@@ -4408,7 +4382,7 @@ function ChatPage() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7 text-zinc-400 hover:text-zinc-200 hover:bg-neutral-800 rounded-full"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent rounded-full"
                       onClick={() => {
                         setMessageSearchQuery("");
                         setIsMessageSearchOpen(false);

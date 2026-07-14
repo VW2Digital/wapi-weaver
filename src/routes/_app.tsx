@@ -87,10 +87,10 @@ type NavItem = NavChildItem | NavParentItem;
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/chat", label: "Chat Direto", icon: MessageCircle },
-  { to: "/contacts", label: "Contatos", icon: Users },
+  { to: "/contacts/", label: "Contatos", icon: Users },
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/campaigns", label: "Campanhas", icon: Send },
+  { to: "/campaigns/", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
   {
     to: "/automacoes",
@@ -117,7 +117,18 @@ const NAV: NavItem[] = [
   },
 ];
 
-const ADMIN_ONLY_PATHS = new Set(["/users", "/audit", "/webhook-events", "/billing"]);
+const ADMIN_ONLY_PATHS = new Set([
+  "/users", 
+  "/audit", 
+  "/webhook-events", 
+  "/billing", 
+  "/settings", 
+  "/whatsapp-business-profile", 
+  "/automacoes", 
+  "/bot", 
+  "/ai-agent", 
+  "/webhooks"
+]);
 
 function AppLayout() {
   const { user, loading } = useAuth();
@@ -175,17 +186,12 @@ function AppLayout() {
   const navItems = useMemo(() => {
     const base: NavItem[] = [...NAV];
     if (licenseRoleQuery.data?.role === "panel" && licenseRoleQuery.data?.isAdmin) {
-      const settingsIdx = base.findIndex((item) => item.to === "/settings");
       const panelItem: NavChildItem = {
-        to: "/licenses",
+        to: "/licenses/",
         label: "Gerenciamento de Clientes",
         icon: Users,
       };
-      if (settingsIdx !== -1) {
-        base.splice(settingsIdx, 0, panelItem);
-      } else {
-        base.push(panelItem);
-      }
+      base.push(panelItem);
     }
     return base;
   }, [licenseRoleQuery.data?.role, licenseRoleQuery.data?.isAdmin]);
@@ -224,15 +230,15 @@ function AppLayout() {
   const GROUP_ORDER: Record<string, number> = {
     "/dashboard": 0,
     "/chat": 0,
-    "/contacts": 1,
+    "/contacts/": 1,
     "/lists": 1,
     "/templates": 2,
-    "/campaigns": 2,
+    "/campaigns/": 2,
     "/crm": 3,
     "/automacoes": 4,
     "/billing": 5,
-    "/licenses": 5,
     "/settings": 6,
+    "/licenses/": 7,
   };
 
   const sidebarGroups = useMemo(() => {
@@ -267,38 +273,41 @@ function AppLayout() {
 
   const handleNavigate = useCallback(
     (path: string) => {
-      if (path === "/settings") {
+      const p = path.endsWith("/") && path !== "/" ? path.slice(0, -1) : path;
+      if (p === "/settings") {
         router.navigate({ to: "/settings", search: { s: undefined } });
-      } else if (path === "/chat") {
+      } else if (p === "/chat") {
         router.navigate({ to: "/chat" });
-      } else if (path === "/dashboard") {
+      } else if (p === "/dashboard") {
         router.navigate({ to: "/dashboard" });
-      } else if (path === "/contacts") {
-        router.navigate({ to: "/contacts" });
-      } else if (path === "/lists") {
+      } else if (p === "/contacts") {
+        router.navigate({ to: "/contacts/" });
+      } else if (p === "/lists") {
         router.navigate({ to: "/lists" });
-      } else if (path === "/templates") {
+      } else if (p === "/templates") {
         router.navigate({ to: "/templates" });
-      } else if (path === "/campaigns") {
-        router.navigate({ to: "/campaigns" });
-      } else if (path === "/crm") {
+      } else if (p === "/campaigns") {
+        router.navigate({ to: "/campaigns/" });
+      } else if (p === "/crm") {
         router.navigate({ to: "/crm" });
-      } else if (path === "/bot") {
+      } else if (p === "/bot") {
         router.navigate({ to: "/bot" });
-      } else if (path === "/ai-agent") {
+      } else if (p === "/ai-agent") {
         router.navigate({ to: "/ai-agent" });
-      } else if (path === "/webhooks") {
+      } else if (p === "/webhooks") {
         router.navigate({ to: "/webhooks" });
-      } else if (path === "/billing") {
+      } else if (p === "/billing") {
         router.navigate({ to: "/billing" });
-      } else if (path === "/whatsapp-business-profile") {
+      } else if (p === "/whatsapp-business-profile") {
         router.navigate({ to: "/whatsapp-business-profile" });
-      } else if (path === "/users") {
+      } else if (p === "/users") {
         router.navigate({ to: "/users" });
-      } else if (path === "/audit") {
+      } else if (p === "/audit") {
         router.navigate({ to: "/audit" });
-      } else if (path === "/webhook-events") {
+      } else if (p === "/webhook-events") {
         router.navigate({ to: "/webhook-events" });
+      } else if (p === "/licenses") {
+        router.navigate({ to: "/licenses/" });
       } else {
         router.navigate({ to: "/settings", search: { s: undefined } });
       }
@@ -430,7 +439,7 @@ function AppLayout() {
                   <ChevronUp className="ml-auto h-4 w-4 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" sideOffset={16} className="w-64 z-[100]">
+            <DropdownMenuContent side="top" align="center" sideOffset={4} className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg z-[100]">
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium truncate">{user.email?.split("@")?.[0]}</span>

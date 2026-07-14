@@ -27,7 +27,9 @@ export function PageHeaderProvider({ children }: { children: ReactNode }) {
         {(config.title || config.subtitle) && (
           <PageHeader title={config.title} subtitle={config.subtitle} action={config.action} />
         )}
-        {children}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {children}
+        </div>
       </PageHeaderDispatchContext.Provider>
     </PageHeaderStateContext.Provider>
   );

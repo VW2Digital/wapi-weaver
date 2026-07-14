@@ -1919,6 +1919,224 @@ export async function ensureDatabaseSchema() {
     // user_id on contact_activities
     await ensureColumnExists(connection, "contact_activities", "user_id", "VARCHAR(36) NULL");
 
+    // ── Mercado Pago Billing Tables ──
+    await ensureTableExists(
+      connection,
+      "payment_gateway_settings",
+      `CREATE TABLE IF NOT EXISTS payment_gateway_settings (
+        tenant_id VARCHAR(36) NOT NULL PRIMARY KEY,
+        environment ENUM('sandbox', 'production') NOT NULL DEFAULT 'sandbox',
+        checkout_mode ENUM('transparent', 'redirect') NOT NULL DEFAULT 'redirect',
+        sandbox_access_token TEXT NULL,
+        sandbox_public_key TEXT NULL,
+        sandbox_client_id VARCHAR(255) NULL,
+        sandbox_client_secret TEXT NULL,
+        production_access_token TEXT NULL,
+        production_public_key TEXT NULL,
+        production_client_id VARCHAR(255) NULL,
+        production_client_secret TEXT NULL,
+        webhook_secret TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureTableExists(
+      connection,
+      "billing_plans",
+      `CREATE TABLE IF NOT EXISTS billing_plans (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+        billing_interval ENUM('day', 'week', 'month', 'year') NOT NULL DEFAULT 'month',
+        billing_interval_count INT NOT NULL DEFAULT 1,
+        duration_days INT NOT NULL,
+        features JSON NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureTableExists(
+      connection,
+      "subscriptions",
+      `CREATE TABLE IF NOT EXISTS subscriptions (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL UNIQUE,
+        customer_id VARCHAR(36) NOT NULL,
+        plan_id VARCHAR(36) NOT NULL,
+        status ENUM('trial', 'active', 'expiring', 'pending_payment', 'past_due', 'suspended', 'cancelled') NOT NULL DEFAULT 'trial',
+        starts_at DATETIME NOT NULL,
+        expires_at DATETIME NOT NULL,
+        grace_period_ends_at DATETIME NULL,
+        cancelled_at DATETIME NULL,
+        last_payment_at DATETIME NULL,
+        next_billing_at DATETIME NULL,
+        auto_renew BOOLEAN NOT NULL DEFAULT false,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (plan_id) REFERENCES billing_plans(id) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureTableExists(
+      connection,
+      "billing_invoices",
+      `CREATE TABLE IF NOT EXISTS billing_invoices (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        customer_id VARCHAR(36) NOT NULL,
+        subscription_id VARCHAR(36) NOT NULL,
+        plan_id VARCHAR(36) NOT NULL,
+        invoice_number VARCHAR(50) NOT NULL UNIQUE,
+        description TEXT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+        status ENUM('draft', 'pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded') NOT NULL DEFAULT 'pending',
+        due_at DATETIME NOT NULL,
+        paid_at DATETIME NULL,
+        cancelled_at DATETIME NULL,
+        external_reference VARCHAR(255) NOT NULL UNIQUE,
+        metadata JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE,
+        FOREIGN KEY (plan_id) REFERENCES billing_plans(id) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureTableExists(
+      connection,
+      "billing_payments",
+      `CREATE TABLE IF NOT EXISTS billing_payments (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        customer_id VARCHAR(36) NOT NULL,
+        subscription_id VARCHAR(36) NOT NULL,
+        invoice_id VARCHAR(36) NOT NULL,
+        provider VARCHAR(50) NOT NULL DEFAULT 'mercadopago',
+        provider_payment_id VARCHAR(255) NULL,
+        provider_order_id VARCHAR(255) NULL,
+        provider_preference_id VARCHAR(255) NULL,
+        external_reference VARCHAR(255) NOT NULL,
+        payment_method VARCHAR(50) NULL,
+        payment_type VARCHAR(50) NULL,
+        status VARCHAR(50) NOT NULL,
+        status_detail VARCHAR(255) NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+        installments INT NOT NULL DEFAULT 1,
+        payer_email VARCHAR(255) NULL,
+        approved_at DATETIME NULL,
+        expires_at DATETIME NULL,
+        raw_response JSON NULL,
+        environment ENUM('sandbox', 'production') NOT NULL DEFAULT 'sandbox',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE,
+        FOREIGN KEY (invoice_id) REFERENCES billing_invoices(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureIndexExists(
+      connection,
+      "billing_payments",
+      "uq_provider_payment_env",
+      "CREATE UNIQUE INDEX uq_provider_payment_env ON billing_payments(provider_payment_id, provider, environment)"
+    );
+
+    await ensureTableExists(
+      connection,
+      "webhook_events",
+      `CREATE TABLE IF NOT EXISTS webhook_events (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        provider VARCHAR(50) NOT NULL,
+        environment ENUM('sandbox', 'production') NOT NULL DEFAULT 'sandbox',
+        event_id VARCHAR(255) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        resource_id VARCHAR(255) NOT NULL,
+        request_id VARCHAR(255) NULL,
+        signature VARCHAR(255) NULL,
+        payload JSON NULL,
+        status ENUM('received', 'processing', 'processed', 'ignored', 'failed') NOT NULL DEFAULT 'received',
+        attempts INT NOT NULL DEFAULT 0,
+        error_message TEXT NULL,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        processed_at DATETIME NULL,
+        UNIQUE KEY uq_webhook_event_provider_env (event_id, provider, environment)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureTableExists(
+      connection,
+      "subscription_events",
+      `CREATE TABLE IF NOT EXISTS subscription_events (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        subscription_id VARCHAR(36) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        previous_status VARCHAR(50) NULL,
+        new_status VARCHAR(50) NOT NULL,
+        invoice_id VARCHAR(36) NULL,
+        payment_id VARCHAR(36) NULL,
+        metadata JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by VARCHAR(36) NULL,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    await ensureTableExists(
+      connection,
+      "notifications",
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        action_url VARCHAR(255) NULL,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        unique_key VARCHAR(255) NULL UNIQUE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        read_at DATETIME NULL,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+
+    // Seeding default plans
+    const [planRows] = await connection.query("SELECT COUNT(*) AS count FROM billing_plans");
+    if (planRows[0].count === 0) {
+      logSchema("Semeando planos padrão em billing_plans...");
+      const plans = [
+        { id: "plan-mensal", name: "Plano Mensal", description: "Faturamento mensal recorrente", price: 99.90, billing_interval: "month", billing_interval_count: 1, duration_days: 30 },
+        { id: "plan-trimestral", name: "Plano Trimestral", description: "Faturamento a cada 3 meses", price: 269.90, billing_interval: "month", billing_interval_count: 3, duration_days: 90 },
+        { id: "plan-semestral", name: "Plano Semestral", description: "Faturamento a cada 6 meses", price: 499.90, billing_interval: "month", billing_interval_count: 6, duration_days: 180 },
+        { id: "plan-anual", name: "Plano Anual", description: "Faturamento anual recorrente", price: 899.90, billing_interval: "year", billing_interval_count: 1, duration_days: 365 }
+      ];
+      for (const p of plans) {
+        await connection.query(
+          `INSERT INTO billing_plans (id, name, description, price, currency, billing_interval, billing_interval_count, duration_days, features, is_active)
+           VALUES (?, ?, ?, ?, 'BRL', ?, ?, ?, '{}', true)`,
+          [p.id, p.name, p.description, p.price, p.billing_interval, p.billing_interval_count, p.duration_days]
+        );
+      }
+      logSchema("Planos semeados com sucesso.");
+    }
+
     logSchema("Schema validado com sucesso.");
   } finally {
     await connection.end();

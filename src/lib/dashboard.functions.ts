@@ -109,6 +109,9 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       novosContatosHoje,
       avgWaitSec,
       avgConversationSec,
+      sessionsRows,
+      aiAgentRows,
+      usersRows
     ] = await Promise.all([
       countBefore(effectiveUserId, "contacts", now.toISOString()),
       countBefore(effectiveUserId, "contacts", sevenAgo.toISOString()),
@@ -124,7 +127,14 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       countContactsCreatedSince(effectiveUserId, startOfToday.toISOString()),
       getAverageWaitTime(effectiveUserId, startOfToday.toISOString()),
       getAverageConversationTime(effectiveUserId, startOfToday.toISOString()),
+      db.query("SELECT id FROM wapi_sessions WHERE user_id = ? AND status = 'CONNECTED' LIMIT 1", [effectiveUserId]),
+      db.query("SELECT id FROM ai_agent_settings WHERE user_id = ? AND is_active = 1 LIMIT 1", [effectiveUserId]),
+      db.query("SELECT COUNT(*) as cnt FROM users WHERE tenant_id = ?", [effectiveUserId])
     ]);
+
+    const hasSessionConnected = (sessionsRows as any[]).length > 0;
+    const hasAiAgentActive = (aiAgentRows as any[]).length > 0;
+    const hasTeamMembers = ((usersRows as any[])[0]?.cnt || 0) > 0;
 
     return {
       contacts: { current: contactsNow, previous: contactsPrev },
@@ -139,5 +149,55 @@ export const getDashboardStats = createServerFn({ method: "GET" })
         tmConversa: formatDuration(avgConversationSec),
         tmEspera: formatDuration(avgWaitSec),
       },
+      onboarding: {
+        hasSessionConnected,
+        hasAiAgentActive,
+        hasTeamMembers,
+      }
     };
   });
+
+export const getMasterDashboardStats = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { data: rolesData, error: rolesErr } = await context.db
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    
+    const roles = (rolesData ?? []).map((r: any) => r.role);
+    if (!roles.includes("adminmaster") && !roles.includes("owner")) {
+      throw new Error("Acesso negado.");
+    }
+
+    // Calcular Receita (MRR) baseada em planos das licenças ativas
+    const licensesRows: any[] = await db.query(
+      `SELECT l.id, l.status, l.ai_tokens_used, p.price_monthly, p.max_users
+       FROM licenses l
+       LEFT JOIN subscription_plans p ON l.plan_id = p.id`
+    ) as any[];
+
+    let mrr = 0;
+    let activeLicenses = 0;
+    let totalTokens = 0;
+
+    for (const lic of licensesRows) {
+      totalTokens += (lic.ai_tokens_used || 0);
+      if (lic.status === "active") {
+        activeLicenses++;
+        mrr += Number(lic.price_monthly || 0);
+      }
+    }
+
+    const [usersRes]: any = await db.query("SELECT COUNT(*) as cnt FROM users");
+    const totalUsers = usersRes[0].cnt;
+
+    return {
+      mrr,
+      activeLicenses,
+      totalLicenses: licensesRows.length,
+      totalTokens,
+      totalUsers,
+    };
+  });
+

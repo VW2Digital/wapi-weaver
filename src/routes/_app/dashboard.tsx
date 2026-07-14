@@ -4,8 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
-import { getDashboardStats } from "@/lib/dashboard.functions";
-import { getLicenseStatus } from "@/lib/admin.functions";
+import { getDashboardStats, getMasterDashboardStats } from "@/lib/dashboard.functions";
+import { getLicenseStatus, getCurrentUserRoles } from "@/lib/admin.functions";
 import { cn } from "@/lib/utils";
 import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 import { Card } from "@/components/ui/card";
@@ -106,12 +106,19 @@ function Dashboard() {
   const fetchTemplates = useServerFn(listTemplates);
   const fetchStats = useServerFn(getDashboardStats);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
+  const fetchRoles = useServerFn(getCurrentUserRoles);
+  const fetchMasterStats = useServerFn(getMasterDashboardStats);
 
-  const c = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns() });
-  const ct = useQuery({ queryKey: ["contacts"], queryFn: () => fetchContacts() });
-  const t = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates() });
-  const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats() });
-  const lic = useQuery({ queryKey: ["license-status"], queryFn: () => fetchLicenseStatus() });
+  const rolesQuery = useQuery({ queryKey: ["user-roles"], queryFn: () => fetchRoles() });
+  const isAdmin = rolesQuery.data?.isAdmin;
+  const isMaster = rolesQuery.data?.roles?.includes("adminmaster");
+
+  const c = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns(), enabled: !isMaster });
+  const ct = useQuery({ queryKey: ["contacts"], queryFn: () => fetchContacts(), enabled: !isMaster });
+  const t = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates(), enabled: !isMaster });
+  const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats(), enabled: !isMaster });
+  const masterStats = useQuery({ queryKey: ["master-stats"], queryFn: () => fetchMasterStats(), enabled: !!isMaster });
+  const lic = useQuery({ queryKey: ["license-status"], queryFn: () => fetchLicenseStatus(), enabled: !isMaster });
   const isLicenseValid = true;
 
   const totals = (c.data ?? []).reduce(
@@ -254,6 +261,54 @@ function Dashboard() {
     return { delta, raw: current - previous, isNew: false };
   }
 
+  const [activeTab, setActiveTab] = useState<"master" | "metrics">("master");
+
+  const renderMasterView = () => {
+    const m = masterStats.data;
+    return (
+      <div className="flex-1 overflow-auto bg-muted/20">
+        <div className="mx-auto w-full max-w-7xl p-8 space-y-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">Master Dashboard</h1>
+            <p className="text-muted-foreground">Visão geral do sistema e faturamento (Stripe).</p>
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="p-6 flex flex-col gap-4 bg-primary/5 border-primary/20">
+              <div className="flex items-center gap-2 text-primary font-semibold">
+                <TrendingUp className="h-5 w-5" /> MRR (Receita)
+              </div>
+              <div className="text-4xl font-bold text-primary">
+                R$ {((m?.mrr || 0) / 100).toFixed(2).replace(".", ",")}
+              </div>
+            </Card>
+            
+            <Card className="p-6 flex flex-col gap-4">
+              <div className="flex items-center gap-2 text-muted-foreground font-semibold">
+                <CheckCircle2 className="h-5 w-5" /> Licenças Ativas
+              </div>
+              <div className="text-3xl font-bold">{m?.activeLicenses || 0} <span className="text-lg text-muted-foreground font-normal">/ {m?.totalLicenses || 0}</span></div>
+            </Card>
+
+            <Card className="p-6 flex flex-col gap-4">
+              <div className="flex items-center gap-2 text-muted-foreground font-semibold">
+                <Users className="h-5 w-5" /> Total Usuários
+              </div>
+              <div className="text-3xl font-bold">{m?.totalUsers || 0}</div>
+            </Card>
+
+            <Card className="p-6 flex flex-col gap-4">
+              <div className="flex items-center gap-2 text-muted-foreground font-semibold">
+                <Activity className="h-5 w-5" /> IA Tokens (Geral)
+              </div>
+              <div className="text-3xl font-bold">{(m?.totalTokens || 0).toLocaleString()}</div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const stats = [
     {
       label: "Contatos",
@@ -324,12 +379,10 @@ function Dashboard() {
     };
   });
 
-  return (
-    <div className="flex h-full flex-col overflow-hidden">
-
-
+  const renderMetricsView = () => (
+    <>
       <div className="flex-1 overflow-y-auto">
-        {!isLicenseValid && (
+        {!isLicenseValid && isAdmin && (
           <div className="px-4 pt-4 sm:px-6">
             {(() => {
               const graceDaysRemaining = Number(lic.data?.graceDaysRemaining ?? 3);
@@ -379,6 +432,47 @@ function Dashboard() {
                 </Alert>
               );
             })()}
+          </div>
+        )}
+
+        {isAdmin && !isMaster && s.data?.onboarding && (!s.data.onboarding.hasSessionConnected || !s.data.onboarding.hasAiAgentActive || !s.data.onboarding.hasTeamMembers) && (
+          <div className="px-4 pt-4 sm:px-6">
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-primary" /> Passos Iniciais
+                </CardTitle>
+                <CardDescription>Conclua estas configurações para extrair o máximo do sistema.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-3">
+                <Link to="/whatsapp-business-profile" className={cn("p-4 rounded-lg border transition-colors hover:bg-muted/50", s.data.onboarding.hasSessionConnected ? "bg-success/10 border-success/20 opacity-60" : "bg-background border-border")}>
+                  <div className="flex items-start justify-between mb-2">
+                    <MessageCircle className={cn("h-5 w-5", s.data.onboarding.hasSessionConnected ? "text-success" : "text-primary")} />
+                    {s.data.onboarding.hasSessionConnected && <CheckCircle2 className="h-4 w-4 text-success" />}
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1">Conectar WhatsApp</h3>
+                  <p className="text-xs text-muted-foreground">Escaneie o QR Code para conectar seu número.</p>
+                </Link>
+                
+                <Link to="/ai-agent" className={cn("p-4 rounded-lg border transition-colors hover:bg-muted/50", s.data.onboarding.hasAiAgentActive ? "bg-success/10 border-success/20 opacity-60" : "bg-background border-border")}>
+                  <div className="flex items-start justify-between mb-2">
+                    <BrainCircuit className={cn("h-5 w-5", s.data.onboarding.hasAiAgentActive ? "text-success" : "text-primary")} />
+                    {s.data.onboarding.hasAiAgentActive && <CheckCircle2 className="h-4 w-4 text-success" />}
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1">Ativar Inteligência Artificial</h3>
+                  <p className="text-xs text-muted-foreground">Configure o prompt e ligue o atendimento automático.</p>
+                </Link>
+                
+                <Link to="/users" className={cn("p-4 rounded-lg border transition-colors hover:bg-muted/50", s.data.onboarding.hasTeamMembers ? "bg-success/10 border-success/20 opacity-60" : "bg-background border-border")}>
+                  <div className="flex items-start justify-between mb-2">
+                    <Users className={cn("h-5 w-5", s.data.onboarding.hasTeamMembers ? "text-success" : "text-primary")} />
+                    {s.data.onboarding.hasTeamMembers && <CheckCircle2 className="h-4 w-4 text-success" />}
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1">Adicionar Equipe</h3>
+                  <p className="text-xs text-muted-foreground">Convide atendentes para operar o sistema.</p>
+                </Link>
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -690,6 +784,41 @@ function Dashboard() {
           </Card>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      {isMaster && (
+        <div className="shrink-0 px-4 sm:px-6 pt-4 pb-2 bg-background">
+          <div className="flex gap-1 bg-muted/30 p-1 rounded-full w-fit">
+            <button
+              onClick={() => setActiveTab("master")}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
+                activeTab === "master"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Visão Geral do SaaS
+            </button>
+            <button
+              onClick={() => setActiveTab("metrics")}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
+                activeTab === "metrics"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Métricas de Atendimento
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isMaster && activeTab === "master" ? renderMasterView() : renderMetricsView()}
     </div>
   );
 }

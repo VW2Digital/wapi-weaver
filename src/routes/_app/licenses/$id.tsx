@@ -31,6 +31,7 @@ import {
   updateLicense,
   deleteActivation,
   getLicenseRole,
+  listPlans,
 } from "@/lib/license-admin.functions";
 
 export const Route = createFileRoute("/_app/licenses/$id")({
@@ -48,6 +49,7 @@ function LicenseDetailPage() {
   const updateLicenseMut = useServerFn(updateLicense);
   const deleteActivationMut = useServerFn(deleteActivation);
   const fetchLicenseRole = useServerFn(getLicenseRole);
+  const fetchPlans = useServerFn(listPlans);
 
   const { data: roleData, isLoading: roleLoading } = useQuery({
     queryKey: ["license-role"],
@@ -61,6 +63,13 @@ function LicenseDetailPage() {
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
   });
 
+  const { data: plansData } = useQuery({
+    queryKey: ["subscription-plans"],
+    queryFn: () => fetchPlans({}),
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
+  });
+  const plansList = plansData?.plans || [];
+
   // Edit fields state
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -68,6 +77,7 @@ function LicenseDetailPage() {
   const [status, setStatus] = useState("active");
   const [expiresAt, setExpiresAt] = useState("");
   const [notes, setNotes] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
     if (data?.license) {
@@ -95,6 +105,7 @@ function LicenseDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["license-detail", numericId] });
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
+      setNewPassword("");
       toast.success("Domínio atualizado com sucesso.");
     },
     onError: (err: any) => {
@@ -123,6 +134,7 @@ function LicenseDetailPage() {
       status,
       max_activations: 99,
       expires_at: expiresAt || null,
+      new_password: newPassword,
       notes,
     });
   };
@@ -138,6 +150,23 @@ function LicenseDetailPage() {
       revokeMutation.mutate(actId);
     }
   };
+
+  usePageHeader({
+    title: data?.license?.license_key_preview || "Carregando...",
+    subtitle: data?.license?.client_name ? `Cliente: ${data.license.client_name}` : undefined,
+    action: data?.license ? (
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="capitalize">
+          {data.license.plan}
+        </Badge>
+        <Button variant="outline" size="icon" asChild>
+          <Link to="/licenses">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+    ) : undefined,
+  });
 
   if (roleLoading) {
     return (
@@ -184,34 +213,47 @@ function LicenseDetailPage() {
 
   const { license, activations, logs } = data;
 
-  usePageHeader({
-    title: license.license_key_preview,
-    subtitle: `Cliente: ${license.client_name}`,
-    action: (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="capitalize">
-          {license.plan}
-        </Badge>
-        <Button variant="outline" size="icon" asChild>
-          <Link to="/licenses">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
-    ),
-  });
-
   return (
     <div className="space-y-8 p-6 pb-16">
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Update Form */}
-        <Card className="md:col-span-1 shadow-sm h-fit">
-          <CardHeader>
-            <CardTitle>Editar Propriedades</CardTitle>
-            <CardDescription>Configure as opções de acesso do cliente.</CardDescription>
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Main info card */}
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between pb-4">
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-bold">Configuração da Instância</CardTitle>
+              <CardDescription>
+                Dados básicos para identificação e validade deste acesso.
+              </CardDescription>
+            </div>
+            <Badge variant={status === "active" ? "default" : "destructive"}>
+              {status.toUpperCase()}
+            </Badge>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleUpdate} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Identificador / Domínio</Label>
+                <Input disabled value={data?.license?.license_key_preview || ""} />
+              </div>
+              {data?.license?.stripe_customer_id && (
+                <div className="space-y-2 p-3 bg-primary/5 rounded-md border border-primary/20">
+                  <Label className="flex items-center gap-2 text-primary font-semibold">
+                    <Database className="h-4 w-4" /> Integração Stripe
+                  </Label>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    <div><span className="font-semibold">Customer ID:</span> {data?.license?.stripe_customer_id}</div>
+                    {data?.license?.stripe_subscription_id && <div><span className="font-semibold">Subscription ID:</span> {data?.license?.stripe_subscription_id}</div>}
+                  </div>
+                  <a 
+                    href={`https://dashboard.stripe.com/customers/${data.license.stripe_customer_id}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-xs text-primary font-medium underline mt-2 block"
+                  >
+                    Abrir no Dashboard Stripe
+                  </a>
+                </div>
+              )}
               <div className="grid gap-2">
                 <Label htmlFor="cname">Nome do Cliente</Label>
                 <Input
@@ -253,9 +295,12 @@ function LicenseDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="basic">Básico</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                    {plansList.map((p: any) => (
+                      <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>
+                    ))}
+                    {plansList.length === 0 && (
+                      <SelectItem value="basic">Básico</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -275,7 +320,21 @@ function LicenseDetailPage() {
                 <Input id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 
-              <Button type="submit" className="w-full" disabled={updateMutation.isPending}>
+              <div className="grid gap-2 border-t pt-4 mt-2">
+                <Label htmlFor="newPassword" className="text-muted-foreground">Redefinir Senha (Opcional)</Label>
+                <Input
+                  id="newPassword"
+                  type="text"
+                  placeholder="Deixe em branco para manter"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Se preenchido, irá alterar a senha de login do usuário associado a este e-mail.
+                </p>
+              </div>
+
+              <Button type="submit" className="w-full flex !rounded-md mt-2" disabled={updateMutation.isPending}>
                 {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar Alterações
               </Button>

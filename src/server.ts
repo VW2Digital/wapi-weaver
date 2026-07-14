@@ -332,6 +332,9 @@ async function waitForDatabase(retries = 10, delayMs = 3000): Promise<void> {
 async function runBootSequence() {
   try {
     await waitForDatabase();
+    // Validate database schema on server startup
+    const { ensureDatabaseSchema } = await import("../scripts/ensure-schema.js");
+    await ensureDatabaseSchema();
   } catch (dbErr: any) {
     console.error("[Boot Sequence] Critical: Could not connect to database on startup.", dbErr.message);
     try {
@@ -474,6 +477,36 @@ function startLicenseChecker() {
 }
 
 startLicenseChecker();
+
+// --- Background Billing Expiration Checker ---
+let billingCheckerStarted = false;
+function startBillingChecker() {
+  if (billingCheckerStarted) return;
+  billingCheckerStarted = true;
+  console.log("[Billing] Starting background billing expiration checker (every 24 hours)...");
+  
+  // Run initial check after 15s
+  setTimeout(async () => {
+    try {
+      const { runBillingJob } = await import("./lib/billing-job");
+      await runBillingJob();
+    } catch (e) {
+      console.error("[Billing Job Init Error]", e);
+    }
+  }, 15000);
+
+  // Every 24 hours
+  setInterval(async () => {
+    try {
+      const { runBillingJob } = await import("./lib/billing-job");
+      await runBillingJob();
+    } catch (e) {
+      console.error("[Billing Job Error]", e);
+    }
+  }, 86400000);
+}
+
+startBillingChecker();
 // ----------------------------------
 
 // --- Rate Limiting (in-memory, per-IP sliding window) ---
@@ -627,8 +660,24 @@ export default {
         );
       }
 
-      // Intercept critical APIs if license is invalid
+      // Intercept critical APIs if license is invalid or subscription is expired/suspended
       if (url.pathname.startsWith("/api/whatsapp/")) {
+        const { checkRequestSubscription } = await import("./lib/subscription-middleware");
+        const subCheck = await checkRequestSubscription(request);
+        if (!subCheck.active) {
+          return new Response(
+            JSON.stringify({
+              error: "subscription_required",
+              message: "Sua assinatura está vencida ou suspensa.",
+              billingUrl: "/billing",
+            }),
+            {
+              status: 402,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         const reqHost = request.headers.get("host") || undefined;
         const isLicenseValid = await checkLicense(reqHost);
         if (!isLicenseValid) {
