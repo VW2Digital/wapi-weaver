@@ -36,11 +36,13 @@ import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
 import { Route as AppLicensesIndexRouteImport } from './routes/_app/licenses/index'
 import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts.index'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
+import { Route as FunctionsV1MercadopagoWebhookRouteImport } from './routes/functions/v1/mercadopago-webhook'
 import { Route as ApiWhatsappRegisterRouteImport } from './routes/api/whatsapp/register'
 import { Route as ApiWhatsappMediaUploadRouteImport } from './routes/api/whatsapp/media-upload'
 import { Route as ApiWhatsappMediaRouteImport } from './routes/api/whatsapp/media'
 import { Route as ApiWhatsappGroupsRouteImport } from './routes/api/whatsapp/groups'
 import { Route as ApiWhatsappBusinessProfileRouteImport } from './routes/api/whatsapp/business-profile'
+import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api/webhooks/mercadopago'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
 import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
 import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
@@ -49,6 +51,11 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/publi
 import { Route as ApiPublicInstagramWebhookRouteImport } from './routes/api/public/instagram-webhook'
 import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/public/facebook-webhook'
 import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
+import { Route as ApiBillingSubscriptionRouteImport } from './routes/api/billing/subscription'
+import { Route as ApiBillingPublicKeyRouteImport } from './routes/api/billing/public-key'
+import { Route as ApiBillingPlansRouteImport } from './routes/api/billing/plans'
+import { Route as ApiBillingInvoicesRouteImport } from './routes/api/billing/invoices'
+import { Route as ApiBillingCheckoutRouteImport } from './routes/api/billing/checkout'
 import { Route as ApiAuthVerifyTokenRouteImport } from './routes/api/auth/verify-token'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
 import { Route as ApiAuthTempPromoteRouteImport } from './routes/api/auth/temp-promote'
@@ -64,7 +71,14 @@ import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
+import { Route as ApiBillingSubscriptionRenewRouteImport } from './routes/api/billing/subscription/renew'
+import { Route as ApiBillingInvoicesIdRouteImport } from './routes/api/billing/invoices/$id'
+import { Route as ApiBillingCheckoutPixRouteImport } from './routes/api/billing/checkout/pix'
+import { Route as ApiBillingCheckoutCardRouteImport } from './routes/api/billing/checkout/card'
+import { Route as ApiAdminPaymentGatewaysMercadopagoRouteImport } from './routes/api/admin/payment-gateways/mercadopago'
 import { Route as ApiPublicWebhooksIncomingTokenRouteImport } from './routes/api/public/webhooks/incoming/$token'
+import { Route as ApiBillingPaymentsIdStatusRouteImport } from './routes/api/billing/payments/$id/status'
+import { Route as ApiAdminPaymentGatewaysMercadopagoTestRouteImport } from './routes/api/admin/payment-gateways/mercadopago/test'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -201,6 +215,12 @@ const AppCampaignsIndexRoute = AppCampaignsIndexRouteImport.update({
   path: '/campaigns/',
   getParentRoute: () => AppRoute,
 } as any)
+const FunctionsV1MercadopagoWebhookRoute =
+  FunctionsV1MercadopagoWebhookRouteImport.update({
+    id: '/functions/v1/mercadopago-webhook',
+    path: '/functions/v1/mercadopago-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWhatsappRegisterRoute = ApiWhatsappRegisterRouteImport.update({
   id: '/api/whatsapp/register',
   path: '/api/whatsapp/register',
@@ -227,6 +247,11 @@ const ApiWhatsappBusinessProfileRoute =
     path: '/api/whatsapp/business-profile',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWebhooksMercadopagoRoute = ApiWebhooksMercadopagoRouteImport.update({
+  id: '/api/webhooks/mercadopago',
+  path: '/api/webhooks/mercadopago',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
   id: '/api/storage/upload',
   path: '/api/storage/upload',
@@ -268,6 +293,31 @@ const ApiPublicFacebookWebhookRoute =
 const ApiLicensesHealthRoute = ApiLicensesHealthRouteImport.update({
   id: '/api/licenses/health',
   path: '/api/licenses/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBillingSubscriptionRoute = ApiBillingSubscriptionRouteImport.update({
+  id: '/api/billing/subscription',
+  path: '/api/billing/subscription',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBillingPublicKeyRoute = ApiBillingPublicKeyRouteImport.update({
+  id: '/api/billing/public-key',
+  path: '/api/billing/public-key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBillingPlansRoute = ApiBillingPlansRouteImport.update({
+  id: '/api/billing/plans',
+  path: '/api/billing/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBillingInvoicesRoute = ApiBillingInvoicesRouteImport.update({
+  id: '/api/billing/invoices',
+  path: '/api/billing/invoices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBillingCheckoutRoute = ApiBillingCheckoutRouteImport.update({
+  id: '/api/billing/checkout',
+  path: '/api/billing/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthVerifyTokenRoute = ApiAuthVerifyTokenRouteImport.update({
@@ -347,11 +397,50 @@ const ApiPublicContactsIngestRoute = ApiPublicContactsIngestRouteImport.update({
   path: '/api/public/contacts/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBillingSubscriptionRenewRoute =
+  ApiBillingSubscriptionRenewRouteImport.update({
+    id: '/renew',
+    path: '/renew',
+    getParentRoute: () => ApiBillingSubscriptionRoute,
+  } as any)
+const ApiBillingInvoicesIdRoute = ApiBillingInvoicesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiBillingInvoicesRoute,
+} as any)
+const ApiBillingCheckoutPixRoute = ApiBillingCheckoutPixRouteImport.update({
+  id: '/pix',
+  path: '/pix',
+  getParentRoute: () => ApiBillingCheckoutRoute,
+} as any)
+const ApiBillingCheckoutCardRoute = ApiBillingCheckoutCardRouteImport.update({
+  id: '/card',
+  path: '/card',
+  getParentRoute: () => ApiBillingCheckoutRoute,
+} as any)
+const ApiAdminPaymentGatewaysMercadopagoRoute =
+  ApiAdminPaymentGatewaysMercadopagoRouteImport.update({
+    id: '/api/admin/payment-gateways/mercadopago',
+    path: '/api/admin/payment-gateways/mercadopago',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebhooksIncomingTokenRoute =
   ApiPublicWebhooksIncomingTokenRouteImport.update({
     id: '/api/public/webhooks/incoming/$token',
     path: '/api/public/webhooks/incoming/$token',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiBillingPaymentsIdStatusRoute =
+  ApiBillingPaymentsIdStatusRouteImport.update({
+    id: '/api/billing/payments/$id/status',
+    path: '/api/billing/payments/$id/status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminPaymentGatewaysMercadopagoTestRoute =
+  ApiAdminPaymentGatewaysMercadopagoTestRouteImport.update({
+    id: '/test',
+    path: '/test',
+    getParentRoute: () => ApiAdminPaymentGatewaysMercadopagoRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -390,6 +479,11 @@ export interface FileRoutesByFullPath {
   '/api/auth/temp-promote': typeof ApiAuthTempPromoteRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/billing/checkout': typeof ApiBillingCheckoutRouteWithChildren
+  '/api/billing/invoices': typeof ApiBillingInvoicesRouteWithChildren
+  '/api/billing/plans': typeof ApiBillingPlansRoute
+  '/api/billing/public-key': typeof ApiBillingPublicKeyRoute
+  '/api/billing/subscription': typeof ApiBillingSubscriptionRouteWithChildren
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
@@ -398,17 +492,26 @@ export interface FileRoutesByFullPath {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
+  '/functions/v1/mercadopago-webhook': typeof FunctionsV1MercadopagoWebhookRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
   '/contacts/': typeof AppContactsIndexRoute
   '/licenses/': typeof AppLicensesIndexRoute
+  '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
+  '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
+  '/api/billing/checkout/pix': typeof ApiBillingCheckoutPixRoute
+  '/api/billing/invoices/$id': typeof ApiBillingInvoicesIdRoute
+  '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
+  '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
 }
 export interface FileRoutesByTo {
@@ -447,6 +550,11 @@ export interface FileRoutesByTo {
   '/api/auth/temp-promote': typeof ApiAuthTempPromoteRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/billing/checkout': typeof ApiBillingCheckoutRouteWithChildren
+  '/api/billing/invoices': typeof ApiBillingInvoicesRouteWithChildren
+  '/api/billing/plans': typeof ApiBillingPlansRoute
+  '/api/billing/public-key': typeof ApiBillingPublicKeyRoute
+  '/api/billing/subscription': typeof ApiBillingSubscriptionRouteWithChildren
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
@@ -455,17 +563,26 @@ export interface FileRoutesByTo {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
+  '/functions/v1/mercadopago-webhook': typeof FunctionsV1MercadopagoWebhookRoute
   '/campaigns': typeof AppCampaignsIndexRoute
   '/contacts': typeof AppContactsIndexRoute
   '/licenses': typeof AppLicensesIndexRoute
+  '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
+  '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
+  '/api/billing/checkout/pix': typeof ApiBillingCheckoutPixRoute
+  '/api/billing/invoices/$id': typeof ApiBillingInvoicesIdRoute
+  '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
+  '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
 }
 export interface FileRoutesById {
@@ -506,6 +623,11 @@ export interface FileRoutesById {
   '/api/auth/temp-promote': typeof ApiAuthTempPromoteRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
+  '/api/billing/checkout': typeof ApiBillingCheckoutRouteWithChildren
+  '/api/billing/invoices': typeof ApiBillingInvoicesRouteWithChildren
+  '/api/billing/plans': typeof ApiBillingPlansRoute
+  '/api/billing/public-key': typeof ApiBillingPublicKeyRoute
+  '/api/billing/subscription': typeof ApiBillingSubscriptionRouteWithChildren
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
@@ -514,17 +636,26 @@ export interface FileRoutesById {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
   '/api/whatsapp/media': typeof ApiWhatsappMediaRoute
   '/api/whatsapp/media-upload': typeof ApiWhatsappMediaUploadRoute
   '/api/whatsapp/register': typeof ApiWhatsappRegisterRoute
+  '/functions/v1/mercadopago-webhook': typeof FunctionsV1MercadopagoWebhookRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/_app/contacts/': typeof AppContactsIndexRoute
   '/_app/licenses/': typeof AppLicensesIndexRoute
+  '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
+  '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
+  '/api/billing/checkout/pix': typeof ApiBillingCheckoutPixRoute
+  '/api/billing/invoices/$id': typeof ApiBillingInvoicesIdRoute
+  '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
+  '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
 }
 export interface FileRouteTypes {
@@ -565,6 +696,11 @@ export interface FileRouteTypes {
     | '/api/auth/temp-promote'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/billing/checkout'
+    | '/api/billing/invoices'
+    | '/api/billing/plans'
+    | '/api/billing/public-key'
+    | '/api/billing/subscription'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
@@ -573,17 +709,26 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/groups'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
+    | '/functions/v1/mercadopago-webhook'
     | '/campaigns/'
     | '/contacts/'
     | '/licenses/'
+    | '/api/admin/payment-gateways/mercadopago'
+    | '/api/billing/checkout/card'
+    | '/api/billing/checkout/pix'
+    | '/api/billing/invoices/$id'
+    | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/admin/payment-gateways/mercadopago/test'
+    | '/api/billing/payments/$id/status'
     | '/api/public/webhooks/incoming/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -622,6 +767,11 @@ export interface FileRouteTypes {
     | '/api/auth/temp-promote'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/billing/checkout'
+    | '/api/billing/invoices'
+    | '/api/billing/plans'
+    | '/api/billing/public-key'
+    | '/api/billing/subscription'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
@@ -630,17 +780,26 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/groups'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
+    | '/functions/v1/mercadopago-webhook'
     | '/campaigns'
     | '/contacts'
     | '/licenses'
+    | '/api/admin/payment-gateways/mercadopago'
+    | '/api/billing/checkout/card'
+    | '/api/billing/checkout/pix'
+    | '/api/billing/invoices/$id'
+    | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/admin/payment-gateways/mercadopago/test'
+    | '/api/billing/payments/$id/status'
     | '/api/public/webhooks/incoming/$token'
   id:
     | '__root__'
@@ -680,6 +839,11 @@ export interface FileRouteTypes {
     | '/api/auth/temp-promote'
     | '/api/auth/update'
     | '/api/auth/verify-token'
+    | '/api/billing/checkout'
+    | '/api/billing/invoices'
+    | '/api/billing/plans'
+    | '/api/billing/public-key'
+    | '/api/billing/subscription'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
     | '/api/public/instagram-webhook'
@@ -688,17 +852,26 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/groups'
     | '/api/whatsapp/media'
     | '/api/whatsapp/media-upload'
     | '/api/whatsapp/register'
+    | '/functions/v1/mercadopago-webhook'
     | '/_app/campaigns/'
     | '/_app/contacts/'
     | '/_app/licenses/'
+    | '/api/admin/payment-gateways/mercadopago'
+    | '/api/billing/checkout/card'
+    | '/api/billing/checkout/pix'
+    | '/api/billing/invoices/$id'
+    | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/admin/payment-gateways/mercadopago/test'
+    | '/api/billing/payments/$id/status'
     | '/api/public/webhooks/incoming/$token'
   fileRoutesById: FileRoutesById
 }
@@ -719,6 +892,11 @@ export interface RootRouteChildren {
   ApiAuthTempPromoteRoute: typeof ApiAuthTempPromoteRoute
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiAuthVerifyTokenRoute: typeof ApiAuthVerifyTokenRoute
+  ApiBillingCheckoutRoute: typeof ApiBillingCheckoutRouteWithChildren
+  ApiBillingInvoicesRoute: typeof ApiBillingInvoicesRouteWithChildren
+  ApiBillingPlansRoute: typeof ApiBillingPlansRoute
+  ApiBillingPublicKeyRoute: typeof ApiBillingPublicKeyRoute
+  ApiBillingSubscriptionRoute: typeof ApiBillingSubscriptionRouteWithChildren
   ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
   ApiPublicFacebookWebhookRoute: typeof ApiPublicFacebookWebhookRoute
   ApiPublicInstagramWebhookRoute: typeof ApiPublicInstagramWebhookRoute
@@ -727,13 +905,17 @@ export interface RootRouteChildren {
   ApiStorageFileRoute: typeof ApiStorageFileRoute
   ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
   ApiStorageUploadRoute: typeof ApiStorageUploadRoute
+  ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
   ApiWhatsappBusinessProfileRoute: typeof ApiWhatsappBusinessProfileRouteWithChildren
   ApiWhatsappGroupsRoute: typeof ApiWhatsappGroupsRoute
   ApiWhatsappMediaRoute: typeof ApiWhatsappMediaRoute
   ApiWhatsappMediaUploadRoute: typeof ApiWhatsappMediaUploadRoute
   ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
+  FunctionsV1MercadopagoWebhookRoute: typeof FunctionsV1MercadopagoWebhookRoute
+  ApiAdminPaymentGatewaysMercadopagoRoute: typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
+  ApiBillingPaymentsIdStatusRoute: typeof ApiBillingPaymentsIdStatusRoute
   ApiPublicWebhooksIncomingTokenRoute: typeof ApiPublicWebhooksIncomingTokenRoute
 }
 
@@ -928,6 +1110,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCampaignsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/functions/v1/mercadopago-webhook': {
+      id: '/functions/v1/mercadopago-webhook'
+      path: '/functions/v1/mercadopago-webhook'
+      fullPath: '/functions/v1/mercadopago-webhook'
+      preLoaderRoute: typeof FunctionsV1MercadopagoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/whatsapp/register': {
       id: '/api/whatsapp/register'
       path: '/api/whatsapp/register'
@@ -961,6 +1150,13 @@ declare module '@tanstack/react-router' {
       path: '/api/whatsapp/business-profile'
       fullPath: '/api/whatsapp/business-profile'
       preLoaderRoute: typeof ApiWhatsappBusinessProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/mercadopago': {
+      id: '/api/webhooks/mercadopago'
+      path: '/api/webhooks/mercadopago'
+      fullPath: '/api/webhooks/mercadopago'
+      preLoaderRoute: typeof ApiWebhooksMercadopagoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/storage/upload': {
@@ -1017,6 +1213,41 @@ declare module '@tanstack/react-router' {
       path: '/api/licenses/health'
       fullPath: '/api/licenses/health'
       preLoaderRoute: typeof ApiLicensesHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/billing/subscription': {
+      id: '/api/billing/subscription'
+      path: '/api/billing/subscription'
+      fullPath: '/api/billing/subscription'
+      preLoaderRoute: typeof ApiBillingSubscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/billing/public-key': {
+      id: '/api/billing/public-key'
+      path: '/api/billing/public-key'
+      fullPath: '/api/billing/public-key'
+      preLoaderRoute: typeof ApiBillingPublicKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/billing/plans': {
+      id: '/api/billing/plans'
+      path: '/api/billing/plans'
+      fullPath: '/api/billing/plans'
+      preLoaderRoute: typeof ApiBillingPlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/billing/invoices': {
+      id: '/api/billing/invoices'
+      path: '/api/billing/invoices'
+      fullPath: '/api/billing/invoices'
+      preLoaderRoute: typeof ApiBillingInvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/billing/checkout': {
+      id: '/api/billing/checkout'
+      path: '/api/billing/checkout'
+      fullPath: '/api/billing/checkout'
+      preLoaderRoute: typeof ApiBillingCheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/verify-token': {
@@ -1124,12 +1355,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicContactsIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/billing/subscription/renew': {
+      id: '/api/billing/subscription/renew'
+      path: '/renew'
+      fullPath: '/api/billing/subscription/renew'
+      preLoaderRoute: typeof ApiBillingSubscriptionRenewRouteImport
+      parentRoute: typeof ApiBillingSubscriptionRoute
+    }
+    '/api/billing/invoices/$id': {
+      id: '/api/billing/invoices/$id'
+      path: '/$id'
+      fullPath: '/api/billing/invoices/$id'
+      preLoaderRoute: typeof ApiBillingInvoicesIdRouteImport
+      parentRoute: typeof ApiBillingInvoicesRoute
+    }
+    '/api/billing/checkout/pix': {
+      id: '/api/billing/checkout/pix'
+      path: '/pix'
+      fullPath: '/api/billing/checkout/pix'
+      preLoaderRoute: typeof ApiBillingCheckoutPixRouteImport
+      parentRoute: typeof ApiBillingCheckoutRoute
+    }
+    '/api/billing/checkout/card': {
+      id: '/api/billing/checkout/card'
+      path: '/card'
+      fullPath: '/api/billing/checkout/card'
+      preLoaderRoute: typeof ApiBillingCheckoutCardRouteImport
+      parentRoute: typeof ApiBillingCheckoutRoute
+    }
+    '/api/admin/payment-gateways/mercadopago': {
+      id: '/api/admin/payment-gateways/mercadopago'
+      path: '/api/admin/payment-gateways/mercadopago'
+      fullPath: '/api/admin/payment-gateways/mercadopago'
+      preLoaderRoute: typeof ApiAdminPaymentGatewaysMercadopagoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/incoming/$token': {
       id: '/api/public/webhooks/incoming/$token'
       path: '/api/public/webhooks/incoming/$token'
       fullPath: '/api/public/webhooks/incoming/$token'
       preLoaderRoute: typeof ApiPublicWebhooksIncomingTokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/billing/payments/$id/status': {
+      id: '/api/billing/payments/$id/status'
+      path: '/api/billing/payments/$id/status'
+      fullPath: '/api/billing/payments/$id/status'
+      preLoaderRoute: typeof ApiBillingPaymentsIdStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/payment-gateways/mercadopago/test': {
+      id: '/api/admin/payment-gateways/mercadopago/test'
+      path: '/test'
+      fullPath: '/api/admin/payment-gateways/mercadopago/test'
+      preLoaderRoute: typeof ApiAdminPaymentGatewaysMercadopagoTestRouteImport
+      parentRoute: typeof ApiAdminPaymentGatewaysMercadopagoRoute
     }
   }
 }
@@ -1198,6 +1478,44 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiBillingCheckoutRouteChildren {
+  ApiBillingCheckoutCardRoute: typeof ApiBillingCheckoutCardRoute
+  ApiBillingCheckoutPixRoute: typeof ApiBillingCheckoutPixRoute
+}
+
+const ApiBillingCheckoutRouteChildren: ApiBillingCheckoutRouteChildren = {
+  ApiBillingCheckoutCardRoute: ApiBillingCheckoutCardRoute,
+  ApiBillingCheckoutPixRoute: ApiBillingCheckoutPixRoute,
+}
+
+const ApiBillingCheckoutRouteWithChildren =
+  ApiBillingCheckoutRoute._addFileChildren(ApiBillingCheckoutRouteChildren)
+
+interface ApiBillingInvoicesRouteChildren {
+  ApiBillingInvoicesIdRoute: typeof ApiBillingInvoicesIdRoute
+}
+
+const ApiBillingInvoicesRouteChildren: ApiBillingInvoicesRouteChildren = {
+  ApiBillingInvoicesIdRoute: ApiBillingInvoicesIdRoute,
+}
+
+const ApiBillingInvoicesRouteWithChildren =
+  ApiBillingInvoicesRoute._addFileChildren(ApiBillingInvoicesRouteChildren)
+
+interface ApiBillingSubscriptionRouteChildren {
+  ApiBillingSubscriptionRenewRoute: typeof ApiBillingSubscriptionRenewRoute
+}
+
+const ApiBillingSubscriptionRouteChildren: ApiBillingSubscriptionRouteChildren =
+  {
+    ApiBillingSubscriptionRenewRoute: ApiBillingSubscriptionRenewRoute,
+  }
+
+const ApiBillingSubscriptionRouteWithChildren =
+  ApiBillingSubscriptionRoute._addFileChildren(
+    ApiBillingSubscriptionRouteChildren,
+  )
+
 interface ApiWhatsappBusinessProfileRouteChildren {
   ApiWhatsappBusinessProfilePhotoRoute: typeof ApiWhatsappBusinessProfilePhotoRoute
 }
@@ -1210,6 +1528,21 @@ const ApiWhatsappBusinessProfileRouteChildren: ApiWhatsappBusinessProfileRouteCh
 const ApiWhatsappBusinessProfileRouteWithChildren =
   ApiWhatsappBusinessProfileRoute._addFileChildren(
     ApiWhatsappBusinessProfileRouteChildren,
+  )
+
+interface ApiAdminPaymentGatewaysMercadopagoRouteChildren {
+  ApiAdminPaymentGatewaysMercadopagoTestRoute: typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
+}
+
+const ApiAdminPaymentGatewaysMercadopagoRouteChildren: ApiAdminPaymentGatewaysMercadopagoRouteChildren =
+  {
+    ApiAdminPaymentGatewaysMercadopagoTestRoute:
+      ApiAdminPaymentGatewaysMercadopagoTestRoute,
+  }
+
+const ApiAdminPaymentGatewaysMercadopagoRouteWithChildren =
+  ApiAdminPaymentGatewaysMercadopagoRoute._addFileChildren(
+    ApiAdminPaymentGatewaysMercadopagoRouteChildren,
   )
 
 const rootRouteChildren: RootRouteChildren = {
@@ -1229,6 +1562,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthTempPromoteRoute: ApiAuthTempPromoteRoute,
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiAuthVerifyTokenRoute: ApiAuthVerifyTokenRoute,
+  ApiBillingCheckoutRoute: ApiBillingCheckoutRouteWithChildren,
+  ApiBillingInvoicesRoute: ApiBillingInvoicesRouteWithChildren,
+  ApiBillingPlansRoute: ApiBillingPlansRoute,
+  ApiBillingPublicKeyRoute: ApiBillingPublicKeyRoute,
+  ApiBillingSubscriptionRoute: ApiBillingSubscriptionRouteWithChildren,
   ApiLicensesHealthRoute: ApiLicensesHealthRoute,
   ApiPublicFacebookWebhookRoute: ApiPublicFacebookWebhookRoute,
   ApiPublicInstagramWebhookRoute: ApiPublicInstagramWebhookRoute,
@@ -1237,13 +1575,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStorageFileRoute: ApiStorageFileRoute,
   ApiStorageRemoveRoute: ApiStorageRemoveRoute,
   ApiStorageUploadRoute: ApiStorageUploadRoute,
+  ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
   ApiWhatsappBusinessProfileRoute: ApiWhatsappBusinessProfileRouteWithChildren,
   ApiWhatsappGroupsRoute: ApiWhatsappGroupsRoute,
   ApiWhatsappMediaRoute: ApiWhatsappMediaRoute,
   ApiWhatsappMediaUploadRoute: ApiWhatsappMediaUploadRoute,
   ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,
+  FunctionsV1MercadopagoWebhookRoute: FunctionsV1MercadopagoWebhookRoute,
+  ApiAdminPaymentGatewaysMercadopagoRoute:
+    ApiAdminPaymentGatewaysMercadopagoRouteWithChildren,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
+  ApiBillingPaymentsIdStatusRoute: ApiBillingPaymentsIdStatusRoute,
   ApiPublicWebhooksIncomingTokenRoute: ApiPublicWebhooksIncomingTokenRoute,
 }
 export const routeTree = rootRouteImport

@@ -62,6 +62,7 @@ import {
 } from "@/lib/license-admin.functions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlansManager } from "@/components/licenses/plans-manager";
+import { GatewaySettings } from "@/components/licenses/gateway-settings";
 
 export const Route = createFileRoute("/_app/licenses/")({
   component: LicensesPage,
@@ -307,6 +308,7 @@ function LicensesPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="clients">Clientes / Licenças</TabsTrigger>
           <TabsTrigger value="plans">Planos & Limites</TabsTrigger>
+          <TabsTrigger value="gateway">Gateway de Pagamento</TabsTrigger>
         </TabsList>
 
         <TabsContent value="clients" className="space-y-8">
@@ -548,6 +550,10 @@ function LicensesPage() {
 
       <TabsContent value="plans">
         <PlansManager />
+      </TabsContent>
+
+      <TabsContent value="gateway">
+        <GatewaySettings />
       </TabsContent>
       </Tabs>
     </div>
