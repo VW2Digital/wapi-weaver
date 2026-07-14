@@ -1,4 +1,36 @@
 import mysql from "mysql2/promise";
+import { createHash } from "crypto";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
+
+/**
+ * Hash a password using Node's built-in scrypt (no bcrypt dependency needed).
+ * Format: <salt>:<hash> (hex encoded, 64-byte hash).
+ */
+async function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const derivedKey = await scryptAsync(password, salt, 64);
+  return `${salt}:${derivedKey.toString("hex")}`;
+}
+
+/**
+ * Try to hash with bcrypt if available, fall back to scrypt.
+ * The app uses bcrypt; if bcrypt is present we prefer it so login works normally.
+ */
+async function hashPasswordCompat(password) {
+  try {
+    // Dynamically import bcrypt — works when running inside the app container
+    const bcrypt = await import("bcrypt").catch(() => null) ||
+                   await import("bcryptjs").catch(() => null);
+    if (bcrypt && bcrypt.hash) {
+      return await bcrypt.hash(password, 10);
+    }
+  } catch {}
+  // Fallback: scrypt (requires app to support it or user to reset password)
+  return hashPassword(password);
+}
 
 function formatDbError(err) {
   if (!err) return err;
@@ -1919,9 +1951,132 @@ export async function ensureDatabaseSchema() {
     // user_id on contact_activities
     await ensureColumnExists(connection, "contact_activities", "user_id", "VARCHAR(36) NULL");
 
+    // ── Seed: Admin Master ────────────────────────────────────────────────────
+    await ensureAdminUser(connection);
+
     logSchema("Schema validado com sucesso.");
   } finally {
     await connection.end();
+  }
+}
+
+/**
+ * Cria o usuário administrador master na primeira instalação.
+ * Lê ADMIN_EMAIL e ADMIN_PASSWORD do ambiente (.env).
+ * Idempotente: não faz nada se o usuário já existir.
+ */
+async function ensureAdminUser(connection) {
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+
+  if (!adminEmail || !adminPassword) {
+    logSchema("ADMIN_EMAIL ou ADMIN_PASSWORD não definidos — pulando seed do admin master.");
+    return;
+  }
+
+  // Verificar se o usuário já existe
+  const [existing] = await connection.query(
+    "SELECT id FROM users WHERE email = ? LIMIT 1",
+    [adminEmail]
+  );
+
+  if (existing.length > 0) {
+    const userId = existing[0].id;
+    logSchema(`Admin master já existe (${adminEmail} — id: ${userId}). Verificando role...`);
+
+    // Garantir que a role está correta mesmo que o usuário já exista
+    const roleMode = process.env.LICENSE_ROLE || "saas";
+    const expectedRole = roleMode === "panel" ? "adminmaster" : "owner";
+
+    const [roleRows] = await connection.query(
+      "SELECT role FROM user_roles WHERE user_id = ? LIMIT 1",
+      [userId]
+    );
+    if (roleRows.length === 0) {
+      const roleId = createHash("sha256").update(userId + "role").digest("hex").slice(0, 36);
+      await connection.query(
+        "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, ?)",
+        [roleId, userId, expectedRole]
+      );
+      logSchema(`Role '${expectedRole}' adicionada ao admin existente.`);
+    } else if (roleRows[0].role !== expectedRole && roleRows[0].role !== "adminmaster") {
+      await connection.query(
+        "UPDATE user_roles SET role = ? WHERE user_id = ?",
+        [expectedRole, userId]
+      );
+      logSchema(`Role do admin atualizada para '${expectedRole}'.`);
+    }
+    return;
+  }
+
+  logSchema(`Criando admin master: ${adminEmail}...`);
+
+  const roleMode = process.env.LICENSE_ROLE || "saas";
+  const initialRole = roleMode === "panel" ? "adminmaster" : "owner";
+  const displayName = roleMode === "panel" ? "Master Admin" : "Owner Admin";
+
+  // Gerar IDs determinísticos baseados no email (para evitar duplicatas em re-runs)
+  const userId = [
+    createHash("sha256").update(adminEmail).digest("hex").slice(0, 8),
+    createHash("sha256").update(adminEmail + "b").digest("hex").slice(0, 4),
+    "4" + createHash("sha256").update(adminEmail + "c").digest("hex").slice(0, 3),
+    createHash("sha256").update(adminEmail + "d").digest("hex").slice(0, 4),
+    createHash("sha256").update(adminEmail + "e").digest("hex").slice(0, 12),
+  ].join("-");
+
+  const roleId = [
+    createHash("sha256").update(userId + "role").digest("hex").slice(0, 8),
+    createHash("sha256").update(userId + "roleb").digest("hex").slice(0, 4),
+    "4" + createHash("sha256").update(userId + "rolec").digest("hex").slice(0, 3),
+    createHash("sha256").update(userId + "roled").digest("hex").slice(0, 4),
+    createHash("sha256").update(userId + "rolee").digest("hex").slice(0, 12),
+  ].join("-");
+
+  const passwordHash = await hashPasswordCompat(adminPassword);
+
+  try {
+    // 1. Inserir usuário
+    await connection.query(
+      "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)",
+      [userId, adminEmail, passwordHash]
+    );
+
+    // 2. Inserir role
+    await connection.query(
+      "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, ?)",
+      [roleId, userId, initialRole]
+    );
+
+    // 3. Inserir perfil (se tabela existir)
+    try {
+      await connection.query(
+        "INSERT IGNORE INTO profiles (id, email, display_name) VALUES (?, ?, ?)",
+        [userId, adminEmail, displayName]
+      );
+    } catch (profileErr) {
+      logSchema(`Aviso: não foi possível criar perfil (${profileErr.message}). Continuando.`);
+    }
+
+    // 4. Inserir licença básica (se tabela existir)
+    try {
+      const keyHash = createHash("sha256").update(adminEmail).digest("hex");
+      await connection.query(
+        `INSERT IGNORE INTO licenses
+           (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [keyHash, adminEmail.slice(0, 20), displayName, adminEmail, "basic", "active", userId]
+      );
+    } catch (licErr) {
+      logSchema(`Aviso: não foi possível criar licença (${licErr.message}). Continuando.`);
+    }
+
+    logSchema(`✓ Admin master criado com sucesso: ${adminEmail} (role: ${initialRole})`);
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      logSchema(`Admin master já existe no banco (duplicado ignorado).`);
+    } else {
+      logSchema(`Erro ao criar admin master: ${err.message}`);
+    }
   }
 }
 
