@@ -17,3 +17,18 @@ Follow these guidelines for visual aesthetics, layout, and UI/UX patterns:
 - **Spacing**: Consistent margins and padding.
 - **Colors**: Restricted, professional accent colors (avoid overly saturated primaries/multitudinous highlights).
 - **Transitions**: Smooth micro-animations on interactive states.
+
+## Database & Docker Guidelines
+- **Docker Container**: The local MySQL database runs in a Docker container named `wapi_weaver_mysql`.
+- **Database Configuration**:
+  - **Host**: `localhost` (from outside Docker) or `banco-mysql` (inside Docker network).
+  - **Port**: `3306`
+  - **User**: `wapi_user`
+  - **Password**: `S0xbxPfKazBVT8JFy1UEOjIsrjox`
+  - **Database Name**: `wapi_weaver`
+- **Troubleshooting**: If database connection fails (e.g. `AggregateError`), verify that the `wapi_weaver_mysql` container is running in Docker. If it is stopped, start it using `docker start wapi_weaver_mysql` or Docker Desktop.
+  - **Path/Mounting Errors**: If Docker fails to start the container with mount/path errors (e.g., trying to reference files from an old directory path like `C:\` instead of the current `D:\`), reset and rebuild the containers in the current working directory by running:
+    1. `docker-compose down`
+    2. `docker-compose up -d`
+    This will recreate the containers and update Docker's host file mounts to the correct current workspace directory.
+

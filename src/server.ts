@@ -313,77 +313,107 @@ async function ensureMasterUser() {
   }
 }
 
+async function waitForDatabase(retries = 10, delayMs = 3000): Promise<void> {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await db.query("SELECT 1");
+      console.log("[DB Init] Database connection verified successfully.");
+      return;
+    } catch (err: any) {
+      console.warn(`[DB Init] Database connection attempt ${i}/${retries} failed: ${err.message}. Retrying in ${delayMs / 1000}s...`);
+      if (i === retries) {
+        throw new Error(`Database unreachable after ${retries} attempts.`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 async function runBootSequence() {
+  try {
+    await waitForDatabase();
+  } catch (dbErr: any) {
+    console.error("[Boot Sequence] Critical: Could not connect to database on startup.", dbErr.message);
+    try {
+      const fs = await import("fs");
+      fs.writeFileSync("./db_update_status.txt", "CRITICAL ERROR: " + dbErr.message + "\n" + dbErr.stack);
+    } catch {}
+    return;
+  }
+
   await migrateRoles();
   await ensureMasterUser();
 
   try {
     const fs = await import("fs");
-    const targetEmail = "vanderleivw2@gmail.com";
-    const userRows = (await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [
-      targetEmail.trim().toLowerCase(),
-    ])) as any[];
-
+    const targetEmails = ["vanderleivw2@gmail.com", "vw2digital@gmail.com"];
     let logMsg = "";
-    if (userRows.length > 0) {
-      const userId = userRows[0].id;
-      // Delete existing roles for this user
-      await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-      // Insert adminmaster role
-      await db.query(
-        "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
-        [userId],
-      );
-      
-      // Verify/Create license for the adminmaster
-      const existingSub = (await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [
-        userId,
+
+    for (const targetEmail of targetEmails) {
+      const userRows = (await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [
+        targetEmail.trim().toLowerCase(),
       ])) as any[];
-      if (existingSub.length === 0) {
-        const keyHash = createHash("sha256").update(targetEmail).digest("hex");
+
+      if (userRows.length > 0) {
+        const userId = userRows[0].id;
+        // Delete existing roles for this user
+        await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+        // Insert adminmaster role
         await db.query(
-          `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [keyHash, targetEmail, "Master Admin", targetEmail, "basic", "active", userId]
+          "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+          [userId],
         );
+        
+        // Verify/Create license for the adminmaster
+        const existingSub = (await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [
+          userId,
+        ])) as any[];
+        if (existingSub.length === 0) {
+          const keyHash = createHash("sha256").update(targetEmail).digest("hex");
+          await db.query(
+            `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [keyHash, targetEmail, "Master Admin", targetEmail, "basic", "active", userId]
+          );
+        }
+        logMsg += `SUCCESS: User ${targetEmail} (ID: ${userId}) updated to adminmaster.\n`;
+      } else {
+        // User doesn't exist, let's provision them with a default password so they can log in
+        const userId = randomUUID();
+        const defaultPassword = "adminmaster123";
+        const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
+        await db.transaction(async (conn) => {
+          // 1. Insert into users
+          await conn.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
+            userId,
+            targetEmail,
+            passwordHash,
+          ]);
+
+          // 2. Insert into user_roles
+          await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')", [
+            userId,
+          ]);
+
+          // 3. Insert into profiles
+          await conn.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
+            userId,
+            targetEmail,
+            "Admin Master",
+          ]);
+
+          // 4. Create license
+          const keyHash = createHash("sha256").update(targetEmail).digest("hex");
+          await conn.execute(
+            `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [keyHash, targetEmail, "Admin Master", targetEmail, "basic", "active", userId]
+          );
+        });
+
+        logMsg += `SUCCESS: Created new user ${targetEmail} with role adminmaster. Default password is '${defaultPassword}'.\n`;
       }
-      logMsg = `SUCCESS: User ${targetEmail} (ID: ${userId}) updated to adminmaster.`;
-    } else {
-      // User doesn't exist, let's provision them with a default password so they can log in
-      const userId = randomUUID();
-      const defaultPassword = "adminmaster123";
-      const passwordHash = await bcrypt.hash(defaultPassword, 10);
-
-      await db.transaction(async (conn) => {
-        // 1. Insert into users
-        await conn.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
-          userId,
-          targetEmail,
-          passwordHash,
-        ]);
-
-        // 2. Insert into user_roles
-        await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')", [
-          userId,
-        ]);
-
-        // 3. Insert into profiles
-        await conn.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
-          userId,
-          targetEmail,
-          "Admin Master",
-        ]);
-
-        // 4. Create license
-        const keyHash = createHash("sha256").update(targetEmail).digest("hex");
-        await conn.execute(
-          `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [keyHash, targetEmail, "Admin Master", targetEmail, "basic", "active", userId]
-        );
-      });
-
-      logMsg = `SUCCESS: Created new user ${targetEmail} with role adminmaster. Default password is '${defaultPassword}'.`;
     }
 
     fs.writeFileSync("./db_update_status.txt", logMsg + "\nTimestamp: " + new Date().toISOString());

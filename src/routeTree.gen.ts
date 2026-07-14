@@ -51,6 +51,7 @@ import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/publi
 import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
 import { Route as ApiAuthVerifyTokenRouteImport } from './routes/api/auth/verify-token'
 import { Route as ApiAuthUpdateRouteImport } from './routes/api/auth/update'
+import { Route as ApiAuthTempPromoteRouteImport } from './routes/api/auth/temp-promote'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
@@ -279,6 +280,11 @@ const ApiAuthUpdateRoute = ApiAuthUpdateRouteImport.update({
   path: '/api/auth/update',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthTempPromoteRoute = ApiAuthTempPromoteRouteImport.update({
+  id: '/api/auth/temp-promote',
+  path: '/api/auth/temp-promote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
   id: '/api/auth/register',
   path: '/api/auth/register',
@@ -381,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/temp-promote': typeof ApiAuthTempPromoteRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
@@ -437,6 +444,7 @@ export interface FileRoutesByTo {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/temp-promote': typeof ApiAuthTempPromoteRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
@@ -495,6 +503,7 @@ export interface FileRoutesById {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/temp-promote': typeof ApiAuthTempPromoteRoute
   '/api/auth/update': typeof ApiAuthUpdateRoute
   '/api/auth/verify-token': typeof ApiAuthVerifyTokenRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
@@ -553,6 +562,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/otp'
     | '/api/auth/register'
+    | '/api/auth/temp-promote'
     | '/api/auth/update'
     | '/api/auth/verify-token'
     | '/api/licenses/health'
@@ -609,6 +619,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/otp'
     | '/api/auth/register'
+    | '/api/auth/temp-promote'
     | '/api/auth/update'
     | '/api/auth/verify-token'
     | '/api/licenses/health'
@@ -666,6 +677,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/otp'
     | '/api/auth/register'
+    | '/api/auth/temp-promote'
     | '/api/auth/update'
     | '/api/auth/verify-token'
     | '/api/licenses/health'
@@ -704,6 +716,7 @@ export interface RootRouteChildren {
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthOtpRoute: typeof ApiAuthOtpRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiAuthTempPromoteRoute: typeof ApiAuthTempPromoteRoute
   ApiAuthUpdateRoute: typeof ApiAuthUpdateRoute
   ApiAuthVerifyTokenRoute: typeof ApiAuthVerifyTokenRoute
   ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
@@ -1020,6 +1033,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/temp-promote': {
+      id: '/api/auth/temp-promote'
+      path: '/api/auth/temp-promote'
+      fullPath: '/api/auth/temp-promote'
+      preLoaderRoute: typeof ApiAuthTempPromoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/register': {
       id: '/api/auth/register'
       path: '/api/auth/register'
@@ -1206,6 +1226,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthOtpRoute: ApiAuthOtpRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiAuthTempPromoteRoute: ApiAuthTempPromoteRoute,
   ApiAuthUpdateRoute: ApiAuthUpdateRoute,
   ApiAuthVerifyTokenRoute: ApiAuthVerifyTokenRoute,
   ApiLicensesHealthRoute: ApiLicensesHealthRoute,
