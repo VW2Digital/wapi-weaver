@@ -32,3 +32,5 @@ Follow these guidelines for visual aesthetics, layout, and UI/UX patterns:
     2. `docker-compose up -d`
     This will recreate the containers and update Docker's host file mounts to the correct current workspace directory.
 
+## No Supabase Rule
+- **NEVER use Supabase**: We do NOT use Supabase. All database interactions MUST be done using the native MySQL connection (e.g., `db.query`) or the custom `QueryBuilder` over MySQL. Do not write code or instructions thinking about Supabase.

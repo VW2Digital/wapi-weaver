@@ -60,6 +60,7 @@ import {
   Edit,
   Plus,
   UserCheck,
+  Key,
 } from "lucide-react";
 import {
   listUsers,
@@ -67,6 +68,7 @@ import {
   setUserRole,
   deleteUser,
   getUserActivity,
+  updateUserPassword,
 } from "@/lib/users-admin.functions";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -162,18 +164,19 @@ function UsersPage() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {activeTab === "users" ? <AdminUsers /> : <AdminTeams />}
+        {activeTab === "users" ? <AdminUsers isMaster={roleData?.roles?.includes("adminmaster")} /> : <AdminTeams />}
       </div>
     </div>
   );
 }
 
-function AdminUsers() {
+function AdminUsers({ isMaster }: { isMaster?: boolean }) {
   const qc = useQueryClient();
   const fetchUsers = useServerFn(listUsers);
   const create = useServerFn(createUser);
   const setRole = useServerFn(setUserRole);
   const del = useServerFn(deleteUser);
+  const updatePwd = useServerFn(updateUserPassword);
   const confirm = useConfirm();
 
   const { data, isLoading, isError } = useQuery({
@@ -221,9 +224,21 @@ function AdminUsers() {
     email: "",
     password: "",
     display_name: "",
-    role: "user" as "admin" | "user",
+    role: "user" as "adminmaster" | "owner" | "admin" | "user",
   });
   const [activityUser, setActivityUser] = useState<{ id: string; email: string } | null>(null);
+  const [resetPwdUser, setResetPwdUser] = useState<{ id: string; email: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+
+  const resetPwdMut = useMutation({
+    mutationFn: (input: { user_id: string; password: string }) => updatePwd({ data: input }),
+    onSuccess: () => {
+      toast.success("Senha atualizada com sucesso");
+      setResetPwdUser(null);
+      setNewPassword("");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao atualizar senha"),
+  });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,7 +246,7 @@ function AdminUsers() {
       email: form.email,
       password: form.password,
       display_name: form.display_name || undefined,
-      role: form.role,
+      role: form.role as any,
     });
     setOpen(false);
     setForm({ email: "", password: "", display_name: "", role: "user" });
@@ -290,14 +305,15 @@ function AdminUsers() {
                 <Label htmlFor="role">Perfil</Label>
                 <Select
                   value={form.role}
-                  onValueChange={(v) => setForm({ ...form, role: v as "admin" | "user" })}
+                  onValueChange={(v) => setForm({ ...form, role: v as any })}
                 >
                   <SelectTrigger id="role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user">Usuário</SelectItem>
-                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="user">Usuário (Atendente)</SelectItem>
+                    <SelectItem value="admin">Administrador (Dono/Owner)</SelectItem>
+                    {isMaster && <SelectItem value="adminmaster">Admin Master</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
@@ -392,6 +408,13 @@ function AdminUsers() {
                                 Relatório
                               </DropdownMenuItem>
                               <DropdownMenuItem
+                                onClick={() => setResetPwdUser({ id: u.id, email: u.email })}
+                                className="cursor-pointer"
+                              >
+                                <Key className="mr-2 h-4 w-4" />
+                                Redefinir Senha
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
                                 className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
                                 disabled={delMut.isPending}
                                 onClick={async () => {
@@ -419,6 +442,38 @@ function AdminUsers() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!resetPwdUser} onOpenChange={(o) => !o && setResetPwdUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Redefinir Senha</DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha de acesso para o usuário <strong>{resetPwdUser?.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Nova Senha</Label>
+            <Input 
+              type="text" 
+              placeholder="Mínimo 8 caracteres" 
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetPwdUser(null)}>Cancelar</Button>
+            <Button 
+              onClick={() => resetPwdMut.mutate({ user_id: resetPwdUser!.id, password: newPassword })}
+              disabled={newPassword.length < 8 || resetPwdMut.isPending}
+            >
+              {resetPwdMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar Nova Senha
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <UserActivityDialog user={activityUser} onOpenChange={(o) => !o && setActivityUser(null)} />
     </div>

@@ -1,6 +1,7 @@
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
+import db from "./db";
 
 function logInfo(message: string, data?: any) {
   console.log(`[ai-agent] ${message}`, data ? JSON.stringify(data) : "");
@@ -36,6 +37,23 @@ export async function processAiAgent(
     if (!apiKey) {
       logError("Chave de API não configurada para a IA");
       return false;
+    }
+
+    // 1.5 Verificar limite de Tokens da IA
+    const licenseRows = (await db.query(
+      `SELECT l.id, l.ai_tokens_used, p.max_ai_tokens 
+       FROM licenses l 
+       LEFT JOIN subscription_plans p ON l.plan_id = p.id 
+       WHERE l.tenant_id = ? LIMIT 1`,
+      [userId]
+    )) as any[];
+
+    if (licenseRows && licenseRows.length > 0) {
+      const license = licenseRows[0];
+      if (license.max_ai_tokens && license.ai_tokens_used >= license.max_ai_tokens) {
+        logError("Limite de tokens de IA atingido para o cliente", { userId });
+        return false; // Não processa a mensagem via IA, caindo para atendimento humano
+      }
     }
 
     // 2. Get Knowledge Base
@@ -97,7 +115,25 @@ export async function processAiAgent(
       return false;
     }
 
-    logInfo("IA Respondeu", { replyText });
+    const usage = response.usageMetadata;
+    const promptTokens = usage?.promptTokenCount || 0;
+    const completionTokens = usage?.candidatesTokenCount || 0;
+    const totalTokens = usage?.totalTokenCount || (promptTokens + completionTokens);
+
+    if (totalTokens > 0) {
+      await db.query(
+        `INSERT INTO ai_usage_logs (tenant_id, contact_phone, model, prompt_tokens, completion_tokens, total_tokens)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, phoneDigits, settings.model || "gemini-2.5-flash", promptTokens, completionTokens, totalTokens]
+      ).catch(e => logError("Erro ao salvar log de IA", e));
+
+      await db.query(
+        `UPDATE licenses SET ai_tokens_used = ai_tokens_used + ? WHERE tenant_id = ?`,
+        [totalTokens, userId]
+      ).catch(e => logError("Erro ao atualizar ai_tokens_used", e));
+    }
+
+    logInfo("IA Respondeu", { replyText, totalTokens });
 
     // 6. Send message via Graph API
     const { data: p } = await dbAdmin

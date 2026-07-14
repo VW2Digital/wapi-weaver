@@ -58,7 +58,10 @@ import {
   deleteLicense,
   getLicenseStats,
   getLicenseRole,
+  listPlans,
 } from "@/lib/license-admin.functions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlansManager } from "@/components/licenses/plans-manager";
 
 export const Route = createFileRoute("/_app/licenses/")({
   component: LicensesPage,
@@ -73,6 +76,7 @@ function LicensesPage() {
   const createLicenseMut = useServerFn(createLicense);
   const deleteLicenseMut = useServerFn(deleteLicense);
   const fetchLicenseRole = useServerFn(getLicenseRole);
+  const fetchPlans = useServerFn(listPlans);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -107,28 +111,12 @@ function LicensesPage() {
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
   });
 
-  if (roleLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground p-12">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Verificando permissões...
-      </div>
-    );
-  }
-
-  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
-    return (
-      <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
-        <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          Você não possui privilégios de administrador ou esta instalação não está configurada como
-          Painel de Licenças.
-        </p>
-        <Button asChild>
-          <Link to="/">Voltar para o início</Link>
-        </Button>
-      </div>
-    );
-  }
+  const { data: plansData } = useQuery({
+    queryKey: ["subscription-plans"],
+    queryFn: () => fetchPlans({}),
+    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
+  });
+  const plansList = plansData?.plans || [];
 
   const createMutation = useMutation({
     mutationFn: (payload: any) => createLicenseMut({ data: payload }),
@@ -249,9 +237,12 @@ function LicensesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="basic">Básico</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                    {plansList.map((p: any) => (
+                      <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>
+                    ))}
+                    {plansList.length === 0 && (
+                      <SelectItem value="basic">Básico</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -275,7 +266,7 @@ function LicensesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button type="submit" className="w-full flex !rounded-md" disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Liberar Acesso
               </Button>
@@ -286,9 +277,39 @@ function LicensesPage() {
     ),
   });
 
+  if (roleLoading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground p-12">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Verificando permissões...
+      </div>
+    );
+  }
+
+  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
+        <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Você não possui privilégios de administrador ou esta instalação não está configurada como
+          Painel de Licenças.
+        </p>
+        <Button asChild>
+          <Link to="/">Voltar para o início</Link>
+        </Button>
+      </div>
+    );
+  }
+
+
   return (
     <div className="space-y-8 p-6 pb-16">
+      <Tabs defaultValue="clients" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="clients">Clientes / Licenças</TabsTrigger>
+          <TabsTrigger value="plans">Planos & Limites</TabsTrigger>
+        </TabsList>
 
+        <TabsContent value="clients" className="space-y-8">
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="shadow-sm">
@@ -389,9 +410,12 @@ function LicensesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos Planos</SelectItem>
-                  <SelectItem value="basic">Básico</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                  {plansList.map((p: any) => (
+                    <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>
+                  ))}
+                  {plansList.length === 0 && (
+                    <SelectItem value="basic">Básico</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -520,6 +544,12 @@ function LicensesPage() {
           )}
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="plans">
+        <PlansManager />
+      </TabsContent>
+      </Tabs>
     </div>
   );
 }

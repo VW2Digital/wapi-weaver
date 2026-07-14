@@ -20,23 +20,36 @@ async function assertAdmin(ctx: { db: any; userId: string }) {
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
-    const { data: usersData, error: uErr } = await dbAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 200,
-    });
-    if (uErr) throw uErr;
-    const { data: roles, error: rErr } = await dbAdmin.from("user_roles").select("user_id, role");
-    if (rErr) throw rErr;
-    const rolesMap = new Map<string, string[]>();
-    (roles ?? []).forEach((r: any) => {
-      const arr = rolesMap.get(r.user_id) ?? [];
-      arr.push(r.role);
-      rolesMap.set(r.user_id, arr);
-    });
+    const rolesData = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [context.userId])) as any[];
+    const rolesCurrent = rolesData.map((r: any) => r.role);
+    const isMaster = rolesCurrent.includes("adminmaster");
+    const isOwner = rolesCurrent.includes("owner");
 
-    // Buscar display_name e full_name dos perfis MySQL
-    const uids = usersData.users.map((u: any) => u.id);
+    if (!isMaster && !isOwner) {
+      throw new Error("Acesso negado: apenas administradores podem listar usuários.");
+    }
+
+    let usersQuery = "SELECT id, email, created_at, updated_at, tenant_id FROM users";
+    let params: any[] = [];
+    if (!isMaster) {
+      usersQuery += " WHERE tenant_id = ?";
+      params.push(context.userId);
+    }
+
+    const rawUsers = (await db.query(usersQuery, params)) as any[];
+    const uids = rawUsers.map((u: any) => u.id);
+
+    let rolesMap = new Map<string, string[]>();
+    if (uids.length > 0) {
+      const placeholders = uids.map(() => "?").join(",");
+      const rolesRes = (await db.query(`SELECT user_id, role FROM user_roles WHERE user_id IN (${placeholders})`, uids)) as any[];
+      rolesRes.forEach((r: any) => {
+        const arr = rolesMap.get(r.user_id) ?? [];
+        arr.push(r.role);
+        rolesMap.set(r.user_id, arr);
+      });
+    }
+
     let profilesMap = new Map<string, { display_name: string | null; full_name: string | null }>();
     if (uids.length > 0) {
       const placeholders = uids.map(() => "?").join(",");
@@ -50,15 +63,16 @@ export const listUsers = createServerFn({ method: "GET" })
     }
 
     return {
-      users: usersData.users.map((u: any) => ({
+      users: rawUsers.map((u: any) => ({
         id: u.id,
         email: u.email ?? "",
         created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at ?? null,
-        confirmed: !!u.email_confirmed_at,
+        last_sign_in_at: u.updated_at ?? u.created_at ?? null,
+        confirmed: true,
         roles: rolesMap.get(u.id) ?? [],
         display_name: profilesMap.get(u.id)?.display_name ?? null,
         full_name: profilesMap.get(u.id)?.full_name ?? null,
+        tenant_id: u.tenant_id,
       })),
     };
   });
@@ -74,7 +88,33 @@ export const createUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const rolesData = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [context.userId])) as any[];
+    const rolesCurrent = rolesData.map((r: any) => r.role);
+    const isMaster = rolesCurrent.includes("adminmaster");
+    const isOwner = rolesCurrent.includes("owner");
+
+    if (!isMaster && !isOwner) {
+      throw new Error("Acesso negado.");
+    }
+
+    // Se for um Owner criando usuário, validar o max_users
+    let tenantId: string | null = null;
+    if (!isMaster || (isMaster && data.role === "user")) {
+       tenantId = context.userId;
+       const licenseRows = (await db.query(
+         `SELECT l.id, p.max_users, (SELECT COUNT(*) FROM users WHERE tenant_id = l.tenant_id) as current_users
+          FROM licenses l LEFT JOIN subscription_plans p ON l.plan_id = p.id WHERE l.tenant_id = ? LIMIT 1`,
+         [tenantId]
+       )) as any[];
+       
+       if (licenseRows && licenseRows.length > 0) {
+         const lic = licenseRows[0];
+         if (lic.max_users && lic.current_users >= lic.max_users) {
+           throw new Error(`Limite de usuários atingido para sua licença (${lic.max_users} usuários).`);
+         }
+       }
+    }
+
     const { data: created, error } = await dbAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -83,6 +123,16 @@ export const createUser = createServerFn({ method: "POST" })
     });
     if (error) throw error;
     const uid = created.user!.id;
+
+    if (tenantId) {
+      await db.query("UPDATE users SET tenant_id = ? WHERE id = ?", [tenantId, uid]);
+      // Também adicioná-lo na equipe padrão (criada durante o onboarding)
+      const teamRows = (await db.query("SELECT id FROM teams WHERE user_id = ? LIMIT 1", [tenantId])) as any[];
+      if (teamRows.length > 0) {
+        await db.query("INSERT IGNORE INTO team_members (id, team_id, user_id, role) VALUES (UUID(), ?, ?, 'agent')", [teamRows[0].id, uid]);
+      }
+    }
+
     const targetRole = data.role === "admin" ? "owner" : data.role;
     await dbAdmin.from("user_roles").insert({ user_id: uid, role: targetRole } as never);
     // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
@@ -104,7 +154,21 @@ export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => roleSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const rolesData = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [context.userId])) as any[];
+    const rolesCurrent = rolesData.map((r: any) => r.role);
+    const isMaster = rolesCurrent.includes("adminmaster");
+    const isOwner = rolesCurrent.includes("owner");
+
+    if (!isMaster && !isOwner) {
+      throw new Error("Acesso negado.");
+    }
+
+    if (!isMaster) {
+      const uRows = await db.query("SELECT tenant_id FROM users WHERE id = ?", [data.user_id]) as any[];
+      if (!uRows.length || uRows[0].tenant_id !== context.userId) {
+        throw new Error("Usuário não pertence à sua organização.");
+      }
+    }
     if (data.grant) {
       const { error } = await dbAdmin
         .from("user_roles")
@@ -135,7 +199,21 @@ export const deleteUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => deleteSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const rolesData = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [context.userId])) as any[];
+    const rolesCurrent = rolesData.map((r: any) => r.role);
+    const isMaster = rolesCurrent.includes("adminmaster");
+    const isOwner = rolesCurrent.includes("owner");
+
+    if (!isMaster && !isOwner) {
+      throw new Error("Acesso negado.");
+    }
+
+    if (!isMaster) {
+      const uRows = await db.query("SELECT tenant_id FROM users WHERE id = ?", [data.user_id]) as any[];
+      if (!uRows.length || uRows[0].tenant_id !== context.userId) {
+        throw new Error("Usuário não pertence à sua organização.");
+      }
+    }
     if (data.user_id === context.userId) throw new Error("Você não pode excluir a si mesmo.");
     const { error } = await dbAdmin.auth.admin.deleteUser(data.user_id);
     if (error) throw error;
@@ -163,7 +241,41 @@ export const updateUserProfile = createServerFn({ method: "POST" })
 
 const activitySchema = z.object({ user_id: z.string().uuid() });
 
-export const getUserActivity = createServerFn({ method: "POST" })
+const resetPasswordSchema = z.object({
+  user_id: z.string().uuid(),
+  password: z.string().min(8).max(72),
+});
+
+export const updateUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => resetPasswordSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const rolesData = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [context.userId])) as any[];
+    const rolesCurrent = rolesData.map((r: any) => r.role);
+    const isMaster = rolesCurrent.includes("adminmaster");
+    const isOwner = rolesCurrent.includes("owner");
+
+    if (!isMaster && !isOwner) {
+      throw new Error("Acesso negado.");
+    }
+
+    if (!isMaster) {
+      const uRows = (await db.query("SELECT tenant_id FROM users WHERE id = ?", [data.user_id])) as any[];
+      if (!uRows.length || uRows[0].tenant_id !== context.userId) {
+        throw new Error("Usuário não pertence à sua organização.");
+      }
+    }
+
+    const { error } = await dbAdmin.auth.admin.updateUserById(data.user_id, {
+      password: data.password,
+    });
+    
+    if (error) throw error;
+    
+    return { ok: true };
+  });
+
+export const getUserActivity = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d) => activitySchema.parse(d))
   .handler(async ({ data, context }) => {

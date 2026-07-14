@@ -482,6 +482,7 @@ function TemplatesPage() {
     subtitle: "Modelos aprovados pela Meta. São obrigatórios para iniciar uma conversa.",
     action: (
       <div className="flex items-center gap-2">
+        <InfoModal />
         <Button
           variant="outline"
           size="icon"
@@ -514,8 +515,6 @@ function TemplatesPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        <InfoSection />
-
         <div className="flex border-b border-border bg-card/30 rounded-t-lg p-1 max-w-md">
           <button
             onClick={() => {
@@ -980,7 +979,7 @@ function TemplatesPage() {
   );
 }
 
-function InfoSection() {
+function InfoModal() {
   const categories = [
     {
       icon: Megaphone,
@@ -1024,23 +1023,21 @@ function InfoSection() {
     },
   ];
 
-  const [open, setOpen] = useState(false);
   return (
-    <Card className="overflow-hidden py-0 gap-0 shadow-none">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 border-b bg-muted/40 p-4 text-left transition hover:bg-muted/60"
-      >
-        <Info className="h-4 w-4 text-primary" />
-        <h2 className="font-display text-base font-semibold">Informações sobre templates</h2>
-        <ChevronDown
-          className={`ml-auto h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <div className="grid gap-6 p-5 lg:grid-cols-2">
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon" aria-label="Informações sobre templates">
+          <Info className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Informações sobre templates</DialogTitle>
+          <DialogDescription>
+             Detalhes sobre as categorias oferecidas pela Meta e formas de reduzir custos.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-6 py-4 lg:grid-cols-2">
           <div>
             <h3 className="mb-3 text-sm font-semibold">Categorias oferecidas pela Meta</h3>
             <div className="space-y-2">
@@ -1085,7 +1082,7 @@ function InfoSection() {
             </p>
           </div>
         </div>
-      )}
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

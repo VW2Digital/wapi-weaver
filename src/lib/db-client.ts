@@ -267,6 +267,20 @@ export class ServerMySQLClient {
             return { data: { user: null }, error: err };
           }
         },
+        updateUserById: async (id: string, attributes: any) => {
+          try {
+            if (attributes.password) {
+              const passwordHash = await bcrypt.hash(attributes.password, 10);
+              await db.query("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id]);
+            }
+            if (attributes.email) {
+              await db.query("UPDATE users SET email = ? WHERE id = ?", [attributes.email, id]);
+            }
+            return { data: { user: { id } }, error: null };
+          } catch (err: any) {
+            return { data: { user: null }, error: err };
+          }
+        },
         deleteUser: async (id: string) => {
           try {
             await db.query("DELETE FROM users WHERE id = ?", [id]);
