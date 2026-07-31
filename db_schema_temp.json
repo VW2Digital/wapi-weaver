@@ -1,0 +1,1652 @@
+{
+  "billing_plans": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "name",
+        "type": "varchar(255)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "description",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "price",
+        "type": "decimal(10,2)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "currency",
+        "type": "varchar(10)",
+        "null": "NO",
+        "key": "",
+        "default": "BRL",
+        "extra": ""
+      },
+      {
+        "field": "billing_interval",
+        "type": "enum('day','week','month','year')",
+        "null": "NO",
+        "key": "",
+        "default": "month",
+        "extra": ""
+      },
+      {
+        "field": "billing_interval_count",
+        "type": "int",
+        "null": "NO",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "duration_days",
+        "type": "int",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "features",
+        "type": "json",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "is_active",
+        "type": "tinyint(1)",
+        "null": "NO",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      }
+    ],
+    "indexes": [
+      {
+        "table": "billing_plans",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 4,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `billing_plans` (\n  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `description` text COLLATE utf8mb4_unicode_ci,\n  `price` decimal(10,2) NOT NULL,\n  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRL',\n  `billing_interval` enum('day','week','month','year') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'month',\n  `billing_interval_count` int NOT NULL DEFAULT '1',\n  `duration_days` int NOT NULL,\n  `features` json DEFAULT NULL,\n  `is_active` tinyint(1) NOT NULL DEFAULT '1',\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "subscription_plans": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "name",
+        "type": "varchar(100)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "slug",
+        "type": "varchar(80)",
+        "null": "NO",
+        "key": "UNI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "description",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "max_agents",
+        "type": "int",
+        "null": "YES",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "max_funnels",
+        "type": "int",
+        "null": "YES",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "max_users",
+        "type": "int",
+        "null": "YES",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "features_json",
+        "type": "json",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "is_active",
+        "type": "tinyint(1)",
+        "null": "YES",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      },
+      {
+        "field": "stripe_product_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "stripe_price_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "max_ai_tokens",
+        "type": "int",
+        "null": "NO",
+        "key": "",
+        "default": "500000",
+        "extra": ""
+      }
+    ],
+    "indexes": [
+      {
+        "table": "subscription_plans",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 3,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "subscription_plans",
+        "non_unique": 0,
+        "key_name": "slug",
+        "seq_in_index": 1,
+        "column_name": "slug",
+        "collation": "A",
+        "cardinality": 3,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `subscription_plans` (\n  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `slug` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `description` text COLLATE utf8mb4_unicode_ci,\n  `max_agents` int DEFAULT '1',\n  `max_funnels` int DEFAULT '1',\n  `max_users` int DEFAULT '1',\n  `features_json` json DEFAULT NULL,\n  `is_active` tinyint(1) DEFAULT '1',\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  `stripe_product_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `stripe_price_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `max_ai_tokens` int NOT NULL DEFAULT '500000',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `slug` (`slug`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "subscriptions": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "tenant_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "UNI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "customer_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "plan_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "status",
+        "type": "enum('trial','active','expiring','pending_payment','past_due','suspended','cancelled')",
+        "null": "NO",
+        "key": "",
+        "default": "trial",
+        "extra": ""
+      },
+      {
+        "field": "starts_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "expires_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "grace_period_ends_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "cancelled_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "last_payment_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "next_billing_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "auto_renew",
+        "type": "tinyint(1)",
+        "null": "NO",
+        "key": "",
+        "default": "0",
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      }
+    ],
+    "indexes": [
+      {
+        "table": "subscriptions",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "subscriptions",
+        "non_unique": 0,
+        "key_name": "tenant_id",
+        "seq_in_index": 1,
+        "column_name": "tenant_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "subscriptions",
+        "non_unique": 1,
+        "key_name": "customer_id",
+        "seq_in_index": 1,
+        "column_name": "customer_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "subscriptions",
+        "non_unique": 1,
+        "key_name": "plan_id",
+        "seq_in_index": 1,
+        "column_name": "plan_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `subscriptions` (\n  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `plan_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `status` enum('trial','active','expiring','pending_payment','past_due','suspended','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'trial',\n  `starts_at` datetime NOT NULL,\n  `expires_at` datetime NOT NULL,\n  `grace_period_ends_at` datetime DEFAULT NULL,\n  `cancelled_at` datetime DEFAULT NULL,\n  `last_payment_at` datetime DEFAULT NULL,\n  `next_billing_at` datetime DEFAULT NULL,\n  `auto_renew` tinyint(1) NOT NULL DEFAULT '0',\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `tenant_id` (`tenant_id`),\n  KEY `customer_id` (`customer_id`),\n  KEY `plan_id` (`plan_id`),\n  CONSTRAINT `subscriptions_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `subscriptions_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `subscriptions_ibfk_3` FOREIGN KEY (`plan_id`) REFERENCES `billing_plans` (`id`) ON DELETE RESTRICT\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "billing_invoices": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "tenant_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "customer_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "subscription_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "plan_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "invoice_number",
+        "type": "varchar(50)",
+        "null": "NO",
+        "key": "UNI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "description",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "amount",
+        "type": "decimal(10,2)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "currency",
+        "type": "varchar(10)",
+        "null": "NO",
+        "key": "",
+        "default": "BRL",
+        "extra": ""
+      },
+      {
+        "field": "status",
+        "type": "enum('draft','pending','paid','failed','expired','cancelled','refunded')",
+        "null": "NO",
+        "key": "",
+        "default": "pending",
+        "extra": ""
+      },
+      {
+        "field": "due_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "paid_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "cancelled_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "external_reference",
+        "type": "varchar(255)",
+        "null": "NO",
+        "key": "UNI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "metadata",
+        "type": "json",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      }
+    ],
+    "indexes": [
+      {
+        "table": "billing_invoices",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_invoices",
+        "non_unique": 0,
+        "key_name": "invoice_number",
+        "seq_in_index": 1,
+        "column_name": "invoice_number",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_invoices",
+        "non_unique": 0,
+        "key_name": "external_reference",
+        "seq_in_index": 1,
+        "column_name": "external_reference",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_invoices",
+        "non_unique": 1,
+        "key_name": "tenant_id",
+        "seq_in_index": 1,
+        "column_name": "tenant_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_invoices",
+        "non_unique": 1,
+        "key_name": "customer_id",
+        "seq_in_index": 1,
+        "column_name": "customer_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_invoices",
+        "non_unique": 1,
+        "key_name": "subscription_id",
+        "seq_in_index": 1,
+        "column_name": "subscription_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_invoices",
+        "non_unique": 1,
+        "key_name": "plan_id",
+        "seq_in_index": 1,
+        "column_name": "plan_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `billing_invoices` (\n  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `plan_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `invoice_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `description` text COLLATE utf8mb4_unicode_ci,\n  `amount` decimal(10,2) NOT NULL,\n  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRL',\n  `status` enum('draft','pending','paid','failed','expired','cancelled','refunded') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',\n  `due_at` datetime NOT NULL,\n  `paid_at` datetime DEFAULT NULL,\n  `cancelled_at` datetime DEFAULT NULL,\n  `external_reference` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `metadata` json DEFAULT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `invoice_number` (`invoice_number`),\n  UNIQUE KEY `external_reference` (`external_reference`),\n  KEY `tenant_id` (`tenant_id`),\n  KEY `customer_id` (`customer_id`),\n  KEY `subscription_id` (`subscription_id`),\n  KEY `plan_id` (`plan_id`),\n  CONSTRAINT `billing_invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `billing_invoices_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `billing_invoices_ibfk_3` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `billing_invoices_ibfk_4` FOREIGN KEY (`plan_id`) REFERENCES `billing_plans` (`id`) ON DELETE RESTRICT\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "billing_payments": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "tenant_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "customer_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "subscription_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "invoice_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "provider",
+        "type": "varchar(50)",
+        "null": "NO",
+        "key": "",
+        "default": "mercadopago",
+        "extra": ""
+      },
+      {
+        "field": "provider_payment_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "provider_order_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "provider_preference_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "external_reference",
+        "type": "varchar(255)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "payment_method",
+        "type": "varchar(50)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "payment_type",
+        "type": "varchar(50)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "status",
+        "type": "varchar(50)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "status_detail",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "amount",
+        "type": "decimal(10,2)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "currency",
+        "type": "varchar(10)",
+        "null": "NO",
+        "key": "",
+        "default": "BRL",
+        "extra": ""
+      },
+      {
+        "field": "installments",
+        "type": "int",
+        "null": "NO",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "payer_email",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "approved_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "expires_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "raw_response",
+        "type": "json",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "environment",
+        "type": "enum('sandbox','production')",
+        "null": "NO",
+        "key": "",
+        "default": "sandbox",
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      }
+    ],
+    "indexes": [
+      {
+        "table": "billing_payments",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 0,
+        "key_name": "uq_provider_payment_env",
+        "seq_in_index": 1,
+        "column_name": "provider_payment_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "YES",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 0,
+        "key_name": "uq_provider_payment_env",
+        "seq_in_index": 2,
+        "column_name": "provider",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 0,
+        "key_name": "uq_provider_payment_env",
+        "seq_in_index": 3,
+        "column_name": "environment",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 1,
+        "key_name": "tenant_id",
+        "seq_in_index": 1,
+        "column_name": "tenant_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 1,
+        "key_name": "customer_id",
+        "seq_in_index": 1,
+        "column_name": "customer_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 1,
+        "key_name": "subscription_id",
+        "seq_in_index": 1,
+        "column_name": "subscription_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "billing_payments",
+        "non_unique": 1,
+        "key_name": "invoice_id",
+        "seq_in_index": 1,
+        "column_name": "invoice_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `billing_payments` (\n  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `invoice_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'mercadopago',\n  `provider_payment_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `provider_order_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `provider_preference_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `external_reference` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `payment_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `payment_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `status_detail` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `amount` decimal(10,2) NOT NULL,\n  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRL',\n  `installments` int NOT NULL DEFAULT '1',\n  `payer_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `approved_at` datetime DEFAULT NULL,\n  `expires_at` datetime DEFAULT NULL,\n  `raw_response` json DEFAULT NULL,\n  `environment` enum('sandbox','production') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sandbox',\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_provider_payment_env` (`provider_payment_id`,`provider`,`environment`),\n  KEY `tenant_id` (`tenant_id`),\n  KEY `customer_id` (`customer_id`),\n  KEY `subscription_id` (`subscription_id`),\n  KEY `invoice_id` (`invoice_id`),\n  CONSTRAINT `billing_payments_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `billing_payments_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `billing_payments_ibfk_3` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `billing_payments_ibfk_4` FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "payment_gateway_settings": {
+    "describe": [
+      {
+        "field": "tenant_id",
+        "type": "varchar(36)",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "environment",
+        "type": "enum('sandbox','production')",
+        "null": "NO",
+        "key": "",
+        "default": "sandbox",
+        "extra": ""
+      },
+      {
+        "field": "checkout_mode",
+        "type": "enum('transparent','redirect')",
+        "null": "NO",
+        "key": "",
+        "default": "redirect",
+        "extra": ""
+      },
+      {
+        "field": "sandbox_access_token",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "sandbox_public_key",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "sandbox_client_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "sandbox_client_secret",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "production_access_token",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "production_public_key",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "production_client_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "production_client_secret",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "webhook_secret",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      }
+    ],
+    "indexes": [
+      {
+        "table": "payment_gateway_settings",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "tenant_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `payment_gateway_settings` (\n  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `environment` enum('sandbox','production') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sandbox',\n  `checkout_mode` enum('transparent','redirect') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'redirect',\n  `sandbox_access_token` text COLLATE utf8mb4_unicode_ci,\n  `sandbox_public_key` text COLLATE utf8mb4_unicode_ci,\n  `sandbox_client_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `sandbox_client_secret` text COLLATE utf8mb4_unicode_ci,\n  `production_access_token` text COLLATE utf8mb4_unicode_ci,\n  `production_public_key` text COLLATE utf8mb4_unicode_ci,\n  `production_client_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `production_client_secret` text COLLATE utf8mb4_unicode_ci,\n  `webhook_secret` text COLLATE utf8mb4_unicode_ci,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`tenant_id`),\n  CONSTRAINT `payment_gateway_settings_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "licenses": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "bigint unsigned",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": "auto_increment"
+      },
+      {
+        "field": "license_key_hash",
+        "type": "char(64)",
+        "null": "NO",
+        "key": "UNI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "license_key_preview",
+        "type": "varchar(60)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "client_name",
+        "type": "varchar(160)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "client_email",
+        "type": "varchar(190)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "product_name",
+        "type": "varchar(120)",
+        "null": "YES",
+        "key": "",
+        "default": "SaaS",
+        "extra": ""
+      },
+      {
+        "field": "app_id",
+        "type": "varchar(100)",
+        "null": "NO",
+        "key": "MUL",
+        "default": "meu-saas",
+        "extra": ""
+      },
+      {
+        "field": "plan",
+        "type": "varchar(80)",
+        "null": "NO",
+        "key": "",
+        "default": "basic",
+        "extra": ""
+      },
+      {
+        "field": "status",
+        "type": "varchar(30)",
+        "null": "NO",
+        "key": "MUL",
+        "default": "active",
+        "extra": ""
+      },
+      {
+        "field": "expires_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "max_activations",
+        "type": "int",
+        "null": "NO",
+        "key": "",
+        "default": "1",
+        "extra": ""
+      },
+      {
+        "field": "max_users",
+        "type": "int",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "features_json",
+        "type": "json",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "notes",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "timestamp",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "timestamp",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      },
+      {
+        "field": "tenant_id",
+        "type": "varchar(36)",
+        "null": "YES",
+        "key": "UNI",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "stripe_customer_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "stripe_subscription_id",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "ai_tokens_used",
+        "type": "int",
+        "null": "NO",
+        "key": "",
+        "default": "0",
+        "extra": ""
+      }
+    ],
+    "indexes": [
+      {
+        "table": "licenses",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 2,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "licenses",
+        "non_unique": 0,
+        "key_name": "license_key_hash",
+        "seq_in_index": 1,
+        "column_name": "license_key_hash",
+        "collation": "A",
+        "cardinality": 2,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "licenses",
+        "non_unique": 0,
+        "key_name": "tenant_id",
+        "seq_in_index": 1,
+        "column_name": "tenant_id",
+        "collation": "A",
+        "cardinality": 2,
+        "sub_part": null,
+        "packed": null,
+        "null": "YES",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "licenses",
+        "non_unique": 1,
+        "key_name": "idx_licenses_status",
+        "seq_in_index": 1,
+        "column_name": "status",
+        "collation": "A",
+        "cardinality": 1,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "licenses",
+        "non_unique": 1,
+        "key_name": "idx_licenses_app_id",
+        "seq_in_index": 1,
+        "column_name": "app_id",
+        "collation": "A",
+        "cardinality": 1,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "licenses",
+        "non_unique": 1,
+        "key_name": "idx_licenses_tenant_id",
+        "seq_in_index": 1,
+        "column_name": "tenant_id",
+        "collation": "A",
+        "cardinality": 2,
+        "sub_part": null,
+        "packed": null,
+        "null": "YES",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `licenses` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `license_key_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `license_key_preview` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `client_name` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `client_email` varchar(190) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `product_name` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT 'SaaS',\n  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'meu-saas',\n  `plan` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'basic',\n  `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',\n  `expires_at` datetime DEFAULT NULL,\n  `max_activations` int NOT NULL DEFAULT '1',\n  `max_users` int DEFAULT NULL,\n  `features_json` json DEFAULT NULL,\n  `notes` text COLLATE utf8mb4_unicode_ci,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `stripe_customer_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `stripe_subscription_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `ai_tokens_used` int NOT NULL DEFAULT '0',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `license_key_hash` (`license_key_hash`),\n  UNIQUE KEY `tenant_id` (`tenant_id`),\n  KEY `idx_licenses_status` (`status`),\n  KEY `idx_licenses_app_id` (`app_id`),\n  KEY `idx_licenses_tenant_id` (`tenant_id`)\n) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  },
+  "license_activations": {
+    "describe": [
+      {
+        "field": "id",
+        "type": "bigint unsigned",
+        "null": "NO",
+        "key": "PRI",
+        "default": null,
+        "extra": "auto_increment"
+      },
+      {
+        "field": "license_id",
+        "type": "bigint unsigned",
+        "null": "NO",
+        "key": "MUL",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "domain",
+        "type": "varchar(190)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "app_url",
+        "type": "varchar(255)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "installation_id",
+        "type": "varchar(120)",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "ip_address",
+        "type": "varchar(80)",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "user_agent",
+        "type": "text",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "status",
+        "type": "varchar(30)",
+        "null": "NO",
+        "key": "",
+        "default": "active",
+        "extra": ""
+      },
+      {
+        "field": "activated_at",
+        "type": "datetime",
+        "null": "NO",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "last_check_at",
+        "type": "datetime",
+        "null": "YES",
+        "key": "",
+        "default": null,
+        "extra": ""
+      },
+      {
+        "field": "created_at",
+        "type": "timestamp",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED"
+      },
+      {
+        "field": "updated_at",
+        "type": "timestamp",
+        "null": "NO",
+        "key": "",
+        "default": "CURRENT_TIMESTAMP",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+      }
+    ],
+    "indexes": [
+      {
+        "table": "license_activations",
+        "non_unique": 0,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "column_name": "id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "license_activations",
+        "non_unique": 0,
+        "key_name": "uq_license_activation",
+        "seq_in_index": 1,
+        "column_name": "license_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "license_activations",
+        "non_unique": 0,
+        "key_name": "uq_license_activation",
+        "seq_in_index": 2,
+        "column_name": "domain",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "license_activations",
+        "non_unique": 0,
+        "key_name": "uq_license_activation",
+        "seq_in_index": 3,
+        "column_name": "installation_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      },
+      {
+        "table": "license_activations",
+        "non_unique": 1,
+        "key_name": "idx_license_activations_license_id",
+        "seq_in_index": 1,
+        "column_name": "license_id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": null,
+        "packed": null,
+        "null": "",
+        "index_type": "BTREE",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": null
+      }
+    ],
+    "createTable": "CREATE TABLE `license_activations` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `license_id` bigint unsigned NOT NULL,\n  `domain` varchar(190) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `app_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `installation_id` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `ip_address` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `user_agent` text COLLATE utf8mb4_unicode_ci,\n  `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',\n  `activated_at` datetime NOT NULL,\n  `last_check_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_license_activation` (`license_id`,`domain`,`installation_id`),\n  KEY `idx_license_activations_license_id` (`license_id`),\n  CONSTRAINT `fk_license_activations_license` FOREIGN KEY (`license_id`) REFERENCES `licenses` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  }
+}

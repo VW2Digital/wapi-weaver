@@ -1,0 +1,10 @@
+{
+  "planIdRefs": [
+    "origin/audit/whatsapp-crm-validation:src/lib/ai-agent.server.ts:46:       LEFT JOIN subscription_plans p ON l.plan_id = p.id ",
+    "origin/audit/whatsapp-crm-validation:src/lib/dashboard.functions.ts:177:       LEFT JOIN subscription_plans p ON l.plan_id = p.id`",
+    "origin/audit/whatsapp-crm-validation:src/lib/users-admin.functions.ts:106:          FROM licenses l LEFT JOIN subscription_plans p ON l.plan_id = p.id WHERE l.tenant_id = ? LIMIT 1`,"
+  ],
+  "licenseAlterRefs": [
+    "origin/audit/whatsapp-crm-validation:src/server.ts:96:      await db.query(\"ALTER TABLE licenses ADD COLUMN tenant_id VARCHAR(36) NULL UNIQUE\");"
+  ]
+}

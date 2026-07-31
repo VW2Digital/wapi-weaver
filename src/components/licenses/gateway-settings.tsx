@@ -3,11 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Copy, Check, Loader2, RefreshCw, Activity, ShieldAlert, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
-export function GatewaySettings() {
+export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -34,8 +40,8 @@ export function GatewaySettings() {
   } | null>(null);
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (enabled) fetchSettings();
+  }, [enabled]);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -164,6 +170,8 @@ export function GatewaySettings() {
     setTimeout(() => setCopiedAlt(false), 2000);
   };
 
+  if (!enabled) return null;
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
@@ -178,9 +186,13 @@ export function GatewaySettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" /> Gateway Mercado Pago
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+              Prioritário
+            </span>
           </CardTitle>
           <CardDescription>
-            Configure as credenciais e o comportamento de cobranças automatizadas via Mercado Pago para a sua plataforma SaaS.
+            Configure as credenciais e o comportamento de cobranças automatizadas via Mercado Pago
+            para a sua plataforma SaaS.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -212,16 +224,15 @@ export function GatewaySettings() {
               {/* Modo de Checkout */}
               <div className="space-y-2">
                 <Label htmlFor="checkoutMode">Modo de Checkout</Label>
-                <Select
-                  value={checkoutMode}
-                  onValueChange={(val: any) => setCheckoutMode(val)}
-                >
+                <Select value={checkoutMode} onValueChange={(val: any) => setCheckoutMode(val)}>
                   <SelectTrigger id="checkoutMode" className="w-full">
                     <SelectValue placeholder="Selecione o modo de checkout" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="redirect">Redirect — Checkout Pro Mercado Pago</SelectItem>
-                    <SelectItem value="transparent">Transparente — PIX e Cartão na Plataforma</SelectItem>
+                    <SelectItem value="transparent">
+                      Transparente — PIX e Cartão na Plataforma
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -340,13 +351,24 @@ export function GatewaySettings() {
                     readOnly
                     className="bg-muted text-muted-foreground flex-1 font-mono text-xs select-all"
                   />
-                  <Button type="button" variant="outline" onClick={handleCopyWebhook} className="gap-2 shrink-0">
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCopyWebhook}
+                    className="gap-2 shrink-0"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                     Copiar
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Cadastre essa URL exatamente como exibida acima no painel do Mercado Pago em <strong>Integrações &gt; Webhooks</strong> e marque os eventos de <strong>payment</strong>.
+                  Cadastre essa URL exatamente como exibida acima no painel do Mercado Pago em{" "}
+                  <strong>Integrações &gt; Webhooks</strong> e marque os eventos de{" "}
+                  <strong>payment</strong>.
                 </p>
               </div>
 
@@ -359,13 +381,23 @@ export function GatewaySettings() {
                     readOnly
                     className="bg-muted text-muted-foreground flex-1 font-mono text-xs select-all"
                   />
-                  <Button type="button" variant="outline" onClick={handleCopyAltWebhook} className="gap-2 shrink-0">
-                    {copiedAlt ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCopyAltWebhook}
+                    className="gap-2 shrink-0"
+                  >
+                    {copiedAlt ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                     Copiar
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Use este link secundário caso prefira encaminhar notificações por meio de uma Edge Function externa de contingência.
+                  Use este link secundário caso prefira encaminhar notificações por meio de uma Edge
+                  Function externa de contingência.
                 </p>
               </div>
 
@@ -421,7 +453,11 @@ export function GatewaySettings() {
                 Testar Integração
               </Button>
 
-              <Button type="submit" disabled={saving || testing} className="gap-2 font-medium !rounded-md px-6">
+              <Button
+                type="submit"
+                disabled={saving || testing}
+                className="gap-2 font-medium !rounded-md px-6"
+              >
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Salvar Configuração
               </Button>

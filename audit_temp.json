@@ -1,0 +1,204 @@
+{
+  "files": [
+    "M\t.agents/AGENTS.md",
+    "M\t.env",
+    "M\t.env.example",
+    "M\tdb_update_status.txt",
+    "A\tdeploy-vps/README.md",
+    "A\tdeploy-vps/update.sh",
+    "A\tdocs/DS-AGENTE.md",
+    "A\tdocs/MERCADOPAGO_INTEGRATION.md",
+    "M\tinstall.sh",
+    "M\tpackage-lock.json",
+    "M\tpackage.json",
+    "A\tscripts/add-tenant-id-to-users.ts",
+    "A\tscripts/ds-agent-migrate-v2.ts",
+    "A\tscripts/ds-agente-schema.ts",
+    "M\tscripts/ensure-schema.js",
+    "A\tscripts/update-billing-schema.ts",
+    "A\tscripts/update-plans-schema.ts",
+    "A\tsrc/components/ai-agent/AgentEditor.tsx",
+    "A\tsrc/components/ai-agent/AgentGrid.tsx",
+    "A\tsrc/components/ai-agent/AiAgentManager.tsx",
+    "A\tsrc/components/ai-agent/FolderGrid.tsx",
+    "A\tsrc/components/ai-agent/tabs/IntegrationTab.tsx",
+    "A\tsrc/components/ai-agent/tabs/KnowledgeTab.tsx",
+    "A\tsrc/components/ai-agent/tabs/TestTab.tsx",
+    "A\tsrc/components/ai-agent/tabs/ToolsTab.tsx",
+    "A\tsrc/components/ai-agent/tabs/TrainingTab.tsx",
+    "A\tsrc/components/ai-agent/tabs/UsageTab.tsx",
+    "M\tsrc/components/layout/page-header-provider.tsx",
+    "M\tsrc/components/licenses/gateway-settings.tsx",
+    "A\tsrc/components/licenses/plans-manager.tsx",
+    "M\tsrc/components/ui/button.tsx",
+    "M\tsrc/components/ui/input.tsx",
+    "M\tsrc/components/ui/select.tsx",
+    "M\tsrc/components/ui/sonner.tsx",
+    "M\tsrc/components/ui/textarea.tsx",
+    "M\tsrc/lib/ai-agent.server.ts",
+    "A\tsrc/lib/billing-job.ts",
+    "M\tsrc/lib/dashboard.functions.ts",
+    "M\tsrc/lib/db-client.ts",
+    "A\tsrc/lib/ds-agent.functions.ts",
+    "A\tsrc/lib/ds-crypto.ts",
+    "A\tsrc/lib/encryption.ts",
+    "M\tsrc/lib/license-admin.functions.ts",
+    "A\tsrc/lib/mercadopago.ts",
+    "A\tsrc/lib/stripe.ts",
+    "A\tsrc/lib/subscription-helpers.ts",
+    "A\tsrc/lib/subscription-middleware.ts",
+    "M\tsrc/lib/users-admin.functions.ts",
+    "M\tsrc/routeTree.gen.ts",
+    "M\tsrc/routes/_app/ai-agent.tsx",
+    "M\tsrc/routes/_app/billing.tsx",
+    "M\tsrc/routes/_app/chat.tsx",
+    "M\tsrc/routes/_app/dashboard.tsx",
+    "M\tsrc/routes/_app/licenses/$id.tsx",
+    "M\tsrc/routes/_app/licenses/index.tsx",
+    "M\tsrc/routes/_app/templates.tsx",
+    "M\tsrc/routes/_app/users.tsx",
+    "A\tsrc/routes/api/admin/payment-gateways/mercadopago.ts",
+    "A\tsrc/routes/api/admin/payment-gateways/mercadopago/test.ts",
+    "A\tsrc/routes/api/billing/checkout.ts",
+    "A\tsrc/routes/api/billing/checkout/card.ts",
+    "A\tsrc/routes/api/billing/checkout/pix.ts",
+    "A\tsrc/routes/api/billing/invoices.ts",
+    "A\tsrc/routes/api/billing/invoices/$id.ts",
+    "A\tsrc/routes/api/billing/payments/$id/status.ts",
+    "A\tsrc/routes/api/billing/plans.ts",
+    "A\tsrc/routes/api/billing/public-key.ts",
+    "A\tsrc/routes/api/billing/subscription.ts",
+    "A\tsrc/routes/api/billing/subscription/renew.ts",
+    "A\tsrc/routes/api/public/webhooks/stripe.ts",
+    "A\tsrc/routes/api/webhooks/mercadopago.ts",
+    "A\tsrc/routes/functions/v1/mercadopago-webhook.ts",
+    "M\tsrc/server.ts",
+    "A\ttest-billing.ts"
+  ],
+  "imports": {
+    "src/components/licenses/plans-manager.tsx": [
+      "import { useState } from \"react\";",
+      "import { useQuery, useMutation, useQueryClient } from \"@tanstack/react-query\";",
+      "import { useServerFn } from \"@tanstack/react-start\";",
+      "import { Plus, Edit2, Trash2, Loader2, Save, MoreHorizontal } from \"lucide-react\";",
+      "import { toast } from \"sonner\";",
+      "import {",
+      "import { Button } from \"@/components/ui/button\";",
+      "import { Input } from \"@/components/ui/input\";",
+      "import { Label } from \"@/components/ui/label\";",
+      "import {",
+      "import { Switch } from \"@/components/ui/switch\";",
+      "import {",
+      "import { useConfirm } from \"@/components/confirm-dialog\";",
+      "import {"
+    ],
+    "src/lib/mercadopago.ts": [
+      "import db from \"./db\";",
+      "import { decrypt } from \"./encryption\";"
+    ],
+    "src/lib/stripe.ts": [
+      "import Stripe from \"stripe\";"
+    ],
+    "src/lib/subscription-helpers.ts": [
+      "import crypto from \"crypto\";",
+      "import jwt from \"jsonwebtoken\";",
+      "import db from \"./db\";",
+      "import { differenceInDays, isAfter, addDays, addMonths, addYears } from \"date-fns\";",
+      "const { resolveEffectiveUserId } = await import(\"@/lib/chat-helpers\");"
+    ],
+    "src/lib/subscription-middleware.ts": [
+      "import { createMiddleware } from \"@tanstack/react-start\";",
+      "import { requireAuth } from \"@/integrations/mysql/auth-middleware\";",
+      "import jwt from \"jsonwebtoken\";",
+      "import { getOrCreateSubscription, calculateSubscriptionStatus } from \"./subscription-helpers\";",
+      "const { resolveEffectiveUserId } = await import(\"@/lib/chat-helpers\");"
+    ],
+    "src/lib/billing-job.ts": [
+      "import db from \"./db\";",
+      "import { getOrCreateSubscription, calculateSubscriptionStatus, logSubscriptionEvent } from \"./subscription-helpers\";",
+      "import { differenceInDays, isBefore, addDays } from \"date-fns\";"
+    ],
+    "src/routes/_app/billing.tsx": [
+      "import { createFileRoute } from \"@tanstack/react-router\";",
+      "import { useQuery, useMutation, useQueryClient } from \"@tanstack/react-query\";",
+      "import { useServerFn } from \"@tanstack/react-start\";",
+      "import { useState, useEffect, useRef } from \"react\";",
+      "import { getBillingReport } from \"@/lib/billing.functions\";",
+      "import { usePageHeader } from \"@/components/layout/page-header-provider\";",
+      "import { Card, CardContent, CardDescription, CardHeader, CardTitle } from \"@/components/ui/card\";",
+      "import { Label } from \"@/components/ui/label\";",
+      "import { Button } from \"@/components/ui/button\";",
+      "import { Popover, PopoverContent, PopoverTrigger } from \"@/components/ui/popover\";",
+      "import { cn } from \"@/lib/utils\";",
+      "import { Tabs, TabsContent, TabsList, TabsTrigger } from \"@/components/ui/tabs\";",
+      "import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from \"@/components/ui/dialog\";",
+      "import { Input } from \"@/components/ui/input\";",
+      "import { Badge } from \"@/components/ui/badge\";",
+      "import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from \"@/components/ui/select\";",
+      "import {",
+      "import { toast } from \"sonner\";"
+    ]
+  },
+  "envRefs": [
+    {
+      "varName": "MERCADOPAGO",
+      "file": "src/lib/encryption.ts",
+      "line": "L7: const rawKey = process.env.MERCADOPAGO_ENCRYPTION_KEY;"
+    },
+    {
+      "varName": "MERCADOPAGO",
+      "file": "src/lib/encryption.ts",
+      "line": "L11: throw new Error(\"MERCADOPAGO_ENCRYPTION_KEY is required in production.\");"
+    },
+    {
+      "varName": "STRIPE",
+      "file": "src/lib/stripe.ts",
+      "line": "L3: export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || \"\", {"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/routes/api/public/cron/process-queue.ts",
+      "line": "L8: const WEBHOOK_EVENTS_RETENTION_DAYS = 30;"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/routes/api/public/cron/process-queue.ts",
+      "line": "L106: Date.now() - WEBHOOK_EVENTS_RETENTION_DAYS * 86_400_000,"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/routes/api/public/facebook-webhook.ts",
+      "line": "L37: process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/routes/api/public/instagram-webhook.ts",
+      "line": "L37: if (token === process.env.META_WEBHOOK_VERIFY_TOKEN) {"
+    },
+    {
+      "varName": "STRIPE",
+      "file": "src/routes/api/public/webhooks/stripe.ts",
+      "line": "L14: const secret = process.env.STRIPE_WEBHOOK_SECRET;"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/routes/api/public/webhooks/stripe.ts",
+      "line": "L14: const secret = process.env.STRIPE_WEBHOOK_SECRET;"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/routes/api/public/whatsapp-webhook.ts",
+      "line": "L1443: const envToken = process.env.META_WEBHOOK_VERIFY_TOKEN;"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/server.ts",
+      "line": "L516: const RATE_LIMIT_WEBHOOK = 200;       // max 200 webhook requests per minute per IP"
+    },
+    {
+      "varName": "WEBHOOK",
+      "file": "src/server.ts",
+      "line": "L600: if (isRateLimited(clientIp, \"webhook\", RATE_LIMIT_WEBHOOK)) {"
+    }
+  ]
+}

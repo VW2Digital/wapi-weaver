@@ -185,16 +185,19 @@ function AppLayout() {
 
   const navItems = useMemo(() => {
     const base: NavItem[] = [...NAV];
+    const billingEnabled = import.meta.env.VITE_BILLING_ENABLED !== "false";
+    const filtered = billingEnabled ? base : base.filter(item => item.to !== "/billing");
+
     if (licenseRoleQuery.data?.role === "panel" && licenseRoleQuery.data?.isAdmin) {
       const panelItem: NavChildItem = {
         to: "/licenses/",
         label: "Gerenciamento de Clientes",
         icon: Users,
       };
-      base.push(panelItem);
+      filtered.push(panelItem);
     }
-    return base;
-  }, [licenseRoleQuery.data?.role, licenseRoleQuery.data?.isAdmin]);
+    return filtered;
+  }, [licenseRoleQuery.data?.role, licenseRoleQuery.data?.isAdmin])
 
   const orderedNav = useMemo(() => {
     const raw = sidebarOrderData?.order;
@@ -281,13 +284,13 @@ function AppLayout() {
       } else if (p === "/dashboard") {
         router.navigate({ to: "/dashboard" });
       } else if (p === "/contacts") {
-        router.navigate({ to: "/contacts/" });
+        router.navigate({ to: "/contacts" });
       } else if (p === "/lists") {
         router.navigate({ to: "/lists" });
       } else if (p === "/templates") {
         router.navigate({ to: "/templates" });
       } else if (p === "/campaigns") {
-        router.navigate({ to: "/campaigns/" });
+        router.navigate({ to: "/campaigns" });
       } else if (p === "/crm") {
         router.navigate({ to: "/crm" });
       } else if (p === "/bot") {
@@ -307,7 +310,7 @@ function AppLayout() {
       } else if (p === "/webhook-events") {
         router.navigate({ to: "/webhook-events" });
       } else if (p === "/licenses") {
-        router.navigate({ to: "/licenses/" });
+        router.navigate({ to: "/licenses" });
       } else {
         router.navigate({ to: "/settings", search: { s: undefined } });
       }

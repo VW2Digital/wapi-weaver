@@ -1,0 +1,77 @@
+{
+  "notifications": {
+    "createTable": "CREATE TABLE `notifications` (\n  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `message` text COLLATE utf8mb4_unicode_ci NOT NULL,\n  `action_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `is_read` tinyint(1) NOT NULL DEFAULT '0',\n  `unique_key` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `read_at` datetime DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `unique_key` (`unique_key`),\n  KEY `tenant_id` (`tenant_id`),\n  KEY `user_id` (`user_id`),\n  CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    "indexes": [
+      {
+        "Table": "notifications",
+        "Non_unique": 0,
+        "Key_name": "PRIMARY",
+        "Seq_in_index": 1,
+        "Column_name": "id",
+        "Collation": "A",
+        "Cardinality": 0,
+        "Sub_part": null,
+        "Packed": null,
+        "Null": "",
+        "Index_type": "BTREE",
+        "Comment": "",
+        "Index_comment": "",
+        "Visible": "YES",
+        "Expression": null
+      },
+      {
+        "Table": "notifications",
+        "Non_unique": 0,
+        "Key_name": "unique_key",
+        "Seq_in_index": 1,
+        "Column_name": "unique_key",
+        "Collation": "A",
+        "Cardinality": 0,
+        "Sub_part": null,
+        "Packed": null,
+        "Null": "YES",
+        "Index_type": "BTREE",
+        "Comment": "",
+        "Index_comment": "",
+        "Visible": "YES",
+        "Expression": null
+      },
+      {
+        "Table": "notifications",
+        "Non_unique": 1,
+        "Key_name": "tenant_id",
+        "Seq_in_index": 1,
+        "Column_name": "tenant_id",
+        "Collation": "A",
+        "Cardinality": 0,
+        "Sub_part": null,
+        "Packed": null,
+        "Null": "",
+        "Index_type": "BTREE",
+        "Comment": "",
+        "Index_comment": "",
+        "Visible": "YES",
+        "Expression": null
+      },
+      {
+        "Table": "notifications",
+        "Non_unique": 1,
+        "Key_name": "user_id",
+        "Seq_in_index": 1,
+        "Column_name": "user_id",
+        "Collation": "A",
+        "Cardinality": 0,
+        "Sub_part": null,
+        "Packed": null,
+        "Null": "",
+        "Index_type": "BTREE",
+        "Comment": "",
+        "Index_comment": "",
+        "Visible": "YES",
+        "Expression": null
+      }
+    ]
+  },
+  "updateBillingSchema": "import fs from \"fs\";\nimport path from \"path\";\nimport mysql from \"mysql2/promise\";\n\nfunction getDbConfig() {\n  const envPath = path.resolve(process.cwd(), \".env\");\n  const envFile = fs.readFileSync(envPath, \"utf-8\");\n  \n  const env: Record<string, string> = {};\n  envFile.split(\"\\n\").forEach((line) => {\n    const trimmed = line.trim();\n    if (trimmed && !trimmed.startsWith(\"#\")) {\n      const [key, ...value] = trimmed.split(\"=\");\n      env[key] = value.join(\"=\").replace(/^\"|\"$/g, \"\").replace(/^'|'$/g, \"\");\n    }\n  });\n\n  return {\n    host: env.DB_HOST || \"localhost\",\n    port: Number(env.DB_PORT) || 3306,\n    user: env.DB_USER || \"root\",\n    password: env.DB_PASSWORD || \"\",\n    database: env.DB_NAME || \"wapi_weaver\",\n  };\n}\n\nasync function addColumnIfNotExists(conn: mysql.Connection, dbName: string, tableName: string, columnName: string, columnDef: string) {\n  const [columns]: any = await conn.query(\n    `SELECT count(*) as cnt FROM information_schema.COLUMNS \n     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,\n    [dbName, tableName, columnName]\n  );\n  if (columns[0].cnt === 0) {\n    console.log(`Adding ${columnName} to ${tableName}...`);\n    await conn.query(`ALTER TABLE \\`${tableName}\\` ADD COLUMN \\`${columnName}\\` ${columnDef}`);\n  }\n}\n\nasync function run() {\n  console.log(\"Connecting to the database for billing schema migration...\");\n  const config = getDbConfig();\n  const conn = await mysql.createConnection(config);\n\n  try {\n    // 1. Extend subscription_plans\n    await addColumnIfNotExists(conn, config.database, \"subscription_plans\", \"stripe_product_id\", \"VARCHAR(255) NULL\");\n    await addColumnIfNotExists(conn, config.database, \"subscription_plans\", \"stripe_price_id\", \"VARCHAR(255) NULL\");\n    await addColumnIfNotExists(conn, config.database, \"subscription_plans\", \"max_ai_tokens\", \"INT NOT NULL DEFAULT 500000\"); // 500k tokens default\n    \n    // 2. Extend licenses\n    await addColumnIfNotExists(conn, config.database, \"licenses\", \"stripe_customer_id\", \"VARCHAR(255) NULL\");\n    await addColumnIfNotExists(conn, config.database, \"licenses\", \"stripe_subscription_id\", \"VARCHAR(255) NULL\");\n    await addColumnIfNotExists(conn, config.database, \"licenses\", \"ai_tokens_used\", \"INT NOT NULL DEFAULT 0\");\n\n    // 3. Create ai_usage_logs table\n    console.log(\"Creating ai_usage_logs table...\");\n    await conn.query(`\n      CREATE TABLE IF NOT EXISTS ai_usage_logs (\n        id BIGINT AUTO_INCREMENT PRIMARY KEY,\n        tenant_id VARCHAR(36) NOT NULL,\n        contact_phone VARCHAR(50) NULL,\n        model VARCHAR(100) NOT NULL,\n        prompt_tokens INT NOT NULL DEFAULT 0,\n        completion_tokens INT NOT NULL DEFAULT 0,\n        total_tokens INT NOT NULL DEFAULT 0,\n        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n        INDEX idx_ai_tenant (tenant_id, created_at),\n        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE\n      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n    `);\n\n    console.log(\"Schema migration completed successfully!\");\n  } catch (err) {\n    console.error(\"Error migrating table:\", err);\n  } finally {\n    await conn.end();\n  }\n\n  console.log(\"Done.\");\n}\n\nrun();",
+  "updatePlansSchema": "import mysql from \"mysql2/promise\";\nimport fs from \"fs\";\nimport path from \"path\";\nimport crypto from \"crypto\";\n\n// Function to load the connection string from .env\nfunction getDbConfig() {\n  const envPath = path.resolve(process.cwd(), \".env\");\n  const envFile = fs.readFileSync(envPath, \"utf-8\");\n  \n  const env: Record<string, string> = {};\n  envFile.split(\"\\n\").forEach((line) => {\n    const [key, ...rest] = line.split(\"=\");\n    if (key && rest.length > 0) {\n      env[key.trim()] = rest.join(\"=\").trim().replace(/^\"|\"$/g, '');\n    }\n  });\n\n  if (!env.DB_USER || !env.DB_PASSWORD || !env.DB_HOST || !env.DB_PORT || !env.DB_NAME) {\n    throw new Error(\"Missing database credentials in .env\");\n  }\n\n  return {\n    user: env.DB_USER,\n    password: env.DB_PASSWORD,\n    host: env.DB_HOST,\n    port: parseInt(env.DB_PORT),\n    database: env.DB_NAME,\n  };\n}\n\nasync function run() {\n  console.log(\"Connecting to the database...\");\n  const config = getDbConfig();\n  \n  // Create a connection pool\n  const pool = mysql.createPool({\n    ...config,\n    waitForConnections: true,\n    connectionLimit: 5,\n    queueLimit: 0,\n  });\n\n  try {\n    console.log(\"Creating subscription_plans table...\");\n    const createTableQuery = `\n      CREATE TABLE IF NOT EXISTS subscription_plans (\n        id VARCHAR(36) PRIMARY KEY,\n        name VARCHAR(100) NOT NULL,\n        slug VARCHAR(80) NOT NULL UNIQUE,\n        description TEXT NULL,\n        max_agents INT DEFAULT 1,\n        max_funnels INT DEFAULT 1,\n        max_users INT DEFAULT 1,\n        features_json JSON NULL,\n        is_active BOOLEAN DEFAULT true,\n        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n    `;\n\n    await pool.query(createTableQuery);\n    console.log(\"Table subscription_plans ensured successfully!\");\n\n    // Insert default plans if they don't exist\n    console.log(\"Inserting default plans...\");\n    const defaultPlans = [\n      { id: crypto.randomUUID(), name: \"Básico\", slug: \"basic\", desc: \"Plano de entrada\", ag: 1, fn: 3, us: 2 },\n      { id: crypto.randomUUID(), name: \"Premium\", slug: \"premium\", desc: \"Para pequenos negócios\", ag: 5, fn: 10, us: 5 },\n      { id: crypto.randomUUID(), name: \"Enterprise\", slug: \"enterprise\", desc: \"Para grandes operações\", ag: 999, fn: 999, us: 999 },\n    ];\n\n    for (const p of defaultPlans) {\n      // Use INSERT IGNORE based on slug since slug is UNIQUE\n      const checkResult = await pool.query(\"SELECT id FROM subscription_plans WHERE slug = ?\", [p.slug]) as any;\n      if (checkResult[0].length === 0) {\n        await pool.query(\n          `INSERT INTO subscription_plans (id, name, slug, description, max_agents, max_funnels, max_users) \n           VALUES (?, ?, ?, ?, ?, ?, ?)`,\n          [p.id, p.name, p.slug, p.desc, p.ag, p.fn, p.us]\n        );\n      }\n    }\n    console.log(\"Default plans inserted/ensured.\");\n\n  } catch (error) {\n    console.error(\"Error creating schema:\", error);\n  } finally {\n    await pool.end();\n    console.log(\"Done.\");\n  }\n}\n\nrun();"
+}

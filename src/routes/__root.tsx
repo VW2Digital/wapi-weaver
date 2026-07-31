@@ -137,8 +137,20 @@ function RootSeoProvider() {
   );
 }
 
+import { useEffect } from "react";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    console.log("=== BLIV WEBAPP VERSION ===");
+    console.log(`Versão: ${import.meta.env.VITE_APP_VERSION}`);
+    console.log(`Commit: ${import.meta.env.VITE_COMMIT_HASH}`);
+    console.log(`Build: ${import.meta.env.VITE_BUILD_TIME}`);
+    console.log(`Ambiente: ${import.meta.env.MODE}`);
+    console.log("===========================");
+  }, []);
+
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
@@ -150,6 +162,28 @@ function RootComponent() {
                 <Outlet />
                 <Toaster richColors position="top-right" />
                 <TrackingTagsInjector />
+                
+                {/* Indicador de versão discreto para DevOps */}
+                <div 
+                  id="devops-version-badge"
+                  style={{
+                    position: "fixed",
+                    bottom: "4px",
+                    right: "4px",
+                    fontSize: "9px",
+                    fontFamily: "monospace",
+                    opacity: 0.6,
+                    zIndex: 99999,
+                    pointerEvents: "none",
+                    background: "rgba(0,0,0,0.7)",
+                    color: "#fff",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+                  }}
+                >
+                  v{import.meta.env.VITE_APP_VERSION}-{import.meta.env.VITE_COMMIT_HASH} ({import.meta.env.VITE_BUILD_TIME})
+                </div>
               </ConfirmProvider>
             </ErrorBoundary>
           </AuthProvider>

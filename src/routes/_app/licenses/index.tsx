@@ -50,6 +50,7 @@ import {
   Calendar,
   ShieldAlert,
   MoreHorizontal,
+  CreditCard,
 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
@@ -59,6 +60,7 @@ import {
   getLicenseStats,
   getLicenseRole,
 } from "@/lib/license-admin.functions";
+import { PlansManager } from "@/components/licenses/plans-manager";
 
 export const Route = createFileRoute("/_app/licenses/")({
   component: LicensesPage,
@@ -106,29 +108,6 @@ function LicensesPage() {
     queryFn: () => fetchStats({}),
     enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
   });
-
-  if (roleLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground p-12">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Verificando permissões...
-      </div>
-    );
-  }
-
-  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
-    return (
-      <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
-        <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          Você não possui privilégios de administrador ou esta instalação não está configurada como
-          Painel de Licenças.
-        </p>
-        <Button asChild>
-          <Link to="/">Voltar para o início</Link>
-        </Button>
-      </div>
-    );
-  }
 
   const createMutation = useMutation({
     mutationFn: (payload: any) => createLicenseMut({ data: payload }),
@@ -200,95 +179,126 @@ function LicensesPage() {
     title: "Gerenciamento de Clientes",
     subtitle: "Gerencie os acessos, planos e datas de validade de cada cliente/instância.",
     action: (
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogTrigger asChild>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" /> Novo Cliente
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {roleData?.role === "panel" && roleData.isAdmin && (
+          <Button variant="outline" asChild>
+            <Link to="/settings" search={{ s: "admin-payments" }} className="gap-2">
+              <CreditCard className="h-4 w-4" /> Meios de Pagamento
+            </Link>
           </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <form onSubmit={handleCreate}>
-            <DialogHeader>
-              <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="domain">Domínio / URL do SaaS *</Label>
-                <Input
-                  id="domain"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="ex: app.cliente.com"
-                  required
-                />
+        )}
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" /> Novo Cliente
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <form onSubmit={handleCreate}>
+              <DialogHeader>
+                <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="domain">Domínio / URL do SaaS *</Label>
+                  <Input
+                    id="domain"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="ex: app.cliente.com"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nome do Cliente / Responsável *</Label>
+                  <Input
+                    id="name"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="ex: João Silva"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">E-mail do Cliente</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    placeholder="ex: joao@empresa.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="plan">Plano</Label>
+                  <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="basic">Básico</SelectItem>
+                      <SelectItem value="premium">Premium</SelectItem>
+                      <SelectItem value="enterprise">Enterprise</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="expires">Data de Expiração / Validade (Opcional)</Label>
+                  <Input
+                    id="expires"
+                    type="date"
+                    value={expiresAt}
+                    onChange={(e) => setExpiresAt(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="notes">Notas Internas</Label>
+                  <Input
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="ex: Observações gerais..."
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="name">Nome do Cliente / Responsável *</Label>
-                <Input
-                  id="name"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="ex: João Silva"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">E-mail do Cliente</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={clientEmail}
-                  onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="ex: joao@empresa.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="plan">Plano</Label>
-                <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="basic">Básico</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="expires">Data de Expiração / Validade (Opcional)</Label>
-                <Input
-                  id="expires"
-                  type="date"
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="notes">Notas Internas</Label>
-                <Input
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="ex: Observações gerais..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Liberar Acesso
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <DialogFooter>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Liberar Acesso
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
     ),
   });
 
-  return (
-    <div className="space-y-8 p-6 pb-16">
+  if (roleLoading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground p-12">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Verificando permissões...
+      </div>
+    );
+  }
 
+  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
+        <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Você não possui privilégios de administrador ou esta instalação não está configurada como
+          Painel de Licenças.
+        </p>
+        <Button asChild>
+          <Link to="/">Voltar para o início</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-0 flex-1 space-y-8 overflow-y-auto p-6 pb-16">
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="shadow-sm">
@@ -472,7 +482,11 @@ function LicensesPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem asChild>
-                                <Link to="/licenses/$id" params={{ id: String(lic.id) }} className="w-full cursor-pointer">
+                                <Link
+                                  to="/licenses/$id"
+                                  params={{ id: String(lic.id) }}
+                                  className="w-full cursor-pointer"
+                                >
                                   <ExternalLink className="mr-2 h-4 w-4" />
                                   Acessar
                                 </Link>
@@ -520,6 +534,8 @@ function LicensesPage() {
           )}
         </CardContent>
       </Card>
+
+      <PlansManager />
     </div>
   );
 }

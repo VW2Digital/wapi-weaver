@@ -225,31 +225,83 @@ export const listCampaigns = createServerFn({ method: "GET" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    // Recalcular totais para todas as campanhas do usuário (exceto rascunhos) antes de listar
-    await db.query(
-      `
-      UPDATE campaigns c
-      SET totals = (
-        SELECT JSON_OBJECT(
-          'total', COUNT(*),
-          'pending', CAST(COALESCE(SUM(status='pending'), 0) AS SIGNED),
-          'sending', CAST(COALESCE(SUM(status='sending'), 0) AS SIGNED),
-          'sent', CAST(COALESCE(SUM(status='sent'), 0) AS SIGNED),
-          'delivered', CAST(COALESCE(SUM(status='delivered'), 0) AS SIGNED),
-          'read', CAST(COALESCE(SUM(status='read'), 0) AS SIGNED),
-          'failed', CAST(COALESCE(SUM(status='failed'), 0) AS SIGNED)
-        ) FROM campaign_messages WHERE campaign_id = c.id AND user_id = ?
-      )
-      WHERE c.user_id = ? AND c.status != 'draft'
-    `,
-      [effectiveUserId, effectiveUserId],
-    );
-
-    const data: any[] = (await db.query(
+    // 1. Buscar a página atual de campanhas do usuário (limite máximo de 200)
+    const campaigns: any[] = (await db.query(
       `SELECT * FROM campaigns WHERE user_id = ? ORDER BY created_at DESC LIMIT 200`,
       [effectiveUserId],
     )) as any[];
-    return attachTemplateDiagnostics(context.db, data ?? []);
+
+    if (!campaigns || campaigns.length === 0) {
+      return [];
+    }
+
+    // 2. Extrair IDs das campanhas que não são rascunhos para calcular os totais
+    const nonDraftCampaigns = campaigns.filter((c) => c.status !== "draft");
+
+    if (nonDraftCampaigns.length > 0) {
+      const campaignIds = nonDraftCampaigns.map((c) => c.id);
+
+      // 3. Executar uma única query agregadora parametrizada para estes IDs filtrando pelo user_id
+      const placeholders = campaignIds.map(() => "?").join(", ");
+      const messageStats: any[] = (await db.query(
+        `SELECT campaign_id, status, COUNT(*) AS cnt 
+         FROM campaign_messages 
+         WHERE campaign_id IN (${placeholders}) AND user_id = ?
+         GROUP BY campaign_id, status`,
+        [...campaignIds, effectiveUserId]
+      )) as any[];
+
+      // 4. Mapear e agrupar os totais na memória no backend
+      const totalsMap: Record<string, any> = {};
+      for (const row of messageStats) {
+        const cId = row.campaign_id;
+        const status = row.status;
+        const count = Number(row.cnt || 0);
+
+        if (!totalsMap[cId]) {
+          totalsMap[cId] = {
+            total: 0,
+            pending: 0,
+            sending: 0,
+            sent: 0,
+            delivered: 0,
+            read: 0,
+            failed: 0,
+          };
+        }
+        
+        totalsMap[cId][status] = count;
+        totalsMap[cId].total += count;
+      }
+
+      // 5. Unir os totais e fornecer valores zerados para campanhas sem mensagens
+      for (const c of campaigns) {
+        if (c.status === "draft") {
+          if (!c.totals) {
+            c.totals = { total: 0, pending: 0, sending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
+          }
+        } else {
+          c.totals = totalsMap[c.id] || {
+            total: 0,
+            pending: 0,
+            sending: 0,
+            sent: 0,
+            delivered: 0,
+            read: 0,
+            failed: 0,
+          };
+        }
+      }
+    } else {
+      // Se todas forem rascunho, garantir a consistência de totais zerados
+      for (const c of campaigns) {
+        if (!c.totals) {
+          c.totals = { total: 0, pending: 0, sending: 0, sent: 0, delivered: 0, read: 0, failed: 0 };
+        }
+      }
+    }
+
+    return attachTemplateDiagnostics(context.db, campaigns);
   });
 
 export const getCampaign = createServerFn({ method: "POST" })

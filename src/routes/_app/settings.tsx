@@ -79,6 +79,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
+import { GatewaySettings } from "@/components/licenses/gateway-settings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -151,14 +152,12 @@ import { cn } from "@/lib/utils";
 import { useRoles } from "@/hooks/use-roles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-export const Route = createFileRoute("/_app/settings")(
-  {
-    validateSearch: (search: Record<string, unknown>) => ({
-      s: typeof search.s === "string" ? search.s : undefined,
-    }),
-    component: SettingsLayout,
-  }
-);
+export const Route = createFileRoute("/_app/settings")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    s: typeof search.s === "string" ? search.s : undefined,
+  }),
+  component: SettingsLayout,
+});
 
 function SettingsLayout() {
   const loc = useLocation();
@@ -338,8 +337,13 @@ function usePersistedCollapsedState(key: string, defaultValue = true) {
 }
 
 function SettingsPage() {
-  const { isAdmin } = useRoles();
-  usePageHeader({ title: "Configurações", subtitle: "Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma." });
+  const { isAdmin, roles } = useRoles();
+  const isAdminMaster = roles.includes("adminmaster") || roles.includes("owner");
+  usePageHeader({
+    title: "Configurações",
+    subtitle:
+      "Conecte seus canais de atendimento, integre seu CRM e ajuste as configurações gerais da plataforma.",
+  });
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
@@ -369,8 +373,12 @@ function SettingsPage() {
 
   const doOnboardWhatsApp = useServerFn(onboardWhatsApp);
   const onboardWhatsAppMut = useMutation({
-    mutationFn: (data: { code: string; waba_id?: string; phone_number_id?: string; is_coexistence?: boolean }) => 
-      doOnboardWhatsApp({ data }),
+    mutationFn: (data: {
+      code: string;
+      waba_id?: string;
+      phone_number_id?: string;
+      is_coexistence?: boolean;
+    }) => doOnboardWhatsApp({ data }),
     onSuccess: (res: any) => {
       if (res.success) {
         toast.success("WhatsApp conectado com sucesso!");
@@ -384,37 +392,39 @@ function SettingsPage() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
+      if (
+        event.origin !== "https://www.facebook.com" &&
+        event.origin !== "https://web.facebook.com"
+      ) {
         return;
       }
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          if (data.event === 'FINISH' || data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+        if (data.type === "WA_EMBEDDED_SIGNUP") {
+          if (data.event === "FINISH" || data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING") {
             const waba_id = data.data?.waba_id;
             const phone_number_id = data.data?.phone_number_id;
             (window as any).__wa_embedded_waba_id = waba_id;
             (window as any).__wa_embedded_phone_number_id = phone_number_id;
-            if (data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+            if (data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING") {
               (window as any).__wa_embedded_is_coexistence = true;
             } else {
               (window as any).__wa_embedded_is_coexistence = false;
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   const handleEmbeddedSignup = () => {
-    if (typeof (window as any).FB === 'undefined') {
+    if (typeof (window as any).FB === "undefined") {
       toast.error("SDK do Facebook ainda não carregou.");
       return;
     }
-    
+
     // Inicializa o SDK caso ainda não tenha sido inicializado
     if (!(window as any).fbInitialized) {
       const appId = import.meta.env.VITE_META_APP_ID || "";
@@ -426,31 +436,34 @@ function SettingsPage() {
         appId: appId,
         autoLogAppEvents: true,
         xfbml: true,
-        version: 'v20.0'
+        version: "v20.0",
       });
       (window as any).fbInitialized = true;
     }
 
-    (window as any).FB.login((response: any) => {
-      if (response.authResponse) {
-        const code = response.authResponse.code;
-        const waba_id = (window as any).__wa_embedded_waba_id;
-        const phone_number_id = (window as any).__wa_embedded_phone_number_id;
-        const is_coexistence = (window as any).__wa_embedded_is_coexistence;
-        onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id, is_coexistence });
-      } else {
-        toast.error("Você cancelou o login ou não autorizou.");
-      }
-    }, {
-      config_id: import.meta.env.VITE_META_CONFIG_ID || "",
-      response_type: 'code',
-      override_default_response_type: true,
-      extras: {
-        setup: {},
-        featureType: '',
-        sessionInfoVersion: '3'
-      }
-    });
+    (window as any).FB.login(
+      (response: any) => {
+        if (response.authResponse) {
+          const code = response.authResponse.code;
+          const waba_id = (window as any).__wa_embedded_waba_id;
+          const phone_number_id = (window as any).__wa_embedded_phone_number_id;
+          const is_coexistence = (window as any).__wa_embedded_is_coexistence;
+          onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id, is_coexistence });
+        } else {
+          toast.error("Você cancelou o login ou não autorizou.");
+        }
+      },
+      {
+        config_id: import.meta.env.VITE_META_CONFIG_ID || "",
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: "",
+          sessionInfoVersion: "3",
+        },
+      },
+    );
   };
   const [debugResult, setDebugResult] = useState<any>(null);
 
@@ -624,7 +637,6 @@ function SettingsPage() {
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {!activeSection ? (
         <>
-
           <div className="flex-1 overflow-y-auto p-6 w-full space-y-8">
             {/* AJUDA & DOCUMENTAÇÃO */}
             <div className="space-y-3">
@@ -735,7 +747,6 @@ function SettingsPage() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-
               </div>
             </div>
 
@@ -842,7 +853,9 @@ function SettingsPage() {
                       <ListChecks className="h-5 w-5" />
                     </div>
                     <div>
-                      <h5 className="font-semibold text-sm text-foreground">Campos Personalizados</h5>
+                      <h5 className="font-semibold text-sm text-foreground">
+                        Campos Personalizados
+                      </h5>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Gerencie campos extras dos contatos: texto, números, seleções e mais.
                       </p>
@@ -850,7 +863,6 @@ function SettingsPage() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
-
               </div>
             </div>
 
@@ -861,6 +873,33 @@ function SettingsPage() {
                   <ShieldCheck className="h-3.5 w-3.5" /> Administração da Plataforma
                 </h4>
                 <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+                  {isAdminMaster && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("admin-payments")}
+                      className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                          <Receipt className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-semibold text-sm text-foreground">
+                              Meios de Pagamento
+                            </h5>
+                            <Badge className="border-none bg-primary/10 text-[9px] font-semibold uppercase text-primary hover:bg-primary/10">
+                              Admin Master
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Mercado Pago, ambiente, checkout e webhooks da plataforma.
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
 
                   {/* Credenciais de API */}
                   <button
@@ -872,7 +911,9 @@ function SettingsPage() {
                         <KeyRound className="h-5 w-5" />
                       </div>
                       <div>
-                        <h5 className="font-semibold text-sm text-foreground">Credenciais de API</h5>
+                        <h5 className="font-semibold text-sm text-foreground">
+                          Credenciais de API
+                        </h5>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           App ID, Config ID, App Secret e versão da Graph API.
                         </p>
@@ -891,7 +932,9 @@ function SettingsPage() {
                         <Code className="h-5 w-5" />
                       </div>
                       <div>
-                        <h5 className="font-semibold text-sm text-foreground">Tags Personalizadas</h5>
+                        <h5 className="font-semibold text-sm text-foreground">
+                          Tags Personalizadas
+                        </h5>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Scripts, pixels e snippets injetados em todas as páginas.
                         </p>
@@ -929,7 +972,9 @@ function SettingsPage() {
                         <FileText className="h-5 w-5" />
                       </div>
                       <div>
-                        <h5 className="font-semibold text-sm text-foreground">SEO (meta tags globais)</h5>
+                        <h5 className="font-semibold text-sm text-foreground">
+                          SEO (meta tags globais)
+                        </h5>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Título e descrição padrão para buscadores.
                         </p>
@@ -967,7 +1012,9 @@ function SettingsPage() {
                         <LayoutDashboard className="h-5 w-5" />
                       </div>
                       <div>
-                        <h5 className="font-semibold text-sm text-foreground">Organização do Menu</h5>
+                        <h5 className="font-semibold text-sm text-foreground">
+                          Organização do Menu
+                        </h5>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Reordene os itens do menu lateral para todos os usuários.
                         </p>
@@ -975,7 +1022,6 @@ function SettingsPage() {
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                   </button>
-
                 </div>
               </div>
             )}
@@ -1004,6 +1050,7 @@ function SettingsPage() {
               {activeSection === "advanced" && "Ferramentas Avançadas"}
               {activeSection === "general" && "Geral & Legal"}
               {activeSection === "admin" && "Administração"}
+              {activeSection === "admin-payments" && "Meios de Pagamento"}
               {activeSection === "admin-meta-creds" && "Credenciais de API"}
               {activeSection === "admin-tags" && "Tags Personalizadas"}
               {activeSection === "admin-cron" && "Segredo do Cron"}
@@ -1014,7 +1061,13 @@ function SettingsPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 w-full">
-            <Tabs value={activeSection ?? ""} className="w-full border-none shadow-none bg-transparent">
+            <div className={activeSection === "admin-payments" ? "block" : "hidden"}>
+              <GatewaySettings enabled={isAdminMaster} />
+            </div>
+            <Tabs
+              value={activeSection ?? ""}
+              className="w-full border-none shadow-none bg-transparent"
+            >
               <TabsContent value="meta" className="space-y-6 outline-none m-0 border-none p-0">
                 <SetupWizard
                   credentialsComplete={
@@ -1077,14 +1130,17 @@ function SettingsPage() {
                               mensagens.
                             </p>
                           </div>
-                          
+
                           <div className="flex flex-col items-center justify-center py-6 border-b border-dashed mb-4">
-                            <h3 className="font-semibold text-sm mb-2 text-foreground">Conexão Simplificada (Recomendado)</h3>
+                            <h3 className="font-semibold text-sm mb-2 text-foreground">
+                              Conexão Simplificada (Recomendado)
+                            </h3>
                             <p className="text-xs text-muted-foreground text-center max-w-md mb-4">
-                              Use o fluxo de Embedded Signup para conectar seu número existente sem perder o acesso no celular (coexistência).
+                              Use o fluxo de Embedded Signup para conectar seu número existente sem
+                              perder o acesso no celular (coexistência).
                             </p>
-                            <Button 
-                              onClick={handleEmbeddedSignup} 
+                            <Button
+                              onClick={handleEmbeddedSignup}
                               disabled={onboardWhatsAppMut.isPending}
                               className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white font-semibold flex items-center gap-2"
                             >
@@ -1929,10 +1985,10 @@ function SettingsPage() {
                                 <strong>Configurações → Básico → Chave Secreta do App</strong>.
                                 Usado para confirmar que cada aviso veio mesmo da Meta.
                               </p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  )}
+                      )}
                     </>
                   )}
                 </SetupWizard>
@@ -2013,14 +2069,13 @@ function SettingsPage() {
                 <WABASection />
               </TabsContent>
 
-
               <TabsContent value="advanced" className="outline-none">
                 <AdvancedToolsSection />
               </TabsContent>
 
               {isAdmin && (
                 <>
-                  <TabsContent value="admin" className="outline-none">
+                  <TabsContent value="admin" className="space-y-6 outline-none">
                     <AdminPlatformSection />
                   </TabsContent>
                   <TabsContent value="admin-meta-creds" className="outline-none">
@@ -2105,8 +2160,18 @@ function SetupWizard({
 }) {
   const steps = useMemo(
     () => [
-      { label: "Credenciais", icon: KeyRound, done: credentialsComplete, desc: "Configuração de chaves e IDs" },
-      { label: "Webhook", icon: Webhook, done: webhookComplete, desc: "Link de recebimento de mensagens" },
+      {
+        label: "Credenciais",
+        icon: KeyRound,
+        done: credentialsComplete,
+        desc: "Configuração de chaves e IDs",
+      },
+      {
+        label: "Webhook",
+        icon: Webhook,
+        done: webhookComplete,
+        desc: "Link de recebimento de mensagens",
+      },
       { label: "Teste", icon: Send, done: testComplete, desc: "Envio de mensagem de validação" },
     ],
     [credentialsComplete, webhookComplete, testComplete],
@@ -2126,7 +2191,9 @@ function SetupWizard({
               Progresso do Canal
             </h3>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold tracking-tight text-foreground">{progress}%</span>
+              <span className="text-3xl font-extrabold tracking-tight text-foreground">
+                {progress}%
+              </span>
               <span className="text-xs text-muted-foreground font-medium">concluído</span>
             </div>
             <Progress value={progress} className="h-1.5 mt-3 bg-muted" />
@@ -2161,9 +2228,7 @@ function SetupWizard({
                     {s.done ? <Check className="h-4 w-4" /> : i + 1}
                   </span>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-semibold leading-tight truncate">
-                      {s.label}
-                    </span>
+                    <span className="text-xs font-semibold leading-tight truncate">{s.label}</span>
                     <span className="text-[10px] text-muted-foreground font-normal leading-normal truncate mt-0.5">
                       {s.desc}
                     </span>
@@ -2186,9 +2251,7 @@ function SetupWizard({
             <h2 className="font-display text-base font-semibold text-foreground mt-1">
               {steps[step].label}
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {steps[step].desc}
-            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{steps[step].desc}</p>
           </div>
 
           {/* Conteúdo dinâmico do formulário */}
@@ -3030,7 +3093,6 @@ function AdminPlatformSection() {
             )}
           </div>
 
-
           <div className="mt-6 border-t pt-5">
             <h3 className="font-display text-base font-semibold flex items-center gap-2">
               <Database className="h-4 w-4" /> Backups do schema do banco
@@ -3379,7 +3441,9 @@ function AdminMetaCredsSection() {
             pattern="[0-9]*"
           />
           <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
-            {'📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App ("ID do aplicativo").\n⚠️ Não confunda com o Business ID nem com o WABA ID.'}
+            {
+              '📍 developers.facebook.com → Meus Apps → selecione o App → o número aparece no topo da página, abaixo do nome do App ("ID do aplicativo").\n⚠️ Não confunda com o Business ID nem com o WABA ID.'
+            }
           </p>
         </div>
 
@@ -3393,7 +3457,9 @@ function AdminMetaCredsSection() {
             pattern="[0-9]*"
           />
           <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
-            {"📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."}
+            {
+              "📍 developers.facebook.com → seu App → WhatsApp → Configuração → role até 'Registro incorporado' (Embedded Signup) → 'Configurações' → copie o ID da configuração.\n💡 É o ID do fluxo de onboarding que abre quando o cliente clica em 'Conectar com o Facebook'."
+            }
           </p>
         </div>
 
@@ -3434,7 +3500,9 @@ function AdminMetaCredsSection() {
             </Button>
           </div>
           <p className="whitespace-pre-line text-[11px] text-muted-foreground leading-relaxed">
-            {"📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."}
+            {
+              "📍 developers.facebook.com → seu App → Configurações → Básico → campo 'Chave Secreta do App' → clique em 'Mostrar' (vai pedir sua senha do Facebook).\n🔒 Usado para validar a assinatura dos webhooks da Meta. Nunca compartilhe esse valor."
+            }
             {settings?.meta_app_secret_set && (
               <span className="block mt-1 text-success font-medium">✓ Atualmente configurado</span>
             )}
@@ -3449,7 +3517,9 @@ function AdminMetaCredsSection() {
             </SelectTrigger>
             <SelectContent>
               {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
-                <SelectItem key={v} value={v}>{v}</SelectItem>
+                <SelectItem key={v} value={v}>
+                  {v}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -3482,8 +3552,13 @@ function AdminMetaCredsSection() {
       <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">⚠️ Pré-requisitos na Meta:</p>
         <p>• Empresa verificada no Business Manager (CNPJ)</p>
-        <p>• App em modo <strong>Live</strong> (não Development)</p>
-        <p>• Permissões <code className="text-[10px]">whatsapp_business_management</code> + <code className="text-[10px]">whatsapp_business_messaging</code> com acesso avançado</p>
+        <p>
+          • App em modo <strong>Live</strong> (não Development)
+        </p>
+        <p>
+          • Permissões <code className="text-[10px]">whatsapp_business_management</code> +{" "}
+          <code className="text-[10px]">whatsapp_business_messaging</code> com acesso avançado
+        </p>
       </div>
     </Card>
   );
@@ -3526,7 +3601,9 @@ function AdminTagsSection() {
           <Code className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h2 className="font-display text-lg font-semibold">Tags Personalizadas (Analytics, Pixel, etc.)</h2>
+          <h2 className="font-display text-lg font-semibold">
+            Tags Personalizadas (Analytics, Pixel, etc.)
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Cole snippets completos (com <code className="text-xs">&lt;script&gt;</code>,{" "}
             <code className="text-xs">&lt;meta&gt;</code>,{" "}
@@ -3660,8 +3737,8 @@ function AdminCronSection() {
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Após salvar, envie este valor no header{" "}
-          <code className="text-[10px]">x-cron-secret</code> em cada chamada do cron.
+          Após salvar, envie este valor no header <code className="text-[10px]">x-cron-secret</code>{" "}
+          em cada chamada do cron.
         </p>
       </div>
 
@@ -3671,10 +3748,7 @@ function AdminCronSection() {
       </div>
 
       <div className="flex gap-2 pt-2 border-t">
-        <Button
-          onClick={() => mut.mutate({ cron_secret: cronSecret })}
-          disabled={mut.isPending}
-        >
+        <Button onClick={() => mut.mutate({ cron_secret: cronSecret })} disabled={mut.isPending}>
           {mut.isPending ? "Salvando…" : "Salvar Cron Secret"}
         </Button>
       </div>
@@ -3890,7 +3964,9 @@ function AdminSidebarSection() {
                       <div className="text-sm font-medium text-foreground leading-snug">
                         {item.label}
                       </div>
-                      <div className="text-[10px] text-muted-foreground leading-none">{item.to}</div>
+                      <div className="text-[10px] text-muted-foreground leading-none">
+                        {item.to}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -3976,7 +4052,9 @@ function AdminSidebarSection() {
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sidebar-primary">
                 <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
               </div>
-              <span className="font-display text-xs font-semibold text-sidebar-foreground">Bliv</span>
+              <span className="font-display text-xs font-semibold text-sidebar-foreground">
+                Bliv
+              </span>
             </div>
 
             <div className="px-3 pb-1.5 text-[9px] font-medium uppercase tracking-wider text-sidebar-foreground/45">
@@ -8049,5 +8127,3 @@ function FacebookSettingsTab({
     </div>
   );
 }
-
-

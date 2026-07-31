@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
-import { listContacts } from "@/lib/contacts.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { getLicenseStatus } from "@/lib/admin.functions";
@@ -102,16 +101,30 @@ const STATUS_COLOR: Record<string, string> = {
 function Dashboard() {
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
   const fetchCampaigns = useServerFn(listCampaigns);
-  const fetchContacts = useServerFn(listContacts);
   const fetchTemplates = useServerFn(listTemplates);
   const fetchStats = useServerFn(getDashboardStats);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
 
-  const c = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns() });
-  const ct = useQuery({ queryKey: ["contacts"], queryFn: () => fetchContacts() });
-  const t = useQuery({ queryKey: ["templates"], queryFn: () => fetchTemplates() });
-  const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fetchStats() });
-  const lic = useQuery({ queryKey: ["license-status"], queryFn: () => fetchLicenseStatus() });
+  const c = useQuery({ 
+    queryKey: ["campaigns"], 
+    queryFn: () => fetchCampaigns(),
+    staleTime: 5000 
+  });
+  const t = useQuery({ 
+    queryKey: ["templates"], 
+    queryFn: () => fetchTemplates(),
+    staleTime: 60000 
+  });
+  const s = useQuery({ 
+    queryKey: ["dashboard-stats"], 
+    queryFn: () => fetchStats(),
+    staleTime: 15000 
+  });
+  const lic = useQuery({ 
+    queryKey: ["license-status"], 
+    queryFn: () => fetchLicenseStatus(),
+    staleTime: 300000 
+  });
   const isLicenseValid = true;
 
   const totals = (c.data ?? []).reduce(
@@ -174,7 +187,7 @@ function Dashboard() {
     });
 
     // 3. New conversations (unread messages)
-    const unreadCount = (ct.data ?? []).filter((x: any) => x.is_unread).length;
+    const unreadCount = s.data?.chatMetrics?.unreadChatsCount ?? 0;
     if (unreadCount > 0) {
       list.push({
         id: "new-chats-unread",
@@ -185,7 +198,7 @@ function Dashboard() {
     }
 
     return list;
-  }, [c.data, ct.data]);
+  }, [c.data, s.data]);
 
   usePageHeader({
     title: "Dashboard",
@@ -257,24 +270,24 @@ function Dashboard() {
   const stats = [
     {
       label: "Contatos",
-      value: ct.data?.length ?? s.data?.contacts.current ?? 0,
+      value: s.data?.contacts.current ?? 0,
       icon: Users,
       trend: s.data ? trend(s.data.contacts.current, s.data.contacts.previous) : null,
-      loading: ct.isPending && s.isPending,
+      loading: s.isPending,
     },
     {
       label: "Templates",
       value: t.data?.length ?? s.data?.templates.current ?? 0,
       icon: FileText,
       trend: s.data ? trend(s.data.templates.current, s.data.templates.previous) : null,
-      loading: t.isPending && s.isPending,
+      loading: t.isPending || s.isPending,
     },
     {
       label: "Campanhas",
       value: c.data?.length ?? s.data?.campaigns.current ?? 0,
       icon: Send,
       trend: s.data ? trend(s.data.campaigns.current, s.data.campaigns.previous) : null,
-      loading: c.isPending && s.isPending,
+      loading: c.isPending || s.isPending,
     },
     {
       label: "Entregas (7d)",
@@ -387,20 +400,24 @@ function Dashboard() {
             Métricas de Atendimento
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {chatStats.map((s, i) => (
+            {chatStats.map((sItem, i) => (
               <Card
                 key={i}
-                className="flex flex-col gap-2 p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+                className="flex flex-col gap-2 p-4 min-h-[96px] justify-between transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
               >
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <s.icon className="h-4 w-4" aria-hidden />
+                  <sItem.icon className="h-4 w-4" aria-hidden />
                   <p className="truncate text-[10px] font-semibold uppercase tracking-wider">
-                    {s.label}
+                    {sItem.label}
                   </p>
                 </div>
-                <p className="font-display text-2xl font-bold leading-tight text-foreground">
-                  {s.value}
-                </p>
+                {s.isPending ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <p className="font-display text-2xl font-bold leading-tight text-foreground">
+                    {sItem.value}
+                  </p>
+                )}
               </Card>
             ))}
           </div>
@@ -420,34 +437,40 @@ function Dashboard() {
               {/* Taxa de entrega */}
               <div className="flex flex-col items-center gap-2">
                 <div className="relative h-28 w-28 flex items-center justify-center">
-                  <svg
-                    className="absolute transform -rotate-90 w-full h-full"
-                    viewBox="0 0 100 100"
-                  >
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="36"
-                      className="stroke-muted/30"
-                      strokeWidth="8"
-                      fill="transparent"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="36"
-                      stroke="#FF7043"
-                      strokeWidth="8"
-                      strokeDasharray={226.2}
-                      strokeDashoffset={226.2 - (deliverRate / 100) * 226.2}
-                      strokeLinecap="round"
-                      fill="transparent"
-                      className="transition-all duration-500 ease-out"
-                    />
-                  </svg>
-                  <span className="font-display text-2xl font-bold text-foreground">
-                    {deliverRate}%
-                  </span>
+                  {s.isPending || c.isPending ? (
+                    <Skeleton className="h-28 w-28 rounded-full" />
+                  ) : (
+                    <>
+                      <svg
+                        className="absolute transform -rotate-90 w-full h-full"
+                        viewBox="0 0 100 100"
+                      >
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="36"
+                          className="stroke-muted/30"
+                          strokeWidth="8"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="36"
+                          stroke="#FF7043"
+                          strokeWidth="8"
+                          strokeDasharray={226.2}
+                          strokeDashoffset={226.2 - (deliverRate / 100) * 226.2}
+                          strokeLinecap="round"
+                          fill="transparent"
+                          className="transition-all duration-500 ease-out"
+                        />
+                      </svg>
+                      <span className="font-display text-2xl font-bold text-foreground">
+                        {deliverRate}%
+                      </span>
+                    </>
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground font-medium">Taxa de entrega</span>
               </div>
@@ -455,34 +478,40 @@ function Dashboard() {
               {/* Taxa de leitura */}
               <div className="flex flex-col items-center gap-2">
                 <div className="relative h-28 w-28 flex items-center justify-center">
-                  <svg
-                    className="absolute transform -rotate-90 w-full h-full"
-                    viewBox="0 0 100 100"
-                  >
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="36"
-                      className="stroke-muted/30"
-                      strokeWidth="8"
-                      fill="transparent"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="36"
-                      stroke="#FBBF24"
-                      strokeWidth="8"
-                      strokeDasharray={226.2}
-                      strokeDashoffset={226.2 - (readRate / 100) * 226.2}
-                      strokeLinecap="round"
-                      fill="transparent"
-                      className="transition-all duration-500 ease-out"
-                    />
-                  </svg>
-                  <span className="font-display text-2xl font-bold text-foreground">
-                    {readRate}%
-                  </span>
+                  {s.isPending || c.isPending ? (
+                    <Skeleton className="h-28 w-28 rounded-full" />
+                  ) : (
+                    <>
+                      <svg
+                        className="absolute transform -rotate-90 w-full h-full"
+                        viewBox="0 0 100 100"
+                      >
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="36"
+                          className="stroke-muted/30"
+                          strokeWidth="8"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="36"
+                          stroke="#FBBF24"
+                          strokeWidth="8"
+                          strokeDasharray={226.2}
+                          strokeDashoffset={226.2 - (readRate / 100) * 226.2}
+                          strokeLinecap="round"
+                          fill="transparent"
+                          className="transition-all duration-500 ease-out"
+                        />
+                      </svg>
+                      <span className="font-display text-2xl font-bold text-foreground">
+                        {readRate}%
+                      </span>
+                    </>
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground font-medium">Taxa de leitura</span>
               </div>
@@ -502,13 +531,13 @@ function Dashboard() {
 
             <div className="mt-6 space-y-4 w-full">
               {[
-                { label: "Contatos", value: ct.data?.length ?? s.data?.contacts.current ?? 0 },
-                { label: "Templates", value: t.data?.length ?? s.data?.templates.current ?? 0 },
-                { label: "Campanhas", value: c.data?.length ?? s.data?.campaigns.current ?? 0 },
-                { label: "Entregas (7d)", value: s.data?.delivered.current ?? totals.delivered },
-                { label: "Falhas", value: totals.failed },
+                { label: "Contatos", value: s.data?.contacts.current ?? 0, pending: s.isPending },
+                { label: "Templates", value: t.data?.length ?? s.data?.templates.current ?? 0, pending: t.isPending || s.isPending },
+                { label: "Campanhas", value: c.data?.length ?? s.data?.campaigns.current ?? 0, pending: c.isPending || s.isPending },
+                { label: "Entregas (7d)", value: s.data?.delivered.current ?? totals.delivered, pending: s.isPending },
+                { label: "Falhas", value: totals.failed, pending: c.isPending },
               ].map((item, idx) => {
-                const totalContacts = ct.data?.length ?? s.data?.contacts.current ?? 0;
+                const totalContacts = s.data?.contacts.current ?? 0;
                 const totalTemplates = t.data?.length ?? s.data?.templates.current ?? 0;
                 const totalCampaigns = c.data?.length ?? s.data?.campaigns.current ?? 0;
                 const totalDelivered = s.data?.delivered.current ?? totals.delivered;
@@ -532,14 +561,22 @@ function Dashboard() {
                     </div>
                     {/* Bar container */}
                     <div className="flex-1 h-6 bg-muted/40 rounded-md overflow-hidden relative">
-                      <div
-                        className="h-full bg-primary rounded-md transition-all duration-500 ease-out"
-                        style={{ width: widthStyle }}
-                      />
+                      {item.pending ? (
+                        <Skeleton className="h-full w-1/3 rounded-md" />
+                      ) : (
+                        <div
+                          className="h-full bg-primary rounded-md transition-all duration-500 ease-out"
+                          style={{ width: widthStyle }}
+                        />
+                      )}
                     </div>
                     {/* Value */}
                     <div className="w-14 text-left text-xs font-mono text-muted-foreground pl-3 shrink-0 font-medium">
-                      {item.value.toLocaleString("pt-BR")}
+                      {item.pending ? (
+                        <Skeleton className="h-4 w-8" />
+                      ) : (
+                        item.value.toLocaleString("pt-BR")
+                      )}
                     </div>
                   </div>
                 );
@@ -564,7 +601,24 @@ function Dashboard() {
               ))}
             </div>
             <div className="divide-y">
-              {(c.data ?? []).map((x: any) => {
+              {c.isPending ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-3 px-4 py-4 md:items-center">
+                    <div className="col-span-3 space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                    <div className="col-span-4">
+                      <Skeleton className="h-2 w-full" />
+                    </div>
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <div key={j} className="text-right md:col-span-1">
+                        <Skeleton className="h-4 w-8 ml-auto" />
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (c.data ?? []).map((x: any) => {
                 const n = normalizeCampaignTotals(x.totals);
                 const total = n.total;
                 const distBar: Record<string, number> = {

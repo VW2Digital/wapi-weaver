@@ -1,0 +1,110 @@
+{
+  "billing_plans": [
+    {
+      "id": "plan-anual",
+      "name": "Plano Anual",
+      "description": "Faturamento anual recorrente",
+      "price": "899.90",
+      "currency": "BRL",
+      "billing_interval": "year",
+      "billing_interval_count": 1,
+      "duration_days": 365,
+      "features": {},
+      "is_active": 1,
+      "created_at": "2026-07-14T18:22:46.000Z",
+      "updated_at": "2026-07-14T18:22:46.000Z"
+    },
+    {
+      "id": "plan-mensal",
+      "name": "Plano Mensal",
+      "description": "Faturamento mensal recorrente",
+      "price": "99.90",
+      "currency": "BRL",
+      "billing_interval": "month",
+      "billing_interval_count": 1,
+      "duration_days": 30,
+      "features": {},
+      "is_active": 1,
+      "created_at": "2026-07-14T18:22:46.000Z",
+      "updated_at": "2026-07-14T18:22:46.000Z"
+    },
+    {
+      "id": "plan-semestral",
+      "name": "Plano Semestral",
+      "description": "Faturamento a cada 6 meses",
+      "price": "499.90",
+      "currency": "BRL",
+      "billing_interval": "month",
+      "billing_interval_count": 6,
+      "duration_days": 180,
+      "features": {},
+      "is_active": 1,
+      "created_at": "2026-07-14T18:22:46.000Z",
+      "updated_at": "2026-07-14T18:22:46.000Z"
+    },
+    {
+      "id": "plan-trimestral",
+      "name": "Plano Trimestral",
+      "description": "Faturamento a cada 3 meses",
+      "price": "269.90",
+      "currency": "BRL",
+      "billing_interval": "month",
+      "billing_interval_count": 3,
+      "duration_days": 90,
+      "features": {},
+      "is_active": 1,
+      "created_at": "2026-07-14T18:22:46.000Z",
+      "updated_at": "2026-07-14T18:22:46.000Z"
+    }
+  ],
+  "subscription_plans": [
+    {
+      "id": "0bde99fe-dffd-4a33-b633-fa8fb10155dd",
+      "name": "Bronze",
+      "slug": "basic",
+      "description": "Plano de entrada",
+      "max_agents": 1,
+      "max_funnels": 3,
+      "max_users": 2,
+      "features_json": null,
+      "is_active": 1,
+      "created_at": "2026-07-14T05:56:42.000Z",
+      "updated_at": "2026-07-14T06:03:09.000Z",
+      "stripe_product_id": null,
+      "stripe_price_id": null,
+      "max_ai_tokens": 500000
+    },
+    {
+      "id": "2c879d16-b2fa-48f0-a8e0-1b111b957817",
+      "name": "Premium",
+      "slug": "premium",
+      "description": "Para pequenos negócios",
+      "max_agents": 5,
+      "max_funnels": 10,
+      "max_users": 5,
+      "features_json": null,
+      "is_active": 1,
+      "created_at": "2026-07-14T05:56:42.000Z",
+      "updated_at": "2026-07-14T05:56:42.000Z",
+      "stripe_product_id": null,
+      "stripe_price_id": null,
+      "max_ai_tokens": 500000
+    },
+    {
+      "id": "34a68b9f-a3f1-4e6c-86f4-d20e5bfecad1",
+      "name": "Enterprise",
+      "slug": "enterprise",
+      "description": "Para grandes operações",
+      "max_agents": 999,
+      "max_funnels": 999,
+      "max_users": 999,
+      "features_json": null,
+      "is_active": 1,
+      "created_at": "2026-07-14T05:56:42.000Z",
+      "updated_at": "2026-07-14T05:56:42.000Z",
+      "stripe_product_id": null,
+      "stripe_price_id": null,
+      "max_ai_tokens": 500000
+    }
+  ]
+}

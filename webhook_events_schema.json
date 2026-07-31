@@ -1,0 +1,11 @@
+[
+  "CREATE TABLE IF NOT EXISTS webhook_events (",
+  "  id VARCHAR(36) NOT NULL PRIMARY KEY,",
+  "  user_id VARCHAR(36) NULL,",
+  "  source VARCHAR(100) NOT NULL,",
+  "  raw JSON NOT NULL,",
+  "  processed BOOLEAN NOT NULL DEFAULT false,",
+  "  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+  "  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
+  ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
+]

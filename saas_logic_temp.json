@@ -1,0 +1,47 @@
+{
+  "bpRefs": [
+    "origin/audit/whatsapp-crm-validation:deploy-vps/update.sh:282:print_info \"  • Faz seeding de planos padrão se billing_plans estiver vazio\"",
+    "origin/audit/whatsapp-crm-validation:docs/MERCADOPAGO_INTEGRATION.md:12:2. **`billing_plans`**: Cadastro dos planos da plataforma, limites e preços.",
+    "origin/audit/whatsapp-crm-validation:install.sh:453:print_info \"  billing_plans, subscriptions, billing_invoices, billing_payments,\"",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:1947:      \"billing_plans\",",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:1948:      `CREATE TABLE IF NOT EXISTS billing_plans (",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:1984:        FOREIGN KEY (plan_id) REFERENCES billing_plans(id) ON DELETE RESTRICT",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:2012:        FOREIGN KEY (plan_id) REFERENCES billing_plans(id) ON DELETE RESTRICT",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:2121:    const [planRows] = await connection.query(\"SELECT COUNT(*) AS count FROM billing_plans\");",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:2123:      logSchema(\"Semeando planos padrão em billing_plans...\");",
+    "origin/audit/whatsapp-crm-validation:scripts/ensure-schema.js:2132:          `INSERT INTO billing_plans (id, name, description, price, currency, billing_interval, billing_interval_count, duration_days, features, is_active)",
+    "origin/audit/whatsapp-crm-validation:src/lib/billing-job.ts:36:      const plans = (await db.query(\"SELECT name, price FROM billing_plans WHERE id = ? LIMIT 1\", [",
+    "origin/audit/whatsapp-crm-validation:src/lib/subscription-helpers.ts:104:  const plans = (await db.query(\"SELECT id FROM billing_plans WHERE id = 'plan-mensal' LIMIT 1\")) as any[];",
+    "origin/audit/whatsapp-crm-validation:src/lib/subscription-helpers.ts:215:    \"SELECT * FROM billing_plans WHERE id = ?\",",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/checkout.ts:26:          const plans = (await db.query(\"SELECT * FROM billing_plans WHERE id = ? AND is_active = true LIMIT 1\", [",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/checkout/card.ts:29:          const plans = (await db.query(\"SELECT * FROM billing_plans WHERE id = ? AND is_active = true LIMIT 1\", [",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/checkout/pix.ts:33:          const plans = (await db.query(\"SELECT * FROM billing_plans WHERE id = ? AND is_active = true LIMIT 1\", [",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/invoices.ts:17:             LEFT JOIN billing_plans p ON i.plan_id = p.id",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/plans.ts:12:          const plans = (await db.query(\"SELECT * FROM billing_plans WHERE is_active = true ORDER BY price ASC\")) as any[];",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/subscription.ts:15:          const plans = (await db.query(\"SELECT * FROM billing_plans WHERE id = ? LIMIT 1\", [",
+    "origin/audit/whatsapp-crm-validation:src/routes/api/billing/subscription/renew.ts:50:            const plans = (await db.query(\"SELECT * FROM billing_plans WHERE id = ? LIMIT 1\", ["
+  ],
+  "spRefs": [
+    "origin/audit/whatsapp-crm-validation:scripts/update-billing-schema.ts:45:    // 1. Extend subscription_plans",
+    "origin/audit/whatsapp-crm-validation:scripts/update-billing-schema.ts:46:    await addColumnIfNotExists(conn, config.database, \"subscription_plans\", \"stripe_product_id\", \"VARCHAR(255) NULL\");",
+    "origin/audit/whatsapp-crm-validation:scripts/update-billing-schema.ts:47:    await addColumnIfNotExists(conn, config.database, \"subscription_plans\", \"stripe_price_id\", \"VARCHAR(255) NULL\");",
+    "origin/audit/whatsapp-crm-validation:scripts/update-billing-schema.ts:48:    await addColumnIfNotExists(conn, config.database, \"subscription_plans\", \"max_ai_tokens\", \"INT NOT NULL DEFAULT 500000\"); // 500k tokens default",
+    "origin/audit/whatsapp-crm-validation:scripts/update-plans-schema.ts:45:    console.log(\"Creating subscription_plans table...\");",
+    "origin/audit/whatsapp-crm-validation:scripts/update-plans-schema.ts:47:      CREATE TABLE IF NOT EXISTS subscription_plans (",
+    "origin/audit/whatsapp-crm-validation:scripts/update-plans-schema.ts:63:    console.log(\"Table subscription_plans ensured successfully!\");",
+    "origin/audit/whatsapp-crm-validation:scripts/update-plans-schema.ts:75:      const checkResult = await pool.query(\"SELECT id FROM subscription_plans WHERE slug = ?\", [p.slug]) as any;",
+    "origin/audit/whatsapp-crm-validation:scripts/update-plans-schema.ts:78:          `INSERT INTO subscription_plans (id, name, slug, description, max_agents, max_funnels, max_users) ",
+    "origin/audit/whatsapp-crm-validation:src/lib/ai-agent.server.ts:46:       LEFT JOIN subscription_plans p ON l.plan_id = p.id ",
+    "origin/audit/whatsapp-crm-validation:src/lib/dashboard.functions.ts:177:       LEFT JOIN subscription_plans p ON l.plan_id = p.id`",
+    "origin/audit/whatsapp-crm-validation:src/lib/license-admin.functions.ts:346:    const plans = (await db.query(\"SELECT * FROM subscription_plans ORDER BY created_at ASC\")) as any[];",
+    "origin/audit/whatsapp-crm-validation:src/lib/license-admin.functions.ts:367:      `INSERT INTO subscription_plans (id, name, slug, description, max_agents, max_funnels, max_users, is_active)",
+    "origin/audit/whatsapp-crm-validation:src/lib/license-admin.functions.ts:391:      `UPDATE subscription_plans",
+    "origin/audit/whatsapp-crm-validation:src/lib/license-admin.functions.ts:404:    await db.query(\"DELETE FROM subscription_plans WHERE id = ?\", [input.id]);",
+    "origin/audit/whatsapp-crm-validation:src/lib/users-admin.functions.ts:106:          FROM licenses l LEFT JOIN subscription_plans p ON l.plan_id = p.id WHERE l.tenant_id = ? LIMIT 1`,"
+  ],
+  "encryptionCode": "import crypto from \"crypto\";\n\nconst ALGORITHM = \"aes-256-gcm\";\nconst IV_LENGTH = 12;\n\nfunction getEncryptionKey(): Buffer {\n  const rawKey = process.env.MERCADOPAGO_ENCRYPTION_KEY;\n  if (!rawKey) {\n    // If key is not defined, we fall back to a default hash in development, but print warning\n    if (process.env.NODE_ENV === \"production\") {\n      throw new Error(\"MERCADOPAGO_ENCRYPTION_KEY is required in production.\");\n    }\n    const devFallbackKey = process.env.JWT_SECRET || \"default-dev-encryption-key-for-mercadopago\";\n    return crypto.createHash(\"sha256\").update(devFallbackKey).digest();\n  }\n\n  // If the key is a 64-character hex string (32 bytes), parse it\n  if (/^[0-9a-fA-F]{64}$/.test(rawKey)) {\n    return Buffer.from(rawKey, \"hex\");\n  }\n\n  // Fallback: Hash the raw key using SHA-256 to ensure it is exactly 32 bytes\n  return crypto.createHash(\"sha256\").update(rawKey).digest();\n}\n\n/**\n * Encrypts a plaintext string using AES-256-GCM.\n * Returns a colon-separated string: \"iv:ciphertext:authTag\" (all hex-encoded).\n */\nexport function encrypt(text: string): string {\n  if (!text) return \"\";\n  const key = getEncryptionKey();\n  const iv = crypto.randomBytes(IV_LENGTH);\n  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);\n  \n  let encrypted = cipher.update(text, \"utf8\", \"hex\");\n  encrypted += cipher.final(\"hex\");\n  \n  const authTag = cipher.getAuthTag().toString(\"hex\");\n  \n  return `${iv.toString(\"hex\")}:${encrypted}:${authTag}`;\n}\n\n/**\n * Decrypts a ciphertext string formatted as \"iv:ciphertext:authTag\".\n */\nexport function decrypt(encryptedText: string): string {\n  if (!encryptedText) return \"\";\n  const parts = encryptedText.split(\":\");\n  if (parts.length !== 3) {\n    throw new Error(\"Invalid encrypted text format. Expected iv:ciphertext:authTag\");\n  }\n  \n  const key = getEncryptionKey();\n  const iv = Buffer.from(parts[0], \"hex\");\n  const encrypted = Buffer.from(parts[1], \"hex\");\n  const authTag = Buffer.from(parts[2], \"hex\");\n  \n  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);\n  decipher.setAuthTag(authTag);\n  \n  let decrypted = decipher.update(encrypted, undefined, \"utf8\");\n  decrypted += decipher.final(\"utf8\");\n  \n  return decrypted;\n}",
+  "serverJobRefs": [
+    "origin/audit/whatsapp-crm-validation:src/server.ts:491:      const { runBillingJob } = await import(\"./lib/billing-job\");",
+    "origin/audit/whatsapp-crm-validation:src/server.ts:501:      const { runBillingJob } = await import(\"./lib/billing-job\");"
+  ]
+}

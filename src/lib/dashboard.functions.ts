@@ -83,6 +83,14 @@ async function countDeliveredBetween(
   return (rows?.[0]?.cnt as number) ?? 0;
 }
 
+async function countUnreadContacts(userId: string): Promise<number> {
+  const rows: any[] = (await db.query(
+    `SELECT COUNT(*) AS cnt FROM contacts WHERE user_id = ? AND is_unread = true`,
+    [userId],
+  )) as any[];
+  return (rows?.[0]?.cnt as number) ?? 0;
+}
+
 export const getDashboardStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -109,6 +117,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       novosContatosHoje,
       avgWaitSec,
       avgConversationSec,
+      unreadChats,
     ] = await Promise.all([
       countBefore(effectiveUserId, "contacts", now.toISOString()),
       countBefore(effectiveUserId, "contacts", sevenAgo.toISOString()),
@@ -124,6 +133,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       countContactsCreatedSince(effectiveUserId, startOfToday.toISOString()),
       getAverageWaitTime(effectiveUserId, startOfToday.toISOString()),
       getAverageConversationTime(effectiveUserId, startOfToday.toISOString()),
+      countUnreadContacts(effectiveUserId),
     ]);
 
     return {
@@ -138,6 +148,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
         novosContatos: novosContatosHoje,
         tmConversa: formatDuration(avgConversationSec),
         tmEspera: formatDuration(avgWaitSec),
+        unreadChatsCount: unreadChats,
       },
     };
   });

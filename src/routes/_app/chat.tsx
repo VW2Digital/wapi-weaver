@@ -428,7 +428,7 @@ type SendMessagePayload =
 
 function getErrorMessage(error: unknown): string {
   if (!error) return "Erro inesperado";
-  
+
   let msg = "Erro inesperado";
   if (error instanceof Error) {
     msg = error.message;
@@ -468,7 +468,10 @@ function getErrorMessage(error: unknown): string {
   }
 
   // 4. Parâmetro de telefone inválido
-  if (lower.includes("param to must be a valid phone number") || lower.includes("invalid phone number")) {
+  if (
+    lower.includes("param to must be a valid phone number") ||
+    lower.includes("invalid phone number")
+  ) {
     return "O número do destinatário é inválido ou não está cadastrado no WhatsApp.";
   }
 
@@ -2918,9 +2921,7 @@ function ChatPage() {
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const storagePath = `contacts/${selectedContact.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await db.storage
-        .from("avatars")
-        .upload(storagePath, file);
+      const { error: upErr } = await db.storage.from("avatars").upload(storagePath, file);
       if (upErr) throw new Error(upErr.message || "Falha ao enviar imagem.");
 
       const { data: pub } = db.storage.from("avatars").getPublicUrl(storagePath);
@@ -3076,52 +3077,45 @@ function ChatPage() {
           __html: `
         /* Estilos dos Balões estilo WhatsApp */
         .wa-bubble-outgoing {
-          background-color: #1e293b !important;
-          color: #f8fafc !important;
-          border: 1px solid #334155 !important;
-          border-radius: 12px !important;
+          background: color-mix(in oklab, var(--primary) 12%, var(--card)) !important;
+          color: var(--foreground) !important;
+          border: 1px solid color-mix(in oklab, var(--primary) 28%, var(--border)) !important;
+          border-radius: 18px 18px 5px 18px !important;
           position: relative !important;
+          box-shadow: 0 1px 2px rgb(0 0 0 / 0.06) !important;
         }
-        .light .wa-bubble-outgoing {
-          background-color: #f8fafc !important;
-          color: #0f172a !important;
-          border: 1px solid #e2e8f0 !important;
+        .dark .wa-bubble-outgoing {
+          background: color-mix(in oklab, var(--primary) 22%, var(--card)) !important;
+          border-color: color-mix(in oklab, var(--primary) 38%, var(--border)) !important;
         }
 
         .wa-bubble-incoming {
-          background-color: var(--card) !important;
-          color: var(--card-foreground) !important;
-          border: 1px solid var(--border) !important;
-          border-radius: 12px !important;
+          background: var(--card) !important;
+          color: var(--foreground) !important;
+          border: 1px solid color-mix(in oklab, var(--border) 82%, transparent) !important;
+          border-radius: 18px 18px 18px 5px !important;
           position: relative !important;
+          box-shadow: 0 1px 2px rgb(0 0 0 / 0.05) !important;
         }
 
         .wa-quote-reply-outgoing {
-          background-color: rgba(0, 0, 0, 0.15) !important;
-          border-left: 4px solid currentColor !important;
-          border-radius: 4px !important;
-          opacity: 0.9;
+          background: color-mix(in oklab, var(--primary) 9%, transparent) !important;
+          border-left: 3px solid var(--primary) !important;
+          border-radius: 8px !important;
         }
         
         .wa-quote-reply-incoming {
-          background-color: rgba(255, 255, 255, 0.05) !important;
-          border-left: 4px solid #00a884 !important;
-          border-radius: 4px !important;
-        }
-        .light .wa-quote-reply-incoming {
-          background-color: rgba(0, 0, 0, 0.05) !important;
-          border-left: 4px solid #008069 !important;
+          background: var(--muted) !important;
+          border-left: 3px solid var(--primary) !important;
+          border-radius: 8px !important;
         }
 
         .wa-button-separator-outgoing {
-          border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+          border-top: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border)) !important;
         }
         
         .wa-button-separator-incoming {
-          border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-        }
-        .light .wa-button-separator-incoming {
-          border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+          border-top: 1px solid var(--border) !important;
         }
         
         .wa-card-button-outgoing {
@@ -3135,26 +3129,18 @@ function ChatPage() {
         }
 
         .wa-card-button-incoming {
-          color: #00a884 !important;
+          color: var(--primary) !important;
           transition: background-color 0.2s;
           cursor: pointer;
           font-weight: 600;
         }
-        .light .wa-card-button-incoming {
-          color: #008069 !important;
-        }
         .wa-card-button-incoming:hover {
-          background-color: rgba(255, 255, 255, 0.05);
-        }
-        .light .wa-card-button-incoming:hover {
-          background-color: rgba(0, 0, 0, 0.02);
+          background-color: color-mix(in oklab, var(--primary) 7%, transparent);
         }
 
         .wa-timestamp {
-          color: #8696a0 !important;
-        }
-        .light .wa-timestamp {
-          color: #667781 !important;
+          color: var(--muted-foreground) !important;
+          opacity: 0.9;
         }
       `,
         }}
@@ -4250,7 +4236,7 @@ function ChatPage() {
                           channel,
                         });
                       }}
-                      className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:bg-neutral-800 text-zinc-400 hover:text-zinc-200 relative"
+                      className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground relative"
                       title={
                         selectedContact.bot_active
                           ? "Desativar Inteligência / Chatbot"
@@ -4282,9 +4268,9 @@ function ChatPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 rounded-full cursor-pointer hover:bg-neutral-800/80 text-zinc-400 hover:text-zinc-200"
+                          className="h-8 w-8 rounded-full cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                          <MoreVertical className="h-5 w-5 text-zinc-400" />
+                          <MoreVertical className="h-5 w-5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[220px]">
@@ -4386,8 +4372,8 @@ function ChatPage() {
 
                 {/* Message Search Bar */}
                 {isMessageSearchOpen && (
-                  <div className="px-4 py-2.5 bg-neutral-950 border-b border-zinc-800 flex items-center gap-2 animate-in slide-in-from-top duration-200">
-                    <Search className="h-3.5 w-3.5 text-zinc-400" />
+                  <div className="px-4 py-2.5 bg-card border-b border-border flex items-center gap-2 animate-in slide-in-from-top duration-200">
+                    <Search className="h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       placeholder="Buscar nas mensagens deste chat..."
                       value={messageSearchQuery}
@@ -4396,7 +4382,7 @@ function ChatPage() {
                       autoFocus
                     />
                     {messageSearchQuery && (
-                      <span className="text-[10px] text-zinc-400 font-semibold px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded">
+                      <span className="text-[10px] text-muted-foreground font-semibold px-2 py-0.5 bg-muted border border-border rounded">
                         {
                           displayMessages.filter((m) =>
                             (m.body || "").toLowerCase().includes(messageSearchQuery.toLowerCase()),
@@ -4408,7 +4394,7 @@ function ChatPage() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7 text-zinc-400 hover:text-zinc-200 hover:bg-neutral-800 rounded-full"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full"
                       onClick={() => {
                         setMessageSearchQuery("");
                         setIsMessageSearchOpen(false);
@@ -4471,13 +4457,17 @@ function ChatPage() {
                         const showDateSeparator = msgDateStr !== lastDateStr;
                         lastDateStr = msgDateStr;
 
-                        const agentName = profile?.full_name || profile?.display_name || "Atendente";
+                        const agentName =
+                          profile?.full_name || profile?.display_name || "Atendente";
                         const agentTeamId = selectedContact?.active_team_id;
                         const agentTeamName = agentTeamId ? getTeamName(agentTeamId) : null;
-                        const agentLabel = agentTeamName ? `${agentName} (${agentTeamName})` : agentName;
-                        const senderName = (selectedContact?.channel === "whatsapp_group" && msg.sender_name)
-                          ? msg.sender_name
-                          : (selectedContact?.name || selectedContact?.phone_e164 || "Contato");
+                        const agentLabel = agentTeamName
+                          ? `${agentName} (${agentTeamName})`
+                          : agentName;
+                        const senderName =
+                          selectedContact?.channel === "whatsapp_group" && msg.sender_name
+                            ? msg.sender_name
+                            : selectedContact?.name || selectedContact?.phone_e164 || "Contato";
 
                         return (
                           <div key={msg.id} className="w-full flex flex-col">
@@ -4506,28 +4496,48 @@ function ChatPage() {
                                 )}
                               >
                                 {/* Container do Balão + Avatar + Ações */}
-                                <div className={cn(
-                                  "flex items-end gap-2 max-w-[85%] md:max-w-[70%]",
-                                  isOutgoing ? "flex-row-reverse" : "flex-row"
-                                )}>
+                                <div
+                                  className={cn(
+                                    "flex items-end gap-2 max-w-[85%] md:max-w-[70%]",
+                                    isOutgoing ? "flex-row-reverse" : "flex-row",
+                                  )}
+                                >
                                   {/* Avatar (Esquerda para incoming, Direita para outgoing) */}
                                   {isOutgoing ? (
                                     <Avatar className="h-7 w-7 shrink-0 mb-1 ring-1 ring-primary/30 shadow-sm">
-                                      <AvatarImage src={profile?.avatar_url || ""} alt={profile?.full_name || profile?.display_name || "A"} />
-                                      <AvatarFallback
-                                        className="text-[10px] font-bold text-white bg-primary"
-                                      >
-                                        {(profile?.full_name || profile?.display_name || "A").slice(0, 2).toUpperCase()}
+                                      <AvatarImage
+                                        src={profile?.avatar_url || ""}
+                                        alt={profile?.full_name || profile?.display_name || "A"}
+                                      />
+                                      <AvatarFallback className="text-[10px] font-bold text-white bg-primary">
+                                        {(profile?.full_name || profile?.display_name || "A")
+                                          .slice(0, 2)
+                                          .toUpperCase()}
                                       </AvatarFallback>
                                     </Avatar>
                                   ) : (
                                     <Avatar className="h-7 w-7 shrink-0 mb-1 ring-1 ring-border/40 shadow-sm">
-                                      <AvatarImage src={getContactAvatarUrl(selectedContact)} alt={selectedContact?.name || ""} />
+                                      <AvatarImage
+                                        src={getContactAvatarUrl(selectedContact)}
+                                        alt={selectedContact?.name || ""}
+                                      />
                                       <AvatarFallback
                                         className="text-[10px] font-bold text-white"
-                                        style={{ backgroundColor: getAvatarColor(selectedContact?.name || selectedContact?.phone_e164 || "C") }}
+                                        style={{
+                                          backgroundColor: getAvatarColor(
+                                            selectedContact?.name ||
+                                              selectedContact?.phone_e164 ||
+                                              "C",
+                                          ),
+                                        }}
                                       >
-                                        {(selectedContact?.name || selectedContact?.phone_e164 || "C").slice(0, 2).toUpperCase()}
+                                        {(
+                                          selectedContact?.name ||
+                                          selectedContact?.phone_e164 ||
+                                          "C"
+                                        )
+                                          .slice(0, 2)
+                                          .toUpperCase()}
                                       </AvatarFallback>
                                     </Avatar>
                                   )}
@@ -4544,7 +4554,10 @@ function ChatPage() {
                                         <MoreVertical className="h-4 w-4 text-muted-foreground" />
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align={isOutgoing ? "end" : "start"} className="w-56 p-1">
+                                    <DropdownMenuContent
+                                      align={isOutgoing ? "end" : "start"}
+                                      className="w-56 p-1"
+                                    >
                                       {/* Reações Rápidas */}
                                       <div className="flex justify-between items-center px-2 py-1.5 border-b mb-1">
                                         {DEFAULT_EMOJIS.map((emoji) => (
@@ -4709,18 +4722,22 @@ function ChatPage() {
                                       return (
                                         <div
                                           className={cn(
-                                            "shadow-sm relative transition-all duration-200 max-w-sm",
+                                            "relative min-w-[7rem] max-w-full transition-all duration-200",
                                             isOutgoing
                                               ? "wa-bubble-outgoing"
                                               : "wa-bubble-incoming",
-                                            isRichCard ? "p-0 rounded-xl" : "px-3.5 py-2.5 flex flex-col gap-1",
+                                            isRichCard
+                                              ? "p-0 rounded-xl"
+                                              : "px-3.5 py-2.5 flex flex-col gap-1",
                                           )}
                                         >
                                           {/* Nome do Remetente */}
-                                          <div className={cn(
-                                            "text-[10px] font-semibold text-muted-foreground select-none",
-                                            isRichCard ? "px-3 pt-2" : ""
-                                          )}>
+                                          <div
+                                            className={cn(
+                                              "text-[10px] font-semibold text-muted-foreground select-none",
+                                              isRichCard ? "px-3 pt-2" : "",
+                                            )}
+                                          >
                                             {isOutgoing ? agentLabel : senderName}
                                           </div>
 
@@ -4758,7 +4775,10 @@ function ChatPage() {
                                           {/* Quote reply block inside bubble */}
                                           {replyMessage && (
                                             <div
-                                              className={cn("px-3 pt-1", isRichCard ? "" : "pb-0.5")}
+                                              className={cn(
+                                                "px-3 pt-1",
+                                                isRichCard ? "" : "pb-0.5",
+                                              )}
                                             >
                                               <button
                                                 onClick={() => scrollToMessage(replyMessage.id)}
@@ -5271,110 +5291,114 @@ function ChatPage() {
                             />
                           </div>
 
+                          {/* Input de arquivo oculto para upload de mídia */}
+                          <input
+                            ref={mediaInputRef}
+                            type="file"
+                            className="hidden"
+                            onChange={handleFileChange}
+                          />
 
-                    {/* Input de arquivo oculto para upload de mídia */}
-                    <input
-                      ref={mediaInputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                title="Anexar mídia"
+                                className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
+                              >
+                                <Paperclip className="h-5 w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="w-48 bg-card border border-border"
+                            >
+                              <DropdownMenuItem
+                                className="gap-2 cursor-pointer text-xs"
+                                onClick={() => handleMediaAttachClick("image")}
+                              >
+                                <ImageIcon className="h-4 w-4 text-blue-500" />
+                                <span>Imagem</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 cursor-pointer text-xs"
+                                onClick={() => handleMediaAttachClick("video")}
+                              >
+                                <Video className="h-4 w-4 text-rose-500" />
+                                <span>Vídeo</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 cursor-pointer text-xs"
+                                onClick={() => handleMediaAttachClick("audio")}
+                              >
+                                <Volume2 className="h-4 w-4 text-emerald-500" />
+                                <span>Áudio</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 cursor-pointer text-xs"
+                                onClick={() => handleMediaAttachClick("document")}
+                              >
+                                <FileText className="h-4 w-4 text-amber-500" />
+                                <span>Documento</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 cursor-pointer text-xs"
+                                onClick={() => handleMediaAttachClick("sticker")}
+                              >
+                                <Smile className="h-4 w-4 text-indigo-500" />
+                                <span>Figurinha</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          title="Anexar mídia"
-                          className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
-                        >
-                          <Paperclip className="h-5 w-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 bg-card border border-border">
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-xs"
-                          onClick={() => handleMediaAttachClick("image")}
-                        >
-                          <ImageIcon className="h-4 w-4 text-blue-500" />
-                          <span>Imagem</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-xs"
-                          onClick={() => handleMediaAttachClick("video")}
-                        >
-                          <Video className="h-4 w-4 text-rose-500" />
-                          <span>Vídeo</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-xs"
-                          onClick={() => handleMediaAttachClick("audio")}
-                        >
-                          <Volume2 className="h-4 w-4 text-emerald-500" />
-                          <span>Áudio</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-xs"
-                          onClick={() => handleMediaAttachClick("document")}
-                        >
-                          <FileText className="h-4 w-4 text-amber-500" />
-                          <span>Documento</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-xs"
-                          onClick={() => handleMediaAttachClick("sticker")}
-                        >
-                          <Smile className="h-4 w-4 text-indigo-500" />
-                          <span>Figurinha</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            title={
+                              previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"
+                            }
+                            onClick={() => setPreviewUrl(!previewUrl)}
+                            className={cn(
+                              "h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0",
+                              previewUrl && "text-primary bg-primary/10",
+                            )}
+                          >
+                            <LinkIcon className="h-5 w-5" />
+                          </Button>
 
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      title={previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"}
-                      onClick={() => setPreviewUrl(!previewUrl)}
-                      className={cn(
-                        "h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0",
-                        previewUrl && "text-primary bg-primary/10"
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            title="Gravar áudio"
+                            onClick={handleStartRecording}
+                            className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
+                          >
+                            <Mic className="h-5 w-5" />
+                          </Button>
+
+                          <Button
+                            disabled={!typedMessage.trim() || sendMutation.isPending}
+                            onClick={handleSendText}
+                            className="h-10 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-2 shadow-sm shrink-0"
+                          >
+                            {sendMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-white" />
+                            ) : (
+                              <>
+                                <span>Enviar</span>
+                                <Send className="h-4 w-4 text-white shrink-0" />
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       )}
-                    >
-                      <LinkIcon className="h-5 w-5" />
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      title="Gravar áudio"
-                      onClick={handleStartRecording}
-                      className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
-                    >
-                      <Mic className="h-5 w-5" />
-                    </Button>
-
-                    <Button
-                      disabled={!typedMessage.trim() || sendMutation.isPending}
-                      onClick={handleSendText}
-                      className="h-10 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-2 shadow-sm shrink-0"
-                    >
-                      {sendMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-white" />
-                      ) : (
-                        <>
-                          <span>Enviar</span>
-                          <Send className="h-4 w-4 text-white shrink-0" />
-                        </>
-                      )}
-                    </Button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
+                </div>
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 gap-4 bg-muted/5">
@@ -6220,11 +6244,11 @@ function ChatPage() {
                     <span>Carregando histórico do lead...</span>
                   </div>
                 ) : (leadHistoryQuery.data ?? []).length === 0 ? (
-                  <div className="py-12 text-center text-zinc-400 text-xs italic">
+                  <div className="py-12 text-center text-muted-foreground text-xs italic">
                     Nenhuma atividade registrada para este contato no CRM.
                   </div>
                 ) : (
-                  <div className="relative border-l border-zinc-800 ml-3 pl-5 space-y-5">
+                  <div className="relative border-l border-border ml-3 pl-5 space-y-5">
                     {(leadHistoryQuery.data ?? []).map((item: LeadTimelineItem) => {
                       const itemDate = new Date(item.date);
                       return (
@@ -6245,8 +6269,10 @@ function ChatPage() {
 
                           <div>
                             <div className="flex items-center justify-between gap-2">
-                              <h4 className="font-semibold text-sm text-zinc-200">{item.title}</h4>
-                              <span className="text-[10px] text-zinc-400 select-none">
+                              <h4 className="font-semibold text-sm text-foreground">
+                                {item.title}
+                              </h4>
+                              <span className="text-[10px] text-muted-foreground select-none">
                                 {itemDate.toLocaleDateString([], {
                                   day: "numeric",
                                   month: "short",
@@ -6259,12 +6285,12 @@ function ChatPage() {
                               </span>
                             </div>
                             {item.description && (
-                              <p className="text-xs text-zinc-400 mt-1 bg-zinc-900/50 p-2 rounded border border-zinc-900">
+                              <p className="text-xs text-muted-foreground mt-1 bg-muted/50 p-2 rounded border border-border">
                                 {item.description}
                               </p>
                             )}
                             {item.type === "audit" && Boolean(item.new_values) && (
-                              <div className="text-[10px] text-zinc-400 font-mono mt-1 bg-neutral-900 p-1.5 rounded truncate max-w-full">
+                              <div className="text-[10px] text-muted-foreground font-mono mt-1 bg-muted p-1.5 rounded truncate max-w-full">
                                 Modificado:{" "}
                                 {typeof item.new_values === "object"
                                   ? String(JSON.stringify(item.new_values) ?? "")
@@ -6346,7 +6372,9 @@ function ChatPage() {
                             >
                               -
                             </button>
-                            <span className="px-2 text-xs font-mono select-none text-foreground">{prod.stock}</span>
+                            <span className="px-2 text-xs font-mono select-none text-foreground">
+                              {prod.stock}
+                            </span>
                             <button
                               type="button"
                               className="px-2 py-1 text-xs hover:bg-muted transition-colors"

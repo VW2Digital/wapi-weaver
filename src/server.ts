@@ -508,6 +508,36 @@ setInterval(() => {
   }
 }, 300_000);
 
+// --- Background Billing Expiration Checker ---
+const globalForBilling = global as unknown as { billingCheckerStarted: boolean };
+function startBillingChecker() {
+  if (globalForBilling.billingCheckerStarted) return;
+  globalForBilling.billingCheckerStarted = true;
+  console.log("[Billing] Starting background billing expiration checker (every 24 hours)...");
+
+  // Run initial check after 15s
+  setTimeout(async () => {
+    try {
+      const { runBillingJob } = await import("./lib/billing-job");
+      await runBillingJob();
+    } catch (e) {
+      console.error("[Billing Job Init Error]", e);
+    }
+  }, 15000);
+
+  // Every 24 hours
+  setInterval(async () => {
+    try {
+      const { runBillingJob } = await import("./lib/billing-job");
+      await runBillingJob();
+    } catch (e) {
+      console.error("[Billing Job Error]", e);
+    }
+  }, 86400000);
+}
+
+startBillingChecker();
+
 // --- CORS allowed origins ---
 const ALLOWED_ORIGINS = new Set(
   (process.env.CORS_ALLOWED_ORIGINS || "")

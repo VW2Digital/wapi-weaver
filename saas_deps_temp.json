@@ -1,0 +1,24 @@
+{
+  "encryptionImports": [
+    "import crypto from \"crypto\";"
+  ],
+  "gatewayImports": [
+    "import { useState, useEffect } from \"react\";",
+    "import { Card, CardContent, CardDescription, CardHeader, CardTitle } from \"@/components/ui/card\";",
+    "import { Label } from \"@/components/ui/label\";",
+    "import { Input } from \"@/components/ui/input\";",
+    "import { Button } from \"@/components/ui/button\";",
+    "import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from \"@/components/ui/select\";",
+    "import { Copy, Check, Loader2, Activity, ShieldAlert, KeyRound } from \"lucide-react\";",
+    "import { toast } from \"sonner\";"
+  ],
+  "licenseImports": [
+    "import { createServerFn } from \"@tanstack/react-start\";",
+    "import { z } from \"zod\";",
+    "import crypto from \"crypto\";",
+    "import { requireAuth } from \"@/integrations/mysql/auth-middleware\";",
+    "import bcrypt from \"bcryptjs\";",
+    "import db from \"./db\";",
+    "import {"
+  ]
+}
