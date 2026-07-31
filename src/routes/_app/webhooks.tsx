@@ -6,12 +6,17 @@ import { toast } from "sonner";
 import {
   listIncomingWebhooks,
   createIncomingWebhook,
+  updateIncomingWebhook,
+  duplicateIncomingWebhook,
   updateIncomingWebhookStatus,
+  deleteIncomingWebhook,
   regenerateIncomingWebhookToken,
   listIncomingWebhookEvents,
   updateIncomingWebhookFieldLabels,
   listOutgoingWebhooks,
   createOutgoingWebhook,
+  updateOutgoingWebhook,
+  duplicateOutgoingWebhook,
   updateOutgoingWebhookStatus,
   deleteOutgoingWebhook,
   listOutgoingWebhookLogs,
@@ -39,6 +44,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   Webhook,
   Plus,
   Copy,
@@ -50,13 +62,24 @@ import {
   Lock,
   ChevronRight,
   Save,
+  Search,
+  ArrowRight,
+  Settings,
+  X,
+  Sparkles,
+  Calendar,
+  Send,
+  MoreVertical,
+  Pencil,
+  Files,
+  Database,
+  Link2,
 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetFooter,
 } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_app/webhooks")({ component: WebhooksPage });
@@ -65,26 +88,51 @@ function WebhooksPage() {
   const qc = useQueryClient();
   const fetchIncoming = useServerFn(listIncomingWebhooks);
   const createIncoming = useServerFn(createIncomingWebhook);
+  const updateIncoming = useServerFn(updateIncomingWebhook);
+  const duplicateIncoming = useServerFn(duplicateIncomingWebhook);
   const updateIncomingStatus = useServerFn(updateIncomingWebhookStatus);
+  const deleteIncoming = useServerFn(deleteIncomingWebhook);
   const regenerateIncomingToken = useServerFn(regenerateIncomingWebhookToken);
+
   const fetchOutgoing = useServerFn(listOutgoingWebhooks);
   const createOutgoing = useServerFn(createOutgoingWebhook);
+  const updateOutgoing = useServerFn(updateOutgoingWebhook);
+  const duplicateOutgoing = useServerFn(duplicateOutgoingWebhook);
   const updateOutgoingStatus = useServerFn(updateOutgoingWebhookStatus);
   const deleteOutgoing = useServerFn(deleteOutgoingWebhook);
   const fetchLogs = useServerFn(listOutgoingWebhookLogs);
 
+  const [activeTab, setActiveTab] = useState<"incoming" | "outgoing">("incoming");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Modal 1: Novo Webhook de Entrada
   const [incomingDialogOpen, setIncomingDialogOpen] = useState(false);
+  const [modalStep, setModalStep] = useState<1 | 2>(1);
   const [incomingName, setIncomingName] = useState("");
   const [createdIncomingUrl, setCreatedIncomingUrl] = useState<string | null>(null);
+
+  // Modal 2: Novo Webhook de Saída
   const [outgoingDialogOpen, setOutgoingDialogOpen] = useState(false);
   const [outgoingUrl, setOutgoingUrl] = useState("");
   const [outgoingEventType, setOutgoingEventType] = useState("LEAD_CREATED");
   const [outgoingRetryCount, setOutgoingRetryCount] = useState(3);
+
+  // Modal 3: Editar Webhook
+  const [editingWebhook, setEditingWebhook] = useState<any | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editEventType, setEditEventType] = useState("LEAD_CREATED");
+  const [editRetryCount, setEditRetryCount] = useState(3);
+
+  // Modal 4: Confirmação de Exclusão
+  const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string; type: "incoming" | "outgoing" } | null>(null);
+
+  // Logs & Field Inspector (Drawer)
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [currentLogs, setCurrentLogs] = useState<any[] | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
-
   const [selectedWebhook, setSelectedWebhook] = useState<any | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [fieldLabels, setFieldLabels] = useState<Record<string, string>>({});
   const [fieldMappings, setFieldMappings] = useState<any[]>([]);
 
@@ -99,6 +147,7 @@ function WebhooksPage() {
     queryFn: () => fetchStandardFields(),
     staleTime: Infinity,
   });
+
   const customFieldsQ = useQuery({
     queryKey: ["custom-fields"],
     queryFn: () => fetchCustomFields(),
@@ -111,16 +160,6 @@ function WebhooksPage() {
     enabled: !!selectedWebhook,
   });
 
-  const saveLabelsMut = useMutation({
-    mutationFn: () =>
-      saveLabelsFn({ data: { id: selectedWebhook!.id, labels: fieldLabels } }),
-    onSuccess: () => {
-      toast.success("Rótulos salvos!");
-      queryIncoming.refetch();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
   const saveMappingsMut = useMutation({
     mutationFn: () =>
       saveMappingsFn({
@@ -130,18 +169,14 @@ function WebhooksPage() {
         },
       }),
     onSuccess: () => {
-      toast.success("Mapeamentos salvos!");
+      toast.success("Mapeamentos salvos no banco de dados com sucesso!");
       queryIncoming.refetch();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message || "Erro ao salvar mapeamentos"),
   });
 
   const discoveredFields = (queryEvents.data as any)?.discovered_fields ?? [];
   const events = (queryEvents.data as any)?.events ?? [];
-  const [newFieldKey, setNewFieldKey] = useState("");
-  const allCustomKeys = Array.from(
-    new Set([...discoveredFields, ...Object.keys(fieldLabels)]),
-  );
 
   useEffect(() => {
     if (selectedWebhook) {
@@ -151,10 +186,18 @@ function WebhooksPage() {
           ? typeof existing === "string"
             ? JSON.parse(existing)
             : existing
-          : {},
+          : {}
       );
       const mappings = selectedWebhook.webhook_field_mappings;
-      setFieldMappings(mappings && Array.isArray(mappings) ? mappings : []);
+      if (mappings && Array.isArray(mappings) && mappings.length > 0) {
+        setFieldMappings(mappings);
+      } else {
+        setFieldMappings([
+          { external_field: "nome", target_type: "standard", target_key: "name", custom_field_id: null },
+          { external_field: "email", target_type: "standard", target_key: "email", custom_field_id: null },
+          { external_field: "telefone", target_type: "standard", target_key: "phone", custom_field_id: null },
+        ]);
+      }
     }
   }, [selectedWebhook]);
 
@@ -171,15 +214,33 @@ function WebhooksPage() {
   const createIncomingMut = useMutation({
     mutationFn: () => createIncoming({ data: { name: incomingName } }),
     onSuccess: (r: any) => {
+      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
+      const generatedUrl = `${origin}/api/public/webhooks/incoming/${r.token}`;
+      setCreatedIncomingUrl(generatedUrl);
+      setModalStep(2);
+      queryIncoming.refetch();
       toast.success("Webhook de entrada criado!");
-      setIncomingDialogOpen(false);
-      setCreatedIncomingUrl(
-        `${window.location.origin}/api/public/webhooks/incoming/${r.token}`,
-      );
-      setIncomingName("");
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao criar webhook"),
+  });
+
+  const updateIncomingMut = useMutation({
+    mutationFn: () => updateIncoming({ data: { id: editingWebhook.id, name: editName } }),
+    onSuccess: () => {
+      toast.success("Webhook atualizado!");
+      setEditingWebhook(null);
       queryIncoming.refetch();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message || "Erro ao atualizar webhook"),
+  });
+
+  const duplicateIncomingMut = useMutation({
+    mutationFn: (id: string) => duplicateIncoming({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Webhook duplicado com sucesso!");
+      queryIncoming.refetch();
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao duplicar webhook"),
   });
 
   const createOutgoingMut = useMutation({
@@ -199,13 +260,53 @@ function WebhooksPage() {
       setOutgoingRetryCount(3);
       queryOutgoing.refetch();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message || "Erro ao criar webhook"),
+  });
+
+  const updateOutgoingMut = useMutation({
+    mutationFn: () =>
+      updateOutgoing({
+        data: {
+          id: editingWebhook.id,
+          url: editUrl,
+          event_type: editEventType,
+          retry_count: editRetryCount,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Webhook de saída atualizado!");
+      setEditingWebhook(null);
+      queryOutgoing.refetch();
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao atualizar webhook"),
+  });
+
+  const duplicateOutgoingMut = useMutation({
+    mutationFn: (id: string) => duplicateOutgoing({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Webhook duplicado com sucesso!");
+      queryOutgoing.refetch();
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao duplicar webhook"),
   });
 
   const toggleIncomingMut = useMutation({
     mutationFn: (vars: { id: string; status: "listening" | "paused" }) =>
       updateIncomingStatus({ data: vars }),
-    onSuccess: () => queryIncoming.refetch(),
+    onSuccess: () => {
+      queryIncoming.refetch();
+      toast.success("Status atualizado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteIncomingMut = useMutation({
+    mutationFn: (id: string) => deleteIncoming({ data: { id } }),
+    onSuccess: () => {
+      queryIncoming.refetch();
+      setDeletingWebhook(null);
+      toast.success("Webhook de entrada excluído.");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -221,15 +322,19 @@ function WebhooksPage() {
   const toggleOutgoingMut = useMutation({
     mutationFn: (vars: { id: string; status: "active" | "paused" }) =>
       updateOutgoingStatus({ data: vars }),
-    onSuccess: () => queryOutgoing.refetch(),
+    onSuccess: () => {
+      queryOutgoing.refetch();
+      toast.success("Status atualizado");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
   const deleteOutgoingMut = useMutation({
     mutationFn: (id: string) => deleteOutgoing({ data: { id } }),
     onSuccess: () => {
-      toast.success("Webhook removido!");
       queryOutgoing.refetch();
+      setDeletingWebhook(null);
+      toast.success("Webhook removido!");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -247,750 +352,1076 @@ function WebhooksPage() {
     }
   };
 
-  const baseUrl =
-    typeof window !== "undefined" ? window.location.origin : "";
+  usePageHeader({});
 
-  usePageHeader({ title: "Webhooks", subtitle: "Webhooks de entrada e saída para conectar sistemas externos." });
+  const incomingList = (queryIncoming.data as any[]) || [];
+  const outgoingList = (queryOutgoing.data as any[]) || [];
 
-  const STANDARD_FIELDS_META = [
-    { key: "name", label: "Nome completo do contato" },
-    { key: "email", label: "E-mail do contato" },
-    { key: "phone", label: "Telefone do contato (com código do país)" },
-  ];
+  const filteredIncoming = incomingList.filter((w) =>
+    w.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  function buildExamplePayload() {
-    const example: Record<string, any> = {
-      name: "João Silva",
-      email: "joao@exemplo.com",
-      phone: "5511999998888",
-    };
-    if (allCustomKeys.length > 0) {
-      example.custom_fields = Object.fromEntries(
-        allCustomKeys.map((key: string) => [
-          key,
-          fieldLabels[key]
-            ? `Valor do campo "${fieldLabels[key]}"`
-            : `valor_do_${key}`,
-        ]),
-      );
-    } else {
-      example.custom_fields = { sua_chave: "seu_valor" };
-    }
-    return example;
+  const filteredOutgoing = outgoingList.filter((w) =>
+    w.url.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    w.event_type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  function timeAgo(dateString?: string | null) {
+    if (!dateString) return "Nunca";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    if (diffInSeconds < 60) return "agora mesmo";
+    if (diffInSeconds < 3600) return `há ${Math.floor(diffInSeconds / 60)} min`;
+    if (diffInSeconds < 86400) return `há ${Math.floor(diffInSeconds / 3600)} horas`;
+    const days = Math.floor(diffInSeconds / 86400);
+    return `há ${days} dias`;
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="flex-1 bg-background text-foreground p-6 space-y-6 min-h-screen">
+      {/* Top Header */}
+      <div className="flex items-center justify-between border-b border-border pb-5">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground">Webhooks</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Configure endpoints para capturar novos leads e notificar sistemas externos.
+          </p>
+        </div>
 
-      {/* Incoming Webhooks */}
-      <Card className="p-5">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="font-display text-lg font-semibold">
-              Webhooks de Entrada
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Receba contatos automaticamente via POST externo com token de
-              segurança.
-            </p>
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 text-xs bg-card border-border rounded-xl"
+            />
           </div>
-          <Button size="sm" onClick={() => setIncomingDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Novo
+
+          <Button
+            onClick={() => {
+              if (activeTab === "incoming") {
+                setModalStep(1);
+                setIncomingName("");
+                setCreatedIncomingUrl(null);
+                setIncomingDialogOpen(true);
+              } else {
+                setOutgoingDialogOpen(true);
+              }
+            }}
+            className="bg-brand-gradient text-white font-bold shadow-md hover:opacity-95 px-5 text-xs rounded-xl"
+          >
+            <Plus className="w-4 h-4 mr-1.5" /> Novo Webhook
           </Button>
         </div>
-        {queryIncoming.isLoading ? (
-          <p className="text-sm text-muted-foreground py-4">Carregando...</p>
-        ) : !queryIncoming.data ||
-          (queryIncoming.data as any[]).length === 0 ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            <Webhook className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            <p>Nenhum webhook de entrada configurado.</p>
-            <p className="text-xs mt-1">
-              Crie um para receber contatos de sistemas externos.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {(queryIncoming.data as any[]).map((wh: any) => (
-              <div
-                key={wh.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => setSelectedWebhook(wh)}
+      </div>
+
+      {/* Tabs Switcher */}
+      <div className="flex items-center border-b border-border gap-6">
+        <button
+          onClick={() => setActiveTab("incoming")}
+          className={`pb-3 text-sm font-display font-semibold transition-all relative ${
+            activeTab === "incoming"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Webhooks de Entrada
+        </button>
+
+        <button
+          onClick={() => setActiveTab("outgoing")}
+          className={`pb-3 text-sm font-display font-semibold transition-all relative ${
+            activeTab === "outgoing"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Webhooks de Saída
+        </button>
+      </div>
+
+      {/* Content Tab 1: Webhooks de Entrada */}
+      {activeTab === "incoming" && (
+        <div>
+          {queryIncoming.isLoading ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">Carregando webhooks de entrada...</div>
+          ) : filteredIncoming.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-card/40">
+              <Webhook className="h-10 w-10 mx-auto mb-3 text-primary/40" />
+              <h3 className="text-sm font-bold text-foreground">Nenhum webhook de entrada configurado</h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                Crie um webhook para receber leads automaticamente de formulários ou landing páginas.
+              </p>
+              <Button
+                onClick={() => {
+                  setModalStep(1);
+                  setIncomingName("");
+                  setCreatedIncomingUrl(null);
+                  setIncomingDialogOpen(true);
+                }}
+                className="mt-4 bg-brand-gradient text-white text-xs font-bold px-4"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">
-                      {wh.name}
-                    </span>
-                    <Badge
-                      variant={
-                        wh.status === "listening" ? "default" : "secondary"
-                      }
-                    >
-                      {wh.status === "listening" ? "Ativo" : "Pausado"}
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] font-mono text-muted-foreground mt-0.5 truncate">
-                    POST {baseUrl}/api/public/webhooks/incoming/
-                    {wh.token?.substring(0, 16)}...
-                  </p>
-                  <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">
-                    <span>{wh.events_count ?? 0} eventos</span>
-                    <span>{wh.leads_count ?? 0} leads</span>
-                    {wh.last_event_at && (
-                      <span>
-                        Último:{" "}
-                        {new Date(wh.last_event_at).toLocaleString("pt-BR")}
+                <Plus className="w-4 h-4 mr-1" /> Criar Primeiro Webhook
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredIncoming.map((wh) => (
+                <Card
+                  key={wh.id}
+                  className="border border-border bg-card hover:border-primary/50 transition-all shadow-xs group rounded-2xl overflow-hidden"
+                >
+                  <div className="p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <Webhook className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-display font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                            {wh.name}
+                          </h3>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                wh.status === "listening" ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
+                              }`}
+                            />
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                              {wh.status === "listening" ? "Escutando" : "Pausado"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* MENU DE 3 PONTINHOS (DROPDOWN) */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 bg-popover border-border rounded-xl shadow-lg p-1">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingWebhook({ ...wh, type: "incoming" });
+                              setEditName(wh.name);
+                            }}
+                            className="text-xs cursor-pointer rounded-lg py-2"
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-2 text-primary" /> Editar Webhook
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => duplicateIncomingMut.mutate(wh.id)}
+                            className="text-xs cursor-pointer rounded-lg py-2"
+                          >
+                            <Files className="h-3.5 w-3.5 mr-2 text-primary" /> Duplicar Webhook
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
+                              const url = `${origin}/api/public/webhooks/incoming/${wh.token}`;
+                              navigator.clipboard.writeText(url).then(() => toast.success("URL copiada!"));
+                            }}
+                            className="text-xs cursor-pointer rounded-lg py-2"
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-2" /> Copiar URL
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => setSelectedWebhook(wh)}
+                            className="text-xs cursor-pointer rounded-lg py-2"
+                          >
+                            <Settings className="h-3.5 w-3.5 mr-2 text-primary" /> Mapear Campos
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => regenerateMut.mutate(wh.id)}
+                            className="text-xs cursor-pointer rounded-lg py-2"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 mr-2" /> Regenerar Token
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              toggleIncomingMut.mutate({
+                                id: wh.id,
+                                status: wh.status === "listening" ? "paused" : "listening",
+                              })
+                            }
+                            className="text-xs cursor-pointer rounded-lg py-2"
+                          >
+                            {wh.status === "listening" ? (
+                              <>
+                                <AlertTriangle className="h-3.5 w-3.5 mr-2 text-amber-500" /> Pausar Webhook
+                              </>
+                            ) : (
+                              <>
+                                <Check className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Ativar Webhook
+                              </>
+                            )}
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator className="bg-border" />
+
+                          <DropdownMenuItem
+                            onClick={() => setDeletingWebhook({ id: wh.id, name: wh.name, type: "incoming" })}
+                            className="text-xs cursor-pointer rounded-lg py-2 text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Apagar Webhook
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Stats Row */}
+                    <div className="flex items-center gap-4 text-xs font-semibold text-foreground pt-1 border-t border-border/60">
+                      <div>
+                        <span className="text-foreground font-bold">{wh.events_count || 0}</span>{" "}
+                        <span className="text-muted-foreground font-normal">eventos</span>
+                      </div>
+                      <div>
+                        <span className="text-foreground font-bold">{wh.leads_count || 0}</span>{" "}
+                        <span className="text-muted-foreground font-normal">leads</span>
+                      </div>
+                    </div>
+
+                    {/* Footer Row */}
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> {timeAgo(wh.last_event_at || wh.created_at)}
                       </span>
-                    )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Copiar URL"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const url = `${baseUrl}/api/public/webhooks/incoming/${wh.token}`;
-                      navigator
-                        .clipboard
-                        .writeText(url)
-                        .then(() => toast.success("URL copiada!"));
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title={
-                      wh.status === "listening" ? "Pausar" : "Ativar"
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleIncomingMut.mutate({
-                        id: wh.id,
-                        status:
-                          wh.status === "listening" ? "paused" : "listening",
-                      });
-                    }}
-                  >
-                    {wh.status === "listening" ? (
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                    ) : (
-                      <Check className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Regenerar token"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      regenerateMut.mutate(wh.id);
-                    }}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </Button>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 ml-1" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Outgoing Webhooks */}
-      <Card className="p-5">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="font-display text-lg font-semibold">
-              Webhooks de Saída
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Dispare eventos (lead criado, deal movido, etc.) para URLs
-              externas.
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setOutgoingDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Novo
-          </Button>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
-        {queryOutgoing.isLoading ? (
-          <p className="text-sm text-muted-foreground py-4">Carregando...</p>
-        ) : !queryOutgoing.data ||
-          (queryOutgoing.data as any[]).length === 0 ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            <Webhook className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            <p>Nenhum webhook de saída configurado.</p>
-            <p className="text-xs mt-1">
-              Crie um para ser notificado sobre eventos do sistema.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {(queryOutgoing.data as any[]).map((wh: any) => (
-              <div
-                key={wh.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">
-                      {wh.url}
-                    </span>
-                    <Badge
-                      variant={
-                        wh.status === "active" ? "default" : "secondary"
-                      }
-                    >
-                      {wh.status === "active" ? "Ativo" : "Pausado"}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px]">
-                      {wh.event_type}
-                    </Badge>
-                    <span>{wh.retry_count} retentativas</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Ver logs"
-                    onClick={() => openLogs(wh.id)}
-                  >
-                    <Activity className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title={wh.status === "active" ? "Pausar" : "Ativar"}
-                    onClick={() =>
-                      toggleOutgoingMut.mutate({
-                        id: wh.id,
-                        status:
-                          wh.status === "active" ? "paused" : "active",
-                      })
-                    }
-                  >
-                    {wh.status === "active" ? (
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                    ) : (
-                      <Check className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Excluir"
-                    onClick={() => {
-                      if (
-                        window.confirm("Excluir este webhook de saída?")
-                      )
-                        deleteOutgoingMut.mutate(wh.id);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      )}
 
-      {/* Create Incoming Dialog */}
+      {/* Content Tab 2: Webhooks de Saída */}
+      {activeTab === "outgoing" && (
+        <div>
+          {queryOutgoing.isLoading ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">Carregando webhooks de saída...</div>
+          ) : filteredOutgoing.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-card/40">
+              <Send className="h-10 w-10 mx-auto mb-3 text-primary/40" />
+              <h3 className="text-sm font-bold text-foreground">Nenhum webhook de saída configurado</h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                Dispare notificações para o n8n, Make ou Zapier quando um evento acontecer na Bliv.
+              </p>
+              <Button
+                onClick={() => setOutgoingDialogOpen(true)}
+                className="mt-4 bg-brand-gradient text-white text-xs font-bold px-4"
+              >
+                <Plus className="w-4 h-4 mr-1" /> Criar Webhook de Saída
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredOutgoing.map((wh) => (
+                <Card
+                  key={wh.id}
+                  className="border border-border bg-card hover:border-primary/50 transition-all shadow-xs rounded-2xl overflow-hidden p-5 space-y-4"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Send className="h-5 w-5" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <h3 className="font-display font-bold text-xs text-foreground truncate max-w-[180px]" title={wh.url}>
+                          {wh.url}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                            {wh.event_type}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {wh.retry_count} retentativa(s)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* MENU DE 3 PONTINHOS (OUTGOING) */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 bg-popover border-border rounded-xl shadow-lg p-1">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditingWebhook({ ...wh, type: "outgoing" });
+                            setEditUrl(wh.url);
+                            setEditEventType(wh.event_type);
+                            setEditRetryCount(wh.retry_count || 3);
+                          }}
+                          className="text-xs cursor-pointer rounded-lg py-2"
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-2 text-primary" /> Editar Webhook
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() => duplicateOutgoingMut.mutate(wh.id)}
+                          className="text-xs cursor-pointer rounded-lg py-2"
+                        >
+                          <Files className="h-3.5 w-3.5 mr-2 text-primary" /> Duplicar Webhook
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() => openLogs(wh.id)}
+                          className="text-xs cursor-pointer rounded-lg py-2"
+                        >
+                          <Activity className="h-3.5 w-3.5 mr-2" /> Ver Logs
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() =>
+                            toggleOutgoingMut.mutate({
+                              id: wh.id,
+                              status: wh.status === "active" ? "paused" : "active",
+                            })
+                          }
+                          className="text-xs cursor-pointer rounded-lg py-2"
+                        >
+                          {wh.status === "active" ? (
+                            <>
+                              <AlertTriangle className="h-3.5 w-3.5 mr-2 text-amber-500" /> Pausar Webhook
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Ativar Webhook
+                            </>
+                          )}
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator className="bg-border" />
+
+                        <DropdownMenuItem
+                          onClick={() => setDeletingWebhook({ id: wh.id, name: wh.url, type: "outgoing" })}
+                          className="text-xs cursor-pointer rounded-lg py-2 text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Apagar Webhook
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          wh.status === "active" ? "bg-emerald-500" : "bg-muted-foreground"
+                        }`}
+                      />
+                      <span className="text-xs font-bold text-foreground">
+                        {wh.status === "active" ? "Ativo" : "Pausado"}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAL 1: NOVO WEBHOOK DE ENTRADA */}
       <Dialog
         open={incomingDialogOpen}
         onOpenChange={(open) => {
           setIncomingDialogOpen(open);
-          if (!open) setCreatedIncomingUrl(null);
+          if (!open) {
+            setModalStep(1);
+            setCreatedIncomingUrl(null);
+          }
         }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Novo Webhook de Entrada</DialogTitle>
-            <DialogDescription>
-              {createdIncomingUrl
-                ? "URL gerada! Copie abaixo e configure no sistema externo."
-                : "Crie um endpoint público para receber contatos automaticamente."}
-            </DialogDescription>
-          </DialogHeader>
-          {createdIncomingUrl ? (
-            <div className="space-y-3 py-2">
-              <Label>URL do Webhook (POST)</Label>
-              <div className="flex gap-2">
-                <Input
-                  readOnly
-                  value={createdIncomingUrl}
-                  className="font-mono text-xs"
-                />
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigator
-                      .clipboard
-                      .writeText(createdIncomingUrl)
-                      .then(() => toast.success("URL copiada!"))
-                  }
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-card border-border rounded-2xl shadow-xl">
+          <div className="bg-brand-gradient p-5 text-white flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                <Webhook className="h-5 w-5 text-white" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Guarde esta URL. Para segurança, o token não será exibido
-                novamente.
-              </p>
+              <div>
+                <DialogTitle className="text-base font-bold font-display text-white">
+                  Novo Webhook
+                </DialogTitle>
+                <DialogDescription className="text-xs text-white/80 mt-0.5">
+                  Configure um endpoint para receber leads
+                </DialogDescription>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3 py-2">
-              <Label>Nome do webhook</Label>
-              <Input
-                placeholder="Ex: Integração RD Station"
-                value={incomingName}
-                onChange={(e) => setIncomingName(e.target.value)}
-              />
+          </div>
+
+          <div className="px-6 pt-5 flex items-center justify-center gap-3">
+            <div className="flex items-center gap-2">
+              <div
+                className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  modalStep === 1 ? "bg-primary text-primary-foreground" : "bg-emerald-500 text-white"
+                }`}
+              >
+                1
+              </div>
+              <span className="text-xs font-semibold text-foreground">Informações básicas</span>
             </div>
-          )}
-          <DialogFooter>
-            {createdIncomingUrl ? (
-              <Button onClick={() => setCreatedIncomingUrl(null)}>
-                Fechar
-              </Button>
-            ) : (
-              <>
+
+            <div className="h-0.5 w-12 bg-border" />
+
+            <div className="flex items-center gap-2">
+              <div
+                className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  modalStep === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                2
+              </div>
+              <span className="text-xs font-semibold text-muted-foreground">Webhook criado</span>
+            </div>
+          </div>
+
+          {modalStep === 1 && (
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold font-display text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-primary" /> Dê um nome ao seu webhook
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Escolha um nome que identifique a origem dos leads, como "Landing Page Principal" ou "Formulário de Contato".
+                </p>
+              </div>
+
+              <div className="space-y-1.5 pt-2">
+                <Label className="text-xs font-bold text-foreground">Nome do Webhook</Label>
+                <Input
+                  placeholder="Ex: Landing Page, Formulário Site..."
+                  value={incomingName}
+                  onChange={(e) => setIncomingName(e.target.value)}
+                  className="bg-background border-border text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                 <Button
                   variant="outline"
                   onClick={() => setIncomingDialogOpen(false)}
+                  className="text-xs rounded-xl"
                 >
                   Cancelar
                 </Button>
+
                 <Button
                   onClick={() => createIncomingMut.mutate()}
-                  disabled={
-                    !incomingName.trim() || createIncomingMut.isPending
-                  }
+                  disabled={!incomingName.trim() || createIncomingMut.isPending}
+                  className="bg-brand-gradient text-white text-xs font-bold rounded-xl px-5"
                 >
-                  {createIncomingMut.isPending ? "Criando..." : "Criar"}
+                  {createIncomingMut.isPending ? "Criando..." : "Criar Webhook →"}
                 </Button>
-              </>
-            )}
-          </DialogFooter>
+              </div>
+            </div>
+          )}
+
+          {modalStep === 2 && createdIncomingUrl && (
+            <div className="p-6 space-y-5 text-center">
+              <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                <Webhook className="h-6 w-6" />
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-base font-bold font-display text-foreground">
+                  Webhook criado com sucesso!
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Use a URL abaixo para enviar dados ao seu webhook via requisição HTTP POST.
+                </p>
+              </div>
+
+              <div className="bg-background border border-border rounded-xl p-3 text-left space-y-1.5 shadow-xs">
+                <span className="text-[11px] font-bold text-muted-foreground block">
+                  URL do Webhook (POST)
+                </span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={createdIncomingUrl}
+                    className="font-mono text-xs bg-card border-border truncate"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      navigator.clipboard.writeText(createdIncomingUrl).then(() => toast.success("URL copiada!"))
+                    }
+                    className="bg-brand-gradient text-white text-xs font-bold rounded-lg shrink-0 px-3"
+                  >
+                    <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  onClick={() => setIncomingDialogOpen(false)}
+                  className="w-full bg-brand-gradient text-white text-xs font-bold rounded-xl py-2.5"
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Create Outgoing Dialog */}
-      <Dialog
-        open={outgoingDialogOpen}
-        onOpenChange={setOutgoingDialogOpen}
-      >
-        <DialogContent>
+      {/* MODAL 2: NOVO WEBHOOK DE SAÍDA */}
+      <Dialog open={outgoingDialogOpen} onOpenChange={setOutgoingDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Novo Webhook de Saída</DialogTitle>
-            <DialogDescription>
-              Dispare eventos do sistema para uma URL externa.
+            <DialogTitle className="font-display text-base font-bold text-foreground">
+              Novo Webhook de Saída
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Dispare notificações para um endpoint externo (n8n, Make, Zapier).
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label>URL de destino</Label>
+              <Label className="text-xs font-bold text-foreground">URL de destino (Endpoint)</Label>
               <Input
-                placeholder="https://exemplo.com/webhook"
+                placeholder="https://n8n.suaempresa.com/webhook/..."
                 value={outgoingUrl}
                 onChange={(e) => setOutgoingUrl(e.target.value)}
+                className="bg-background border-border text-xs rounded-xl"
               />
             </div>
+
             <div className="space-y-1.5">
-              <Label>Tipo de evento</Label>
-              <Select
-                value={outgoingEventType}
-                onValueChange={setOutgoingEventType}
-              >
-                <SelectTrigger>
+              <Label className="text-xs font-bold text-foreground">Tipo de Evento Disparador</Label>
+              <Select value={outgoingEventType} onValueChange={setOutgoingEventType}>
+                <SelectTrigger className="bg-background border-border text-xs rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LEAD_CREATED">Lead Criado</SelectItem>
-                  <SelectItem value="LEAD_UPDATED">
-                    Lead Atualizado
-                  </SelectItem>
-                  <SelectItem value="DEAL_CREATED">
-                    Negócio Criado
-                  </SelectItem>
-                  <SelectItem value="DEAL_STEP_CHANGED">
-                    Etapa Alterada
-                  </SelectItem>
-                  <SelectItem value="DEAL_WON">Negócio Ganho</SelectItem>
-                  <SelectItem value="DEAL_LOST">
-                    Negócio Perdido
-                  </SelectItem>
+                <SelectContent className="bg-popover border-border text-xs">
+                  <SelectItem value="LEAD_CREATED">Lead Criado (LEAD_CREATED)</SelectItem>
+                  <SelectItem value="DEAL_STEP_CHANGED">Estágio do Funil Alterado (DEAL_STEP_CHANGED)</SelectItem>
+                  <SelectItem value="MESSAGE_RECEIVED">Mensagem Recebida (MESSAGE_RECEIVED)</SelectItem>
+                  <SelectItem value="AGENT_HANDOFF">Transbordo para Humano (AGENT_HANDOFF)</SelectItem>
+                  <SelectItem value="DEAL_WON">Negócio Ganho (DEAL_WON)</SelectItem>
+                  <SelectItem value="DEAL_LOST">Negócio Perdido (DEAL_LOST)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-1.5">
-              <Label>Retentativas</Label>
-              <Select
-                value={String(outgoingRetryCount)}
-                onValueChange={(v) => setOutgoingRetryCount(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Sem retentativas</SelectItem>
-                  <SelectItem value="1">1 tentativa</SelectItem>
-                  <SelectItem value="3">3 tentativas</SelectItem>
-                  <SelectItem value="5">5 tentativas</SelectItem>
-                  <SelectItem value="10">10 tentativas</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-bold text-foreground">Número de Retentativas</Label>
+              <Input
+                type="number"
+                min={0}
+                max={10}
+                value={outgoingRetryCount}
+                onChange={(e) => setOutgoingRetryCount(Number(e.target.value))}
+                className="bg-background border-border text-xs rounded-xl"
+              />
             </div>
           </div>
+
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setOutgoingDialogOpen(false)}
+              className="text-xs rounded-xl"
             >
               Cancelar
             </Button>
+
             <Button
               onClick={() => createOutgoingMut.mutate()}
               disabled={!outgoingUrl.trim() || createOutgoingMut.isPending}
+              className="bg-brand-gradient text-white text-xs font-bold rounded-xl px-5"
             >
-              {createOutgoingMut.isPending ? "Criando..." : "Criar"}
+              {createOutgoingMut.isPending ? "Criando..." : "Criar Webhook"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Logs Dialog */}
-      <Dialog
-        open={logsDialogOpen}
-        onOpenChange={setLogsDialogOpen}
-      >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      {/* MODAL 3: EDITAR WEBHOOK */}
+      <Dialog open={!!editingWebhook} onOpenChange={(open) => !open && setEditingWebhook(null)}>
+        <DialogContent className="sm:max-w-md bg-card border-border rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Logs do Webhook</DialogTitle>
+            <DialogTitle className="font-display text-base font-bold text-foreground">
+              Editar Webhook
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Atualize as configurações do webhook no banco de dados.
+            </DialogDescription>
           </DialogHeader>
-          {loadingLogs ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Carregando logs...
-            </p>
-          ) : !currentLogs || currentLogs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              Nenhum log encontrado.
-            </p>
+
+          {editingWebhook?.type === "incoming" ? (
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">Nome do Webhook</Label>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="bg-background border-border text-xs rounded-xl"
+                />
+              </div>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {(currentLogs as any[]).map((log: any, i: number) => (
-                <div key={i} className="rounded border p-3 text-xs space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={log.success ? "default" : "destructive"}
-                    >
-                      {log.success ? "Sucesso" : "Falha"}
-                    </Badge>
-                    <span className="font-mono text-muted-foreground">
-                      Tentativa {log.attempt_number}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {log.created_at &&
-                        new Date(log.created_at).toLocaleString("pt-BR")}
-                    </span>
-                  </div>
-                  <div className="text-muted-foreground">
-                    <span className="font-medium">Evento:</span>{" "}
-                    {log.event_type}
-                  </div>
-                  {log.response_status && (
-                    <div>
-                      <span className="font-medium">Status HTTP:</span>{" "}
-                      {log.response_status}
-                    </div>
-                  )}
-                  {log.response_body && (
-                    <div>
-                      <span className="font-medium">Resposta:</span>{" "}
-                      <span className="break-all">
-                        {log.response_body}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">URL de Destino</Label>
+                <Input
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  className="bg-background border-border text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">Tipo de Evento</Label>
+                <Select value={editEventType} onValueChange={setEditEventType}>
+                  <SelectTrigger className="bg-background border-border text-xs rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border text-xs">
+                    <SelectItem value="LEAD_CREATED">Lead Criado (LEAD_CREATED)</SelectItem>
+                    <SelectItem value="DEAL_STEP_CHANGED">Estágio do Funil Alterado (DEAL_STEP_CHANGED)</SelectItem>
+                    <SelectItem value="MESSAGE_RECEIVED">Mensagem Recebida (MESSAGE_RECEIVED)</SelectItem>
+                    <SelectItem value="AGENT_HANDOFF">Transbordo para Humano (AGENT_HANDOFF)</SelectItem>
+                    <SelectItem value="DEAL_WON">Negócio Ganho (DEAL_WON)</SelectItem>
+                    <SelectItem value="DEAL_LOST">Negócio Perdido (DEAL_LOST)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">Retentativas</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={editRetryCount}
+                  onChange={(e) => setEditRetryCount(Number(e.target.value))}
+                  className="bg-background border-border text-xs rounded-xl"
+                />
+              </div>
             </div>
           )}
+
           <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingWebhook(null)} className="text-xs rounded-xl">
+              Cancelar
+            </Button>
             <Button
-              variant="outline"
-              onClick={() => setLogsDialogOpen(false)}
+              onClick={() => {
+                if (editingWebhook?.type === "incoming") {
+                  updateIncomingMut.mutate();
+                } else {
+                  updateOutgoingMut.mutate();
+                }
+              }}
+              className="bg-brand-gradient text-white text-xs font-bold rounded-xl px-5"
             >
-              Fechar
+              Salvar Alterações
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Webhook Details Sheet */}
-      <Sheet open={!!selectedWebhook} onOpenChange={(open) => { if (!open) setSelectedWebhook(null); }}>
+      {/* MODAL 4: CONFIRMAÇÃO DE EXCLUSÃO */}
+      <Dialog open={!!deletingWebhook} onOpenChange={(open) => !open && setDeletingWebhook(null)}>
+        <DialogContent className="sm:max-w-md bg-card border-border rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-base font-bold text-destructive">
+              Excluir Webhook
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Tem certeza que deseja excluir o webhook "{deletingWebhook?.name}"? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeletingWebhook(null)} className="text-xs rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!deletingWebhook) return;
+                if (deletingWebhook.type === "incoming") {
+                  deleteIncomingMut.mutate(deletingWebhook.id);
+                } else {
+                  deleteOutgoingMut.mutate(deletingWebhook.id);
+                }
+              }}
+              className="text-xs rounded-xl font-bold"
+            >
+              Sim, Excluir Webhook
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SHEET 1: MAPEAR CAMPOS DO WEBHOOK (VISUAL 2-COLUMN MAPPER) */}
+      <Sheet open={!!selectedWebhook} onOpenChange={(open) => !open && setSelectedWebhook(null)}>
         <SheetContent
-          className="overflow-y-auto"
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest('[data-slot="select-content"]') || target.closest('[role="listbox"]')) {
-              e.preventDefault();
-            }
-          }}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          className="w-full sm:max-w-xl bg-card border-l border-border p-6 flex flex-col h-full gap-4 overflow-y-auto"
         >
-          <SheetHeader>
-            <div className="flex items-center gap-2 pr-8">
-              <SheetTitle className="truncate">{selectedWebhook?.name}</SheetTitle>
-              <Badge variant={selectedWebhook?.status === "listening" ? "default" : "secondary"} className="shrink-0">
-                {selectedWebhook?.status === "listening" ? "Ativo" : "Pausado"}
-              </Badge>
+          <SheetHeader className="pb-3 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                <Link2 className="h-5 w-5" />
+              </div>
+              <div>
+                <SheetTitle className="text-base font-bold font-display text-foreground">
+                  Conexão de Campos (Payload → Banco MySQL)
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {selectedWebhook?.name}
+                </p>
+              </div>
             </div>
           </SheetHeader>
 
-          <div className="px-6 pb-6 space-y-6">
-            {/* URL */}
-            {selectedWebhook && (
-              <section>
-                <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                  URL de Chamada
-                </h4>
-                <div className="flex gap-2">
-                  <code className="flex-1 rounded-lg bg-muted px-3 py-2 text-[11px] font-mono truncate">
-                    POST {baseUrl}/api/public/webhooks/incoming/{selectedWebhook.token}
-                  </code>
-                  <Button
-                    variant="outline" size="icon" className="shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `${baseUrl}/api/public/webhooks/incoming/${selectedWebhook.token}`,
-                      ).then(() => toast.success("URL copiada!"));
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </section>
-            )}
+          <div className="space-y-5 flex-1 overflow-y-auto pr-1">
+            {/* Box Exemplo cURL / Endpoint */}
+            <div className="bg-background border border-border rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-display text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" /> URL do Webhook (POST)
+                </span>
 
-            {/* Example Payload */}
-            <section>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Exemplo de Payload
-              </h4>
-              <p className="text-[10px] text-muted-foreground mb-2">
-                Copie e adapte este JSON para enviar ao webhook.
-              </p>
-              <pre className="rounded-lg bg-muted p-3 text-[11px] font-mono overflow-x-auto">
-{JSON.stringify(buildExamplePayload(), null, 2)}
-              </pre>
-            </section>
-
-            {/* Fields */}
-            <section>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Campos Recebidos
-              </h4>
-
-              <div className="space-y-1 mb-3">
-                <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
-                  Campos padrão (sempre disponíveis)
-                </p>
-                {STANDARD_FIELDS_META.map((f) => (
-                  <div key={f.key} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <code className="text-xs font-mono w-16 shrink-0">{f.key}</code>
-                    <span className="text-xs text-muted-foreground flex-1">{f.label}</span>
-                    <Lock className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-                  </div>
-                ))}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
+                    const url = `${origin}/api/public/webhooks/incoming/${selectedWebhook?.token}`;
+                    navigator.clipboard.writeText(url).then(() => toast.success("URL copiada!"));
+                  }}
+                  className="h-7 text-[11px] text-primary hover:bg-primary/10"
+                >
+                  <Copy className="h-3 w-3 mr-1" /> Copiar URL
+                </Button>
               </div>
 
+              <div className="bg-card p-2.5 rounded-lg border border-border font-mono text-[11px] text-muted-foreground break-all">
+                {typeof window !== "undefined" ? window.location.origin : "http://localhost:8080"}/api/public/webhooks/incoming/{selectedWebhook?.token}
+              </div>
+            </div>
+
+            {/* Secao 1: Rótulos e Mapeamentos dos Campos Descobertos */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold font-display text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Database className="h-3.5 w-3.5 text-primary" /> Conexão Direta de Campos
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Associe cada chave do JSON que chega ao campo correspondente que vai salvá-la no banco.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => saveMappingsMut.mutate()}
+                  disabled={saveMappingsMut.isPending}
+                  className="bg-brand-gradient text-white text-xs font-bold h-8 px-3.5 rounded-xl shadow-md hover:opacity-95"
+                >
+                  <Save className="h-3.5 w-3.5 mr-1.5" /> Salvar no Banco
+                </Button>
+              </div>
+
+              {/* Lista de Mapeamentos Ativos */}
+              <div className="space-y-3">
+                {fieldMappings.map((mapItem, idx) => (
+                  <div key={idx} className="bg-background border border-border rounded-xl p-3.5 flex items-center gap-2.5 shadow-xs transition-all hover:border-primary/40">
+                    {/* Campo de Entrada (Payload JSON) */}
+                    <div className="flex-1 space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground block">
+                        Chave do Payload JSON
+                      </span>
+                      <Input
+                        placeholder="ex: nome, email, whatsapp"
+                        value={mapItem.external_field || ""}
+                        onChange={(e) => {
+                          const updated = [...fieldMappings];
+                          updated[idx] = { ...mapItem, external_field: e.target.value };
+                          setFieldMappings(updated);
+                        }}
+                        className="bg-card border-border text-xs rounded-lg font-mono text-foreground"
+                      />
+                    </div>
+
+                    {/* Ícone de Conexão */}
+                    <div className="pt-4 text-primary shrink-0">
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+
+                    {/* Campo de Destino no Banco de Dados */}
+                    <div className="flex-1 space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground block">
+                        Campo no Banco (MySQL)
+                      </span>
+                      <Select
+                        value={mapItem.target_type === "custom" ? `custom:${mapItem.custom_field_id}` : `standard:${mapItem.target_key || "name"}`}
+                        onValueChange={(val) => {
+                          const updated = [...fieldMappings];
+                          if (val.startsWith("custom:")) {
+                            const cfId = val.replace("custom:", "");
+                            updated[idx] = {
+                              ...mapItem,
+                              target_type: "custom",
+                              custom_field_id: cfId,
+                              target_key: null,
+                            };
+                          } else {
+                            const stdKey = val.replace("standard:", "");
+                            updated[idx] = {
+                              ...mapItem,
+                              target_type: "standard",
+                              target_key: stdKey,
+                              custom_field_id: null,
+                            };
+                          }
+                          setFieldMappings(updated);
+                        }}
+                      >
+                        <SelectTrigger className="bg-card border-border text-xs rounded-lg font-medium text-foreground">
+                          <SelectValue placeholder="Selecione o campo..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border text-xs">
+                          <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
+                            Campos Padrão do Banco
+                          </div>
+                          {(standardFieldsQ.data || []).map((sf: any) => (
+                            <SelectItem key={`std_${sf.key}`} value={`standard:${sf.key}`}>
+                              📌 {sf.label} ({sf.key})
+                            </SelectItem>
+                          ))}
+
+                          {(customFieldsQ.data || []).length > 0 && (
+                            <>
+                              <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase pt-2 border-t border-border mt-1">
+                                Campos Personalizados
+                              </div>
+                              {(customFieldsQ.data || []).map((cf: any) => (
+                                <SelectItem key={`cf_${cf.id}`} value={`custom:${cf.id}`}>
+                                  🏷️ {cf.label} ({cf.key})
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Botão Remover Mapeamento */}
+                    <div className="pt-4 shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setFieldMappings(fieldMappings.filter((_, i) => i !== idx));
+                        }}
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFieldMappings([
+                      ...fieldMappings,
+                      {
+                        external_field: "",
+                        target_type: "standard",
+                        target_key: "name",
+                        custom_field_id: null,
+                      },
+                    ]);
+                  }}
+                  className="w-full text-xs font-bold rounded-xl border-dashed border-border hover:border-primary/50 text-foreground py-2.5"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5 text-primary" /> Adicionar Mapeamento de Campo
+                </Button>
+              </div>
+
+              {/* Descoberta de Campos Recebidos nos Eventos do Webhook */}
+              {discoveredFields.length > 0 && (
+                <div className="pt-3 space-y-2 border-t border-border">
+                  <h5 className="text-xs font-bold text-foreground">
+                    Campos Detectados nos Eventos Recentes ({discoveredFields.length})
+                  </h5>
+                  <div className="flex flex-wrap gap-1.5">
+                    {discoveredFields.map((fKey: string) => (
+                      <Badge
+                        key={fKey}
+                        variant="outline"
+                        onClick={() => {
+                          const exists = fieldMappings.some((m) => m.external_field === fKey);
+                          if (!exists) {
+                            setFieldMappings([
+                              ...fieldMappings,
+                              {
+                                external_field: fKey,
+                                target_type: "standard",
+                                target_key: fKey === "email" ? "email" : fKey.includes("phone") || fKey.includes("telef") || fKey.includes("zap") ? "phone" : "name",
+                                custom_field_id: null,
+                              },
+                            ]);
+                            toast.success(`Campo "${fKey}" adicionado ao mapeamento.`);
+                          }
+                        }}
+                        className="cursor-pointer hover:bg-primary/10 hover:border-primary text-xs font-mono"
+                      >
+                        + {fKey}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Secao 2: Histórico de Eventos do Webhook */}
+            <div className="space-y-3 pt-3 border-t border-border">
+              <h4 className="text-xs font-bold font-display text-foreground uppercase tracking-wider">
+                Eventos Recebidos Recentemente
+              </h4>
+
               {queryEvents.isLoading ? (
-                <p className="text-xs text-muted-foreground">Analisando eventos...</p>
+                <div className="text-center py-4 text-xs text-muted-foreground">Carregando eventos...</div>
+              ) : events.length === 0 ? (
+                <div className="text-center py-6 border border-dashed border-border rounded-xl bg-background text-xs text-muted-foreground">
+                  Nenhum evento recebido ainda neste endpoint.
+                </div>
               ) : (
-                <div className="space-y-1">
-                  <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
-                    Mapeamento de campos
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mb-2">
-                    Mapeie cada campo recebido para um campo do sistema. Use "ignorar" para descartar campos.
-                  </p>
-
-                  {allCustomKeys.map((key: string) => {
-                    const mapping = fieldMappings.find((m: any) => m.external_field === key);
-                    const targetType = mapping?.target_type ?? "ignore";
-                    const targetField = mapping?.target_field ?? "";
-                    const transform = mapping?.transform ?? "";
-
-                    const setMapping = (partial: Record<string, any>) => {
-                      setFieldMappings((prev) => {
-                        const filtered = prev.filter((m: any) => m.external_field !== key);
-                        if (partial.target_type !== "ignore") {
-                          return [...filtered, { external_field: key, ...partial }];
-                        }
-                        return filtered;
-                      });
-                    };
-
+                <div className="space-y-2">
+                  {events.map((ev: any) => {
+                    const isExpanded = expandedEventId === ev.id;
                     return (
-                      <div key={key} className="rounded-lg border p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <code className="text-xs font-mono font-medium">{key}</code>
-                          {discoveredFields.includes(key) && (
-                            <Badge variant="outline" className="text-[10px]">descoberto</Badge>
-                          )}
+                      <div key={ev.id} className="bg-background border border-border rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono text-muted-foreground">{new Date(ev.created_at).toLocaleString("pt-BR")}</span>
+                          <div className="flex items-center gap-2">
+                            <Badge className={ev.status === "success" || ev.status === "processed" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-bold" : "bg-destructive/10 text-destructive"}>
+                              {ev.status === "success" || ev.status === "processed" ? "Recebido (200 OK)" : ev.status}
+                            </Badge>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExpandedEventId(isExpanded ? null : ev.id)}
+                              className="h-6 text-[11px] text-primary px-2 rounded-md hover:bg-primary/10 font-medium"
+                            >
+                              {isExpanded ? "Ocultar JSON" : "🔍 Ver JSON"}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Select
-                            value={targetType}
-                            onValueChange={(v) => setMapping({ target_type: v, target_field: "", transform: "" })}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-[130px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="standard">Padrão</SelectItem>
-                              <SelectItem value="custom">Personalizado</SelectItem>
-                              <SelectItem value="ignore">Ignorar</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {targetType === "standard" && (
-                            <Select value={targetField} onValueChange={(v) => setMapping({ target_type: "standard", target_field: v, transform })}>
-                              <SelectTrigger className="h-8 text-xs flex-1">
-                                <SelectValue placeholder="Selecione..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(standardFieldsQ.data as unknown as any[] ?? []).map((sf: any) => (
-                                  <SelectItem key={sf.key} value={sf.key}>{sf.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                          {targetType === "custom" && (
-                            <Select value={targetField} onValueChange={(v) => setMapping({ target_type: "custom", target_field: v, transform })}>
-                              <SelectTrigger className="h-8 text-xs flex-1">
-                                <SelectValue placeholder="Selecione..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(customFieldsQ.data as any[] ?? []).filter((f: any) => f.is_active).map((cf: any) => (
-                                  <SelectItem key={cf.id} value={cf.id}>{cf.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                        {targetType !== "ignore" && (
-                          <Select
-                            value={transform}
-                            onValueChange={(v) => setMapping({ target_type: targetType, target_field: targetField, transform: v })}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-full">
-                              <SelectValue placeholder="Sem transformação" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">Sem transformação</SelectItem>
-                              <SelectItem value="normalize_phone">Normalizar telefone</SelectItem>
-                              <SelectItem value="lowercase">Minúsculas</SelectItem>
-                              <SelectItem value="uppercase">MAIÚSCULAS</SelectItem>
-                              <SelectItem value="trim">Remover espaços</SelectItem>
-                              <SelectItem value="parse_number">Converter para número</SelectItem>
-                              <SelectItem value="parse_date">Converter para data</SelectItem>
-                              <SelectItem value="parse_boolean">Converter para booleano</SelectItem>
-                            </SelectContent>
-                          </Select>
+
+                        {ev.fields && ev.fields.length > 0 && (
+                          <div className="text-[11px] text-muted-foreground font-mono truncate">
+                            Campos: <span className="text-foreground font-medium">{ev.fields.join(", ")}</span>
+                          </div>
+                        )}
+
+                        {isExpanded && (
+                          <div className="pt-2 border-t border-border space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                Payload JSON Computado
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(JSON.stringify(ev.payload || {}, null, 2));
+                                  toast.success("Payload JSON copiado!");
+                                }}
+                                className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+                              >
+                                <Copy className="h-3 w-3 mr-1" /> Copiar JSON
+                              </Button>
+                            </div>
+
+                            <pre className="bg-card p-3 rounded-xl border border-border font-mono text-[11px] text-foreground overflow-x-auto max-h-48 leading-relaxed shadow-inner">
+                              {JSON.stringify(ev.payload || {}, null, 2)}
+                            </pre>
+                          </div>
                         )}
                       </div>
                     );
                   })}
-
-                  <div className="flex gap-2 pt-1">
-                    <Input
-                      placeholder="Nome do campo externo"
-                      value={newFieldKey}
-                      onChange={(e) => setNewFieldKey(e.target.value.replace(/[^a-zA-Z0-9_.]/g, ""))}
-                      className="flex-1 h-8 text-xs"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && newFieldKey.trim()) {
-                          const key = newFieldKey.trim();
-                          if (!fieldMappings.some((m: any) => m.external_field === key)) {
-                            setFieldMappings((prev) => [...prev, { external_field: key, target_type: "ignore", target_field: "", transform: "" }]);
-                          }
-                          setNewFieldKey("");
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!newFieldKey.trim()}
-                      onClick={() => {
-                        const key = newFieldKey.trim();
-                        if (!fieldMappings.some((m: any) => m.external_field === key)) {
-                          setFieldMappings((prev) => [...prev, { external_field: key, target_type: "ignore", target_field: "", transform: "" }]);
-                        }
-                        setNewFieldKey("");
-                      }}
-                    >
-                      + Adicionar
-                    </Button>
-                  </div>
                 </div>
               )}
-            </section>
-
-            {/* Events */}
-            <section>
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Últimos Eventos
-              </h4>
-              {queryEvents.isLoading ? (
-                <p className="text-xs text-muted-foreground">Carregando...</p>
-              ) : events.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">Nenhum evento recebido ainda.</p>
-              ) : (
-                <div className="space-y-1">
-                  {events.map((ev: any) => (
-                    <div key={ev.id} className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs">
-                      {ev.status === "success" ? (
-                        <Check className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
-                      ) : (
-                        <AlertTriangle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <span className="text-muted-foreground">
-                          {new Date(ev.created_at).toLocaleString("pt-BR")}
-                        </span>
-                        <div className="text-muted-foreground/70 truncate">
-                          {ev.fields?.filter((f: string) => f !== "custom_fields").join(", ") || "(vazio)"}
-                        </div>
-                        {ev.error_message && (
-                          <div className="text-red-500 text-[10px] mt-0.5">{ev.error_message}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            </div>
           </div>
-
-          <SheetFooter>
-            <Button
-              onClick={() => saveMappingsMut.mutate()}
-              disabled={saveMappingsMut.isPending}
-            >
-              <Save className="h-4 w-4 mr-1.5" />
-              {saveMappingsMut.isPending ? "Salvando..." : "Salvar Mapeamentos"}
-            </Button>
-          </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* DIALOG DE LOGS DO OUTGOING WEBHOOK */}
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-base font-bold text-foreground">
+              Logs de Disparo do Webhook
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Histórico de envios para a URL de destino.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-80 overflow-y-auto space-y-2 py-2">
+            {loadingLogs ? (
+              <div className="text-center py-6 text-xs text-muted-foreground">Carregando logs...</div>
+            ) : !currentLogs || currentLogs.length === 0 ? (
+              <div className="text-center py-6 text-xs text-muted-foreground">Nenhum log registrado até o momento.</div>
+            ) : (
+              currentLogs.map((log: any) => (
+                <div key={log.id} className="bg-background border border-border rounded-xl p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-muted-foreground">{new Date(log.created_at).toLocaleString("pt-BR")}</span>
+                    <Badge className={log.response_status >= 200 && log.response_status < 300 ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}>
+                      HTTP {log.response_status || "Erro"}
+                    </Badge>
+                  </div>
+                  {log.error_message && (
+                    <div className="text-[11px] text-destructive font-mono">{log.error_message}</div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -140,17 +140,17 @@ export function CustomNode({ data, selected }: any) {
 
   return (
     <div
-      className={`bg-card text-card-foreground border rounded-lg shadow-sm w-[280px] overflow-hidden flex flex-col transition-all ${
-        selected ? "ring-2 ring-primary border-primary scale-[1.02]" : "border-border"
-      } ${isStart ? "border-green-500/50 ring-1 ring-green-500/20" : ""}`}
+      className={`rounded-2xl border bg-card text-card-foreground shadow-md min-w-[260px] max-w-[320px] overflow-hidden transition-all ${
+        selected ? "ring-2 ring-primary border-primary shadow-lg" : "border-border hover:border-primary/50"
+      }`}
     >
       {!isStart && (
         <Handle type="target" position={Position.Top} className="w-3 h-3 bg-muted-foreground" />
       )}
 
       {/* Header */}
-      <div className="bg-muted/80 px-3 py-2 flex items-center justify-between border-b backdrop-blur-sm">
-        <div className="flex items-center gap-2 font-medium text-xs">
+      <div className="bg-muted/40 px-3.5 py-2.5 flex items-center justify-between border-b border-border/80">
+        <div className="flex items-center gap-2 font-display font-semibold text-xs text-foreground">
           {getTypeIcon()}
           <span>
             {(() => {

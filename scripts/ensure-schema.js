@@ -1960,6 +1960,35 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
 
+    // Migration automática de colunas para ds_agents caso a tabela tenha sido criada em versão legada
+    try {
+      const [cols] = await connection.query(`SHOW COLUMNS FROM ds_agents`);
+      const colNames = Array.isArray(cols) ? cols.map((c) => c.Field) : [];
+
+      const requiredCols = [
+        { name: "provider", type: "VARCHAR(100) NOT NULL DEFAULT 'OpenAI Padrão'" },
+        { name: "model", type: "VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini'" },
+        { name: "folder_id", type: "VARCHAR(36) NULL" },
+        { name: "api_key_encrypted", type: "TEXT NULL" },
+        { name: "instructions_basic", type: "TEXT NULL" },
+        { name: "instructions_advanced", type: "TEXT NULL" },
+        { name: "mode", type: "ENUM('basico','avancado') NOT NULL DEFAULT 'basico'" },
+        { name: "reply_with_assigned_agent", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
+        { name: "split_replies_in_blocks", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
+        { name: "process_images", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
+        { name: "disabled_outside_platform", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
+      ];
+
+      for (const col of requiredCols) {
+        if (!colNames.includes(col.name)) {
+          await connection.query(`ALTER TABLE ds_agents ADD COLUMN ${col.name} ${col.type}`);
+          console.log(`[Schema] Coluna '${col.name}' adicionada à tabela ds_agents.`);
+        }
+      }
+    } catch (err) {
+      console.warn("[Schema] Aviso ao checar colunas de ds_agents:", err);
+    }
+
     await ensureTableExists(
       connection,
       "ds_agent_knowledge_files",

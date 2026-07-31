@@ -4,47 +4,150 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import db from "./db";
 import crypto from "crypto";
 
-const incomingWebhookSchema = z.object({
-  name: z.string().trim().min(1).max(255),
-});
+export async function ensureWebhookTables() {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS incoming_webhooks (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        field_labels TEXT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'listening',
+        events_count INT NOT NULL DEFAULT 0,
+        leads_count INT NOT NULL DEFAULT 0,
+        last_event_at DATETIME NULL,
+        last_contact_id VARCHAR(36) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS incoming_webhook_events (
+        id VARCHAR(36) PRIMARY KEY,
+        incoming_webhook_id VARCHAR(36) NOT NULL,
+        raw_payload JSON NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'success',
+        error_message TEXT NULL,
+        mapped_standard_fields JSON NULL,
+        mapped_custom_fields JSON NULL,
+        unmapped_fields JSON NULL,
+        headers JSON NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent TEXT NULL,
+        processing_duration_ms INT NULL,
+        idempotency_key VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_webhook_id (incoming_webhook_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS outgoing_webhooks (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        url TEXT NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        retry_count INT NOT NULL DEFAULT 3,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS outgoing_webhook_logs (
+        id VARCHAR(36) PRIMARY KEY,
+        outgoing_webhook_id VARCHAR(36) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        payload JSON NULL,
+        response_status INT NULL,
+        response_body TEXT NULL,
+        error_message TEXT NULL,
+        attempt_number INT NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (e) {
+    console.error("[Webhook Tables Setup Error]", e);
+  }
+}
 
 const outgoingWebhookSchema = z.object({
-  url: z.string().trim().url().max(500),
+  url: z.string().trim().url({ message: "URL inválida" }),
   event_type: z.enum([
     "LEAD_CREATED",
-    "LEAD_UPDATED",
-    "DEAL_CREATED",
     "DEAL_STEP_CHANGED",
+    "MESSAGE_RECEIVED",
+    "AGENT_HANDOFF",
     "DEAL_WON",
     "DEAL_LOST",
   ]),
-  retry_count: z.number().int().min(0).max(10).default(3),
+  retry_count: z.number().int().min(0).max(10).optional().default(3),
 });
 
 export const listIncomingWebhooks = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    await ensureWebhookTables();
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    return db.query(
+    const rows = (await db.query(
       "SELECT * FROM incoming_webhooks WHERE tenant_id = ? ORDER BY created_at DESC",
       [effectiveUserId],
-    );
+    )) as any[];
+    return rows ?? [];
   });
 
 export const createIncomingWebhook = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => incomingWebhookSchema.parse(d))
+  .validator((d) => z.object({ name: z.string().trim().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
+    await ensureWebhookTables();
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const id = crypto.randomUUID();
     const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
     await db.query(
-      "INSERT INTO incoming_webhooks (id, tenant_id, name, token) VALUES (?, ?, ?, ?)",
+      "INSERT INTO incoming_webhooks (id, tenant_id, name, token, status, events_count, leads_count) VALUES (?, ?, ?, ?, 'listening', 0, 0)",
       [id, effectiveUserId, data.name, token],
     );
     return { id, token, name: data.name };
+  });
+
+export const updateIncomingWebhook = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ id: z.string().uuid(), name: z.string().trim().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query(
+      "UPDATE incoming_webhooks SET name = ? WHERE id = ? AND tenant_id = ?",
+      [data.name, data.id, effectiveUserId]
+    );
+    return { ok: true };
+  });
+
+export const duplicateIncomingWebhook = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const [wh] = (await db.query(
+      "SELECT * FROM incoming_webhooks WHERE id = ? AND tenant_id = ?",
+      [data.id, effectiveUserId]
+    )) as any[];
+    if (!wh) throw new Error("Webhook não encontrado.");
+
+    const newId = crypto.randomUUID();
+    const newToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+    const newName = `${wh.name} (Cópia)`;
+
+    await db.query(
+      "INSERT INTO incoming_webhooks (id, tenant_id, name, token, status, events_count, leads_count) VALUES (?, ?, ?, ?, ?, 0, 0)",
+      [newId, effectiveUserId, newName, newToken, wh.status]
+    );
+    return { ok: true, id: newId };
   });
 
 export const updateIncomingWebhookStatus = createServerFn({ method: "POST" })
@@ -58,6 +161,19 @@ export const updateIncomingWebhookStatus = createServerFn({ method: "POST" })
     await db.query(
       "UPDATE incoming_webhooks SET status = ? WHERE id = ? AND tenant_id = ?",
       [data.status, data.id, effectiveUserId],
+    );
+    return { ok: true };
+  });
+
+export const deleteIncomingWebhook = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query(
+      "DELETE FROM incoming_webhooks WHERE id = ? AND tenant_id = ?",
+      [data.id, effectiveUserId],
     );
     return { ok: true };
   });
@@ -79,26 +195,62 @@ export const regenerateIncomingWebhookToken = createServerFn({ method: "POST" })
 export const listOutgoingWebhooks = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    await ensureWebhookTables();
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    return db.query(
+    const rows = (await db.query(
       "SELECT * FROM outgoing_webhooks WHERE tenant_id = ? ORDER BY created_at DESC",
       [effectiveUserId],
-    );
+    )) as any[];
+    return rows ?? [];
   });
 
 export const createOutgoingWebhook = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => outgoingWebhookSchema.parse(d))
   .handler(async ({ data, context }) => {
+    await ensureWebhookTables();
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const id = crypto.randomUUID();
     await db.query(
-      "INSERT INTO outgoing_webhooks (id, tenant_id, url, event_type, retry_count) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO outgoing_webhooks (id, tenant_id, url, event_type, retry_count, status) VALUES (?, ?, ?, ?, ?, 'active')",
       [id, effectiveUserId, data.url, data.event_type, data.retry_count],
     );
     return { id };
+  });
+
+export const updateOutgoingWebhook = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ id: z.string().uuid(), url: z.string().trim().url(), event_type: z.string(), retry_count: z.number().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await db.query(
+      "UPDATE outgoing_webhooks SET url = ?, event_type = ?, retry_count = ? WHERE id = ? AND tenant_id = ?",
+      [data.url, data.event_type, data.retry_count || 3, data.id, effectiveUserId]
+    );
+    return { ok: true };
+  });
+
+export const duplicateOutgoingWebhook = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const [wh] = (await db.query(
+      "SELECT * FROM outgoing_webhooks WHERE id = ? AND tenant_id = ?",
+      [data.id, effectiveUserId]
+    )) as any[];
+    if (!wh) throw new Error("Webhook de saída não encontrado.");
+
+    const newId = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO outgoing_webhooks (id, tenant_id, url, event_type, retry_count, status) VALUES (?, ?, ?, ?, ?, ?)",
+      [newId, effectiveUserId, `${wh.url}?copy=1`, wh.event_type, wh.retry_count, wh.status]
+    );
+    return { ok: true, id: newId };
   });
 
 export const updateOutgoingWebhookStatus = createServerFn({ method: "POST" })
@@ -127,6 +279,22 @@ export const deleteOutgoingWebhook = createServerFn({ method: "POST" })
       [data.id, effectiveUserId],
     );
     return { ok: true };
+  });
+
+export const listOutgoingWebhookLogs = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ webhook_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const rows = (await db.query(
+      `SELECT l.* FROM outgoing_webhook_logs l
+       JOIN outgoing_webhooks w ON w.id = l.outgoing_webhook_id
+       WHERE w.id = ? AND w.tenant_id = ?
+       ORDER BY l.created_at DESC LIMIT 50`,
+      [data.webhook_id, effectiveUserId],
+    )) as any[];
+    return rows ?? [];
   });
 
 export const updateIncomingWebhookFieldLabels = createServerFn({ method: "POST" })
@@ -159,7 +327,7 @@ export const listIncomingWebhookEvents = createServerFn({ method: "GET" })
     if (!webhook) throw new Error("Webhook não encontrado");
 
     const events = (await db.query(
-      `SELECT id, payload, status, error_message, created_at
+      `SELECT id, COALESCE(raw_payload, '') as raw_payload_str, status, error_message, created_at
        FROM incoming_webhook_events
        WHERE incoming_webhook_id = ?
        ORDER BY created_at DESC
@@ -168,48 +336,36 @@ export const listIncomingWebhookEvents = createServerFn({ method: "GET" })
     )) as any[];
 
     const fieldKeysSet = new Set<string>();
-    const parsed = events.map((e: any) => {
+    const parsedEvents = (events || []).map((e: any) => {
       let payload: Record<string, unknown> = {};
       try {
-        payload =
-          typeof e.payload === "string"
-            ? JSON.parse(e.payload)
-            : (e.payload ?? {});
+        const raw = typeof e.raw_payload_str === "string" ? JSON.parse(e.raw_payload_str) : (e.raw_payload_str ?? {});
+        if (Array.isArray(raw) && raw.length > 0) {
+          const first = raw[0];
+          payload = (first?.body ?? first ?? {}) as Record<string, unknown>;
+        } else if (typeof raw === "object") {
+          payload = raw as Record<string, unknown>;
+        }
       } catch {}
 
-      if (payload.custom_fields && typeof payload.custom_fields === "object") {
-        Object.keys(payload.custom_fields as Record<string, unknown>).forEach(
-          (k) => fieldKeysSet.add(k),
-        );
-      }
+      Object.keys(payload).forEach((k) => {
+        if (k !== "headers" && k !== "executionMode" && k !== "webhookUrl" && k !== "query" && k !== "params") {
+          fieldKeysSet.add(k);
+        }
+      });
 
       return {
         id: e.id,
         status: e.status,
         error_message: e.error_message,
         created_at: e.created_at,
-        fields: Object.keys(payload).filter((k) => payload[k] != null),
+        payload,
+        fields: Object.keys(payload).filter((k) => payload[k] != null && k !== "headers" && k !== "executionMode" && k !== "webhookUrl"),
       };
     });
 
     return {
-      events: parsed,
-      discovered_fields: Array.from(fieldKeysSet).sort(),
+      events: parsedEvents,
+      discovered_fields: Array.from(fieldKeysSet),
     };
-  });
-
-export const listOutgoingWebhookLogs = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .validator((d) => z.object({ webhook_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    return db.query(
-      `SELECT l.* FROM outgoing_webhook_logs l
-       JOIN outgoing_webhooks w ON l.outgoing_webhook_id = w.id
-       WHERE l.outgoing_webhook_id = ? AND w.tenant_id = ?
-       ORDER BY l.created_at DESC
-       LIMIT 50`,
-      [data.webhook_id, effectiveUserId],
-    );
   });

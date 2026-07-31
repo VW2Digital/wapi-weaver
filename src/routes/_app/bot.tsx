@@ -6,12 +6,29 @@ import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Play, Plus, Save, Trash2, Power } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Save,
+  Power,
+  BookOpen,
+  Sparkles,
+  Plus,
+  ArrowLeft,
+  FileText,
+  Copy,
+  X,
+  Zap,
+} from "lucide-react";
 import {
   getBotSettings,
   toggleBotStatus,
   listBotSteps,
   saveBotStepsBatch,
+  listBotFlows,
+  createBotFlow,
+  toggleBotFlowStatus,
+  duplicateBotFlow,
+  deleteBotFlow,
 } from "@/lib/botflow.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { toast } from "sonner";
@@ -24,12 +41,13 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
-import { BookOpen } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  BotComponentsSidebar,
+  ComponentItem,
+  TriggerItem,
+} from "@/components/bot-flow/BotComponentsSidebar";
 import {
   Select,
   SelectContent,
@@ -37,6 +55,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // @ts-ignore
 export const Route = createFileRoute("/_app/bot")({
@@ -51,10 +77,25 @@ function BotPage() {
   const saveStepsBatchFn = useServerFn(saveBotStepsBatch);
   const getProfileFn = useServerFn(getProfile);
 
+  const listFlowsFn = useServerFn(listBotFlows);
+  const createFlowFn = useServerFn(createBotFlow);
+  const toggleFlowStatusFn = useServerFn(toggleBotFlowStatus);
+  const duplicateFlowFn = useServerFn(duplicateBotFlow);
+  const deleteFlowFn = useServerFn(deleteBotFlow);
+
+  const [currentView, setCurrentView] = useState<"list" | "canvas">("list");
+  const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<string>("whatsapp");
   const [steps, setSteps] = useState<any[]>([]);
   const [selectedStep, setSelectedStep] = useState<any>(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [templateFilter, setTemplateFilter] = useState<string>("todos");
+
+  // Queries
+  const flowsQuery = useQuery({
+    queryKey: ["botFlows"],
+    queryFn: () => listFlowsFn(),
+  });
 
   const profileQuery = useQuery({
     queryKey: ["profile"],
@@ -67,8 +108,9 @@ function BotPage() {
   });
 
   const stepsQuery = useQuery({
-    queryKey: ["botSteps", selectedChannel],
-    queryFn: () => listStepsFn({ data: { channel: selectedChannel } }),
+    queryKey: ["botSteps", selectedChannel, activeFlowId],
+    queryFn: () => listStepsFn({ data: { channel: selectedChannel, flowId: activeFlowId } }),
+    enabled: currentView === "canvas",
   });
 
   useEffect(() => {
@@ -78,6 +120,48 @@ function BotPage() {
   }, [stepsQuery.data]);
 
   usePageHeader({});
+
+  // Flow Mutations
+  const createFlowMut = useMutation({
+    mutationFn: () => createFlowFn({ data: { name: "Novo Fluxo" } }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["botFlows"] });
+      if (res.flow?.id) {
+        setActiveFlowId(res.flow.id);
+        setCurrentView("canvas");
+      }
+      toast.success("Novo fluxo criado com sucesso!");
+    },
+    onError: (err: any) => toast.error(err?.message || "Erro ao criar fluxo"),
+  });
+
+  const toggleFlowStatusMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      toggleFlowStatusFn({ data: { id, isActive } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["botFlows"] });
+      toast.success("Status atualizado");
+    },
+    onError: (err: any) => toast.error(err?.message || "Erro ao atualizar status"),
+  });
+
+  const duplicateFlowMut = useMutation({
+    mutationFn: (id: string) => duplicateFlowFn({ data: { id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["botFlows"] });
+      toast.success("Fluxo duplicado com sucesso!");
+    },
+    onError: (err: any) => toast.error(err?.message || "Erro ao duplicar fluxo"),
+  });
+
+  const deleteFlowMut = useMutation({
+    mutationFn: (id: string) => deleteFlowFn({ data: { id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["botFlows"] });
+      toast.success("Fluxo removido.");
+    },
+    onError: (err: any) => toast.error(err?.message || "Erro ao deletar fluxo"),
+  });
 
   const toggleStatus = useMutation({
     mutationFn: async (isActive: boolean) => {
@@ -94,14 +178,14 @@ function BotPage() {
 
   const saveBatch = useMutation({
     mutationFn: async (payload: any[]) => {
-      // Validar nós de gatilho de Webhook
       for (const step of payload) {
         if (step.trigger_type === "webhook") {
           let conditions: any[] = [];
           try {
-            conditions = typeof step.trigger_value === "string"
-              ? JSON.parse(step.trigger_value || "[]")
-              : step.trigger_value || [];
+            conditions =
+              typeof step.trigger_value === "string"
+                ? JSON.parse(step.trigger_value || "[]")
+                : step.trigger_value || [];
           } catch (e) {
             conditions = [];
           }
@@ -119,30 +203,50 @@ function BotPage() {
         }
       }
 
-      const res = await saveStepsBatchFn({ data: { channel: selectedChannel, steps: payload } });
+      const res = await saveStepsBatchFn({
+        data: { channel: selectedChannel, flowId: activeFlowId, steps: payload },
+      });
       if (!res.ok) throw new Error(res.error || "Erro ao salvar o fluxo");
       return res;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["botSteps", selectedChannel] });
-      toast.success("Fluxo salvo com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["botSteps", selectedChannel, activeFlowId] });
+      queryClient.invalidateQueries({ queryKey: ["botFlows"] });
+      toast.success("Fluxo salvo no banco de dados com sucesso!");
     },
     onError: (err: any) => toast.error(err.message || "Erro desconhecido ao salvar"),
   });
 
-  const handleAddStep = () => {
+  const handleAddComponent = (item: ComponentItem) => {
     const newStep = {
       id: crypto.randomUUID(),
       step_order: steps.length + 1,
       trigger_type: steps.length === 0 ? "start" : "keyword",
       trigger_value: "",
-      message_type: "text",
-      message_content: "Nova mensagem",
-      position_x: Math.random() * 200 + 100,
-      position_y: Math.random() * 200 + 100,
+      message_type: item.type,
+      message_content: item.title,
+      position_x: 250 + (steps.length % 3) * 60,
+      position_y: 100 + steps.length * 90,
     };
     setSteps([...steps, newStep]);
     setSelectedStep(newStep);
+    toast.success(`Componente "${item.title}" adicionado.`);
+  };
+
+  const handleSelectTrigger = (trigger: TriggerItem) => {
+    const newTriggerStep = {
+      id: crypto.randomUUID(),
+      step_order: steps.length + 1,
+      trigger_type: trigger.type,
+      trigger_value: trigger.title,
+      message_type: "text",
+      message_content: `Gatilho: ${trigger.title}`,
+      position_x: 100,
+      position_y: 80,
+    };
+    setSteps([newTriggerStep, ...steps]);
+    setSelectedStep(newTriggerStep);
+    toast.success(`Gatilho "${trigger.title}" adicionado.`);
   };
 
   const handleUpdateStep = (field: string, value: any) => {
@@ -163,14 +267,175 @@ function BotPage() {
     (settingsQuery.data as any)?.is_active ||
     false;
 
-  return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      <div className="flex-none px-6 py-4 border-b bg-card flex items-center justify-between">
-        <div className="flex items-center gap-4">
+  const filteredTemplates = BOT_TEMPLATES.filter((t) => {
+    if (templateFilter === "todos") return true;
+    return t.category === templateFilter;
+  });
+
+  const flowsList = flowsQuery.data?.flows || [];
+
+  // ============================================================================
+  // VIEW 1: SEÇÃO INICIAL "FLUXOS DE AUTOMAÇÃO" (LISTA DE FLUXOS)
+  // ============================================================================
+  if (currentView === "list") {
+    return (
+      <div className="flex-1 bg-background text-foreground p-6 space-y-6 min-h-screen">
+        {/* Top Header */}
+        <div className="flex items-center justify-between border-b border-border pb-5">
           <div>
-            <h1 className="text-xl font-bold">Construtor de Fluxo</h1>
-            <p className="text-sm text-muted-foreground">Arraste e solte para criar seu bot</p>
+            <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-2">
+              Fluxos de Automação
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1">
+              Gerencie e crie novos fluxos interativos de automação para atendimento e vendas.
+            </p>
           </div>
+
+          <Button
+            onClick={() => createFlowMut.mutate()}
+            disabled={createFlowMut.isPending}
+            className="bg-brand-gradient text-white font-bold shadow-md hover:opacity-95 px-5"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Adicionar
+          </Button>
+        </div>
+
+        {/* Table of Flows */}
+        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow className="border-border hover:bg-muted/40">
+                <TableHead className="text-muted-foreground font-semibold">Nome</TableHead>
+                <TableHead className="text-center text-muted-foreground font-semibold w-28">Gatilhos</TableHead>
+                <TableHead className="text-center text-muted-foreground font-semibold w-28">Ações</TableHead>
+                <TableHead className="text-center text-muted-foreground font-semibold w-28">Status</TableHead>
+                <TableHead className="text-muted-foreground font-semibold">Última Execução</TableHead>
+                <TableHead className="text-right text-muted-foreground font-semibold w-32">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {flowsQuery.isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    Carregando fluxos...
+                  </TableCell>
+                </TableRow>
+              ) : flowsList.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    Nenhum fluxo encontrado. Clique em "Adicionar" para criar o primeiro.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                flowsList.map((flow: any) => (
+                  <TableRow key={flow.id} className="border-border hover:bg-muted/20 transition-colors">
+                    {/* Nome do Fluxo */}
+                    <TableCell
+                      onClick={() => {
+                        setActiveFlowId(flow.id);
+                        setCurrentView("canvas");
+                      }}
+                      className="font-display font-bold text-foreground hover:text-primary cursor-pointer"
+                    >
+                      {flow.name}
+                    </TableCell>
+
+                    {/* Gatilhos (Badge Verde) */}
+                    <TableCell className="text-center">
+                      <div className="inline-flex items-center justify-center h-6 w-6 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-500 text-xs font-bold">
+                        {flow.triggers_count || 1}
+                      </div>
+                    </TableCell>
+
+                    {/* Ações (Badge Rosa) */}
+                    <TableCell className="text-center">
+                      <div className="inline-flex items-center justify-center h-6 w-6 rounded-full border border-primary/40 bg-primary/10 text-primary text-xs font-bold">
+                        {flow.actions_count || 1}
+                      </div>
+                    </TableCell>
+
+                    {/* Status Toggle */}
+                    <TableCell className="text-center">
+                      <Switch
+                        checked={flow.is_active}
+                        onCheckedChange={(val) =>
+                          toggleFlowStatusMut.mutate({ id: flow.id, isActive: val })
+                        }
+                      />
+                    </TableCell>
+
+                    {/* Última Execução */}
+                    <TableCell className="text-xs text-muted-foreground">
+                      {flow.last_executed_at
+                        ? new Date(flow.last_executed_at).toLocaleString("pt-BR")
+                        : "Nunca"}
+                    </TableCell>
+
+                    {/* Row Actions Icons */}
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2 text-muted-foreground">
+                        <button
+                          title="Editar Fluxo"
+                          onClick={() => {
+                            setActiveFlowId(flow.id);
+                            setCurrentView("canvas");
+                          }}
+                          className="p-1.5 rounded hover:bg-muted hover:text-foreground transition-colors"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </button>
+
+                        <button
+                          title="Duplicar Fluxo"
+                          onClick={() => duplicateFlowMut.mutate(flow.id)}
+                          className="p-1.5 rounded hover:bg-muted hover:text-foreground transition-colors"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+
+                        <button
+                          title="Deletar Fluxo"
+                          onClick={() => deleteFlowMut.mutate(flow.id)}
+                          className="p-1.5 rounded hover:bg-muted hover:text-destructive transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // VIEW 2: CONSTRUTOR DE FLUXO (CANVAS EDITOR)
+  // ============================================================================
+  return (
+    <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
+      {/* TOP HEADER */}
+      <div className="flex-none px-6 py-4 border-b border-border bg-card flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={() => setCurrentView("list")}
+            variant="outline"
+            size="sm"
+            className="border-border bg-background text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1.5" />
+            Voltar para Fluxos
+          </Button>
+
+          <div>
+            <h1 className="text-xl font-display font-bold text-foreground">Construtor de Fluxo</h1>
+            <p className="text-xs text-muted-foreground">Arraste e solte ações, gatilhos e controles de fluxo</p>
+          </div>
+
           <Select
             value={selectedChannel}
             onValueChange={(val) => {
@@ -178,89 +443,43 @@ function BotPage() {
               setSelectedStep(null);
             }}
           >
-            <SelectTrigger className="w-48 ml-4">
+            <SelectTrigger className="w-48 ml-2 bg-background border-border text-xs">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="whatsapp">WhatsApp</SelectItem>
+            <SelectContent className="bg-popover border-border text-xs">
+              <SelectItem value="whatsapp">WhatsApp Business</SelectItem>
             </SelectContent>
           </Select>
         </div>
+
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <Power className="w-4 h-4 text-muted-foreground" />
-            <Label>Status do Bot</Label>
+            <Label className="text-xs font-semibold">Status do Bot</Label>
             <Switch checked={isSettingsActive} onCheckedChange={(c) => toggleStatus.mutate(c)} />
           </div>
-          <Button onClick={() => saveBatch.mutate(steps)} disabled={saveBatch.isPending}>
+          <Button
+            onClick={() => saveBatch.mutate(steps)}
+            disabled={saveBatch.isPending}
+            className="bg-brand-gradient text-white font-bold shadow-md hover:opacity-95"
+          >
             <Save className="w-4 h-4 mr-2" />
             Salvar Fluxo
           </Button>
         </div>
       </div>
 
+      {/* MAIN BUILDER AREA */}
       <div className="flex-1 flex overflow-hidden">
-        {/* SIDEBAR */}
-        <div className="w-64 border-r bg-muted/30 p-4 flex flex-col gap-4">
-          <Button onClick={handleAddStep} className="w-full" variant="outline">
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar Passo
-          </Button>
-
-          <Sheet open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
-            <SheetTrigger asChild>
-              <Button className="w-full" variant="secondary">
-                <BookOpen className="w-4 h-4 mr-2" />
-                Galeria de Templates
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
-              <SheetHeader className="mb-4">
-                <SheetTitle>Galeria de Fluxos de Bot</SheetTitle>
-                <SheetDescription>
-                  Selecione um template pronto para carregar no Canvas.
-                  <br />
-                  <strong className="text-destructive">Atenção:</strong> Carregar um template irá
-                  APAGAR o fluxo atual não salvo da tela.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="grid grid-cols-1 gap-4 mt-4">
-                {BOT_TEMPLATES.map((template) => (
-                  <Card
-                    key={template.id}
-                    className="cursor-pointer hover:border-primary transition-colors"
-                    onClick={() => {
-                      try {
-                        const newSteps = mapTemplateSteps(template.steps);
-                        setSteps(newSteps);
-                        setSelectedStep(null);
-                        setIsGalleryOpen(false);
-                        toast.success(
-                          `Template "${template.name}" carregado! Não se esqueça de Salvar.`,
-                        );
-                      } catch (e) {
-                        toast.error("Erro ao carregar template.");
-                        console.error(e);
-                      }
-                    }}
-                  >
-                    <CardHeader className="p-4">
-                      <CardTitle className="text-base">{template.name}</CardTitle>
-                      <CardDescription className="text-xs">{template.description}</CardDescription>
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          <div className="text-xs text-muted-foreground mt-4">
-            Dica: Clique em um bloco no painel ao lado para editar suas configurações.
-          </div>
-        </div>
+        {/* COMPONENTES SIDEBAR & ESCOLHER GATILHO */}
+        <BotComponentsSidebar
+          onAddComponent={handleAddComponent}
+          onSelectTrigger={handleSelectTrigger}
+          onOpenTemplates={() => setIsGalleryOpen(true)}
+        />
 
         {/* CANVAS */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative bg-background">
           <BotFlowCanvas steps={steps} onStepsChange={setSteps} onNodeClick={setSelectedStep} />
         </div>
 
@@ -278,6 +497,100 @@ function BotPage() {
           />
         )}
       </div>
+
+      {/* TEMPLATES GALLERY SHEET */}
+      <Sheet open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+        <SheetContent className="w-full sm:max-w-md bg-card border-l border-border p-6 flex flex-col h-full gap-4 overflow-y-auto">
+          <SheetHeader className="pb-2 border-b border-border">
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div>
+                <SheetTitle className="text-base font-bold font-display text-foreground">
+                  Galeria de Templates de Bot
+                </SheetTitle>
+                <SheetDescription className="text-xs text-muted-foreground mt-0.5">
+                  Selecione um fluxo pronto para carregar no Canvas
+                </SheetDescription>
+              </div>
+            </div>
+          </SheetHeader>
+
+          {/* Category Tabs Filter */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {[
+              { id: "todos", label: "Todos" },
+              { id: "qualificacao", label: "Qualificação" },
+              { id: "vendas", label: "Vendas" },
+              { id: "suporte", label: "Suporte" },
+              { id: "geral", label: "Geral" },
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setTemplateFilter(cat.id)}
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                  templateFilter === cat.id
+                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                    : "bg-background text-muted-foreground border border-border hover:text-foreground"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Templates Grid */}
+          <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+            {filteredTemplates.map((template) => (
+              <Card
+                key={template.id}
+                className="border border-border bg-background hover:border-primary/60 transition-all shadow-xs group"
+              >
+                <CardHeader className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-bold font-display text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                      {template.name}
+                    </CardTitle>
+                    {template.badge && (
+                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                        {template.badge}
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription className="text-xs text-muted-foreground leading-relaxed">
+                    {template.description}
+                  </CardDescription>
+
+                  <div className="pt-2 flex items-center justify-between border-t border-border/60">
+                    <span className="text-[11px] text-muted-foreground">
+                      {template.steps.length} blocos inclusos
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        try {
+                          const newSteps = mapTemplateSteps(template.steps);
+                          setSteps(newSteps);
+                          setSelectedStep(null);
+                          setIsGalleryOpen(false);
+                          toast.success(`Template "${template.name}" carregado! Clique em Salvar.`);
+                        } catch (e) {
+                          toast.error("Erro ao carregar template.");
+                          console.error(e);
+                        }
+                      }}
+                      className="bg-brand-gradient text-white text-xs font-bold shadow-xs hover:opacity-95"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1" /> Usar Template
+                    </Button>
+                  </div>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

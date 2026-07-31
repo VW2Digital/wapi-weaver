@@ -113,7 +113,7 @@ function DsAgenteMainPage() {
   const currentAgents = agentsQuery.data?.agents || [];
 
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-8 bg-background text-foreground min-h-dvh">
+    <div className="flex-1 space-y-6 p-4 md:p-8 bg-background text-foreground min-h-full">
       {selectedFolderId === "overview" ? (
         <FolderGrid
           folders={folders}

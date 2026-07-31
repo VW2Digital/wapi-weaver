@@ -1,21 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-const incomingPayloadSchema = z.object({
-  name: z.string().trim().min(1).max(255).optional(),
-  email: z.string().email().max(255).optional(),
-  phone: z.string().min(8).max(32).optional(),
-  company: z.string().max(255).optional(),
-  position: z.string().max(255).optional(),
-  external_id: z.string().max(255).optional(),
-  custom_fields: z.record(z.string(), z.any()).optional(),
-});
-
 function corsHeaders(extra: Record<string, string> = {}) {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
     "Content-Type": "application/json",
     ...extra,
   };
@@ -49,7 +39,7 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             applyTransform,
           } = await import("@/lib/webhooks.server");
 
-          // 1. Find webhook
+          // 1. Encontrar o webhook no MySQL
           const webhook = await findIncomingWebhookByToken(token);
           if (!webhook) {
             return new Response(JSON.stringify({ error: "Webhook não encontrado" }), {
@@ -65,7 +55,7 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             });
           }
 
-          // 2. Parse body
+          // 2. Tratar Payload JSON (suporta objeto único ou array tipo n8n)
           let rawBody: unknown;
           try {
             rawBody = await request.json();
@@ -76,9 +66,19 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             });
           }
 
-          const body = (rawBody ?? {}) as Record<string, any>;
+          let body: Record<string, any> = {};
+          if (Array.isArray(rawBody) && rawBody.length > 0) {
+            const first = rawBody[0];
+            if (first && typeof first === "object" && "body" in first && typeof first.body === "object") {
+              body = first.body as Record<string, any>;
+            } else if (first && typeof first === "object") {
+              body = first as Record<string, any>;
+            }
+          } else if (rawBody && typeof rawBody === "object") {
+            body = rawBody as Record<string, any>;
+          }
 
-          // 3. Idempotency check
+          // 3. Checar chave de Idempotência
           const idempotencyKey = request.headers.get("x-idempotency-key") ?? body.idempotency_key ?? null;
           if (idempotencyKey) {
             const db = (await import("@/lib/db")).default;
@@ -94,77 +94,88 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             }
           }
 
-          // 4. Load field mappings
+          // 4. Carregar regras de Mapeamento do Banco (webhook_field_mappings)
           let mappings: any[] = [];
-          try {
-            if (webhook.field_labels && webhook.field_labels !== "null") {
-              const parsed = typeof webhook.field_labels === "string"
-                ? JSON.parse(webhook.field_labels)
-                : webhook.field_labels;
-              mappings = Object.entries(parsed).map(([key]) => ({
-                external_field: key,
-                target_type: "ignore",
-                target_field: "",
-                transform: "",
-              }));
-            }
-          } catch {}
-
-          // Try to get proper mappings from webhook_field_mappings if available
           const dbMod = await import("@/lib/db");
           try {
             const [rows]: any = await dbMod.default.query(
-              "SELECT * FROM webhook_field_mappings WHERE webhook_id = ? ORDER BY sort_order ASC",
+              "SELECT * FROM webhook_field_mappings WHERE webhook_id = ?",
               [webhook.id],
             );
             if (rows?.length > 0) mappings = rows;
           } catch {}
 
-          // 5. Apply mappings to extract fields
+          // 5. Aplicar mapeamentos de campos
           const mappedStandardFields: Record<string, unknown> = {};
           const mappedCustomFields: Record<string, unknown> = {};
           const unmappedFields: string[] = [];
-          const knownKeys = new Set<string>();
 
-          const stdFieldMap: Record<string, string> = {
-            name: "name", email: "email", phone: "phone", company: "company",
-            position: "position", external_id: "external_id",
-          };
-
-          // Collect all top-level keys in payload
           const allPayloadKeys = new Set<string>();
           Object.keys(body).forEach((k) => allPayloadKeys.add(k));
 
           for (const mapping of mappings) {
             const extField = mapping.external_field;
-            knownKeys.add(extField);
             allPayloadKeys.delete(extField);
 
             const rawValue = resolveDotPath(body, extField);
             if (rawValue === undefined) continue;
 
-            const transformedValue = mapping.transform ? applyTransform(rawValue, mapping.transform) : rawValue;
+            const transformedValue = mapping.transformation ? applyTransform(rawValue, mapping.transformation) : rawValue;
+            const targetKey = mapping.target_key || mapping.target_field;
 
-            if (mapping.target_type === "standard") {
-              const targetStd = stdFieldMap[mapping.target_field];
-              if (targetStd) {
-                mappedStandardFields[mapping.target_field] = transformedValue;
-              }
+            if (mapping.target_type === "standard" && targetKey) {
+              mappedStandardFields[targetKey] = transformedValue;
             } else if (mapping.target_type === "custom") {
-              mappedCustomFields[mapping.target_field] = transformedValue;
+              const cfId = mapping.custom_field_id || targetKey;
+              if (cfId) mappedCustomFields[cfId] = transformedValue;
             }
           }
 
-          // Remaining unknown keys as unmapped
-          allPayloadKeys.forEach((k) => { if (k !== "custom_fields") unmappedFields.push(k); });
+          allPayloadKeys.forEach((k) => unmappedFields.push(k));
 
-          // 6. Validate extracted data
-          const phone = mappedStandardFields.phone as string ?? body.phone ?? null;
-          const email = mappedStandardFields.email as string ?? body.email ?? null;
-          const external_id = mappedStandardFields.external_id as string ?? body.external_id ?? null;
+          // 6. Extrair campos com fallback automático (nome, email, telefone)
+          const name =
+            (mappedStandardFields.name as string) ??
+            body.nome ??
+            body.name ??
+            body.full_name ??
+            body.nome_completo ??
+            undefined;
 
-          if (!phone && !email && !external_id) {
-            const errMsg = "É necessário fornecer 'phone', 'email' ou 'external_id'";
+          const email =
+            (mappedStandardFields.email as string) ??
+            body.email ??
+            body.mail ??
+            body.email_contato ??
+            undefined;
+
+          const phone =
+            (mappedStandardFields.phone as string) ??
+            body.telefone ??
+            body.phone ??
+            body.whatsapp ??
+            body.celular ??
+            undefined;
+
+          const company =
+            (mappedStandardFields.company as string) ??
+            body.empresa ??
+            body.company ??
+            undefined;
+
+          const position =
+            (mappedStandardFields.position as string) ??
+            body.cargo ??
+            body.position ??
+            undefined;
+
+          const external_id =
+            (mappedStandardFields.external_id as string) ??
+            body.external_id ??
+            undefined;
+
+          if (!phone && !email && !external_id && !name) {
+            const errMsg = "É necessário fornecer pelo menos 'nome', 'email', 'telefone' ou 'external_id'";
             await logIncomingWebhookEvent(webhook.id, body, "error", errMsg, {
               mappedStandardFields,
               mappedCustomFields,
@@ -179,82 +190,77 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             return new Response(JSON.stringify({ error: errMsg }), { status: 400, headers });
           }
 
-          // 7. Create or update contact
-          try {
-            const contact = await upsertContactFromWebhook(
-              webhook.tenant_id,
-              {
-                name: (mappedStandardFields.name as string) ?? body.name ?? undefined,
-                email: email ?? undefined,
-                phone: phone ?? undefined,
-                company: (mappedStandardFields.company as string) ?? body.company ?? undefined,
-                position: (mappedStandardFields.position as string) ?? body.position ?? undefined,
-                external_id: external_id ?? body.external_id ?? undefined,
-                custom_fields: body.custom_fields as Record<string, unknown> ?? undefined,
-              },
-              { id: webhook.id, name: webhook.name },
-            );
+          // 7. Criar ou atualizar Contato/Lead no MySQL
+          const contact = await upsertContactFromWebhook(
+            webhook.tenant_id,
+            {
+              name,
+              email: email ?? undefined,
+              phone: phone ?? undefined,
+              company,
+              position,
+              external_id: external_id ?? undefined,
+              custom_fields: body.custom_fields as Record<string, unknown> ?? undefined,
+            },
+            { id: webhook.id, name: webhook.name },
+          );
 
-            // Save custom field values from mappings
-            if (Object.keys(mappedCustomFields).length > 0) {
-              try {
-                const { saveContactCustomFieldValues } = await import("@/lib/custom-fields.functions");
-                await saveContactCustomFieldValues({
-                  data: {
-                    contact_id: contact.id,
-                    values: Object.entries(mappedCustomFields).map(([custom_field_id, value]) => ({
-                      custom_field_id,
-                      value,
-                    })),
-                  },
-                });
-              } catch {}
-            }
-
-            await logIncomingWebhookEvent(webhook.id, body, "success", undefined, {
-              mappedStandardFields,
-              mappedCustomFields,
-              unmappedFields,
-              headers: Object.fromEntries(request.headers),
-              ipAddress: getClientIp(request),
-              userAgent: request.headers.get("user-agent") ?? undefined,
-              processingDurationMs: Date.now() - startTime,
-              idempotencyKey: idempotencyKey ?? undefined,
-            });
-            await incrementIncomingWebhookStats(webhook.id, contact.created, contact.id);
-
+          // Salvar valores dos campos personalizados se houver
+          if (Object.keys(mappedCustomFields).length > 0) {
             try {
-              const { triggerWebhookBotFlow } = await import("@/lib/botflow-executor.server");
-              triggerWebhookBotFlow(webhook.tenant_id, contact.id, body).catch((err) => {
-                console.error("[Webhook Trigger] Error calling triggerWebhookBotFlow:", err);
+              const { saveContactCustomFieldValues } = await import("@/lib/custom-fields.functions");
+              await saveContactCustomFieldValues({
+                data: {
+                  contact_id: contact.id,
+                  values: Object.entries(mappedCustomFields).map(([custom_field_id, value]) => ({
+                    custom_field_id,
+                    value,
+                  })),
+                },
               });
-            } catch (err) {
-              console.error("[Webhook Trigger] Error importing triggerWebhookBotFlow:", err);
-            }
-
-            return new Response(
-              JSON.stringify({
-                ok: true,
-                contact_id: contact.id,
-                created: contact.created,
-              }),
-              { status: 200, headers },
-            );
-          } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            await logIncomingWebhookEvent(webhook.id, body, "error", errorMessage, {
-              mappedStandardFields,
-              mappedCustomFields,
-              unmappedFields,
-              headers: Object.fromEntries(request.headers),
-              ipAddress: getClientIp(request),
-              userAgent: request.headers.get("user-agent") ?? undefined,
-              processingDurationMs: Date.now() - startTime,
-              idempotencyKey: idempotencyKey ?? undefined,
-            });
-            await incrementIncomingWebhookStats(webhook.id, false);
-            return new Response(JSON.stringify({ error: errorMessage }), { status: 400, headers });
+            } catch {}
           }
+
+          // Logar evento com sucesso
+          await logIncomingWebhookEvent(webhook.id, body, "success", undefined, {
+            mappedStandardFields,
+            mappedCustomFields,
+            unmappedFields,
+            headers: Object.fromEntries(request.headers),
+            ipAddress: getClientIp(request),
+            userAgent: request.headers.get("user-agent") ?? undefined,
+            processingDurationMs: Date.now() - startTime,
+            idempotencyKey: idempotencyKey ?? undefined,
+          });
+
+          await incrementIncomingWebhookStats(webhook.id, contact.created, contact.id);
+
+          // Disparar Automação / Bot Flow se houver gatilho de webhook
+          try {
+            const { triggerWebhookBotFlow } = await import("@/lib/botflow-executor.server");
+            triggerWebhookBotFlow(webhook.tenant_id, contact.id, body).catch((err) => {
+              console.error("[Webhook Trigger] Erro ao disparar Bot Flow:", err);
+            });
+          } catch (err) {
+            console.error("[Webhook Trigger] Erro importando botflow-executor:", err);
+          }
+
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              message: "Webhook recebido e processado com sucesso",
+              contact_id: contact.id,
+              created: contact.created,
+              mapped_data: {
+                nome: name,
+                email,
+                telefone: phone,
+                empresa: company,
+                cidade: body.cidade,
+              },
+            }),
+            { status: 200, headers },
+          );
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : String(err);
           return new Response(JSON.stringify({ error: "Erro interno", detail: errorMessage }), {

@@ -30,6 +30,28 @@ async function uniqueKey(userId: string, label: string, db: DbInterface, exclude
   }
 }
 
+async function ensureWebhookFieldMappingsTable(db: any) {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS webhook_field_mappings (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        webhook_id VARCHAR(36) NOT NULL,
+        external_field VARCHAR(255) NOT NULL,
+        target_type VARCHAR(50) NOT NULL DEFAULT 'standard',
+        target_key VARCHAR(100) NULL,
+        custom_field_id VARCHAR(36) NULL,
+        transformation VARCHAR(50) NULL,
+        default_value TEXT NULL,
+        is_required BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (err) {
+    console.warn("[WebhookFieldMappings] Aviso ao auto-criar tabela:", err);
+  }
+}
+
 export const customFieldTypeEnum = z.enum([
   "text", "textarea", "number", "currency", "date", "datetime",
   "select", "multi_select", "boolean", "email", "phone", "url",
@@ -58,10 +80,11 @@ export const listCustomFields = createServerFn({ method: "GET" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    return db.query(
+    const rows = (await db.query(
       "SELECT * FROM contact_custom_fields WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC",
       [effectiveUserId],
-    );
+    )) as any[];
+    return rows ?? [];
   });
 
 export const createCustomField = createServerFn({ method: "POST" })
@@ -241,10 +264,12 @@ export const saveWebhookFieldMappings = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const [webhook] = await db.query(
+    await ensureWebhookFieldMappingsTable(db);
+
+    const [webhook] = (await db.query(
       "SELECT id FROM incoming_webhooks WHERE id = ? AND tenant_id = ? LIMIT 1",
       [data.webhook_id, effectiveUserId],
-    );
+    )) as any[];
     if (!webhook) throw new Error("Webhook não encontrado");
 
     await db.query("DELETE FROM webhook_field_mappings WHERE webhook_id = ? AND user_id = ?", [
@@ -253,10 +278,10 @@ export const saveWebhookFieldMappings = createServerFn({ method: "POST" })
 
     for (const m of data.mappings) {
       if (m.target_type === "custom" && m.custom_field_id) {
-        const [cf] = await db.query(
+        const [cf] = (await db.query(
           "SELECT id FROM contact_custom_fields WHERE id = ? AND user_id = ? LIMIT 1",
           [m.custom_field_id, effectiveUserId],
-        );
+        )) as any[];
         if (!cf) throw new Error(`Campo personalizado ${m.custom_field_id} não encontrado`);
       }
       await db.query(

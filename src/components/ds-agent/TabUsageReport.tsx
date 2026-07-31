@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { RefreshCw, BarChart2, DollarSign, Activity, Cpu, PieChart } from "lucide-react";
+import { BarChart2, DollarSign, Cpu, Zap, RefreshCw, PieChart, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/table";
 
 interface UsageData {
+  ok: boolean;
   summary: {
     total_tokens: number;
     custo_estimado: number;
@@ -43,68 +45,55 @@ interface UsageData {
 
 interface TabUsageReportProps {
   usageData?: UsageData;
-  onRefresh?: () => void;
+  onRefresh: () => void;
 }
 
 export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
   const [range, setRange] = useState("30d");
 
   const defaultData: UsageData = {
+    ok: true,
     summary: {
-      total_tokens: 45200,
-      custo_estimado: 0.0904,
-      requisicoes: 38,
-      media_por_req: 1189,
+      total_tokens: 0,
+      custo_estimado: 0,
+      requisicoes: 0,
+      media_por_req: 0,
     },
-    tokens_por_dia: [
-      { date: "18/07", tokens: 2500 },
-      { date: "19/07", tokens: 3800 },
-      { date: "20/07", tokens: 4100 },
-      { date: "21/07", tokens: 3200 },
-      { date: "22/07", tokens: 5100 },
-      { date: "23/07", tokens: 4900 },
-      { date: "24/07", tokens: 3000 },
-      { date: "25/07", tokens: 2800 },
-      { date: "26/07", tokens: 4200 },
-      { date: "27/07", tokens: 3900 },
-      { date: "28/07", tokens: 2100 },
-      { date: "29/07", tokens: 1900 },
-      { date: "30/07", tokens: 3700 },
-    ],
+    tokens_por_dia: [],
     por_categoria: {
-      action_analysis: 20,
-      completion: 55,
-      embedding: 10,
-      query_rewriting: 10,
-      transcription: 5,
+      action_analysis: 0,
+      completion: 0,
+      embedding: 0,
+      query_rewriting: 0,
+      transcription: 0,
     },
-    detalhamento_por_modelo: [
-      { modelo: "gpt-4o-mini", provider: "OpenAI Padrão", tokens: 33900, requisicoes: 28, custo: 0.0508 },
-      { modelo: "gpt-4o", provider: "OpenAI Padrão", tokens: 11300, requisicoes: 10, custo: 0.0396 },
-    ],
+    detalhamento_por_modelo: [],
   };
 
   const data = usageData || defaultData;
-  const maxTokens = Math.max(...data.tokens_por_dia.map((d) => d.tokens), 100);
+  const maxTokens = Math.max(...(data.tokens_por_dia.map((d) => d.tokens) || [1]), 1);
 
   const categories = [
-    { label: "Action Analysis", key: "action_analysis", pct: data.por_categoria.action_analysis, color: "#F23869" },
-    { label: "Completion", key: "completion", pct: data.por_categoria.completion, color: "#D93B92" },
-    { label: "Embedding", key: "embedding", pct: data.por_categoria.embedding, color: "#BF39B6" },
-    { label: "Query Rewriting", key: "query_rewriting", pct: data.por_categoria.query_rewriting, color: "#F26A4B" },
+    { label: "Action Analysis", key: "action_analysis", pct: data.por_categoria.action_analysis, color: "#f43f5e" },
+    { label: "Completion", key: "completion", pct: data.por_categoria.completion, color: "#d946ef" },
+    { label: "Embedding", key: "embedding", pct: data.por_categoria.embedding, color: "#8b5cf6" },
+    { label: "Query Rewriting", key: "query_rewriting", pct: data.por_categoria.query_rewriting, color: "#f97316" },
     { label: "Transcription", key: "transcription", pct: data.por_categoria.transcription, color: "#3b82f6" },
   ];
 
+  const hasRealData = data.summary.requisicoes > 0 || data.summary.total_tokens > 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-32">
       {/* Title & Refresh Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
             <BarChart2 className="h-5 w-5 text-primary" /> Relatório de Uso
+            <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">Dados Reais MySQL</Badge>
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Acompanhe o consumo de tokens, requisições e custo acumulado do agente.
+            Acompanhe o consumo de tokens, requisições e custo acumulado real do agente.
           </p>
         </div>
 
@@ -144,37 +133,39 @@ export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
           <p className="text-2xl font-display font-bold text-foreground mt-2">
             {data.summary.total_tokens.toLocaleString("pt-BR")}
           </p>
-          <span className="text-[10px] text-muted-foreground mt-1 block">Consumo total do agente</span>
+          <span className="text-[10px] text-muted-foreground mt-1 block">Consumo total real do agente</span>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Custo Estimado</span>
-            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-500">
               <DollarSign className="h-4 w-4" />
             </div>
           </div>
           <p className="text-2xl font-display font-bold text-foreground mt-2">
             ${data.summary.custo_estimado.toFixed(4)} USD
           </p>
-          <span className="text-[10px] text-muted-foreground mt-1 block">Baseado nas tabelas dos provedores</span>
+          <span className="text-[10px] text-muted-foreground mt-1 block">Baseado em chamadas reais</span>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Requisições</span>
-            <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
-              <Activity className="h-4 w-4" />
+            <div className="rounded-lg bg-blue-500/10 p-2 text-blue-500">
+              <Zap className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-2xl font-display font-bold text-foreground mt-2">{data.summary.requisicoes}</p>
+          <p className="text-2xl font-display font-bold text-foreground mt-2">
+            {data.summary.requisicoes}
+          </p>
           <span className="text-[10px] text-muted-foreground mt-1 block">Chamadas efetuadas à API</span>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Média / Requisição</span>
-            <div className="rounded-lg bg-purple-500/10 p-2 text-purple-600 dark:text-purple-400">
+            <div className="rounded-lg bg-purple-500/10 p-2 text-purple-500">
               <BarChart2 className="h-4 w-4" />
             </div>
           </div>
@@ -193,25 +184,35 @@ export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
             <BarChart2 className="h-4 w-4 text-primary" /> Tokens por Dia
           </h4>
 
-          <div className="h-56 flex items-end justify-between gap-2 pt-6">
-            {data.tokens_por_dia.map((d, i) => {
-              const heightPct = Math.max(10, Math.round((d.tokens / maxTokens) * 100));
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 group relative">
-                  <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-popover border border-border text-popover-foreground text-[10px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10 shadow-md">
-                    {d.tokens} tokens
+          {data.tokens_por_dia.length > 0 ? (
+            <div className="h-56 flex items-end justify-between gap-2 pt-6">
+              {data.tokens_por_dia.map((d, i) => {
+                const heightPct = Math.max(10, Math.round((d.tokens / maxTokens) * 100));
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-2 group relative">
+                    <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-popover border border-border text-popover-foreground text-[10px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10 shadow-md">
+                      {d.tokens} tokens
+                    </div>
+                    <div
+                      style={{ height: `${heightPct}%` }}
+                      className="w-full bg-primary/80 group-hover:bg-primary transition-all rounded-t-md"
+                    />
+                    <span className="text-[10px] text-muted-foreground truncate w-full text-center">
+                      {d.date}
+                    </span>
                   </div>
-                  <div
-                    style={{ height: `${heightPct}%` }}
-                    className="w-full bg-primary/80 group-hover:bg-primary transition-all rounded-t-md"
-                  />
-                  <span className="text-[10px] text-muted-foreground truncate w-full text-center">
-                    {d.date}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="h-56 flex flex-col items-center justify-center text-center text-muted-foreground border border-dashed border-border rounded-lg p-6">
+              <Info className="h-8 w-8 mb-2 text-muted-foreground/60" />
+              <p className="text-sm font-medium text-foreground">Nenhum consumo registrado ainda</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                Os dados de uso real serão exibidos aqui assim que o agente realizar atendimentos ou chamadas de API.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Donut / Category Breakdown */}
@@ -220,24 +221,32 @@ export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
             <PieChart className="h-4 w-4 text-primary" /> Por Categoria
           </h4>
 
-          {/* Central Donut Graphic */}
-          <div className="flex justify-center py-4">
-            <div className="relative h-32 w-32 rounded-full border-8 border-primary/20 flex items-center justify-center">
-              <span className="text-lg font-extrabold text-primary font-display">100%</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {categories.map((c) => (
-              <div key={c.key} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span className="text-foreground font-medium">{c.label}</span>
+          {hasRealData ? (
+            <>
+              <div className="flex justify-center py-4">
+                <div className="relative h-32 w-32 rounded-full border-8 border-primary/20 flex items-center justify-center">
+                  <span className="text-lg font-extrabold text-primary font-display">100%</span>
                 </div>
-                <span className="font-semibold text-muted-foreground">{c.pct}%</span>
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-2">
+                {categories.map((c) => (
+                  <div key={c.key} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                      <span className="text-foreground font-medium">{c.label}</span>
+                    </div>
+                    <span className="font-semibold text-muted-foreground">{c.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="h-56 flex flex-col items-center justify-center text-center text-muted-foreground border border-dashed border-border rounded-lg p-6">
+              <PieChart className="h-8 w-8 mb-2 text-muted-foreground/60" />
+              <p className="text-xs text-muted-foreground">Sem dados categorizados registrados ainda.</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -255,19 +264,25 @@ export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.detalhamento_por_modelo.map((m, idx) => (
-              <TableRow key={idx} className="border-border/60 hover:bg-muted/30">
-                <TableCell className="font-semibold text-foreground">{m.modelo}</TableCell>
-                <TableCell className="text-muted-foreground">{m.provider}</TableCell>
-                <TableCell className="text-right text-foreground font-mono">
-                  {m.tokens.toLocaleString("pt-BR")}
-                </TableCell>
-                <TableCell className="text-right text-foreground font-mono">{m.requisicoes}</TableCell>
-                <TableCell className="text-right text-primary font-mono font-semibold">
-                  ${m.custo.toFixed(4)}
+            {data.detalhamento_por_modelo.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                  Nenhum modelo registrou chamadas até o momento.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              data.detalhamento_por_modelo.map((m, idx) => (
+                <TableRow key={idx} className="border-border hover:bg-muted/20">
+                  <TableCell className="font-bold text-foreground">{m.modelo}</TableCell>
+                  <TableCell className="text-muted-foreground">{m.provider}</TableCell>
+                  <TableCell className="text-right font-medium text-foreground">{m.tokens.toLocaleString("pt-BR")}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{m.requisicoes}</TableCell>
+                  <TableCell className="text-right font-semibold text-primary">
+                    ${m.custo.toFixed(4)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

@@ -72,9 +72,9 @@ export function TabTestChat({ agentName, agentId, onSendTestMessage }: TabTestCh
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card flex flex-col h-[620px] shadow-md overflow-hidden">
+    <div className="rounded-xl border border-border bg-card flex flex-col h-[calc(100vh-270px)] min-h-[480px] max-h-[700px] shadow-md overflow-hidden">
       {/* Test Chat Header */}
-      <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5 shrink-0">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-primary/10 p-2 text-primary">
             <Sparkles className="h-5 w-5" />
@@ -104,7 +104,7 @@ export function TabTestChat({ agentName, agentId, onSendTestMessage }: TabTestCh
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-background">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground py-12">
+          <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground py-8">
             <div className="rounded-full bg-muted border border-border p-4 text-primary mb-3">
               <MessageSquare className="h-8 w-8" />
             </div>
@@ -167,7 +167,7 @@ export function TabTestChat({ agentName, agentId, onSendTestMessage }: TabTestCh
       </div>
 
       {/* Footer Input Area & Warning */}
-      <div className="border-t border-border bg-card p-4 space-y-2">
+      <div className="border-t border-border bg-card p-4 space-y-2 shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <Input
             placeholder="Digite uma mensagem para testar..."
@@ -185,7 +185,7 @@ export function TabTestChat({ agentName, agentId, onSendTestMessage }: TabTestCh
           </Button>
         </form>
 
-        <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-500 font-medium pt-1">
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-500 font-medium pt-0.5">
           <AlertTriangle className="h-3.5 w-3.5" />
           <span>Ambiente de teste — respostas simuladas e fictícias</span>
         </div>

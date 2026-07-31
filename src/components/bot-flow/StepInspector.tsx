@@ -9,12 +9,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, GripVertical, X } from "lucide-react";
+import { Trash2, Plus, GripVertical, X, Upload, FileUp, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listWhatsAppFlows } from "@/lib/botflow.functions";
 import { listTeams, listAllAgents } from "@/lib/assignment.functions";
+import { toast } from "sonner";
 
 export function StepInspector({
   selectedStep,
@@ -25,6 +26,7 @@ export function StepInspector({
   onClose,
 }: any) {
   const [config, setConfig] = useState<any>({});
+  const [mediaSourceTab, setMediaSourceTab] = useState<"upload" | "url">("upload");
 
   const listFlowsFn = useServerFn(listWhatsAppFlows);
   const flowsQuery = useQuery({
@@ -987,26 +989,138 @@ export function StepInspector({
         </div>
 
         {isMedia && (
-          <>
-            <div className="space-y-2">
-              <Label>URL da Mídia (ou ID)</Label>
-              <Input
-                value={selectedStep.media_url || ""}
-                onChange={(e) => handleUpdateStep("media_url", e.target.value)}
-                placeholder="https://..."
-              />
+          <div className="space-y-3 border border-border rounded-xl p-3.5 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold font-display flex items-center gap-1.5 text-foreground">
+                <Upload className="h-3.5 w-3.5 text-primary" /> Mídia da Mensagem
+              </Label>
+
+              <div className="flex bg-background rounded-lg p-0.5 border border-border">
+                <button
+                  type="button"
+                  onClick={() => setMediaSourceTab("upload")}
+                  className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all ${
+                    mediaSourceTab === "upload"
+                      ? "bg-primary text-primary-foreground font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaSourceTab("url")}
+                  className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all ${
+                    mediaSourceTab === "url"
+                      ? "bg-primary text-primary-foreground font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  URL Externa
+                </button>
+              </div>
             </div>
-            {selectedStep.message_type !== "audio" && (
-              <div className="space-y-2">
-                <Label>Legenda (Caption)</Label>
+
+            {/* Tab 1: Upload de Arquivo Directo */}
+            {mediaSourceTab === "upload" && (
+              <div>
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/60 bg-card p-4 rounded-xl cursor-pointer transition-all group text-center shadow-xs">
+                  <FileUp className="h-6 w-6 text-primary group-hover:scale-110 transition-transform mb-1" />
+                  <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                    Clique para fazer upload do arquivo
+                  </span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                    Imagens (PNG, JPG), Vídeos (MP4), Áudios (MP3) ou PDF (máx. 25MB)
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 25 * 1024 * 1024) {
+                        toast.error("O arquivo excede o limite de 25MB.");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const dataUrl = event.target?.result as string;
+                        if (dataUrl) {
+                          handleUpdateStep("media_url", dataUrl);
+                          toast.success(`Mídia "${file.name}" carregada com sucesso!`);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Tab 2: URL Externa */}
+            {mediaSourceTab === "url" && (
+              <div className="space-y-1">
                 <Input
-                  value={selectedStep.media_caption || ""}
-                  onChange={(e) => handleUpdateStep("media_caption", e.target.value)}
-                  placeholder="Texto da mídia..."
+                  value={selectedStep.media_url || ""}
+                  onChange={(e) => handleUpdateStep("media_url", e.target.value)}
+                  placeholder="https://sua-midia.com/imagem.png"
+                  className="text-xs bg-background border-border text-foreground"
                 />
               </div>
             )}
-          </>
+
+            {/* Live Media Preview Card */}
+            {selectedStep.media_url && (
+              <div className="relative border border-border bg-card rounded-lg p-2 flex items-center justify-between gap-2 overflow-hidden shadow-xs">
+                <div className="flex items-center gap-2 overflow-hidden flex-1">
+                  {selectedStep.media_url.startsWith("data:image") ||
+                  selectedStep.media_url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
+                    <img
+                      src={selectedStep.media_url}
+                      alt="Preview"
+                      className="h-10 w-10 object-cover rounded-md shrink-0 border border-border"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 bg-primary/10 text-primary rounded-md flex items-center justify-center shrink-0">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                  )}
+
+                  <div className="overflow-hidden">
+                    <span className="text-xs font-semibold text-foreground truncate block">
+                      Mídia Anexada
+                    </span>
+                    <span className="text-[10px] text-muted-foreground truncate block">
+                      {selectedStep.media_url.slice(0, 35)}...
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleUpdateStep("media_url", "")}
+                  className="h-7 text-xs text-destructive hover:bg-destructive/10 shrink-0"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Remover
+                </Button>
+              </div>
+            )}
+
+            {selectedStep.message_type !== "audio" && (
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-xs text-muted-foreground">Legenda (Caption)</Label>
+                <Input
+                  value={selectedStep.media_caption || ""}
+                  onChange={(e) => handleUpdateStep("media_caption", e.target.value)}
+                  placeholder="Texto da legenda da mídia..."
+                  className="text-xs bg-background border-border"
+                />
+              </div>
+            )}
+          </div>
         )}
 
         <div className="space-y-2">

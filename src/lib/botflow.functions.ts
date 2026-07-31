@@ -3,10 +3,41 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
 import crypto from "crypto";
 
+async function ensureBotFlowsTable(db: any) {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS bot_flows (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        triggers_count INT NOT NULL DEFAULT 1,
+        actions_count INT NOT NULL DEFAULT 1,
+        last_executed_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (err) {
+    console.warn("[BotFlows] Aviso ao auto-criar tabela bot_flows:", err);
+  }
+}
+
+async function ensureBotStepsColumns(db: any) {
+  try {
+    const cols: any[] = (await db.query(`SHOW COLUMNS FROM bot_steps`)) as any[];
+    const colNames = cols.map((c: any) => c.Field);
+    if (!colNames.includes("flow_id")) {
+      await db.query(`ALTER TABLE bot_steps ADD COLUMN flow_id VARCHAR(36) NULL`);
+    }
+  } catch (err) {
+    console.warn("[BotSteps] Aviso ao migrar colunas de bot_steps:", err);
+  }
+}
+
 /**
  * Obtém ou cria o registro bot_settings do usuário logado.
- * instance_id é NULL quando o usuário ainda não configurou o WhatsApp —
- * isso é intencional e suportado pelo schema (NULL, não NOT NULL).
  */
 async function getOrCreateBotSettings(context: any, channelInput?: string) {
   const channel = channelInput || "whatsapp";
@@ -59,6 +90,168 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
   return { ok: true as const, settings, profile: p };
 }
 
+// ============================================================================
+// LISTA DE FLUXOS DE AUTOMAÇÃO (bot_flows)
+// ============================================================================
+
+export const listBotFlows = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ channel: z.string().optional() }).optional().parse(d))
+  .handler(async ({ data, context }: { data?: { channel?: string }; context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const tenantId = await resolveEffectiveUserId(context.userId);
+
+      await ensureBotFlowsTable(db);
+
+      const flows = (await db.query(
+        "SELECT * FROM bot_flows WHERE tenant_id = ? ORDER BY created_at DESC",
+        [tenantId]
+      )) as any[];
+
+      return {
+        ok: true,
+        flows: (flows || []).map((f: any) => ({
+          ...f,
+          is_active: Boolean(f.is_active),
+        })),
+      };
+    } catch (err: any) {
+      console.error("[BotFlows] Erro ao listar fluxos:", err);
+      return { ok: false, flows: [], error: err?.message };
+    }
+  });
+
+export const createBotFlow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ name: z.string().optional() }).parse(d))
+  .handler(async ({ data, context }: { data: { name?: string }; context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const tenantId = await resolveEffectiveUserId(context.userId);
+
+      await ensureBotFlowsTable(db);
+
+      const flowId = crypto.randomUUID();
+      const name = data.name || "Novo Fluxo";
+
+      await db.query(
+        `INSERT INTO bot_flows (id, tenant_id, name, channel, is_active, triggers_count, actions_count)
+         VALUES (?, ?, ?, 'whatsapp', false, 1, 1)`,
+        [flowId, tenantId, name]
+      );
+
+      const [flow] = (await db.query("SELECT * FROM bot_flows WHERE id = ?", [flowId])) as any[];
+
+      return { ok: true, flow };
+    } catch (err: any) {
+      console.error("[BotFlows] Erro ao criar fluxo:", err);
+      throw new Error(err?.message || "Falha ao criar fluxo.");
+    }
+  });
+
+export const toggleBotFlowStatus = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ id: z.string(), isActive: z.boolean() }).parse(d))
+  .handler(async ({ data, context }: { data: { id: string; isActive: boolean }; context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const tenantId = await resolveEffectiveUserId(context.userId);
+
+      await db.query("UPDATE bot_flows SET is_active = ? WHERE id = ? AND tenant_id = ?", [
+        data.isActive ? 1 : 0,
+        data.id,
+        tenantId,
+      ]);
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error("[BotFlows] Erro ao atualizar status do fluxo:", err);
+      throw new Error(err?.message || "Falha ao atualizar status.");
+    }
+  });
+
+export const duplicateBotFlow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ id: z.string() }).parse(d))
+  .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const tenantId = await resolveEffectiveUserId(context.userId);
+
+      const [flow] = (await db.query(
+        "SELECT * FROM bot_flows WHERE id = ? AND tenant_id = ?",
+        [data.id, tenantId]
+      )) as any[];
+
+      if (!flow) throw new Error("Fluxo não encontrado.");
+
+      const newId = crypto.randomUUID();
+      const newName = `${flow.name} (Cópia)`;
+
+      await db.query(
+        `INSERT INTO bot_flows (id, tenant_id, name, channel, is_active, triggers_count, actions_count)
+         VALUES (?, ?, ?, ?, false, ?, ?)`,
+        [newId, tenantId, newName, flow.channel, flow.triggers_count, flow.actions_count]
+      );
+
+      const steps = (await db.query("SELECT * FROM bot_steps WHERE flow_id = ?", [data.id])) as any[];
+      for (const s of steps || []) {
+        const stepId = crypto.randomUUID();
+        await db.query(
+          `INSERT INTO bot_steps (id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
+           message_content, media_url, media_caption, footer_text, buttons_config, delay_seconds, position_x, position_y)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            stepId,
+            s.bot_settings_id,
+            newId,
+            tenantId,
+            s.step_order,
+            s.trigger_type,
+            s.trigger_value,
+            s.message_type,
+            s.message_content,
+            s.media_url,
+            s.media_caption,
+            s.footer_text,
+            s.buttons_config,
+            s.delay_seconds,
+            s.position_x,
+            s.position_y,
+          ]
+        );
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error("[BotFlows] Erro ao duplicar fluxo:", err);
+      throw new Error(err?.message || "Falha ao duplicar fluxo.");
+    }
+  });
+
+export const deleteBotFlow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ id: z.string() }).parse(d))
+  .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const tenantId = await resolveEffectiveUserId(context.userId);
+
+      await db.query("DELETE FROM bot_steps WHERE flow_id = ?", [data.id]);
+      await db.query("DELETE FROM bot_flows WHERE id = ? AND tenant_id = ?", [data.id, tenantId]);
+      return { ok: true };
+    } catch (err: any) {
+      console.error("[BotFlows] Erro ao deletar fluxo:", err);
+      throw new Error(err?.message || "Falha ao deletar fluxo.");
+    }
+  });
+
 export const getBotSettings = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d: any) => z.object({ channel: z.string().optional() }).optional().parse(d))
@@ -88,20 +281,33 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
 
 export const listBotSteps = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ channel: z.string().optional() }).optional().parse(d))
-  .handler(async ({ data, context }: { data?: { channel?: string }; context: any }) => {
+  .validator(
+    (d: any) =>
+      z.object({ channel: z.string().optional(), flowId: z.string().optional().nullable() }).optional().parse(d)
+  )
+  .handler(async ({ data, context }: { data?: { channel?: string; flowId?: string | null }; context: any }) => {
     const { default: db } = await import("./db");
     const result = await getOrCreateBotSettings(context, data?.channel);
     if (!result.ok) throw new Error(result.error || "Falha ao obter configurações do bot");
 
-    const steps = (await db.query(
-      "SELECT * FROM bot_steps WHERE bot_settings_id = ? ORDER BY step_order ASC",
-      [result.settings.id],
-    )) as any[];
+    await ensureBotStepsColumns(db);
+
+    let steps: any[];
+    if (data?.flowId) {
+      steps = (await db.query(
+        "SELECT * FROM bot_steps WHERE flow_id = ? ORDER BY step_order ASC",
+        [data.flowId]
+      )) as any[];
+    } else {
+      steps = (await db.query(
+        "SELECT * FROM bot_steps WHERE bot_settings_id = ? ORDER BY step_order ASC",
+        [result.settings.id]
+      )) as any[];
+    }
+
     return steps ?? [];
   });
 
-// Validator para um único step
 const saveBotStepInput = z.object({
   id: z.string().optional(),
   step_order: z.number(),
@@ -126,6 +332,7 @@ const saveBotStepInput = z.object({
 
 const saveBotStepsBatchInput = z.object({
   channel: z.string().optional(),
+  flowId: z.string().optional().nullable(),
   steps: z.array(saveBotStepInput),
 });
 
@@ -133,7 +340,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => saveBotStepsBatchInput.parse(d))
   .handler(
-    async ({ data, context }: { data: { channel?: string; steps: any[] }; context: any }) => {
+    async ({ data, context }: { data: { channel?: string; flowId?: string | null; steps: any[] }; context: any }) => {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const { default: db } = await import("./db");
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -143,24 +350,54 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         return { ok: false as const, error: result.error || "Falha ao obter configurações do bot" };
 
       const settings = result.settings;
+      await ensureBotStepsColumns(db);
+
+      const flowId = data.flowId || null;
       const incomingIds = data.steps.map((s) => s.id).filter(Boolean);
 
-      // Remove steps que não estão mais no fluxo
-      if (incomingIds.length > 0) {
-        const placeholders = incomingIds.map(() => "?").join(",");
-        await db.query(
-          `DELETE FROM bot_steps WHERE bot_settings_id = ? AND id NOT IN (${placeholders})`,
-          [settings.id, ...incomingIds],
-        );
+      if (flowId) {
+        if (incomingIds.length > 0) {
+          const placeholders = incomingIds.map(() => "?").join(",");
+          await db.query(
+            `DELETE FROM bot_steps WHERE flow_id = ? AND id NOT IN (${placeholders})`,
+            [flowId, ...incomingIds]
+          );
+        } else {
+          await db.query("DELETE FROM bot_steps WHERE flow_id = ?", [flowId]);
+        }
       } else {
-        await db.query("DELETE FROM bot_steps WHERE bot_settings_id = ?", [settings.id]);
+        if (incomingIds.length > 0) {
+          const placeholders = incomingIds.map(() => "?").join(",");
+          await db.query(
+            `DELETE FROM bot_steps WHERE bot_settings_id = ? AND id NOT IN (${placeholders})`,
+            [settings.id, ...incomingIds]
+          );
+        } else {
+          await db.query("DELETE FROM bot_steps WHERE bot_settings_id = ?", [settings.id]);
+        }
       }
 
-      // 1ª passagem: upsert de todos os steps SEM next_step_id (evita FK circular)
+      let triggersCount = 0;
+      let actionsCount = 0;
+
       for (const step of data.steps) {
         const stepId = step.id || crypto.randomUUID();
+        const isTrigger = [
+          "start",
+          "keyword",
+          "webhook",
+          "first_message",
+          "tag_assigned",
+          "queue_assigned",
+          "instagram_event",
+          "shopify_event",
+        ].includes(step.trigger_type);
+        if (isTrigger) triggersCount++;
+        else actionsCount++;
+
         const payload = {
           bot_settings_id: settings.id,
+          flow_id: flowId,
           user_id: effectiveUserId,
           step_order: step.step_order,
           trigger_type: step.trigger_type,
@@ -181,20 +418,20 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           card_color: step.card_color || null,
         };
 
-        // Verifica se o step já existe no banco
         const existing = (await db.query("SELECT id FROM bot_steps WHERE id = ?", [
           stepId,
         ])) as any[];
 
         if (existing?.length > 0) {
           await db.query(
-            `UPDATE bot_steps SET bot_settings_id = ?, user_id = ?, step_order = ?, trigger_type = ?, trigger_value = ?,
+            `UPDATE bot_steps SET bot_settings_id = ?, flow_id = ?, user_id = ?, step_order = ?, trigger_type = ?, trigger_value = ?,
            message_type = ?, message_content = ?, media_url = ?, media_caption = ?, footer_text = ?,
            buttons_config = ?, next_step_id = ?, delay_seconds = ?, position_x = ?, position_y = ?,
            assign_team_id = ?, assign_user_id = ?, handoff_message = ?, card_color = ?
            WHERE id = ?`,
             [
               payload.bot_settings_id,
+              payload.flow_id,
               payload.user_id,
               payload.step_order,
               payload.trigger_type,
@@ -218,14 +455,14 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           );
         } else {
           await db.query(
-            `INSERT INTO bot_steps (id, bot_settings_id, user_id, step_order, trigger_type, trigger_value,
-           message_type, message_content, media_url, media_caption, footer_text, buttons_config,
-           next_step_id, delay_seconds, position_x, position_y, assign_team_id, assign_user_id,
-           handoff_message, card_color)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO bot_steps (id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
+           message_content, media_url, media_caption, footer_text, buttons_config, next_step_id, delay_seconds,
+           position_x, position_y, assign_team_id, assign_user_id, handoff_message, card_color)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               stepId,
               payload.bot_settings_id,
+              payload.flow_id,
               payload.user_id,
               payload.step_order,
               payload.trigger_type,
@@ -246,17 +483,22 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
               payload.card_color,
             ],
           );
-          step.id = stepId;
         }
       }
 
-      // 2ª passagem: resolve links next_step_id agora que todos existem
       for (const step of data.steps) {
         if (!step.next_step_id) continue;
         await db.query("UPDATE bot_steps SET next_step_id = ? WHERE id = ?", [
           step.next_step_id,
           step.id,
         ]);
+      }
+
+      if (flowId) {
+        await db.query(
+          "UPDATE bot_flows SET triggers_count = ?, actions_count = ? WHERE id = ?",
+          [Math.max(1, triggersCount), Math.max(1, actionsCount), flowId]
+        );
       }
 
       return { ok: true };

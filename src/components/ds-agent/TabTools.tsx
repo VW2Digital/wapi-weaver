@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Calendar, Database, FileText, Webhook, Tag, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -38,23 +38,64 @@ export function TabTools({
   onSaveAvailability,
 }: TabToolsProps) {
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
+
+  const getTool = (key: string) => tools.find((t) => t.tool_key === key);
+  const getToolEnabled = (key: string) => !!getTool(key)?.enabled;
+
+  const calendarTool = getTool("google_calendar");
+  const parseConfig = (rawConfig: any) => {
+    if (!rawConfig) return {};
+    if (typeof rawConfig === "string") {
+      try {
+        return JSON.parse(rawConfig);
+      } catch {
+        return {};
+      }
+    }
+    return rawConfig;
+  };
+
+  const calendarConfig = parseConfig(calendarTool?.config);
+
+  const [calendarId, setCalendarId] = useState(calendarConfig.calendar_id || "principal");
+  const [duration, setDuration] = useState(String(calendarConfig.duration_minutes || "30"));
+  const [timezone, setTimezone] = useState(calendarConfig.timezone || "sp");
+
+  useEffect(() => {
+    const cfg = parseConfig(calendarTool?.config);
+    if (cfg.calendar_id) setCalendarId(cfg.calendar_id);
+    if (cfg.duration_minutes) setDuration(String(cfg.duration_minutes));
+    if (cfg.timezone) setTimezone(cfg.timezone);
+  }, [calendarTool?.config]);
+
+  const updateCalendarConfig = (newCalendarId: string, newDuration: string, newTimezone: string) => {
+    const config = {
+      calendar_id: newCalendarId,
+      duration_minutes: Number(newDuration),
+      timezone: newTimezone,
+    };
+    onToggleTool("google_calendar", getToolEnabled("google_calendar"), config);
+  };
+
   const [localAvail, setLocalAvail] = useState<AvailabilityItem[]>(
     availability.length > 0
       ? availability
       : [
-          { weekday: 1, start_time: "08:00", end_time: "18:00", active: true },
-          { weekday: 2, start_time: "08:00", end_time: "18:00", active: true },
-          { weekday: 3, start_time: "08:00", end_time: "18:00", active: true },
-          { weekday: 4, start_time: "08:00", end_time: "18:00", active: true },
-          { weekday: 5, start_time: "08:00", end_time: "18:00", active: true },
-          { weekday: 6, start_time: "08:00", end_time: "12:00", active: false },
-          { weekday: 7, start_time: "08:00", end_time: "12:00", active: false },
+          { weekday: 1, start_time: "08:00:00", end_time: "18:00:00", active: true },
+          { weekday: 2, start_time: "08:00:00", end_time: "18:00:00", active: true },
+          { weekday: 3, start_time: "08:00:00", end_time: "18:00:00", active: true },
+          { weekday: 4, start_time: "08:00:00", end_time: "18:00:00", active: true },
+          { weekday: 5, start_time: "08:00:00", end_time: "18:00:00", active: true },
+          { weekday: 6, start_time: "08:00:00", end_time: "12:00:00", active: false },
+          { weekday: 7, start_time: "08:00:00", end_time: "12:00:00", active: false },
         ]
   );
 
-  const getToolEnabled = (key: string) => {
-    return !!tools.find((t) => t.tool_key === key)?.enabled;
-  };
+  useEffect(() => {
+    if (availability && availability.length > 0) {
+      setLocalAvail(availability);
+    }
+  }, [availability]);
 
   const weekdaysMap: Record<number, string> = {
     1: "Segunda",
@@ -75,8 +116,9 @@ export function TabTools({
   };
 
   const handleTimeChange = (weekday: number, field: "start_time" | "end_time", value: string) => {
+    const formattedVal = value.length === 5 ? `${value}:00` : value;
     const updated = localAvail.map((item) =>
-      item.weekday === weekday ? { ...item, [field]: value } : item
+      item.weekday === weekday ? { ...item, [field]: formattedVal } : item
     );
     setLocalAvail(updated);
     onSaveAvailability(updated);
@@ -141,7 +183,13 @@ export function TabTools({
           <div className="flex items-center gap-4">
             <Switch
               checked={getToolEnabled("google_calendar")}
-              onCheckedChange={(val) => onToggleTool("google_calendar", val)}
+              onCheckedChange={(val) =>
+                onToggleTool("google_calendar", val, {
+                  calendar_id: calendarId,
+                  duration_minutes: Number(duration),
+                  timezone,
+                })
+              }
             />
             <button
               onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
@@ -166,7 +214,13 @@ export function TabTools({
 
               <div>
                 <span className="text-[11px] text-muted-foreground block">Calendário Padrão</span>
-                <Select defaultValue="principal">
+                <Select
+                  value={calendarId}
+                  onValueChange={(val) => {
+                    setCalendarId(val);
+                    updateCalendarConfig(val, duration, timezone);
+                  }}
+                >
                   <SelectTrigger className="h-8 bg-background border-border text-xs text-foreground mt-1">
                     <SelectValue placeholder="Calendário" />
                   </SelectTrigger>
@@ -179,7 +233,13 @@ export function TabTools({
 
               <div>
                 <span className="text-[11px] text-muted-foreground block">Duração Padrão</span>
-                <Select defaultValue="30">
+                <Select
+                  value={duration}
+                  onValueChange={(val) => {
+                    setDuration(val);
+                    updateCalendarConfig(calendarId, val, timezone);
+                  }}
+                >
                   <SelectTrigger className="h-8 bg-background border-border text-xs text-foreground mt-1">
                     <SelectValue placeholder="Duração" />
                   </SelectTrigger>
@@ -193,7 +253,13 @@ export function TabTools({
 
               <div>
                 <span className="text-[11px] text-muted-foreground block">Fuso Horário</span>
-                <Select defaultValue="sp">
+                <Select
+                  value={timezone}
+                  onValueChange={(val) => {
+                    setTimezone(val);
+                    updateCalendarConfig(calendarId, duration, val);
+                  }}
+                >
                   <SelectTrigger className="h-8 bg-background border-border text-xs text-foreground mt-1">
                     <SelectValue placeholder="Fuso" />
                   </SelectTrigger>
@@ -230,14 +296,14 @@ export function TabTools({
                         <input
                           type="time"
                           value={item.start_time.slice(0, 5)}
-                          onChange={(e) => handleTimeChange(item.weekday, "start_time", `${e.target.value}:00`)}
+                          onChange={(e) => handleTimeChange(item.weekday, "start_time", e.target.value)}
                           className="bg-background border border-border rounded px-2 py-1 text-foreground focus:border-primary"
                         />
                         <span>até</span>
                         <input
                           type="time"
                           value={item.end_time.slice(0, 5)}
-                          onChange={(e) => handleTimeChange(item.weekday, "end_time", `${e.target.value}:00`)}
+                          onChange={(e) => handleTimeChange(item.weekday, "end_time", e.target.value)}
                           className="bg-background border border-border rounded px-2 py-1 text-foreground focus:border-primary"
                         />
                       </div>
@@ -257,6 +323,7 @@ export function TabTools({
         {otherTools.map((t) => {
           const Icon = t.icon;
           const isEnabled = getToolEnabled(t.key);
+          const toolData = getTool(t.key);
           return (
             <div
               key={t.key}
@@ -283,7 +350,7 @@ export function TabTools({
 
                 <Switch
                   checked={isEnabled}
-                  onCheckedChange={(val) => onToggleTool(t.key, val)}
+                  onCheckedChange={(val) => onToggleTool(t.key, val, toolData?.config || {})}
                 />
               </div>
             </div>

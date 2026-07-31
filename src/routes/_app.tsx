@@ -516,10 +516,10 @@ function AppLayout() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-hidden flex flex-col">
-              <PageHeaderProvider>
-                <Outlet />
-              </PageHeaderProvider>
+          <main className="flex-1 overflow-y-auto flex flex-col">
+            <PageHeaderProvider>
+              <Outlet />
+            </PageHeaderProvider>
           </main>
         </SidebarInset>
       </SidebarProvider>

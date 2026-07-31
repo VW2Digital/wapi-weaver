@@ -155,7 +155,7 @@ function DsAgentEditorPage() {
   };
 
   usePageHeader({
-    title: `Editar Agente: ${localAgentData.name || ""}`,
+    title: `Editar Agente: ${localAgentData.name || "Sem Nome"}`,
     subtitle: "Treinamento, ferramentas, simulação e relatórios de uso.",
   });
 
@@ -188,30 +188,24 @@ function DsAgentEditorPage() {
   ] as const;
 
   return (
-    <div className="flex-1 bg-background text-foreground min-h-dvh p-4 md:p-8 space-y-6">
-      {/* Header with Title, 5 Tabs and Save Button */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-border pb-4">
+    <div className="flex-1 bg-background text-foreground p-4 md:p-6 space-y-6">
+      {/* Sticky Header Controls Sub-bar: Back Button, 5 Tabs and Save Button */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4 pt-1">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate({ to: "/ds-agente" })}
-            className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-primary transition-colors shadow-sm"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
+            <span>Voltar para pastas</span>
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-display font-bold text-foreground">Editar Agente</h1>
-              <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
-                {localAgentData.name || "Sem Nome"}
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {localAgentData.provider || "OpenAI Padrão"} • {localAgentData.model || "gpt-4o-mini"}
-            </p>
-          </div>
+
+          <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-medium hidden md:inline-flex">
+            {localAgentData.provider || "OpenAI Padrão"} • {localAgentData.model || "gpt-4o-mini"}
+          </Badge>
         </div>
 
-        {/* 5 Tabs Header */}
+        {/* 5 Tabs Navigation Bar */}
         <div className="flex rounded-xl border border-border bg-card p-1 overflow-x-auto max-w-full shadow-sm">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -220,9 +214,9 @@ function DsAgentEditorPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
+                    ? "bg-primary text-primary-foreground shadow-sm font-bold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
@@ -233,7 +227,7 @@ function DsAgentEditorPage() {
           })}
         </div>
 
-        {/* Bliv Primary Brand Gradient Always Visible Save Button */}
+        {/* Save Button */}
         <Button
           onClick={() => updateAgentMut.mutate()}
           disabled={updateAgentMut.isPending}
