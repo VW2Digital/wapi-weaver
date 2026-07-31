@@ -34,6 +34,7 @@ import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
 import { Route as AppLicensesIndexRouteImport } from './routes/_app/licenses/index'
+import { Route as AppDsAgenteIndexRouteImport } from './routes/_app/ds-agente/index'
 import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts.index'
 import { Route as AppCampaignsIndexRouteImport } from './routes/_app/campaigns.index'
 import { Route as FunctionsV1MercadopagoWebhookRouteImport } from './routes/functions/v1/mercadopago-webhook'
@@ -66,6 +67,7 @@ import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/for
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
 import { Route as AppSettingsCustomFieldsRouteImport } from './routes/_app/settings/custom-fields'
 import { Route as AppLicensesIdRouteImport } from './routes/_app/licenses/$id'
+import { Route as AppDsAgenteAgentIdRouteImport } from './routes/_app/ds-agente/$agentId'
 import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
@@ -203,6 +205,11 @@ const AppAiAgentRoute = AppAiAgentRouteImport.update({
 const AppLicensesIndexRoute = AppLicensesIndexRouteImport.update({
   id: '/licenses/',
   path: '/licenses/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDsAgenteIndexRoute = AppDsAgenteIndexRouteImport.update({
+  id: '/ds-agente/',
+  path: '/ds-agente/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppContactsIndexRoute = AppContactsIndexRouteImport.update({
@@ -370,6 +377,11 @@ const AppLicensesIdRoute = AppLicensesIdRouteImport.update({
   path: '/licenses/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDsAgenteAgentIdRoute = AppDsAgenteAgentIdRouteImport.update({
+  id: '/ds-agente/$agentId',
+  path: '/ds-agente/$agentId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppContactsIdRoute = AppContactsIdRouteImport.update({
   id: '/contacts/$id',
   path: '/contacts/$id',
@@ -469,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
+  '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
   '/licenses/$id': typeof AppLicensesIdRoute
   '/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
@@ -501,6 +514,7 @@ export interface FileRoutesByFullPath {
   '/functions/v1/mercadopago-webhook': typeof FunctionsV1MercadopagoWebhookRoute
   '/campaigns/': typeof AppCampaignsIndexRoute
   '/contacts/': typeof AppContactsIndexRoute
+  '/ds-agente/': typeof AppDsAgenteIndexRoute
   '/licenses/': typeof AppLicensesIndexRoute
   '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
@@ -540,6 +554,7 @@ export interface FileRoutesByTo {
   '/api/query': typeof ApiQueryRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
+  '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
   '/licenses/$id': typeof AppLicensesIdRoute
   '/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
@@ -572,6 +587,7 @@ export interface FileRoutesByTo {
   '/functions/v1/mercadopago-webhook': typeof FunctionsV1MercadopagoWebhookRoute
   '/campaigns': typeof AppCampaignsIndexRoute
   '/contacts': typeof AppContactsIndexRoute
+  '/ds-agente': typeof AppDsAgenteIndexRoute
   '/licenses': typeof AppLicensesIndexRoute
   '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
@@ -613,6 +629,7 @@ export interface FileRoutesById {
   '/api/query': typeof ApiQueryRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/_app/contacts/$id': typeof AppContactsIdRoute
+  '/_app/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
   '/_app/licenses/$id': typeof AppLicensesIdRoute
   '/_app/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
@@ -645,6 +662,7 @@ export interface FileRoutesById {
   '/functions/v1/mercadopago-webhook': typeof FunctionsV1MercadopagoWebhookRoute
   '/_app/campaigns/': typeof AppCampaignsIndexRoute
   '/_app/contacts/': typeof AppContactsIndexRoute
+  '/_app/ds-agente/': typeof AppDsAgenteIndexRoute
   '/_app/licenses/': typeof AppLicensesIndexRoute
   '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
@@ -686,6 +704,7 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/campaigns/$id'
     | '/contacts/$id'
+    | '/ds-agente/$agentId'
     | '/licenses/$id'
     | '/settings/custom-fields'
     | '/api/admin/schema-dump'
@@ -718,6 +737,7 @@ export interface FileRouteTypes {
     | '/functions/v1/mercadopago-webhook'
     | '/campaigns/'
     | '/contacts/'
+    | '/ds-agente/'
     | '/licenses/'
     | '/api/admin/payment-gateways/mercadopago'
     | '/api/billing/checkout/card'
@@ -757,6 +777,7 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/campaigns/$id'
     | '/contacts/$id'
+    | '/ds-agente/$agentId'
     | '/licenses/$id'
     | '/settings/custom-fields'
     | '/api/admin/schema-dump'
@@ -789,6 +810,7 @@ export interface FileRouteTypes {
     | '/functions/v1/mercadopago-webhook'
     | '/campaigns'
     | '/contacts'
+    | '/ds-agente'
     | '/licenses'
     | '/api/admin/payment-gateways/mercadopago'
     | '/api/billing/checkout/card'
@@ -829,6 +851,7 @@ export interface FileRouteTypes {
     | '/api/query'
     | '/_app/campaigns/$id'
     | '/_app/contacts/$id'
+    | '/_app/ds-agente/$agentId'
     | '/_app/licenses/$id'
     | '/_app/settings/custom-fields'
     | '/api/admin/schema-dump'
@@ -861,6 +884,7 @@ export interface FileRouteTypes {
     | '/functions/v1/mercadopago-webhook'
     | '/_app/campaigns/'
     | '/_app/contacts/'
+    | '/_app/ds-agente/'
     | '/_app/licenses/'
     | '/api/admin/payment-gateways/mercadopago'
     | '/api/billing/checkout/card'
@@ -1096,6 +1120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLicensesIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ds-agente/': {
+      id: '/_app/ds-agente/'
+      path: '/ds-agente'
+      fullPath: '/ds-agente/'
+      preLoaderRoute: typeof AppDsAgenteIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contacts/': {
       id: '/_app/contacts/'
       path: '/contacts'
@@ -1320,6 +1351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLicensesIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ds-agente/$agentId': {
+      id: '/_app/ds-agente/$agentId'
+      path: '/ds-agente/$agentId'
+      fullPath: '/ds-agente/$agentId'
+      preLoaderRoute: typeof AppDsAgenteAgentIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contacts/$id': {
       id: '/_app/contacts/$id'
       path: '/contacts/$id'
@@ -1445,9 +1483,11 @@ interface AppRouteChildren {
   AppWhatsappBusinessProfileRoute: typeof AppWhatsappBusinessProfileRoute
   AppCampaignsIdRoute: typeof AppCampaignsIdRoute
   AppContactsIdRoute: typeof AppContactsIdRoute
+  AppDsAgenteAgentIdRoute: typeof AppDsAgenteAgentIdRoute
   AppLicensesIdRoute: typeof AppLicensesIdRoute
   AppCampaignsIndexRoute: typeof AppCampaignsIndexRoute
   AppContactsIndexRoute: typeof AppContactsIndexRoute
+  AppDsAgenteIndexRoute: typeof AppDsAgenteIndexRoute
   AppLicensesIndexRoute: typeof AppLicensesIndexRoute
 }
 
@@ -1470,9 +1510,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppWhatsappBusinessProfileRoute: AppWhatsappBusinessProfileRoute,
   AppCampaignsIdRoute: AppCampaignsIdRoute,
   AppContactsIdRoute: AppContactsIdRoute,
+  AppDsAgenteAgentIdRoute: AppDsAgenteAgentIdRoute,
   AppLicensesIdRoute: AppLicensesIdRoute,
   AppCampaignsIndexRoute: AppCampaignsIndexRoute,
   AppContactsIndexRoute: AppContactsIndexRoute,
+  AppDsAgenteIndexRoute: AppDsAgenteIndexRoute,
   AppLicensesIndexRoute: AppLicensesIndexRoute,
 }
 

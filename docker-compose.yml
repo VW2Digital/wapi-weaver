@@ -69,6 +69,20 @@ services:
       timeout: 5s
       retries: 5
 
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: wapi_weaver_phpmyadmin
+    restart: always
+    ports:
+      - "8082:80"
+    environment:
+      PMA_HOST: banco-mysql
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-S0xbxPfKazBVT8JFy1UEOjIsrjox}
+    depends_on:
+      banco-mysql:
+        condition: service_healthy
+
 volumes:
   mysql_data:
   wapi_weaver_uploads:

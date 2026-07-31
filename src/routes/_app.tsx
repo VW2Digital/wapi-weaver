@@ -98,7 +98,7 @@ const NAV: NavItem[] = [
     icon: Zap,
     children: [
       { to: "/bot", label: "Fluxos de Automação", icon: Bot },
-      { to: "/ai-agent", label: "DS Agente", icon: BrainCircuit },
+      { to: "/ds-agente", label: "DS Agente", icon: BrainCircuit },
       { to: "/webhooks", label: "Webhooks", icon: Webhook },
     ],
   },
@@ -126,7 +126,7 @@ const ADMIN_ONLY_PATHS = new Set([
   "/whatsapp-business-profile", 
   "/automacoes", 
   "/bot", 
-  "/ai-agent", 
+  "/ds-agente", 
   "/webhooks"
 ]);
 
@@ -295,8 +295,8 @@ function AppLayout() {
         router.navigate({ to: "/crm" });
       } else if (p === "/bot") {
         router.navigate({ to: "/bot" });
-      } else if (p === "/ai-agent") {
-        router.navigate({ to: "/ai-agent" });
+      } else if (p === "/ds-agente") {
+        router.navigate({ to: "/ds-agente" });
       } else if (p === "/webhooks") {
         router.navigate({ to: "/webhooks" });
       } else if (p === "/billing") {

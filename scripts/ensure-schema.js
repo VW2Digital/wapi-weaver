@@ -1919,6 +1919,159 @@ export async function ensureDatabaseSchema() {
     // user_id on contact_activities
     await ensureColumnExists(connection, "contact_activities", "user_id", "VARCHAR(36) NULL");
 
+    logSchema("Criando/Validando tabelas do módulo DS Agente...");
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_folders",
+      `CREATE TABLE IF NOT EXISTS ds_agent_folders (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_ds_folders_tenant (tenant_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agents",
+      `CREATE TABLE IF NOT EXISTS ds_agents (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        folder_id VARCHAR(36) NULL,
+        name VARCHAR(255) NOT NULL,
+        provider VARCHAR(100) NOT NULL DEFAULT 'OpenAI Padrão',
+        model VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini',
+        api_key_encrypted TEXT NULL,
+        instructions_basic TEXT NULL,
+        instructions_advanced TEXT NULL,
+        mode ENUM('basico','avancado') NOT NULL DEFAULT 'basico',
+        reply_with_assigned_agent BOOLEAN NOT NULL DEFAULT FALSE,
+        split_replies_in_blocks BOOLEAN NOT NULL DEFAULT FALSE,
+        process_images BOOLEAN NOT NULL DEFAULT FALSE,
+        disabled_outside_platform BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_ds_agents_tenant (tenant_id),
+        INDEX idx_ds_agents_folder (folder_id),
+        FOREIGN KEY (folder_id) REFERENCES ds_agent_folders(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_knowledge_files",
+      `CREATE TABLE IF NOT EXISTS ds_agent_knowledge_files (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_size_kb INT NOT NULL DEFAULT 0,
+        page_count INT NOT NULL DEFAULT 1,
+        status ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
+        storage_path TEXT NOT NULL,
+        uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ds_files_tenant (tenant_id),
+        INDEX idx_ds_files_agent (agent_id),
+        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_knowledge_links",
+      `CREATE TABLE IF NOT EXISTS ds_agent_knowledge_links (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        url TEXT NOT NULL,
+        status ENUM('pendente','indexado','erro') NOT NULL DEFAULT 'pendente',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ds_links_tenant (tenant_id),
+        INDEX idx_ds_links_agent (agent_id),
+        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_tools",
+      `CREATE TABLE IF NOT EXISTS ds_agent_tools (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        tool_key ENUM('google_calendar','consulta_crm','enviar_proposta','webhook_customizado','gerenciar_tags') NOT NULL,
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        config JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_ds_tool (agent_id, tool_key),
+        INDEX idx_ds_tools_tenant (tenant_id),
+        INDEX idx_ds_tools_agent (agent_id),
+        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_calendar_availability",
+      `CREATE TABLE IF NOT EXISTS ds_agent_calendar_availability (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        weekday TINYINT NOT NULL,
+        start_time TIME NOT NULL DEFAULT '08:00:00',
+        end_time TIME NOT NULL DEFAULT '18:00:00',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        UNIQUE KEY uq_ds_cal_avail (agent_id, weekday),
+        INDEX idx_ds_cal_tenant (tenant_id),
+        INDEX idx_ds_cal_agent (agent_id),
+        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_followups",
+      `CREATE TABLE IF NOT EXISTS ds_agent_followups (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type ENUM('manual','generativo') NOT NULL DEFAULT 'manual',
+        recurrence ENUM('unico','recorrente','diario') NOT NULL DEFAULT 'unico',
+        wait_amount INT NOT NULL DEFAULT 10,
+        wait_unit ENUM('minutos','horas','dias') NOT NULL DEFAULT 'minutos',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ds_follow_tenant (tenant_id),
+        INDEX idx_ds_follow_agent (agent_id),
+        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "ds_agent_usage_logs",
+      `CREATE TABLE IF NOT EXISTS ds_agent_usage_logs (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        model VARCHAR(100) NOT NULL,
+        provider VARCHAR(100) NOT NULL,
+        category ENUM('action_analysis','completion','embedding','query_rewriting','transcription') NOT NULL,
+        tokens INT NOT NULL DEFAULT 0,
+        cost_usd DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ds_usage_tenant (tenant_id),
+        INDEX idx_ds_usage_agent (agent_id),
+        INDEX idx_ds_usage_created (created_at),
+        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
     logSchema("Schema validado com sucesso.");
   } finally {
     await connection.end();
