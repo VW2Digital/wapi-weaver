@@ -53,7 +53,10 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
         },
       });
 
-      if (!res.ok) throw new Error("Falha ao carregar configurações.");
+      if (!res.ok) {
+        // Se ainda não foi configurado ou retornou 404/401, simplesmente finaliza sem toast de erro intrusivo
+        return;
+      }
 
       const data = await res.json();
       setEnvironment(data.environment || "sandbox");
@@ -69,7 +72,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
       setWebhookSecret(data.webhook_secret || "");
       setWebhookUrl(data.webhook_url || "");
     } catch (err: any) {
-      toast.error(err.message || "Erro ao carregar dados do Mercado Pago.");
+      console.warn("Mercado Pago settings fetch error:", err);
     } finally {
       setLoading(false);
     }

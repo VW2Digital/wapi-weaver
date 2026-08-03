@@ -111,6 +111,24 @@ function CampaignDetailPage() {
 
   const c = data?.campaign;
 
+  const filteredMessages = useMemo(() => {
+    const raw = data?.messages ?? [];
+    if (!recipientSearch.trim()) return raw;
+    const term = recipientSearch.toLowerCase().trim();
+    return raw.filter(
+      (m: any) =>
+        (m.contact_name && m.contact_name.toLowerCase().includes(term)) ||
+        (m.to_phone && m.to_phone.toLowerCase().includes(term)) ||
+        (m.status && m.status.toLowerCase().includes(term)) ||
+        (m.error && m.error.toLowerCase().includes(term)),
+    );
+  }, [data?.messages, recipientSearch]);
+
+  const paginatedMessages = useMemo(() => {
+    const start = (recipientPage - 1) * recipientPageSize;
+    return filteredMessages.slice(start, start + recipientPageSize);
+  }, [filteredMessages, recipientPage, recipientPageSize]);
+
   usePageHeader({
     title: c ? c.name : "Carregando...",
     subtitle: c ? `Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}` : "Detalhes da campanha",
@@ -176,24 +194,6 @@ function CampaignDetailPage() {
   const total = t.total;
   const pct = total > 0 ? Math.round((t.sent / total) * 100) : 0;
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
-
-  const filteredMessages = useMemo(() => {
-    const raw = data?.messages ?? [];
-    if (!recipientSearch.trim()) return raw;
-    const term = recipientSearch.toLowerCase().trim();
-    return raw.filter(
-      (m: any) =>
-        (m.contact_name && m.contact_name.toLowerCase().includes(term)) ||
-        (m.to_phone && m.to_phone.toLowerCase().includes(term)) ||
-        (m.status && m.status.toLowerCase().includes(term)) ||
-        (m.error && m.error.toLowerCase().includes(term)),
-    );
-  }, [data?.messages, recipientSearch]);
-
-  const paginatedMessages = useMemo(() => {
-    const start = (recipientPage - 1) * recipientPageSize;
-    return filteredMessages.slice(start, start + recipientPageSize);
-  }, [filteredMessages, recipientPage, recipientPageSize]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

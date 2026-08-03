@@ -17,6 +17,11 @@ Follow these guidelines for visual aesthetics, layout, and UI/UX patterns:
 - **Spacing**: Consistent margins and padding.
 - **Colors**: Restricted, professional accent colors (avoid overly saturated primaries/multitudinous highlights).
 - **Transitions**: Smooth micro-animations on interactive states.
+- **No Emojis**: NUNCA use emojis na interface (botões, badges, abas, seletores, textos de UI). Use SEMPRE ícones vetoriais SVG da biblioteca (`lucide-react`).
+- **Botões de Voltar**: TODOS os botões "Voltar" de navegabilidade em cabeçalhos de tela devem ficar posicionados à DIREITA (na área de ações do topo), nunca no lado esquerdo do título.
+- **Meta Graph API Version**: Utilizar SEMPRE as versões recentes da Meta Graph API entre **v24.0**, **v25.0** e **v26.0** (com padrão em **v26.0**). Nunca utilizar ou regredir para versões antigas (v17 a v23).
+
+---
 
 ## Database & Docker Guidelines
 - **Docker Container**: The local MySQL database runs in a Docker container named `wapi_weaver_mysql`.
@@ -30,7 +35,21 @@ Follow these guidelines for visual aesthetics, layout, and UI/UX patterns:
   - **Path/Mounting Errors**: If Docker fails to start the container with mount/path errors (e.g., trying to reference files from an old directory path like `C:\` instead of the current `D:\`), reset and rebuild the containers in the current working directory by running:
     1. `docker-compose down`
     2. `docker-compose up -d`
-    That will recreate the containers and update Docker's host file mounts to the correct current workspace directory.
+    This will recreate the containers and update Docker's host file mounts to the correct current workspace directory.
+
+---
+
+## Port Map — wapi-weaver (LOCAL DEV)
+
+Portas fixas deste projeto. NÃO alterar sem avisar. Outros projetos do usuário rodam em portas
+diferentes e podem colidir — sempre confirme qual projeto está em qual porta antes de redirecionar
+ou alterar configurações de rede/proxy.
+
+| Serviço         | URL                      | Notas                                          |
+|-----------------|--------------------------|------------------------------------------------|
+| **Frontend**    | http://localhost:8080    | `npm run dev` → Vite dev server (TanStack Start) |
+| **Backend API** | http://localhost:8081    | API/servidor Node quando separado do SSR        |
+| **MySQL UI**    | http://localhost:8082    | Painel visual do banco MySQL                   |
 
 ---
 

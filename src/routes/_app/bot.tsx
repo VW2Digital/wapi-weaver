@@ -416,16 +416,6 @@ function BotPage() {
       {/* TOP HEADER */}
       <div className="flex-none px-6 py-4 border-b border-border bg-card flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <Button
-            onClick={() => setCurrentView("list")}
-            variant="outline"
-            size="sm"
-            className="border-border bg-background text-xs font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Voltar para Fluxos
-          </Button>
-
           <div>
             <h1 className="text-xl font-display font-bold text-foreground">Construtor de Fluxo</h1>
             <p className="text-xs text-muted-foreground">Arraste e solte ações, gatilhos e controles de fluxo</p>
@@ -447,7 +437,7 @@ function BotPage() {
           </Select>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Power className="w-4 h-4 text-muted-foreground" />
             <Label className="text-xs font-semibold">Status do Bot</Label>
@@ -460,6 +450,16 @@ function BotPage() {
           >
             <Save className="w-4 h-4 mr-2" />
             Salvar Fluxo
+          </Button>
+
+          <Button
+            onClick={() => setCurrentView("list")}
+            variant="outline"
+            size="sm"
+            className="border-border bg-background text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1.5" />
+            Voltar para Fluxos
           </Button>
         </div>
       </div>

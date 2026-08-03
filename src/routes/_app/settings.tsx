@@ -138,6 +138,7 @@ import {
   ListChecks,
   UserCog,
   Kanban,
+  Wrench,
   Receipt,
   ScrollText,
   Activity,
@@ -497,7 +498,7 @@ function SettingsPage() {
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [pingResult, setPingResult] = useState<any>(null);
   const [testTo, setTestTo] = useState("");
-  const [testText, setTestText] = useState("Mensagem de teste ✅");
+  const [testText, setTestText] = useState("Mensagem de teste");
   const [testResult, setTestResult] = useState<any>(null);
   const [deliveryStatus, setDeliveryStatus] = useState<{
     status: string;
@@ -1031,15 +1032,6 @@ function SettingsPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header to go back */}
           <div className="flex items-center justify-between px-6 py-4 border-b bg-card shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveSection(null)}
-              className="gap-2 text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span>Voltar para Configurações</span>
-            </Button>
             <h3 className="font-display text-sm font-semibold tracking-tight uppercase text-muted-foreground/80">
               {activeSection === "meta" && "Conexão Meta"}
               {activeSection === "waba" && "WhatsApp (WABA)"}
@@ -1058,11 +1050,20 @@ function SettingsPage() {
               {activeSection === "admin-backups" && "Backups do Banco"}
               {activeSection === "admin-sidebar" && "Organização do Menu"}
             </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveSection(null)}
+              className="gap-2 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Voltar para Configurações</span>
+            </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 w-full">
             <div className={activeSection === "admin-payments" ? "block" : "hidden"}>
-              <GatewaySettings enabled={isAdminMaster} />
+              <GatewaySettings enabled={isAdminMaster && activeSection === "admin-payments"} />
             </div>
             <Tabs
               value={activeSection ?? ""}
@@ -1276,6 +1277,30 @@ function SettingsPage() {
                               hint="Recomendamos manter em 20. Altere somente se a sua conta na Meta tiver autorização para limites de velocidade superiores."
                             />
 
+                            <div className="space-y-1.5">
+                              <Label className="flex items-center gap-1.5 font-semibold text-sm">
+                                Versão da Graph API
+                              </Label>
+                              <Select
+                                value={form.meta_graph_version || "v26.0"}
+                                onValueChange={(val) => setForm({ ...form, meta_graph_version: val })}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Selecione a versão" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {["v26.0", "v25.0", "v24.0"].map((v) => (
+                                    <SelectItem key={v} value={v}>
+                                      {v}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-[11px] text-muted-foreground">
+                                Versão oficial da Meta Graph API (v24.0 a v26.0). Recomendamos manter v26.0.
+                              </p>
+                            </div>
+
                             <div className="md:col-span-2 border-t pt-4 mt-2 space-y-3">
                               <h3 className="font-display text-sm font-semibold flex items-center gap-2">
                                 <Lock className="h-4 w-4 text-primary" />
@@ -1352,6 +1377,7 @@ function SettingsPage() {
                                         whatsapp_access_token: form.whatsapp_access_token,
                                         whatsapp_app_id: form.whatsapp_app_id || null,
                                         rate_limit_per_second: form.rate_limit_per_second,
+                                        meta_graph_version: form.meta_graph_version || "v26.0",
                                       },
                                       {
                                         onSuccess: () => {
@@ -1923,6 +1949,7 @@ function SettingsPage() {
                                   onClick={() =>
                                     saveMut.mutate({
                                       whatsapp_verify_token: form.whatsapp_verify_token,
+                                      meta_graph_version: form.meta_graph_version || "v26.0",
                                     })
                                   }
                                 >
@@ -1993,6 +2020,7 @@ function SettingsPage() {
                   )}
                 </SetupWizard>
                 <WebhookHealthCard />
+                <MetaDevToolsCard />
               </TabsContent>
 
               <TabsContent value="crm" className="outline-none">
@@ -2677,7 +2705,7 @@ function AdminPlatformSection() {
     if (settings) {
       setAppId(settings.meta_app_id ?? "");
       setConfigId(settings.meta_config_id ?? "");
-      setGraphVersion(settings.meta_graph_version ?? "v20.0");
+      setGraphVersion(settings.meta_graph_version ?? "v26.0");
       setHeadTags((settings as any).head_tags ?? "");
       setBodyTags((settings as any).body_tags ?? "");
       setCronSecret((settings as any).cron_secret ?? "");
@@ -2848,12 +2876,12 @@ function AdminPlatformSection() {
 
                 <div className="space-y-1.5">
                   <Label>Graph API Version</Label>
-                  <Select value={graphVersion || "v20.0"} onValueChange={setGraphVersion}>
+                  <Select value={graphVersion || "v26.0"} onValueChange={setGraphVersion}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a versão" />
                     </SelectTrigger>
                     <SelectContent>
-                      {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
+                      {["v26.0", "v25.0", "v24.0"].map((v) => (
                         <SelectItem key={v} value={v}>
                           {v}
                         </SelectItem>
@@ -3395,13 +3423,13 @@ function AdminMetaCredsSection() {
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [configId, setConfigId] = useState("");
-  const [graphVersion, setGraphVersion] = useState("v20.0");
+  const [graphVersion, setGraphVersion] = useState("v26.0");
 
   useEffect(() => {
     if (settings) {
       setAppId(settings.meta_app_id ?? "");
       setConfigId(settings.meta_config_id ?? "");
-      setGraphVersion(settings.meta_graph_version ?? "v20.0");
+      setGraphVersion(settings.meta_graph_version ?? "v26.0");
       setAppSecret("");
     }
   }, [settings]);
@@ -3511,12 +3539,12 @@ function AdminMetaCredsSection() {
 
         <div className="space-y-1.5">
           <Label>Graph API Version</Label>
-          <Select value={graphVersion || "v20.0"} onValueChange={setGraphVersion}>
+          <Select value={graphVersion || "v26.0"} onValueChange={setGraphVersion}>
             <SelectTrigger>
               <SelectValue placeholder="Selecione a versão" />
             </SelectTrigger>
             <SelectContent>
-              {["v23.0", "v22.0", "v21.0", "v20.0", "v19.0", "v18.0", "v17.0"].map((v) => (
+              {["v26.0", "v25.0", "v24.0"].map((v) => (
                 <SelectItem key={v} value={v}>
                   {v}
                 </SelectItem>
@@ -4281,11 +4309,141 @@ function WebhookHealthCard() {
 
           {never && (
             <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-              ⚠️ Nenhum evento foi recebido ainda. Verifique se a Callback URL e o Verify Token
+              Nenhum evento foi recebido ainda. Verifique se a Callback URL e o Verify Token
               estão configurados na Meta e se o webhook foi inscrito no campo <code>messages</code>.
             </div>
           )}
         </>
+      )}
+    </Card>
+  );
+}
+
+function MetaDevToolsCard() {
+  const [collapsed, toggleCollapsed] = usePersistedCollapsedState(
+    "bliv_settings_meta_devtools_collapsed",
+    false,
+  );
+
+  const [copiedConfig, setCopiedConfig] = useState(false);
+
+  const mcpConfigJson = JSON.stringify(
+    {
+      mcpServers: {
+        "meta-devtools": {
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-fetch", "https://mcp.facebook.com/devtools"],
+        },
+      },
+    },
+    null,
+    2,
+  );
+
+  return (
+    <Card className="p-6 mt-6 border border-border bg-card">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
+            <Wrench className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-display text-base font-bold text-foreground">
+                Meta DevTools MCP & Diagnóstico da API
+              </h3>
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-semibold">
+                Oficial Meta (Beta)
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Protocolo de Contexto de Modelo (MCP) para inspeção de Webhooks, WABA, Graph API e App Reviews diretamente pelo assistente de IA.
+            </p>
+          </div>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleCollapsed}
+          className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+        >
+          {collapsed ? "Expandir" : "Recolher"}
+        </Button>
+      </div>
+
+      {!collapsed && (
+        <div className="mt-5 space-y-4 pt-4 border-t border-border">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">Servidor MCP Meta</span>
+                <Badge variant="secondary" className="bg-success/15 text-success border-none text-[10px]">
+                  Online
+                </Badge>
+              </div>
+              <p className="text-[11px] font-mono text-muted-foreground truncate">
+                https://mcp.facebook.com/devtools
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">Servidor MCP Ads</span>
+                <Badge variant="outline" className="text-[10px]">
+                  Disponível
+                </Badge>
+              </div>
+              <p className="text-[11px] font-mono text-muted-foreground truncate">
+                https://mcp.facebook.com/ads
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">Documentação</span>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <a
+                href="https://developers.facebook.com/documentation/mcp/devtools-mcp"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-primary hover:underline font-medium block truncate"
+              >
+                developers.facebook.com/documentation/mcp
+              </a>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-foreground">
+                Configuração MCP para IDEs (mcp.json)
+              </Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2.5"
+                onClick={() => {
+                  navigator.clipboard.writeText(mcpConfigJson);
+                  setCopiedConfig(true);
+                  toast.success("Configuração MCP copiada!");
+                  setTimeout(() => setCopiedConfig(false), 2000);
+                }}
+              >
+                {copiedConfig ? (
+                  <Check className="h-3.5 w-3.5 mr-1 text-success" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 mr-1" />
+                )}
+                Copiar JSON
+              </Button>
+            </div>
+            <pre className="text-[11px] font-mono bg-background p-3 rounded-lg border border-border overflow-x-auto text-foreground">
+              {mcpConfigJson}
+            </pre>
+          </div>
+        </div>
       )}
     </Card>
   );

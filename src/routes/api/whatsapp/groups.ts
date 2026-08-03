@@ -15,7 +15,7 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
           const url = new URL(request.url);
           const pathParts = url.pathname.split("/").filter(Boolean); // ["api", "whatsapp", "groups", ...]
 
-          if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
+          if (process.env.WHATSAPP_GROUPS_ENABLED === "false") {
             return Response.json(
               {
                 success: false,
@@ -58,7 +58,7 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
           const url = new URL(request.url);
           const pathParts = url.pathname.split("/").filter(Boolean); // ["api", "whatsapp", "groups", ...]
 
-          if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
+          if (process.env.WHATSAPP_GROUPS_ENABLED === "false") {
             return Response.json(
               {
                 success: false,

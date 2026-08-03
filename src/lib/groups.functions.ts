@@ -41,8 +41,8 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 // Helper to check if groups feature is enabled
 function assertGroupsEnabled() {
-  if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
-    throw new Error("WHATSAPP_GROUPS_ENABLED_FALSE");
+  if (process.env.WHATSAPP_GROUPS_ENABLED === "false") {
+    throw new Error("WHATSAPP_GROUPS_DISABLED");
   }
 }
 

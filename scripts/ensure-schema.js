@@ -2097,7 +2097,41 @@ export async function ensureDatabaseSchema() {
         INDEX idx_ds_usage_tenant (tenant_id),
         INDEX idx_ds_usage_agent (agent_id),
         INDEX idx_ds_usage_created (created_at),
-        FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+    await ensureTableExists(
+      connection,
+      "subscription_events",
+      `CREATE TABLE IF NOT EXISTS subscription_events (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(255) NOT NULL,
+        subscription_id VARCHAR(36) NOT NULL,
+        event_type VARCHAR(64) NOT NULL,
+        previous_status VARCHAR(32) NULL,
+        new_status VARCHAR(32) NULL,
+        source VARCHAR(64) NOT NULL,
+        gateway_event_id VARCHAR(255) NULL,
+        raw_payload LONGTEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_sub_events_tenant (tenant_id),
+        INDEX idx_sub_events_sub (subscription_id),
+        UNIQUE KEY idx_sub_events_source_gateway (source, gateway_event_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "subscription_plan_changes",
+      `CREATE TABLE IF NOT EXISTS subscription_plan_changes (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(255) NOT NULL,
+        subscription_id VARCHAR(36) NOT NULL,
+        old_plan VARCHAR(64) NOT NULL,
+        new_plan VARCHAR(64) NOT NULL,
+        effective_date DATETIME NOT NULL,
+        applied_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_plan_changes_tenant (tenant_id),
+        INDEX idx_plan_changes_sub (subscription_id),
+        INDEX idx_plan_changes_effective (effective_date, applied_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
 

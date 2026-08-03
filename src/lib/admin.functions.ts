@@ -68,7 +68,7 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
     return {
       meta_app_id: data.meta_app_id ?? "",
       meta_config_id: data.meta_config_id ?? "",
-      meta_graph_version: data.meta_graph_version ?? "v20.0",
+      meta_graph_version: data.meta_graph_version ?? "v26.0",
       meta_app_secret_set: !!data.meta_app_secret,
       head_tags: (data as any).head_tags ?? "",
       body_tags: (data as any).body_tags ?? "",

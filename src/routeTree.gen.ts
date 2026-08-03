@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
@@ -45,6 +46,7 @@ import { Route as ApiWhatsappMediaRouteImport } from './routes/api/whatsapp/medi
 import { Route as ApiWhatsappGroupsRouteImport } from './routes/api/whatsapp/groups'
 import { Route as ApiWhatsappBusinessProfileRouteImport } from './routes/api/whatsapp/business-profile'
 import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api/webhooks/mercadopago'
+import { Route as ApiWebhooksAsaasRouteImport } from './routes/api/webhooks/asaas'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
 import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
 import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
@@ -65,13 +67,18 @@ import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
+import { Route as ApiAdminTestSubscriptionsRunnerRouteImport } from './routes/api/admin/test-subscriptions-runner'
+import { Route as ApiAdminSchemaMigrationRouteImport } from './routes/api/admin/schema-migration'
 import { Route as ApiAdminSchemaDumpRouteImport } from './routes/api/admin/schema-dump'
+import { Route as ApiAdminKillIdleConnectionsRouteImport } from './routes/api/admin/kill-idle-connections'
+import { Route as ApiAdminFixSubscriptionsTableRouteImport } from './routes/api/admin/fix-subscriptions-table'
 import { Route as AppSettingsCustomFieldsRouteImport } from './routes/_app/settings/custom-fields'
 import { Route as AppLicensesIdRouteImport } from './routes/_app/licenses/$id'
 import { Route as AppDsAgenteAgentIdRouteImport } from './routes/_app/ds-agente/$agentId'
 import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
+import { Route as ApiPublicCronProcessSubscriptionsRouteImport } from './routes/api/public/cron/process-subscriptions'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
 import { Route as ApiBillingSubscriptionRenewRouteImport } from './routes/api/billing/subscription/renew'
@@ -86,6 +93,11 @@ import { Route as ApiAdminPaymentGatewaysMercadopagoTestRouteImport } from './ro
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -265,6 +277,11 @@ const ApiWebhooksMercadopagoRoute = ApiWebhooksMercadopagoRouteImport.update({
   path: '/api/webhooks/mercadopago',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksAsaasRoute = ApiWebhooksAsaasRouteImport.update({
+  id: '/api/webhooks/asaas',
+  path: '/api/webhooks/asaas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
   id: '/api/storage/upload',
   path: '/api/storage/upload',
@@ -368,11 +385,34 @@ const ApiAuthForgotPasswordRoute = ApiAuthForgotPasswordRouteImport.update({
   path: '/api/auth/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminTestSubscriptionsRunnerRoute =
+  ApiAdminTestSubscriptionsRunnerRouteImport.update({
+    id: '/api/admin/test-subscriptions-runner',
+    path: '/api/admin/test-subscriptions-runner',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminSchemaMigrationRoute = ApiAdminSchemaMigrationRouteImport.update({
+  id: '/api/admin/schema-migration',
+  path: '/api/admin/schema-migration',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSchemaDumpRoute = ApiAdminSchemaDumpRouteImport.update({
   id: '/api/admin/schema-dump',
   path: '/api/admin/schema-dump',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminKillIdleConnectionsRoute =
+  ApiAdminKillIdleConnectionsRouteImport.update({
+    id: '/api/admin/kill-idle-connections',
+    path: '/api/admin/kill-idle-connections',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminFixSubscriptionsTableRoute =
+  ApiAdminFixSubscriptionsTableRouteImport.update({
+    id: '/api/admin/fix-subscriptions-table',
+    path: '/api/admin/fix-subscriptions-table',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppSettingsCustomFieldsRoute = AppSettingsCustomFieldsRouteImport.update({
   id: '/custom-fields',
   path: '/custom-fields',
@@ -403,6 +443,12 @@ const ApiWhatsappBusinessProfilePhotoRoute =
     id: '/photo',
     path: '/photo',
     getParentRoute: () => ApiWhatsappBusinessProfileRoute,
+  } as any)
+const ApiPublicCronProcessSubscriptionsRoute =
+  ApiPublicCronProcessSubscriptionsRouteImport.update({
+    id: '/api/public/cron/process-subscriptions',
+    path: '/api/public/cron/process-subscriptions',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicCronProcessQueueRoute =
   ApiPublicCronProcessQueueRouteImport.update({
@@ -467,6 +513,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/ai-agent': typeof AppAiAgentRoute
   '/audit': typeof AppAuditRoute
@@ -491,7 +538,11 @@ export interface FileRoutesByFullPath {
   '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
   '/licenses/$id': typeof AppLicensesIdRoute
   '/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
+  '/api/admin/fix-subscriptions-table': typeof ApiAdminFixSubscriptionsTableRoute
+  '/api/admin/kill-idle-connections': typeof ApiAdminKillIdleConnectionsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/admin/schema-migration': typeof ApiAdminSchemaMigrationRoute
+  '/api/admin/test-subscriptions-runner': typeof ApiAdminTestSubscriptionsRunnerRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
@@ -512,6 +563,7 @@ export interface FileRoutesByFullPath {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/webhooks/asaas': typeof ApiWebhooksAsaasRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
@@ -530,6 +582,7 @@ export interface FileRoutesByFullPath {
   '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
@@ -541,6 +594,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/ai-agent': typeof AppAiAgentRoute
   '/audit': typeof AppAuditRoute
@@ -565,7 +619,11 @@ export interface FileRoutesByTo {
   '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
   '/licenses/$id': typeof AppLicensesIdRoute
   '/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
+  '/api/admin/fix-subscriptions-table': typeof ApiAdminFixSubscriptionsTableRoute
+  '/api/admin/kill-idle-connections': typeof ApiAdminKillIdleConnectionsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/admin/schema-migration': typeof ApiAdminSchemaMigrationRoute
+  '/api/admin/test-subscriptions-runner': typeof ApiAdminTestSubscriptionsRunnerRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
@@ -586,6 +644,7 @@ export interface FileRoutesByTo {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/webhooks/asaas': typeof ApiWebhooksAsaasRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
@@ -604,6 +663,7 @@ export interface FileRoutesByTo {
   '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
@@ -617,6 +677,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/_app/ai-agent': typeof AppAiAgentRoute
   '/_app/audit': typeof AppAuditRoute
@@ -641,7 +702,11 @@ export interface FileRoutesById {
   '/_app/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
   '/_app/licenses/$id': typeof AppLicensesIdRoute
   '/_app/settings/custom-fields': typeof AppSettingsCustomFieldsRoute
+  '/api/admin/fix-subscriptions-table': typeof ApiAdminFixSubscriptionsTableRoute
+  '/api/admin/kill-idle-connections': typeof ApiAdminKillIdleConnectionsRoute
   '/api/admin/schema-dump': typeof ApiAdminSchemaDumpRoute
+  '/api/admin/schema-migration': typeof ApiAdminSchemaMigrationRoute
+  '/api/admin/test-subscriptions-runner': typeof ApiAdminTestSubscriptionsRunnerRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
@@ -662,6 +727,7 @@ export interface FileRoutesById {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/webhooks/asaas': typeof ApiWebhooksAsaasRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
   '/api/whatsapp/groups': typeof ApiWhatsappGroupsRoute
@@ -680,6 +746,7 @@ export interface FileRoutesById {
   '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
+  '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
@@ -693,6 +760,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/reset-password'
+    | '/sitemap.xml'
     | '/terms'
     | '/ai-agent'
     | '/audit'
@@ -717,7 +785,11 @@ export interface FileRouteTypes {
     | '/ds-agente/$agentId'
     | '/licenses/$id'
     | '/settings/custom-fields'
+    | '/api/admin/fix-subscriptions-table'
+    | '/api/admin/kill-idle-connections'
     | '/api/admin/schema-dump'
+    | '/api/admin/schema-migration'
+    | '/api/admin/test-subscriptions-runner'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
     | '/api/auth/otp'
@@ -738,6 +810,7 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/webhooks/asaas'
     | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/groups'
@@ -756,6 +829,7 @@ export interface FileRouteTypes {
     | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/public/cron/process-subscriptions'
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
@@ -767,6 +841,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/reset-password'
+    | '/sitemap.xml'
     | '/terms'
     | '/ai-agent'
     | '/audit'
@@ -791,7 +866,11 @@ export interface FileRouteTypes {
     | '/ds-agente/$agentId'
     | '/licenses/$id'
     | '/settings/custom-fields'
+    | '/api/admin/fix-subscriptions-table'
+    | '/api/admin/kill-idle-connections'
     | '/api/admin/schema-dump'
+    | '/api/admin/schema-migration'
+    | '/api/admin/test-subscriptions-runner'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
     | '/api/auth/otp'
@@ -812,6 +891,7 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/webhooks/asaas'
     | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/groups'
@@ -830,6 +910,7 @@ export interface FileRouteTypes {
     | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/public/cron/process-subscriptions'
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
@@ -842,6 +923,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/reset-password'
+    | '/sitemap.xml'
     | '/terms'
     | '/_app/ai-agent'
     | '/_app/audit'
@@ -866,7 +948,11 @@ export interface FileRouteTypes {
     | '/_app/ds-agente/$agentId'
     | '/_app/licenses/$id'
     | '/_app/settings/custom-fields'
+    | '/api/admin/fix-subscriptions-table'
+    | '/api/admin/kill-idle-connections'
     | '/api/admin/schema-dump'
+    | '/api/admin/schema-migration'
+    | '/api/admin/test-subscriptions-runner'
     | '/api/auth/forgot-password'
     | '/api/auth/login'
     | '/api/auth/otp'
@@ -887,6 +973,7 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/webhooks/asaas'
     | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
     | '/api/whatsapp/groups'
@@ -905,6 +992,7 @@ export interface FileRouteTypes {
     | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
+    | '/api/public/cron/process-subscriptions'
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
@@ -918,9 +1006,14 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   ApiQueryRoute: typeof ApiQueryRoute
+  ApiAdminFixSubscriptionsTableRoute: typeof ApiAdminFixSubscriptionsTableRoute
+  ApiAdminKillIdleConnectionsRoute: typeof ApiAdminKillIdleConnectionsRoute
   ApiAdminSchemaDumpRoute: typeof ApiAdminSchemaDumpRoute
+  ApiAdminSchemaMigrationRoute: typeof ApiAdminSchemaMigrationRoute
+  ApiAdminTestSubscriptionsRunnerRoute: typeof ApiAdminTestSubscriptionsRunnerRoute
   ApiAuthForgotPasswordRoute: typeof ApiAuthForgotPasswordRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthOtpRoute: typeof ApiAuthOtpRoute
@@ -941,6 +1034,7 @@ export interface RootRouteChildren {
   ApiStorageFileRoute: typeof ApiStorageFileRoute
   ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
   ApiStorageUploadRoute: typeof ApiStorageUploadRoute
+  ApiWebhooksAsaasRoute: typeof ApiWebhooksAsaasRoute
   ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
   ApiWhatsappBusinessProfileRoute: typeof ApiWhatsappBusinessProfileRouteWithChildren
   ApiWhatsappGroupsRoute: typeof ApiWhatsappGroupsRoute
@@ -951,6 +1045,7 @@ export interface RootRouteChildren {
   ApiAdminPaymentGatewaysMercadopagoRoute: typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
+  ApiPublicCronProcessSubscriptionsRoute: typeof ApiPublicCronProcessSubscriptionsRoute
   ApiBillingPaymentsIdStatusRoute: typeof ApiBillingPaymentsIdStatusRoute
   ApiPublicWebhooksIncomingTokenRoute: typeof ApiPublicWebhooksIncomingTokenRoute
 }
@@ -962,6 +1057,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -1209,6 +1311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksMercadopagoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/asaas': {
+      id: '/api/webhooks/asaas'
+      path: '/api/webhooks/asaas'
+      fullPath: '/api/webhooks/asaas'
+      preLoaderRoute: typeof ApiWebhooksAsaasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/storage/upload': {
       id: '/api/storage/upload'
       path: '/api/storage/upload'
@@ -1349,11 +1458,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/test-subscriptions-runner': {
+      id: '/api/admin/test-subscriptions-runner'
+      path: '/api/admin/test-subscriptions-runner'
+      fullPath: '/api/admin/test-subscriptions-runner'
+      preLoaderRoute: typeof ApiAdminTestSubscriptionsRunnerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/schema-migration': {
+      id: '/api/admin/schema-migration'
+      path: '/api/admin/schema-migration'
+      fullPath: '/api/admin/schema-migration'
+      preLoaderRoute: typeof ApiAdminSchemaMigrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/schema-dump': {
       id: '/api/admin/schema-dump'
       path: '/api/admin/schema-dump'
       fullPath: '/api/admin/schema-dump'
       preLoaderRoute: typeof ApiAdminSchemaDumpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/kill-idle-connections': {
+      id: '/api/admin/kill-idle-connections'
+      path: '/api/admin/kill-idle-connections'
+      fullPath: '/api/admin/kill-idle-connections'
+      preLoaderRoute: typeof ApiAdminKillIdleConnectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/fix-subscriptions-table': {
+      id: '/api/admin/fix-subscriptions-table'
+      path: '/api/admin/fix-subscriptions-table'
+      fullPath: '/api/admin/fix-subscriptions-table'
+      preLoaderRoute: typeof ApiAdminFixSubscriptionsTableRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/settings/custom-fields': {
@@ -1397,6 +1534,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/whatsapp/business-profile/photo'
       preLoaderRoute: typeof ApiWhatsappBusinessProfilePhotoRouteImport
       parentRoute: typeof ApiWhatsappBusinessProfileRoute
+    }
+    '/api/public/cron/process-subscriptions': {
+      id: '/api/public/cron/process-subscriptions'
+      path: '/api/public/cron/process-subscriptions'
+      fullPath: '/api/public/cron/process-subscriptions'
+      preLoaderRoute: typeof ApiPublicCronProcessSubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/cron/process-queue': {
       id: '/api/public/cron/process-queue'
@@ -1615,9 +1759,14 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   ApiQueryRoute: ApiQueryRoute,
+  ApiAdminFixSubscriptionsTableRoute: ApiAdminFixSubscriptionsTableRoute,
+  ApiAdminKillIdleConnectionsRoute: ApiAdminKillIdleConnectionsRoute,
   ApiAdminSchemaDumpRoute: ApiAdminSchemaDumpRoute,
+  ApiAdminSchemaMigrationRoute: ApiAdminSchemaMigrationRoute,
+  ApiAdminTestSubscriptionsRunnerRoute: ApiAdminTestSubscriptionsRunnerRoute,
   ApiAuthForgotPasswordRoute: ApiAuthForgotPasswordRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthOtpRoute: ApiAuthOtpRoute,
@@ -1638,6 +1787,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStorageFileRoute: ApiStorageFileRoute,
   ApiStorageRemoveRoute: ApiStorageRemoveRoute,
   ApiStorageUploadRoute: ApiStorageUploadRoute,
+  ApiWebhooksAsaasRoute: ApiWebhooksAsaasRoute,
   ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
   ApiWhatsappBusinessProfileRoute: ApiWhatsappBusinessProfileRouteWithChildren,
   ApiWhatsappGroupsRoute: ApiWhatsappGroupsRoute,
@@ -1649,6 +1799,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiAdminPaymentGatewaysMercadopagoRouteWithChildren,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
+  ApiPublicCronProcessSubscriptionsRoute:
+    ApiPublicCronProcessSubscriptionsRoute,
   ApiBillingPaymentsIdStatusRoute: ApiBillingPaymentsIdStatusRoute,
   ApiPublicWebhooksIncomingTokenRoute: ApiPublicWebhooksIncomingTokenRoute,
 }

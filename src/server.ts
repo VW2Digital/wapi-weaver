@@ -1,6 +1,7 @@
 import "./lib/error-capture";
 import "./lib/queue/webhook-queue";
 import "./lib/queue/campaign-queue";
+import { startDbHealthMonitor } from "./lib/db-health-monitor";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -79,6 +80,9 @@ import { checkLicense } from "./lib/license-verifier";
 import db from "./lib/db";
 import { randomUUID, createHash } from "crypto";
 import bcrypt from "bcryptjs";
+
+// Inicia o monitor de saúde do pool imediatamente
+startDbHealthMonitor(db.pool);
 
 async function migrateRoles() {
   try {
@@ -427,18 +431,29 @@ async function runBootSequence() {
   }
 }
 
-runBootSequence().catch(console.error);
+// ─── Guards via globalThis ────────────────────────────────────────────────────
+// Variáveis de módulo (let x = false) são resetadas a cada HMR do Vite, fazendo
+// o boot sequence e os workers rodarem múltiplas vezes em dev.
+// Usar globalThis garante que esses flags persistem entre reloads do módulo.
+const _g = globalThis as any;
 
-let queueIntervalStarted = false;
+if (!_g.__bootSequenceStarted) {
+  _g.__bootSequenceStarted = true;
+  // Aguarda 2 s para o pool estabilizar antes de rodar as migrações de boot
+  setTimeout(() => {
+    runBootSequence().catch(console.error);
+  }, 2000);
+}
+
 function startQueueProcessor() {
-  if (queueIntervalStarted) return;
-  queueIntervalStarted = true;
+  if (_g.__queueIntervalStarted) return;
+  _g.__queueIntervalStarted = true;
   console.log("[Queue] Starting background queue processor (every 60s)...");
 
-  // Call once immediately on startup, then every 60s
+  // Aguarda 10 s para o boot sequence terminar antes do primeiro processamento
   setTimeout(() => {
     processOnce().catch((e) => console.error("[Queue Init Error]", e));
-  }, 5000);
+  }, 10000);
 
   setInterval(async () => {
     try {
@@ -452,16 +467,15 @@ function startQueueProcessor() {
 startQueueProcessor();
 
 // --- Background License Validator ---
-let licenseCheckStarted = false;
 function startLicenseChecker() {
-  if (licenseCheckStarted) return;
-  licenseCheckStarted = true;
+  if (_g.__licenseCheckStarted) return;
+  _g.__licenseCheckStarted = true;
   console.log("[License] Starting background license checker (every 6 hours)...");
 
-  // Run initial check after 10s
+  // Run initial check after 20s (após boot sequence)
   setTimeout(() => {
     checkLicense().catch((e) => console.error("[License Init Error]", e));
-  }, 10000);
+  }, 20000);
 
   // Every 6 hours
   setInterval(async () => {
@@ -509,13 +523,12 @@ setInterval(() => {
 }, 300_000);
 
 // --- Background Billing Expiration Checker ---
-const globalForBilling = global as unknown as { billingCheckerStarted: boolean };
 function startBillingChecker() {
-  if (globalForBilling.billingCheckerStarted) return;
-  globalForBilling.billingCheckerStarted = true;
+  if (_g.__billingCheckerStarted) return;
+  _g.__billingCheckerStarted = true;
   console.log("[Billing] Starting background billing expiration checker (every 24 hours)...");
 
-  // Run initial check after 15s
+  // Run initial check after 30s (após boot sequence e fila)
   setTimeout(async () => {
     try {
       const { runBillingJob } = await import("./lib/billing-job");
@@ -523,7 +536,7 @@ function startBillingChecker() {
     } catch (e) {
       console.error("[Billing Job Init Error]", e);
     }
-  }, 15000);
+  }, 30000);
 
   // Every 24 hours
   setInterval(async () => {

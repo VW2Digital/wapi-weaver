@@ -184,18 +184,10 @@ function DsAgentEditorPage() {
 
   return (
     <div className="flex-1 bg-background text-foreground p-4 md:p-6 space-y-6">
-      {/* Sticky Header Controls Sub-bar: Back Button, 5 Tabs and Save Button */}
+      {/* Sticky Header Controls Sub-bar: 5 Tabs, Badge, Save Button & Back Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-4 pt-1">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate({ to: "/ds-agente" })}
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-primary transition-colors shadow-sm"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Voltar para pastas</span>
-          </button>
-
-          <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-medium hidden md:inline-flex">
+          <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-medium inline-flex">
             {localAgentData.provider || "OpenAI Padrão"} • {localAgentData.model || "gpt-4o-mini"}
           </Badge>
         </div>
@@ -222,15 +214,25 @@ function DsAgentEditorPage() {
           })}
         </div>
 
-        {/* Save Button */}
-        <Button
-          onClick={() => updateAgentMut.mutate()}
-          disabled={updateAgentMut.isPending}
-          className="bg-brand-gradient text-white font-semibold shadow-md hover:opacity-95 shrink-0"
-        >
-          <Save className="mr-2 h-4 w-4" />
-          {updateAgentMut.isPending ? "Salvando..." : "Salvar Agente"}
-        </Button>
+        {/* Action Buttons: Save & Back */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={() => updateAgentMut.mutate()}
+            disabled={updateAgentMut.isPending}
+            className="bg-brand-gradient text-white font-semibold shadow-md hover:opacity-95"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {updateAgentMut.isPending ? "Salvando..." : "Salvar Agente"}
+          </Button>
+
+          <button
+            onClick={() => navigate({ to: "/ds-agente" })}
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-primary transition-colors shadow-sm h-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Voltar para pastas</span>
+          </button>
+        </div>
       </div>
 
       {/* Tab Content Display */}

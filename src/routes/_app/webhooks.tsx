@@ -86,6 +86,12 @@ import {
   UserCheck,
   XCircle,
   ChevronLeft,
+  CheckCircle2,
+  Phone,
+  Mail,
+  Pin,
+  Tag,
+  FileCode,
 } from "lucide-react";
 import {
   Sheet,
@@ -146,254 +152,280 @@ function WebhookLeadsPanel({
   const errorCount = events.filter((e) => e.status !== "success").length;
 
   return (
-    <Sheet open={!!webhook} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-        className="w-full sm:max-w-3xl bg-card border-l border-border p-0 flex flex-col h-full overflow-hidden"
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-border bg-card shrink-0">
-          <SheetHeader>
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
-                <Users className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <SheetTitle className="text-base font-bold font-display text-foreground truncate">
-                  Leads & Eventos — {webhook?.name}
-                </SheetTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Histórico completo de entradas recebidas por este webhook
-                </p>
-              </div>
-            </div>
-          </SheetHeader>
+    <div className="space-y-6">
+      {/* Top Bar / Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-5 gap-4">
+        {/* Título & Ícone à esquerda */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold font-display text-foreground truncate">
+              Leads & Eventos — {webhook?.name}
+            </h1>
+            <p className="text-xs text-muted-foreground truncate">
+              Histórico completo de entradas recebidas por este webhook
+            </p>
+          </div>
+        </div>
 
-          {/* Stats Row */}
-          <div className="flex items-center gap-3 mt-4">
-            <div className="flex-1 bg-background border border-border rounded-xl p-3 text-center">
-              <div className="text-lg font-bold font-display text-foreground">{total}</div>
-              <div className="text-[10px] text-muted-foreground font-medium">Eventos (filtro)</div>
-            </div>
-            <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-              <div className="text-lg font-bold font-display text-emerald-500">{webhook?.leads_count ?? 0}</div>
-              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Leads Criados</div>
-            </div>
-            <div className="flex-1 bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-center">
-              <div className="text-lg font-bold font-display text-destructive">{errorCount}</div>
-              <div className="text-[10px] text-destructive/80 font-medium">Erros (página)</div>
-            </div>
-            <div className="flex-1 bg-background border border-border rounded-xl p-3 text-center">
-              <div className="text-lg font-bold font-display text-foreground">{webhook?.events_count ?? 0}</div>
-              <div className="text-[10px] text-muted-foreground font-medium">Total Geral</div>
+        {/* Botões de Ação à direita */}
+        <div className="flex items-center gap-2 self-end md:self-auto">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => leadsQ.refetch()}
+            className="h-9 text-xs rounded-xl border-border px-3.5 font-semibold"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${leadsQ.isFetching ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="h-9 px-3.5 text-xs font-bold rounded-xl border-border hover:bg-muted shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="bg-card border-border p-4 text-center rounded-2xl shadow-xs">
+          <div className="text-2xl font-bold font-display text-foreground">{total}</div>
+          <div className="text-xs text-muted-foreground font-medium mt-0.5">Eventos (filtro)</div>
+        </Card>
+        <Card className="bg-emerald-500/10 border-emerald-500/20 p-4 text-center rounded-2xl shadow-xs">
+          <div className="text-2xl font-bold font-display text-emerald-500">{webhook?.leads_count ?? 0}</div>
+          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">Leads Criados</div>
+        </Card>
+        <Card className="bg-destructive/10 border-destructive/20 p-4 text-center rounded-2xl shadow-xs">
+          <div className="text-2xl font-bold font-display text-destructive">{errorCount}</div>
+          <div className="text-xs text-destructive/80 font-medium mt-0.5">Erros (página)</div>
+        </Card>
+        <Card className="bg-card border-border p-4 text-center rounded-2xl shadow-xs">
+          <div className="text-2xl font-bold font-display text-foreground">{webhook?.events_count ?? 0}</div>
+          <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Geral</div>
+        </Card>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        {(["all", "success", "error"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => onStatusChange(f)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+              statusFilter === f
+                ? "bg-primary text-white border-primary shadow-xs"
+                : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+            }`}
+          >
+            {f === "all" && "Todos"}
+            {f === "success" && (
+              <>
+                <CheckCircle2 className={`h-3.5 w-3.5 ${statusFilter === f ? "text-white" : "text-emerald-500"}`} />
+                <span>Sucesso</span>
+              </>
+            )}
+            {f === "error" && (
+              <>
+                <XCircle className={`h-3.5 w-3.5 ${statusFilter === f ? "text-white" : "text-destructive"}`} />
+                <span>Erros</span>
+              </>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Content / Event List */}
+      <div className="space-y-3 min-h-[300px]">
+        {leadsQ.isLoading ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-card border border-border rounded-2xl">
+            <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-muted-foreground">Carregando eventos...</p>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 border border-dashed border-border rounded-2xl bg-card/40">
+            <TrendingUp className="h-10 w-10 text-muted-foreground/30" />
+            <div className="text-center">
+              <p className="text-sm font-bold text-foreground">Nenhum evento encontrado</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {statusFilter !== "all" ? "Tente mudar o filtro de status" : "Este webhook ainda não recebeu dados"}
+              </p>
             </div>
           </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-2 mt-3">
-            {(["all", "success", "error"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => onStatusChange(f)}
-                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
-                  statusFilter === f
-                    ? "bg-primary text-white border-primary"
-                    : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+        ) : (
+          events.map((ev) => {
+            const isExpanded = expandedId === ev.id;
+            const isSuccess = ev.status === "success";
+            const payloadKeys = Object.keys(ev.payload ?? {}).filter(
+              (k) => !["headers", "executionMode", "webhookUrl", "query", "params"].includes(k)
+            );
+            return (
+              <div
+                key={ev.id}
+                className={`border rounded-2xl overflow-hidden transition-all bg-card ${
+                  isSuccess
+                    ? "border-border hover:border-primary/40"
+                    : "border-destructive/30 bg-destructive/5 hover:border-destructive/60"
                 }`}
               >
-                {f === "all" ? "Todos" : f === "success" ? "✅ Sucesso" : "❌ Erros"}
-              </button>
-            ))}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => leadsQ.refetch()}
-              className="ml-auto h-7 text-xs rounded-lg border-border"
-            >
-              <RefreshCw className={`h-3 w-3 mr-1.5 ${leadsQ.isFetching ? "animate-spin" : ""}`} />
-              Atualizar
+                {/* Row Header */}
+                <div
+                  className="flex items-center gap-3 p-4 cursor-pointer"
+                  onClick={() => onExpandToggle(isExpanded ? null : ev.id)}
+                >
+                  <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    isSuccess ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"
+                  }`}>
+                    {isSuccess ? <UserCheck className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-foreground truncate">
+                        {ev.display_name && ev.display_name !== "—" ? ev.display_name : "Lead sem nome"}
+                      </span>
+                      {ev.contact_id && (
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md font-semibold shrink-0">
+                          Contato vinculado
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      {ev.display_phone && ev.display_phone !== "—" && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground/70" /> {ev.display_phone}
+                        </span>
+                      )}
+                      {ev.display_email && ev.display_email !== "—" && (
+                        <span className="flex items-center gap-1">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground/70" /> {ev.display_email}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+                    {ev.ip_address && (
+                      <span className="hidden lg:flex items-center gap-1">
+                        <Globe className="h-3.5 w-3.5" /> {ev.ip_address}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" /> {fmt(ev.created_at)}
+                    </span>
+                    <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                  </div>
+                </div>
+
+                {/* Error Banner */}
+                {!isSuccess && ev.error_message && (
+                  <div className="mx-4 mb-3 flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-xs text-destructive">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span className="break-all">{ev.error_message}</span>
+                  </div>
+                )}
+
+                {/* Expanded Detail */}
+                {isExpanded && (
+                  <div className="border-t border-border bg-background/60 p-5 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">IP de Origem</p>
+                        <p className="text-xs font-mono text-foreground bg-card border border-border rounded-xl px-3 py-2">{ev.ip_address ?? "—"}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Navegador / Cliente</p>
+                        <p className="text-xs font-mono text-foreground bg-card border border-border rounded-xl px-3 py-2 truncate" title={ev.user_agent ?? ""}>{shortUA(ev.user_agent)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Data / Hora</p>
+                        <p className="text-xs font-mono text-foreground bg-card border border-border rounded-xl px-3 py-2">{fmt(ev.created_at)}</p>
+                      </div>
+                      {ev.processing_ms !== null && ev.processing_ms !== undefined && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Processamento</p>
+                          <p className="text-xs font-mono text-foreground bg-card border border-border rounded-xl px-3 py-2">{ev.processing_ms}ms</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {payloadKeys.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <FileJson className="h-3.5 w-3.5" /> Dados Recebidos (Payload)
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {payloadKeys.map((k) => (
+                            <div key={k} className="bg-card border border-border rounded-xl px-3 py-2">
+                              <p className="text-[10px] text-muted-foreground font-medium">{k}</p>
+                              <p className="text-xs text-foreground font-mono truncate" title={String(ev.payload[k])}>{String(ev.payload[k] ?? "—")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {Object.keys(ev.mapped_standard ?? {}).length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <UserCheck className="h-3.5 w-3.5" /> Campos Salvos no Banco
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {Object.entries(ev.mapped_standard).map(([k, v]) => (
+                            <div key={k} className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{k}</p>
+                              <p className="text-xs text-foreground font-mono truncate">{String(v ?? "—")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {Object.keys(ev.unmapped ?? {}).length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Campos Não Mapeados
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {Object.entries(ev.unmapped).map(([k, v]) => (
+                            <div key={k} className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{k}</p>
+                              <p className="text-xs text-foreground font-mono truncate">{String(v ?? "—")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="py-4 flex items-center justify-between border-t border-border bg-card px-4 rounded-2xl">
+          <p className="text-xs text-muted-foreground">
+            Página {page} de {totalPages} · {total} eventos no total
+          </p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => onPageChange((p) => Math.max(1, p - 1))} disabled={page === 1} className="h-8 text-xs rounded-xl">
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onPageChange((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="h-8 text-xs rounded-xl">
+              Próximo <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </Button>
           </div>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
-          {leadsQ.isLoading ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-3">
-              <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs text-muted-foreground">Carregando eventos...</p>
-            </div>
-          ) : events.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-2xl bg-card/40">
-              <TrendingUp className="h-10 w-10 text-muted-foreground/30" />
-              <div className="text-center">
-                <p className="text-sm font-bold text-foreground">Nenhum evento encontrado</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {statusFilter !== "all" ? "Tente mudar o filtro de status" : "Este webhook ainda não recebeu dados"}
-                </p>
-              </div>
-            </div>
-          ) : (
-            events.map((ev) => {
-              const isExpanded = expandedId === ev.id;
-              const isSuccess = ev.status === "success";
-              const payloadKeys = Object.keys(ev.payload ?? {}).filter(
-                (k) => !["headers", "executionMode", "webhookUrl", "query", "params"].includes(k)
-              );
-              return (
-                <div
-                  key={ev.id}
-                  className={`border rounded-xl overflow-hidden transition-all ${
-                    isSuccess
-                      ? "border-border hover:border-primary/40"
-                      : "border-destructive/30 bg-destructive/5 hover:border-destructive/60"
-                  }`}
-                >
-                  {/* Row Header */}
-                  <div
-                    className="flex items-center gap-3 p-3.5 cursor-pointer"
-                    onClick={() => onExpandToggle(isExpanded ? null : ev.id)}
-                  >
-                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
-                      isSuccess ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"
-                    }`}>
-                      {isSuccess ? <UserCheck className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-foreground truncate">
-                          {ev.display_name && ev.display_name !== "—" ? ev.display_name : "Lead sem nome"}
-                        </span>
-                        {ev.contact_id && (
-                          <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-md font-semibold shrink-0">
-                            Contato vinculado
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground">
-                        {ev.display_phone && ev.display_phone !== "—" && <span>📱 {ev.display_phone}</span>}
-                        {ev.display_email && ev.display_email !== "—" && <span>✉️ {ev.display_email}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground">
-                      {ev.ip_address && (
-                        <span className="hidden lg:flex items-center gap-1">
-                          <Globe className="h-3 w-3" /> {ev.ip_address}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {fmt(ev.created_at)}
-                      </span>
-                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                    </div>
-                  </div>
-
-                  {/* Error Banner */}
-                  {!isSuccess && ev.error_message && (
-                    <div className="mx-3.5 mb-3 flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-lg p-2.5 text-[11px] text-destructive">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span className="break-all">{ev.error_message}</span>
-                    </div>
-                  )}
-
-                  {/* Expanded Detail */}
-                  {isExpanded && (
-                    <div className="border-t border-border bg-background/60 p-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">IP de Origem</p>
-                          <p className="text-xs font-mono text-foreground bg-card border border-border rounded-lg px-2.5 py-1.5">{ev.ip_address ?? "—"}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Navegador / Cliente</p>
-                          <p className="text-xs font-mono text-foreground bg-card border border-border rounded-lg px-2.5 py-1.5 truncate" title={ev.user_agent ?? ""}>{shortUA(ev.user_agent)}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Data / Hora</p>
-                          <p className="text-xs font-mono text-foreground bg-card border border-border rounded-lg px-2.5 py-1.5">{fmt(ev.created_at)}</p>
-                        </div>
-                        {ev.processing_ms !== null && ev.processing_ms !== undefined && (
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Processamento</p>
-                            <p className="text-xs font-mono text-foreground bg-card border border-border rounded-lg px-2.5 py-1.5">{ev.processing_ms}ms</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {payloadKeys.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                            <FileJson className="h-3 w-3" /> Dados Recebidos (Payload)
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {payloadKeys.map((k) => (
-                              <div key={k} className="bg-card border border-border rounded-lg px-2.5 py-1.5">
-                                <p className="text-[10px] text-muted-foreground font-medium">{k}</p>
-                                <p className="text-xs text-foreground font-mono truncate" title={String(ev.payload[k])}>{String(ev.payload[k] ?? "—")}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {Object.keys(ev.mapped_standard ?? {}).length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <UserCheck className="h-3 w-3" /> Campos Salvos no Banco
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(ev.mapped_standard).map(([k, v]) => (
-                              <div key={k} className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1.5">
-                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{k}</p>
-                                <p className="text-xs text-foreground font-mono truncate">{String(v ?? "—")}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {Object.keys(ev.unmapped ?? {}).length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <AlertTriangle className="h-3 w-3" /> Campos Não Mapeados
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(ev.unmapped).map(([k, v]) => (
-                              <div key={k} className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
-                                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{k}</p>
-                                <p className="text-xs text-foreground font-mono truncate">{String(v ?? "—")}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-6 py-3 border-t border-border flex items-center justify-between shrink-0 bg-card">
-            <p className="text-xs text-muted-foreground">
-              Página {page} de {totalPages} · {total} eventos no total
-            </p>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => onPageChange((p) => Math.max(1, p - 1))} disabled={page === 1} className="h-7 text-xs rounded-lg">
-                <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => onPageChange((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="h-7 text-xs rounded-lg">
-                Próximo <ChevronRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+      )}
+    </div>
   );
 }
 
@@ -727,6 +759,24 @@ export function WebhooksPage() {
     return `há ${days} dias`;
   }
 
+  if (leadsViewWebhook) {
+    return (
+      <div className="flex-1 bg-background text-foreground p-6 space-y-6 min-h-screen">
+        <WebhookLeadsPanel
+          webhook={leadsViewWebhook}
+          statusFilter={leadsStatusFilter}
+          page={leadsPage}
+          expandedId={expandedLeadEventId}
+          leadsQ={leadsQ}
+          onClose={() => setLeadsViewWebhook(null)}
+          onStatusChange={(f) => { setLeadsStatusFilter(f); setLeadsPage(1); }}
+          onPageChange={setLeadsPage}
+          onExpandToggle={(id) => setExpandedLeadEventId(id)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 bg-background text-foreground p-6 space-y-6 min-h-screen">
       {/* Top Header */}
@@ -821,12 +871,18 @@ export function WebhooksPage() {
               {filteredIncoming.map((wh) => (
                 <Card
                   key={wh.id}
-                  className="border border-border bg-card hover:border-primary/50 transition-all shadow-xs group rounded-2xl overflow-hidden"
+                  onClick={() => {
+                    setLeadsViewWebhook(wh);
+                    setLeadsStatusFilter("all");
+                    setLeadsPage(1);
+                    setExpandedLeadEventId(null);
+                  }}
+                  className="border border-border bg-card hover:border-primary/50 transition-all shadow-xs group rounded-2xl overflow-hidden cursor-pointer"
                 >
                   <div className="p-5 space-y-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
                           <Webhook className="h-5 w-5" />
                         </div>
                         <div>
@@ -847,89 +903,91 @@ export function WebhooksPage() {
                       </div>
 
                       {/* MENU DE 3 PONTINHOS (DROPDOWN) */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48 bg-popover border-border rounded-xl shadow-lg p-1">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingWebhook({ ...wh, type: "incoming" });
-                              setEditName(wh.name);
-                            }}
-                            className="text-xs cursor-pointer rounded-lg py-2"
-                          >
-                            <Pencil className="h-3.5 w-3.5 mr-2 text-primary" /> Editar Webhook
-                          </DropdownMenuItem>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 bg-popover border-border rounded-xl shadow-lg p-1">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditingWebhook({ ...wh, type: "incoming" });
+                                setEditName(wh.name);
+                              }}
+                              className="text-xs cursor-pointer rounded-lg py-2"
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-2 text-primary" /> Editar Webhook
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            onClick={() => duplicateIncomingMut.mutate(wh.id)}
-                            className="text-xs cursor-pointer rounded-lg py-2"
-                          >
-                            <Files className="h-3.5 w-3.5 mr-2 text-primary" /> Duplicar Webhook
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => duplicateIncomingMut.mutate(wh.id)}
+                              className="text-xs cursor-pointer rounded-lg py-2"
+                            >
+                              <Files className="h-3.5 w-3.5 mr-2 text-primary" /> Duplicar Webhook
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            onClick={() => {
-                              const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
-                              const url = `${origin}/api/public/webhooks/incoming/${wh.token}`;
-                              navigator.clipboard.writeText(url).then(() => toast.success("URL copiada!"));
-                            }}
-                            className="text-xs cursor-pointer rounded-lg py-2"
-                          >
-                            <Copy className="h-3.5 w-3.5 mr-2" /> Copiar URL
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
+                                const url = `${origin}/api/public/webhooks/incoming/${wh.token}`;
+                                navigator.clipboard.writeText(url).then(() => toast.success("URL copiada!"));
+                              }}
+                              className="text-xs cursor-pointer rounded-lg py-2"
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-2" /> Copiar URL
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            onClick={() => setSelectedWebhook(wh)}
-                            className="text-xs cursor-pointer rounded-lg py-2"
-                          >
-                            <Settings className="h-3.5 w-3.5 mr-2 text-primary" /> Mapear Campos
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setSelectedWebhook(wh)}
+                              className="text-xs cursor-pointer rounded-lg py-2"
+                            >
+                              <Settings className="h-3.5 w-3.5 mr-2 text-primary" /> Mapear Campos
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            onClick={() => regenerateMut.mutate(wh.id)}
-                            className="text-xs cursor-pointer rounded-lg py-2"
-                          >
-                            <RefreshCw className="h-3.5 w-3.5 mr-2" /> Regenerar Token
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => regenerateMut.mutate(wh.id)}
+                              className="text-xs cursor-pointer rounded-lg py-2"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-2" /> Regenerar Token
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            onClick={() =>
-                              toggleIncomingMut.mutate({
-                                id: wh.id,
-                                status: wh.status === "listening" ? "paused" : "listening",
-                              })
-                            }
-                            className="text-xs cursor-pointer rounded-lg py-2"
-                          >
-                            {wh.status === "listening" ? (
-                              <>
-                                <AlertTriangle className="h-3.5 w-3.5 mr-2 text-amber-500" /> Pausar Webhook
-                              </>
-                            ) : (
-                              <>
-                                <Check className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Ativar Webhook
-                              </>
-                            )}
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                toggleIncomingMut.mutate({
+                                  id: wh.id,
+                                  status: wh.status === "listening" ? "paused" : "listening",
+                                })
+                              }
+                              className="text-xs cursor-pointer rounded-lg py-2"
+                            >
+                              {wh.status === "listening" ? (
+                                <>
+                                  <AlertTriangle className="h-3.5 w-3.5 mr-2 text-amber-500" /> Pausar Webhook
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Ativar Webhook
+                                </>
+                              )}
+                            </DropdownMenuItem>
 
-                          <DropdownMenuSeparator className="bg-border" />
+                            <DropdownMenuSeparator className="bg-border" />
 
-                          <DropdownMenuItem
-                            onClick={() => setDeletingWebhook({ id: wh.id, name: wh.name, type: "incoming" })}
-                            className="text-xs cursor-pointer rounded-lg py-2 text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Apagar Webhook
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <DropdownMenuItem
+                              onClick={() => setDeletingWebhook({ id: wh.id, name: wh.name, type: "incoming" })}
+                              className="text-xs cursor-pointer rounded-lg py-2 text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Apagar Webhook
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
 
                     {/* Stats Row */}
@@ -949,19 +1007,9 @@ export function WebhooksPage() {
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" /> {timeAgo(wh.last_event_at || wh.created_at)}
                       </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setLeadsViewWebhook(wh);
-                          setLeadsStatusFilter("all");
-                          setLeadsPage(1);
-                          setExpandedLeadEventId(null);
-                        }}
-                        className="h-6 text-[11px] text-primary hover:bg-primary/10 rounded-lg px-2 font-semibold"
-                      >
-                        <Eye className="h-3 w-3 mr-1" /> Ver Leads
-                      </Button>
+                      <span className="text-xs text-muted-foreground/50 group-hover:text-primary font-medium flex items-center gap-0.5 transition-colors">
+                        Ver Leads <ChevronRight className="h-3.5 w-3.5" />
+                      </span>
                     </div>
                   </div>
                 </Card>
@@ -1443,19 +1491,6 @@ export function WebhooksPage() {
         </DialogContent>
       </Dialog>
 
-      {/* SHEET 0: LEADS & EVENTOS DO WEBHOOK */}
-      <WebhookLeadsPanel
-        webhook={leadsViewWebhook}
-        statusFilter={leadsStatusFilter}
-        page={leadsPage}
-        expandedId={expandedEventId}
-        leadsQ={leadsQ}
-        onClose={() => setLeadsViewWebhook(null)}
-        onStatusChange={(f) => { setLeadsStatusFilter(f); setLeadsPage(1); }}
-        onPageChange={setLeadsPage}
-        onExpandToggle={(id) => setExpandedLeadEventId(id)}
-      />
-
       {/* SHEET 1: MAPEAR CAMPOS DO WEBHOOK (VISUAL 2-COLUMN MAPPER) */}
       <Sheet open={!!selectedWebhook} onOpenChange={(open) => !open && setSelectedWebhook(null)}>
         <SheetContent
@@ -1592,7 +1627,7 @@ export function WebhooksPage() {
                           </div>
                           {(standardFieldsQ.data || []).map((sf: any) => (
                             <SelectItem key={`std_${sf.key}`} value={`standard:${sf.key}`}>
-                              📌 {sf.label} ({sf.key})
+                              {sf.label} ({sf.key})
                             </SelectItem>
                           ))}
 
@@ -1603,7 +1638,7 @@ export function WebhooksPage() {
                               </div>
                               {(customFieldsQ.data || []).map((cf: any) => (
                                 <SelectItem key={`cf_${cf.id}`} value={`custom:${cf.id}`}>
-                                  🏷️ {cf.label} ({cf.key})
+                                  {cf.label} ({cf.key})
                                 </SelectItem>
                               ))}
                             </>
@@ -1717,7 +1752,7 @@ export function WebhooksPage() {
                               onClick={() => setExpandedEventId(isExpanded ? null : ev.id)}
                               className="h-6 text-[11px] text-primary px-2 rounded-md hover:bg-primary/10 font-medium"
                             >
-                              {isExpanded ? "Ocultar JSON" : "🔍 Ver JSON"}
+                              {isExpanded ? "Ocultar JSON" : "Ver JSON"}
                             </Button>
                           </div>
                         </div>
