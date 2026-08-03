@@ -64,11 +64,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// @ts-ignore
-export const Route = createFileRoute("/_app/bot")({
-  component: BotPage,
-});
-
 function BotPage() {
   const queryClient = useQueryClient();
   const getSettingsFn = useServerFn(getBotSettings);
@@ -594,3 +589,8 @@ function BotPage() {
     </div>
   );
 }
+
+// @ts-ignore
+export const Route = createFileRoute("/_app/bot")({
+  component: BotPage,
+});

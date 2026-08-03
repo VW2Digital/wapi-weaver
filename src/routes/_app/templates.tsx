@@ -65,8 +65,6 @@ import { CardGridSkeleton } from "@/components/table-skeleton";
 import { TemplateBuilderDialog } from "@/components/template-builder-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
 
-export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });
-
 const statusColors: Record<string, string> = {
   APPROVED: "bg-success/15 text-success",
   PENDING: "bg-warning/15 text-warning-foreground",
@@ -1089,3 +1087,5 @@ function InfoSection() {
     </Card>
   );
 }
+
+export const Route = createFileRoute("/_app/templates")({ component: TemplatesPage });

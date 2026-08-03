@@ -152,18 +152,18 @@ import { cn } from "@/lib/utils";
 import { useRoles } from "@/hooks/use-roles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
+function SettingsLayout() {
+  const loc = useLocation();
+  if (loc.pathname !== "/settings") return <Outlet />;
+  return <SettingsPage />;
+}
+
 export const Route = createFileRoute("/_app/settings")({
   validateSearch: (search: Record<string, unknown>) => ({
     s: typeof search.s === "string" ? search.s : undefined,
   }),
   component: SettingsLayout,
 });
-
-function SettingsLayout() {
-  const loc = useLocation();
-  if (loc.pathname !== "/settings") return <Outlet />;
-  return <SettingsPage />;
-}
 
 function onlyDigits(v: string) {
   return v.replace(/\D/g, "");
@@ -644,8 +644,8 @@ function SettingsPage() {
                 <FileText className="h-3.5 w-3.5" /> Ajuda & Documentação
               </h4>
               <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
-                <a
-                  href="/docs"
+                <Link
+                  to="/docs"
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer animate-in fade-in"
                 >
                   <div className="flex items-center gap-4">
@@ -662,7 +662,7 @@ function SettingsPage() {
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </a>
+                </Link>
               </div>
             </div>
 

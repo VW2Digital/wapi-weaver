@@ -21,10 +21,6 @@ import {
   updateWhatsAppBusinessProfile,
 } from "@/lib/whatsapp-business-profile.functions";
 
-export const Route = createFileRoute("/_app/whatsapp-business-profile")({
-  component: WhatsAppBusinessProfilePage,
-});
-
 type FormState = {
   about: string;
   address: string;
@@ -452,3 +448,7 @@ function WhatsAppBusinessProfilePage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/whatsapp-business-profile")({
+  component: WhatsAppBusinessProfilePage,
+});

@@ -14,8 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_app/settings/custom-fields")({ component: CustomFieldsSettingsPage });
-
 const FIELD_TYPES = [
   { value: "text", label: "Texto curto" },
   { value: "textarea", label: "Texto longo" },
@@ -248,3 +246,5 @@ function CustomFieldsSettingsPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/settings/custom-fields")({ component: CustomFieldsSettingsPage });

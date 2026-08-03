@@ -1,26 +1,30 @@
+"use server";
 import mysql from "mysql2/promise";
 
 // Cache do pool global para evitar vazamento de conexões no reload (HMR)
-const globalForDb = global as unknown as { pool: mysql.Pool };
+// Guard for browser environments where `global` does not exist
+const globalForDb =
+  typeof global !== "undefined"
+    ? (global as unknown as { pool: mysql.Pool })
+    : ({} as { pool: mysql.Pool });
+
 const pool =
   globalForDb.pool ||
-  mysql.createPool({
-    host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT || "3306", 10),
-    user: process.env.DB_USER || "wapi_user",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "wapi_weaver",
-    waitForConnections: true,
-    connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 5,
-    queueLimit: 50,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 0,
-    connectTimeout: 10000,
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.pool = pool;
-}
+  (typeof mysql.createPool === "function"
+    ? mysql.createPool({
+        host: process.env.DB_HOST || "localhost",
+        port: parseInt(process.env.DB_PORT || "3306", 10),
+        user: process.env.DB_USER || "wapi_user",
+        password: process.env.DB_PASSWORD || "",
+        database: process.env.DB_NAME || "wapi_weaver",
+        waitForConnections: true,
+        connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 5,
+        queueLimit: 50,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0,
+        connectTimeout: 10000,
+      })
+    : (undefined as unknown as mysql.Pool));
 
 /**
  * Executa uma query SQL parametrizada.

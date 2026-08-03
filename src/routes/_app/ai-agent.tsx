@@ -41,11 +41,6 @@ import {
 } from "@/lib/ai-agent.functions";
 import { toast } from "sonner";
 
-// @ts-ignore
-export const Route = createFileRoute("/_app/ai-agent")({
-  component: AiAgentPage,
-});
-
 function AiAgentPage() {
   const queryClient = useQueryClient();
   const getSettingsFn = useServerFn(getAiAgentSettings);
@@ -350,3 +345,8 @@ function AiAgentPage() {
     </div>
   );
 }
+
+// @ts-ignore
+export const Route = createFileRoute("/_app/ai-agent")({
+  component: AiAgentPage,
+});

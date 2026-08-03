@@ -63,7 +63,11 @@ import {
   AlertTriangle,
   MoreVertical,
   Check,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { FUNNEL_TEMPLATES, type FunnelTemplate } from "@/lib/funnel-templates";
 
 import {
   DropdownMenu,
@@ -365,20 +369,32 @@ function CRMPage() {
   );
   const [newOppTemp, setNewOppTemp] = useState<"cold" | "warm" | "hot">("cold");
 
+  const [selectedTemplate, setSelectedTemplate] = useState<FunnelTemplate | null>(null);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
   // Mutations
   const funnelMutation = useMutation({
     mutationFn: () =>
       addFunnel({
-        data: { name: newFunnelName, description: newFunnelDesc, is_default: funnels.length === 0 },
+        data: {
+          name: newFunnelName,
+          description: newFunnelDesc,
+          is_default: funnels.length === 0,
+          stages: selectedTemplate ? selectedTemplate.stages : undefined,
+        },
       }),
     onSuccess: (res) => {
-      toast.success("Funil de vendas criado!");
+      toast.success(
+        selectedTemplate
+          ? `Funil "${newFunnelName}" criado com ${selectedTemplate.stages.length} etapas!`
+          : "Funil de vendas criado!",
+      );
       setNewFunnelOpen(false);
       setNewFunnelName("");
       setNewFunnelDesc("");
+      setSelectedTemplate(null);
       qc.invalidateQueries({ queryKey: ["funnels"] });
+      qc.invalidateQueries({ queryKey: ["stages"] });
       setActiveFunnelId(res.id);
     },
     onError: (err: any) => toast.error(err.message),
@@ -574,37 +590,200 @@ function CRMPage() {
         </div>
 
         {/* Render dialogs outside of triggers */}
-        <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
-          <DialogContent className="max-w-md bg-card border border-muted-foreground/15 rounded-xl p-6">
+        <Dialog
+          open={newFunnelOpen}
+          onOpenChange={(open) => {
+            setNewFunnelOpen(open);
+            if (!open) {
+              setSelectedTemplate(null);
+              setNewFunnelName("");
+              setNewFunnelDesc("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-4xl bg-card border border-muted-foreground/15 rounded-xl p-6 max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Criar Novo Funil de Vendas</DialogTitle>
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-500" />
+                <span>Criar Novo Funil de Vendas</span>
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 my-4">
-              <div className="space-y-1.5">
-                <Label>Nome do Funil</Label>
-                <Input
-                  value={newFunnelName}
-                  onChange={(e: any) => setNewFunnelName(e.target.value)}
-                  placeholder="Ex: Vendas Externas"
-                />
+
+            <Tabs defaultValue="templates" className="w-full my-3">
+              <TabsList className="grid grid-cols-2 w-full max-w-md">
+                <TabsTrigger value="templates" className="gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  <span>Templates Prontos</span>
+                </TabsTrigger>
+                <TabsTrigger value="custom" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Funil em Branco</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="templates" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Escolha um modelo de funil pré-configurado com as melhores práticas e etapas prontas para o seu negócio:
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {FUNNEL_TEMPLATES.map((tmpl) => {
+                    const isSelected = selectedTemplate?.id === tmpl.id;
+                    return (
+                      <div
+                        key={tmpl.id}
+                        onClick={() => {
+                          setSelectedTemplate(tmpl);
+                          setNewFunnelName(tmpl.name);
+                          setNewFunnelDesc(tmpl.description);
+                        }}
+                        className={`group cursor-pointer rounded-xl border p-4 transition-all duration-200 relative flex flex-col justify-between ${
+                          isSelected
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md"
+                            : "border-border hover:border-primary/50 hover:bg-muted/40"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium border ${tmpl.badgeColor}`}>
+                              {tmpl.category}
+                            </span>
+                            {isSelected && (
+                              <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+                                <Check className="h-4 w-4" /> Selecionado
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-semibold text-base text-foreground group-hover:text-primary transition-colors">
+                            {tmpl.name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {tmpl.description}
+                          </p>
+
+                          <div className="mt-3 space-y-1">
+                            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                              Etapas incluídas ({tmpl.stages.length}):
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {tmpl.stages.map((stg, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-muted/80 font-medium text-foreground"
+                                >
+                                  <span
+                                    className="h-2 w-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: stg.color }}
+                                  />
+                                  {stg.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-border/50 flex justify-end">
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant={isSelected ? "default" : "outline"}
+                            className="w-full text-xs font-medium"
+                          >
+                            {isSelected ? "Template Selecionado" : "Usar este Template"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {selectedTemplate && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3 mt-4 animate-in fade-in-50">
+                    <h4 className="font-medium text-sm text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <span>Personalizar nome do funil</span>
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Nome do Funil</Label>
+                        <Input
+                          value={newFunnelName}
+                          onChange={(e) => setNewFunnelName(e.target.value)}
+                          placeholder="Nome do seu funil..."
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Descrição (opcional)</Label>
+                        <Input
+                          value={newFunnelDesc}
+                          onChange={(e) => setNewFunnelDesc(e.target.value)}
+                          placeholder="Descrição..."
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="custom" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Crie um funil do zero sem etapas pré-definidas. Você poderá adicionar e personalizar as etapas manualmente.
+                </p>
+                <div className="space-y-4 my-2 max-w-md">
+                  <div className="space-y-1.5">
+                    <Label>Nome do Funil</Label>
+                    <Input
+                      value={newFunnelName}
+                      onChange={(e) => {
+                        setSelectedTemplate(null);
+                        setNewFunnelName(e.target.value);
+                      }}
+                      placeholder="Ex: Vendas Externas"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Descrição</Label>
+                    <Textarea
+                      rows={3}
+                      value={newFunnelDesc}
+                      onChange={(e) => setNewFunnelDesc(e.target.value)}
+                      placeholder="Descreva o propósito deste pipeline..."
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                {selectedTemplate ? (
+                  <span>Criando com <strong>{selectedTemplate.stages.length} etapas</strong> pré-configuradas.</span>
+                ) : (
+                  <span>Sem etapas iniciais.</span>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label>Descrição</Label>
-                <Textarea
-                  rows={3}
-                  value={newFunnelDesc}
-                  onChange={(e: any) => setNewFunnelDesc(e.target.value)}
-                  placeholder="Descreva o propósito deste pipeline..."
-                />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => funnelMutation.mutate()}
+                  disabled={!newFunnelName.trim() || funnelMutation.isPending}
+                  className="bg-primary text-primary-foreground font-medium"
+                >
+                  {funnelMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Criando...
+                    </>
+                  ) : selectedTemplate ? (
+                    `Criar Funil (${selectedTemplate.stages.length} Etapas)`
+                  ) : (
+                    "Criar Funil"
+                  )}
+                </Button>
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={() => funnelMutation.mutate()} disabled={!newFunnelName.trim()}>
-                Criar Funil
-              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

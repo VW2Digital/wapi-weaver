@@ -17,11 +17,6 @@ import {
 } from "@/lib/ds-agent.functions";
 import { toast } from "sonner";
 
-// @ts-ignore
-export const Route = createFileRoute("/_app/ds-agente/")({
-  component: DsAgenteMainPage,
-});
-
 function DsAgenteMainPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -150,3 +145,8 @@ function DsAgenteMainPage() {
     </div>
   );
 }
+
+// @ts-ignore
+export const Route = createFileRoute("/_app/ds-agente/")({
+  component: DsAgenteMainPage,
+});

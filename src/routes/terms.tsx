@@ -12,26 +12,6 @@ import {
 import { Card } from "@/components/ui/card";
 import { SeoHead } from "@/components/seo";
 
-export const Route = createFileRoute("/terms")({
-  head: () => ({
-    meta: [
-      { title: "Termos de Serviço — Bliv" },
-      {
-        name: "description",
-        content:
-          "Termos de Serviço da Bliv. Leia as regras e condições de uso da nossa plataforma.",
-      },
-      { property: "og:title", content: "Termos de Serviço — Bliv" },
-      {
-        property: "og:description",
-        content: "Regras e condições de uso da plataforma Bliv.",
-      },
-      { property: "og:type", content: "website" },
-    ],
-  }),
-  component: TermsPage,
-});
-
 function TermsPage() {
   return (
     <div className="min-h-screen bg-background">
@@ -272,3 +252,23 @@ function TermsPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/terms")({
+  head: () => ({
+    meta: [
+      { title: "Termos de Serviço — Bliv" },
+      {
+        name: "description",
+        content:
+          "Termos de Serviço da Bliv. Leia as regras e condições de uso da nossa plataforma.",
+      },
+      { property: "og:title", content: "Termos de Serviço — Bliv" },
+      {
+        property: "og:description",
+        content: "Regras e condições de uso da plataforma Bliv.",
+      },
+      { property: "og:type", content: "website" },
+    ],
+  }),
+  component: TermsPage,
+});

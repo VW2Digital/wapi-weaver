@@ -27,6 +27,8 @@ function ProfilePage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
 
+  usePageHeader({ title: "Meu perfil", subtitle: "Gerencie sua foto, dados pessoais e dados da empresa." });
+
   const { data: profile, isLoading, isError } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
@@ -55,8 +57,8 @@ function ProfilePage() {
 
   async function handleUpload(file: File) {
     if (!user) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Imagem muito grande (máx 5MB)");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 20MB)");
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -179,8 +181,6 @@ function ProfilePage() {
     .join("")
     .toUpperCase();
 
-  usePageHeader({ title: "Meu perfil", subtitle: "Gerencie sua foto, dados pessoais e dados da empresa." });
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
 
@@ -189,52 +189,74 @@ function ProfilePage() {
         <Card className="p-6">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
             <div className="flex items-center gap-4">
-              <Avatar className="h-24 w-24">
-                {form.avatar_url && <AvatarImage src={form.avatar_url} alt="Avatar" />}
-                <AvatarFallback className="bg-primary/15 text-primary text-xl font-semibold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col gap-2">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleUpload(f);
-                    e.target.value = "";
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                >
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f);
+                  e.target.value = "";
+                }}
+              />
+
+              <div
+                className="relative group cursor-pointer rounded-full overflow-hidden shrink-0 border-2 border-border hover:border-primary transition-colors"
+                onClick={() => fileRef.current?.click()}
+                title="Foto do perfil"
+              >
+                <Avatar className="h-24 w-24">
+                  {form.avatar_url && <AvatarImage src={form.avatar_url} alt="Avatar" />}
+                  <AvatarFallback className="bg-primary/15 text-primary text-2xl font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+
+                {/* Hover Overlay com botões de ação centralizados e organizados */}
+                <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 text-white p-2">
                   {uploading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    <Camera className="mr-2 h-4 w-4" />
+                    <>
+                      {/* Botão Alterar Foto */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileRef.current?.click();
+                        }}
+                        className="p-2.5 rounded-full bg-white/20 hover:bg-white/35 text-white transition-all transform hover:scale-110 shadow-sm"
+                        title="Alterar foto"
+                      >
+                        <Camera className="h-4.5 w-4.5" />
+                      </button>
+
+                      {/* Botão Remover Foto */}
+                      {form.avatar_url && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeAvatar();
+                          }}
+                          className="p-2.5 rounded-full bg-red-500/40 hover:bg-red-600 text-red-200 hover:text-white transition-all transform hover:scale-110 shadow-sm"
+                          title="Remover foto"
+                        >
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </button>
+                      )}
+                    </>
                   )}
-                  {uploading ? "Enviando…" : "Trocar foto"}
-                </Button>
-                {form.avatar_url && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={removeAvatar}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Remover
-                  </Button>
-                )}
+                </div>
               </div>
             </div>
+
             <div className="flex-1 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{user?.email}</p>
-              <p className="mt-1 text-xs">PNG ou JPG até 5MB. Recomendado 256×256px.</p>
+              <p className="font-semibold text-foreground text-base">{user?.email}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Clique na imagem para enviar ou alterar sua foto de perfil (PNG ou JPG até 20MB).
+              </p>
             </div>
           </div>
         </Card>

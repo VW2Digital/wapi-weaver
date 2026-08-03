@@ -32,6 +32,7 @@ import {
   BrainCircuit,
   Zap,
   Webhook,
+  BookOpen,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -69,8 +70,6 @@ function useGravatarUrl(email: string | null | undefined) {
   }, [email]);
   return url;
 }
-
-export const Route = createFileRoute("/_app")({ component: AppLayout });
 
 type NavChildItem = {
   to: string;
@@ -113,6 +112,7 @@ const NAV: NavItem[] = [
       { to: "/users", label: "Usuários", icon: ShieldCheck },
       { to: "/audit", label: "Auditoria", icon: ScrollText },
       { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
+      { to: "/docs", label: "Documentação", icon: BookOpen },
     ],
   },
 ];
@@ -526,3 +526,5 @@ function AppLayout() {
     </>
   );
 }
+
+export const Route = createFileRoute("/_app")({ component: AppLayout });

@@ -335,7 +335,7 @@ export function CampaignWizard({
       <div className="mt-4 space-y-4">
         {step === 1 && (
           <>
-            <div>
+            <div className="space-y-2">
               <Label>Nome da campanha</Label>
               <Input
                 value={name}
@@ -343,7 +343,7 @@ export function CampaignWizard({
                 placeholder="Promo Black Friday"
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Lista de contatos</Label>
               <Select value={listId} onValueChange={setListId}>
                 <SelectTrigger>
@@ -368,7 +368,7 @@ export function CampaignWizard({
 
         {step === 2 && (
           <>
-            <div>
+            <div className="space-y-2">
               <Label>Tipo de mensagem</Label>
               <Select value={messageType} onValueChange={(v) => setMessageType(v as any)}>
                 <SelectTrigger>
@@ -386,7 +386,7 @@ export function CampaignWizard({
               <div className="grid gap-6 md:grid-cols-[1fr_320px] items-start">
                 {/* Coluna Esquerda: Configurações e Variáveis */}
                 <div className="space-y-4">
-                  <div>
+                  <div className="space-y-2">
                     <Label>Template</Label>
                     <Select value={templateId} onValueChange={setTemplateId}>
                       <SelectTrigger>
@@ -514,11 +514,11 @@ export function CampaignWizard({
                                   Clique para fazer upload
                                 </span>
                                 <span className="text-[10px] text-muted-foreground">
-                                  {headerMediaFormat === "IMAGE"
-                                    ? "Imagens até 5MB"
-                                    : headerMediaFormat === "VIDEO"
-                                      ? "Vídeos até 16MB"
-                                      : "Documentos até 100MB"}
+                                   {headerMediaFormat === "IMAGE"
+                                     ? "Imagens até 20MB"
+                                     : headerMediaFormat === "VIDEO"
+                                       ? "Vídeos até 20MB"
+                                       : "Documentos até 100MB"}
                                 </span>
                               </div>
                             )}
@@ -679,7 +679,7 @@ export function CampaignWizard({
 
             {messageType === "media" && (
               <>
-                <div>
+                <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select value={mediaType} onValueChange={(v) => setMediaType(v as any)}>
                     <SelectTrigger>
@@ -692,7 +692,7 @@ export function CampaignWizard({
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>URL da mídia (pública, HTTPS)</Label>
                   <Input
                     value={mediaUrl}

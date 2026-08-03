@@ -30,10 +30,6 @@ import {
 import { listMyWebhookEvents } from "@/lib/webhook-events.functions";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_app/webhook-events")({
-  component: WebhookEventsPage,
-});
-
 type EventRow = {
   id: string;
   source: string;
@@ -501,3 +497,7 @@ function WebhookEventsPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/webhook-events")({
+  component: WebhookEventsPage,
+});

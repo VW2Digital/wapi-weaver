@@ -1,9 +1,51 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { execSync } from "child_process";
+
+/**
+ * Plugin que substitui módulos Node.js-only por stubs vazios no bundle do
+ * browser (client-side). Isso evita que mysql2, bullmq, etc. sejam avaliados
+ * no navegador e causem "Cannot read properties of undefined (reading 'prototype')".
+ */
+function nodeStubPlugin(): Plugin {
+  const SERVER_ONLY_PACKAGES = [
+    "mysql2",
+    "mysql2/promise",
+    "bullmq",
+    "ioredis",
+    "bcryptjs",
+    "jsonwebtoken",
+    "cheerio",
+    "stripe",
+    "nodemailer",
+    "@hono/node-server",
+  ];
+
+  const STUB_ID_PREFIX = "\0node-stub:";
+
+  return {
+    name: "vite-plugin-node-stub",
+    enforce: "pre",
+    resolveId(id, _importer, options) {
+      // Apenas para o bundle do cliente (ssr === false)
+      if (options?.ssr) return null;
+      if (SERVER_ONLY_PACKAGES.some((pkg) => id === pkg || id.startsWith(pkg + "/"))) {
+        return STUB_ID_PREFIX + id;
+      }
+      return null;
+    },
+    load(id) {
+      if (id.startsWith(STUB_ID_PREFIX)) {
+        // Retorna um módulo vazio que nunca vai crashar
+        return "export default {}; export const __esModule = true;";
+      }
+      return null;
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
@@ -35,7 +77,24 @@ export default defineConfig(({ mode }) => {
         "@tanstack/query-core",
       ],
     },
+    ssr: {
+      // Esses módulos devem ser external no SSR (Node.js pode importá-los nativamente)
+      external: [
+        "mysql2",
+        "mysql2/promise",
+        "bullmq",
+        "ioredis",
+        "bcryptjs",
+        "jsonwebtoken",
+        "cheerio",
+        "hono",
+        "@hono/node-server",
+        "stripe",
+        "nodemailer",
+      ],
+    },
     plugins: [
+      nodeStubPlugin(),
       tailwindcss(),
       tsconfigPaths({ projects: ["./tsconfig.json"] }),
       tanstackStart({

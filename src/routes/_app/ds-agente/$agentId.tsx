@@ -27,11 +27,6 @@ import {
 } from "@/lib/ds-agent.functions";
 import { toast } from "sonner";
 
-// @ts-ignore
-export const Route = createFileRoute("/_app/ds-agente/$agentId")({
-  component: DsAgentEditorPage,
-});
-
 function DsAgentEditorPage() {
   const { agentId } = Route.useParams();
   const navigate = useNavigate();
@@ -291,3 +286,8 @@ function DsAgentEditorPage() {
     </div>
   );
 }
+
+// @ts-ignore
+export const Route = createFileRoute("/_app/ds-agente/$agentId")({
+  component: DsAgentEditorPage,
+});

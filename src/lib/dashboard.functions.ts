@@ -1,3 +1,4 @@
+"use server";
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { resolveEffectiveUserId } from "./chat-helpers";

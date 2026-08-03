@@ -115,8 +115,6 @@ function TabSelector({
   );
 }
 
-export const Route = createFileRoute("/_app/users")({ component: UsersPage });
-
 function UsersPage() {
   const fetchRoles = useServerFn(getCurrentUserRoles);
   const { data: roleData, isLoading: roleLoading } = useQuery({
@@ -1156,3 +1154,5 @@ function TeamMembersDialog({
     </Dialog>
   );
 }
+
+export const Route = createFileRoute("/_app/users")({ component: UsersPage });

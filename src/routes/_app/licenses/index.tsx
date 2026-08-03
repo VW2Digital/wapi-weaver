@@ -62,10 +62,6 @@ import {
 } from "@/lib/license-admin.functions";
 import { PlansManager } from "@/components/licenses/plans-manager";
 
-export const Route = createFileRoute("/_app/licenses/")({
-  component: LicensesPage,
-});
-
 function LicensesPage() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -539,3 +535,7 @@ function LicensesPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/licenses/")({
+  component: LicensesPage,
+});

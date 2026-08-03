@@ -75,6 +75,7 @@ import { db } from "@/integrations/mysql/client";
 const DEFAULT_COLUMNS = ["avatar_url", "name", "phone", "email", "company", "status", "created_at"];
 const LS_KEY_PREFIX = "crm_contacts_visible_columns_v1_";
 import Papa from "papaparse";
+import { CsvMappingModal } from "@/components/contacts/CsvMappingModal";
 import * as XLSX from "xlsx";
 import { EmptyState } from "@/components/empty-state";
 import { DataPagination } from "@/components/data-pagination";
@@ -104,8 +105,8 @@ function ContactAvatarCell({ contact: c }: { contact: any }) {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Imagem muito grande (máx 5MB)");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 20MB)");
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -332,11 +333,15 @@ function ContactsPage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["contacts"] });
 
+  const [csvFileName, setCsvFileName] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     let rows: any[] = [];
     try {
+      setCsvFileName(f.name);
       if (f.name.endsWith(".csv")) {
         const text = await f.text();
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
@@ -354,18 +359,6 @@ function ContactsPage() {
       const headers = Object.keys(rows[0]);
       setImportHeaders(headers);
       setImportRows(rows);
-
-      // Auto-detect columns
-      const phoneMatch =
-        headers.find((h) => /phone|telefone|celular|contato|numero/i.test(h)) || headers[0] || "";
-      const nameMatch = headers.find((h) => /name|nome|contato|cliente/i.test(h)) || "";
-      const emailMatch = headers.find((h) => /email|e-mail/i.test(h)) || "";
-
-      setMapping({
-        phone: phoneMatch,
-        name: nameMatch,
-        email: emailMatch,
-      });
       setIsMappingOpen(true);
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao ler o arquivo");
@@ -373,38 +366,12 @@ function ContactsPage() {
     }
   };
 
-  const confirmImport = async () => {
-    if (!mapping.phone) {
-      toast.error("A coluna de telefone é obrigatória.");
-      return;
-    }
+  const handleConfirmImport = async (mappedContacts: any[]) => {
+    setIsImporting(true);
     try {
-      const mapped = importRows
-        .map((r) => {
-          const known = [mapping.phone, mapping.name, mapping.email].filter(Boolean);
-          const custom: Record<string, any> = {};
-          for (const k of Object.keys(r)) {
-            if (!known.includes(k) && r[k] != null && r[k] !== "") {
-              custom[k] = r[k];
-            }
-          }
-          return {
-            phone: String(r[mapping.phone] ?? ""),
-            name: mapping.name ? String(r[mapping.name] ?? "") : null,
-            email: mapping.email ? String(r[mapping.email] ?? "") : null,
-            custom_fields: custom,
-          };
-        })
-        .filter((r) => r.phone);
-
-      if (mapped.length === 0) {
-        toast.error("Nenhum telefone válido encontrado nos contatos.");
-        return;
-      }
-
-      const res = await bulk({ data: { rows: mapped } });
+      const res = await bulk({ data: { rows: mappedContacts } });
       toast.success(
-        `${res.inserted} contatos importados${res.invalid ? `, ${res.invalid} inválidos` : ""}`,
+        `${res.inserted} contatos importados com sucesso${res.invalid ? `, ${res.invalid} inválidos` : ""}`,
       );
       invalidate();
       setIsMappingOpen(false);
@@ -413,6 +380,7 @@ function ContactsPage() {
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao importar");
     } finally {
+      setIsImporting(false);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
@@ -552,8 +520,8 @@ function ContactsPage() {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      if (file.size > 5 * 1024 * 1024) {
-                        toast.error("Imagem muito grande (máx 5MB)");
+                      if (file.size > 20 * 1024 * 1024) {
+                        toast.error("Imagem muito grande (máx 20MB)");
                         return;
                       }
                       if (!file.type.startsWith("image/")) {
@@ -1044,92 +1012,16 @@ function ContactsPage() {
         </Card>
       </div>
 
-      <Dialog
+      <CsvMappingModal
         open={isMappingOpen}
-        onOpenChange={(o) => {
-          if (!o) {
-            setIsMappingOpen(false);
-            if (fileRef.current) fileRef.current.value = "";
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Mapear colunas do arquivo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Detectamos <strong>{importRows.length}</strong> contatos. Mapeie abaixo quais colunas
-              contêm as informações correspondentes. Colunas não mapeadas serão adicionadas
-              automaticamente como campos personalizados.
-            </p>
-
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1">
-                <span>Coluna de Telefone</span>
-                <span className="text-destructive">*</span>
-              </Label>
-              <select
-                value={mapping.phone}
-                onChange={(e) => setMapping({ ...mapping, phone: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="">Selecione a coluna...</option>
-                {importHeaders.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Coluna de Nome</Label>
-              <select
-                value={mapping.name}
-                onChange={(e) => setMapping({ ...mapping, name: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="">(Nenhuma / Não importar)</option>
-                {importHeaders.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Coluna de E-mail</Label>
-              <select
-                value={mapping.email}
-                onChange={(e) => setMapping({ ...mapping, email: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="">(Nenhuma / Não importar)</option>
-                {importHeaders.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsMappingOpen(false);
-                  if (fileRef.current) fileRef.current.value = "";
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={confirmImport}>Confirmar e Importar</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setIsMappingOpen}
+        fileName={csvFileName || "Arquivo de Contatos"}
+        headers={importHeaders}
+        rows={importRows}
+        customFields={(customFields.data as any[] ?? [])}
+        onConfirm={handleConfirmImport}
+        isSubmitting={isImporting}
+      />
 
       <Sheet
         open={editingContact !== null}
@@ -1165,8 +1057,8 @@ function ContactsPage() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        if (file.size > 5 * 1024 * 1024) {
-                          toast.error("Imagem muito grande (máx 5MB)");
+                        if (file.size > 20 * 1024 * 1024) {
+                          toast.error("Imagem muito grande (máx 20MB)");
                           return;
                         }
                         if (!file.type.startsWith("image/")) {

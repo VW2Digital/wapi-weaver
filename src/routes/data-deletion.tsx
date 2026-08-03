@@ -15,25 +15,6 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { SeoHead } from "@/components/seo";
 
-export const Route = createFileRoute("/data-deletion")({
-  head: () => ({
-    meta: [
-      { title: "Exclusão de Dados do Usuário — Bliv" },
-      {
-        name: "description",
-        content: "Solicite a exclusão completa da sua conta e dados pessoais da plataforma Bliv.",
-      },
-      { property: "og:title", content: "Exclusão de Dados do Usuário — Bliv" },
-      {
-        property: "og:description",
-        content: "Solicite a exclusão da sua conta e dados pessoais da Bliv.",
-      },
-      { property: "og:type", content: "website" },
-    ],
-  }),
-  component: DataDeletionPage,
-});
-
 function DataDeletionPage() {
   const [requested, setRequested] = useState(false);
 
@@ -264,3 +245,22 @@ function DataDeletionPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/data-deletion")({
+  head: () => ({
+    meta: [
+      { title: "Exclusão de Dados do Usuário — Bliv" },
+      {
+        name: "description",
+        content: "Solicite a exclusão completa da sua conta e dados pessoais da plataforma Bliv.",
+      },
+      { property: "og:title", content: "Exclusão de Dados do Usuário — Bliv" },
+      {
+        property: "og:description",
+        content: "Solicite a exclusão da sua conta e dados pessoais da Bliv.",
+      },
+      { property: "og:type", content: "website" },
+    ],
+  }),
+  component: DataDeletionPage,
+});

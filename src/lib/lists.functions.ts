@@ -292,6 +292,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
             name: z.string().trim().max(120).nullable().optional(),
             phone: z.string().trim().min(1).max(32),
             email: z.string().trim().max(180).nullable().optional(),
+            custom_fields: z.record(z.any()).nullable().optional(),
           }),
         ),
       })
@@ -330,6 +331,10 @@ export const importCsvToList = createServerFn({ method: "POST" })
       const phoneE164 = normalizeToE164(c.phone);
       if (!phoneE164) continue;
 
+      const customFieldsJson = c.custom_fields && Object.keys(c.custom_fields).length > 0
+        ? (typeof c.custom_fields === "string" ? c.custom_fields : JSON.stringify(c.custom_fields))
+        : null;
+
       let contactId = phoneToIdMap.get(phoneE164);
       if (!contactId) {
         contactId = crypto.randomUUID();
@@ -340,7 +345,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
           c.name || null,
           phoneE164,
           c.email || null,
-          null, // custom_fields
+          customFieldsJson,
           "csv_import", // source
           0, // opted_out
         ]);
@@ -355,7 +360,10 @@ export const importCsvToList = createServerFn({ method: "POST" })
       const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
       await db.query(
         `INSERT INTO contacts (id, user_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}
-         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)`,
+         ON DUPLICATE KEY UPDATE 
+           name = COALESCE(VALUES(name), name), 
+           email = COALESCE(VALUES(email), email),
+           custom_fields = COALESCE(VALUES(custom_fields), custom_fields)`,
         chunk.flat(),
       );
     }

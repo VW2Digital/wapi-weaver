@@ -1,12 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { getCampaign, exportCampaignReport } from "@/lib/campaigns.functions";
 import { toFriendlyError } from "@/lib/meta-errors";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DataPagination } from "@/components/data-pagination";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -19,6 +28,7 @@ import {
   Users,
   AlertTriangle,
   Pencil,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppPreview } from "@/components/whatsapp-preview";
@@ -74,6 +84,10 @@ function CampaignDetailPage() {
   const fetchOne = useServerFn(getCampaign);
   const exportFn = useServerFn(exportCampaignReport);
   const [openEdit, setOpenEdit] = useState(false);
+  const [recipientPage, setRecipientPage] = useState(1);
+  const [recipientPageSize, setRecipientPageSize] = useState(10);
+  const [recipientSearch, setRecipientSearch] = useState("");
+
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["campaign", id],
     queryFn: () => fetchOne({ data: { id } }),
@@ -162,6 +176,24 @@ function CampaignDetailPage() {
   const total = t.total;
   const pct = total > 0 ? Math.round((t.sent / total) * 100) : 0;
   const s = STATUS_LABEL[c.status] ?? STATUS_LABEL.draft;
+
+  const filteredMessages = useMemo(() => {
+    const raw = data?.messages ?? [];
+    if (!recipientSearch.trim()) return raw;
+    const term = recipientSearch.toLowerCase().trim();
+    return raw.filter(
+      (m: any) =>
+        (m.contact_name && m.contact_name.toLowerCase().includes(term)) ||
+        (m.to_phone && m.to_phone.toLowerCase().includes(term)) ||
+        (m.status && m.status.toLowerCase().includes(term)) ||
+        (m.error && m.error.toLowerCase().includes(term)),
+    );
+  }, [data?.messages, recipientSearch]);
+
+  const paginatedMessages = useMemo(() => {
+    const start = (recipientPage - 1) * recipientPageSize;
+    return filteredMessages.slice(start, start + recipientPageSize);
+  }, [filteredMessages, recipientPage, recipientPageSize]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -271,13 +303,54 @@ function CampaignDetailPage() {
           </Card>
 
           <Card className="overflow-hidden">
-            <div className="border-b p-4">
-              <h3 className="font-display text-base font-semibold">
-                Destinatários ({data.messages.length})
-              </h3>
-              <p className="text-xs text-muted-foreground">Últimas 500 mensagens da campanha.</p>
+            <div className="border-b p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display text-base font-semibold">
+                  Destinatários ({filteredMessages.length}
+                  {filteredMessages.length !== (data.messages?.length ?? 0)
+                    ? ` de ${data.messages?.length}`
+                    : ""})
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Mensagens processadas para os destinatários desta campanha.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar destinatário..."
+                    value={recipientSearch}
+                    onChange={(e) => {
+                      setRecipientSearch(e.target.value);
+                      setRecipientPage(1);
+                    }}
+                    className="h-8 w-44 pl-8 text-xs"
+                  />
+                </div>
+
+                <Select
+                  value={String(recipientPageSize)}
+                  onValueChange={(v) => {
+                    setRecipientPageSize(Number(v));
+                    setRecipientPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs w-[115px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 por pág.</SelectItem>
+                    <SelectItem value="25">25 por pág.</SelectItem>
+                    <SelectItem value="50">50 por pág.</SelectItem>
+                    <SelectItem value="100">100 por pág.</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="max-h-[600px] overflow-auto">
+
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted text-xs uppercase text-muted-foreground">
                   <tr>
@@ -291,7 +364,7 @@ function CampaignDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.messages.map((m: any) => (
+                  {paginatedMessages.map((m: any) => (
                     <tr key={m.id} className="border-t hover:bg-muted/30">
                       <td className="p-3 text-xs">
                         {m.contact_name || <span className="text-muted-foreground">—</span>}
@@ -312,16 +385,27 @@ function CampaignDetailPage() {
                       </td>
                     </tr>
                   ))}
-                  {data.messages.length === 0 && (
+                  {filteredMessages.length === 0 && (
                     <tr>
                       <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                        Sem mensagens ainda.
+                        {recipientSearch
+                          ? "Nenhum destinatário encontrado para essa busca."
+                          : "Sem mensagens ainda."}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+
+            {filteredMessages.length > 0 && (
+              <DataPagination
+                page={recipientPage}
+                pageSize={recipientPageSize}
+                total={filteredMessages.length}
+                onPageChange={setRecipientPage}
+              />
+            )}
           </Card>
         </div>
       </div>

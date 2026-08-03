@@ -16,6 +16,7 @@ import {
   importCsvToList,
 } from "@/lib/lists.functions";
 import { listContacts } from "@/lib/contacts.functions";
+import { listCustomFields } from "@/lib/custom-fields.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ import { Plus, Trash2, X, ListChecks, Tags, Pencil, MoreHorizontal } from "lucid
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
+import Papa from "papaparse";
+import { CsvMappingModal } from "@/components/contacts/CsvMappingModal";
 import { useConfirm } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_app/lists")({ component: ListsPage });
@@ -59,10 +62,14 @@ function ListsPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
 
+  const fetchCustomFields = useServerFn(listCustomFields);
+  const customFieldsQuery = useQuery({ queryKey: ["custom-fields"], queryFn: () => fetchCustomFields() });
+
   const lists = useQuery({ queryKey: ["lists"], queryFn: () => fetchLists() });
   const tags = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags() });
   const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => fetchContacts() });
 
+  const [newListOpen, setNewListOpen] = useState(false);
   const [listForm, setListForm] = useState({ name: "", description: "" });
   const [tagForm, setTagForm] = useState({ name: "", color: "#25D366" });
   const [selectedList, setSelectedList] = useState<any>(null);
@@ -70,6 +77,13 @@ function ListsPage() {
   const [editingTag, setEditingTag] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  // CSV Modal state
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<Record<string, any>[]>([]);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
 
   const members = useQuery({
     queryKey: ["list-members", selectedList?.id],
@@ -103,83 +117,49 @@ function ListsPage() {
     const file = e.target.files?.[0];
     if (!file || !selectedList) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const text = evt.target?.result as string;
-      if (!text) return;
+    setCsvFileName(file.name);
 
-      const lines = text.split(/\r?\n/);
-      const parsedContacts: any[] = [];
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const sep = line.includes(";") ? ";" : ",";
-        const cols = line.split(sep).map((c) => c.trim().replace(/^["']|["']$/g, ""));
-
-        if (
-          i === 0 &&
-          (line.toLowerCase().includes("phone") ||
-            line.toLowerCase().includes("telefone") ||
-            line.toLowerCase().includes("name") ||
-            line.toLowerCase().includes("nome") ||
-            line.toLowerCase().includes("email") ||
-            line.toLowerCase().includes("e-mail"))
-        ) {
-          continue;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (!results.data || results.data.length === 0) {
+          toast.error("Nenhum dado encontrado no arquivo CSV.");
+          return;
         }
 
-        let phone = "";
-        let name = "";
-        let email = "";
+        const headers = results.meta.fields || Object.keys(results.data[0] as object);
+        setCsvHeaders(headers);
+        setCsvRows(results.data as Record<string, any>[]);
+        setCsvModalOpen(true);
+      },
+      error: (err) => {
+        toast.error("Erro ao ler CSV: " + err.message);
+      },
+    });
 
-        if (cols.length >= 1) {
-          const col0Clean = cols[0].replace(/\D+/g, "");
-          const col1Clean = cols.length > 1 ? cols[1].replace(/\D+/g, "") : "";
-
-          if (col0Clean.length >= 8 && (!col1Clean || col0Clean.length > col1Clean.length)) {
-            phone = cols[0];
-            name = cols.length > 1 ? cols[1] : "";
-            email = cols.length > 2 ? cols[2] : "";
-          } else if (cols.length > 1 && col1Clean.length >= 8) {
-            name = cols[0];
-            phone = cols[1];
-            email = cols.length > 2 ? cols[2] : "";
-          } else {
-            phone = cols[0];
-            if (cols.length > 1) name = cols[1];
-            if (cols.length > 2) email = cols[2];
-          }
-        }
-
-        if (phone.replace(/\D+/g, "").length >= 8) {
-          parsedContacts.push({ phone, name: name || null, email: email || null });
-        }
-      }
-
-      if (parsedContacts.length === 0) {
-        toast.error("Nenhum contato válido encontrado no arquivo CSV.");
-        return;
-      }
-
-      try {
-        const res = await importCsv({
-          data: { list_id: selectedList.id, contacts: parsedContacts },
-        });
-        toast.success(
-          `${res.importedCount} contatos processados (${res.newContactsCount} novos adicionados)`,
-        );
-        qc.invalidateQueries({ queryKey: ["lists"] });
-        qc.invalidateQueries({ queryKey: ["contacts"] });
-        qc.invalidateQueries({ queryKey: ["list-members", selectedList.id] });
-      } catch (error: any) {
-        toast.error("Erro ao importar CSV: " + error.message);
-      }
-    };
-
-    reader.readAsText(file);
     e.target.value = "";
+  };
+
+  const handleConfirmCsvImport = async (mappedContacts: any[]) => {
+    if (!selectedList) return;
+    setIsImportingCsv(true);
+    try {
+      const res = await importCsv({
+        data: { list_id: selectedList.id, contacts: mappedContacts },
+      });
+      toast.success(
+        `${res.importedCount} contatos processados (${res.newContactsCount} novos adicionados na lista "${selectedList.name}")`,
+      );
+      setCsvModalOpen(false);
+      qc.invalidateQueries({ queryKey: ["lists"] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      qc.invalidateQueries({ queryKey: ["list-members", selectedList.id] });
+    } catch (error: any) {
+      toast.error("Erro ao importar CSV: " + error.message);
+    } finally {
+      setIsImportingCsv(false);
+    }
   };
 
   usePageHeader({ title: "Listas & Tags", subtitle: "Organize seus contatos para segmentar campanhas." });
@@ -192,7 +172,7 @@ function ListsPage() {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold">Listas</h2>
-              <Dialog>
+              <Dialog open={newListOpen} onOpenChange={setNewListOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">
                     <Plus className="mr-1 h-4 w-4" /> Nova lista
@@ -202,19 +182,21 @@ function ListsPage() {
                   <DialogHeader>
                     <DialogTitle>Nova lista</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-3">
-                    <div>
+                  <div className="space-y-4 pt-1">
+                    <div className="space-y-2">
                       <Label>Nome</Label>
                       <Input
                         value={listForm.name}
                         onChange={(e) => setListForm({ ...listForm, name: e.target.value })}
+                        placeholder="Nome da lista..."
                       />
                     </div>
-                    <div>
+                    <div className="space-y-2">
                       <Label>Descrição</Label>
                       <Input
                         value={listForm.description}
                         onChange={(e) => setListForm({ ...listForm, description: e.target.value })}
+                        placeholder="Descrição da lista..."
                       />
                     </div>
                     <Button
@@ -224,6 +206,7 @@ function ListsPage() {
                           await newList({ data: listForm });
                           toast.success("Lista criada");
                           setListForm({ name: "", description: "" });
+                          setNewListOpen(false);
                           qc.invalidateQueries({ queryKey: ["lists"] });
                         } catch (e: any) {
                           toast.error(e.message);
@@ -326,15 +309,15 @@ function ListsPage() {
               <DialogHeader>
                 <DialogTitle>Editar lista</DialogTitle>
               </DialogHeader>
-              <div className="space-y-3">
-                <div>
+              <div className="space-y-4 pt-1">
+                <div className="space-y-2">
                   <Label>Nome</Label>
                   <Input
                     value={editingList?.name ?? ""}
                     onChange={(e) => setEditingList((p: any) => ({ ...p, name: e.target.value }))}
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>Descrição</Label>
                   <Input
                     value={editingList?.description ?? ""}
@@ -620,6 +603,17 @@ function ListsPage() {
           </div>
         </Card>
       </div>
+
+      <CsvMappingModal
+        open={csvModalOpen}
+        onOpenChange={setCsvModalOpen}
+        fileName={csvFileName}
+        headers={csvHeaders}
+        rows={csvRows}
+        customFields={customFieldsQuery.data ?? []}
+        onConfirm={handleConfirmCsvImport}
+        isSubmitting={isImportingCsv}
+      />
     </div>
   );
 }

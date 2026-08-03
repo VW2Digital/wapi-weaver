@@ -1,3 +1,4 @@
+"use server";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
@@ -95,7 +96,28 @@ export const listIncomingWebhooks = createServerFn({ method: "GET" })
       "SELECT * FROM incoming_webhooks WHERE tenant_id = ? ORDER BY created_at DESC",
       [effectiveUserId],
     )) as any[];
-    return rows ?? [];
+
+    if (!rows || rows.length === 0) return [];
+
+    // Carrega os mapeamentos de campos para cada webhook
+    const webhookIds = rows.map((r: any) => r.id);
+    const placeholders = webhookIds.map(() => "?").join(", ");
+    const mappings = (await db.query(
+      `SELECT * FROM webhook_field_mappings WHERE webhook_id IN (${placeholders}) AND user_id = ? ORDER BY created_at ASC`,
+      [...webhookIds, effectiveUserId],
+    ).catch(() => [])) as any[];
+
+    // Agrupa mapeamentos por webhook_id
+    const mappingsByWebhook: Record<string, any[]> = {};
+    for (const m of mappings) {
+      if (!mappingsByWebhook[m.webhook_id]) mappingsByWebhook[m.webhook_id] = [];
+      mappingsByWebhook[m.webhook_id].push(m);
+    }
+
+    return rows.map((r: any) => ({
+      ...r,
+      webhook_field_mappings: mappingsByWebhook[r.id] ?? [],
+    }));
   });
 
 export const createIncomingWebhook = createServerFn({ method: "POST" })
@@ -367,5 +389,122 @@ export const listIncomingWebhookEvents = createServerFn({ method: "GET" })
     return {
       events: parsedEvents,
       discovered_fields: Array.from(fieldKeysSet),
+    };
+  });
+
+export const listWebhookLeads = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z.object({
+      webhook_id: z.string().uuid(),
+      page: z.number().int().min(1).optional().default(1),
+      limit: z.number().int().min(1).max(100).optional().default(50),
+      status: z.enum(["all", "success", "error"]).optional().default("all"),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const [webhook] = (await db.query(
+      "SELECT id, name, leads_count, events_count FROM incoming_webhooks WHERE id = ? AND tenant_id = ? LIMIT 1",
+      [data.webhook_id, effectiveUserId],
+    )) as any[];
+    if (!webhook) throw new Error("Webhook não encontrado");
+
+    const offset = ((data.page || 1) - 1) * (data.limit || 50);
+    const statusFilter = data.status === "all" ? "" : " AND e.status = ?";
+    const statusArgs = data.status === "all" ? [] : [data.status];
+
+    const events = (await db.query(
+      `SELECT
+         e.id,
+         e.status,
+         e.error_message,
+         e.raw_payload,
+         e.mapped_standard_fields,
+         e.mapped_custom_fields,
+         e.unmapped_fields,
+         e.ip_address,
+         e.user_agent,
+         e.processing_duration_ms,
+         e.created_at,
+         c.id AS contact_id,
+         c.name AS contact_name,
+         c.phone_e164 AS contact_phone,
+         c.email AS contact_email
+       FROM incoming_webhook_events e
+       LEFT JOIN contacts c ON c.id = (
+         SELECT id FROM contacts
+         WHERE user_id = ? AND JSON_UNQUOTE(JSON_EXTRACT(e.raw_payload, '$.phone')) IS NOT NULL
+           AND phone_e164 LIKE CONCAT('%', JSON_UNQUOTE(JSON_EXTRACT(e.raw_payload, '$.telefone')), '%')
+         LIMIT 1
+       )
+       WHERE e.incoming_webhook_id = ?${statusFilter}
+       ORDER BY e.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [effectiveUserId, data.webhook_id, ...statusArgs, data.limit || 50, offset],
+    ).catch(async () => {
+      // Fallback sem JOIN complexo caso a coluna não exista ainda
+      return db.query(
+        `SELECT e.id, e.status, e.error_message, e.raw_payload, e.mapped_standard_fields,
+                e.mapped_custom_fields, e.unmapped_fields, e.ip_address, e.user_agent,
+                e.processing_duration_ms, e.created_at
+         FROM incoming_webhook_events e
+         WHERE e.incoming_webhook_id = ?${statusFilter}
+         ORDER BY e.created_at DESC LIMIT ? OFFSET ?`,
+        [data.webhook_id, ...statusArgs, data.limit || 50, offset],
+      );
+    })) as any[];
+
+    const [[{ total }]] = (await db.query(
+      `SELECT COUNT(*) as total FROM incoming_webhook_events WHERE incoming_webhook_id = ?${statusFilter}`,
+      [data.webhook_id, ...statusArgs],
+    ).catch(() => [[{ total: 0 }]])) as any[][];
+
+    const parsed = (events || []).map((e: any) => {
+      let payload: Record<string, any> = {};
+      let mappedStd: Record<string, any> = {};
+      let mappedCustom: Record<string, any> = {};
+      let unmapped: Record<string, any> = {};
+
+      try { payload = typeof e.raw_payload === "string" ? JSON.parse(e.raw_payload) : (e.raw_payload ?? {}); } catch {}
+      try { mappedStd = typeof e.mapped_standard_fields === "string" ? JSON.parse(e.mapped_standard_fields) : (e.mapped_standard_fields ?? {}); } catch {}
+      try { mappedCustom = typeof e.mapped_custom_fields === "string" ? JSON.parse(e.mapped_custom_fields) : (e.mapped_custom_fields ?? {}); } catch {}
+      try { unmapped = typeof e.unmapped_fields === "string" ? JSON.parse(e.unmapped_fields) : (e.unmapped_fields ?? {}); } catch {}
+
+      // Extrai nome/telefone/email do payload para exibição
+      const displayName = mappedStd?.name ?? payload?.nome ?? payload?.name ?? payload?.full_name ?? "—";
+      const displayPhone = mappedStd?.phone ?? payload?.telefone ?? payload?.phone ?? payload?.whatsapp ?? "—";
+      const displayEmail = mappedStd?.email ?? payload?.email ?? "—";
+
+      return {
+        id: e.id,
+        status: e.status ?? "success",
+        error_message: e.error_message ?? null,
+        ip_address: e.ip_address ?? null,
+        user_agent: e.user_agent ?? null,
+        processing_ms: e.processing_duration_ms ?? null,
+        created_at: e.created_at,
+        contact_id: e.contact_id ?? null,
+        contact_name: e.contact_name ?? null,
+        contact_phone: e.contact_phone ?? null,
+        contact_email: e.contact_email ?? null,
+        display_name: displayName,
+        display_phone: displayPhone,
+        display_email: displayEmail,
+        payload,
+        mapped_standard: mappedStd,
+        mapped_custom: mappedCustom,
+        unmapped,
+      };
+    });
+
+    return {
+      webhook,
+      events: parsed,
+      total: Number(total ?? 0),
+      page: data.page || 1,
+      limit: data.limit || 50,
     };
   });

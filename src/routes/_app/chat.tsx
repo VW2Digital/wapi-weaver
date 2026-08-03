@@ -33,7 +33,7 @@ import {
   quickSaveContact,
   toggleBotActive,
 } from "@/lib/chat-actions.functions";
-import { createOpportunity, createActivity, bulkAssignToKanban } from "@/lib/crm.functions";
+import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -134,10 +134,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { db } from "@/integrations/mysql/client";
 import { useConfirm } from "@/components/confirm-dialog";
-
-export const Route = createFileRoute("/_app/chat")({
-  component: ChatPage,
-});
 
 interface ContactCustomFields {
   avatar_url?: string;
@@ -1020,26 +1016,30 @@ function ChatPage() {
     }
   }, [assigningContactData]);
 
+  const fetchFunnels = useServerFn(listFunnels);
+  const fetchAllUserStages = useServerFn(listAllUserStages);
+
   // Queries para Funis e Etapas do Kanban
   const salesFunnelsQuery = useQuery({
     queryKey: ["sales-funnels"],
-    queryFn: async () => {
-      const { data, error } = await db.from("sales_funnels").select("*").order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchFunnels(),
   });
 
   const salesStagesQuery = useQuery({
     queryKey: ["sales-stages"],
-    queryFn: async () => {
-      const { data, error } = await db.from("sales_stages").select("*").order("sort_order");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchAllUserStages(),
   });
 
-  const salesFunnels = (salesFunnelsQuery.data ?? []) as SalesFunnelOption[];
+  const rawFunnels = (salesFunnelsQuery.data ?? []) as SalesFunnelOption[];
+  const salesFunnels = useMemo(() => {
+    const seen = new Set<string>();
+    return rawFunnels.filter((f) => {
+      if (!f || !f.id || seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
+  }, [rawFunnels]);
+
   const salesStages = (salesStagesQuery.data ?? []) as SalesStageOption[];
 
   // Pre-fill Opportunity Form when opened
@@ -2908,8 +2908,8 @@ function ChatPage() {
       toast.error("Selecione um contato válido.");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Imagem muito grande (máx 5MB).");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx 20MB).");
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -3777,7 +3777,7 @@ function ChatPage() {
                             </DropdownMenuItem>
 
                             {/* Kanban Submenu */}
-                            {salesStagesQuery.data && salesStagesQuery.data.length > 0 && (
+                            {salesStages.length > 0 && salesFunnels.length > 0 && (
                               <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>
                                   <SlidersHorizontal className="mr-2 h-4 w-4" />
@@ -6517,3 +6517,7 @@ function ChatPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/chat")({
+  component: ChatPage,
+});

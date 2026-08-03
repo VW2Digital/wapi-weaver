@@ -13,26 +13,6 @@ import {
 import { Card } from "@/components/ui/card";
 import { SeoHead } from "@/components/seo";
 
-export const Route = createFileRoute("/privacy")({
-  head: () => ({
-    meta: [
-      { title: "Política de Privacidade — Bliv" },
-      {
-        name: "description",
-        content:
-          "Política de Privacidade da Bliv. Saiba como coletamos, usamos e protegemos seus dados.",
-      },
-      { property: "og:title", content: "Política de Privacidade — Bliv" },
-      {
-        property: "og:description",
-        content: "Saiba como a Bliv coleta, usa e protege seus dados pessoais.",
-      },
-      { property: "og:type", content: "website" },
-    ],
-  }),
-  component: PrivacyPage,
-});
-
 function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
@@ -273,3 +253,23 @@ function PrivacyPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/privacy")({
+  head: () => ({
+    meta: [
+      { title: "Política de Privacidade — Bliv" },
+      {
+        name: "description",
+        content:
+          "Política de Privacidade da Bliv. Saiba como coletamos, usamos e protegemos seus dados.",
+      },
+      { property: "og:title", content: "Política de Privacidade — Bliv" },
+      {
+        property: "og:description",
+        content: "Saiba como a Bliv coleta, usa e protege seus dados pessoais.",
+      },
+      { property: "og:type", content: "website" },
+    ],
+  }),
+  component: PrivacyPage,
+});

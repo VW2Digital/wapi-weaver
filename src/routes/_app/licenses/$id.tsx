@@ -33,10 +33,6 @@ import {
   getLicenseRole,
 } from "@/lib/license-admin.functions";
 
-export const Route = createFileRoute("/_app/licenses/$id")({
-  component: LicenseDetailPage,
-});
-
 function LicenseDetailPage() {
   const { id } = Route.useParams();
   const numericId = Number(id);
@@ -407,3 +403,7 @@ function LicenseDetailPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/licenses/$id")({
+  component: LicenseDetailPage,
+});

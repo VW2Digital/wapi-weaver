@@ -1,3 +1,4 @@
+"use server";
 import db from "./db";
 
 export async function resolveEffectiveUserId(currentUserId: string): Promise<string> {

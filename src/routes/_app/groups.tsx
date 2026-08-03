@@ -37,10 +37,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_app/groups")({
-  component: GroupsPage,
-});
-
 interface WhatsAppGroupRecord {
   id: string;
   group_id: string;
@@ -359,3 +355,7 @@ function GroupsPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute("/_app/groups")({
+  component: GroupsPage,
+});

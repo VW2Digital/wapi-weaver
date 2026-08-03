@@ -26,6 +26,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
 import { Route as AppGroupsRouteImport } from './routes/_app/groups'
+import { Route as AppDocsRouteImport } from './routes/_app/docs'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCrmRouteImport } from './routes/_app/crm'
 import { Route as AppChatRouteImport } from './routes/_app/chat'
@@ -165,6 +166,11 @@ const AppListsRoute = AppListsRouteImport.update({
 const AppGroupsRoute = AppGroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDocsRoute = AppDocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -469,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof AppChatRoute
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
+  '/docs': typeof AppDocsRoute
   '/groups': typeof AppGroupsRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
@@ -542,6 +549,7 @@ export interface FileRoutesByTo {
   '/chat': typeof AppChatRoute
   '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
+  '/docs': typeof AppDocsRoute
   '/groups': typeof AppGroupsRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
@@ -617,6 +625,7 @@ export interface FileRoutesById {
   '/_app/chat': typeof AppChatRoute
   '/_app/crm': typeof AppCrmRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/docs': typeof AppDocsRoute
   '/_app/groups': typeof AppGroupsRoute
   '/_app/lists': typeof AppListsRoute
   '/_app/profile': typeof AppProfileRoute
@@ -692,6 +701,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/crm'
     | '/dashboard'
+    | '/docs'
     | '/groups'
     | '/lists'
     | '/profile'
@@ -765,6 +775,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/crm'
     | '/dashboard'
+    | '/docs'
     | '/groups'
     | '/lists'
     | '/profile'
@@ -839,6 +850,7 @@ export interface FileRouteTypes {
     | '/_app/chat'
     | '/_app/crm'
     | '/_app/dashboard'
+    | '/_app/docs'
     | '/_app/groups'
     | '/_app/lists'
     | '/_app/profile'
@@ -1062,6 +1074,13 @@ declare module '@tanstack/react-router' {
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof AppGroupsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/docs': {
+      id: '/_app/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof AppDocsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -1472,6 +1491,7 @@ interface AppRouteChildren {
   AppChatRoute: typeof AppChatRoute
   AppCrmRoute: typeof AppCrmRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppDocsRoute: typeof AppDocsRoute
   AppGroupsRoute: typeof AppGroupsRoute
   AppListsRoute: typeof AppListsRoute
   AppProfileRoute: typeof AppProfileRoute
@@ -1499,6 +1519,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppChatRoute: AppChatRoute,
   AppCrmRoute: AppCrmRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppDocsRoute: AppDocsRoute,
   AppGroupsRoute: AppGroupsRoute,
   AppListsRoute: AppListsRoute,
   AppProfileRoute: AppProfileRoute,

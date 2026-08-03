@@ -147,13 +147,22 @@ interface ContactNameRow {
   phone_e164: string | null;
 }
 
-// Schemas
+const templateStageSchema = z.object({
+  name: z.string().trim().min(1).max(150),
+  color: z.string().trim().max(30).nullable().optional(),
+  probability_percent: z.number().min(0).max(100),
+  is_won_stage: z.boolean().optional(),
+  is_lost_stage: z.boolean().optional(),
+  description: z.string().trim().max(500).nullable().optional(),
+});
+
 const funnelSchema = z.object({
   name: z.string().trim().min(1).max(150),
   description: z.string().trim().max(500).nullable().optional(),
   is_default: z.boolean().optional(),
   is_active: z.boolean().optional(),
   sort_order: z.number().int().optional(),
+  stages: z.array(templateStageSchema).optional(),
 });
 
 const stageSchema = z.object({
@@ -361,7 +370,7 @@ export const listFunnels = createServerFn({ method: "GET" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const data = await db.query(
-      "SELECT * FROM sales_funnels WHERE user_id = ? ORDER BY sort_order ASC",
+      "SELECT * FROM sales_funnels WHERE user_id = ? AND (deleted_at IS NULL) ORDER BY sort_order ASC, name ASC",
       [effectiveUserId],
     );
     return data;
@@ -402,6 +411,36 @@ export const createFunnel = createServerFn({ method: "POST" })
           context.userId,
         ],
       );
+
+      if (data.stages && data.stages.length > 0) {
+        for (let idx = 0; idx < data.stages.length; idx++) {
+          const s = data.stages[idx];
+          const stageId = crypto.randomUUID();
+          const stageSlug = s.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+
+          await conn.execute(
+            `INSERT INTO sales_stages (id, user_id, funnel_id, name, slug, description, color, probability_percent, sort_order, is_won_stage, is_lost_stage, is_active, created_by_user_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+            [
+              stageId,
+              effectiveUserId,
+              funnelId,
+              s.name,
+              stageSlug,
+              s.description ?? null,
+              s.color || "#3b82f6",
+              s.probability_percent ?? 50,
+              idx + 1,
+              s.is_won_stage ? 1 : 0,
+              s.is_lost_stage ? 1 : 0,
+              context.userId,
+            ],
+          );
+        }
+      }
     });
 
     return { id: funnelId, slug };
@@ -498,6 +537,18 @@ export const listStages = createServerFn({ method: "GET" })
     const stages = await db.query(
       "SELECT * FROM sales_stages WHERE funnel_id = ? AND user_id = ? AND deleted_at IS NULL AND is_active = TRUE ORDER BY sort_order ASC",
       [data.funnel_id, effectiveUserId],
+    );
+    return stages;
+  });
+
+export const listAllUserStages = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const stages = await db.query(
+      "SELECT * FROM sales_stages WHERE user_id = ? AND deleted_at IS NULL AND is_active = TRUE ORDER BY sort_order ASC",
+      [effectiveUserId],
     );
     return stages;
   });

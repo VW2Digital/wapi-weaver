@@ -1,3 +1,4 @@
+"use server";
 import { executeQuery } from "./query-compiler";
 import db from "./db";
 import bcrypt from "bcryptjs";
