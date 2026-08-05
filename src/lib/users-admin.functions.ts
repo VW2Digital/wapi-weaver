@@ -129,7 +129,11 @@ export const setUserRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const deleteSchema = z.object({ user_id: z.string().uuid() });
+// Alguns usuários legados podem ter sido criados antes da padronização dos IDs em UUID.
+// A exclusão continua protegida por assertAdmin e usa query parametrizada no banco.
+const deleteSchema = z.object({
+  user_id: z.string().trim().min(1, "Identificador do usuário é obrigatório.").max(64),
+});
 
 export const deleteUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])

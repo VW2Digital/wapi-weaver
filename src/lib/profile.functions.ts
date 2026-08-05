@@ -81,12 +81,29 @@ export const getProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.db
       .from("profiles")
-      .select("*")
+      .select(
+        `id, email, full_name, avatar_url, display_name, phone,
+         company_name, company_document, company_address, company_website,
+         rate_limit_per_second, whatsapp_verify_token, whatsapp_phone_number_id,
+         whatsapp_waba_id, whatsapp_business_id, whatsapp_business_phone,
+         whatsapp_app_id, meta_graph_version, salvy_api_key, api_key,
+         created_at, updated_at,
+         CASE WHEN whatsapp_access_token IS NOT NULL AND whatsapp_access_token <> ''
+           THEN 1 ELSE 0 END AS hasAccessToken,
+         CASE WHEN whatsapp_app_secret IS NOT NULL AND whatsapp_app_secret <> ''
+           THEN 1 ELSE 0 END AS hasAppSecret`,
+      )
       .eq("id", context.userId)
       .maybeSingle();
     if (error) throw error;
     // Garante que sempre retorne ao menos o id, mesmo sem profile row
-    return data ?? { id: context.userId };
+    return data
+      ? {
+          ...data,
+          hasAccessToken: Boolean(data.hasAccessToken),
+          hasAppSecret: Boolean(data.hasAppSecret),
+        }
+      : { id: context.userId, hasAccessToken: false, hasAppSecret: false };
   });
 
 export const updateProfile = createServerFn({ method: "POST" })
@@ -843,13 +860,24 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
 
 export const debugAccessToken = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ token: z.string().trim().min(10) }).parse(d))
+  .validator((d) => z.object({ token: z.string().trim().min(10).optional() }).parse(d))
   .handler(async ({ data, context }) => {
+    let token = data.token;
+    if (!token) {
+      const { data: profile } = await context.db
+        .from("profiles")
+        .select("whatsapp_access_token")
+        .eq("id", context.userId)
+        .maybeSingle();
+      token = profile?.whatsapp_access_token ?? undefined;
+    }
+    if (!token) return { ok: false, error: "Access Token não configurado." };
+
     const apiVersion = "v20.0";
     const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/debug_token?input_token=${encodeURIComponent(data.token)}`,
+      `https://graph.facebook.com/${apiVersion}/debug_token?input_token=${encodeURIComponent(token)}`,
       {
-        headers: { Authorization: `Bearer ${data.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       },
     );
 

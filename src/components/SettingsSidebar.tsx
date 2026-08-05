@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { MetaIcon, WhatsAppIcon } from "@/components/brand-icons";
 
 export function SettingsSidebar({
   activeSection,
@@ -39,8 +40,8 @@ export function SettingsSidebar({
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <KeyRound className="h-5 w-5" />
+              <div className="h-10 w-10 bg-[#0064E0]/10 text-[#0064E0] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                <MetaIcon className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -49,12 +50,12 @@ export function SettingsSidebar({
                     variant="secondary"
                     className={cn(
                       "text-[10px] border-none font-semibold",
-                      form.whatsapp_access_token
+                      form.hasAccessToken
                         ? "bg-success/15 text-success hover:bg-success/20"
                         : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {form.whatsapp_access_token ? "Configurado" : "Pendente"}
+                    {form.hasAccessToken ? "Configurado" : "Pendente"}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -71,8 +72,8 @@ export function SettingsSidebar({
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
           >
             <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <Phone className="h-5 w-5" />
+              <div className="h-10 w-10 bg-[#25D366]/10 text-[#25D366] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                <WhatsAppIcon className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
