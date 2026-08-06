@@ -97,10 +97,10 @@ export const createCustomField = createServerFn({ method: "POST" })
     const id = crypto.randomUUID();
     const key = await uniqueKey(effectiveUserId, data.label, db);
     await db.query(
-      `INSERT INTO contact_custom_fields (id, user_id, label, \`key\`, type, placeholder, options, default_value, required, show_on_form, show_on_table, show_on_details, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO contact_custom_fields (id, user_id, tenant_id, label, \`key\`, type, placeholder, options, default_value, required, show_on_form, show_on_table, show_on_details, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id, effectiveUserId, data.label, key, data.type,
+        id, effectiveUserId, effectiveUserId, data.label, key, data.type,
         data.placeholder || null,
         data.options && data.options.length > 0 ? JSON.stringify(data.options) : null,
         data.default_value || null,

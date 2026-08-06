@@ -90,14 +90,79 @@ startDbHealthMonitor(db.pool);
 async function migrateRoles() {
   try {
     console.log("[Roles Migration] Starting role schema and data migration...");
-    try {
-      await db.query("UPDATE user_roles SET role = 'user' WHERE role = 'admin'");
-      await db.query(
-        "ALTER TABLE user_roles MODIFY COLUMN role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user') NOT NULL DEFAULT 'user'",
-      );
-      console.log("[Roles Migration] Column enum altered successfully.");
-    } catch (alterErr: any) {
-      console.warn("[Roles Migration] Warning altering user_roles table:", alterErr.message);
+
+    // Guarda de idempotência: verifica se a coluna role já foi migrada para ENUM('admin_master', 'admin', 'user')
+    const [cols] = (await db.query(
+      `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_roles' AND COLUMN_NAME = 'role' LIMIT 1`,
+    )) as any[];
+    const isAlreadyEnum = String(cols?.[0]?.COLUMN_TYPE ?? "").includes("enum('admin_master','admin','user')");
+
+    if (isAlreadyEnum) {
+      console.log("[Roles Migration] Schema user_roles já está no formato ENUM final. Pulando DDLs pesados.");
+    } else {
+      // 1. Temporarily allow VARCHAR(50) so MySQL doesn't throw Data Truncated error
+      try {
+        await db.query("ALTER TABLE user_roles MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'user'");
+      } catch (e: any) {
+        console.warn("[Roles Migration] Warning converting role to VARCHAR:", e.message);
+      }
+
+      // 2. Migrate legacy roles correctly
+      try {
+        await db.query("UPDATE user_roles SET role = 'admin_master' WHERE role IN ('adminmaster')");
+        await db.query("UPDATE user_roles SET role = 'admin' WHERE role IN ('owner')");
+        await db.query("UPDATE user_roles SET role = 'user' WHERE role IN ('org_admin', 'member')");
+      } catch (e: any) {
+        console.warn("[Roles Migration] Warning updating legacy roles:", e.message);
+      }
+
+      // 3. Remove orphaned user_roles
+      try {
+        const orphans = (await db.query(
+          "DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users)",
+        )) as any;
+        if (orphans && orphans.affectedRows > 0) {
+          console.log(`[Roles Migration] Removed ${orphans.affectedRows} orphaned user_roles.`);
+        }
+      } catch (e: any) {
+        console.warn("[Roles Migration] Warning deleting orphaned user_roles:", e.message);
+      }
+
+      // 4. Deduplicate user_roles (ensure 1 role per user before UNIQUE index)
+      try {
+        await db.query(`
+          DELETE ur1 FROM user_roles ur1
+          JOIN user_roles ur2 ON ur1.user_id = ur2.user_id
+          WHERE ur1.id > ur2.id
+        `);
+        console.log("[Roles Migration] Deduplicated user_roles table.");
+      } catch (e: any) {
+        console.warn("[Roles Migration] Warning deduplicating user_roles:", e.message);
+      }
+
+      // 5. Drop old index if exists & Add UNIQUE(user_id)
+      try {
+        await db.query("ALTER TABLE user_roles DROP INDEX uq_user_roles");
+      } catch (e: any) {
+        console.log("[Roles Migration] Legacy index uq_user_roles already dropped or absent:", e.message);
+      }
+
+      try {
+        await db.query("ALTER TABLE user_roles ADD UNIQUE INDEX idx_unique_user_id (user_id)");
+        console.log("[Roles Migration] Added UNIQUE(user_id) index to user_roles table.");
+      } catch (e: any) {
+        console.warn("[Roles Migration] Index idx_unique_user_id already exists or error adding it:", e.message);
+      }
+
+      // 6. Restrict column to strict 3-value ENUM
+      try {
+        await db.query(
+          "ALTER TABLE user_roles MODIFY COLUMN role ENUM('admin_master', 'admin', 'user') NOT NULL DEFAULT 'user'",
+        );
+        console.log("[Roles Migration] Column enum altered successfully to ('admin_master', 'admin', 'user').");
+      } catch (e: any) {
+        console.error("[Roles Migration] Error setting ENUM on user_roles:", e.message);
+      }
     }
 
     try {
@@ -105,30 +170,6 @@ async function migrateRoles() {
       console.log("[Roles Migration] Added tenant_id column to licenses table.");
     } catch (colErr: any) {
       console.log("[Roles Migration] Column tenant_id already exists or error adding it.");
-    }
-
-    // Ensure no orphaned rows exist in user_roles (references invalid users)
-    try {
-      const orphans = (await db.query(
-        "DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users)",
-      )) as any;
-      if (orphans && orphans.affectedRows > 0) {
-        console.log(`[Roles Migration] Removed ${orphans.affectedRows} orphaned user_roles.`);
-      }
-    } catch (orphanErr: any) {
-      console.warn("[Roles Migration] Warning deleting orphaned user_roles:", orphanErr.message);
-    }
-
-    // Ensure each user has only one role in user_roles (deduplicate)
-    try {
-      await db.query(`
-        DELETE ur1 FROM user_roles ur1
-        JOIN user_roles ur2 ON ur1.user_id = ur2.user_id
-        WHERE ur1.id > ur2.id
-      `);
-      console.log("[Roles Migration] Deduplicated user_roles table.");
-    } catch (dedupErr: any) {
-      console.warn("[Roles Migration] Warning deduplicating user_roles:", dedupErr.message);
     }
 
     const roleMode = process.env.LICENSE_ROLE || "saas";
@@ -143,13 +184,13 @@ async function migrateRoles() {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
           await db.query(
-            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin_master')",
             [userId],
           );
-          console.log(`[Roles Migration] Updated master user ${adminEmail} to adminmaster.`);
+          console.log(`[Roles Migration] Updated master user ${adminEmail} to admin_master.`);
 
           const cleaned = await db.query(
-            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role = 'adminmaster'",
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role = 'admin_master' AND user_id NOT IN (SELECT id FROM users WHERE email IN ('vw2digital@gmail.com'))",
             [userId],
           );
           if (cleaned.affectedRows > 0) {
@@ -168,13 +209,13 @@ async function migrateRoles() {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
           await db.query(
-            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')",
+            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin')",
             [userId],
           );
-          console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to owner.`);
+          console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to admin.`);
 
           const cleaned = await db.query(
-            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role = 'adminmaster'",
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role = 'admin_master' AND user_id NOT IN (SELECT id FROM users WHERE email IN ('vw2digital@gmail.com'))",
             [userId],
           );
           if (cleaned.affectedRows > 0) {
@@ -191,13 +232,13 @@ async function migrateRoles() {
           const firstUserId = users[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [firstUserId]);
           await db.query(
-            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')",
+            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin')",
             [firstUserId],
           );
-          console.log(`[Roles Migration] Set first user ${users[0].email} as owner.`);
+          console.log(`[Roles Migration] Set first user ${users[0].email} as admin.`);
 
           const cleaned = await db.query(
-            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'owner')",
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('admin_master', 'admin') AND user_id NOT IN (SELECT id FROM users WHERE email IN ('vw2digital@gmail.com'))",
             [firstUserId],
           );
           if (cleaned.affectedRows > 0) {
@@ -242,9 +283,9 @@ async function migrateRoles() {
       }
     }
 
-    // Auto-create a license subscription record for any owner/adminmaster user that doesn't have one
+    // Auto-create a license subscription record for any admin/admin_master user that doesn't have one
     const owners = (await db.query(
-      "SELECT u.id, u.email, p.display_name FROM users u JOIN user_roles r ON u.id = r.user_id LEFT JOIN profiles p ON p.id = u.id WHERE r.role IN ('owner', 'adminmaster')",
+      "SELECT u.id, u.email, p.display_name FROM users u JOIN user_roles r ON u.id = r.user_id LEFT JOIN profiles p ON p.id = u.id WHERE r.role IN ('admin', 'admin_master')",
     )) as any[];
     for (const owner of owners) {
       const existingSub = (await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [
@@ -266,7 +307,7 @@ async function migrateRoles() {
             owner.id,
           ],
         );
-        console.log(`[Roles Migration] Auto-provisioned subscription for owner: ${owner.email}`);
+        console.log(`[Roles Migration] Auto-provisioned subscription for admin: ${owner.email}`);
       }
     }
   } catch (err: any) {
@@ -288,7 +329,7 @@ async function ensureMasterUser() {
     }
 
     const roleMode = process.env.LICENSE_ROLE || "saas";
-    const initialRole = roleMode === "panel" ? "adminmaster" : "owner";
+    const initialRole = roleMode === "panel" ? "admin_master" : "admin";
 
     console.log(`[Master Auth] Provisioning Admin user: ${adminEmail} with role ${initialRole}`);
     const userId = randomUUID();
@@ -364,7 +405,7 @@ async function runBootSequence() {
 
   try {
     const fs = await import("fs");
-    const targetEmails = ["vanderleivw2@gmail.com", "vw2digital@gmail.com"];
+    const targetEmails = ["vw2digital@gmail.com"];
     let logMsg = "";
 
     for (const targetEmail of targetEmails) {
@@ -376,13 +417,13 @@ async function runBootSequence() {
         const userId = userRows[0].id;
         // Delete existing roles for this user
         await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-        // Insert adminmaster role
+        // Insert admin_master role
         await db.query(
-          "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+          "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin_master')",
           [userId],
         );
 
-        // Verify/Create license for the adminmaster
+        // Verify/Create license for the admin_master
         const existingSub = (await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [
           userId,
         ])) as any[];
@@ -394,7 +435,7 @@ async function runBootSequence() {
             [keyHash, targetEmail, "Master Admin", targetEmail, "basic", "active", userId],
           );
         }
-        logMsg += `SUCCESS: User ${targetEmail} (ID: ${userId}) updated to adminmaster.\n`;
+        logMsg += `SUCCESS: User ${targetEmail} (ID: ${userId}) updated to admin_master.\n`;
       } else {
         // User doesn't exist, let's provision them with a default password so they can log in
         const userId = randomUUID();
@@ -411,7 +452,7 @@ async function runBootSequence() {
 
           // 2. Insert into user_roles
           await conn.execute(
-            "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+            "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin_master')",
             [userId],
           );
 
@@ -511,7 +552,7 @@ startLicenseChecker();
 // --- Rate Limiting (in-memory, per-IP sliding window) ---
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_AUTH = 10; // max 10 auth requests per minute per IP
+const RATE_LIMIT_AUTH = 60; // max 60 auth requests per minute per IP
 const RATE_LIMIT_WEBHOOK = 200; // max 200 webhook requests per minute per IP
 
 function getRateLimitKey(ip: string, bucket: string): string {

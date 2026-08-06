@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import db from "./db.js";
 import crypto from "crypto";
 
-const dsAgentApi = new Hono();
+type DSAgentEnv = { Variables: { tenantId: string } };
+const dsAgentApi = new Hono<DSAgentEnv>();
 
 // Middleware simulado ou extração de tenant_id dos headers/auth
 dsAgentApi.use("*", async (c, next) => {

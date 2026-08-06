@@ -6,6 +6,7 @@ import { getLicenseRole } from "@/lib/license-admin.functions";
 import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
+import { hasMasterRole } from "@/lib/roles";
 import { AUTH_EXPIRED_EVENT, db } from "@/integrations/mysql/client";
 import { SeoHead } from "@/components/seo";
 import {
@@ -33,6 +34,8 @@ import {
   Zap,
   Webhook,
   BookOpen,
+  AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -48,6 +51,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarProvider, Sidebar, SidebarRail, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
 import { PageHeaderProvider } from "@/components/layout/page-header-provider";
+import { SubscriptionCheckoutModal } from "@/components/subscription/subscription-checkout-modal";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 function useGravatarUrl(email: string | null | undefined) {
@@ -109,7 +113,7 @@ const NAV: NavItem[] = [
     children: [
       { to: "/settings", label: "Geral", icon: Settings },
       { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
-      { to: "/users", label: "Usuários", icon: ShieldCheck },
+      { to: "/users", label: "Membros da empresa", icon: ShieldCheck },
       { to: "/audit", label: "Auditoria", icon: ScrollText },
       { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
       { to: "/docs", label: "Documentação", icon: BookOpen },
@@ -118,12 +122,8 @@ const NAV: NavItem[] = [
 ];
 
 const ADMIN_ONLY_PATHS = new Set([
-  "/users", 
-  "/audit", 
   "/webhook-events", 
   "/billing", 
-  "/settings", 
-  "/whatsapp-business-profile", 
   "/automacoes", 
   "/bot", 
   "/ds-agente", 
@@ -137,8 +137,10 @@ function AppLayout() {
   const { theme, toggleTheme } = useTheme();
   const gravatarUrl = useGravatarUrl(user?.email);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [mfaOk, setMfaOk] = useState<boolean | null>(null);
-  const { isAdmin, loading: rolesLoading } = useRoles();
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const { isAdmin, roles, loading: rolesLoading } = useRoles();
 
   const fetchContacts = useServerFn(listChatContacts);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
@@ -188,16 +190,18 @@ function AppLayout() {
     const billingEnabled = import.meta.env.VITE_BILLING_ENABLED !== "false";
     const filtered = billingEnabled ? base : base.filter(item => item.to !== "/billing");
 
-    if (licenseRoleQuery.data?.role === "panel" && licenseRoleQuery.data?.isAdmin) {
+    const isAdminMasterUser = hasMasterRole(roles);
+
+    if (isAdminMasterUser) {
       const panelItem: NavChildItem = {
         to: "/licenses/",
-        label: "Gerenciamento de Clientes",
+        label: "Gerenciamento de Clientes / Assinaturas",
         icon: Users,
       };
       filtered.push(panelItem);
     }
     return filtered;
-  }, [licenseRoleQuery.data?.role, licenseRoleQuery.data?.isAdmin])
+  }, [licenseRoleQuery.data?.isAdmin, isAdmin, roles]);
 
   const orderedNav = useMemo(() => {
     const raw = sidebarOrderData?.order;
@@ -212,15 +216,12 @@ function AppLayout() {
       navCopy.sort((a, b) => {
         const idxA = pathsOrder.indexOf(a.to);
         const idxB = pathsOrder.indexOf(b.to);
-        // Both are in saved order — sort by saved position
         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        // Both are NOT in saved order — preserve default order
         if (idxA === -1 && idxB === -1) {
           const defA = navDefaults.find((n) => n.to === a.to)?.defaultIdx ?? 999;
           const defB = navDefaults.find((n) => n.to === b.to)?.defaultIdx ?? 999;
           return defA - defB;
         }
-        // One is in saved order, the other is not — put unsaved after saved
         if (idxA === -1) return 1;
         return -1;
       });
@@ -318,27 +319,30 @@ function AppLayout() {
     [router],
   );
 
+  const profileSidebarQuery = useQuery({
+    queryKey: ["profile-sidebar"],
+    queryFn: async () => {
+      const { data } = await (db as any)
+        .from("profiles")
+        .select("avatar_url, display_name, full_name")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return data as { avatar_url?: string | null; display_name?: string | null; full_name?: string | null } | null;
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
-    if (!user) {
-      setProfileAvatar(null);
-      return;
-    }
-    let cancelled = false;
-    db.from("profiles")
-      .select("avatar_url")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }: any) => {
-        if (!cancelled) setProfileAvatar(data?.avatar_url ?? null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+    setProfileAvatar(profileSidebarQuery.data?.avatar_url ?? null);
+    setProfileDisplayName(
+      profileSidebarQuery.data?.display_name ||
+      profileSidebarQuery.data?.full_name ||
+      null
+    );
+  }, [profileSidebarQuery.data]);
 
   const avatarUrl = profileAvatar || gravatarUrl;
-
-  // Mobile sidebar is managed by useSidebar/SidebarProvider natively now
 
   useEffect(() => {
     if (!loading && !user) {
@@ -354,7 +358,6 @@ function AppLayout() {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, [router]);
 
-  // Garante AAL2 quando o usuário tem 2FA habilitado
   useEffect(() => {
     if (!user) {
       setMfaOk(null);
@@ -379,6 +382,17 @@ function AppLayout() {
       router.navigate({ to: "/login", replace: true });
     }
   }, [mfaOk, router]);
+
+  const licenseData: any = licenseQuery.data;
+  const isLicenseExpiredOrWarning =
+    licenseData &&
+    (!licenseData.isValid ||
+      !licenseData.isAccessAllowed ||
+      licenseData.status === "expired" ||
+      licenseData.status === "suspended" ||
+      licenseData.status === "past_due" ||
+      licenseData.status === "expiring" ||
+      licenseData.hasGraceStarted);
 
   if (loading || (user && mfaOk === null) || (user && mfaOk && rolesLoading)) {
     return (
@@ -436,7 +450,7 @@ function AppLayout() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-medium">{user.email?.split("@")?.[0]}</span>
+                    <span className="truncate font-medium">{profileDisplayName ?? user.email?.split("@")?.[0]}</span>
                     <span className="truncate text-xs text-sidebar-foreground/60">{user.email}</span>
                   </div>
                   <ChevronUp className="ml-auto h-4 w-4 group-data-[collapsible=icon]:hidden" />
@@ -445,7 +459,7 @@ function AppLayout() {
             <DropdownMenuContent side="top" align="center" sideOffset={4} className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg z-[100]">
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium truncate">{user.email?.split("@")?.[0]}</span>
+                  <span className="text-sm font-medium truncate">{profileDisplayName ?? user.email?.split("@")?.[0]}</span>
                   <span className="text-xs text-muted-foreground truncate">{user.email}</span>
                 </div>
               </DropdownMenuLabel>
@@ -518,6 +532,37 @@ function AppLayout() {
             </div>
           </header>
 
+          {/* Banner de Aviso de Assinatura Expirada / Vencendo */}
+          {isLicenseExpiredOrWarning && (
+            <div className="bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 text-white px-4 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-red-500/30 z-30">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-amber-200 shrink-0 animate-bounce" />
+                <div>
+                  <span className="font-bold">
+                    {licenseData?.status === "past_due" || licenseData?.hasGraceStarted
+                      ? "Aviso de Pagamento:"
+                      : licenseData?.status === "expiring"
+                      ? "Atenção (Vencimento Próximo):"
+                      : "Sua Assinatura está Expirada!"}
+                  </span>{" "}
+                  <span className="opacity-95">
+                    {licenseData?.status === "past_due" || licenseData?.hasGraceStarted
+                      ? `Sua conta está no período de carência (${licenseData.graceDaysRemaining} dias restantes). Renove para evitar bloqueio do atendimento.`
+                      : licenseData?.status === "expiring"
+                      ? "Sua assinatura vence em breve. Regularize agora para garantir a continuidade do serviço."
+                      : "Sua assinatura venceu. Clique no botão ao lado para renovar e liberar seu acesso completo."}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCheckoutModalOpen(true)}
+                className="inline-flex items-center rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+              >
+                Renovar Assinatura
+              </button>
+            </div>
+          )}
+
           <main className="flex-1 overflow-y-auto flex flex-col">
             <PageHeaderProvider>
               <Outlet />
@@ -525,6 +570,12 @@ function AppLayout() {
           </main>
         </SidebarInset>
       </SidebarProvider>
+
+      {/* Modal de Checkout / Renovação de Assinatura */}
+      <SubscriptionCheckoutModal
+        open={isCheckoutModalOpen}
+        onOpenChange={setIsCheckoutModalOpen}
+      />
     </>
   );
 }

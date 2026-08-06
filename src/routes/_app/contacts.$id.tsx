@@ -169,9 +169,10 @@ function ContactDetailPage() {
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const path = `contacts/${contact.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await db.storage.from("avatars").upload(path, file);
+      const { data: upRes, error: upErr } = await db.storage.from("avatars").upload(path, file);
       if (upErr) throw upErr;
-      const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+      const uploadedPath = upRes?.path || path;
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(uploadedPath);
       const url = pub.publicUrl;
       await updateContactProfilePhoto({ data: { id: contact.id, avatar_url: url } });
       qc.invalidateQueries({ queryKey: ["contact-detail", id] });

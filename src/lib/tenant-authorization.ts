@@ -9,9 +9,9 @@ const RESOURCE_SCOPE: Record<
   { table: string; tenantColumn: "tenant_id" | "user_id" }
 > = {
   bot_flow: { table: "bot_flows", tenantColumn: "tenant_id" },
-  bot_step: { table: "bot_steps", tenantColumn: "user_id" },
-  lost_reason: { table: "opportunity_lost_reasons", tenantColumn: "user_id" },
-  team: { table: "teams", tenantColumn: "user_id" },
+  bot_step: { table: "bot_steps", tenantColumn: "tenant_id" },
+  lost_reason: { table: "opportunity_lost_reasons", tenantColumn: "tenant_id" },
+  team: { table: "teams", tenantColumn: "tenant_id" },
 };
 
 function deny(message: string, statusCode: 403 | 404): never {
@@ -26,10 +26,11 @@ export async function getActorTenantAccess(userId: string, tenantId: string) {
     role: string;
   }>;
   const roles = rows.map(({ role }) => role);
+  const isOwner = Boolean(userId && tenantId && userId === tenantId);
   return {
     tenantId,
     isMaster: hasMasterRole(roles),
-    isCompanyAdmin: hasCompanyAdminRole(roles),
+    isCompanyAdmin: isOwner || hasCompanyAdminRole(roles),
   };
 }
 
@@ -39,9 +40,9 @@ export async function getUserTenantIds(userId: string): Promise<string[]> {
      FROM (
        SELECT ur.user_id AS tenant_id
        FROM user_roles ur
-       WHERE ur.user_id = ? AND ur.role = 'owner'
+       WHERE ur.user_id = ? AND ur.role IN ('admin', 'admin_master')
        UNION
-       SELECT t.user_id AS tenant_id
+       SELECT t.tenant_id AS tenant_id
        FROM team_members tm
        JOIN teams t ON t.id = tm.team_id
        WHERE tm.user_id = ?
@@ -79,10 +80,12 @@ export async function assertBelongsToTenant(
   tenantId: string,
 ): Promise<void> {
   const scope = RESOURCE_SCOPE[resource];
-  const rows = (await db.query(
-    `SELECT id FROM ${scope.table} WHERE id = ? AND ${scope.tenantColumn} = ? LIMIT 1`,
-    [resourceId, tenantId],
-  )) as unknown[];
+  const querySql =
+    resource === "bot_step"
+      ? `SELECT id FROM ${scope.table} WHERE id = ? AND (${scope.tenantColumn} = ? OR user_id = ? OR ${scope.tenantColumn} IS NULL) LIMIT 1`
+      : `SELECT id FROM ${scope.table} WHERE id = ? AND (${scope.tenantColumn} = ? OR ${scope.tenantColumn} IS NULL) LIMIT 1`;
+  const params = resource === "bot_step" ? [resourceId, tenantId, tenantId] : [resourceId, tenantId];
+  const rows = (await db.query(querySql, params)) as unknown[];
   if (rows.length === 0) {
     deny("Recurso não encontrado ou acesso negado.", 403);
   }
@@ -93,8 +96,8 @@ export async function listTenantUserIds(tenantId: string): Promise<string[]> {
     `SELECT DISTINCT u.id
      FROM users u
      LEFT JOIN team_members tm ON tm.user_id = u.id
-     LEFT JOIN teams t ON t.id = tm.team_id AND t.user_id = ?
-     WHERE u.id = ? OR t.user_id = ?`,
+     LEFT JOIN teams t ON t.id = tm.team_id AND t.tenant_id = ?
+     WHERE u.id = ? OR t.tenant_id = ?`,
     [tenantId, tenantId, tenantId],
   )) as Array<{ id: string }>;
   return rows.map(({ id }) => id);

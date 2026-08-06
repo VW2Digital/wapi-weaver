@@ -82,10 +82,11 @@ export const Route = createFileRoute("/api/auth/verify-token")({
 
           const user = users[0];
 
-          // Fetch user role
-          const roles = await db.query("SELECT role FROM user_roles WHERE user_id = ? LIMIT 1", [
-            user.id,
-          ]);
+          // Fetch user role (prioritizing admin_master and admin)
+          const roles = await db.query(
+            "SELECT role FROM user_roles WHERE user_id = ? ORDER BY FIELD(role, 'admin_master', 'admin', 'user') ASC LIMIT 1",
+            [user.id],
+          );
           const role = roles && roles.length > 0 ? roles[0].role : "user";
 
           // Sign new long-lived session JWT (30 days)

@@ -226,10 +226,11 @@ export async function upsertContactFromWebhook(
       contactId = crypto.randomUUID();
       await conn.execute(
         `INSERT INTO contacts
-         (id, user_id, phone_e164, name, email, company, position, notes, status, external_id, responsible_user_id, source, source_type, source_name, source_id, last_interaction_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'webhook', 'incoming_webhook', ?, ?, NOW())`,
+         (id, user_id, tenant_id, phone_e164, name, email, company, position, notes, status, external_id, responsible_user_id, source, source_type, source_name, source_id, last_interaction_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'webhook', 'incoming_webhook', ?, ?, NOW())`,
         [
           contactId,
+          tenantId,
           tenantId,
           phone,
           payload.name ?? null,

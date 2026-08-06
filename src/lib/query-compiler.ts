@@ -1,6 +1,8 @@
 "use server";
+// Updated query-compiler with strict tenant_id isolation
 import db from "./db";
-import { isMaster } from "./roles";
+import { hasMasterRole } from "./roles";
+import { getUserTenantIds } from "./tenant-authorization";
 
 function generateUUID(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -67,6 +69,45 @@ const ALLOWED_TABLES = new Set([
   "facebook_pages",
   "facebook_webhook_events",
 ]);
+
+function hasTenantIdColumn(table: string): boolean {
+  return [
+    "teams",
+    "bot_settings",
+    "bot_steps",
+    "bot_step_options",
+    "opportunity_lost_reasons",
+    "sales_funnels",
+    "sales_stages",
+    "tags",
+    "lists",
+    "templates",
+    "contact_custom_fields",
+    "contacts",
+    "opportunities",
+    "campaigns",
+    "bot_conversation_state",
+    "chat_sessions",
+    "conversation_assignments",
+    "contact_tags",
+    "list_contacts",
+    "opportunity_contacts",
+    "opportunity_stage_history",
+    "opportunity_activities",
+    "opportunity_notes",
+    "opportunity_tags",
+    "opportunity_audit_logs",
+    "direct_messages",
+    "campaign_messages",
+    "contact_activities",
+    "incoming_webhooks",
+    "outgoing_webhooks",
+    "whatsapp_flows",
+    "ai_agent_settings",
+    "knowledge_base",
+    "licenses",
+  ].includes(table);
+}
 
 function hasUserIdColumn(table: string): boolean {
   return [
@@ -180,7 +221,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     throw new Error(`A tabela '${table}' não é permitida ou não existe`);
   }
 
-  const isSenderAdmin = isMaster(userRole);
+  const isSenderAdmin = hasMasterRole([userRole]);
 
   const adminOnlyTables = new Set([
     "platform_settings",
@@ -193,112 +234,124 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
   ]);
 
   if (adminOnlyTables.has(table) && !isSenderAdmin) {
-    throw new Error(
-      `Acesso negado: apenas administradores master têm permissão para acessar a tabela '${table}'`,
-    );
+    if (table === "user_roles" && action === "select") {
+      // Permitido para consulta de papéis do próprio usuário ou membros da empresa
+    } else {
+      throw new Error(
+        `Acesso negado: apenas administradores master têm permissão para acessar a tabela '${table}'`,
+      );
+    }
   }
 
-  const enforceUserRestriction = hasUserIdColumn(table) && !isSenderAdmin;
+  const enforceTenantRestriction = hasTenantIdColumn(table) && !isSenderAdmin;
+  const enforceUserRestriction = !hasTenantIdColumn(table) && hasUserIdColumn(table) && !isSenderAdmin;
 
+  const params: any[] = [];
   let sql = "";
-  const params: unknown[] = [];
-
   const whereClauses: string[] = [];
 
-  if (enforceUserRestriction) {
-    whereClauses.push("user_id = ?");
+  let effectiveTenantId = userId;
+  if (enforceTenantRestriction) {
+    const tenantIds = await getUserTenantIds(userId);
+    effectiveTenantId = tenantIds.length > 0 ? tenantIds[0] : userId;
+    whereClauses.push(`\`${table}\`.\`tenant_id\` = ?`);
+    params.push(effectiveTenantId);
+  } else if (enforceUserRestriction) {
+    whereClauses.push(`\`${table}\`.\`user_id\` = ?`);
     params.push(userId);
   } else if (table === "profiles" && !isSenderAdmin) {
-    whereClauses.push("id = ?");
+    whereClauses.push(`\`${table}\`.\`id\` = ?`);
     params.push(userId);
   }
 
   for (const filter of filters) {
     const { type, column, value, operator } = filter;
 
-    if (!/^[a-zA-Z0-9_]+$/.test(column)) {
+    if (!/^[a-zA-Z0-9_.]+$/.test(column)) {
       throw new Error(`Nome de coluna inválido: ${column}`);
     }
 
+    const colName = column.includes(".") ? column : `\`${table}\`.\`${column}\``;
+
     if (type === "eq") {
       if (value === null) {
-        whereClauses.push(`${column} IS NULL`);
+        whereClauses.push(`${colName} IS NULL`);
       } else {
-        whereClauses.push(`${column} = ?`);
+        whereClauses.push(`${colName} = ?`);
         params.push(value);
       }
     } else if (type === "neq") {
       if (value === null) {
-        whereClauses.push(`${column} IS NOT NULL`);
+        whereClauses.push(`${colName} IS NOT NULL`);
       } else {
-        whereClauses.push(`${column} != ?`);
+        whereClauses.push(`${colName} != ?`);
         params.push(value);
       }
     } else if (type === "in") {
       if (Array.isArray(value) && value.length > 0) {
         const placeholders = value.map(() => "?").join(",");
-        whereClauses.push(`${column} IN (${placeholders})`);
+        whereClauses.push(`${colName} IN (${placeholders})`);
         params.push(...value);
       } else {
         whereClauses.push("1 = 0");
       }
     } else if (type === "gte") {
-      whereClauses.push(`${column} >= ?`);
+      whereClauses.push(`${colName} >= ?`);
       params.push(value);
     } else if (type === "lte") {
-      whereClauses.push(`${column} <= ?`);
+      whereClauses.push(`${colName} <= ?`);
       params.push(value);
     } else if (type === "gt") {
-      whereClauses.push(`${column} > ?`);
+      whereClauses.push(`${colName} > ?`);
       params.push(value);
     } else if (type === "lt") {
-      whereClauses.push(`${column} < ?`);
+      whereClauses.push(`${colName} < ?`);
       params.push(value);
     } else if (type === "like") {
-      whereClauses.push(`${column} LIKE ?`);
+      whereClauses.push(`${colName} LIKE ?`);
       params.push(value);
     } else if (type === "ilike") {
-      whereClauses.push(`LOWER(${column}) LIKE LOWER(?)`);
+      whereClauses.push(`LOWER(${colName}) LIKE LOWER(?)`);
       params.push(value);
     } else if (type === "is") {
       if (value === null) {
-        whereClauses.push(`${column} IS NULL`);
+        whereClauses.push(`${colName} IS NULL`);
       } else if (typeof value === "boolean") {
-        whereClauses.push(`${column} = ?`);
+        whereClauses.push(`${colName} = ?`);
         params.push(value ? 1 : 0);
       } else {
-        whereClauses.push(`${column} = ?`);
+        whereClauses.push(`${colName} = ?`);
         params.push(value);
       }
     } else if (type === "not") {
       const op = operator;
       if (op === "is") {
         if (value === null) {
-          whereClauses.push(`${column} IS NOT NULL`);
+          whereClauses.push(`${colName} IS NOT NULL`);
         } else if (typeof value === "boolean") {
-          whereClauses.push(`${column} != ?`);
+          whereClauses.push(`${colName} != ?`);
           params.push(value ? 1 : 0);
         } else {
-          whereClauses.push(`${column} != ?`);
+          whereClauses.push(`${colName} != ?`);
           params.push(value);
         }
       } else if (op === "eq") {
         if (value === null) {
-          whereClauses.push(`${column} IS NOT NULL`);
+          whereClauses.push(`${colName} IS NOT NULL`);
         } else {
-          whereClauses.push(`${column} != ?`);
+          whereClauses.push(`${colName} != ?`);
           params.push(value);
         }
       } else if (op === "in") {
         if (Array.isArray(value) && value.length > 0) {
           const placeholders = value.map(() => "?").join(",");
-          whereClauses.push(`${column} NOT IN (${placeholders})`);
+          whereClauses.push(`${colName} NOT IN (${placeholders})`);
           params.push(...value);
         } else {
           whereClauses.push("1 = 1");
         }
       } else {
-        whereClauses.push(`NOT (${column} = ?)`);
+        whereClauses.push(`NOT (${colName} = ?)`);
         params.push(value);
       }
     }
@@ -666,6 +719,10 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           table !== "message_tags"
         ) {
           insertData.id = generateUUID();
+        }
+
+        if (hasTenantIdColumn(table) && !insertData.tenant_id) {
+          insertData.tenant_id = effectiveTenantId;
         }
 
         if (hasUserIdColumn(table) && !insertData.user_id) {

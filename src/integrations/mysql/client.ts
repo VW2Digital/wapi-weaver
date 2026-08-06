@@ -672,9 +672,7 @@ class MySQLClient {
           }
         },
         getPublicUrl: (filePath: string) => {
-          const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
           const query = new URLSearchParams({ path: filePath });
-          if (token) query.set("token", token);
           return { data: { publicUrl: `/api/storage/file?${query.toString()}` } };
         },
         createSignedUrl: async (filePath: string, expiresIn: number) => {

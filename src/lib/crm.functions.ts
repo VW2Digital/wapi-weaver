@@ -398,10 +398,11 @@ export const createFunnel = createServerFn({ method: "POST" })
       }
 
       await conn.execute(
-        `INSERT INTO sales_funnels (id, user_id, name, slug, description, is_default, is_active, sort_order, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sales_funnels (id, user_id, tenant_id, name, slug, description, is_default, is_active, sort_order, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           funnelId,
+          effectiveUserId,
           effectiveUserId,
           data.name,
           slug,
@@ -423,10 +424,11 @@ export const createFunnel = createServerFn({ method: "POST" })
             .replace(/(^-|-$)/g, "");
 
           await conn.execute(
-            `INSERT INTO sales_stages (id, user_id, funnel_id, name, slug, description, color, probability_percent, sort_order, is_won_stage, is_lost_stage, is_active, created_by_user_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+            `INSERT INTO sales_stages (id, user_id, tenant_id, funnel_id, name, slug, description, color, probability_percent, sort_order, is_won_stage, is_lost_stage, is_active, created_by_user_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
             [
               stageId,
+              effectiveUserId,
               effectiveUserId,
               funnelId,
               s.name,
@@ -577,10 +579,11 @@ export const createStage = createServerFn({ method: "POST" })
       }
 
       await conn.execute(
-        `INSERT INTO sales_stages (id, user_id, funnel_id, name, slug, description, color, probability_percent, sort_order, is_won_stage, is_lost_stage, is_active, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sales_stages (id, user_id, tenant_id, funnel_id, name, slug, description, color, probability_percent, sort_order, is_won_stage, is_lost_stage, is_active, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           stageId,
+          effectiveUserId,
           effectiveUserId,
           data.funnel_id,
           data.name,

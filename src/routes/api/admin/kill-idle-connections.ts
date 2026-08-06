@@ -48,7 +48,7 @@ export const Route = createFileRoute("/api/admin/kill-idle-connections")({
               proc.Command === "Sleep" &&
               proc.User === "wapi_user" &&
               proc.Time > 30 &&
-              proc.Id !== conn.config?.connectionId
+              proc.Id !== (conn as any).config?.connectionId
             ) {
               try {
                 await conn.query(`KILL CONNECTION ${proc.Id}`);

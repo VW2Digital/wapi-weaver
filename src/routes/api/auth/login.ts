@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/auth/login")({
         try {
           const { email, password } = await request.json();
           if (!email || !password) {
-            return new Response(JSON.stringify({ error: "Email and password are required" }), {
+            return new Response(JSON.stringify({ error: "E-mail e senha são obrigatórios." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
             });
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/auth/login")({
             [email],
           );
           if (!users || users.length === 0) {
-            return new Response(JSON.stringify({ error: "Invalid email or password" }), {
+            return new Response(JSON.stringify({ error: "E-mail ou senha inválidos." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
             });
@@ -35,16 +35,17 @@ export const Route = createFileRoute("/api/auth/login")({
           // Compare password
           const valid = await bcrypt.compare(password, user.password_hash);
           if (!valid) {
-            return new Response(JSON.stringify({ error: "Invalid email or password" }), {
+            return new Response(JSON.stringify({ error: "E-mail ou senha inválidos." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
             });
           }
 
-          // Fetch user role
-          const roles = await db.query("SELECT role FROM user_roles WHERE user_id = ? LIMIT 1", [
-            user.id,
-          ]);
+          // Fetch user role (prioritizing admin_master and admin)
+          const roles = await db.query(
+            "SELECT role FROM user_roles WHERE user_id = ? ORDER BY FIELD(role, 'admin_master', 'admin', 'user') ASC LIMIT 1",
+            [user.id],
+          );
           const role = roles && roles.length > 0 ? roles[0].role : "user";
 
           // Sign local JWT containing sub (id), email and role

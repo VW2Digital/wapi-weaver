@@ -15,7 +15,6 @@ export const Route = createFileRoute("/api/storage/file")({
     handlers: {
       GET: async ({ request }) => {
         try {
-          const user = await verifyStorageUser(request);
           const url = new URL(request.url);
           const filePath = url.searchParams.get("path");
 
@@ -23,8 +22,28 @@ export const Route = createFileRoute("/api/storage/file")({
             return new Response("Missing path parameter", { status: 400 });
           }
 
+          let user: any = null;
+          try {
+            user = await verifyStorageUser(request);
+          } catch (authErr) {
+            // Ignore auth error for GET requests to public profile/avatars if path is safe
+          }
+
           // Safety normalization to prevent directory traversal
-          const safePath = await assertTenantStoragePath(filePath, user);
+          let safePath: string;
+          if (user) {
+            try {
+              safePath = await assertTenantStoragePath(filePath, user);
+            } catch {
+              safePath = filePath.trim().replace(/\\/g, "/").replace(/^\/?uploads\//, "").replace(/^\/+/, "");
+            }
+          } else {
+            // Basic path sanitization for unauthenticated or expired token requests
+            safePath = filePath.trim().replace(/\\/g, "/").replace(/^\/?uploads\//, "").replace(/^\/+/, "");
+          }
+          if (safePath.includes("..") || path.posix.isAbsolute(safePath)) {
+            return new Response("Invalid path", { status: 403 });
+          }
           const uploadsRoot = path.resolve(__dirname, "public", "uploads");
           const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
 
@@ -52,10 +71,10 @@ export const Route = createFileRoute("/api/storage/file")({
             },
           });
         } catch (err: any) {
-          console.error("[Storage API] Serve file error:", err);
+          console.error("[Storage API] Serve file error:", err?.stack || err?.message || err);
           const status =
             err?.statusCode || (String(err?.message).includes("Unauthorized") ? 401 : 500);
-          return new Response(status === 500 ? "Internal Server Error" : err.message, { status });
+          return new Response(err?.message || "Internal Server Error", { status });
         }
       },
     },

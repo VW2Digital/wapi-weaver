@@ -292,7 +292,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
             name: z.string().trim().max(120).nullable().optional(),
             phone: z.string().trim().min(1).max(32),
             email: z.string().trim().max(180).nullable().optional(),
-            custom_fields: z.record(z.any()).nullable().optional(),
+            custom_fields: z.record(z.string(), z.any()).nullable().optional(),
           }),
         ),
       })
@@ -342,6 +342,7 @@ export const importCsvToList = createServerFn({ method: "POST" })
         contactsToInsert.push([
           contactId,
           effectiveUserId,
+          effectiveUserId,
           c.name || null,
           phoneE164,
           c.email || null,
@@ -357,9 +358,9 @@ export const importCsvToList = createServerFn({ method: "POST" })
     const insertChunkSize = 100;
     for (let i = 0; i < contactsToInsert.length; i += insertChunkSize) {
       const chunk = contactsToInsert.slice(i, i + insertChunkSize);
-      const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
+      const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(",");
       await db.query(
-        `INSERT INTO contacts (id, user_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}
+        `INSERT INTO contacts (id, user_id, tenant_id, name, phone_e164, email, custom_fields, source, opted_out) VALUES ${placeholders}
          ON DUPLICATE KEY UPDATE 
            name = COALESCE(VALUES(name), name), 
            email = COALESCE(VALUES(email), email),

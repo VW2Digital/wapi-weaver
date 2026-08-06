@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,16 +51,22 @@ import {
   ShieldAlert,
   MoreHorizontal,
   CreditCard,
+  Pencil,
 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
+import { useRoles } from "@/hooks/use-roles";
+import { hasMasterRole } from "@/lib/roles";
 import {
   listLicenses,
   createLicense,
+  updateLicense,
   deleteLicense,
   getLicenseStats,
   getLicenseRole,
+  listPlans,
 } from "@/lib/license-admin.functions";
 import { PlansManager } from "@/components/licenses/plans-manager";
+import { BannersManager } from "@/components/licenses/banners-manager";
 
 function LicensesPage() {
   const queryClient = useQueryClient();
@@ -69,14 +75,25 @@ function LicensesPage() {
   const fetchLicenses = useServerFn(listLicenses);
   const fetchStats = useServerFn(getLicenseStats);
   const createLicenseMut = useServerFn(createLicense);
+  const updateLicenseMut = useServerFn(updateLicense);
   const deleteLicenseMut = useServerFn(deleteLicense);
   const fetchLicenseRole = useServerFn(getLicenseRole);
+  const fetchPlans = useServerFn(listPlans);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [plan, setPlan] = useState("all");
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Edit Modal State
+  const [editingLicense, setEditingLicense] = useState<any>(null);
+  const [editClientName, setEditClientName] = useState("");
+  const [editClientEmail, setEditClientEmail] = useState("");
+  const [editPlan, setEditPlan] = useState("basic");
+  const [editStatus, setEditStatus] = useState("active");
+  const [editExpiresAt, setEditExpiresAt] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   // Form State
   const [clientName, setClientName] = useState("");
@@ -86,23 +103,19 @@ function LicensesPage() {
   const [expiresAt, setExpiresAt] = useState("");
   const [notes, setNotes] = useState("");
 
-  const { data: roleData, isLoading: roleLoading } = useQuery({
-    queryKey: ["license-role"],
-    queryFn: () => fetchLicenseRole({}),
-    staleTime: 60_000,
-  });
+  const { roles, loading: roleLoading } = useRoles();
+  const isAdminMasterUser = hasMasterRole(roles);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["licenses", { search, status, plan, page }],
-    queryFn: () => fetchLicenses({ data: { search, status, plan, page, limit: 15 } }),
-    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
-    placeholderData: (prev) => prev,
+    queryFn: () => fetchLicenses({ data: { search, status, plan, page, limit: 20 } }),
+    enabled: isAdminMasterUser,
   });
 
   const { data: statsData } = useQuery({
     queryKey: ["licenses-stats"],
     queryFn: () => fetchStats({}),
-    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
+    enabled: isAdminMasterUser,
   });
 
   const createMutation = useMutation({
@@ -126,6 +139,80 @@ function LicensesPage() {
       toast.error(err.message || "Falha ao autorizar domínio.");
     },
   });
+
+  const { data: plansData } = useQuery({
+    queryKey: ["subscription-plans"],
+    queryFn: () => fetchPlans({}),
+    enabled: isAdminMasterUser,
+  });
+
+  const availablePlans = useMemo(() => {
+    const defaultPlans = [
+      { slug: "basic", name: "Básico" },
+      { slug: "premium", name: "Premium" },
+      { slug: "enterprise", name: "Enterprise" },
+    ];
+    if (!plansData?.plans?.length) return defaultPlans;
+
+    const map = new Map<string, string>();
+    for (const p of defaultPlans) {
+      map.set(p.slug, p.name);
+    }
+    for (const p of plansData.plans) {
+      const slug = (p.slug || p.id).toLowerCase();
+      if (!map.has(slug)) {
+        map.set(slug, p.name || slug);
+      }
+    }
+
+    return Array.from(map.entries()).map(([slug, name]) => ({ slug, name }));
+  }, [plansData]);
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: any) => updateLicenseMut({ data: payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["licenses"] });
+      queryClient.invalidateQueries({ queryKey: ["licenses-stats"] });
+      setEditingLicense(null);
+      toast.success("Plano / cliente atualizado com sucesso!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Falha ao atualizar plano do cliente.");
+    },
+  });
+
+  const openEditModal = (lic: any) => {
+    setEditingLicense(lic);
+    setEditClientName(lic.client_name || "");
+    setEditClientEmail(lic.client_email || "");
+    setEditPlan(lic.plan || "basic");
+    setEditStatus(lic.status || "active");
+    setEditNotes(lic.notes || "");
+    if (lic.expires_at) {
+      const d = new Date(lic.expires_at);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      setEditExpiresAt(`${yyyy}-${mm}-${dd}`);
+    } else {
+      setEditExpiresAt("");
+    }
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLicense) return;
+    updateMutation.mutate({
+      id: editingLicense.id,
+      client_name: editClientName,
+      client_email: editClientEmail,
+      plan: editPlan,
+      status: editStatus,
+      max_activations: 99,
+      expires_at: editExpiresAt || null,
+      notes: editNotes,
+    });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteLicenseMut({ data: { id } }),
@@ -176,7 +263,7 @@ function LicensesPage() {
     subtitle: "Gerencie os acessos, planos e datas de validade de cada cliente/instância.",
     action: (
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {roleData?.role === "panel" && roleData.isAdmin && (
+        {isAdminMasterUser && (
           <Button variant="outline" asChild>
             <Link to="/settings" search={{ s: "admin-payments" }} className="gap-2">
               <CreditCard className="h-4 w-4" /> Meios de Pagamento
@@ -232,9 +319,11 @@ function LicensesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="basic">Básico</SelectItem>
-                      <SelectItem value="premium">Premium</SelectItem>
-                      <SelectItem value="enterprise">Enterprise</SelectItem>
+                      {availablePlans.map((p) => (
+                        <SelectItem key={p.slug} value={p.slug}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -278,13 +367,12 @@ function LicensesPage() {
     );
   }
 
-  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
+  if (!isAdminMasterUser) {
     return (
       <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
         <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Você não possui privilégios de administrador ou esta instalação não está configurada como
-          Painel de Licenças.
+          Você não possui privilégios de Administrador Master (admin_master) para acessar o painel de licenças.
         </p>
         <Button asChild>
           <Link to="/">Voltar para o início</Link>
@@ -477,6 +565,13 @@ function LicensesPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => openEditModal(lic)}
+                              >
+                                <Pencil className="mr-2 h-4 w-4 text-blue-500" />
+                                Editar / Alterar Plano
+                              </DropdownMenuItem>
                               <DropdownMenuItem asChild>
                                 <Link
                                   to="/licenses/$id"
@@ -484,7 +579,7 @@ function LicensesPage() {
                                   className="w-full cursor-pointer"
                                 >
                                   <ExternalLink className="mr-2 h-4 w-4" />
-                                  Acessar
+                                  Detalhes
                                 </Link>
                               </DropdownMenuItem>
                               <DropdownMenuItem
@@ -531,7 +626,93 @@ function LicensesPage() {
         </CardContent>
       </Card>
 
+      <Dialog open={!!editingLicense} onOpenChange={(open) => !open && setEditingLicense(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Atribuir Plano / Editar Cliente</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Domínio Autorizado</Label>
+                <Input value={editingLicense?.license_key_preview || ""} disabled className="bg-muted font-mono text-xs" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Nome do Cliente *</Label>
+                <Input
+                  id="edit-name"
+                  value={editClientName}
+                  onChange={(e) => setEditClientName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-email">E-mail do Cliente</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editClientEmail}
+                  onChange={(e) => setEditClientEmail(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-plan">Plano Atribuído</Label>
+                <Select value={editPlan} onValueChange={setEditPlan}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePlans.map((p) => (
+                      <SelectItem key={p.slug} value={p.slug}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-status">Status</Label>
+                <Select value={editStatus} onValueChange={setEditStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="expired">Expirado</SelectItem>
+                    <SelectItem value="blocked">Bloqueado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-expires">Data de Expiração (Opcional)</Label>
+                <Input
+                  id="edit-expires"
+                  type="date"
+                  value={editExpiresAt}
+                  onChange={(e) => setEditExpiresAt(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-notes">Notas Internas</Label>
+                <Input
+                  id="edit-notes"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <PlansManager />
+      <BannersManager />
     </div>
   );
 }

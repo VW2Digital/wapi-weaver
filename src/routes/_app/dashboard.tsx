@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
-import { getLicenseStatus } from "@/lib/admin.functions";
+import { getLicenseStatus, getMyPlan } from "@/lib/admin.functions";
+import { GlobalPromoBanner } from "@/components/global-promo-banner";
 import { cn } from "@/lib/utils";
 import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 import { Card } from "@/components/ui/card";
@@ -50,6 +51,8 @@ import {
   UserPlus,
   Activity,
   Timer,
+  Crown,
+  CalendarDays,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import {
@@ -104,6 +107,7 @@ function Dashboard() {
   const fetchTemplates = useServerFn(listTemplates);
   const fetchStats = useServerFn(getDashboardStats);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
+  const fetchMyPlan = useServerFn(getMyPlan);
 
   const c = useQuery({ 
     queryKey: ["campaigns"], 
@@ -124,6 +128,11 @@ function Dashboard() {
     queryKey: ["license-status"], 
     queryFn: () => fetchLicenseStatus(),
     staleTime: 300000 
+  });
+  const planQuery = useQuery({
+    queryKey: ["my-plan"],
+    queryFn: () => fetchMyPlan(),
+    staleTime: 300000,
   });
   const isLicenseValid = true;
 
@@ -203,59 +212,88 @@ function Dashboard() {
   usePageHeader({
     title: "Dashboard",
     action: (
-      <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-9 w-9 rounded-full border bg-background hover:bg-muted"
-        >
-          <Bell className="h-4 w-4" />
-          {notifications.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse">
-              {notifications.length}
-            </span>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-[320px] max-h-[400px] overflow-y-auto" align="end">
-        <DropdownMenuLabel className="text-xs font-semibold">Notificações</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {notifications.length === 0 ? (
-          <div className="p-4 text-center text-xs text-muted-foreground">
-            Nenhuma notificação recente.
+      <div className="flex items-center gap-2">
+        {/* Plan Badge */}
+        {planQuery.data && (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium",
+              planQuery.data.status === "active"
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-destructive/30 bg-destructive/10 text-destructive",
+            )}
+            title={
+              planQuery.data.expires_at
+                ? `Vence em ${new Date(planQuery.data.expires_at).toLocaleDateString("pt-BR")}`
+                : undefined
+            }
+          >
+            <Crown className="h-3 w-3" />
+            <span>{planQuery.data.plan_name ?? "Sem plano"}</span>
+            {planQuery.data.expires_at && (
+              <span className="flex items-center gap-0.5 opacity-70">
+                <CalendarDays className="h-2.5 w-2.5" />
+                {new Date(planQuery.data.expires_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+              </span>
+            )}
           </div>
-        ) : (
-          notifications.map((n) => {
-            const Icon =
-              n.type === "success" ? CheckCircle2 : n.type === "error" ? AlertTriangle : Info;
-            const iconColor =
-              n.type === "success"
-                ? "text-success"
-                : n.type === "error"
-                  ? "text-destructive"
-                  : "text-primary";
-            return (
-              <DropdownMenuItem
-                key={n.id}
-                className="flex flex-col items-start p-3 focus:bg-muted/50 cursor-pointer gap-1"
-              >
-                <div className="flex w-full items-start gap-2">
-                  <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", iconColor)} />
-                  <div className="flex-1 space-y-1">
-                    <p className="text-xs font-semibold leading-none">{n.title}</p>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      {n.desc}
-                    </p>
-                    {n.date && <p className="text-[9px] text-muted-foreground/60">{n.date}</p>}
-                  </div>
-                </div>
-              </DropdownMenuItem>
-            );
-          })
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+
+        {/* Notifications bell */}
+        <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative h-9 w-9 rounded-full border bg-background hover:bg-muted"
+          >
+            <Bell className="h-4 w-4" />
+            {notifications.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground animate-pulse">
+                {notifications.length}
+              </span>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-[320px] max-h-[400px] overflow-y-auto" align="end">
+          <DropdownMenuLabel className="text-xs font-semibold">Notificações</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {notifications.length === 0 ? (
+            <div className="p-4 text-center text-xs text-muted-foreground">
+              Nenhuma notificação recente.
+            </div>
+          ) : (
+            notifications.map((n) => {
+              const Icon =
+                n.type === "success" ? CheckCircle2 : n.type === "error" ? AlertTriangle : Info;
+              const iconColor =
+                n.type === "success"
+                  ? "text-success"
+                  : n.type === "error"
+                    ? "text-destructive"
+                    : "text-primary";
+              return (
+                <DropdownMenuItem
+                  key={n.id}
+                  className="flex flex-col items-start p-3 focus:bg-muted/50 cursor-pointer gap-1"
+                >
+                  <div className="flex w-full items-start gap-2">
+                    <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", iconColor)} />
+                    <div className="flex-1 space-y-1">
+                      <p className="text-xs font-semibold leading-none">{n.title}</p>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        {n.desc}
+                      </p>
+                      {n.date && <p className="text-[9px] text-muted-foreground/60">{n.date}</p>}
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              );
+            })
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      </div>
     ),
   });
 
@@ -394,6 +432,8 @@ function Dashboard() {
             })()}
           </div>
         )}
+
+        <GlobalPromoBanner />
 
         <section aria-labelledby="chat-metrics" className="p-4 sm:p-6 pb-0">
           <h2 id="chat-metrics" className="sr-only">

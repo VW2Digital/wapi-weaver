@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,13 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Trash2, Globe, CheckCircle, XCircle, Database } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
+import { useRoles } from "@/hooks/use-roles";
+import { hasMasterRole } from "@/lib/roles";
 import {
   getLicenseDetail,
   updateLicense,
   deleteActivation,
-  getLicenseRole,
+  listPlans,
 } from "@/lib/license-admin.functions";
 
 function LicenseDetailPage() {
@@ -43,19 +45,44 @@ function LicenseDetailPage() {
   const fetchDetail = useServerFn(getLicenseDetail);
   const updateLicenseMut = useServerFn(updateLicense);
   const deleteActivationMut = useServerFn(deleteActivation);
-  const fetchLicenseRole = useServerFn(getLicenseRole);
+  const fetchPlans = useServerFn(listPlans);
 
-  const { data: roleData, isLoading: roleLoading } = useQuery({
-    queryKey: ["license-role"],
-    queryFn: () => fetchLicenseRole({}),
-    staleTime: 60_000,
-  });
+  const { roles, loading: roleLoading } = useRoles();
+  const isAdminMasterUser = hasMasterRole(roles);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["license-detail", numericId],
     queryFn: () => fetchDetail({ data: { id: numericId } }),
-    enabled: roleData?.role === "panel" && !!roleData?.isAdmin,
+    enabled: isAdminMasterUser,
   });
+
+  const { data: plansData } = useQuery({
+    queryKey: ["subscription-plans"],
+    queryFn: () => fetchPlans({}),
+    enabled: isAdminMasterUser,
+  });
+
+  const availablePlans = useMemo(() => {
+    const defaultPlans = [
+      { slug: "basic", name: "Básico" },
+      { slug: "premium", name: "Premium" },
+      { slug: "enterprise", name: "Enterprise" },
+    ];
+    if (!plansData?.plans?.length) return defaultPlans;
+
+    const map = new Map<string, string>();
+    for (const p of defaultPlans) {
+      map.set(p.slug, p.name);
+    }
+    for (const p of plansData.plans) {
+      const slug = (p.slug || p.id).toLowerCase();
+      if (!map.has(slug)) {
+        map.set(slug, p.name || slug);
+      }
+    }
+
+    return Array.from(map.entries()).map(([slug, name]) => ({ slug, name }));
+  }, [plansData]);
 
   // Edit fields state
   const [clientName, setClientName] = useState("");
@@ -143,13 +170,12 @@ function LicenseDetailPage() {
     );
   }
 
-  if (roleData && (roleData.role !== "panel" || !roleData.isAdmin)) {
+  if (!isAdminMasterUser) {
     return (
       <div className="p-8 text-center max-w-md mx-auto mt-20 space-y-4">
         <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Você não possui privilégios de administrador ou esta instalação não está configurada como
-          Painel de Licenças.
+          Você não possui privilégios de Administrador Master (admin_master) para visualizar este domínio.
         </p>
         <Button asChild>
           <Link to="/">Voltar para o início</Link>
@@ -249,9 +275,11 @@ function LicenseDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="basic">Básico</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                    {availablePlans.map((p: { slug: string; name: string }) => (
+                      <SelectItem key={p.slug} value={p.slug}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

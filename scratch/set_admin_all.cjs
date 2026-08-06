@@ -23,7 +23,7 @@ const configs = [
   }
 ];
 
-const targetEmails = ["vanderleivw2@gmail.com", "vw2digital@gmail.com"];
+const targetEmails = ["vw2digital@gmail.com"];
 
 async function run() {
   for (const config of configs) {
@@ -86,13 +86,17 @@ async function run() {
               "Admin Master",
             ]);
             
-            // 4. Create license
+            // 4. Create license (ignore if keyHash already exists)
             const keyHash = createHash("sha256").update(targetEmail).digest("hex");
-            await conn.execute(
-              `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [keyHash, targetEmail, "Admin Master", targetEmail, "basic", "active", userId]
-            );
+            try {
+              await conn.execute(
+                `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [keyHash, targetEmail, "Admin Master", targetEmail, "basic", "active", userId]
+              );
+            } catch (licErr) {
+              console.log(`License creation note for ${targetEmail}: ${licErr.message}`);
+            }
             
             await conn.commit();
             console.log(`SUCCESS: Created ${targetEmail} with role adminmaster. Default password: '${defaultPassword}'`);

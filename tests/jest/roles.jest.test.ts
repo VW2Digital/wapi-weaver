@@ -18,11 +18,13 @@ describe("role mapping", () => {
     }
   });
 
-  it("grants company administrator privileges only to owner", () => {
+  it("grants company administrator privileges to owner and admin", () => {
     expect(isCompanyAdmin("owner")).toBe(true);
+    expect(isCompanyAdmin("admin")).toBe(true);
     expect(hasCompanyAdminRole(["owner"])).toBe(true);
+    expect(hasCompanyAdminRole(["admin"])).toBe(true);
 
-    for (const role of ["adminmaster", "org_admin", "admin", "member", "user"]) {
+    for (const role of ["adminmaster", "org_admin", "member", "user"]) {
       expect(isCompanyAdmin(role)).toBe(false);
       expect(hasCompanyAdminRole([role])).toBe(false);
     }

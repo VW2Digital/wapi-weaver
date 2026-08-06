@@ -64,15 +64,15 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
 export const listContacts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { getTenantFilter } = await import("./chat-helpers");
     const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const { sqlWhere, params: filterParams } = await getTenantFilter(context.userId);
     const PAGE = 1000;
     const all: any[] = [];
     for (let from = 0; ; from += PAGE) {
       const data: any[] = (await db.query(
-        `SELECT * FROM contacts WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-        [effectiveUserId, PAGE, from],
+        `SELECT * FROM contacts WHERE ${sqlWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...filterParams, PAGE, from],
       )) as any[];
       if (!data || data.length === 0) break;
       all.push(...data);
@@ -109,11 +109,12 @@ export const createContact = createServerFn({ method: "POST" })
 
       const id = existing?.[0]?.id ?? crypto.randomUUID();
       await conn.execute(
-        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, company, position, status, responsible_user_id, source, source_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual')
+        `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, name, email, custom_fields, company, position, status, responsible_user_id, source, source_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual')
          ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields), company = VALUES(company), position = VALUES(position), status = VALUES(status), responsible_user_id = VALUES(responsible_user_id)`,
         [
           id,
+          effectiveUserId,
           effectiveUserId,
           phone,
           data.name || null,
@@ -347,16 +348,18 @@ export const getContactDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { getTenantFilter } = await import("./chat-helpers");
     const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const { sqlWhere, params: filterParams } = await getTenantFilter(context.userId, "c");
+    const { sqlWhere: msgWhere, params: msgParams } = await getTenantFilter(context.userId);
+    const { sqlWhere: oppWhere, params: oppParams } = await getTenantFilter(context.userId, "o");
 
     const contacts = (await db.query(
       `SELECT c.*, ss.name AS kanban_stage_name, ss.color AS kanban_stage_color
        FROM contacts c
        LEFT JOIN sales_stages ss ON ss.id = c.kanban_stage_id AND ss.deleted_at IS NULL
-       WHERE c.id = ? AND c.user_id = ? LIMIT 1`,
-      [data.id, effectiveUserId],
+       WHERE c.id = ? AND (${sqlWhere}) LIMIT 1`,
+      [data.id, ...filterParams],
     )) as any[];
     const contact = contacts?.[0];
     if (!contact) throw new Error("Contato não encontrado");
@@ -366,9 +369,9 @@ export const getContactDetail = createServerFn({ method: "GET" })
     const messages = (await db.query(
       `SELECT id, direction, type, body, status, metadata, created_at
        FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ?
+       WHERE contact_phone = ? AND (${msgWhere})
        ORDER BY created_at DESC LIMIT 50`,
-      [effectiveUserId, phone],
+      [phone, ...msgParams],
     )) as any[];
 
     const opportunities = (await db.query(
@@ -376,9 +379,9 @@ export const getContactDetail = createServerFn({ method: "GET" })
               ss.name AS stage_name, ss.color AS stage_color
        FROM opportunities o
        LEFT JOIN sales_stages ss ON ss.id = o.stage_id AND ss.deleted_at IS NULL
-       WHERE o.user_id = ? AND o.primary_contact_id = ? AND o.deleted_at IS NULL
+       WHERE o.primary_contact_id = ? AND o.deleted_at IS NULL AND (${oppWhere})
        ORDER BY o.created_at DESC`,
-      [effectiveUserId, data.id],
+      [data.id, ...oppParams],
     )) as any[];
 
     const oppIds = opportunities.map((o: any) => o.id);
@@ -563,6 +566,7 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
       cleaned.push({
         id: crypto.randomUUID(),
         user_id: effectiveUserId,
+        tenant_id: effectiveUserId,
         phone_e164: phone,
         name: r.name?.toString().slice(0, 120) || null,
         email: r.email?.toString().slice(0, 180) || null,
@@ -576,10 +580,11 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
     let inserted = 0;
     for (let i = 0; i < cleaned.length; i += chunkSize) {
       const slice = cleaned.slice(i, i + chunkSize);
-      const placeholders = slice.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
+      const placeholders = slice.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(",");
       const params = slice.flatMap((r) => [
         r.id,
         r.user_id,
+        r.tenant_id,
         r.phone_e164,
         r.name,
         r.email,
@@ -588,7 +593,7 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
         r.source_type,
       ]);
       await db.query(
-        `INSERT INTO contacts (id, user_id, phone_e164, name, email, custom_fields, source, source_type)
+        `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, name, email, custom_fields, source, source_type)
          VALUES ${placeholders}
          ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
         params,

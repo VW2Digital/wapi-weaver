@@ -1177,3 +1177,19 @@ CREATE TABLE IF NOT EXISTS outgoing_webhook_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_outgoing_webhook_logs_webhook ON outgoing_webhook_logs(outgoing_webhook_id);
+
+CREATE TABLE IF NOT EXISTS platform_banners (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  subtitle TEXT NULL,
+  cta_label VARCHAR(100) NULL,
+  cta_url VARCHAR(500) NULL,
+  image_path VARCHAR(500) NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  display_order INT NOT NULL DEFAULT 0,
+  created_by VARCHAR(36) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_pb_active_order (is_active, display_order),
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

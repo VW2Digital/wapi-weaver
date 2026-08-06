@@ -2921,10 +2921,11 @@ function ChatPage() {
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const storagePath = `contacts/${selectedContact.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await db.storage.from("avatars").upload(storagePath, file);
+      const { data: upRes, error: upErr } = await db.storage.from("avatars").upload(storagePath, file);
       if (upErr) throw new Error(upErr.message || "Falha ao enviar imagem.");
 
-      const { data: pub } = db.storage.from("avatars").getPublicUrl(storagePath);
+      const uploadedPath = upRes?.path || storagePath;
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(uploadedPath);
       const url = pub.publicUrl;
       const updated = await saveContactProfilePhoto({
         data: { id: selectedContact.id, avatar_url: url },

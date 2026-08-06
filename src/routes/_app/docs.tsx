@@ -151,6 +151,7 @@ print(response.json())`;
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <Link
             to="/settings"
+            search={{ s: undefined }}
             className="flex flex-col items-center justify-center p-4 rounded-xl border border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02] text-center gap-2 group"
           >
             <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
@@ -297,7 +298,7 @@ print(response.json())`;
                   <AccordionContent className="space-y-3 text-xs text-muted-foreground leading-relaxed pt-2">
                     <p>
                       Acesse a página de{" "}
-                      <Link to="/settings" className="text-primary underline font-medium">
+                      <Link to="/settings" search={{ s: undefined }} className="text-primary underline font-medium">
                         Configurações &gt; Meta Cloud API
                       </Link>{" "}
                       e cole o <strong>Phone Number ID</strong>, <strong>WABA ID</strong> e <strong>Token de Acesso</strong>. Clique em <strong>Salvar Alterações</strong>.

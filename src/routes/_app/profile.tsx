@@ -51,6 +51,7 @@ function ProfilePage() {
     onSuccess: () => {
       toast.success("Perfil atualizado");
       qc.invalidateQueries({ queryKey: ["profile"] });
+      qc.invalidateQueries({ queryKey: ["profile-sidebar"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -69,11 +70,12 @@ function ProfilePage() {
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await db.storage
+      const { data: upRes, error: upErr } = await db.storage
         .from("avatars")
         .upload(path, file);
       if (upErr) throw upErr;
-      const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+      const uploadedPath = upRes?.path || path;
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(uploadedPath);
       const url = pub.publicUrl;
       await save({ data: { avatar_url: url } });
       setForm((f: any) => ({ ...f, avatar_url: url }));

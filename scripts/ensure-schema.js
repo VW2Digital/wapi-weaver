@@ -2038,9 +2038,15 @@ export async function ensureDatabaseSchema() {
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uq_ds_tool (agent_id, tool_key),
         INDEX idx_ds_tools_tenant (tenant_id),
-        INDEX idx_ds_tools_agent (agent_id),
         FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureColumnExists(
+      connection,
+      "ds_agent_tools",
+      "tool_key",
+      "ENUM('google_calendar','consulta_crm','enviar_proposta','webhook_customizado','gerenciar_tags') NOT NULL"
     );
 
     await ensureTableExists(
@@ -2096,7 +2102,10 @@ export async function ensureDatabaseSchema() {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_ds_usage_tenant (tenant_id),
         INDEX idx_ds_usage_agent (agent_id),
-        INDEX idx_ds_usage_created (created_at),
+        INDEX idx_ds_usage_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
     await ensureTableExists(
       connection,
       "subscription_events",
@@ -2132,6 +2141,26 @@ export async function ensureDatabaseSchema() {
         INDEX idx_plan_changes_tenant (tenant_id),
         INDEX idx_plan_changes_sub (subscription_id),
         INDEX idx_plan_changes_effective (effective_date, applied_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "platform_banners",
+      `CREATE TABLE IF NOT EXISTS platform_banners (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        subtitle TEXT NULL,
+        cta_label VARCHAR(100) NULL,
+        cta_url VARCHAR(500) NULL,
+        image_path VARCHAR(500) NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        display_order INT NOT NULL DEFAULT 0,
+        created_by VARCHAR(36) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_pb_active_order (is_active, display_order),
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
 

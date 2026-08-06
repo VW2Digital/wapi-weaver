@@ -106,10 +106,10 @@ export const createWhatsAppGroup = createServerFn({ method: "POST" })
       // 4. Cria o contato correspondente na tabela contacts (com canal 'whatsapp_group')
       const contactId = crypto.randomUUID();
       await db.query(
-        `INSERT INTO contacts (id, user_id, phone_e164, name, source, channel, chat_status, is_unread)
-         VALUES (?, ?, ?, ?, 'whatsapp_group', 'whatsapp_group', 'aberto', false)
+        `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, name, source, channel, chat_status, is_unread)
+         VALUES (?, ?, ?, ?, ?, 'whatsapp_group', 'whatsapp_group', 'aberto', false)
          ON DUPLICATE KEY UPDATE name = VALUES(name), channel = 'whatsapp_group'`,
-        [contactId, effectiveUserId, groupId, data.name],
+        [contactId, effectiveUserId, effectiveUserId, groupId, data.name],
       );
 
       return {

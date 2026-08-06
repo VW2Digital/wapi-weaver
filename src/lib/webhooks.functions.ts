@@ -380,8 +380,8 @@ export const listIncomingWebhookEvents = createServerFn({ method: "GET" })
         id: e.id,
         status: e.status,
         error_message: e.error_message,
-        created_at: e.created_at,
-        payload,
+        created_at: String(e.created_at),
+        payload: payload as Record<string, string | number | boolean | null>,
         fields: Object.keys(payload).filter((k) => payload[k] != null && k !== "headers" && k !== "executionMode" && k !== "webhookUrl"),
       };
     });

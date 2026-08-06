@@ -32,8 +32,25 @@ async function ensureBotStepsColumns(db: any) {
     if (!colNames.includes("flow_id")) {
       await db.query(`ALTER TABLE bot_steps ADD COLUMN flow_id VARCHAR(36) NULL`);
     }
+    if (!colNames.includes("tenant_id")) {
+      await db.query(`ALTER TABLE bot_steps ADD COLUMN tenant_id VARCHAR(36) NULL AFTER id`);
+      await db.query(`UPDATE bot_steps SET tenant_id = user_id WHERE tenant_id IS NULL OR tenant_id = ''`);
+    }
   } catch (err) {
     console.warn("[BotSteps] Aviso ao migrar colunas de bot_steps:", err);
+  }
+}
+
+async function ensureBotSettingsColumns(db: any) {
+  try {
+    const cols: any[] = (await db.query(`SHOW COLUMNS FROM bot_settings`)) as any[];
+    const colNames = cols.map((c: any) => c.Field);
+    if (!colNames.includes("tenant_id")) {
+      await db.query(`ALTER TABLE bot_settings ADD COLUMN tenant_id VARCHAR(36) NULL AFTER id`);
+      await db.query(`UPDATE bot_settings SET tenant_id = user_id WHERE tenant_id IS NULL OR tenant_id = ''`);
+    }
+  } catch (err) {
+    console.warn("[BotSettings] Aviso ao migrar colunas de bot_settings:", err);
   }
 }
 
@@ -45,6 +62,8 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
   const { resolveEffectiveUserId } = await import("./chat-helpers");
   const { default: db } = await import("./db");
   const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+  await ensureBotSettingsColumns(db);
 
   const profileRows = (await db.query(
     "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ?",
@@ -61,9 +80,10 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
   if (!settings) {
     const id = crypto.randomUUID();
     await db.query(
-      "INSERT INTO bot_settings (id, user_id, instance_id, channel, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO bot_settings (id, tenant_id, user_id, instance_id, channel, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [
         id,
+        effectiveUserId,
         effectiveUserId,
         channel === "whatsapp" ? p?.whatsapp_phone_number_id || null : null,
         channel,
@@ -206,11 +226,12 @@ export const duplicateBotFlow = createServerFn({ method: "POST" })
       for (const s of steps || []) {
         const stepId = crypto.randomUUID();
         await db.query(
-          `INSERT INTO bot_steps (id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
+          `INSERT INTO bot_steps (id, tenant_id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
            message_content, media_url, media_caption, footer_text, buttons_config, delay_seconds, position_x, position_y)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             stepId,
+            tenantId,
             s.bot_settings_id,
             newId,
             tenantId,
@@ -412,7 +433,7 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           await assertBelongsToTenant(step.assign_team_id, "team", effectiveUserId);
         if (step.assign_user_id)
           await assertUserBelongsToTenant(step.assign_user_id, effectiveUserId);
-        if (step.next_step_id)
+        if (step.next_step_id && !incomingIds.includes(step.next_step_id))
           await assertBelongsToTenant(step.next_step_id, "bot_step", effectiveUserId);
         const stepId = step.id || crypto.randomUUID();
         const isTrigger = [
@@ -490,12 +511,13 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           );
         } else {
           await db.query(
-            `INSERT INTO bot_steps (id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
+            `INSERT INTO bot_steps (id, tenant_id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
            message_content, media_url, media_caption, footer_text, buttons_config, next_step_id, delay_seconds,
            position_x, position_y, assign_team_id, assign_user_id, handoff_message, card_color)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               stepId,
+              effectiveUserId,
               payload.bot_settings_id,
               payload.flow_id,
               payload.user_id,
@@ -549,6 +571,8 @@ export const saveBotStep = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
+    await ensureBotStepsColumns(db);
+
     const result = await getOrCreateBotSettings(context);
     if (!result.ok) return result;
 
@@ -559,6 +583,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
       await assertBelongsToTenant(data.next_step_id, "bot_step", effectiveUserId);
 
     const payload = {
+      tenant_id: effectiveUserId,
       bot_settings_id: result.settings.id,
       user_id: effectiveUserId,
       step_order: data.step_order,

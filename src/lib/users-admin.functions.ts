@@ -4,7 +4,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "./db";
 import { setResponseStatus } from "@tanstack/react-start/server";
-import { isCompanyAdmin, isMaster } from "./roles";
+import { hasCompanyAdminRole, hasMasterRole } from "./roles";
 import {
   assertUserBelongsToTenant,
   getActorTenantAccess,
@@ -34,12 +34,9 @@ export const listUsers = createServerFn({ method: "GET" })
       perPage: 200,
     });
     if (uErr) throw uErr;
-    const allowedUserIds = access.isMaster ? null : await listTenantUserIds(access.tenantId);
-    const visibleUsers = allowedUserIds
-      ? usersData.users.filter((user: any) => allowedUserIds.includes(user.id))
-      : usersData.users;
-    let rolesQuery = dbAdmin.from("user_roles").select("user_id, role");
-    if (allowedUserIds) rolesQuery = rolesQuery.in("user_id", allowedUserIds);
+    const allowedUserIds = await listTenantUserIds(context.tenantId);
+    const visibleUsers = usersData.users.filter((user: any) => allowedUserIds.includes(user.id));
+    let rolesQuery = dbAdmin.from("user_roles").select("user_id, role").in("user_id", allowedUserIds);
     const { data: roles, error: rErr } = await rolesQuery;
     if (rErr) throw rErr;
     const rolesMap = new Map<string, string[]>();
@@ -64,16 +61,24 @@ export const listUsers = createServerFn({ method: "GET" })
     }
 
     return {
-      users: visibleUsers.map((u: any) => ({
-        id: u.id,
-        email: u.email ?? "",
-        created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at ?? null,
-        confirmed: !!u.email_confirmed_at,
-        roles: rolesMap.get(u.id) ?? [],
-        display_name: profilesMap.get(u.id)?.display_name ?? null,
-        full_name: profilesMap.get(u.id)?.full_name ?? null,
-      })),
+      users: visibleUsers.map((u: any) => {
+        const userRoles = [...(rolesMap.get(u.id) ?? [])];
+        const isOwner = u.id === context.tenantId;
+        if (isOwner && !userRoles.includes("admin") && !userRoles.includes("admin_master")) {
+          userRoles.push("admin");
+        }
+        return {
+          id: u.id,
+          email: u.email ?? "",
+          created_at: u.created_at,
+          last_sign_in_at: u.last_sign_in_at ?? null,
+          confirmed: !!u.email_confirmed_at,
+          roles: userRoles,
+          isOwner,
+          display_name: profilesMap.get(u.id)?.display_name ?? null,
+          full_name: profilesMap.get(u.id)?.full_name ?? null,
+        };
+      }),
     };
   });
 
@@ -81,14 +86,14 @@ const createSchema = z.object({
   email: z.string().trim().email().max(255),
   password: z.string().min(8).max(72),
   display_name: z.string().trim().min(1).max(80).optional(),
-  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user"]).default("user"),
+  role: z.enum(["admin_master", "admin", "user"]).default("user"),
 });
 
 export const createUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => createSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const access = await assertAdmin(context);
     const { data: created, error } = await dbAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -104,12 +109,34 @@ export const createUser = createServerFn({ method: "POST" })
        VALUES (?, ?, ?, ?)`,
       [uid, data.email, data.display_name ?? null, data.display_name ?? null],
     );
+
+    // Se o criador é admin de empresa (não-master), adiciona o colaborador ao time da empresa
+    if (!access.isMaster) {
+      const teams = (await db.query(
+        "SELECT id FROM teams WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1",
+        [context.tenantId],
+      )) as any[];
+      let teamId = teams?.[0]?.id;
+      if (!teamId) {
+        teamId = crypto.randomUUID();
+        await db.query("INSERT INTO teams (id, tenant_id, name, user_id) VALUES (?, ?, 'Geral', ?)", [
+          teamId,
+          context.tenantId,
+          context.userId,
+        ]);
+      }
+      await db.query("INSERT IGNORE INTO team_members (team_id, user_id) VALUES (?, ?)", [
+        teamId,
+        uid,
+      ]);
+    }
+
     return { ok: true, id: uid };
   });
 
 const roleSchema = z.object({
   user_id: z.string().uuid(),
-  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user"]),
+  role: z.enum(["admin_master", "admin", "user"]),
   grant: z.boolean(),
 });
 
@@ -118,6 +145,9 @@ export const setUserRole = createServerFn({ method: "POST" })
   .validator((d) => roleSchema.parse(d))
   .handler(async ({ data, context }) => {
     const access = await assertAdmin(context);
+    if (data.user_id === access.tenantId && !data.grant && data.role === "admin") {
+      throw new Error("O criador da conta é o administrador titular da empresa e seu perfil de administrador é imutável.");
+    }
     if (!access.isMaster) await assertUserBelongsToTenant(data.user_id, access.tenantId);
     if (data.grant) {
       const { error } = await dbAdmin
@@ -126,7 +156,7 @@ export const setUserRole = createServerFn({ method: "POST" })
       if (error && !String(error.message).includes("duplicate")) throw error;
     } else {
       // Proteção: não permitir remover o último administrador de cada nível.
-      if (isMaster(data.role) || isCompanyAdmin(data.role)) {
+      if (hasMasterRole([data.role]) || hasCompanyAdminRole([data.role])) {
         const { count } = await dbAdmin
           .from("user_roles")
           .select("user_id", { count: "exact", head: true })
@@ -155,9 +185,32 @@ export const deleteUser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const access = await assertAdmin(context);
     if (!access.isMaster) await assertUserBelongsToTenant(data.user_id, access.tenantId);
+    if (data.user_id === access.tenantId) throw new Error("O administrador titular da conta não pode ser excluído.");
     if (data.user_id === context.userId) throw new Error("Você não pode excluir a si mesmo.");
-    const { error } = await dbAdmin.auth.admin.deleteUser(data.user_id);
-    if (error) throw error;
+
+    // Verificar se o usuário possui sua própria empresa/licença de cliente
+    const ownLicenses = (await db.query(
+      "SELECT id FROM licenses WHERE tenant_id = ? OR client_email = (SELECT email FROM users WHERE id = ?) LIMIT 1",
+      [data.user_id, data.user_id],
+    )) as any[];
+
+    const hasOwnTenant = ownLicenses.length > 0;
+
+    if (hasOwnTenant) {
+      // Se possui empresa/licença própria, apenas desvincula das equipes e cargos da empresa atual
+      await db.query(
+        "DELETE tm FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.user_id = ? AND t.user_id = ?",
+        [data.user_id, access.tenantId],
+      );
+      // Remove cargos associados à empresa do solicitante
+      if (!access.isMaster) {
+        await db.query("DELETE FROM user_roles WHERE user_id = ? AND role != 'admin'", [data.user_id]);
+      }
+    } else {
+      // Caso não tenha empresa própria, deleta a conta globalmente
+      const { error } = await dbAdmin.auth.admin.deleteUser(data.user_id);
+      if (error) throw error;
+    }
     return { ok: true };
   });
 

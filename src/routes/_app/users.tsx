@@ -83,6 +83,12 @@ import {
   removeTeamMember,
 } from "@/lib/assignment.functions";
 
+export const roleLabels: Record<string, string> = {
+  admin_master: "Administrador da plataforma",
+  admin: "Administrador da empresa",
+  user: "Colaborador",
+};
+
 function TabSelector({
   tabs,
   activeId,
@@ -135,7 +141,7 @@ function UsersPage() {
           <CardHeader>
             <CardTitle>Acesso restrito</CardTitle>
             <CardDescription>
-              Esta área é exclusiva para administradores da plataforma.
+              Esta área é exclusiva para administradores da empresa.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -183,7 +189,7 @@ function AdminUsers() {
       email: string;
       password: string;
       display_name?: string;
-      role: "owner" | "user";
+      role: "admin" | "user";
     }) => create({ data: input }),
     onSuccess: () => {
       toast.success("Usuário criado");
@@ -193,7 +199,7 @@ function AdminUsers() {
   });
 
   const roleMut = useMutation({
-    mutationFn: (input: { user_id: string; role: "owner" | "user"; grant: boolean }) =>
+    mutationFn: (input: { user_id: string; role: "admin" | "user"; grant: boolean }) =>
       setRole({ data: input }),
     onSuccess: () => {
       toast.success("Permissão atualizada");
@@ -216,7 +222,7 @@ function AdminUsers() {
     email: "",
     password: "",
     display_name: "",
-    role: "user" as "owner" | "user",
+    role: "user" as "admin" | "user",
   });
   const [activityUser, setActivityUser] = useState<{ id: string; email: string } | null>(null);
 
@@ -233,8 +239,8 @@ function AdminUsers() {
   };
 
   usePageHeader({
-    title: "Usuários",
-    subtitle: "Crie usuários e defina quem tem acesso administrativo.",
+    title: "Membros da empresa",
+    subtitle: "Gerencie os colaboradores da sua empresa e defina seus acessos.",
     action: (
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
@@ -285,14 +291,14 @@ function AdminUsers() {
                 <Label htmlFor="role">Perfil</Label>
                 <Select
                   value={form.role}
-                  onValueChange={(v) => setForm({ ...form, role: v as "owner" | "user" })}
+                  onValueChange={(v) => setForm({ ...form, role: v as "admin" | "user" })}
                 >
                   <SelectTrigger id="role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">Usuário</SelectItem>
-                    <SelectItem value="owner">Administrador da empresa</SelectItem>
+                    <SelectItem value="admin">Administrador da empresa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -338,17 +344,21 @@ function AdminUsers() {
                 <TableBody>
                   {data?.users.map((u: any) => {
                     const isProtectedAdmin = hasMasterRole(u.roles);
-                    const isAdmin = isProtectedAdmin || hasCompanyAdminRole(u.roles);
+                    const isOwner = Boolean(u.isOwner);
+                    const isCompAdmin = hasCompanyAdminRole(u.roles) || isOwner;
+                    const isAdmin = isProtectedAdmin || isCompAdmin;
+                    const primaryRole = isProtectedAdmin ? "admin_master" : isCompAdmin ? "admin" : "user";
+                    const isSwitchDisabled = roleMut.isPending || isProtectedAdmin || isOwner;
+
                     return (
                       <TableRow key={u.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             {u.email}
-                            {isAdmin && (
-                              <Badge variant="secondary" className="gap-1">
-                                <ShieldCheck className="h-3 w-3" /> Admin
-                              </Badge>
-                            )}
+                            <Badge variant={isProtectedAdmin ? "destructive" : isCompAdmin ? "secondary" : "outline"} className="gap-1">
+                              <ShieldCheck className="h-3 w-3" /> {roleLabels[primaryRole] || roleLabels.user}
+                              {isOwner && " (Titular)"}
+                            </Badge>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -364,10 +374,10 @@ function AdminUsers() {
                         <TableCell className="text-center">
                           <Switch
                             checked={isAdmin}
-                            disabled={roleMut.isPending || isProtectedAdmin}
+                            disabled={isSwitchDisabled}
                             aria-label={`Acesso administrativo de ${u.email}`}
                             onCheckedChange={(checked) =>
-                              roleMut.mutate({ user_id: u.id, role: "owner", grant: checked })
+                              roleMut.mutate({ user_id: u.id, role: "admin", grant: checked })
                             }
                           />
                         </TableCell>
@@ -386,22 +396,24 @@ function AdminUsers() {
                                 <BarChart3 className="mr-2 h-4 w-4" />
                                 Relatório
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
-                                disabled={delMut.isPending}
-                                onClick={async () => {
-                                  const ok = await confirm({
-                                    title: "Excluir usuário?",
-                                    description: `${u.email} será removido permanentemente. Esta ação não pode ser desfeita.`,
-                                    confirmText: "Excluir",
-                                    destructive: true,
-                                  });
-                                  if (ok) delMut.mutate(u.id);
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Excluir
-                              </DropdownMenuItem>
+                              {!isOwner && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                                  disabled={delMut.isPending}
+                                  onClick={async () => {
+                                    const ok = await confirm({
+                                      title: "Excluir usuário?",
+                                      description: `${u.email} será removido permanentemente. Esta ação não pode ser desfeita.`,
+                                      confirmText: "Excluir",
+                                      destructive: true,
+                                    });
+                                    if (ok) delMut.mutate(u.id);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>

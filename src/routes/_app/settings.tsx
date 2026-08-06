@@ -68,6 +68,7 @@ import {
   updateSidebarOrder,
 } from "@/lib/admin.functions";
 import { getWebhookHealth, listWebhookEvents } from "@/lib/webhook-health.functions";
+import { listCustomFields } from "@/lib/custom-fields.functions";
 import {
   Dialog,
   DialogContent,
@@ -81,6 +82,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { GatewaySettings } from "@/components/licenses/gateway-settings";
+import { BannersManager } from "@/components/licenses/banners-manager";
 import { hasMasterRole } from "@/lib/roles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,6 +150,7 @@ import {
   Code,
   BrainCircuit,
   Info,
+  Megaphone,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -339,6 +342,320 @@ function usePersistedCollapsedState(key: string, defaultValue = true) {
   };
 
   return [collapsed, toggleCollapsed] as const;
+}
+
+// ─── CRM Ingest Section ────────────────────────────────────────────────────────
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: "Texto",
+  textarea: "Texto longo",
+  number: "Número",
+  currency: "Moeda",
+  date: "Data",
+  datetime: "Data/Hora",
+  select: "Seleção única",
+  multi_select: "Seleção múltipla",
+  boolean: "Booleano",
+  email: "E-mail",
+  phone: "Telefone",
+  url: "URL",
+};
+
+function CrmIngestSection({
+  ingestUrl,
+  apiKey,
+  onCopy,
+  onRotate,
+  isRotating,
+}: {
+  ingestUrl: string;
+  apiKey: string;
+  onCopy: (text: string, label: string) => void;
+  onRotate: () => void;
+  isRotating: boolean;
+}) {
+  const fetchCustomFields = useServerFn(listCustomFields);
+  const [copiedCurl, setCopiedCurl] = useState(false);
+
+  const { data: fields = [], isLoading: loadingFields } = useQuery({
+    queryKey: ["custom-fields-crm"],
+    queryFn: () => fetchCustomFields(),
+    staleTime: 60_000,
+  });
+
+  // Build dynamic curl example using real field keys
+  const curlExample = useMemo(() => {
+    const activeFields = (fields as any[]).filter((f) => f.is_active !== 0 && f.is_active !== false);
+    const customFieldsObj =
+      activeFields.length > 0
+        ? activeFields.reduce(
+            (acc: Record<string, string>, f: any) => {
+              const exampleVal =
+                f.type === "number" || f.type === "currency"
+                  ? "0"
+                  : f.type === "boolean"
+                    ? "true"
+                    : f.type === "date"
+                      ? "2024-12-31"
+                      : f.type === "email"
+                        ? "exemplo@email.com"
+                        : f.type === "phone"
+                          ? "+5511999990000"
+                          : f.type === "url"
+                            ? "https://exemplo.com"
+                            : f.type === "select" || f.type === "multi_select"
+                              ? (f.options?.[0] ?? "opção_1")
+                              : "valor_exemplo";
+              acc[f.key] = exampleVal;
+              return acc;
+            },
+            {} as Record<string, string>,
+          )
+        : { empresa: "Acme", cargo: "Gerente" };
+
+    const bodyJson = JSON.stringify(
+      {
+        phone: "+5511999990000",
+        name: "João Silva",
+        email: "joao@empresa.com",
+        tags: ["lead-quente"],
+        custom_fields: customFieldsObj,
+      },
+      null,
+      2,
+    );
+
+    return `curl -X POST ${ingestUrl} \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: ${apiKey || "SUA_CHAVE_DE_ACESSO"}" \\\n  -d '${bodyJson}'`;
+  }, [fields, ingestUrl, apiKey]);
+
+  const handleCopyCurl = () => {
+    navigator.clipboard.writeText(curlExample);
+    setCopiedCurl(true);
+    setTimeout(() => setCopiedCurl(false), 2000);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header card */}
+      <Card className="p-6">
+        <div className="flex items-start gap-3 mb-5">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
+            <Database className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-semibold">
+              Integração de Contatos via API
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Envie contatos diretamente do seu CRM, automação (n8n, Zapier, Make) ou sistema
+              próprio. Os campos personalizados criados na sua conta são aceitos automaticamente.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {/* Endpoint */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Endpoint (POST)
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={ingestUrl}
+                className="font-mono text-xs bg-muted/40 border-dashed"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onCopy(ingestUrl, "Endpoint")}
+                title="Copiar endpoint"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* API Key */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Chave de acesso (X-API-Key)
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={apiKey}
+                className="font-mono text-xs bg-muted/40 border-dashed"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onCopy(apiKey, "API key")}
+                title="Copiar chave"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onRotate}
+                disabled={isRotating}
+                title="Gerar nova chave (a antiga deixa de funcionar imediatamente)"
+              >
+                {isRotating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              Trate como senha — qualquer pessoa com essa chave pode adicionar contatos à sua conta.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Custom Fields Reference */}
+      <Card className="p-6">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <ListChecks className="h-4 w-4 text-primary" />
+              Campos personalizados disponíveis
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Use as chaves abaixo dentro do objeto{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                custom_fields
+              </code>{" "}
+              para popular seus campos extras.
+            </p>
+          </div>
+        </div>
+
+        {loadingFields ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Carregando campos...
+          </div>
+        ) : (fields as any[]).filter((f) => f.is_active !== 0 && f.is_active !== false).length === 0 ? (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="font-medium">Nenhum campo personalizado criado ainda.</p>
+            <p className="text-xs mt-1">
+              Vá em{" "}
+              <span className="text-primary font-medium">
+                Configurações &gt; Campos Personalizados
+              </span>{" "}
+              para criar seus campos e eles aparecerão aqui automaticamente.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/50 border-b">
+                  <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">
+                    Chave (key)
+                  </th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">
+                    Nome do campo
+                  </th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">
+                    Tipo
+                  </th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground">
+                    Exemplo de valor
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {(fields as any[])
+                  .filter((f) => f.is_active !== 0 && f.is_active !== false)
+                  .map((field: any) => (
+                    <tr key={field.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <button
+                          className="font-mono text-primary hover:underline flex items-center gap-1 group"
+                          onClick={() => {
+                            navigator.clipboard.writeText(field.key);
+                            toast.success(`Chave "${field.key}" copiada`);
+                          }}
+                          title="Clique para copiar"
+                        >
+                          {field.key}
+                          <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5 text-foreground/80">{field.label}</td>
+                      <td className="px-3 py-2.5">
+                        <Badge variant="secondary" className="text-[10px] font-normal">
+                          {FIELD_TYPE_LABELS[field.type] ?? field.type}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground font-mono">
+                        {field.type === "number" || field.type === "currency"
+                          ? "1500"
+                          : field.type === "boolean"
+                            ? "true"
+                            : field.type === "date"
+                              ? "2024-12-31"
+                              : field.type === "email"
+                                ? "joao@empresa.com"
+                                : field.type === "phone"
+                                  ? "+5511999990000"
+                                  : field.type === "url"
+                                    ? "https://empresa.com"
+                                    : field.type === "select" || field.type === "multi_select"
+                                      ? `"${field.options?.[0] ?? "opcao_1"}"`
+                                      : '"Valor aqui"'}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Code example */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <Code className="h-4 w-4 text-primary" />
+            Exemplo de requisição (cURL)
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-7"
+            onClick={handleCopyCurl}
+          >
+            {copiedCurl ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-500" /> Copiado!
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" /> Copiar cURL
+              </>
+            )}
+          </Button>
+        </div>
+        <pre className="overflow-auto rounded-lg bg-sidebar p-4 text-xs text-sidebar-foreground leading-relaxed font-mono">
+          {curlExample}
+        </pre>
+        <p className="mt-3 text-[11px] text-muted-foreground flex items-start gap-1.5">
+          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          Os campos padrão são: <code className="font-mono">phone</code> (obrigatório),{" "}
+          <code className="font-mono">name</code>, <code className="font-mono">email</code>,{" "}
+          <code className="font-mono">tags</code> (array de strings). Use{" "}
+          <code className="font-mono">custom_fields</code> para enviar os campos acima.
+        </p>
+      </Card>
+    </div>
+  );
 }
 
 function SettingsPage() {
@@ -793,7 +1110,8 @@ function SettingsPage() {
                 <Settings className="h-3.5 w-3.5" /> Configurações Gerais
               </h4>
               <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
-                {/* Ferramentas Avançadas */}
+                {/* Ferramentas Avançadas — apenas admin_master */}
+                {isAdminMaster && (
                 <button
                   onClick={() => setActiveSection("advanced")}
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
@@ -813,6 +1131,7 @@ function SettingsPage() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </button>
+                )}
 
                 {/* Geral & Legal */}
                 <button
@@ -857,8 +1176,8 @@ function SettingsPage() {
               </div>
             </div>
 
-            {/* ADMINISTRAÇÃO DA PLATAFORMA — só admin vê */}
-            {isAdmin && (
+            {/* ADMINISTRAÇÃO DA PLATAFORMA — apenas admin_master */}
+            {isAdminMaster && (
               <div className="space-y-3">
                 <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
                   <ShieldCheck className="h-3.5 w-3.5" /> Administração da Plataforma
@@ -885,6 +1204,34 @@ function SettingsPage() {
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             Mercado Pago, ambiente, checkout e webhooks da plataforma.
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {isAdminMaster && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("admin-banners")}
+                      className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                          <Megaphone className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-semibold text-sm text-foreground">
+                              Banners Promocionais
+                            </h5>
+                            <Badge className="border-none bg-primary/10 text-[9px] font-semibold uppercase text-primary hover:bg-primary/10">
+                              Admin Master
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Criar e gerenciar anúncios e avisos globais exibidos nos painéis.
                           </p>
                         </div>
                       </div>
@@ -1023,6 +1370,9 @@ function SettingsPage() {
           <div className="flex-1 overflow-y-auto p-6 w-full">
             <div className={activeSection === "admin-payments" ? "block" : "hidden"}>
               <GatewaySettings enabled={isAdminMaster && activeSection === "admin-payments"} />
+            </div>
+            <div className={activeSection === "admin-banners" ? "block" : "hidden"}>
+              <BannersManager />
             </div>
             <Tabs
               value={activeSection ?? ""}
@@ -2181,69 +2531,13 @@ function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="crm" className="outline-none">
-                <Card className="p-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <h2 className="font-display text-lg font-semibold">
-                        Conectar com outros sistemas (CRM, automações)
-                      </h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Use a chave abaixo para receber contatos automaticamente do seu CRM
-                        (HubSpot, RD Station, n8n, Zapier, etc). Se nunca usou isso, pode ignorar
-                        esta seção — não é obrigatório para enviar mensagens.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    <ReadOnly
-                      label="Endereço para envio (POST)"
-                      value={ingestUrl}
-                      onCopy={() => copy(ingestUrl, "Endpoint")}
-                    />
-                    <div className="space-y-1.5">
-                      <Label>Sua chave de acesso</Label>
-                      <div className="flex gap-2">
-                        <Input readOnly value={form.api_key ?? ""} className="font-mono text-xs" />
-                        <Button
-                          variant="outline"
-                          onClick={() => copy(form.api_key ?? "", "API key")}
-                          title="Copiar"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => rotateMut.mutate()}
-                          disabled={rotateMut.isPending}
-                          title="Gerar nova chave (a antiga deixa de funcionar)"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Trate como uma senha — qualquer pessoa com essa chave pode enviar contatos
-                        para sua conta.
-                      </p>
-                    </div>
-                    <details className="rounded-md border bg-muted/30 p-3 text-xs">
-                      <summary className="cursor-pointer font-medium text-foreground">
-                        Exemplo técnico para desenvolvedores
-                      </summary>
-                      <pre className="mt-3 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
-                        {`curl -X POST ${ingestUrl} \\
-  -H "Content-Type: application/json" \\
-  -H "X-API-Key: ${form.api_key ?? "SUA_API_KEY"}" \\
-  -d '{
-    "phone": "+5511999990000",
-    "name": "João",
-    "email": "joao@empresa.com",
-    "custom_fields": {"empresa": "Acme"},
-    "tags": ["lead-quente"]
-  }'`}
-                      </pre>
-                    </details>
-                  </div>
-                </Card>
+                <CrmIngestSection
+                  ingestUrl={ingestUrl}
+                  apiKey={form.api_key ?? ""}
+                  onCopy={copy}
+                  onRotate={() => rotateMut.mutate()}
+                  isRotating={rotateMut.isPending}
+                />
               </TabsContent>
 
               <TabsContent value="qrcodes" className="outline-none">

@@ -119,13 +119,14 @@ function ContactAvatarCell({ contact: c }: { contact: any }) {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const path = `contacts/${c.id}/avatar-${Date.now()}.${ext}`;
 
-      const { error: upErr } = await db.storage
+      const { data: upRes, error: upErr } = await db.storage
         .from("avatars")
         .upload(path, file);
 
       if (upErr) throw upErr;
 
-      const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+      const uploadedPath = upRes?.path || path;
+      const { data: pub } = db.storage.from("avatars").getPublicUrl(uploadedPath);
       const url = pub.publicUrl;
 
       await updateContactProfilePhoto({ data: { id: c.id, avatar_url: url } });
@@ -652,8 +653,20 @@ function ContactsPage() {
             <div className="pt-4 border-t mt-auto">
               <Button
                 onClick={() => {
+                  const rawPhone = (form.phone ?? "").trim();
+                  // Strip formatting chars before sending — server expects digits only or E.164
+                  const cleanPhone = rawPhone.replace(/[\s\-().]/g, "");
+                  if (!cleanPhone) {
+                    toast.error("O telefone é obrigatório.");
+                    return;
+                  }
+                  if (cleanPhone.replace(/\D/g, "").length < 8) {
+                    toast.error("Telefone inválido — mínimo 8 dígitos.");
+                    return;
+                  }
                   const payload = {
                     ...form,
+                    phone: cleanPhone,
                     custom_fields: newContactAvatar ? { avatar_url: newContactAvatar } : undefined,
                   };
                   createMut.mutate(payload as any, {
@@ -1069,9 +1082,10 @@ function ContactsPage() {
                         try {
                           const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
                           const path = `contacts/${editingContact.id}/avatar-${Date.now()}.${ext}`;
-                          const { error: upErr } = await db.storage.from("avatars").upload(path, file);
+                          const { data: upRes, error: upErr } = await db.storage.from("avatars").upload(path, file);
                           if (upErr) throw upErr;
-                          const { data: pub } = db.storage.from("avatars").getPublicUrl(path);
+                          const uploadedPath = upRes?.path || path;
+                          const { data: pub } = db.storage.from("avatars").getPublicUrl(uploadedPath);
 
                           await updateContactProfilePhoto({ data: { id: editingContact.id, avatar_url: pub.publicUrl } });
 

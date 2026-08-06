@@ -153,8 +153,8 @@ export const createLicense = createServerFn({ method: "POST" })
         preview: keyPreview,
       };
     } catch (err: any) {
-      if (err.code === "ER_DUP_ENTRY") {
-        throw new Error("Erro: Essa licença já foi cadastrada.");
+      if (err.code === "ER_DUP_ENTRY" || err.errno === 1062 || String(err.message).includes("license_key_hash")) {
+        throw new Error("Já existe uma licença / cliente cadastrado com este e-mail ou domínio.");
       }
       throw err;
     }
@@ -280,23 +280,30 @@ export const updateLicense = createServerFn({ method: "POST" })
       }
     }
 
-    await db.query(
-      `UPDATE licenses
-       SET client_name = ?, client_email = ?, plan = ?, status = ?, expires_at = ?, max_activations = ?, max_users = ?, notes = ?, tenant_id = ?
-       WHERE id = ?`,
-      [
-        input.client_name,
-        input.client_email || null,
-        input.plan,
-        input.status,
-        expiresDate,
-        input.max_activations,
-        input.max_users || null,
-        input.notes || null,
-        tenantId,
-        input.id,
-      ],
-    );
+    try {
+      await db.query(
+        `UPDATE licenses
+         SET client_name = ?, client_email = ?, plan = ?, status = ?, expires_at = ?, max_activations = ?, max_users = ?, notes = ?, tenant_id = ?
+         WHERE id = ?`,
+        [
+          input.client_name,
+          input.client_email || null,
+          input.plan,
+          input.status,
+          expiresDate,
+          input.max_activations,
+          input.max_users || null,
+          input.notes || null,
+          tenantId,
+          input.id,
+        ],
+      );
+    } catch (err: any) {
+      if (err.code === "ER_DUP_ENTRY" || err.errno === 1062 || String(err.message).includes("licenses.")) {
+        throw new Error("Já existe outro cliente / licença cadastrada com este e-mail ou domínio.");
+      }
+      throw err;
+    }
 
     return { success: true };
   });
@@ -308,7 +315,43 @@ export const deleteLicense = createServerFn({ method: "POST" })
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
-    await db.query("DELETE FROM licenses WHERE id = ?", [input.id]);
+    // Buscar tenant_id e client_email da licença antes de excluir
+    const rows = (await db.query("SELECT tenant_id, client_email FROM licenses WHERE id = ? LIMIT 1", [
+      input.id,
+    ])) as any[];
+
+    if (rows.length > 0) {
+      const { tenant_id, client_email } = rows[0];
+
+      // Deletar a licença
+      await db.query("DELETE FROM licenses WHERE id = ?", [input.id]);
+
+      // Deletar a conta do usuário caso não seja um adminmaster protegido
+      let userIdToDelete = tenant_id;
+      if (!userIdToDelete && client_email) {
+        const uRows = (await db.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1", [
+          client_email,
+        ])) as any[];
+        if (uRows.length > 0) userIdToDelete = uRows[0].id;
+      }
+
+      if (userIdToDelete && userIdToDelete !== context.userId) {
+        // Verificar se é protegida (adminmaster)
+        const roleRows = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [
+          userIdToDelete,
+        ])) as any[];
+        const isMasterUser = roleRows.some((r: any) => r.role === "admin_master");
+
+        if (!isMasterUser) {
+          await db.query("DELETE FROM user_roles WHERE user_id = ?", [userIdToDelete]);
+          await db.query("DELETE FROM profiles WHERE id = ?", [userIdToDelete]);
+          await db.query("DELETE FROM users WHERE id = ?", [userIdToDelete]);
+        }
+      }
+    } else {
+      await db.query("DELETE FROM licenses WHERE id = ?", [input.id]);
+    }
+
     return { success: true };
   });
 

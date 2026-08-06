@@ -51,6 +51,9 @@ function normalizeCoexistencePhoneInfo(body: unknown): CoexistencePhoneInfo {
 }
 
 const credSchema = z.object({
+  full_name: z.string().trim().max(150).nullable().optional(),
+  avatar_url: z.string().trim().max(1000).nullable().optional(),
+  phone: z.string().trim().max(32).nullable().optional(),
   whatsapp_phone_number_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_waba_id: z.string().trim().max(64).nullable().optional(),
   whatsapp_business_id: z.string().trim().max(64).nullable().optional(),
@@ -67,9 +70,6 @@ const credSchema = z.object({
     .max(10)
     .optional(),
   display_name: z.string().trim().max(100).nullable().optional(),
-  full_name: z.string().trim().max(150).nullable().optional(),
-  phone: z.string().trim().max(32).nullable().optional(),
-  avatar_url: z.string().trim().max(500).nullable().optional(),
   company_name: z.string().trim().max(150).nullable().optional(),
   company_document: z.string().trim().max(32).nullable().optional(),
   company_website: z.string().trim().max(255).nullable().optional(),
@@ -79,24 +79,31 @@ const credSchema = z.object({
 export const getProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("profiles")
-      .select(
-        `id, email, full_name, avatar_url, display_name, phone,
-         company_name, company_document, company_address, company_website,
-         rate_limit_per_second, whatsapp_verify_token, whatsapp_phone_number_id,
-         whatsapp_waba_id, whatsapp_business_id, whatsapp_business_phone,
-         whatsapp_app_id, meta_graph_version, salvy_api_key, api_key,
-         created_at, updated_at,
-         CASE WHEN whatsapp_access_token IS NOT NULL AND whatsapp_access_token <> ''
+    const { default: db } = await import("./db");
+
+    // Garante que a row de profile existe (cria se não existir)
+    await db.query(`INSERT IGNORE INTO profiles (id) VALUES (?)`, [context.userId]);
+
+    const rows = (await db.query(
+      `SELECT
+         p.id, u.email, p.full_name, p.avatar_url, p.display_name, p.phone,
+         p.company_name, p.company_document, p.company_address, p.company_website,
+         p.rate_limit_per_second, p.whatsapp_verify_token, p.whatsapp_phone_number_id,
+         p.whatsapp_waba_id, p.whatsapp_business_id, p.whatsapp_business_phone,
+         p.whatsapp_app_id, p.meta_graph_version, p.salvy_api_key, p.api_key,
+         p.created_at, p.updated_at,
+         CASE WHEN p.whatsapp_access_token IS NOT NULL AND p.whatsapp_access_token <> ''
            THEN 1 ELSE 0 END AS hasAccessToken,
-         CASE WHEN whatsapp_app_secret IS NOT NULL AND whatsapp_app_secret <> ''
-           THEN 1 ELSE 0 END AS hasAppSecret`,
-      )
-      .eq("id", context.userId)
-      .maybeSingle();
-    if (error) throw error;
-    // Garante que sempre retorne ao menos o id, mesmo sem profile row
+         CASE WHEN p.whatsapp_app_secret IS NOT NULL AND p.whatsapp_app_secret <> ''
+           THEN 1 ELSE 0 END AS hasAppSecret
+       FROM profiles p
+       LEFT JOIN users u ON u.id = p.id
+       WHERE p.id = ?
+       LIMIT 1`,
+      [context.userId],
+    )) as any[];
+
+    const data = rows?.[0] ?? null;
     return data
       ? {
           ...data,
@@ -105,6 +112,7 @@ export const getProfile = createServerFn({ method: "GET" })
         }
       : { id: context.userId, hasAccessToken: false, hasAppSecret: false };
   });
+
 
 export const updateProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])

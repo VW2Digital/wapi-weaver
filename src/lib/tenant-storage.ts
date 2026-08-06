@@ -5,11 +5,34 @@ import { getActorTenantAccess } from "./tenant-authorization";
 export async function verifyStorageUser(request: Request): Promise<AuthenticatedUser> {
   const url = new URL(request.url);
   const queryToken = url.searchParams.get("token");
-  if (!request.headers.get("authorization") && queryToken) {
+  if (queryToken) {
     const headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${queryToken}`);
-    return verifyApiUser(new Request(request, { headers }));
+    try {
+      return await verifyApiUser(new Request(request, { headers }));
+    } catch (e) {
+      // Ignore query token error and fallback to standard request headers
+    }
   }
+
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+      const match = cookieHeader.match(/(?:sb-access-token|wapi_token|token|app-token|session)=([^;]+)/);
+      if (match && match[1]) {
+        const token = decodeURIComponent(match[1]);
+        const headers = new Headers(request.headers);
+        headers.set("Authorization", `Bearer ${token}`);
+        try {
+          return await verifyApiUser(new Request(request, { headers }));
+        } catch (e) {
+          // Fallback to default verifyApiUser
+        }
+      }
+    }
+  }
+
   return verifyApiUser(request);
 }
 

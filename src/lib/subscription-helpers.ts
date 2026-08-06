@@ -18,11 +18,24 @@ export interface AuthenticatedUser {
  * Verifies JWT token in API requests and returns authenticated user details.
  */
 export async function verifyApiUser(request: Request): Promise<AuthenticatedUser> {
+  let token: string | null = null;
   const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.replace("Bearer ", "");
+  } else {
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+      const match = cookieHeader.match(/(?:sb-access-token|wapi_token|token|app-token|session)=([^;]+)/);
+      if (match && match[1]) {
+        token = decodeURIComponent(match[1]);
+      }
+    }
+  }
+
+  if (!token) {
     throw new Error("Unauthorized: Bearer token required");
   }
-  const token = authHeader.replace("Bearer ", "");
+
   let decoded: any;
   try {
     decoded = jwt.verify(token, JWT_SECRET);

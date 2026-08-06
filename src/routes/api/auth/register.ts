@@ -15,17 +15,18 @@ export const Route = createFileRoute("/api/auth/register")({
           const { email, password, options } = body;
           const displayName = options?.data?.display_name || "";
 
-          if (!email || !password) {
-            return new Response(JSON.stringify({ error: "Email and password are required" }), {
+          const cleanEmail = String(email).trim().toLowerCase();
+          if (!cleanEmail || !password) {
+            return new Response(JSON.stringify({ error: "E-mail e senha são obrigatórios." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
             });
           }
 
           // Check if user already exists
-          const existing = await db.query("SELECT id FROM users WHERE email = ? LIMIT 1", [email]);
+          const existing = await db.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1", [cleanEmail]);
           if (existing && existing.length > 0) {
-            return new Response(JSON.stringify({ error: "Email already registered" }), {
+            return new Response(JSON.stringify({ error: "Este e-mail já está cadastrado no sistema." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
             });
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/api/auth/register")({
             // 1. Insert into users
             await conn.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
               userId,
-              email,
+              cleanEmail,
               passwordHash,
             ]);
 
@@ -47,32 +48,33 @@ export const Route = createFileRoute("/api/auth/register")({
             await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, ?)", [
               roleId,
               userId,
-              "owner",
+              "admin",
             ]);
 
             // 3. Insert into profiles
             await conn.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
               userId,
-              email,
+              cleanEmail,
               displayName,
             ]);
 
             // 4. Insert default subscription (license) record for this owner
             const crypto = await import("crypto");
-            const licenseKey = email;
+            const licenseKey = cleanEmail;
             const keyHash = crypto.createHash("sha256").update(licenseKey).digest("hex");
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 15); // 15 days trial
 
             await conn.execute(
               `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, expires_at, tenant_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [keyHash, email, displayName || email, email, "basic", "active", expiresAt, userId],
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE tenant_id = VALUES(tenant_id), client_email = VALUES(client_email), status = 'active'`,
+              [keyHash, cleanEmail, displayName || cleanEmail, cleanEmail, "basic", "active", expiresAt, userId],
             );
           });
 
           // Sign local JWT
-          const token = jwt.sign({ sub: userId, email, role: "owner" }, JWT_SECRET, {
+          const token = jwt.sign({ sub: userId, email: cleanEmail, role: "admin" }, JWT_SECRET, {
             expiresIn: "30d",
           });
 
@@ -80,8 +82,8 @@ export const Route = createFileRoute("/api/auth/register")({
             access_token: token,
             user: {
               id: userId,
-              email,
-              role: "owner",
+              email: cleanEmail,
+              role: "admin",
               app_metadata: {},
               user_metadata: { display_name: displayName },
               aud: "authenticated",
@@ -95,7 +97,11 @@ export const Route = createFileRoute("/api/auth/register")({
           });
         } catch (err: any) {
           console.error("[Auth API] Registration error:", err);
-          return new Response(JSON.stringify({ error: err.message }), {
+          let errorMessage = err?.message || "Erro no servidor ao realizar cadastro.";
+          if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062 || String(err?.message).includes("licenses")) {
+            errorMessage = "Já existe uma licença ou conta cadastrada com este e-mail.";
+          }
+          return new Response(JSON.stringify({ error: errorMessage }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });

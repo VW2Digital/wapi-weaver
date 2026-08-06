@@ -41,15 +41,19 @@ function toDebugJsonValue(value: unknown): DebugJsonValue {
 export const getCurrentUserRoles = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
-    if (error) throw error;
-    const roles = (data ?? []).map((r: { role: string }) => r.role);
+    const { default: rawDb } = await import("./db");
+    const rows = (await rawDb.query("SELECT role FROM user_roles WHERE user_id = ?", [
+      context.userId,
+    ])) as Array<{ role: string }>;
+    const roles = (rows ?? []).map((r) => r.role);
+    const isOwner = Boolean(context.userId && context.tenantId && context.userId === context.tenantId);
+    const finalRoles =
+      isOwner && !roles.includes("admin") && !roles.includes("admin_master")
+        ? [...roles, "admin"]
+        : roles;
     return {
-      roles,
-      isAdmin: hasMasterRole(roles) || hasCompanyAdminRole(roles),
+      roles: finalRoles,
+      isAdmin: isOwner || hasMasterRole(roles) || hasCompanyAdminRole(roles),
     };
   });
 
@@ -422,12 +426,13 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const claims = context.claims as any;
-    if (isMaster(claims?.role)) {
+    if (claims && isMaster(claims.role)) {
       return {
         isValid: true,
         isAccessAllowed: true,
         graceDaysRemaining: 0,
         hasGraceStarted: false,
+        status: "active",
       };
     }
 
@@ -456,6 +461,7 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
         isAccessAllowed: false,
         graceDaysRemaining: 0,
         hasGraceStarted: false,
+        status: "expired",
       };
     }
 
@@ -464,9 +470,71 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
     const isAccessAllowed = sub.status === "active" && !isExpired;
 
     return {
-      isValid: sub.status === "active",
+      isValid: sub.status === "active" && !isExpired,
       isAccessAllowed,
       graceDaysRemaining: 0,
       hasGraceStarted: false,
+      status: isAccessAllowed ? "active" : (sub.status || "expired"),
+    };
+  });
+
+export const getMyPlan = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+
+    // Busca a licença pelo tenant_id do usuário logado
+    let rows = (await db.query(
+      `SELECT l.plan, l.status, l.expires_at, l.client_name
+       FROM licenses l
+       WHERE l.tenant_id = ?
+       LIMIT 1`,
+      [context.userId],
+    )) as any[];
+
+    // Fallback: busca pelo email do usuário se não encontrou pelo tenant_id
+    if (!rows || rows.length === 0) {
+      rows = (await db.query(
+        `SELECT l.plan, l.status, l.expires_at, l.client_name
+         FROM licenses l
+         JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(l.client_email))
+         WHERE u.id = ?
+         LIMIT 1`,
+        [context.userId],
+      )) as any[];
+    }
+
+    if (!rows || rows.length === 0) {
+      return { plan_name: null, status: null, expires_at: null };
+    }
+
+    const lic = rows[0];
+
+    // Tenta buscar detalhes do plano pela tabela billing_plans usando o nome do plano
+    let planDetails: any = null;
+    if (lic.plan) {
+      const planRows = (await db.query(
+        `SELECT name, price, currency, billing_interval
+         FROM billing_plans
+         WHERE LOWER(id) = LOWER(?) OR LOWER(name) = LOWER(?)
+         LIMIT 1`,
+        [lic.plan, lic.plan],
+      )) as any[];
+      planDetails = planRows?.[0] ?? null;
+    }
+
+    // O nome exibível: usa billing_plans.name se encontrou, senão capitaliza o campo plan
+    const planName = planDetails?.name
+      ?? (lic.plan
+        ? lic.plan.charAt(0).toUpperCase() + lic.plan.slice(1)
+        : null);
+
+    return {
+      plan_name: planName,
+      status: lic.status ?? null,
+      expires_at: lic.expires_at ? new Date(lic.expires_at).toISOString() : null,
+      price: planDetails?.price ?? null,
+      currency: planDetails?.currency ?? "BRL",
+      billing_interval: planDetails?.billing_interval ?? null,
     };
   });

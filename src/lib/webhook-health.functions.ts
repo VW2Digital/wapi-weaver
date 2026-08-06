@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
-import { hasMasterRole } from "./roles";
+import { hasCompanyAdminRole, hasMasterRole } from "./roles";
 
 /**
  * Health-check do webhook do WhatsApp.
@@ -10,11 +10,12 @@ export const getWebhookHealth = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     // Verificação de admin
-    const { data: roles } = await context.db
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
-    const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
+    const { default: rawDb } = await import("./db");
+    const roles = (await rawDb.query("SELECT role FROM user_roles WHERE user_id = ?", [
+      context.userId,
+    ])) as Array<{ role: string }>;
+    const rolesList = (roles ?? []).map((r: any) => r.role);
+    const isAdmin = hasMasterRole(rolesList) || hasCompanyAdminRole(rolesList);
     if (!isAdmin) throw new Error("Acesso negado");
 
     const { dbAdmin } = await import("@/integrations/mysql/client.server");
@@ -57,11 +58,12 @@ export const listWebhookEvents = createServerFn({ method: "GET" })
     onlyUnprocessed: !!data?.onlyUnprocessed,
   }))
   .handler(async ({ context, data }) => {
-    const { data: roles } = await context.db
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
-    const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
+    const { default: rawDb } = await import("./db");
+    const roles = (await rawDb.query("SELECT role FROM user_roles WHERE user_id = ?", [
+      context.userId,
+    ])) as Array<{ role: string }>;
+    const rolesList = (roles ?? []).map((r: any) => r.role);
+    const isAdmin = hasMasterRole(rolesList) || hasCompanyAdminRole(rolesList);
     if (!isAdmin) throw new Error("Acesso negado");
 
     const { dbAdmin } = await import("@/integrations/mysql/client.server");

@@ -31,6 +31,26 @@ async function ensureDsAgentsColumns(db: any) {
   }
 }
 
+async function ensureDsAgentToolsColumns(db: any) {
+  try {
+    const cols: any[] = (await db.query(`SHOW COLUMNS FROM ds_agent_tools`)) as any[];
+    const colNames = cols.map((c: any) => c.Field);
+    if (colNames.length > 0 && !colNames.includes("tool_key")) {
+      if (colNames.includes("name")) {
+        await db.query(`ALTER TABLE ds_agent_tools CHANGE COLUMN name tool_key VARCHAR(100) NOT NULL`);
+      } else if (colNames.includes("key")) {
+        await db.query(`ALTER TABLE ds_agent_tools CHANGE COLUMN \`key\` tool_key VARCHAR(100) NOT NULL`);
+      } else if (colNames.includes("tool_name")) {
+        await db.query(`ALTER TABLE ds_agent_tools CHANGE COLUMN tool_name tool_key VARCHAR(100) NOT NULL`);
+      } else {
+        await db.query(`ALTER TABLE ds_agent_tools ADD COLUMN tool_key VARCHAR(100) NOT NULL AFTER tenant_id`);
+      }
+    }
+  } catch (err) {
+    console.warn("[DS Agente] Aviso ao auto-migrar colunas de ds_agent_tools:", err);
+  }
+}
+
 // ============================================================================
 // PASTAS (ds_agent_folders)
 // ============================================================================
@@ -213,6 +233,7 @@ export const createDsAgent = createServerFn({ method: "POST" })
       const tenantId = await resolveEffectiveUserId(userId);
 
       await ensureDsAgentsColumns(db);
+      await ensureDsAgentToolsColumns(db);
 
       const agentId = crypto.randomUUID();
       const folderId = data.folder_id || null;
@@ -573,6 +594,8 @@ export const updateDsTool = createServerFn({ method: "POST" })
       const { default: db } = await import("./db");
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
+
+      await ensureDsAgentToolsColumns(db);
 
       const configStr = JSON.stringify(data.config || {});
 

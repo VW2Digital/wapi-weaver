@@ -91,3 +91,21 @@ export const getBillingReport = createServerFn({ method: "POST" })
 
     return { month, totals };
   });
+
+export const listPublicCommercialPlans = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async () => {
+    const { default: db } = await import("./db");
+    const plans = (await db.query(
+      `SELECT bp.*, sp.name as subscription_plan_name, sp.description as subscription_plan_desc,
+              sp.max_agents, sp.max_funnels, sp.max_users
+       FROM billing_plans bp
+       LEFT JOIN subscription_plans sp ON bp.subscription_plan_id = sp.id
+       WHERE bp.is_active = 1 OR bp.is_active = true
+       ORDER BY bp.price ASC`,
+    )) as any[];
+    const operationalPlans = (await db.query(
+      `SELECT * FROM subscription_plans WHERE is_active = 1 OR is_active = true ORDER BY name ASC`,
+    )) as any[];
+    return { plans, operationalPlans };
+  });

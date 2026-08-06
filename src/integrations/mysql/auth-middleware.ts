@@ -45,7 +45,16 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
   }
 
   const userId = decoded.sub;
-  const role = decoded.role || "user";
+  let role = decoded.role || "user";
+
+  const { default: rawDb } = await import("@/lib/db");
+  const liveRoles = (await rawDb.query(
+    "SELECT role FROM user_roles WHERE user_id = ? ORDER BY FIELD(role, 'admin_master', 'admin', 'user') ASC LIMIT 1",
+    [userId],
+  )) as any[];
+  if (liveRoles && liveRoles.length > 0) {
+    role = liveRoles[0].role;
+  }
 
   const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
   const effectiveUserId = await resolveEffectiveUserId(userId);
