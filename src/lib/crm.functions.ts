@@ -4,6 +4,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import type mysql from "mysql2/promise";
 import db from "./db";
 import crypto from "crypto";
+import { assertBelongsToTenant } from "./tenant-authorization";
 
 type SqlParams = unknown[];
 
@@ -1162,7 +1163,15 @@ export const updateOpportunity = createServerFn({ method: "POST" })
       }
 
       // Log audit
-      await logAudit(conn, effectiveUserId, data.id, "update", existingOpp, data.data, context.userId);
+      await logAudit(
+        conn,
+        effectiveUserId,
+        data.id,
+        "update",
+        existingOpp,
+        data.data,
+        context.userId,
+      );
     });
 
     return { ok: true };
@@ -1174,11 +1183,15 @@ export const deleteOpportunity = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    
+
     await db.transaction(async (conn) => {
       // Fetch title before delete/update
-      const [opps] = (await conn.execute("SELECT title FROM opportunities WHERE id = ?", [data.id])) as any[];
+      const [opps] = (await conn.execute(
+        "SELECT title FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
+        [data.id, effectiveUserId],
+      )) as any[];
       const opp = opps?.[0];
+      if (!opp) throw new Error("Oportunidade não encontrada");
 
       // Soft delete
       await conn.execute(
@@ -1470,6 +1483,7 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    await assertBelongsToTenant(data.lost_reason_id, "lost_reason", effectiveUserId);
     await db.transaction(async (conn) => {
       const [opps] = (await conn.execute(
         "SELECT funnel_id, stage_id, status, primary_contact_id FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
@@ -1482,8 +1496,8 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
 
       // Verify reason
       const [reasons] = (await conn.execute(
-        "SELECT id FROM opportunity_lost_reasons WHERE id = ? LIMIT 1",
-        [data.lost_reason_id],
+        "SELECT id FROM opportunity_lost_reasons WHERE id = ? AND user_id = ? LIMIT 1",
+        [data.lost_reason_id, effectiveUserId],
       )) as [IdRow[], unknown];
       if (!reasons || reasons.length === 0) {
         throw new Error("Motivo de perda inválido");
@@ -1757,9 +1771,17 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
         );
       }
 
-      await logAudit(conn, effectiveUserId, newId, "duplicate_from", null, {
-        original_opportunity_id: data.id,
-      }, context.userId);
+      await logAudit(
+        conn,
+        effectiveUserId,
+        newId,
+        "duplicate_from",
+        null,
+        {
+          original_opportunity_id: data.id,
+        },
+        context.userId,
+      );
     });
 
     return { id: newId };
@@ -2283,11 +2305,19 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
             [effectiveUserId, oppId, contactId],
           );
 
-          await logAudit(conn, effectiveUserId, oppId, "create", null, {
-            funnel_id: data.funnelId,
-            stage_id: data.stageId,
-            title,
-          }, context.userId);
+          await logAudit(
+            conn,
+            effectiveUserId,
+            oppId,
+            "create",
+            null,
+            {
+              funnel_id: data.funnelId,
+              stage_id: data.stageId,
+              title,
+            },
+            context.userId,
+          );
         }
       }
     });

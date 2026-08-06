@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import fs from "fs";
 import path from "path";
+import {
+  assertTenantStoragePath,
+  resolveUploadFilePath,
+  verifyStorageUser,
+} from "@/lib/tenant-storage";
 
 // Get current directory path in ESM
 const __dirname = path.resolve();
@@ -10,6 +15,7 @@ export const Route = createFileRoute("/api/storage/file")({
     handlers: {
       GET: async ({ request }) => {
         try {
+          const user = await verifyStorageUser(request);
           const url = new URL(request.url);
           const filePath = url.searchParams.get("path");
 
@@ -18,8 +24,9 @@ export const Route = createFileRoute("/api/storage/file")({
           }
 
           // Safety normalization to prevent directory traversal
-          const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, "");
-          const fullPath = path.join(__dirname, "public", "uploads", safePath);
+          const safePath = await assertTenantStoragePath(filePath, user);
+          const uploadsRoot = path.resolve(__dirname, "public", "uploads");
+          const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
 
           if (!fs.existsSync(fullPath)) {
             return new Response("File not found", { status: 404 });
@@ -40,12 +47,15 @@ export const Route = createFileRoute("/api/storage/file")({
             status: 200,
             headers: {
               "Content-Type": contentType,
-              "Cache-Control": "public, max-age=86400",
+              "Cache-Control": "private, no-store",
+              "Referrer-Policy": "no-referrer",
             },
           });
         } catch (err: any) {
           console.error("[Storage API] Serve file error:", err);
-          return new Response("Internal Server Error", { status: 500 });
+          const status =
+            err?.statusCode || (String(err?.message).includes("Unauthorized") ? 401 : 500);
+          return new Response(status === 500 ? "Internal Server Error" : err.message, { status });
         }
       },
     },

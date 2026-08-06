@@ -7,11 +7,15 @@ import {
 } from "@/lib/subscription-state-machine";
 import { processOverdueGracePeriods, applyPendingPlanChanges } from "@/lib/cron-subscription";
 import crypto from "crypto";
+import { enforceAdminMaster } from "@/lib/admin-master-auth";
 
 export const Route = createFileRoute("/api/admin/test-subscriptions-runner")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const authError = await enforceAdminMaster(request);
+        if (authError) return authError;
+
         const logs: string[] = [];
         const testTenantId = `tenant_test_${Date.now()}`;
         const testSubId = crypto.randomUUID();

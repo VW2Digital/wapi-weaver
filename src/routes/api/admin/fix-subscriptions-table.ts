@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import mysql from "mysql2/promise";
+import { enforceAdminMaster } from "@/lib/admin-master-auth";
 
 export const Route = createFileRoute("/api/admin/fix-subscriptions-table")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const authError = await enforceAdminMaster(request);
+        if (authError) return authError;
+
         const log: string[] = [];
         let connection: mysql.Connection | null = null;
         try {

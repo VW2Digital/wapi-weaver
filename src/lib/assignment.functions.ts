@@ -4,6 +4,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import db from "./db";
 import { resolveEffectiveUserId } from "./chat-helpers";
 import crypto from "crypto";
+import { assertUserCanJoinTenant } from "./tenant-authorization";
 
 const normalizeContactPhone = (value: string) => {
   if (
@@ -370,6 +371,8 @@ export const addTeamMember = createServerFn({ method: "POST" })
       if (!team || team.length === 0) {
         throw new Error("Equipe não encontrada ou acesso negado.");
       }
+
+      await assertUserCanJoinTenant(data.userId, effectiveUserId);
 
       const memberId = crypto.randomUUID();
       await db.query(

@@ -12,14 +12,14 @@ import {
   mysqlDate,
   parseJson,
 } from "./license-server";
+import { hasMasterRole } from "./roles";
 
 // Helper to assert administrator privileges in panel mode
 async function assertAdmin(ctx: { userId: string }) {
-  const rows = (await db.query(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role IN ('adminmaster', 'owner') LIMIT 1",
-    [ctx.userId],
-  )) as any[];
-  if (!rows.length) {
+  const rows = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [
+    ctx.userId,
+  ])) as Array<{ role: string }>;
+  if (!hasMasterRole(rows.map(({ role }) => role))) {
     throw new Error(
       "Acesso negado: apenas o administrador master (adminmaster) da plataforma tem permissão.",
     );
@@ -268,11 +268,14 @@ export const updateLicense = createServerFn({ method: "POST" })
       )) as any[];
       if (userRows.length > 0) {
         tenantId = userRows[0].id;
-        
+
         // Se foi enviada uma nova senha, atualiza o usuário no banco
         if (input.new_password && input.new_password.trim() !== "") {
           const passwordHash = await bcrypt.hash(input.new_password, 10);
-          await db.query("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, tenantId]);
+          await db.query("UPDATE users SET password_hash = ? WHERE id = ?", [
+            passwordHash,
+            tenantId,
+          ]);
         }
       }
     }
@@ -325,11 +328,10 @@ export const getLicenseRole = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     let isAdmin = false;
     try {
-      const rows = (await db.query(
-        "SELECT role FROM user_roles WHERE user_id = ? AND role IN ('adminmaster', 'owner') LIMIT 1",
-        [context.userId],
-      )) as any[];
-      if (rows.length > 0) {
+      const rows = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [
+        context.userId,
+      ])) as Array<{ role: string }>;
+      if (hasMasterRole(rows.map(({ role }) => role))) {
         isAdmin = true;
       }
     } catch (e) {
@@ -344,7 +346,9 @@ export const listPlans = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
-    const plans = (await db.query("SELECT * FROM subscription_plans ORDER BY created_at ASC")) as any[];
+    const plans = (await db.query(
+      "SELECT * FROM subscription_plans ORDER BY created_at ASC",
+    )) as any[];
     return { plans };
   });
 
@@ -359,7 +363,7 @@ export const createPlan = createServerFn({ method: "POST" })
       max_funnels: z.number().default(1),
       max_users: z.number().default(1),
       is_active: z.boolean().default(true),
-    })
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
@@ -367,7 +371,16 @@ export const createPlan = createServerFn({ method: "POST" })
     await db.query(
       `INSERT INTO subscription_plans (id, name, slug, description, max_agents, max_funnels, max_users, is_active)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.name, input.slug, input.description || null, input.max_agents, input.max_funnels, input.max_users, input.is_active]
+      [
+        id,
+        input.name,
+        input.slug,
+        input.description || null,
+        input.max_agents,
+        input.max_funnels,
+        input.max_users,
+        input.is_active,
+      ],
     );
     return { success: true, id };
   });
@@ -384,7 +397,7 @@ export const updatePlan = createServerFn({ method: "POST" })
       max_funnels: z.number().default(1),
       max_users: z.number().default(1),
       is_active: z.boolean().default(true),
-    })
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
@@ -392,7 +405,16 @@ export const updatePlan = createServerFn({ method: "POST" })
       `UPDATE subscription_plans
        SET name = ?, slug = ?, description = ?, max_agents = ?, max_funnels = ?, max_users = ?, is_active = ?
        WHERE id = ?`,
-      [input.name, input.slug, input.description || null, input.max_agents, input.max_funnels, input.max_users, input.is_active, input.id]
+      [
+        input.name,
+        input.slug,
+        input.description || null,
+        input.max_agents,
+        input.max_funnels,
+        input.max_users,
+        input.is_active,
+        input.id,
+      ],
     );
     return { success: true };
   });
@@ -412,7 +434,9 @@ export const listCommercialPlans = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
-    const plans = (await db.query("SELECT bp.*, sp.name as subscription_plan_name FROM billing_plans bp LEFT JOIN subscription_plans sp ON bp.subscription_plan_id = sp.id ORDER BY bp.price ASC")) as any[];
+    const plans = (await db.query(
+      "SELECT bp.*, sp.name as subscription_plan_name FROM billing_plans bp LEFT JOIN subscription_plans sp ON bp.subscription_plan_id = sp.id ORDER BY bp.price ASC",
+    )) as any[];
     return { plans };
   });
 
@@ -430,7 +454,7 @@ export const createCommercialPlan = createServerFn({ method: "POST" })
       duration_days: z.number().default(30),
       is_active: z.boolean().default(true),
       subscription_plan_id: z.string().nullable().optional(),
-    })
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
@@ -448,7 +472,7 @@ export const createCommercialPlan = createServerFn({ method: "POST" })
         input.duration_days,
         input.is_active,
         input.subscription_plan_id || null,
-      ]
+      ],
     );
     return { success: true };
   });
@@ -467,13 +491,15 @@ export const updateCommercialPlan = createServerFn({ method: "POST" })
       duration_days: z.number().default(30),
       is_active: z.boolean().default(true),
       subscription_plan_id: z.string().nullable().optional(),
-    })
+    }),
   )
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
     // Dynamic warning log if active/existing subscriptions are impacted (warn/info on console)
-    console.info(`[Commercial Plan Update] Plan ${input.id} details being modified. Linked Operational ID: ${input.subscription_plan_id}`);
+    console.info(
+      `[Commercial Plan Update] Plan ${input.id} details being modified. Linked Operational ID: ${input.subscription_plan_id}`,
+    );
 
     await db.query(
       `UPDATE billing_plans
@@ -490,7 +516,7 @@ export const updateCommercialPlan = createServerFn({ method: "POST" })
         input.is_active,
         input.subscription_plan_id || null,
         input.id,
-      ]
+      ],
     );
     return { success: true };
   });

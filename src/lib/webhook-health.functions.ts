@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { hasMasterRole } from "./roles";
 
 /**
  * Health-check do webhook do WhatsApp.
@@ -13,7 +14,7 @@ export const getWebhookHealth = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+    const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
     if (!isAdmin) throw new Error("Acesso negado");
 
     const { dbAdmin } = await import("@/integrations/mysql/client.server");
@@ -60,7 +61,7 @@ export const listWebhookEvents = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+    const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
     if (!isAdmin) throw new Error("Acesso negado");
 
     const { dbAdmin } = await import("@/integrations/mysql/client.server");

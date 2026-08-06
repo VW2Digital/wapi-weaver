@@ -1,4 +1,6 @@
-SUCCESS: User vanderleivw2@gmail.com (ID: acff3186-4e4a-4242-a7a5-3e519265b244) updated to adminmaster.
-SUCCESS: User vw2digital@gmail.com (ID: 6da65e93-4864-43c5-b17b-4c3864a49cfc) updated to adminmaster.
-
-Timestamp: 2026-08-05T20:37:20.987Z
+ERROR: Duplicate entry '34fa337e7eaacf3bc90dcd077469b6aa91b846cd5b7fc8eb35c58db7cdd1d508' for key 'licenses.license_key_hash'
+Error: Duplicate entry '34fa337e7eaacf3bc90dcd077469b6aa91b846cd5b7fc8eb35c58db7cdd1d508' for key 'licenses.license_key_hash'
+    at eval (eval at runInlinedModule (file:///C:/Users/Lei%20Mendes/Desktop/Aplica%C3%A7%C3%B5es/Bliv/wapi-weaver/node_modules/vite/dist/node/module-runner.js:913:9), <anonymous>:372:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Object.transaction (eval at runInlinedModule (file:///C:/Users/Lei%20Mendes/Desktop/Aplica%C3%A7%C3%B5es/Bliv/wapi-weaver/node_modules/vite/dist/node/module-runner.js:913:9), <anonymous>:80:20)
+    at async runBootSequence (eval at runInlinedModule (file:///C:/Users/Lei%20Mendes/Desktop/Aplica%C3%A7%C3%B5es/Bliv/wapi-weaver/node_modules/vite/dist/node/module-runner.js:913:9), <anonymous>:356:9)

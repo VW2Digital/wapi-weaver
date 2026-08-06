@@ -3,30 +3,44 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "./db";
+import { setResponseStatus } from "@tanstack/react-start/server";
+import { isCompanyAdmin, isMaster } from "./roles";
+import {
+  assertUserBelongsToTenant,
+  getActorTenantAccess,
+  listTenantUserIds,
+} from "./tenant-authorization";
 
-async function assertAdmin(ctx: { db: any; userId: string }) {
-  const { data, error } = await ctx.db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId)
-    .in("role", ["owner", "adminmaster"])
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    throw new Error("Acesso negado: apenas o administrador (owner ou adminmaster) tem permissão.");
+async function assertAdmin(ctx: { userId: string; tenantId: string }) {
+  const access = await getActorTenantAccess(ctx.userId, ctx.tenantId);
+  if (!access.isMaster && !access.isCompanyAdmin) {
+    setResponseStatus(403);
+    throw Object.assign(
+      new Error("Acesso negado: apenas administradores podem gerenciar usuários."),
+      {
+        statusCode: 403,
+      },
+    );
   }
+  return access;
 }
 
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
+    const access = await assertAdmin(context);
     const { data: usersData, error: uErr } = await dbAdmin.auth.admin.listUsers({
       page: 1,
       perPage: 200,
     });
     if (uErr) throw uErr;
-    const { data: roles, error: rErr } = await dbAdmin.from("user_roles").select("user_id, role");
+    const allowedUserIds = access.isMaster ? null : await listTenantUserIds(access.tenantId);
+    const visibleUsers = allowedUserIds
+      ? usersData.users.filter((user: any) => allowedUserIds.includes(user.id))
+      : usersData.users;
+    let rolesQuery = dbAdmin.from("user_roles").select("user_id, role");
+    if (allowedUserIds) rolesQuery = rolesQuery.in("user_id", allowedUserIds);
+    const { data: roles, error: rErr } = await rolesQuery;
     if (rErr) throw rErr;
     const rolesMap = new Map<string, string[]>();
     (roles ?? []).forEach((r: any) => {
@@ -36,7 +50,7 @@ export const listUsers = createServerFn({ method: "GET" })
     });
 
     // Buscar display_name e full_name dos perfis MySQL
-    const uids = usersData.users.map((u: any) => u.id);
+    const uids = visibleUsers.map((u: any) => u.id);
     let profilesMap = new Map<string, { display_name: string | null; full_name: string | null }>();
     if (uids.length > 0) {
       const placeholders = uids.map(() => "?").join(",");
@@ -50,7 +64,7 @@ export const listUsers = createServerFn({ method: "GET" })
     }
 
     return {
-      users: usersData.users.map((u: any) => ({
+      users: visibleUsers.map((u: any) => ({
         id: u.id,
         email: u.email ?? "",
         created_at: u.created_at,
@@ -67,7 +81,7 @@ const createSchema = z.object({
   email: z.string().trim().email().max(255),
   password: z.string().min(8).max(72),
   display_name: z.string().trim().min(1).max(80).optional(),
-  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user", "admin"]).default("user"),
+  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user"]).default("user"),
 });
 
 export const createUser = createServerFn({ method: "POST" })
@@ -83,8 +97,7 @@ export const createUser = createServerFn({ method: "POST" })
     });
     if (error) throw error;
     const uid = created.user!.id;
-    const targetRole = data.role === "admin" ? "owner" : data.role;
-    await dbAdmin.from("user_roles").insert({ user_id: uid, role: targetRole } as never);
+    await dbAdmin.from("user_roles").insert({ user_id: uid, role: data.role } as never);
     // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
     await db.query(
       `INSERT IGNORE INTO profiles (id, email, display_name, full_name)
@@ -96,7 +109,7 @@ export const createUser = createServerFn({ method: "POST" })
 
 const roleSchema = z.object({
   user_id: z.string().uuid(),
-  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user", "admin"]),
+  role: z.enum(["adminmaster", "owner", "org_admin", "member", "user"]),
   grant: z.boolean(),
 });
 
@@ -104,15 +117,16 @@ export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => roleSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const access = await assertAdmin(context);
+    if (!access.isMaster) await assertUserBelongsToTenant(data.user_id, access.tenantId);
     if (data.grant) {
       const { error } = await dbAdmin
         .from("user_roles")
         .insert({ user_id: data.user_id, role: data.role } as never);
       if (error && !String(error.message).includes("duplicate")) throw error;
     } else {
-      // Proteção: não permitir remover o último admin/owner/adminmaster
-      if (data.role === "admin" || data.role === "owner" || data.role === "adminmaster") {
+      // Proteção: não permitir remover o último administrador de cada nível.
+      if (isMaster(data.role) || isCompanyAdmin(data.role)) {
         const { count } = await dbAdmin
           .from("user_roles")
           .select("user_id", { count: "exact", head: true })
@@ -139,7 +153,8 @@ export const deleteUser = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => deleteSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const access = await assertAdmin(context);
+    if (!access.isMaster) await assertUserBelongsToTenant(data.user_id, access.tenantId);
     if (data.user_id === context.userId) throw new Error("Você não pode excluir a si mesmo.");
     const { error } = await dbAdmin.auth.admin.deleteUser(data.user_id);
     if (error) throw error;
@@ -156,7 +171,8 @@ export const updateUserProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => updateProfileSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const access = await assertAdmin(context);
+    if (!access.isMaster) await assertUserBelongsToTenant(data.user_id, access.tenantId);
     await db.query("UPDATE profiles SET display_name = ?, full_name = ? WHERE id = ?", [
       data.display_name ?? null,
       data.full_name ?? null,
@@ -171,17 +187,18 @@ export const getUserActivity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => activitySchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const access = await assertAdmin(context);
+    if (!access.isMaster) await assertUserBelongsToTenant(data.user_id, access.tenantId);
     const uid = data.user_id;
 
     const { data: userInfo, error: uErr } = await dbAdmin.auth.admin.getUserById(uid);
     if (uErr) throw uErr;
-    const user = userInfo.user as { 
-      id: string; 
-      email: string; 
-      created_at: string; 
-      last_sign_in_at?: string; 
-      email_confirmed_at?: string; 
+    const user = userInfo.user as {
+      id: string;
+      email: string;
+      created_at: string;
+      last_sign_in_at?: string;
+      email_confirmed_at?: string;
     };
 
     const [

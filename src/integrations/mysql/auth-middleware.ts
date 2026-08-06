@@ -11,8 +11,6 @@ const JWT_SECRET =
 export const requireAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
   const request = getRequest();
 
-  let userId = "test-user-id";
-  let role = "user";
   let token: string | null = null;
 
   if (request?.headers) {
@@ -31,17 +29,23 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
     }
   }
 
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      if (decoded && decoded.sub) {
-        userId = decoded.sub;
-        role = decoded.role || "user";
-      }
-    } catch (err) {
-      console.warn("[Auth] Token JWT não verificado, mantendo sessão do usuário ativo:", err);
-    }
+  if (!token) {
+    throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
   }
+
+  let decoded: any;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch {
+    throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
+  }
+
+  if (!decoded?.sub) {
+    throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
+  }
+
+  const userId = decoded.sub;
+  const role = decoded.role || "user";
 
   const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
   const effectiveUserId = await resolveEffectiveUserId(userId);

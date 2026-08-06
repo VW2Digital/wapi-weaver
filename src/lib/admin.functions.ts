@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { recordAudit } from "./audit.functions";
 import crypto from "crypto";
+import { hasCompanyAdminRole, hasMasterRole, isMaster } from "./roles";
 
 type DebugJsonPrimitive = string | number | boolean | null;
 type DebugJsonValue = DebugJsonPrimitive | DebugJsonObject | DebugJsonValue[];
@@ -48,7 +49,7 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
     const roles = (data ?? []).map((r: { role: string }) => r.role);
     return {
       roles,
-      isAdmin: roles.includes("admin") || roles.includes("owner") || roles.includes("adminmaster"),
+      isAdmin: hasMasterRole(roles) || hasCompanyAdminRole(roles),
     };
   });
 
@@ -255,7 +256,7 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+    const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
     if (!isAdmin) throw new Error("forbidden");
 
     const { promises: fs } = await import("fs");
@@ -281,17 +282,11 @@ export const exportSchemaSql = createServerFn({ method: "GET" })
   });
 
 async function assertAdmin(ctx: { db: any; userId: string; claims?: any }) {
-  // Also accept 'owner' and 'adminmaster' — consistent with getCurrentUserRoles
   const claimRole = ctx.claims?.role as string | undefined;
-  if (claimRole === "adminmaster") return; // JWT already marks this as platform admin
+  if (isMaster(claimRole)) return;
 
-  const { data: roles } = await ctx.db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", ctx.userId);
-  const isAdmin = (roles ?? []).some(
-    (r: any) => r.role === "admin" || r.role === "owner" || r.role === "adminmaster",
-  );
+  const { data: roles } = await ctx.db.from("user_roles").select("role").eq("user_id", ctx.userId);
+  const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
   if (!isAdmin) throw new Error("forbidden");
 }
 
@@ -427,7 +422,7 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const claims = context.claims as any;
-    if (claims?.role === "adminmaster") {
+    if (isMaster(claims?.role)) {
       return {
         isValid: true,
         isAccessAllowed: true,

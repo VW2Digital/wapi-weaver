@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-08-06T13:12:13.815Z",
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "database": "wapi_weaver"
+  },
+  "uploadsRoot": "C:\\Users\\Lei Mendes\\Desktop\\Aplicações\\Bliv\\wapi-weaver\\public\\uploads",
+  "totals": {
+    "files": 4,
+    "bytes": 7929978,
+    "legacyFiles": 2,
+    "legacyBytes": 5235883,
+    "migratableFiles": 1,
+    "migratableBytes": 4657900,
+    "orphanFiles": 1,
+    "orphanBytes": 577983,
+    "blockedFiles": 0
+  },
+  "migrations": [
+    {
+      "sourcePath": "contacts/8de82e09-39c9-4905-a24c-9818119efbf3/avatar-1785765686195.png",
+      "targetPath": "6da65e93-4864-43c5-b17b-4c3864a49cfc/contacts/8de82e09-39c9-4905-a24c-9818119efbf3/avatar-1785765686195.png",
+      "bytes": 4657900,
+      "sha256": "170d198201d35d4f66c4754ce56ad80c82861a36f01334f4358596abd20584d5",
+      "tenantId": "6da65e93-4864-43c5-b17b-4c3864a49cfc",
+      "references": [
+        {
+          "table": "contacts",
+          "column": "custom_fields",
+          "id": "8de82e09-39c9-4905-a24c-9818119efbf3",
+          "tenantIds": [
+            "6da65e93-4864-43c5-b17b-4c3864a49cfc"
+          ],
+          "oldValue": {
+            "avatar_url": "/api/storage/file?path=contacts/8de82e09-39c9-4905-a24c-9818119efbf3/avatar-1785765686195.png"
+          },
+          "kind": "json",
+          "matchedPath": "contacts/8de82e09-39c9-4905-a24c-9818119efbf3/avatar-1785765686195.png",
+          "newValue": {
+            "avatar_url": "/api/storage/file?path=6da65e93-4864-43c5-b17b-4c3864a49cfc/contacts/8de82e09-39c9-4905-a24c-9818119efbf3/avatar-1785765686195.png"
+          }
+        }
+      ]
+    }
+  ],
+  "orphans": [
+    {
+      "path": "contacts/277daee1-ecba-4d0e-9bf9-82a57ba07475/avatar-1783692665470.png",
+      "bytes": 577983
+    }
+  ],
+  "blocked": [],
+  "status": "rolled_back",
+  "rolledBackAt": "2026-08-06T13:12:34.744Z"
+}

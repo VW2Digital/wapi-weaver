@@ -3,6 +3,7 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { promises as fs } from "fs";
 import path from "path";
 import jwt from "jsonwebtoken";
+import { hasMasterRole } from "@/lib/roles";
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
@@ -48,7 +49,7 @@ export const Route = createFileRoute("/api/admin/schema-dump")({
           if (rolesErr) {
             return new Response("Internal error", { status: 500 });
           }
-          const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
+          const isAdmin = hasMasterRole((roles ?? []).map((r: any) => r.role));
           if (!isAdmin) {
             return new Response("Forbidden", { status: 403 });
           }

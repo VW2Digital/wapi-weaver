@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import mysql from "mysql2/promise";
+import { enforceAdminMaster } from "@/lib/admin-master-auth";
 
 /**
  * GET /api/admin/kill-idle-connections
@@ -8,12 +9,15 @@ import mysql from "mysql2/promise";
  * lista o PROCESSLIST, mata conexões Sleep de wapi_user com >30s de
  * tempo ocioso e retorna o relatório completo.
  *
- * Acesso direto (sem autenticação) — usar apenas em dev/emergência.
+ * Acesso restrito a Admin Master.
  */
 export const Route = createFileRoute("/api/admin/kill-idle-connections")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const authError = await enforceAdminMaster(request);
+        if (authError) return authError;
+
         let conn: mysql.Connection | null = null;
         try {
           conn = await mysql.createConnection({

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import fs from "fs";
 import path from "path";
+import { resolveUploadFilePath, tenantUploadPath, verifyStorageUser } from "@/lib/tenant-storage";
 
 // Get current directory path in ESM
 const __dirname = path.resolve();
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/api/storage/upload")({
     handlers: {
       POST: async ({ request }) => {
         try {
+          const user = await verifyStorageUser(request);
           let filePath = "";
           let buffer: Buffer | null = null;
           const contentType = request.headers.get("content-type") || "";
@@ -71,7 +73,7 @@ export const Route = createFileRoute("/api/storage/upload")({
           }
 
           // Safety normalization to prevent directory traversal
-          const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, "");
+          const safePath = await tenantUploadPath(filePath, user);
           const ext = path.extname(safePath).toLowerCase();
 
           if (!ALLOWED_EXTENSIONS.has(ext) && ext !== "") {
@@ -82,7 +84,7 @@ export const Route = createFileRoute("/api/storage/upload")({
           }
 
           const uploadsRoot = path.resolve(__dirname, "public", "uploads");
-          const fullPath = path.resolve(uploadsRoot, safePath);
+          const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
 
           // Ensure the resolved path is strictly inside the uploads directory
           if (!fullPath.startsWith(uploadsRoot + path.sep) && fullPath !== uploadsRoot) {

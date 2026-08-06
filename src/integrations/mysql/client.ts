@@ -648,7 +648,7 @@ class MySQLClient {
                 error: { message: result.error || `Upload falhou com status ${res.status}` },
               };
             }
-            return { data: { path: filePath }, error: null };
+            return { data: { path: result.path }, error: null };
           } catch (err: any) {
             return { data: null, error: { message: err.message } };
           }
@@ -672,10 +672,16 @@ class MySQLClient {
           }
         },
         getPublicUrl: (filePath: string) => {
-          return { data: { publicUrl: `/api/storage/file?path=${filePath}` } };
+          const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
+          const query = new URLSearchParams({ path: filePath });
+          if (token) query.set("token", token);
+          return { data: { publicUrl: `/api/storage/file?${query.toString()}` } };
         },
         createSignedUrl: async (filePath: string, expiresIn: number) => {
-          return { data: { signedUrl: `/api/storage/file?path=${filePath}` }, error: null };
+          const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
+          const query = new URLSearchParams({ path: filePath });
+          if (token) query.set("token", token);
+          return { data: { signedUrl: `/api/storage/file?${query.toString()}` }, error: null };
         },
       }),
     };

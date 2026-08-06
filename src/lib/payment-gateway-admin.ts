@@ -2,17 +2,17 @@ import crypto from "crypto";
 import db from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/encryption";
 import { verifyApiUser } from "@/lib/subscription-helpers";
+import { hasMasterRole, isMaster } from "@/lib/roles";
 
 export const MASKED_SECRET = "••••••••";
 
 export async function requirePaymentGatewayAdmin(request: Request) {
   const user = await verifyApiUser(request);
-  const roles = (await db.query(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role IN ('adminmaster', 'owner') LIMIT 1",
-    [user.userId],
-  )) as Array<{ role: string }>;
+  const roles = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [
+    user.userId,
+  ])) as Array<{ role: string }>;
 
-  if (roles.length === 0 && user.role !== "adminmaster" && user.role !== "owner") {
+  if (!hasMasterRole(roles.map(({ role }) => role)) && !isMaster(user.role)) {
     throw new Error("Forbidden: apenas o Admin Master pode configurar meios de pagamento");
   }
 

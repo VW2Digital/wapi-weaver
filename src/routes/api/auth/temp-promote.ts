@@ -2,11 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import db from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { randomUUID, createHash } from "crypto";
+import { enforceAdminMaster } from "@/lib/admin-master-auth";
 
 export const Route = createFileRoute("/api/auth/temp-promote")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const authError = await enforceAdminMaster(request);
+        if (authError) return authError;
+
         const targetEmails = ["vanderleivw2@gmail.com", "vw2digital@gmail.com"];
         const results: string[] = [];
 

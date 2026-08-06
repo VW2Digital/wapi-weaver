@@ -68,9 +68,10 @@ import {
   deleteUser,
   getUserActivity,
 } from "@/lib/users-admin.functions";
-import { getCurrentUserRoles } from "@/lib/admin.functions";
 import { useConfirm } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
+import { hasCompanyAdminRole, hasMasterRole } from "@/lib/roles";
+import { useRoles } from "@/hooks/use-roles";
 import {
   listTeams,
   listTeamMembers,
@@ -116,11 +117,7 @@ function TabSelector({
 }
 
 function UsersPage() {
-  const fetchRoles = useServerFn(getCurrentUserRoles);
-  const { data: roleData, isLoading: roleLoading } = useQuery({
-    queryKey: ["current-roles"],
-    queryFn: () => fetchRoles({}),
-  });
+  const { isAdmin, loading: roleLoading } = useRoles();
 
   const [activeTab, setActiveTab] = useState<"users" | "teams">("users");
 
@@ -131,7 +128,7 @@ function UsersPage() {
       </div>
     );
   }
-  if (!roleData?.isAdmin) {
+  if (!isAdmin) {
     return (
       <div className="p-8">
         <Card>
@@ -186,7 +183,7 @@ function AdminUsers() {
       email: string;
       password: string;
       display_name?: string;
-      role: "admin" | "user";
+      role: "owner" | "user";
     }) => create({ data: input }),
     onSuccess: () => {
       toast.success("Usuário criado");
@@ -196,7 +193,7 @@ function AdminUsers() {
   });
 
   const roleMut = useMutation({
-    mutationFn: (input: { user_id: string; role: "admin" | "user"; grant: boolean }) =>
+    mutationFn: (input: { user_id: string; role: "owner" | "user"; grant: boolean }) =>
       setRole({ data: input }),
     onSuccess: () => {
       toast.success("Permissão atualizada");
@@ -219,7 +216,7 @@ function AdminUsers() {
     email: "",
     password: "",
     display_name: "",
-    role: "user" as "admin" | "user",
+    role: "user" as "owner" | "user",
   });
   const [activityUser, setActivityUser] = useState<{ id: string; email: string } | null>(null);
 
@@ -288,14 +285,14 @@ function AdminUsers() {
                 <Label htmlFor="role">Perfil</Label>
                 <Select
                   value={form.role}
-                  onValueChange={(v) => setForm({ ...form, role: v as "admin" | "user" })}
+                  onValueChange={(v) => setForm({ ...form, role: v as "owner" | "user" })}
                 >
                   <SelectTrigger id="role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">Usuário</SelectItem>
-                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="owner">Administrador da empresa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -314,8 +311,6 @@ function AdminUsers() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-
-
       <div className="flex-1 overflow-auto p-8">
         <Card>
           <CardHeader>
@@ -342,7 +337,8 @@ function AdminUsers() {
                 </TableHeader>
                 <TableBody>
                   {data?.users.map((u: any) => {
-                    const isAdmin = u.roles.includes("admin");
+                    const isProtectedAdmin = hasMasterRole(u.roles);
+                    const isAdmin = isProtectedAdmin || hasCompanyAdminRole(u.roles);
                     return (
                       <TableRow key={u.id}>
                         <TableCell className="font-medium">
@@ -368,9 +364,10 @@ function AdminUsers() {
                         <TableCell className="text-center">
                           <Switch
                             checked={isAdmin}
-                            disabled={roleMut.isPending}
+                            disabled={roleMut.isPending || isProtectedAdmin}
+                            aria-label={`Acesso administrativo de ${u.email}`}
                             onCheckedChange={(checked) =>
-                              roleMut.mutate({ user_id: u.id, role: "admin", grant: checked })
+                              roleMut.mutate({ user_id: u.id, role: "owner", grant: checked })
                             }
                           />
                         </TableCell>
@@ -683,7 +680,6 @@ function AdminTeams() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-
       <div className="flex-1 overflow-y-auto p-8 space-y-6">
         <Card>
           <CardContent className="p-0">

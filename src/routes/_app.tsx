@@ -455,11 +455,13 @@ function AppLayout() {
                   <UserIcon className="mr-2 h-4 w-4" /> Perfil
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/settings" search={{ s: undefined }} className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" /> Configurações
-                </Link>
-              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" search={{ s: undefined }} className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" /> Configurações
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={(e) => {

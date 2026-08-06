@@ -2,8 +2,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import crypto from "crypto";
 import db from "@/lib/db";
-import { verifyApiUser, logSubscriptionEvent, calculateSubscriptionStatus } from "@/lib/subscription-helpers";
+import {
+  verifyApiUser,
+  logSubscriptionEvent,
+  calculateSubscriptionStatus,
+} from "@/lib/subscription-helpers";
 import { addDays, isAfter } from "date-fns";
+import { isMaster } from "@/lib/roles";
 
 export const Route = createFileRoute("/api/billing/subscription/renew")({
   server: {
@@ -14,32 +19,44 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
           const body = await request.json();
           const { tenantId, planId, durationDays, justification } = body;
 
-          // If tenantId is passed, require adminmaster/owner privileges (Manual renewal by Admin)
+          // Renewing another tenant is restricted to the platform Admin Master.
           if (tenantId && tenantId !== user.tenantId) {
-            if (user.role !== "adminmaster" && user.role !== "owner") {
-              return new Response(JSON.stringify({ error: "Acesso negado: privilégios de administrador necessários." }), {
-                status: 403,
-                headers: { "Content-Type": "application/json" },
-              });
+            if (!isMaster(user.role)) {
+              return new Response(
+                JSON.stringify({
+                  error: "Acesso negado: privilégios de administrador necessários.",
+                }),
+                {
+                  status: 403,
+                  headers: { "Content-Type": "application/json" },
+                },
+              );
             }
 
             if (!justification || justification.trim().length < 5) {
-              return new Response(JSON.stringify({ error: "Justificativa obrigatória (mínimo 5 caracteres)." }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" },
-              });
+              return new Response(
+                JSON.stringify({ error: "Justificativa obrigatória (mínimo 5 caracteres)." }),
+                {
+                  status: 400,
+                  headers: { "Content-Type": "application/json" },
+                },
+              );
             }
 
             // Fetch tenant subscription
-            const subs = (await db.query("SELECT * FROM subscriptions WHERE tenant_id = ? LIMIT 1", [
-              tenantId,
-            ])) as any[];
+            const subs = (await db.query(
+              "SELECT * FROM subscriptions WHERE tenant_id = ? LIMIT 1",
+              [tenantId],
+            )) as any[];
 
             if (subs.length === 0) {
-              return new Response(JSON.stringify({ error: "Assinatura do inquilino não encontrada." }), {
-                status: 404,
-                headers: { "Content-Type": "application/json" },
-              });
+              return new Response(
+                JSON.stringify({ error: "Assinatura do inquilino não encontrada." }),
+                {
+                  status: 404,
+                  headers: { "Content-Type": "application/json" },
+                },
+              );
             }
 
             const sub = subs[0];
@@ -52,8 +69,8 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
             ])) as any[];
             const plan = plans.length > 0 ? plans[0] : null;
 
-            const days = durationDays ? Number(durationDays) : (plan ? plan.duration_days : 30);
-            
+            const days = durationDays ? Number(durationDays) : plan ? plan.duration_days : 30;
+
             const now = new Date();
             const currentExpiresAt = new Date(sub.expires_at);
             const baseDate = isAfter(currentExpiresAt, now) ? currentExpiresAt : now;
@@ -78,12 +95,12 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
                   sub.id,
                   targetPlanId,
                   invoiceNumber,
-                  plan ? plan.price : 0.00,
+                  plan ? plan.price : 0.0,
                   now,
                   now,
                   `manual:${crypto.randomUUID()}`,
-                  JSON.stringify({ justification, renewed_by: user.userId })
-                ]
+                  JSON.stringify({ justification, renewed_by: user.userId }),
+                ],
               );
 
               // Update subscription
@@ -91,7 +108,7 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
                 `UPDATE subscriptions
                  SET status = 'active', expires_at = ?, grace_period_ends_at = ?, last_payment_at = ?
                  WHERE id = ?`,
-                [newExpiresAt, newGraceEnds, now, sub.id]
+                [newExpiresAt, newGraceEnds, now, sub.id],
               );
 
               // Log subscription event
@@ -106,8 +123,8 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
                   previousStatus,
                   invoiceId,
                   JSON.stringify({ justification, days, newExpiresAt }),
-                  user.userId
-                ]
+                  user.userId,
+                ],
               );
 
               // Create notification
@@ -121,22 +138,33 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
                   tenantId,
                   sub.customer_id,
                   `Sua assinatura foi atualizada manualmente pelo administrador até ${dateStr}.`,
-                  `manual_renewal:${sub.id}:${Date.now()}`
-                ]
+                  `manual_renewal:${sub.id}:${Date.now()}`,
+                ],
               );
             });
 
-            return new Response(JSON.stringify({ success: true, message: "Assinatura renovada manualmente com sucesso." }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            });
+            return new Response(
+              JSON.stringify({
+                success: true,
+                message: "Assinatura renovada manualmente com sucesso.",
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
           }
 
           // Otherwise, normal tenant checkout initiation (fallback/shortcut to checkout)
-          return new Response(JSON.stringify({ error: "Operação inválida. Use as rotas de checkout para pagamentos automáticos." }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({
+              error: "Operação inválida. Use as rotas de checkout para pagamentos automáticos.",
+            }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
         } catch (err: any) {
           const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
           return new Response(JSON.stringify({ error: err.message }), {

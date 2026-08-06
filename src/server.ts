@@ -69,7 +69,10 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   console.error(err);
   try {
     const fs = await import("fs");
-    fs.writeFileSync("./ssr_error.log", "CATASTROPHIC SSR:\n" + (err instanceof Error ? err.stack : String(err)) + "\n");
+    fs.writeFileSync(
+      "./ssr_error.log",
+      "CATASTROPHIC SSR:\n" + (err instanceof Error ? err.stack : String(err)) + "\n",
+    );
   } catch {}
   return brandedErrorResponse();
 }
@@ -88,8 +91,9 @@ async function migrateRoles() {
   try {
     console.log("[Roles Migration] Starting role schema and data migration...");
     try {
+      await db.query("UPDATE user_roles SET role = 'user' WHERE role = 'admin'");
       await db.query(
-        "ALTER TABLE user_roles MODIFY COLUMN role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user', 'admin') NOT NULL DEFAULT 'user'",
+        "ALTER TABLE user_roles MODIFY COLUMN role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user') NOT NULL DEFAULT 'user'",
       );
       console.log("[Roles Migration] Column enum altered successfully.");
     } catch (alterErr: any) {
@@ -145,7 +149,7 @@ async function migrateRoles() {
           console.log(`[Roles Migration] Updated master user ${adminEmail} to adminmaster.`);
 
           const cleaned = await db.query(
-            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')",
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role = 'adminmaster'",
             [userId],
           );
           if (cleaned.affectedRows > 0) {
@@ -163,13 +167,14 @@ async function migrateRoles() {
         if (userRows.length > 0) {
           const userId = userRows[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-          await db.query("INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
-            userId,
-          ]);
+          await db.query(
+            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')",
+            [userId],
+          );
           console.log(`[Roles Migration] Converted SaaS initial user ${adminEmail} to owner.`);
 
           const cleaned = await db.query(
-            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin')",
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role = 'adminmaster'",
             [userId],
           );
           if (cleaned.affectedRows > 0) {
@@ -185,13 +190,14 @@ async function migrateRoles() {
         if (users.length > 0) {
           const firstUserId = users[0].id;
           await db.query("DELETE FROM user_roles WHERE user_id = ?", [firstUserId]);
-          await db.query("INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')", [
-            firstUserId,
-          ]);
+          await db.query(
+            "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'owner')",
+            [firstUserId],
+          );
           console.log(`[Roles Migration] Set first user ${users[0].email} as owner.`);
 
           const cleaned = await db.query(
-            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'admin', 'owner')",
+            "UPDATE user_roles SET role = 'user' WHERE user_id != ? AND role IN ('adminmaster', 'owner')",
             [firstUserId],
           );
           if (cleaned.affectedRows > 0) {
@@ -324,7 +330,9 @@ async function waitForDatabase(retries = 10, delayMs = 3000): Promise<void> {
       console.log("[DB Init] Database connection verified successfully.");
       return;
     } catch (err: any) {
-      console.warn(`[DB Init] Database connection attempt ${i}/${retries} failed: ${err.message}. Retrying in ${delayMs / 1000}s...`);
+      console.warn(
+        `[DB Init] Database connection attempt ${i}/${retries} failed: ${err.message}. Retrying in ${delayMs / 1000}s...`,
+      );
       if (i === retries) {
         throw new Error(`Database unreachable after ${retries} attempts.`);
       }
@@ -337,10 +345,16 @@ async function runBootSequence() {
   try {
     await waitForDatabase();
   } catch (dbErr: any) {
-    console.error("[Boot Sequence] Critical: Could not connect to database on startup.", dbErr.message);
+    console.error(
+      "[Boot Sequence] Critical: Could not connect to database on startup.",
+      dbErr.message,
+    );
     try {
       const fs = await import("fs");
-      fs.writeFileSync("./db_update_status.txt", "CRITICAL ERROR: " + dbErr.message + "\n" + dbErr.stack);
+      fs.writeFileSync(
+        "./db_update_status.txt",
+        "CRITICAL ERROR: " + dbErr.message + "\n" + dbErr.stack,
+      );
     } catch {}
     return;
   }
@@ -367,7 +381,7 @@ async function runBootSequence() {
           "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
           [userId],
         );
-        
+
         // Verify/Create license for the adminmaster
         const existingSub = (await db.query("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [
           userId,
@@ -377,7 +391,7 @@ async function runBootSequence() {
           await db.query(
             `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [keyHash, targetEmail, "Master Admin", targetEmail, "basic", "active", userId]
+            [keyHash, targetEmail, "Master Admin", targetEmail, "basic", "active", userId],
           );
         }
         logMsg += `SUCCESS: User ${targetEmail} (ID: ${userId}) updated to adminmaster.\n`;
@@ -396,9 +410,10 @@ async function runBootSequence() {
           ]);
 
           // 2. Insert into user_roles
-          await conn.execute("INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')", [
-            userId,
-          ]);
+          await conn.execute(
+            "INSERT INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'adminmaster')",
+            [userId],
+          );
 
           // 3. Insert into profiles
           await conn.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
@@ -412,7 +427,7 @@ async function runBootSequence() {
           await conn.execute(
             `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [keyHash, targetEmail, "Admin Master", targetEmail, "basic", "active", userId]
+            [keyHash, targetEmail, "Admin Master", targetEmail, "basic", "active", userId],
           );
         });
 
@@ -426,7 +441,10 @@ async function runBootSequence() {
     console.error("[Roles Patch] Error executing patch:", patchErr);
     try {
       const fs = await import("fs");
-      fs.writeFileSync("./db_update_status.txt", "ERROR: " + patchErr.message + "\n" + patchErr.stack);
+      fs.writeFileSync(
+        "./db_update_status.txt",
+        "ERROR: " + patchErr.message + "\n" + patchErr.stack,
+      );
     } catch {}
   }
 }
@@ -493,8 +511,8 @@ startLicenseChecker();
 // --- Rate Limiting (in-memory, per-IP sliding window) ---
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_AUTH = 10;           // max 10 auth requests per minute per IP
-const RATE_LIMIT_WEBHOOK = 200;       // max 200 webhook requests per minute per IP
+const RATE_LIMIT_AUTH = 10; // max 10 auth requests per minute per IP
+const RATE_LIMIT_WEBHOOK = 200; // max 200 webhook requests per minute per IP
 
 function getRateLimitKey(ip: string, bucket: string): string {
   return `${bucket}:${ip}`;
@@ -594,10 +612,10 @@ export default {
 
       if (url.pathname.startsWith("/api/auth/")) {
         if (isRateLimited(clientIp, "auth", RATE_LIMIT_AUTH)) {
-          return new Response(
-            JSON.stringify({ error: "Muitas tentativas. Aguarde um momento." }),
-            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "60" } },
-          );
+          return new Response(JSON.stringify({ error: "Muitas tentativas. Aguarde um momento." }), {
+            status: 429,
+            headers: { "Content-Type": "application/json", "Retry-After": "60" },
+          });
         }
       }
 
@@ -608,10 +626,10 @@ export default {
         url.pathname.startsWith("/api/public/webhooks/incoming/")
       ) {
         if (isRateLimited(clientIp, "webhook", RATE_LIMIT_WEBHOOK)) {
-          return new Response(
-            JSON.stringify({ error: "Rate limit exceeded" }),
-            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "60" } },
-          );
+          return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+            status: 429,
+            headers: { "Content-Type": "application/json", "Retry-After": "60" },
+          });
         }
       }
 
@@ -692,7 +710,10 @@ export default {
       console.error(error);
       try {
         const fs = await import("fs");
-        fs.writeFileSync("./ssr_error.log", "FETCH CATCH:\n" + (error instanceof Error ? error.stack : String(error)) + "\n");
+        fs.writeFileSync(
+          "./ssr_error.log",
+          "FETCH CATCH:\n" + (error instanceof Error ? error.stack : String(error)) + "\n",
+        );
       } catch {}
       return brandedErrorResponse();
     }

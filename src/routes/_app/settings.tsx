@@ -81,6 +81,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { GatewaySettings } from "@/components/licenses/gateway-settings";
+import { hasMasterRole } from "@/lib/roles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -342,7 +343,7 @@ function usePersistedCollapsedState(key: string, defaultValue = true) {
 
 function SettingsPage() {
   const { isAdmin, roles } = useRoles();
-  const isAdminMaster = roles.includes("adminmaster") || roles.includes("owner");
+  const isAdminMaster = hasMasterRole(roles);
   const fetchProfile = useServerFn(getProfile);
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);

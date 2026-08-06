@@ -1,5 +1,6 @@
 "use server";
 import db from "./db";
+import { isMaster } from "./roles";
 
 function generateUUID(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -179,7 +180,7 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     throw new Error(`A tabela '${table}' não é permitida ou não existe`);
   }
 
-  const isSenderAdmin = userRole === "admin" || userRole === "adminmaster";
+  const isSenderAdmin = isMaster(userRole);
 
   const adminOnlyTables = new Set([
     "platform_settings",
