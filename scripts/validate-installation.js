@@ -12,7 +12,7 @@ const connection = await mysql.createConnection({
 try {
   const schema = await fs.readFile("schema_mysql.sql", "utf8");
   const expectedTables = [
-    ...schema.matchAll(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA-Z0-9_]+)`?/gi),
+    ...schema.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+`?([a-zA-Z0-9_]+)`?/gi),
   ].map((match) => match[1]);
 
   const [tableRows] = await connection.query(
