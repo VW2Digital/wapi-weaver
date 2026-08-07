@@ -23,22 +23,57 @@ if (fs.existsSync(dotenvPath)) {
   }
 }
 
-const ESSENTIAL_TABLES = [
+// Complete list of expected database tables
+const EXPECTED_TABLES = [
   "users",
   "profiles",
   "user_roles",
   "platform_settings",
+  "license_settings",
   "licenses",
   "contacts",
-  "campaigns",
-  "bot_flows",
-  "ds_agents",
+  "groups",
+  "contact_groups",
   "custom_fields",
+  "contact_custom_fields",
+  "campaigns",
+  "campaign_logs",
+  "bot_flows",
+  "bot_flow_executions",
+  "ds_agent_folders",
+  "ds_agents",
+  "ds_agent_documents",
+  "chat_sessions",
+  "direct_messages",
+  "conversation_tags",
   "whatsapp_templates",
+  "subscription_plans",
+  "subscription_events",
+  "subscription_plan_changes",
+  "tenant_storage",
+  "audit_logs",
+  "webhook_events",
+  "platform_banners",
 ];
 
+// Critical columns that must exist in specific tables
+const CRITICAL_COLUMNS = {
+  profiles: [
+    "whatsapp_verify_token",
+    "whatsapp_access_token",
+    "whatsapp_phone_number_id",
+    "whatsapp_waba_id",
+    "rate_limit_per_second",
+  ],
+  user_roles: ["role"],
+  licenses: ["tenant_id", "status"],
+  direct_messages: ["wa_message_id", "status"],
+};
+
 async function main() {
-  console.log("[Validation] Validating installation state...");
+  console.log("=================================================");
+  console.log("  VALIDATING DATABASE STRUCTURE & PERMISSIONS  ");
+  console.log("=================================================");
 
   const dbConfig = {
     host: process.env.DB_HOST || "banco-mysql",
@@ -52,23 +87,49 @@ async function main() {
   try {
     connection = await mysql.createConnection(dbConfig);
   } catch (err) {
-    console.error("[Validation] Could not connect to MySQL database:", err.message);
+    console.error("[Validation] FAIL: Could not connect to MySQL database:", err.message);
     process.exit(1);
   }
 
   try {
-    // 1. Check essential tables
+    // 1. Fetch current tables in database
     const [tables] = await connection.query("SHOW TABLES");
-    const existingTableNames = tables.map((t) => Object.values(t)[0]);
+    const existingTables = new Set(tables.map((t) => Object.values(t)[0]));
 
-    const missingTables = ESSENTIAL_TABLES.filter((tbl) => !existingTableNames.includes(tbl));
+    console.log(`[Validation] Total tables found in DB '${dbConfig.database}': ${existingTables.size}`);
+
+    const missingTables = EXPECTED_TABLES.filter((tbl) => !existingTables.has(tbl));
+
     if (missingTables.length > 0) {
-      console.error(`[Validation] ERROR: Missing essential database tables: ${missingTables.join(", ")}`);
+      console.error(`[Validation] ❌ FAIL: The following ${missingTables.length} table(s) are missing:`);
+      missingTables.forEach((tbl) => console.error(`  - ${tbl}`));
       process.exit(1);
+    } else {
+      console.log(`[Validation] ✅ SUCCESS: All ${EXPECTED_TABLES.length} expected tables exist.`);
     }
-    console.log(`[Validation] All ${ESSENTIAL_TABLES.length} essential tables verified.`);
 
-    // 2. Check admin_master user
+    // 2. Check critical columns
+    let columnErrors = 0;
+    for (const [table, columns] of Object.entries(CRITICAL_COLUMNS)) {
+      const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
+      const existingCols = new Set(colRows.map((c) => c.Field));
+
+      for (const col of columns) {
+        if (!existingCols.has(col)) {
+          console.error(`[Validation] ❌ FAIL: Missing column '${col}' in table '${table}'.`);
+          columnErrors++;
+        }
+      }
+    }
+
+    if (columnErrors > 0) {
+      console.error(`[Validation] ❌ FAIL: Found ${columnErrors} missing critical column(s).`);
+      process.exit(1);
+    } else {
+      console.log("[Validation] ✅ SUCCESS: All critical columns verified.");
+    }
+
+    // 3. Check admin_master user
     const [roles] = await connection.query(
       `SELECT u.email, r.role 
        FROM user_roles r 
@@ -77,15 +138,17 @@ async function main() {
     );
 
     if (roles.length === 0) {
-      console.error("[Validation] ERROR: No user found with 'admin_master' role.");
+      console.error("[Validation] ❌ FAIL: No user found with 'admin_master' role.");
       process.exit(1);
     }
 
-    console.log(`[Validation] Verified ${roles.length} admin_master user(s): ${roles.map((r) => r.email).join(", ")}.`);
-    console.log("[Validation] Installation validation PASSED successfully.");
+    console.log(`[Validation] ✅ SUCCESS: Verified ${roles.length} admin_master user(s): ${roles.map((r) => r.email).join(", ")}`);
+    console.log("=================================================");
+    console.log("  ALL CHECKS PASSED: Installation is 100% Valid  ");
+    console.log("=================================================");
     process.exit(0);
   } catch (err) {
-    console.error("[Validation] Error during validation:", err.message);
+    console.error("[Validation] ❌ FAIL: Exception during validation:", err.message);
     process.exit(1);
   } finally {
     if (connection) await connection.end();

@@ -22,6 +22,7 @@ NC='\033[0m'
 
 APP_DIR="/var/www/wapi-weaver"
 FRESH_DATABASE=0
+FORCE_CLONE=0
 DATABASE_DUMP=""
 STAGED_DATABASE_DUMP=""
 
@@ -31,6 +32,7 @@ Uso: sudo bash install.sh [opções]
 
 Opções:
   --fresh-database        Faz backup e recria o banco do zero.
+  --force-clone           Força o download/atualização limpa do código do GitHub (git reset --hard origin/main).
   --database-dump=ARQUIVO
                           Restaura um dump completo do localhost. Esta opção
                           ativa automaticamente --fresh-database.
@@ -45,6 +47,9 @@ for arg in "$@"; do
   case "$arg" in
     --fresh-database)
       FRESH_DATABASE=1
+      ;;
+    --force-clone|-f)
+      FORCE_CLONE=1
       ;;
     --database-dump=*)
       DATABASE_DUMP="${arg#*=}"
@@ -316,7 +321,16 @@ fi
 # Se estamos rodando de dentro do diretório do projeto, copiar. Senão, clonar.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
+if [ "$FORCE_CLONE" -eq 1 ] || [ ! -d "${APP_DIR}" ]; then
+  if [ -d "${APP_DIR}/.git" ]; then
+    echo "  Forçando sincronização direta do GitHub (git reset --hard origin/main)..."
+    (cd "${APP_DIR}" && git fetch origin main && git reset --hard origin/main)
+  else
+    echo "  Clonando repositório do GitHub em ${APP_DIR}..."
+    rm -rf "${APP_DIR}"
+    git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
+  fi
+elif [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
   echo "  Copiando arquivos locais para ${APP_DIR}..."
   rsync -a --delete \
     --exclude='.git' \
@@ -324,15 +338,6 @@ if [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
     --exclude='dist' \
     --exclude='backups' \
     "${SCRIPT_DIR}/" "${APP_DIR}/"
-else
-  echo "  Clonando repositório para ${APP_DIR}..."
-  rm -rf "${APP_DIR}"
-  git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
-fi
-
-# Restaurar o arquivo .env do backup
-if [ -f /tmp/wapi-weaver-env-backup ]; then
-  echo "  Restaurando o arquivo .env do backup..."
   cp /tmp/wapi-weaver-env-backup "${APP_DIR}/.env"
   rm -f /tmp/wapi-weaver-env-backup
 fi
