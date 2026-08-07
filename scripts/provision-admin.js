@@ -29,10 +29,10 @@ async function main() {
   const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD || "adminmaster123";
 
-  console.log(`[Provision Admin] Target admin email: ${adminEmail}`);
+  console.log(`[Provision Admin] Provisioning master admin user: ${adminEmail}`);
 
   const dbConfig = {
-    host: process.env.DB_HOST || "banco-mysql",
+    host: process.env.DB_HOST || "mysql",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
     password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
@@ -68,11 +68,11 @@ async function main() {
 
     if (users.length > 0) {
       userId = users[0].id;
-      console.log(`[Provision Admin] Existing user found (ID: ${userId}). Updating role & password...`);
+      console.log(`[Provision Admin] Existing user found (ID: ${userId}). Updating password & ensuring admin_master role...`);
       await connection.execute("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, userId]);
     } else {
       userId = randomUUID();
-      console.log(`[Provision Admin] Creating new admin_master user (ID: ${userId})...`);
+      console.log(`[Provision Admin] Creating new user (ID: ${userId})...`);
       await connection.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
         userId,
         adminEmail,
@@ -87,6 +87,8 @@ async function main() {
         "INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)",
         [userId, adminEmail, "Master Admin"]
       );
+    } else {
+      await connection.execute("UPDATE profiles SET display_name = 'Master Admin' WHERE id = ?", [userId]);
     }
 
     // Ensure role is admin_master

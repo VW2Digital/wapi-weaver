@@ -1,5 +1,5 @@
 services:
-  banco-mysql:
+  mysql:
     image: mysql:8.0
     container_name: wapi_weaver_mysql
     restart: always
@@ -42,8 +42,7 @@ services:
     env_file:
       - .env
     environment:
-      # Usa o DB_HOST do .env se definido; caso contrário, usa o container interno banco-mysql
-      DB_HOST: ${DB_HOST:-banco-mysql}
+      DB_HOST: ${DB_HOST:-mysql}
       REDIS_HOST: ${REDIS_HOST:-redis}
     volumes:
       - wapi_weaver_uploads:/app/public/uploads
@@ -73,11 +72,11 @@ services:
     ports:
       - "8082:80"
     environment:
-      PMA_HOST: banco-mysql
+      PMA_HOST: mysql
       PMA_PORT: 3306
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-S0xbxPfKazBVT8JFy1UEOjIsrjox}
     depends_on:
-      banco-mysql:
+      mysql:
         condition: service_healthy
 
 volumes:

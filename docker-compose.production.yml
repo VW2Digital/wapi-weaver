@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: wapi_weaver_mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=256M --innodb-log-file-size=64M --max-connections=300
+    environment:
+      MYSQL_DATABASE: wapi_weaver
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: wapi_user
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - wapi_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wapi_user", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: wapi_weaver_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - wapi_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
+        APP_GIT_BRANCH: ${APP_GIT_BRANCH:-main}
+    container_name: wapi_weaver_app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3000"
+    env_file:
+      - .env
+    environment:
+      APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
+      APP_GIT_BRANCH: ${APP_GIT_BRANCH:-main}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: wapi_user
+      DB_NAME: wapi_weaver
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORT: 3000
+    volumes:
+      - wapi_weaver_uploads:/app/public/uploads
+    networks:
+      - wapi_network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: wapi_weaver_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 256M
+    networks:
+      - wapi_network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles:
+      - phpmyadmin
+
+volumes:
+  mysql_data:
+  redis_data:
+  wapi_weaver_uploads:
+
+networks:
+  wapi_network:
+    driver: bridge

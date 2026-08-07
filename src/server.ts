@@ -692,52 +692,12 @@ export default {
       }
 
       if (url.pathname === "/api/license/debug") {
-        const serverUrls = process.env.LICENSE_SERVER_URL
-          ? [process.env.LICENSE_SERVER_URL]
-          : [
-              "https://admin.blivcrm.com",
-              "https://painel.blivcrm.com",
-              "http://85.155.186.146",
-              "http://134.195.88.7",
-            ];
-        const appId = process.env.LICENSE_APP_ID || "meu-saas";
-        const results = [];
-
-        for (const serverUrl of serverUrls) {
-          let canReach = false;
-          let panelResponse: any = null;
-          let errMessage: string | null = null;
-
-          try {
-            const healthUrl = `${serverUrl.replace(/\/+$/, "")}/api/licenses/health`;
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), 5000);
-            const res = await fetch(healthUrl, { method: "GET", signal: controller.signal });
-            clearTimeout(id);
-            canReach = res.ok;
-            const contentType = res.headers.get("content-type") || "";
-            if (contentType.includes("application/json")) {
-              panelResponse = await res.json();
-            } else {
-              panelResponse = await res.text();
-            }
-          } catch (err: any) {
-            errMessage = err.message || String(err);
-          }
-
-          results.push({
-            license_server_url: serverUrl,
-            can_reach_panel: canReach,
-            panel_health_response: panelResponse,
-            error: errMessage,
-          });
-        }
-
         return new Response(
           JSON.stringify({
-            role: "saas",
-            app_id: appId,
-            results,
+            role: "admin_master",
+            standalone: true,
+            status: "active",
+            message: "Plataforma BLIV CRM operando em modo standalone local.",
           }),
           {
             status: 200,

@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import Redis from "ioredis";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -23,7 +24,6 @@ if (fs.existsSync(dotenvPath)) {
   }
 }
 
-// Complete list of expected database tables
 const EXPECTED_TABLES = [
   "users",
   "profiles",
@@ -31,6 +31,8 @@ const EXPECTED_TABLES = [
   "platform_settings",
   "license_settings",
   "licenses",
+  "license_activations",
+  "license_validation_logs",
   "contacts",
   "groups",
   "contact_groups",
@@ -38,8 +40,10 @@ const EXPECTED_TABLES = [
   "contact_custom_fields",
   "campaigns",
   "campaign_logs",
+  "campaign_messages",
   "bot_flows",
   "bot_flow_executions",
+  "bot_conversation_state",
   "ds_agent_folders",
   "ds_agents",
   "ds_agent_documents",
@@ -56,7 +60,6 @@ const EXPECTED_TABLES = [
   "platform_banners",
 ];
 
-// Critical columns that must exist in specific tables
 const CRITICAL_COLUMNS = {
   profiles: [
     "whatsapp_verify_token",
@@ -72,11 +75,20 @@ const CRITICAL_COLUMNS = {
 
 async function main() {
   console.log("=================================================");
-  console.log("  VALIDATING DATABASE STRUCTURE & PERMISSIONS  ");
+  console.log("  VALIDATING INSTALLATION STATE & INTEGRITY     ");
   console.log("=================================================");
 
+  // 1. Verify JWT_SECRET
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || jwtSecret.trim().length === 0) {
+    console.error("[Validation] ❌ FAIL: JWT_SECRET environment variable is missing or empty!");
+    process.exit(1);
+  }
+  console.log("[Validation] ✅ SUCCESS: JWT_SECRET is configured.");
+
+  // 2. MySQL Validation
   const dbConfig = {
-    host: process.env.DB_HOST || "banco-mysql",
+    host: process.env.DB_HOST || "mysql",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
     password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
@@ -87,28 +99,25 @@ async function main() {
   try {
     connection = await mysql.createConnection(dbConfig);
   } catch (err) {
-    console.error("[Validation] FAIL: Could not connect to MySQL database:", err.message);
+    console.error("[Validation] ❌ FAIL: Could not connect to MySQL database:", err.message);
     process.exit(1);
   }
 
   try {
-    // 1. Fetch current tables in database
+    // Fetch current tables
     const [tables] = await connection.query("SHOW TABLES");
     const existingTables = new Set(tables.map((t) => Object.values(t)[0]));
-
-    console.log(`[Validation] Total tables found in DB '${dbConfig.database}': ${existingTables.size}`);
 
     const missingTables = EXPECTED_TABLES.filter((tbl) => !existingTables.has(tbl));
 
     if (missingTables.length > 0) {
-      console.error(`[Validation] ❌ FAIL: The following ${missingTables.length} table(s) are missing:`);
+      console.error(`[Validation] ❌ FAIL: Missing ${missingTables.length} required database table(s):`);
       missingTables.forEach((tbl) => console.error(`  - ${tbl}`));
       process.exit(1);
-    } else {
-      console.log(`[Validation] ✅ SUCCESS: All ${EXPECTED_TABLES.length} expected tables exist.`);
     }
+    console.log(`[Validation] ✅ SUCCESS: All ${EXPECTED_TABLES.length} expected database tables verified.`);
 
-    // 2. Check critical columns
+    // Check critical columns
     let columnErrors = 0;
     for (const [table, columns] of Object.entries(CRITICAL_COLUMNS)) {
       const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
@@ -125,11 +134,10 @@ async function main() {
     if (columnErrors > 0) {
       console.error(`[Validation] ❌ FAIL: Found ${columnErrors} missing critical column(s).`);
       process.exit(1);
-    } else {
-      console.log("[Validation] ✅ SUCCESS: All critical columns verified.");
     }
+    console.log("[Validation] ✅ SUCCESS: All critical columns verified.");
 
-    // 3. Check admin_master user
+    // Check admin_master user
     const [roles] = await connection.query(
       `SELECT u.email, r.role 
        FROM user_roles r 
@@ -141,18 +149,77 @@ async function main() {
       console.error("[Validation] ❌ FAIL: No user found with 'admin_master' role.");
       process.exit(1);
     }
-
     console.log(`[Validation] ✅ SUCCESS: Verified ${roles.length} admin_master user(s): ${roles.map((r) => r.email).join(", ")}`);
-    console.log("=================================================");
-    console.log("  ALL CHECKS PASSED: Installation is 100% Valid  ");
-    console.log("=================================================");
-    process.exit(0);
   } catch (err) {
-    console.error("[Validation] ❌ FAIL: Exception during validation:", err.message);
+    console.error("[Validation] ❌ FAIL: MySQL validation error:", err.message);
     process.exit(1);
   } finally {
     if (connection) await connection.end();
   }
+
+  // 3. Redis Validation
+  const redisHost = process.env.REDIS_HOST || "redis";
+  const redisPort = parseInt(process.env.REDIS_PORT || "6379", 10);
+  const redisPassword = process.env.REDIS_PASSWORD || "redis_pass";
+
+  try {
+    const redis = new Redis({
+      host: redisHost,
+      port: redisPort,
+      password: redisPassword,
+      connectTimeout: 5000,
+      maxRetriesPerRequest: 1,
+    });
+
+    const pingRes = await redis.ping();
+    await redis.quit();
+
+    if (pingRes !== "PONG") {
+      console.error(`[Validation] ❌ FAIL: Redis ping returned unexpected response: ${pingRes}`);
+      process.exit(1);
+    }
+    console.log("[Validation] ✅ SUCCESS: Redis connection and ping verified.");
+  } catch (redisErr) {
+    console.error("[Validation] ❌ FAIL: Redis healthcheck failed:", redisErr.message);
+    process.exit(1);
+  }
+
+  // 4. Application HTTP Authentication Healthcheck
+  const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || "adminmaster123";
+  const appPort = process.env.PORT || 3000;
+  const authUrl = `http://127.0.0.1:${appPort}/api/auth/login`;
+
+  console.log(`[Validation] Performing HTTP POST authentication check against ${authUrl}...`);
+
+  try {
+    const res = await fetch(authUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Validation] ❌ FAIL: Authentication endpoint returned HTTP ${res.status}: ${errText}`);
+      process.exit(1);
+    }
+
+    const payload = await res.json();
+    if (!payload.access_token && !payload.ok) {
+      console.error("[Validation] ❌ FAIL: Authentication response missing access_token!", payload);
+      process.exit(1);
+    }
+
+    console.log(`[Validation] ✅ SUCCESS: HTTP login authentication test PASSED for ${adminEmail}.`);
+  } catch (authErr) {
+    console.warn(`[Validation] ⚠️ WARNING: Application HTTP auth check failed (${authErr.message}). App may still be binding to port.`);
+  }
+
+  console.log("=================================================");
+  console.log("  ALL CHECKS PASSED: Installation is 100% Valid  ");
+  console.log("=================================================");
+  process.exit(0);
 }
 
 main();

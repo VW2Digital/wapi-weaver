@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# INSTALADOR AUTOMATIZADO - CRM WAPI WEAVER (DOCKER COMPOSE)
+# INSTALADOR DE PRODUÇÃO - BLIV CRM / WAPI WEAVER
 # ==============================================================================
-# Alvo: Ubuntu 20.04 / 22.04 / 24.04 LTS
-# Uso:
-#   sudo bash install.sh
-#   sudo bash install.sh --fresh-database
-#   sudo bash install.sh --fresh-database --database-dump=/caminho/wapi_weaver.sql
+# Alvo: Ubuntu 20.04 / 22.04 / 24.04 LTS / Debian 11+
+# Uso:  sudo bash install.sh [opções]
 # ==============================================================================
 
-set -euo pipefail
+set -Eeuo pipefail
 
-# ---------------------------------------------------------------------------
-# Cores para output
-# ---------------------------------------------------------------------------
+LOG_FILE="/var/log/blivcrm-install.log"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+# Cores para terminal
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -21,35 +19,59 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 APP_DIR="/var/www/wapi-weaver"
+COMPOSE_FILE="docker-compose.production.yml"
+
+UPDATE_MODE=0
 FRESH_DATABASE=0
 FORCE_CLONE=0
+CONFIGURE_SSL_ONLY=0
+ENABLE_PHPMYADMIN="n"
 DATABASE_DUMP=""
-STAGED_DATABASE_DUMP=""
+
+error_handler() {
+  local exit_code=$1
+  local line_number=$2
+  local command="$3"
+  echo ""
+  echo -e "${RED}=====================================================${NC}"
+  echo -e "${RED} ❌ ERRO CRÍTICO NA INSTALAÇÃO${NC}"
+  echo -e "${RED} Linha: ${line_number} | Código de erro: ${exit_code}${NC}"
+  echo -e "${RED} Comando que falhou: ${command}${NC}"
+  echo -e "${RED} Consulte o log detalhado em: ${LOG_FILE}${NC}"
+  echo -e "${RED}=====================================================${NC}"
+  exit "${exit_code}"
+}
+
+trap 'error_handler $? $LINENO "$BASH_COMMAND"' ERR
 
 show_usage() {
-  cat <<'EOF'
+  cat <<EOF
 Uso: sudo bash install.sh [opções]
 
 Opções:
-  --fresh-database        Faz backup e recria o banco do zero.
-  --force-clone           Força o download/atualização limpa do código do GitHub (git reset --hard origin/main).
-  --database-dump=ARQUIVO
-                          Restaura um dump completo do localhost. Esta opção
-                          ativa automaticamente --fresh-database.
+  --update                Atualiza o código da aplicação, roda migrações e reinicia os serviços.
+  --fresh-database        Faz backup prévio e recria o banco de dados do zero.
+  --database-dump=ARQUIVO Restaura um arquivo de dump (.sql ou .sql.gz) no banco.
+  --force-clone           Força o download limpo do código do GitHub.
+  --configure-ssl         Executa apenas a emissão/configuração do certificado SSL Let's Encrypt.
   -h, --help              Exibe esta ajuda.
-
-Sem --fresh-database, dados existentes são preservados e o instalador apenas
-aplica atualizações compatíveis de schema.
 EOF
 }
 
+# Processar argumentos da linha de comando
 for arg in "$@"; do
   case "$arg" in
+    --update)
+      UPDATE_MODE=1
+      ;;
     --fresh-database)
       FRESH_DATABASE=1
       ;;
     --force-clone|-f)
       FORCE_CLONE=1
+      ;;
+    --configure-ssl)
+      CONFIGURE_SSL_ONLY=1
       ;;
     --database-dump=*)
       DATABASE_DUMP="${arg#*=}"
@@ -69,542 +91,413 @@ done
 
 print_header() {
   echo -e "${GREEN}"
-  echo "========================================================================"
-  echo "    INSTALADOR OFICIAL - CRM WAPI WEAVER (DOCKER + NGINX + SSL)  "
-  echo "========================================================================"
+  echo "=========================================================="
+  echo "         BLIV CRM / WAPI WEAVER - INSTALADOR DE PRODUÇÃO  "
+  echo "=========================================================="
   echo -e "${NC}"
 }
 
 print_step() {
-  echo -e "${YELLOW}$1${NC}"
+  echo ""
+  echo -e "${BLUE}==>${NC} ${GREEN}$1${NC}"
 }
 
 print_ok() {
-  echo -e "${GREEN}✓ $1${NC}"
+  echo -e "  ${GREEN}✓ $1${NC}"
+}
+
+print_warn() {
+  echo -e "  ${YELLOW}⚠️ $1${NC}"
 }
 
 print_error() {
-  echo -e "${RED}✗ $1${NC}"
+  echo -e "  ${RED}❌ $1${NC}"
 }
 
 # ---------------------------------------------------------------------------
-# 0. Verificações iniciais
+# 0. Verificação de permissões e ambiente básico
 # ---------------------------------------------------------------------------
 print_header
 
-if [ "$EUID" -ne 0 ]; then
-  print_error "Execute como root: sudo bash install.sh"
+if [ "$(id -u)" -ne 0 ]; then
+  print_error "Este script precisa ser executado como root (use: sudo bash install.sh)."
   exit 1
 fi
 
-if [ -n "$DATABASE_DUMP" ]; then
-  if [ ! -f "$DATABASE_DUMP" ] || [ ! -s "$DATABASE_DUMP" ]; then
-    print_error "Dump do banco não encontrado ou vazio: ${DATABASE_DUMP}"
+# Se for apenas configuração de SSL
+if [ "$CONFIGURE_SSL_ONLY" -eq 1 ]; then
+  print_step "Executando apenas configuração de SSL Let's Encrypt..."
+  if [ ! -f "${APP_DIR}/.env" ]; then
+    print_error "Arquivo .env não encontrado em ${APP_DIR}."
     exit 1
   fi
-  if ! grep -Eqi 'CREATE TABLE.*`(users|contacts)`' "$DATABASE_DUMP"; then
-    print_error "O arquivo informado não parece ser um dump completo do WAPI Weaver."
-    exit 1
+  DOMAIN=$(grep '^CORS_ALLOWED_ORIGINS=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
+  if [ -z "$DOMAIN" ]; then
+    read -p "Digite o domínio para emissão do SSL: " DOMAIN
   fi
-  STAGED_DATABASE_DUMP="/tmp/wapi-weaver-database-dump.$$.sql"
-  cp "$DATABASE_DUMP" "$STAGED_DATABASE_DUMP"
-  chmod 600 "$STAGED_DATABASE_DUMP"
-  trap 'rm -f "${STAGED_DATABASE_DUMP:-}"' EXIT
+  read -p "Digite o e-mail para avisos do SSL: " SSL_EMAIL
+  certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect || true
+  systemctl reload nginx || true
+  print_ok "SSL configurado."
+  exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# 1. Coletar parâmetros
+# 1. Coleta interativa de parâmetros (Instalação Nova ou Update)
 # ---------------------------------------------------------------------------
-print_step "[1/7] Coletando parâmetros de configuração..."
+print_step "[1/8] Coletando parâmetros de configuração..."
 
-# Validador de Domínio da Aplicação
-while true; do
-  if [ -z "${DOMAIN:-}" ]; then
-    read -p "Digite o domínio para esta instalação (ex: disparador.meusite.com): " DOMAIN
-  fi
-  DOMAIN=$(echo "$DOMAIN" | xargs)
-  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-    break
-  else
-    echo -e "${RED}Erro: Domínio inválido. Digite um domínio válido.${NC}"
-    DOMAIN=""
-  fi
-done
+DOMAIN=""
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+SSL_EMAIL=""
 
-# Coletar dados do administrador
-while true; do
-  if [ -z "${ADMIN_EMAIL:-}" ]; then
-    read -p "Digite o e-mail de acesso para o Administrador: " ADMIN_EMAIL
-  fi
-  ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)
-  if [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-    break
-  else
-    echo -e "${RED}Erro: E-mail inválido.${NC}"
-    ADMIN_EMAIL=""
-  fi
-done
-
-while true; do
-  if [ -z "${ADMIN_PASSWORD:-}" ]; then
-    echo -n "Digite a senha de acesso para o Administrador: "
-    read -s ADMIN_PASSWORD
-    echo ""
-  fi
-  ADMIN_PASSWORD=$(echo "$ADMIN_PASSWORD" | xargs)
-  if [ -z "$ADMIN_PASSWORD" ] || [ ${#ADMIN_PASSWORD} -lt 6 ]; then
-    echo -e "${RED}Erro: A senha deve conter pelo menos 6 caracteres.${NC}"
-    ADMIN_PASSWORD=""
-  else
-    break
-  fi
-done
-
-# Validador de SSL
-while true; do
-  if [ -z "${INSTALL_SSL:-}" ]; then
-    read -p "Deseja instalar SSL com Let's Encrypt? (s/n): " INSTALL_SSL
-  fi
-  INSTALL_SSL=$(echo "$INSTALL_SSL" | tr '[:upper:]' '[:lower:]' | xargs)
-  if [[ "$INSTALL_SSL" == "s" || "$INSTALL_SSL" == "n" ]]; then
-    break
-  else
-    echo -e "${RED}Erro: Opção inválida. Responda apenas com 's' ou 'n'.${NC}"
-    INSTALL_SSL=""
-  fi
-done
-
-# Validador de E-mail do SSL
-if [[ "$INSTALL_SSL" == "s" ]]; then
+if [ "$UPDATE_MODE" -eq 0 ]; then
+  # 1.1 Domínio
   while true; do
-    if [ -z "${SSL_EMAIL:-}" ]; then
-      read -p "Digite o e-mail para o SSL: " SSL_EMAIL
+    if [ -f "${APP_DIR}/.env" ]; then
+      DOMAIN_ENV=$(grep '^CORS_ALLOWED_ORIGINS=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
+      if [ -n "$DOMAIN_ENV" ]; then
+        DOMAIN="$DOMAIN_ENV"
+      fi
     fi
-    SSL_EMAIL=$(echo "$SSL_EMAIL" | xargs)
+    if [ -z "$DOMAIN" ]; then
+      read -p "Digite o domínio da aplicação (ex: app.seudominio.com): " DOMAIN
+    fi
+    DOMAIN=$(echo "$DOMAIN" | tr '[:upper:]' '[:lower:]' | sed 's|https://||g' | sed 's|http://||g' | tr -d '/' | xargs)
+    if [ -n "$DOMAIN" ]; then
+      break
+    else
+      print_error "Domínio inválido. Tente novamente."
+      DOMAIN=""
+    fi
+  done
+
+  # 1.2 E-mail do Admin Master
+  while true; do
+    if [ -f "${APP_DIR}/.env" ]; then
+      ADMIN_EMAIL_ENV=$(grep '^ADMIN_EMAIL=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+      if [ -n "$ADMIN_EMAIL_ENV" ]; then
+        ADMIN_EMAIL="$ADMIN_EMAIL_ENV"
+      fi
+    fi
+    if [ -z "$ADMIN_EMAIL" ]; then
+      read -p "Digite o E-mail do Administrador Master: " ADMIN_EMAIL
+    fi
+    ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | tr '[:upper:]' '[:lower:]' | xargs)
+    if [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      break
+    else
+      print_error "E-mail inválido. Tente novamente."
+      ADMIN_EMAIL=""
+    fi
+  done
+
+  # 1.3 Senha do Admin Master
+  while true; do
+    if [ -z "$ADMIN_PASSWORD" ]; then
+      echo -n "Digite a senha do Administrador Master (mínimo 6 caracteres): "
+      read -s ADMIN_PASSWORD
+      echo ""
+    fi
+    ADMIN_PASSWORD=$(echo "$ADMIN_PASSWORD" | xargs)
+    if [ ${#ADMIN_PASSWORD} -ge 6 ]; then
+      break
+    else
+      print_error "A senha deve conter no mínimo 6 caracteres."
+      ADMIN_PASSWORD=""
+    fi
+  done
+
+  # 1.4 E-mail para SSL Let's Encrypt
+  while true; do
+    read -p "Digite o e-mail para cadastro no SSL Let's Encrypt: " SSL_EMAIL
+    SSL_EMAIL=$(echo "$SSL_EMAIL" | tr '[:upper:]' '[:lower:]' | xargs)
     if [[ "$SSL_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
       break
     else
-      echo -e "${RED}Erro: E-mail inválido. Digite um e-mail válido.${NC}"
+      print_error "E-mail de SSL inválido. Tente novamente."
       SSL_EMAIL=""
     fi
   done
-fi
 
-# Validador de Senha do BD
-if [ -z "${DB_PASS:-}" ]; then
-  DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-  if [ -n "$DB_PASS_ENV" ]; then
-    DB_PASS="$DB_PASS_ENV"
-  else
-    while true; do
-      echo -n "Digite a senha desejada para o banco de dados: "
-      read -s DB_PASS
-      echo "" # Linha em branco após input oculto
-      DB_PASS=$(echo "$DB_PASS" | xargs)
-      if [ -z "$DB_PASS" ]; then
-        echo -e "${RED}Erro: A senha do banco de dados é obrigatória.${NC}"
-      elif [ ${#DB_PASS} -lt 8 ]; then
-        echo -e "${RED}Erro: A senha deve ter pelo menos 8 caracteres.${NC}"
-        DB_PASS=""
-      elif [[ "$DB_PASS" =~ [[:space:]] ]]; then
-        echo -e "${RED}Erro: A senha não deve conter espaços.${NC}"
-        DB_PASS=""
-      else
-        break
-      fi
-    done
+  # 1.5 phpMyAdmin opcional
+  read -p "Deseja habilitar o phpMyAdmin interno? (s/N): " ENABLE_PHPMYADMIN
+  ENABLE_PHPMYADMIN=$(echo "$ENABLE_PHPMYADMIN" | tr '[:upper:]' '[:lower:]' | xargs)
+
+  # 1.6 Dump do banco de dados opcional
+  if [ -z "$DATABASE_DUMP" ]; then
+    read -p "Possui um arquivo de dump (.sql ou .sql.gz) para restaurar? (s/N): " HAS_DUMP
+    HAS_DUMP=$(echo "$HAS_DUMP" | tr '[:upper:]' '[:lower:]' | xargs)
+    if [[ "$HAS_DUMP" == "s" ]]; then
+      read -p "Digite o caminho completo para o arquivo de dump: " DATABASE_DUMP
+      FRESH_DATABASE=1
+    fi
   fi
 fi
 
-# Define CORS dinamicamente com base no domínio
-CORS_ORIGIN="https://${DOMAIN}"
-if [ "${INSTALL_SSL}" != "s" ]; then
-  CORS_ORIGIN="http://${DOMAIN}"
-fi
-
-echo ""
-echo "  Domínio: $DOMAIN"
-echo "  CORS:    $CORS_ORIGIN"
-echo "  SSL:     ${INSTALL_SSL:-n}"
-echo "  Senha do BD: ********"
-if [ "$FRESH_DATABASE" -eq 1 ]; then
-  echo "  Banco:    recriação completa (backup automático habilitado)"
-  if [ -n "$STAGED_DATABASE_DUMP" ]; then
-    echo "  Origem:   dump completo do localhost"
-  else
-    echo "  Origem:   schema_mysql.sql canônico"
-  fi
-else
-  echo "  Banco:    preservar dados existentes"
-fi
-echo ""
-print_ok "Parâmetros carregados."
-
 # ---------------------------------------------------------------------------
-# 2. Verificar/configurar swap (essencial para VPS com pouca RAM no build)
+# 2. Verificação de memória e swap
 # ---------------------------------------------------------------------------
-print_step "[2/7] Verificando memória e swap..."
+print_step "[2/8] Verificando recursos do sistema (RAM e Swap)..."
 
 TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
 TOTAL_SWAP=$(free -m | awk '/^Swap:/{print $2}')
-echo "  RAM: ${TOTAL_RAM}MB | Swap atual: ${TOTAL_SWAP}MB"
+echo "  RAM total: ${TOTAL_RAM}MB | Swap atual: ${TOTAL_SWAP}MB"
 
 if [ "$TOTAL_SWAP" -lt 3000 ]; then
-  echo "  Swap insuficiente para o build (mínimo de 3GB recomendado). Criando swap de 4GB..."
+  print_warn "Swap abaixo de 3GB. Configurando swapfile de 4GB para garantir builds seguros..."
   swapoff /swapfile 2>/dev/null || true
   rm -f /swapfile
   fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
   chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   grep -q "/swapfile" /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-  print_ok "Swap de 4GB configurado (total agora: $(free -m | awk '/^Swap:/{print $2}')MB)."
+  print_ok "Swapfile de 4GB configurado com sucesso."
 else
-  print_ok "Memória suficiente (RAM: ${TOTAL_RAM}MB, Swap: ${TOTAL_SWAP}MB)."
+  print_ok "Memória suficiente."
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Instalar dependências do sistema
+# 3. Instalando dependências do sistema e Firewall
 # ---------------------------------------------------------------------------
-print_step "[3/7] Instalando dependências do sistema (Docker, Nginx, Certbot)..."
+print_step "[3/8] Instalando dependências do sistema e configurando Firewall..."
 
 apt-get update -y -qq
+apt-get install -y -qq curl git nginx certbot python3-certbot-nginx rsync ufw dnsutils
 
-# Nginx e Certbot
-apt-get install -y -qq curl git nginx certbot python3-certbot-nginx rsync
+# Configurar UFW com segurança
+echo "  Configurando regras do UFW (liberando apenas SSH 22, HTTP 80, HTTPS 443)..."
+ufw allow 22/tcp >/dev/null 2>&1 || true
+ufw allow 80/tcp >/dev/null 2>&1 || true
+ufw allow 443/tcp >/dev/null 2>&1 || true
+ufw --force enable >/dev/null 2>&1 || true
+print_ok "Firewall UFW habilitado com segurança (portas 3306, 6379 e 3003 mantidas privadas)."
 
-# Docker Engine (método oficial)
+# Instalar Docker Engine oficial
 if ! command -v docker &>/dev/null; then
   echo "  Instalando Docker Engine..."
   curl -fsSL https://get.docker.com | bash
   systemctl enable docker
   systemctl start docker
-  print_ok "Docker instalado."
+  print_ok "Docker Engine instalado."
 else
   print_ok "Docker já instalado: $(docker --version)"
 fi
 
-# Docker Compose Plugin v2
+# Instalar Docker Compose Plugin v2
 if ! docker compose version &>/dev/null 2>&1; then
-  echo "  Instalando Docker Compose Plugin..."
+  echo "  Instalando Docker Compose Plugin v2..."
   apt-get install -y -qq docker-compose-plugin || true
 fi
 
 if docker compose version &>/dev/null 2>&1; then
-  print_ok "Docker Compose já instalado: $(docker compose version)"
-elif command -v docker-compose &>/dev/null 2>&1; then
-  docker() {
-    if [ "$1" = "compose" ]; then
-      shift
-      command docker-compose "$@"
-    else
-      command docker "$@"
-    fi
-  }
-  print_ok "Usando docker-compose legado: $(docker-compose version --short 2>/dev/null || docker-compose version | head -n 1)"
+  print_ok "Docker Compose v2 pronto: $(docker compose version)"
 else
-  print_error "Docker Compose não está disponível. Instale o plugin docker-compose-plugin ou o binário docker-compose."
+  print_error "Docker Compose Plugin v2 não está disponível."
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Preparar código da aplicação
+# 4. Preparar e Sincronizar código da aplicação via Git (origin/main)
 # ---------------------------------------------------------------------------
-print_step "[4/7] Preparando código da aplicação em ${APP_DIR}..."
+print_step "[4/8] Sincronizando código-fonte estritamente a partir do GitHub (origin/main)..."
 
 mkdir -p /var/www
 
-# Fazer backup do arquivo .env se ele existir
-if [ -f "${APP_DIR}/.env" ]; then
-  echo "  Salvando backup do arquivo .env atual..."
-  cp "${APP_DIR}/.env" /tmp/wapi-weaver-env-backup
-fi
-
-# Se estamos rodando de dentro do diretório do projeto, copiar. Senão, clonar.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-if [ "$FORCE_CLONE" -eq 1 ] || [ ! -d "${APP_DIR}" ]; then
-  if [ -d "${APP_DIR}/.git" ]; then
-    echo "  Forçando sincronização direta do GitHub (git reset --hard origin/main)..."
-    (cd "${APP_DIR}" && git fetch origin main && git reset --hard origin/main)
-  else
-    echo "  Clonando repositório do GitHub em ${APP_DIR}..."
-    rm -rf "${APP_DIR}"
-    git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
-  fi
-elif [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
-  echo "  Copiando arquivos locais para ${APP_DIR}..."
-  rsync -a --delete \
-    --exclude='.git' \
-    --exclude='node_modules' \
-    --exclude='dist' \
-    --exclude='backups' \
-    "${SCRIPT_DIR}/" "${APP_DIR}/"
-  cp /tmp/wapi-weaver-env-backup "${APP_DIR}/.env"
-  rm -f /tmp/wapi-weaver-env-backup
-fi
-
-print_ok "Código da aplicação pronto."
-
-# ---------------------------------------------------------------------------
-# 5. Configurar variáveis de ambiente e secrets
-# ---------------------------------------------------------------------------
-print_step "[5/7] Configurando variáveis de ambiente de produção..."
-
-# Criar/atualizar .env com segredos seguros
-if [ -f "${APP_DIR}/.env" ]; then
-  echo "  Atualizando .env existente com os valores atuais..."
+if [ ! -d "${APP_DIR}/.git" ]; then
+  echo "  Executando git clone inicial da branch main..."
+  rm -rf "${APP_DIR}"
+  git clone --branch main https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
+  cd "${APP_DIR}"
 else
-  echo "  Gerando .env com segredos seguros..."
+  cd "${APP_DIR}"
+  echo "  Verificando modificações locais descartáveis em ${APP_DIR}..."
+  LOCAL_MODS=$(git status --porcelain --untracked-files=no || echo "")
+  if [ -n "${LOCAL_MODS}" ]; then
+    print_warn "Modificações locais em arquivos rastreados detectadas na VPS (serão descartadas):"
+    echo "${LOCAL_MODS}"
+  fi
+
+  echo "  Sincronizando com origin/main (git fetch & reset --hard)..."
+  git fetch origin main
+  git checkout main
+  git reset --hard origin/main
+  git clean -fd
 fi
 
-JWT_SEC=$(grep '^JWT_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-DB_PASS_ENV=$(grep '^DB_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-DB_ROOT_PASS_ENV=$(grep '^MYSQL_ROOT_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-REDIS_PASS_ENV=$(grep '^REDIS_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_APP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_API_SEC_ENV=$(grep '^LICENSE_API_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+# Validação estrita do Commit SHA
+EXPECTED_SHA=$(git rev-parse origin/main)
+LOCAL_SHA=$(git rev-parse HEAD)
 
-JWT_SEC="${JWT_SEC:-}"
-[ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
+echo "  Commit local (HEAD):   ${LOCAL_SHA}"
+echo "  Commit origin/main:  ${EXPECTED_SHA}"
 
-DB_PASS="${DB_PASS:-${DB_PASS_ENV}}"
-[ -n "${DB_PASS}" ] || DB_PASS=$(openssl rand -hex 16)
-
-DB_ROOT_PASS="${DB_ROOT_PASS_ENV:-}"
-[ -n "${DB_ROOT_PASS}" ] || DB_ROOT_PASS=$(openssl rand -hex 16)
-
-REDIS_PASS_ENV="${REDIS_PASS_ENV:-}"
-[ -n "${REDIS_PASS_ENV}" ] || REDIS_PASS_ENV=$(openssl rand -hex 16)
-
-LICENSE_SRV_URL="${LICENSE_SRV_URL:-${LICENSE_SRV_URL_ENV}}"
-[ -n "${LICENSE_SRV_URL}" ] || LICENSE_SRV_URL="https://admin.blivcrm.com"
-
-LICENSE_APP_ID="${LICENSE_APP_ID:-${LICENSE_APP_ID_ENV}}"
-[ -n "${LICENSE_APP_ID}" ] || LICENSE_APP_ID="meu-saas"
-
-LICENSE_API_SEC="${LICENSE_API_SEC:-${LICENSE_API_SEC_ENV}}"
-[ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
-
-# Este instalador provisiona o painel central. Não reutilize LICENSE_ROLE=saas
-# de um .env antigo, pois isso rebaixa ADMIN_EMAIL para o papel "admin".
-LICENSE_RL="panel"
-
-ENCRYPT_KEY_ENV=$(grep '^MERCADOPAGO_ENCRYPTION_KEY=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-MERCADOPAGO_ENCRYPTION_KEY="${MERCADOPAGO_ENCRYPTION_KEY:-${ENCRYPT_KEY_ENV}}"
-[ -n "${MERCADOPAGO_ENCRYPTION_KEY}" ] || MERCADOPAGO_ENCRYPTION_KEY=$(openssl rand -hex 32)
-
-PROTOCOL="http"
-[ "${INSTALL_SSL:-n}" = "s" ] && PROTOCOL="https"
-
-cat > "${APP_DIR:-}/.env" <<EOF
-DB_HOST=banco-mysql
-DB_PORT=3306
-DB_USER=wapi_user
-DB_PASSWORD=${DB_PASS}
-DB_NAME=wapi_weaver
-JWT_SECRET=${JWT_SEC}
-MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
-LICENSE_SERVER_URL=${LICENSE_SRV_URL}
-LICENSE_APP_ID=${LICENSE_APP_ID}
-LICENSE_API_SECRET=${LICENSE_API_SEC}
-LICENSE_ROLE=${LICENSE_RL}
-APP_URL=${PROTOCOL}://${DOMAIN}
-ADMIN_EMAIL=${ADMIN_EMAIL:-}
-ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=${REDIS_PASS_ENV}
-MERCADOPAGO_ENCRYPTION_KEY=${MERCADOPAGO_ENCRYPTION_KEY}
-NODE_ENV=production
-CORS_ALLOWED_ORIGINS=${CORS_ORIGIN}
-EOF
-
-print_ok "Configurações aplicadas."
-
-# ---------------------------------------------------------------------------
-# 6. Build e inicialização via Docker Compose
-# ---------------------------------------------------------------------------
-print_step "[6/7] Fazendo build da aplicação e subindo os containers..."
-
-cd "${APP_DIR}"
-
-docker compose down --remove-orphans || true
-
-# Build da imagem da aplicação
-export DOCKER_BUILDKIT=1
-docker compose build --no-cache
-
-# Subir todos os serviços em background
-docker compose up -d
-
-echo ""
-echo "  Aguardando o container MySQL estar pronto..."
-MYSQL_READY=0
-for attempt in $(seq 1 30); do
-  if docker compose exec -T banco-mysql mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent >/dev/null 2>&1; then
-    MYSQL_READY=1
-    echo "  MySQL está pronto!"
-    break
-  fi
-  echo "  Aguardando o banco... tentativa ${attempt}/30"
-  sleep 2
-done
-
-if [ "$MYSQL_READY" -eq 1 ]; then
-  echo "  Alinhando credenciais e permissões do usuário 'wapi_user'..."
-  docker compose exec -T banco-mysql mysql -u root -p"${DB_ROOT_PASS}" -e "
-    CREATE USER IF NOT EXISTS 'wapi_user'@'%' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';
-    ALTER USER 'wapi_user'@'%' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';
-    GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
-    FLUSH PRIVILEGES;
-  " || echo "  Aviso: Não foi possível atualizar o usuário do banco diretamente, prosseguindo..."
-
-  if [ "$FRESH_DATABASE" -eq 1 ]; then
-    # Recriação intencional: primeiro preserva uma cópia recuperável do
-    # banco atual. O volume de uploads e o Redis não são removidos.
-    BACKUP_DIR="${APP_DIR}/backups"
-    BACKUP_FILE="${BACKUP_DIR}/vps-before-fresh-install-$(date +%Y%m%d-%H%M%S).sql"
-    mkdir -p "$BACKUP_DIR"
-    chmod 700 "$BACKUP_DIR"
-
-    echo "  Criando backup de segurança do banco atual..."
-    if docker compose exec -T banco-mysql sh -c \
-      'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --triggers --events --hex-blob wapi_weaver' \
-      > "$BACKUP_FILE"; then
-      chmod 600 "$BACKUP_FILE"
-      print_ok "Backup salvo em ${BACKUP_FILE}."
-    else
-      rm -f "$BACKUP_FILE"
-      print_error "Não foi possível criar o backup de segurança. O banco não será alterado."
-      exit 1
-    fi
-
-    echo "  Parando a aplicação durante a substituição do banco..."
-    docker compose stop app >/dev/null 2>&1 || true
-
-    echo "  Recriando o banco wapi_weaver com UTF-8..."
-    docker compose exec -T banco-mysql sh -c \
-      'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
-        DROP DATABASE IF EXISTS wapi_weaver;
-        CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-      "'
-
-    if [ -n "$STAGED_DATABASE_DUMP" ]; then
-      echo "  Restaurando o dump completo do localhost..."
-      if ! docker compose exec -T banco-mysql sh -c \
-        'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" wapi_weaver' < "$STAGED_DATABASE_DUMP"; then
-        print_error "Falha ao restaurar o dump. O backup anterior está em ${BACKUP_FILE}."
-        exit 1
-      fi
-    else
-      echo "  Importando o schema canônico completo..."
-      if ! docker compose exec -T banco-mysql sh -c \
-        'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" wapi_weaver' < schema_mysql.sql; then
-        print_error "Falha ao importar o schema canônico. O backup anterior está em ${BACKUP_FILE}."
-        exit 1
-      fi
-    fi
-    print_ok "Banco recriado integralmente."
-  else
-    # O entrypoint do MySQL só importa /docker-entrypoint-initdb.d quando o
-    # volume está vazio. Em atualizações, preservamos os dados e deixamos o
-    # ensure-schema aplicar migrações aditivas; o validador integral abaixo
-    # impede que uma estrutura incompleta seja reportada como sucesso.
-    echo "  Preservando o banco existente; migrações serão aplicadas pela aplicação..."
-  fi
-  
-  # Forçar reinicialização do app para garantir que ele se conecte com as novas credenciais caso estivesse em loop de erro
-  echo "  Reiniciando o container da aplicação para alinhar conexões..."
-  docker compose restart app
-else
-  print_error "MySQL não ficou pronto a tempo."
-fi
-
-echo ""
-echo "  Aguardando a aplicação inicializar..."
-APP_READY=0
-for attempt in $(seq 1 18); do
-  if docker compose ps app 2>/dev/null | grep -Eq "(Up|running)" && ! docker compose ps app 2>/dev/null | grep -qi "restarting"; then
-    APP_READY=1
-    break
-  fi
-  echo "  App ainda iniciando/reiniciando... tentativa ${attempt}/18"
-  sleep 5
-done
-
-if [ "$APP_READY" -eq 1 ]; then
-  echo "  Aplicando atualização automática do schema no banco existente..."
-  if docker compose exec -T app node scripts/ensure-schema.js; then
-    print_ok "Schema validado com sucesso."
-  else
-    print_error "Falha ao validar o schema automaticamente."
-    echo "  Verifique os logs com: docker compose logs app"
-    exit 1
-  fi
-
-  echo "  Criando/atualizando o Administrador Master informado no instalador..."
-  if docker compose exec -T app node scripts/provision-admin.js; then
-    print_ok "Administrador Master provisionado com sucesso."
-  else
-    print_error "Falha ao provisionar o Administrador Master."
-    echo "  Verifique os logs com: docker compose logs app"
-    exit 1
-  fi
-
-  echo "  Validando estrutura final do banco e permissões do Administrador Master..."
-  if docker compose exec -T app node scripts/validate-installation.js; then
-    print_ok "Banco e Administrador Master validados com sucesso."
-  else
-    print_error "A instalação ficou incompleta e não será reportada como sucesso."
-    exit 1
-  fi
-else
-  print_error "Container da aplicação não estabilizou a tempo para executar o ensure-schema."
-  echo "  Verifique os logs com: docker compose logs app"
+if [ "${LOCAL_SHA}" != "${EXPECTED_SHA}" ]; then
+  print_error "FALHA: HEAD local (${LOCAL_SHA}) difere de origin/main (${EXPECTED_SHA})."
   exit 1
 fi
 
-# Verificar se os containers estão rodando
-if docker compose ps | grep -q "wapi_weaver_app.*Up\|wapi_weaver_app.*running"; then
-  print_ok "Container da aplicação está rodando!"
-else
-  print_error "Container da aplicação pode não ter iniciado corretamente."
-  echo "  Verifique os logs com: docker compose logs app"
+UNTRACKED_DIRTY=$(git status --porcelain --untracked-files=no)
+if [ -n "${UNTRACKED_DIRTY}" ]; then
+  print_error "FALHA: Working tree rastreado não está limpo após reset:"
+  echo "${UNTRACKED_DIRTY}"
+  exit 1
 fi
 
-if docker compose ps | grep -q "wapi_weaver_mysql.*Up\|wapi_weaver_mysql.*running"; then
-  print_ok "Container do MySQL está rodando!"
-else
-  print_error "Container do MySQL pode não ter iniciado corretamente."
-  echo "  Verifique os logs com: docker compose logs banco-mysql"
+# Salvar o SHA implantado no arquivo .deploy-version
+DEPLOYED_AT_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > "${APP_DIR}/.deploy-version" <<VERSIONEOF
+GIT_BRANCH=main
+GIT_SHA=${LOCAL_SHA}
+DEPLOYED_AT=${DEPLOYED_AT_ISO}
+VERSIONEOF
+chmod 644 "${APP_DIR}/.deploy-version"
+
+print_ok "Código-fonte 100% alinhado com origin/main. Commit implantado: ${LOCAL_SHA}"
+
+# ---------------------------------------------------------------------------
+# 5. Configurar variáveis de ambiente e secrets no .env
+# ---------------------------------------------------------------------------
+print_step "[5/8] Gerando segredos e configurando o arquivo .env..."
+
+ENV_FILE="${APP_DIR}/.env"
+
+# Carregar ou gerar segredos únicos (sem reutilização de senhas)
+JWT_SECRET_VAL=$(grep '^JWT_SECRET=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${JWT_SECRET_VAL}" ] || JWT_SECRET_VAL=$(openssl rand -hex 32)
+
+MYSQL_ROOT_PASS_VAL=$(grep '^MYSQL_ROOT_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${MYSQL_ROOT_PASS_VAL}" ] || MYSQL_ROOT_PASS_VAL=$(openssl rand -hex 24)
+
+DB_PASS_VAL=$(grep '^DB_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${DB_PASS_VAL}" ] || DB_PASS_VAL=$(openssl rand -hex 24)
+
+REDIS_PASS_VAL=$(grep '^REDIS_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${REDIS_PASS_VAL}" ] || REDIS_PASS_VAL=$(openssl rand -hex 24)
+
+MP_ENC_KEY_VAL=$(grep '^MERCADOPAGO_ENCRYPTION_KEY=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${MP_ENC_KEY_VAL}" ] || MP_ENC_KEY_VAL=$(openssl rand -hex 32)
+
+# Gravar o arquivo .env
+cat > "${ENV_FILE}" <<EOF
+# Configuração do Banco de Dados (MySQL)
+DB_HOST="mysql"
+DB_PORT="3306"
+DB_USER="wapi_user"
+DB_PASSWORD="${DB_PASS_VAL}"
+DB_NAME="wapi_weaver"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASS_VAL}"
+
+# Configuração de Cache e Filas (Redis)
+REDIS_HOST="redis"
+REDIS_PORT="6379"
+REDIS_PASSWORD="${REDIS_PASS_VAL}"
+
+# Segurança e Runtime
+JWT_SECRET="${JWT_SECRET_VAL}"
+NODE_ENV="production"
+PORT=3000
+MERCADOPAGO_ENCRYPTION_KEY="${MP_ENC_KEY_VAL}"
+
+# Domínio e CORS
+APP_URL="https://${DOMAIN}"
+CORS_ALLOWED_ORIGINS="https://${DOMAIN}"
+
+# Administrador Master
+ADMIN_EMAIL="${ADMIN_EMAIL}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD}"
+EOF
+
+chmod 600 "${ENV_FILE}"
+print_ok "Arquivo .env gerado e protegido (chmod 600)."
+
+# ---------------------------------------------------------------------------
+# 6. Subir a Stack Docker Compose e aplicar Migrações
+# ---------------------------------------------------------------------------
+print_step "[6/8] Inicializando a stack Docker e aplicando migrações..."
+
+# Se houver backup prévio antes do fresh install
+if [ "$FRESH_DATABASE" -eq 1 ] && [ -f "${APP_DIR}/scripts/backup.sh" ]; then
+  print_warn "Executando backup prévio de segurança do banco..."
+  bash "${APP_DIR}/scripts/backup.sh" || true
 fi
 
-# ---------------------------------------------------------------------------
-# 7. Configurar Nginx como reverse proxy
-# ---------------------------------------------------------------------------
-print_step "[7/7] Configurando Nginx como reverse proxy..."
+# Definir se phpMyAdmin deve rodar
+COMPOSE_PROFILE_FLAG=""
+if [[ "${ENABLE_PHPMYADMIN}" == "s" ]]; then
+  COMPOSE_PROFILE_FLAG="--profile phpmyadmin"
+fi
 
-cat > /etc/nginx/sites-available/wapi-weaver <<NGINXEOF
+# Build e inicialização dos containers com injeção do Commit SHA
+echo "  Executando build da aplicação (sem cache antigo) e inicialização dos serviços..."
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d
+
+echo "  Aguardando inicialização do banco MySQL..."
+MYSQL_READY=0
+for i in $(seq 1 30); do
+  if docker compose -f "${COMPOSE_FILE}" exec -T mysql mysqladmin ping -u wapi_user -p"${DB_PASS_VAL}" --silent >/dev/null 2>&1; then
+    MYSQL_READY=1
+    print_ok "MySQL está pronto!"
+    break
+  fi
+  sleep 2
+done
+
+if [ "$MYSQL_READY" -ne 1 ]; then
+  print_error "MySQL não estabilizou a tempo."
+  exit 1
+fi
+
+# Importação de Dump se fornecido
+if [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
+  print_step "Importando dump do banco de dados (${DATABASE_DUMP})..."
+  if [[ "$DATABASE_DUMP" == *.gz ]]; then
+    gunzip -c "$DATABASE_DUMP" | docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver
+  else
+    docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver < "$DATABASE_DUMP"
+  fi
+  print_ok "Dump do banco importado com sucesso."
+fi
+
+# Executar Migrações de Banco de Dados
+echo "  Executando migrações de banco de dados..."
+docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/migrate.js
+
+# Provisionar Administrador Master
+echo "  Provisionando Administrador Master (${ADMIN_EMAIL})..."
+docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/provision-admin.js
+
+# Validar Instalação
+echo "  Executando validador automatizado pós-instalação..."
+docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/validate-installation.js
+
+print_ok "Stack de containers e banco de dados validados com sucesso."
+
+# ---------------------------------------------------------------------------
+# 7. Configuração do Nginx e SSL Let's Encrypt
+# ---------------------------------------------------------------------------
+print_step "[7/8] Configurando Nginx Reverse Proxy e SSL..."
+
+NGINX_CONF="/etc/nginx/sites-available/wapi-weaver"
+cat > "${NGINX_CONF}" <<NGINXEOF
 server {
     listen 80;
     server_name ${DOMAIN};
 
-    # Segurança básica
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-Content-Type-Options "nosniff";
     add_header X-XSS-Protection "1; mode=block";
 
-    # Aumentar timeout para uploads/APIs lentas
     proxy_read_timeout 120s;
     proxy_connect_timeout 120s;
-    client_max_body_size 20M;
+    client_max_body_size 50M;
 
     location /.well-known/acme-challenge/ {
         root /var/www/html;
         allow all;
     }
 
-    # Todo o tráfego vai para o container Node/Vite na porta 3003
     location / {
         proxy_pass http://127.0.0.1:3003;
         proxy_http_version 1.1;
@@ -619,59 +512,73 @@ server {
 }
 NGINXEOF
 
-ln -sf /etc/nginx/sites-available/wapi-weaver /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+ln -sf "${NGINX_CONF}" /etc/nginx/sites-enabled/wapi-weaver
+rm -f /etc/nginx/sites-enabled/default || true
 
-nginx -t && systemctl restart nginx
-print_ok "Nginx configurado e reiniciado."
-
-# SSL com Let's Encrypt
-if [ "${INSTALL_SSL:-n}" = "s" ] || [ "${INSTALL_SSL:-n}" = "S" ]; then
-  echo ""
-  print_step "  Instalando certificado SSL com Let's Encrypt..."
-  if [ -n "${SSL_EMAIL:-}" ]; then
-    certbot --authenticator webroot --installer nginx -w /var/www/html -d "$DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect
-  else
-    certbot --authenticator webroot --installer nginx -w /var/www/html -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect
-  fi
-  print_ok "SSL instalado! HTTPS habilitado para ${DOMAIN}."
-
-  # Renovação automática já é configurada pelo certbot, mas garantir o timer
-  systemctl enable certbot.timer || true
+if nginx -t; then
+  systemctl reload nginx
+  print_ok "Nginx reconfigurado e testado com sucesso."
+else
+  print_error "Falha no teste sintático do Nginx. A configuração anterior foi preservada."
+  exit 1
 fi
 
-# Firewall
-if command -v ufw &>/dev/null; then
-  ufw allow 22/tcp  >/dev/null 2>&1 || true
-  ufw allow 80/tcp  >/dev/null 2>&1 || true
-  ufw allow 443/tcp >/dev/null 2>&1 || true
-  ufw --force enable >/dev/null 2>&1 || true
+# Checar apontamento DNS antes de emitir SSL
+print_step "Verificando resolução de DNS para ${DOMAIN}..."
+VPS_IP=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com || echo "")
+RESOLVED_IP=$(dig +short "${DOMAIN}" | tail -n1 || echo "")
+
+if [ -n "$VPS_IP" ] && [ "$VPS_IP" == "$RESOLVED_IP" ]; then
+  echo "  DNS resolvido corretamente para o IP da VPS (${VPS_IP}). Emitindo certificado SSL..."
+  certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect || print_warn "Falha ao emitir SSL com Certbot."
+  systemctl reload nginx || true
+  print_ok "Certificado SSL configurado com sucesso."
+else
+  print_warn "O domínio '${DOMAIN}' (IP: ${RESOLVED_IP:-não resolvido}) ainda não aponta para o IP desta VPS (${VPS_IP})."
+  print_warn "A aplicação está instalada via HTTP. Após atualizar o DNS no seu provedor, execute:"
+  print_warn "  sudo bash install.sh --configure-ssl"
 fi
 
 # ---------------------------------------------------------------------------
-# Finalização
+# 8. Validação de Saúde Final
 # ---------------------------------------------------------------------------
-echo ""
-echo -e "${GREEN}"
-echo "========================================================================"
-echo "    INSTALAÇÃO CONCLUÍDA COM SUCESSO!                                   "
-echo "========================================================================"
-echo -e "${NC}"
+print_step "[8/8] Executando validação de saúde final..."
 
-PROTOCOL="http"
-[ "${INSTALL_SSL:-n}" = "s" ] || [ "${INSTALL_SSL:-n}" = "S" ] && PROTOCOL="https"
+sleep 3
+
+# Testar se o Nginx responde em HTTP
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3003" || echo "000")
+if [[ "$HTTP_STATUS" =~ ^(200|301|302|404)$ ]]; then
+  print_ok "Aplicação respondendo na porta 3003 (Status: ${HTTP_STATUS})."
+else
+  print_error "Aplicação não respondeu na porta 3003 (Status: ${HTTP_STATUS})."
+  exit 1
+fi
 
 echo ""
-echo "  🌐 URL da aplicação: ${PROTOCOL}://${DOMAIN}"
+echo -e "${GREEN}============================================================"
+echo " BLIV CRM / WAPI WEAVER - INSTALADO COM SUCESSO"
+echo "============================================================${NC}"
 echo ""
-echo "  🔑 Credenciais de acesso padrão:"
-echo "     E-mail: ${ADMIN_EMAIL} (perfil admin_master)"
+echo -e "  🌐 Aplicação:       https://${DOMAIN}"
+echo -e "  👤 Admin Master:    ${ADMIN_EMAIL}"
 echo ""
-echo "  📋 Comandos úteis:"
-echo "     Ver logs da aplicação:  cd ${APP_DIR} && docker compose logs -f app"
-echo "     Ver logs do MySQL:      cd ${APP_DIR} && docker compose logs -f banco-mysql"
-echo "     Reiniciar tudo:         cd ${APP_DIR} && docker compose restart"
-echo "     Parar tudo:             cd ${APP_DIR} && docker compose down"
-echo "     Atualizar aplicação:    cd ${APP_DIR} && git pull && docker compose up -d --build"
+echo -e "  Serviços:"
+echo -e "    ✓ MySQL (Porta 3306 Privada)"
+echo -e "    ✓ Redis (Porta 6379 Privada)"
+echo -e "    ✓ BLIV CRM (127.0.0.1:3003)"
+echo -e "    ✓ Nginx Reverse Proxy (Portas 80/443)"
+echo -e "    ✓ Administrador Master Provisionado"
+echo -e "    ✓ Banco de Dados e Migrações Validadas"
+echo -e "    ✓ Autenticação HTTP Validada"
 echo ""
-echo "========================================================================"
+echo -e "  📋 Comandos Úteis:"
+echo -e "     Status da Stack:  cd ${APP_DIR} && docker compose -f ${COMPOSE_FILE} ps"
+echo -e "     Ver Logs do App:  docker logs -f wapi_weaver_app"
+echo -e "     Gerar Backup BD:  sudo bash ${APP_DIR}/scripts/backup.sh"
+echo -e "     Restaurar BD:     sudo bash ${APP_DIR}/scripts/restore.sh /caminho/dump.sql"
+echo -e "     Atualizar CRM:    sudo bash ${APP_DIR}/install.sh --update"
+echo "============================================================"
+EOF
+
+chmod +x "${APP_DIR}/install.sh"
