@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { executeQuery } from "@/lib/query-compiler";
 import { JWT_SECRET } from "@/lib/jwt-secret";
+import db from "@/lib/db";
 
 export const Route = createFileRoute("/api/query")({
   server: {
@@ -30,8 +31,16 @@ export const Route = createFileRoute("/api/query")({
           const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
           const effectiveUserId = await resolveEffectiveUserId(decoded.sub);
 
+          // O papel do JWT pode ficar obsoleto após uma promoção feita pelo
+          // instalador. A autorização deve sempre refletir o banco atual.
+          const roles = (await db.query(
+            "SELECT role FROM user_roles WHERE user_id = ? ORDER BY FIELD(role, 'admin_master', 'admin', 'user') ASC LIMIT 1",
+            [decoded.sub],
+          )) as Array<{ role: string }>;
+          const currentRole = roles[0]?.role || "user";
+
           const query = await request.json();
-          const results = await executeQuery(query, effectiveUserId, decoded.role || "user");
+          const results = await executeQuery(query, effectiveUserId, currentRole);
 
           return new Response(JSON.stringify({ data: results, error: null }), {
             status: 200,

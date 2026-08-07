@@ -384,6 +384,15 @@ if [ "$MYSQL_READY" -eq 1 ]; then
     GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
     FLUSH PRIVILEGES;
   " || echo "  Aviso: Não foi possível atualizar o usuário do banco diretamente, prosseguindo..."
+
+  # O entrypoint do MySQL só importa /docker-entrypoint-initdb.d quando o
+  # volume está vazio. Reaplicamos o schema com --force para completar VPSs
+  # que ficaram com uma importação parcial; erros de objetos já existentes
+  # são esperados e a validação abaixo confirma o resultado final.
+  echo "  Reconciliando o schema base com a versão atual da aplicação..."
+  if ! docker compose exec -T banco-mysql mysql --force -u root -p"${DB_ROOT_PASS}" wapi_weaver < schema_mysql.sql; then
+    echo "  Aviso: a reconciliação encontrou conflitos; a validação estrutural decidirá se são críticos."
+  fi
   
   # Forçar reinicialização do app para garantir que ele se conecte com as novas credenciais caso estivesse em loop de erro
   echo "  Reiniciando o container da aplicação para alinhar conexões..."
@@ -420,6 +429,14 @@ if [ "$APP_READY" -eq 1 ]; then
   else
     print_error "Falha ao provisionar o Administrador Master."
     echo "  Verifique os logs com: docker compose logs app"
+    exit 1
+  fi
+
+  echo "  Validando estrutura final do banco e permissões do Administrador Master..."
+  if docker compose exec -T app node scripts/validate-installation.js; then
+    print_ok "Banco e Administrador Master validados com sucesso."
+  else
+    print_error "A instalação ficou incompleta e não será reportada como sucesso."
     exit 1
   fi
 else

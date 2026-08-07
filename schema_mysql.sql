@@ -415,9 +415,6 @@ CREATE INDEX idx_campaigns_user_status ON campaigns(user_id, status);
 CREATE INDEX idx_templates_user_status ON templates(user_id, status);
 CREATE INDEX idx_whatsapp_flows_user_status ON whatsapp_flows(user_id, status);
 CREATE INDEX idx_contact_tags_user_contact ON contact_tags(user_id, contact_id);
-CREATE INDEX idx_teams_user ON teams(user_id);
-CREATE INDEX idx_team_members_user ON team_members(user_id);
-
 -- Sales Funnels
 CREATE TABLE IF NOT EXISTS sales_funnels (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -1191,3 +1188,6 @@ CREATE TABLE IF NOT EXISTS platform_banners (
   INDEX idx_pb_active_order (is_active, display_order),
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_teams_user ON teams(user_id);
+CREATE INDEX idx_team_members_user ON team_members(user_id);
