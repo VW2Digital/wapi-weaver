@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS user_roles (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
-  role ENUM('adminmaster', 'owner', 'org_admin', 'member', 'user') NOT NULL DEFAULT 'user',
+  role ENUM('admin_master', 'admin', 'user', 'adminmaster', 'owner', 'org_admin', 'member') NOT NULL DEFAULT 'user',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_roles (user_id, role),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -1146,8 +1146,6 @@ CREATE TABLE IF NOT EXISTS incoming_webhook_events (
   FOREIGN KEY (webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE,
   FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE INDEX idx_incoming_webhook_events_webhook ON incoming_webhook_events(incoming_webhook_id);
 
 CREATE TABLE IF NOT EXISTS outgoing_webhooks (
   id VARCHAR(36) NOT NULL PRIMARY KEY,

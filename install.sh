@@ -413,6 +413,15 @@ if [ "$APP_READY" -eq 1 ]; then
     echo "  Verifique os logs com: docker compose logs app"
     exit 1
   fi
+
+  echo "  Criando/atualizando o Administrador Master informado no instalador..."
+  if docker compose exec -T app node scripts/provision-admin.js; then
+    print_ok "Administrador Master provisionado com sucesso."
+  else
+    print_error "Falha ao provisionar o Administrador Master."
+    echo "  Verifique os logs com: docker compose logs app"
+    exit 1
+  fi
 else
   print_error "Container da aplicação não estabilizou a tempo para executar o ensure-schema."
   echo "  Verifique os logs com: docker compose logs app"
@@ -520,7 +529,7 @@ echo ""
 echo "  🌐 URL da aplicação: ${PROTOCOL}://${DOMAIN}"
 echo ""
 echo "  🔑 Credenciais de acesso padrão:"
-echo "     Acesse o domínio e crie sua conta de administrador local."
+echo "     E-mail: ${ADMIN_EMAIL} (perfil admin_master)"
 echo ""
 echo "  📋 Comandos úteis:"
 echo "     Ver logs da aplicação:  cd ${APP_DIR} && docker compose logs -f app"

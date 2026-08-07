@@ -33,7 +33,7 @@ async function ensureTableExists(connection, tableName, createSql) {
     try {
       let sql = createSql;
       if (!/if\s+not\s+exists/i.test(sql)) {
-        sql = sql.replace(/create\s+table\s+(\`?\w+\`?)/i, 'CREATE TABLE IF NOT EXISTS $1');
+        sql = sql.replace(/create\s+table\s+(\`?\w+\`?)/i, "CREATE TABLE IF NOT EXISTS $1");
       }
       await connection.query(sql);
       logSchema(`Tabela \`${tableName}\` criada com sucesso.`);
@@ -64,7 +64,9 @@ async function ensureColumnExists(connection, tableName, columnName, columnDefin
     }
   } catch (err) {
     if (err.code === "ER_DUP_FIELDNAME" || err.errno === 1060) {
-      logSchema(`Coluna \`${columnName}\` já existe na tabela \`${tableName}\` (tratado via ER_DUP_FIELDNAME).`);
+      logSchema(
+        `Coluna \`${columnName}\` já existe na tabela \`${tableName}\` (tratado via ER_DUP_FIELDNAME).`,
+      );
       return;
     }
     console.error(
@@ -363,6 +365,18 @@ export async function ensureDatabaseSchema() {
   try {
     logSchema("Validando schema do banco...");
 
+    // Mantém compatibilidade com papéis legados, mas garante que os papéis
+    // usados pela aplicação atual possam ser persistidos em instalações antigas.
+    await connection.query(`
+      ALTER TABLE user_roles
+      MODIFY COLUMN role ENUM(
+        'admin_master', 'admin', 'user', 'adminmaster', 'owner', 'org_admin', 'member'
+      ) NOT NULL DEFAULT 'user'
+    `);
+    await connection.query(
+      "UPDATE user_roles SET role = 'admin_master' WHERE role = 'adminmaster'",
+    );
+
     await ensureColumnExists(
       connection,
       "profiles",
@@ -413,11 +427,26 @@ export async function ensureDatabaseSchema() {
 
     await ensureColumnExists(connection, "platform_settings", "sidebar_order", "TEXT NULL");
     await ensureColumnExists(connection, "platform_settings", "seo_title", "VARCHAR(128) NULL");
-    await ensureColumnExists(connection, "platform_settings", "seo_description", "VARCHAR(320) NULL");
+    await ensureColumnExists(
+      connection,
+      "platform_settings",
+      "seo_description",
+      "VARCHAR(320) NULL",
+    );
     await ensureColumnExists(connection, "platform_settings", "license_key", "VARCHAR(255) NULL");
     await ensureColumnExists(connection, "platform_settings", "license_token", "TEXT NULL");
-    await ensureColumnExists(connection, "platform_settings", "installation_id", "VARCHAR(255) NULL");
-    await ensureColumnExists(connection, "platform_settings", "license_grace_period_start", "DATETIME NULL");
+    await ensureColumnExists(
+      connection,
+      "platform_settings",
+      "installation_id",
+      "VARCHAR(255) NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "platform_settings",
+      "license_grace_period_start",
+      "DATETIME NULL",
+    );
 
     logSchema("Garantindo linha singleton de platform_settings (id=1)...");
     await connection.query(
@@ -430,8 +459,18 @@ export async function ensureDatabaseSchema() {
     // Garante colunas de licença na platform_settings (compatibilidade com versões antigas)
     await ensureColumnExists(connection, "platform_settings", "license_key", "VARCHAR(255) NULL");
     await ensureColumnExists(connection, "platform_settings", "license_token", "TEXT NULL");
-    await ensureColumnExists(connection, "platform_settings", "installation_id", "VARCHAR(255) NULL");
-    await ensureColumnExists(connection, "platform_settings", "license_grace_period_start", "DATETIME NULL");
+    await ensureColumnExists(
+      connection,
+      "platform_settings",
+      "installation_id",
+      "VARCHAR(255) NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "platform_settings",
+      "license_grace_period_start",
+      "DATETIME NULL",
+    );
 
     // Tabela dedicada para o sistema de licença SaaS
     await ensureTableExists(
@@ -494,7 +533,7 @@ export async function ensureDatabaseSchema() {
         INDEX idx_licenses_app_id (app_id),
         INDEX idx_licenses_tenant_id (tenant_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `
+      `,
     );
 
     // Migration: add tenant_id to existing licenses tables that were created without it
@@ -503,7 +542,7 @@ export async function ensureDatabaseSchema() {
       connection,
       "licenses",
       "idx_licenses_tenant_id",
-      "CREATE INDEX idx_licenses_tenant_id ON licenses(tenant_id)"
+      "CREATE INDEX idx_licenses_tenant_id ON licenses(tenant_id)",
     );
 
     // Back-fill tenant_id from users table for existing licenses missing it
@@ -540,7 +579,7 @@ export async function ensureDatabaseSchema() {
         INDEX idx_license_activations_license_id (license_id),
         CONSTRAINT fk_license_activations_license FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `
+      `,
     );
 
     await ensureTableExists(
@@ -562,7 +601,7 @@ export async function ensureDatabaseSchema() {
         INDEX idx_license_logs_license_id (license_id),
         INDEX idx_license_logs_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `
+      `,
     );
 
     await ensureTableExists(
@@ -588,7 +627,7 @@ export async function ensureDatabaseSchema() {
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_payment_gateway_provider (provider)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `
+      `,
     );
 
     await ensureColumnExists(
@@ -1278,32 +1317,38 @@ export async function ensureDatabaseSchema() {
 
     // Índice para busca por user_id em facebook_pages
     try {
-      await connection.query(
-        `CREATE INDEX idx_facebook_pages_user ON facebook_pages(user_id)`,
-      );
+      await connection.query(`CREATE INDEX idx_facebook_pages_user ON facebook_pages(user_id)`);
       logSchema("Índice idx_facebook_pages_user adicionado.");
     } catch (e) {}
 
     // Migração segura: converte coluna channel de ENUM para VARCHAR(50) em todas as tabelas.
     // Isso evita "Data truncated" ao adicionar novos canais (ex: whatsapp_group, facebook, web, etc).
     // Antes de alterar, normaliza valores NULL/vazios para 'unknown'.
-    const channelTablesToMigrate = ['contacts', 'direct_messages', 'bot_conversation_state'];
+    const channelTablesToMigrate = ["contacts", "direct_messages", "bot_conversation_state"];
     for (const tbl of channelTablesToMigrate) {
       try {
         const exists = await tableExists(connection, tbl);
         if (!exists) continue;
-        const colExists = await columnExists(connection, tbl, 'channel');
+        const colExists = await columnExists(connection, tbl, "channel");
         if (!colExists) continue;
 
         // 1. Loga os valores atuais para diagnóstico
-        const [distinctChannels] = await connection.query(`SELECT DISTINCT channel FROM \`${tbl}\``);
-        logSchema(`[${tbl}] Valores de channel encontrados: ${distinctChannels.map(r => r.channel).join(', ') || 'nenhum'}`);
+        const [distinctChannels] = await connection.query(
+          `SELECT DISTINCT channel FROM \`${tbl}\``,
+        );
+        logSchema(
+          `[${tbl}] Valores de channel encontrados: ${distinctChannels.map((r) => r.channel).join(", ") || "nenhum"}`,
+        );
 
         // 2. Normaliza NULL e vazios
-        await connection.query(`UPDATE \`${tbl}\` SET channel = 'unknown' WHERE channel IS NULL OR TRIM(channel) = ''`);
+        await connection.query(
+          `UPDATE \`${tbl}\` SET channel = 'unknown' WHERE channel IS NULL OR TRIM(channel) = ''`,
+        );
 
         // 3. Converte para VARCHAR(50) — seguro para qualquer valor existente
-        await connection.query(`ALTER TABLE \`${tbl}\` MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'`);
+        await connection.query(
+          `ALTER TABLE \`${tbl}\` MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'`,
+        );
         logSchema(`Coluna channel de \`${tbl}\` convertida para VARCHAR(50) com segurança.`);
       } catch (e) {
         logSchema(`Aviso: não foi possível migrar channel em \`${tbl}\`: ${e.message}`);
@@ -1339,12 +1384,7 @@ export async function ensureDatabaseSchema() {
       "channel",
       "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
-    await ensureColumnExists(
-      connection,
-      "contacts",
-      "external_contact_id",
-      "VARCHAR(255) NULL",
-    );
+    await ensureColumnExists(connection, "contacts", "external_contact_id", "VARCHAR(255) NULL");
     try {
       await connection.query(
         `ALTER TABLE contacts ADD UNIQUE KEY uq_contact_channel_external (user_id, channel, external_contact_id)`,
@@ -1394,7 +1434,11 @@ export async function ensureDatabaseSchema() {
     // Adiciona channel à unique key para isolar WhatsApp de Instagram
     // Idempotente: verifica se o índice novo já existe antes de recriar.
     try {
-      const newKeyExists = await indexExists(connection, 'bot_conversation_state', 'uq_bot_conv_state');
+      const newKeyExists = await indexExists(
+        connection,
+        "bot_conversation_state",
+        "uq_bot_conv_state",
+      );
       if (!newKeyExists) {
         // Tenta remover a versão antiga sem channel (pode não existir)
         try {
@@ -1412,40 +1456,23 @@ export async function ensureDatabaseSchema() {
       logSchema(`Aviso: não foi possível atualizar uq_bot_conv_state: ${e.message}`);
     }
 
-    await ensureColumnExists(
-      connection,
-      "templates",
-      "display_format",
-      "VARCHAR(20) NULL",
-    );
+    await ensureColumnExists(connection, "templates", "display_format", "VARCHAR(20) NULL");
 
     // Bloco de ENUM removido: a conversão para VARCHAR(50) já foi feita acima (idempotente).
     // Não há necessidade de alterar ENUM novamente aqui.
 
     // Columns to bot_settings (Flows)
-    await ensureColumnExists(
-      connection,
-      "bot_settings",
-      "name",
-      "VARCHAR(150) NULL",
-    );
+    await ensureColumnExists(connection, "bot_settings", "name", "VARCHAR(150) NULL");
     await ensureColumnExists(
       connection,
       "bot_settings",
       "channel",
       "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
-    await ensureColumnExists(
-      connection,
-      "bot_settings",
-      "priority",
-      "INT NOT NULL DEFAULT 0",
-    );
+    await ensureColumnExists(connection, "bot_settings", "priority", "INT NOT NULL DEFAULT 0");
     // Adiciona channel à unique key para permitir fluxos separados por canal
     try {
-      await connection.query(
-        `ALTER TABLE bot_settings DROP INDEX uq_bot_settings_instance`,
-      );
+      await connection.query(`ALTER TABLE bot_settings DROP INDEX uq_bot_settings_instance`);
       logSchema("Índice uq_bot_settings_instance antigo removido de bot_settings.");
     } catch (e) {}
     try {
@@ -1462,12 +1489,7 @@ export async function ensureDatabaseSchema() {
       "trigger_type",
       "VARCHAR(50) NOT NULL DEFAULT 'start'",
     );
-    await ensureColumnExists(
-      connection,
-      "bot_settings",
-      "trigger_value",
-      "VARCHAR(255) NULL",
-    );
+    await ensureColumnExists(connection, "bot_settings", "trigger_value", "VARCHAR(255) NULL");
     await ensureColumnExists(
       connection,
       "bot_settings",
@@ -1479,24 +1501,35 @@ export async function ensureDatabaseSchema() {
     logSchema("Iniciando migrações do WhatsApp Grupos...");
     // Nota: a conversão para VARCHAR(50) já foi realizada no bloco anterior de forma idempotente.
     // Não é necessário repetir aqui, mas garantimos o caso de tabelas criadas sem channel algum.
-    for (const tbl of ['contacts', 'direct_messages']) {
+    for (const tbl of ["contacts", "direct_messages"]) {
       try {
         const exists = await tableExists(connection, tbl);
         if (!exists) continue;
-        const col = await columnExists(connection, tbl, 'channel');
+        const col = await columnExists(connection, tbl, "channel");
         if (!col) continue;
         // Se ainda for ENUM por algum motivo, converte. Se já for VARCHAR, o ALTER é no-op no MySQL 8.
-        await connection.query(`UPDATE \`${tbl}\` SET channel = 'unknown' WHERE channel IS NULL OR TRIM(channel) = ''`);
-        await connection.query(`ALTER TABLE \`${tbl}\` MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'`);
+        await connection.query(
+          `UPDATE \`${tbl}\` SET channel = 'unknown' WHERE channel IS NULL OR TRIM(channel) = ''`,
+        );
+        await connection.query(
+          `ALTER TABLE \`${tbl}\` MODIFY COLUMN channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp'`,
+        );
       } catch (e) {
-        logSchema(`Aviso (grupos): não foi possível garantir VARCHAR em \`${tbl}\`.channel: ${e.message}`);
+        logSchema(
+          `Aviso (grupos): não foi possível garantir VARCHAR em \`${tbl}\`.channel: ${e.message}`,
+        );
       }
     }
-    
+
     await ensureColumnExists(connection, "direct_messages", "sender_wa_id", "VARCHAR(50) NULL");
     await ensureColumnExists(connection, "direct_messages", "sender_name", "VARCHAR(255) NULL");
     await ensureColumnExists(connection, "direct_messages", "recipient_type", "VARCHAR(50) NULL");
-    await ensureColumnExists(connection, "direct_messages", "external_group_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(
+      connection,
+      "direct_messages",
+      "external_group_id",
+      "VARCHAR(100) NULL",
+    );
     await ensureColumnExists(connection, "direct_messages", "raw_payload", "JSON NULL");
 
     // Adicionar updated_at à tabela lists (para rastrear edições)
@@ -1525,7 +1558,7 @@ export async function ensureDatabaseSchema() {
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `
+      `,
     );
 
     await ensureTableExists(
@@ -1545,7 +1578,7 @@ export async function ensureDatabaseSchema() {
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `
+      `,
     );
     logSchema("Migrações do WhatsApp Grupos concluídas.");
 
@@ -1566,7 +1599,7 @@ export async function ensureDatabaseSchema() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `
+      `,
     );
     logSchema("Tabela chat_sessions validada/criada.");
     await connection.query(
@@ -1614,21 +1647,24 @@ export async function ensureDatabaseSchema() {
 
           // Seeding de Grupo WhatsApp de Demonstração
           const demoGroupId = "120363999999999999@g.us";
-          const [existingGroups] = await connection.query("SELECT 1 FROM whatsapp_groups WHERE group_id = ? AND user_id = ?", [demoGroupId, u.id]);
+          const [existingGroups] = await connection.query(
+            "SELECT 1 FROM whatsapp_groups WHERE group_id = ? AND user_id = ?",
+            [demoGroupId, u.id],
+          );
           if (existingGroups.length === 0) {
             logSchema(`Garantindo grupo fictício de demonstração para o usuário ${u.id}...`);
             const newGroupRecordId = `demo-group-${u.id.substring(0, 8)}`;
             await connection.query(
               `INSERT IGNORE INTO whatsapp_groups (id, user_id, instance_id, group_id, name, description, invite_link, status)
                VALUES (?, ?, 'demo-instance', ?, 'Grupo de Testes Bliv', 'Grupo de demonstração para testes de mensageria.', 'https://chat.whatsapp.com/demo-invite-link', 'active')`,
-              [newGroupRecordId, u.id, demoGroupId]
+              [newGroupRecordId, u.id, demoGroupId],
             );
 
             await connection.query(
               `INSERT IGNORE INTO contacts (id, user_id, phone_e164, name, source, channel, chat_status, is_unread)
                VALUES (UUID(), ?, ?, 'Grupo de Testes Bliv', 'whatsapp_group', 'whatsapp_group', 'aberto', false)
                ON DUPLICATE KEY UPDATE name = VALUES(name), channel = 'whatsapp_group'`,
-              [u.id, demoGroupId]
+              [u.id, demoGroupId],
             );
 
             await connection.query(
@@ -1636,13 +1672,13 @@ export async function ensureDatabaseSchema() {
                VALUES 
                  (UUID(), ?, ?, '5511999999999', 'Renato (Suporte)', 'active'),
                  (UUID(), ?, ?, '5511888888888', 'Maria (Comercial)', 'active')`,
-              [u.id, demoGroupId, u.id, demoGroupId]
+              [u.id, demoGroupId, u.id, demoGroupId],
             );
 
             await connection.query(
               `INSERT IGNORE INTO direct_messages (id, user_id, contact_phone, direction, type, body, status, channel, sender_wa_id, sender_name, recipient_type, external_group_id)
                VALUES (UUID(), ?, ?, 'incoming', 'text', 'Olá pessoal, este é o nosso grupo de testes!', 'delivered', 'whatsapp_group', '5511999999999', 'Renato (Suporte)', 'group', ?)`,
-              [u.id, demoGroupId, demoGroupId]
+              [u.id, demoGroupId, demoGroupId],
             );
           }
         }
@@ -1730,24 +1766,84 @@ export async function ensureDatabaseSchema() {
     );
 
     // If the table existed with the old schema, migrate columns
-    await ensureColumnExists(connection, "incoming_webhook_events", "user_id", "VARCHAR(36) NOT NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "webhook_id", "VARCHAR(36) NOT NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "contact_id", "VARCHAR(36) NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "idempotency_key", "VARCHAR(64) NULL");
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "user_id",
+      "VARCHAR(36) NOT NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "webhook_id",
+      "VARCHAR(36) NOT NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "contact_id",
+      "VARCHAR(36) NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "idempotency_key",
+      "VARCHAR(64) NULL",
+    );
     await ensureColumnExists(connection, "incoming_webhook_events", "action", "VARCHAR(50) NULL");
     await ensureColumnExists(connection, "incoming_webhook_events", "raw_payload", "JSON NOT NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "mapped_standard_fields", "JSON NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "mapped_custom_fields", "JSON NULL");
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "mapped_standard_fields",
+      "JSON NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "mapped_custom_fields",
+      "JSON NULL",
+    );
     await ensureColumnExists(connection, "incoming_webhook_events", "unmapped_fields", "JSON NULL");
     await ensureColumnExists(connection, "incoming_webhook_events", "headers", "JSON NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "ip_address", "VARCHAR(45) NULL");
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "ip_address",
+      "VARCHAR(45) NULL",
+    );
     await ensureColumnExists(connection, "incoming_webhook_events", "user_agent", "TEXT NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "error_code", "VARCHAR(50) NULL");
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "error_code",
+      "VARCHAR(50) NULL",
+    );
     await ensureColumnExists(connection, "incoming_webhook_events", "error_message", "TEXT NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "received_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
-    await ensureColumnExists(connection, "incoming_webhook_events", "processed_at", "DATETIME NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "processing_duration_ms", "INT UNSIGNED NULL");
-    await ensureColumnExists(connection, "incoming_webhook_events", "updated_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "received_at",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "processed_at",
+      "DATETIME NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "processing_duration_ms",
+      "INT UNSIGNED NULL",
+    );
+    await ensureColumnExists(
+      connection,
+      "incoming_webhook_events",
+      "updated_at",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+    );
 
     await ensureIndexExists(
       connection,
@@ -1831,12 +1927,7 @@ export async function ensureDatabaseSchema() {
       "CREATE INDEX idx_outgoing_webhook_logs_webhook ON outgoing_webhook_logs(outgoing_webhook_id)",
     );
 
-    await ensureColumnExists(
-      connection,
-      "incoming_webhooks",
-      "field_labels",
-      "JSON NULL",
-    );
+    await ensureColumnExists(connection, "incoming_webhooks", "field_labels", "JSON NULL");
 
     // ── Custom Fields Module ─────────────────────────────────────────
 
@@ -1926,19 +2017,27 @@ export async function ensureDatabaseSchema() {
     await ensureColumnExists(connection, "contacts", "normalized_phone", "VARCHAR(50) NULL");
 
     await ensureIndexExists(
-      connection, "contacts", "idx_contacts_source_type",
+      connection,
+      "contacts",
+      "idx_contacts_source_type",
       "CREATE INDEX idx_contacts_source_type ON contacts(user_id, source_type)",
     );
     await ensureIndexExists(
-      connection, "contacts", "idx_contacts_source_id",
+      connection,
+      "contacts",
+      "idx_contacts_source_id",
       "CREATE INDEX idx_contacts_source_id ON contacts(user_id, source_id)",
     );
     await ensureIndexExists(
-      connection, "contacts", "idx_contacts_external_id",
+      connection,
+      "contacts",
+      "idx_contacts_external_id",
       "CREATE INDEX idx_contacts_external_id ON contacts(user_id, external_id)",
     );
     await ensureIndexExists(
-      connection, "contacts", "idx_contacts_normalized_phone",
+      connection,
+      "contacts",
+      "idx_contacts_normalized_phone",
       "CREATE INDEX idx_contacts_normalized_phone ON contacts(user_id, normalized_phone)",
     );
 
@@ -2072,7 +2171,7 @@ export async function ensureDatabaseSchema() {
       connection,
       "ds_agent_tools",
       "tool_key",
-      "ENUM('google_calendar','consulta_crm','enviar_proposta','webhook_customizado','gerenciar_tags') NOT NULL"
+      "ENUM('google_calendar','consulta_crm','enviar_proposta','webhook_customizado','gerenciar_tags') NOT NULL",
     );
 
     await ensureTableExists(
