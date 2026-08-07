@@ -95,14 +95,20 @@ async function migrateRoles() {
     const [cols] = (await db.query(
       `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_roles' AND COLUMN_NAME = 'role' LIMIT 1`,
     )) as any[];
-    const isAlreadyEnum = String(cols?.[0]?.COLUMN_TYPE ?? "").includes("enum('admin_master','admin','user')");
+    const isAlreadyEnum = String(cols?.[0]?.COLUMN_TYPE ?? "").includes(
+      "enum('admin_master','admin','user')",
+    );
 
     if (isAlreadyEnum) {
-      console.log("[Roles Migration] Schema user_roles já está no formato ENUM final. Pulando DDLs pesados.");
+      console.log(
+        "[Roles Migration] Schema user_roles já está no formato ENUM final. Pulando DDLs pesados.",
+      );
     } else {
       // 1. Temporarily allow VARCHAR(50) so MySQL doesn't throw Data Truncated error
       try {
-        await db.query("ALTER TABLE user_roles MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'user'");
+        await db.query(
+          "ALTER TABLE user_roles MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'user'",
+        );
       } catch (e: any) {
         console.warn("[Roles Migration] Warning converting role to VARCHAR:", e.message);
       }
@@ -144,14 +150,20 @@ async function migrateRoles() {
       try {
         await db.query("ALTER TABLE user_roles DROP INDEX uq_user_roles");
       } catch (e: any) {
-        console.log("[Roles Migration] Legacy index uq_user_roles already dropped or absent:", e.message);
+        console.log(
+          "[Roles Migration] Legacy index uq_user_roles already dropped or absent:",
+          e.message,
+        );
       }
 
       try {
         await db.query("ALTER TABLE user_roles ADD UNIQUE INDEX idx_unique_user_id (user_id)");
         console.log("[Roles Migration] Added UNIQUE(user_id) index to user_roles table.");
       } catch (e: any) {
-        console.warn("[Roles Migration] Index idx_unique_user_id already exists or error adding it:", e.message);
+        console.warn(
+          "[Roles Migration] Index idx_unique_user_id already exists or error adding it:",
+          e.message,
+        );
       }
 
       // 6. Restrict column to strict 3-value ENUM
@@ -159,7 +171,9 @@ async function migrateRoles() {
         await db.query(
           "ALTER TABLE user_roles MODIFY COLUMN role ENUM('admin_master', 'admin', 'user') NOT NULL DEFAULT 'user'",
         );
-        console.log("[Roles Migration] Column enum altered successfully to ('admin_master', 'admin', 'user').");
+        console.log(
+          "[Roles Migration] Column enum altered successfully to ('admin_master', 'admin', 'user').",
+        );
       } catch (e: any) {
         console.error("[Roles Migration] Error setting ENUM on user_roles:", e.message);
       }
@@ -187,6 +201,9 @@ async function migrateRoles() {
             "INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (UUID(), ?, 'admin_master')",
             [userId],
           );
+          await db.query("UPDATE profiles SET display_name = 'Administrador Master' WHERE id = ?", [
+            userId,
+          ]);
           console.log(`[Roles Migration] Updated master user ${adminEmail} to admin_master.`);
 
           const cleaned = await db.query(

@@ -41,7 +41,9 @@ try {
   await connection.query(
     `INSERT INTO profiles (id, email, display_name)
      VALUES (?, ?, 'Administrador Master')
-     ON DUPLICATE KEY UPDATE email = VALUES(email)`,
+     ON DUPLICATE KEY UPDATE
+       email = VALUES(email),
+       display_name = VALUES(display_name)`,
     [userId, email],
   );
   await connection.query(
