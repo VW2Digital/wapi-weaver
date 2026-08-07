@@ -313,7 +313,7 @@ LICENSE_API_SEC="${LICENSE_API_SEC:-${LICENSE_API_SEC_ENV}}"
 [ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
 
 LICENSE_RL="${LICENSE_RL:-${LICENSE_RL_ENV}}"
-[ -n "${LICENSE_RL}" ] || LICENSE_RL="saas"
+[ -n "${LICENSE_RL}" ] || LICENSE_RL="panel"
 
 ENCRYPT_KEY_ENV=$(grep '^MERCADOPAGO_ENCRYPTION_KEY=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 MERCADOPAGO_ENCRYPTION_KEY="${MERCADOPAGO_ENCRYPTION_KEY:-${ENCRYPT_KEY_ENV}}"
