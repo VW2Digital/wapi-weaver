@@ -3,7 +3,10 @@
 # INSTALADOR AUTOMATIZADO - CRM WAPI WEAVER (DOCKER COMPOSE)
 # ==============================================================================
 # Alvo: Ubuntu 20.04 / 22.04 / 24.04 LTS
-# Uso:  sudo bash install.sh
+# Uso:
+#   sudo bash install.sh
+#   sudo bash install.sh --fresh-database
+#   sudo bash install.sh --fresh-database --database-dump=/caminho/wapi_weaver.sql
 # ==============================================================================
 
 set -euo pipefail
@@ -18,6 +21,46 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 APP_DIR="/var/www/wapi-weaver"
+FRESH_DATABASE=0
+DATABASE_DUMP=""
+STAGED_DATABASE_DUMP=""
+
+show_usage() {
+  cat <<'EOF'
+Uso: sudo bash install.sh [opções]
+
+Opções:
+  --fresh-database        Faz backup e recria o banco do zero.
+  --database-dump=ARQUIVO
+                          Restaura um dump completo do localhost. Esta opção
+                          ativa automaticamente --fresh-database.
+  -h, --help              Exibe esta ajuda.
+
+Sem --fresh-database, dados existentes são preservados e o instalador apenas
+aplica atualizações compatíveis de schema.
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --fresh-database)
+      FRESH_DATABASE=1
+      ;;
+    --database-dump=*)
+      DATABASE_DUMP="${arg#*=}"
+      FRESH_DATABASE=1
+      ;;
+    -h|--help)
+      show_usage
+      exit 0
+      ;;
+    *)
+      echo "Opção desconhecida: $arg"
+      show_usage
+      exit 1
+      ;;
+  esac
+done
 
 print_header() {
   echo -e "${GREEN}"
@@ -47,6 +90,21 @@ print_header
 if [ "$EUID" -ne 0 ]; then
   print_error "Execute como root: sudo bash install.sh"
   exit 1
+fi
+
+if [ -n "$DATABASE_DUMP" ]; then
+  if [ ! -f "$DATABASE_DUMP" ] || [ ! -s "$DATABASE_DUMP" ]; then
+    print_error "Dump do banco não encontrado ou vazio: ${DATABASE_DUMP}"
+    exit 1
+  fi
+  if ! grep -Eqi 'CREATE TABLE.*`(users|contacts)`' "$DATABASE_DUMP"; then
+    print_error "O arquivo informado não parece ser um dump completo do WAPI Weaver."
+    exit 1
+  fi
+  STAGED_DATABASE_DUMP="/tmp/wapi-weaver-database-dump.$$.sql"
+  cp "$DATABASE_DUMP" "$STAGED_DATABASE_DUMP"
+  chmod 600 "$STAGED_DATABASE_DUMP"
+  trap 'rm -f "${STAGED_DATABASE_DUMP:-}"' EXIT
 fi
 
 # ---------------------------------------------------------------------------
@@ -164,6 +222,16 @@ echo "  Domínio: $DOMAIN"
 echo "  CORS:    $CORS_ORIGIN"
 echo "  SSL:     ${INSTALL_SSL:-n}"
 echo "  Senha do BD: ********"
+if [ "$FRESH_DATABASE" -eq 1 ]; then
+  echo "  Banco:    recriação completa (backup automático habilitado)"
+  if [ -n "$STAGED_DATABASE_DUMP" ]; then
+    echo "  Origem:   dump completo do localhost"
+  else
+    echo "  Origem:   schema_mysql.sql canônico"
+  fi
+else
+  echo "  Banco:    preservar dados existentes"
+fi
 echo ""
 print_ok "Parâmetros carregados."
 
@@ -254,6 +322,7 @@ if [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
     --exclude='.git' \
     --exclude='node_modules' \
     --exclude='dist' \
+    --exclude='backups' \
     "${SCRIPT_DIR}/" "${APP_DIR}/"
 else
   echo "  Clonando repositório para ${APP_DIR}..."
@@ -289,7 +358,6 @@ REDIS_PASS_ENV=$(grep '^REDIS_PASSWORD=' "${APP_DIR:-}/.env" 2>/dev/null | tail 
 LICENSE_SRV_URL_ENV=$(grep '^LICENSE_SERVER_URL=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 LICENSE_APP_ID_ENV=$(grep '^LICENSE_APP_ID=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 LICENSE_API_SEC_ENV=$(grep '^LICENSE_API_SECRET=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-LICENSE_RL_ENV=$(grep '^LICENSE_ROLE=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
 JWT_SEC="${JWT_SEC:-}"
 [ -n "${JWT_SEC}" ] || JWT_SEC=$(openssl rand -hex 32)
@@ -312,8 +380,9 @@ LICENSE_APP_ID="${LICENSE_APP_ID:-${LICENSE_APP_ID_ENV}}"
 LICENSE_API_SEC="${LICENSE_API_SEC:-${LICENSE_API_SEC_ENV}}"
 [ -n "${LICENSE_API_SEC}" ] || LICENSE_API_SEC="segredo-compartilhado-entre-saas-e-painel"
 
-LICENSE_RL="${LICENSE_RL:-${LICENSE_RL_ENV}}"
-[ -n "${LICENSE_RL}" ] || LICENSE_RL="panel"
+# Este instalador provisiona o painel central. Não reutilize LICENSE_ROLE=saas
+# de um .env antigo, pois isso rebaixa ADMIN_EMAIL para o papel "admin".
+LICENSE_RL="panel"
 
 ENCRYPT_KEY_ENV=$(grep '^MERCADOPAGO_ENCRYPTION_KEY=' "${APP_DIR:-}/.env" 2>/dev/null | tail -n 1 | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 MERCADOPAGO_ENCRYPTION_KEY="${MERCADOPAGO_ENCRYPTION_KEY:-${ENCRYPT_KEY_ENV}}"
@@ -385,13 +454,58 @@ if [ "$MYSQL_READY" -eq 1 ]; then
     FLUSH PRIVILEGES;
   " || echo "  Aviso: Não foi possível atualizar o usuário do banco diretamente, prosseguindo..."
 
-  # O entrypoint do MySQL só importa /docker-entrypoint-initdb.d quando o
-  # volume está vazio. Reaplicamos o schema com --force para completar VPSs
-  # que ficaram com uma importação parcial; erros de objetos já existentes
-  # são esperados e a validação abaixo confirma o resultado final.
-  echo "  Reconciliando o schema base com a versão atual da aplicação..."
-  if ! docker compose exec -T banco-mysql mysql --force -u root -p"${DB_ROOT_PASS}" wapi_weaver < schema_mysql.sql; then
-    echo "  Aviso: a reconciliação encontrou conflitos; a validação estrutural decidirá se são críticos."
+  if [ "$FRESH_DATABASE" -eq 1 ]; then
+    # Recriação intencional: primeiro preserva uma cópia recuperável do
+    # banco atual. O volume de uploads e o Redis não são removidos.
+    BACKUP_DIR="${APP_DIR}/backups"
+    BACKUP_FILE="${BACKUP_DIR}/vps-before-fresh-install-$(date +%Y%m%d-%H%M%S).sql"
+    mkdir -p "$BACKUP_DIR"
+    chmod 700 "$BACKUP_DIR"
+
+    echo "  Criando backup de segurança do banco atual..."
+    if docker compose exec -T banco-mysql sh -c \
+      'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --triggers --events --hex-blob wapi_weaver' \
+      > "$BACKUP_FILE"; then
+      chmod 600 "$BACKUP_FILE"
+      print_ok "Backup salvo em ${BACKUP_FILE}."
+    else
+      rm -f "$BACKUP_FILE"
+      print_error "Não foi possível criar o backup de segurança. O banco não será alterado."
+      exit 1
+    fi
+
+    echo "  Parando a aplicação durante a substituição do banco..."
+    docker compose stop app >/dev/null 2>&1 || true
+
+    echo "  Recriando o banco wapi_weaver com UTF-8..."
+    docker compose exec -T banco-mysql sh -c \
+      'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+        DROP DATABASE IF EXISTS wapi_weaver;
+        CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      "'
+
+    if [ -n "$STAGED_DATABASE_DUMP" ]; then
+      echo "  Restaurando o dump completo do localhost..."
+      if ! docker compose exec -T banco-mysql sh -c \
+        'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" wapi_weaver' < "$STAGED_DATABASE_DUMP"; then
+        print_error "Falha ao restaurar o dump. O backup anterior está em ${BACKUP_FILE}."
+        exit 1
+      fi
+    else
+      echo "  Importando o schema canônico completo..."
+      if ! docker compose exec -T banco-mysql sh -c \
+        'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" wapi_weaver' < schema_mysql.sql; then
+        print_error "Falha ao importar o schema canônico. O backup anterior está em ${BACKUP_FILE}."
+        exit 1
+      fi
+    fi
+    print_ok "Banco recriado integralmente."
+  else
+    # O entrypoint do MySQL só importa /docker-entrypoint-initdb.d quando o
+    # volume está vazio. Em atualizações, preservamos os dados e deixamos o
+    # ensure-schema aplicar migrações aditivas; o validador integral abaixo
+    # impede que uma estrutura incompleta seja reportada como sucesso.
+    echo "  Preservando o banco existente; migrações serão aplicadas pela aplicação..."
   fi
   
   # Forçar reinicialização do app para garantir que ele se conecte com as novas credenciais caso estivesse em loop de erro
