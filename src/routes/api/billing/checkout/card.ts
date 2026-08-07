@@ -41,8 +41,10 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
           // Get Mercado Pago Config
-          const gatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
-          const platformGatewayConfig = gatewayConfig || (await getMercadoPagoConfig("global").catch(() => null));
+          let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
+          if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
+            platformGatewayConfig = await getMercadoPagoConfig("__any__").catch(() => null);
+          }
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
             return new Response(
@@ -99,11 +101,12 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             };
           }
 
-          const siteUrl = process.env.SITE_URL || "http://localhost:3000";
-          const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago`;
+          const siteUrl = process.env.SITE_URL || "";
+          const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
+          const webhookUrl = isPublicUrl ? `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago` : undefined;
           const idempotencyKey = crypto.randomUUID();
 
-          const payload = {
+          const payload: Record<string, unknown> = {
             transaction_amount: Number(invoice.amount),
             token,
             description: `Renovação de Assinatura - ${plan.name}`,
@@ -119,7 +122,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
                   }
                 : undefined,
             },
-            notification_url: webhookUrl,
+            ...(webhookUrl ? { notification_url: webhookUrl } : {}),
             external_reference: invoice.external_reference,
           };
 

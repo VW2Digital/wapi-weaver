@@ -6,12 +6,8 @@ const IV_LENGTH = 12;
 function getEncryptionKey(): Buffer {
   const rawKey = process.env.MERCADOPAGO_ENCRYPTION_KEY;
   if (!rawKey) {
-    // If key is not defined, we fall back to a default hash in development, but print warning
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("MERCADOPAGO_ENCRYPTION_KEY is required in production.");
-    }
-    const devFallbackKey = process.env.JWT_SECRET || "default-dev-encryption-key-for-mercadopago";
-    return crypto.createHash("sha256").update(devFallbackKey).digest();
+    const fallbackKey = process.env.JWT_SECRET || "default-encryption-key-for-mercadopago";
+    return crypto.createHash("sha256").update(fallbackKey).digest();
   }
 
   // If the key is a 64-character hex string (32 bytes), parse it

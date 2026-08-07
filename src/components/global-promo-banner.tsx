@@ -47,7 +47,7 @@ export function GlobalPromoBanner() {
 
   return (
     <div className="p-4 sm:p-6 pb-0">
-      <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-[#121215] text-white shadow-xl transition-all">
+      <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-[#121215] text-white shadow-xl transition-all max-h-[136px]">
         {/* Close Button */}
         <button
           onClick={() => handleDismiss(currentBanner.id)}
@@ -57,27 +57,27 @@ export function GlobalPromoBanner() {
           <X className="h-4 w-4" />
         </button>
 
-        <div className="flex flex-col md:flex-row items-stretch min-h-[160px]">
+        <div className="flex flex-col md:flex-row items-stretch h-[136px] max-h-[136px] overflow-hidden">
           {/* Left / Main Content */}
-          <div className="flex-1 p-6 sm:p-8 flex flex-col justify-center z-10 space-y-3">
+          <div className="flex-1 p-4 sm:py-4 sm:px-6 flex flex-col justify-center z-10 space-y-2 min-w-0">
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-tight flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white leading-tight flex items-center gap-2 truncate">
                 {currentBanner.title}
               </h2>
               {currentBanner.subtitle && (
-                <p className="mt-2 text-xs sm:text-sm text-zinc-300 max-w-2xl leading-relaxed">
+                <p className="mt-1 text-xs sm:text-sm text-zinc-300 max-w-2xl leading-normal truncate">
                   {currentBanner.subtitle}
                 </p>
               )}
             </div>
 
             {hasCta && (
-              <div className="pt-2">
+              <div className="pt-1">
                 <a
                   href={currentBanner.cta_url!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient text-white px-5 py-2.5 text-xs sm:text-sm font-bold shadow-lg shadow-[#F23869]/20 transition-all hover:opacity-95 hover:shadow-xl active:scale-95"
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient text-white px-4 py-2 text-xs font-bold shadow-md shadow-[#F23869]/20 transition-all hover:opacity-95 active:scale-95"
                 >
                   <span>{currentBanner.cta_label}</span>
                   <ExternalLink className="h-3.5 w-3.5 opacity-90" />
@@ -87,17 +87,17 @@ export function GlobalPromoBanner() {
           </div>
 
           {/* Right Visual Section (Flush Image or Bliv Brand Fallback Graphic) */}
-          <div className="relative md:w-[320px] lg:w-[420px] shrink-0 overflow-hidden flex items-center justify-center">
+          <div className="relative shrink-0 overflow-hidden flex items-center justify-end h-full max-h-[136px] max-w-[50%]">
             {currentBanner.image_path && !imageError ? (
               <img
                 src={currentBanner.image_path}
                 alt={currentBanner.title}
                 onError={() => setImageError(true)}
-                className="w-full h-full object-cover min-h-[160px]"
+                className="h-full w-auto max-w-full object-contain object-right p-0 mr-[80px] max-h-[136px]"
               />
             ) : (
               /* Default Bliv Brand decorative graphic when image is missing or broken */
-              <div className="relative w-full h-full bg-gradient-to-br from-[#F23869]/20 via-[#BF39B6]/15 to-black/90 flex items-center justify-center p-6 border-t md:border-t-0 md:border-l border-white/10">
+              <div className="relative w-full h-full bg-gradient-to-br from-[#F23869]/20 via-[#BF39B6]/15 to-black/90 flex items-center justify-center p-3 border-t md:border-t-0 md:border-l border-white/10">
                 <div
                   className="absolute -inset-1 blur-2xl opacity-40"
                   style={{
@@ -105,7 +105,7 @@ export function GlobalPromoBanner() {
                       "linear-gradient(135deg, rgba(242,56,105,0.4) 0%, rgba(217,59,146,0.3) 50%, rgba(191,57,182,0.4) 100%)",
                   }}
                 />
-                <div className="relative z-10 flex flex-col items-center justify-center gap-3 py-4 text-center">
+                <div className="relative z-10 flex flex-col items-center justify-center gap-2 py-1.5 text-center">
                   <div className="flex items-center justify-center gap-3">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xl transform -rotate-3 hover:rotate-0 transition-transform">
                       <img

@@ -38,8 +38,10 @@ export const Route = createFileRoute("/api/billing/checkout")({
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
           // Get Mercado Pago Config (tenant-specific or global platform credentials)
-          const gatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
-          const platformGatewayConfig = gatewayConfig || (await getMercadoPagoConfig("global").catch(() => null));
+          let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
+          if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
+            platformGatewayConfig = await getMercadoPagoConfig("__any__").catch(() => null);
+          }
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
             return new Response(
@@ -101,16 +103,25 @@ export const Route = createFileRoute("/api/billing/checkout")({
           }
 
           // Create payment preference on Mercado Pago
-          const siteUrl = process.env.SITE_URL || "http://localhost:3000";
-          const webhookUrl = `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago`;
-          const successUrl = `${siteUrl.replace(/\/+$/, "")}/billing?status=approved&invoice_id=${invoice.id}`;
-          const pendingUrl = `${siteUrl.replace(/\/+$/, "")}/billing?status=pending&invoice_id=${invoice.id}`;
-          const failureUrl = `${siteUrl.replace(/\/+$/, "")}/billing?status=rejected&invoice_id=${invoice.id}`;
+          const siteUrl = process.env.SITE_URL || "";
+          const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
+          const baseUrl = isPublicUrl ? siteUrl.replace(/\/+$/, "") : "";
 
-          console.log(`[MercadoPago Checkout] Generating preference for invoice ${invoice.invoice_number}`);
-          
+          const webhookUrl = baseUrl ? `${baseUrl}/api/webhooks/mercadopago` : undefined;
+          const successUrl = baseUrl
+            ? `${baseUrl}/billing?status=approved&invoice_id=${invoice.id}`
+            : undefined;
+          const pendingUrl = baseUrl
+            ? `${baseUrl}/billing?status=pending&invoice_id=${invoice.id}`
+            : undefined;
+          const failureUrl = baseUrl
+            ? `${baseUrl}/billing?status=rejected&invoice_id=${invoice.id}`
+            : undefined;
+
+          console.log(`[MercadoPago Checkout] Generating preference for invoice ${invoice.invoice_number || invoice.id} env=${platformGatewayConfig.environment} token=${platformGatewayConfig.accessToken.slice(0,12)}`);
+
           const pref = await createPreference(platformGatewayConfig, {
-            title: `Assinatura ${plan.name} (${invoice.invoice_number})`,
+            title: `Assinatura ${plan.name} (${invoice.invoice_number || invoice.id})`,
             amount: Number(invoice.amount),
             externalReference: invoice.external_reference,
             payerEmail: user.email || "billing@saas.com",

@@ -5,20 +5,33 @@ export interface MercadoPagoConfig {
   accessToken: string;
   publicKey: string;
   environment: "sandbox" | "production";
+  checkoutMode: "redirect" | "transparent";
 }
 
 /**
  * Recovers the active payment gateway configuration for a tenant and decrypts tokens.
  */
 export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPagoConfig | null> {
-  const rows = (await db.query(
-    "SELECT environment, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
-    [tenantId],
-  )) as any[];
+  let rows: any[] = [];
+
+  if (tenantId && tenantId !== "__any__") {
+    rows = (await db.query(
+      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
+      [tenantId],
+    )) as any[];
+  }
+
+  if (rows.length === 0) {
+    // Fallback: grab any configured row (platform-wide config)
+    rows = (await db.query(
+      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings LIMIT 1",
+    )) as any[];
+  }
 
   if (rows.length === 0) return null;
   const row = rows[0];
-  const env = row.environment;
+  const env: "sandbox" | "production" = row.environment === "production" ? "production" : "sandbox";
+  const checkoutMode: "redirect" | "transparent" = row.checkout_mode === "transparent" ? "transparent" : "redirect";
 
   let accessToken = "";
   let publicKey = "";
@@ -31,12 +44,16 @@ export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPag
     publicKey = row.sandbox_public_key || "";
   }
 
+  console.log(`[getMercadoPagoConfig] tenantId=${tenantId} env=${env} mode=${checkoutMode} token_starts=${accessToken.slice(0, 12)}`);
+
   return {
     accessToken,
     publicKey,
     environment: env,
+    checkoutMode,
   };
 }
+
 
 /**
  * Creates a checkout preference (Checkout Pro) on Mercado Pago.
@@ -48,43 +65,53 @@ export async function createPreference(
     amount: number;
     externalReference: string;
     payerEmail: string;
-    webhookUrl: string;
-    successUrl: string;
-    pendingUrl: string;
-    failureUrl: string;
+    webhookUrl?: string;
+    successUrl?: string;
+    pendingUrl?: string;
+    failureUrl?: string;
   },
 ): Promise<{ id: string; init_point: string; sandbox_init_point: string }> {
   if (!config.accessToken) {
     throw new Error("Mercado Pago Access Token is not configured.");
   }
 
-  const response = await fetch("https://api.mercadopago.com/v1/checkout/preferences", {
+  const body: Record<string, unknown> = {
+    items: [
+      {
+        title: params.title,
+        quantity: 1,
+        unit_price: Number(params.amount),
+        currency_id: "BRL",
+      },
+    ],
+    payer: {
+      email: params.payerEmail,
+    },
+    external_reference: params.externalReference,
+  };
+
+  if (params.successUrl && params.pendingUrl && params.failureUrl) {
+    body.back_urls = {
+      success: params.successUrl,
+      pending: params.pendingUrl,
+      failure: params.failureUrl,
+    };
+    body.auto_return = "all";
+  }
+
+  if (params.webhookUrl) {
+    body.notification_url = params.webhookUrl;
+  }
+
+  console.log("[createPreference] body:", JSON.stringify(body));
+
+  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      items: [
-        {
-          title: params.title,
-          quantity: 1,
-          unit_price: Number(params.amount),
-          currency_id: "BRL",
-        },
-      ],
-      payer: {
-        email: params.payerEmail,
-      },
-      back_urls: {
-        success: params.successUrl,
-        pending: params.pendingUrl,
-        failure: params.failureUrl,
-      },
-      auto_return: "all",
-      notification_url: params.webhookUrl,
-      external_reference: params.externalReference,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -100,6 +127,7 @@ export async function createPreference(
     sandbox_init_point: data.sandbox_init_point,
   };
 }
+
 
 /**
  * Creates a transparent card/PIX payment on Mercado Pago.

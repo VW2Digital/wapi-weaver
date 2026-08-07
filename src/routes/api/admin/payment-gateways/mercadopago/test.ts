@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago/te
     handlers: {
       POST: async ({ request }) => {
         try {
-          await requirePaymentGatewayAdmin(request);
+          const adminUser = await requirePaymentGatewayAdmin(request);
           const body = (await request.json()) as Record<string, unknown>;
           const environment = body.environment === "production" ? "production" : "sandbox";
           const submitted = String(
@@ -26,13 +26,13 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago/te
               ? (body.production_access_token ?? "")
               : (body.sandbox_access_token ?? ""),
           ).trim();
-          const current = await getGlobalMercadoPagoRow();
+          const current = await getGlobalMercadoPagoRow(adminUser.userId);
           const stored =
             environment === "production"
               ? current?.production_access_token
               : current?.sandbox_access_token;
-          const accessToken =
-            submitted && submitted !== MASKED_SECRET ? submitted : decryptSecret(stored);
+          const isMasked = !submitted || submitted === MASKED_SECRET || /^[•\*\.\s]+$/.test(submitted);
+          const accessToken = isMasked ? decryptSecret(stored) : submitted;
 
           if (!accessToken) {
             return json(

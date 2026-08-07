@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, Check, Loader2, RefreshCw, Activity, ShieldAlert, KeyRound } from "lucide-react";
+import { Copy, Check, Loader2, RefreshCw, Activity, ShieldAlert, KeyRound, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
@@ -33,6 +33,12 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
   const [webhookSecret, setWebhookSecret] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
 
+  // Visibility Toggles
+  const [showSandboxToken, setShowSandboxToken] = useState(false);
+  const [showSandboxSecret, setShowSandboxSecret] = useState(false);
+  const [showProdToken, setShowProdToken] = useState(false);
+  const [showProdSecret, setShowProdSecret] = useState(false);
+
   // Test Connection result state
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -43,14 +49,23 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
     if (enabled) fetchSettings();
   }, [enabled]);
 
+  const getAuthHeaders = (contentTypeJson = false): Record<string, string> => {
+    const token = localStorage.getItem("app-token");
+    const headers: Record<string, string> = {};
+    if (contentTypeJson) {
+      headers["Content-Type"] = "application/json";
+    }
+    if (token && token !== "null" && token !== "undefined") {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("app-token");
       const res = await fetch("/api/admin/payment-gateways/mercadopago", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
       });
 
       if (!res.ok) {
@@ -84,13 +99,9 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
     setTestResult(null);
 
     try {
-      const token = localStorage.getItem("app-token");
       const res = await fetch("/api/admin/payment-gateways/mercadopago", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({
           environment,
           checkout_mode: checkoutMode,
@@ -106,7 +117,12 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
         }),
       });
 
-      if (!res.ok) throw new Error("Erro ao salvar configurações.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          data.error || data.message || `Erro ${res.status}: Não foi possível salvar as configurações.`;
+        throw new Error(message);
+      }
 
       toast.success("Configurações do Mercado Pago salvas com sucesso!");
       fetchSettings(); // Refresh list to get masked inputs again
@@ -122,13 +138,9 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
     setTestResult(null);
 
     try {
-      const token = localStorage.getItem("app-token");
       const res = await fetch("/api/admin/payment-gateways/mercadopago/test", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({
           environment,
           sandbox_access_token: sandboxAccessToken,
@@ -244,71 +256,83 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
               </div>
             </div>
 
-            {/* Credenciais de Sandbox */}
-            {environment === "sandbox" && (
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-500">
-                  Credenciais de Sandbox (Testes)
-                </h3>
+            {/* Credenciais de Sandbox — sempre visível */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-500">
+                Credenciais de Sandbox (Testes)
+              </h3>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="s_client_id">Client ID</Label>
-                    <Input
-                      id="s_client_id"
-                      value={sandboxClientId}
-                      onChange={(e) => setSandboxClientId(e.target.value)}
-                      placeholder="ex: 123456789012345"
-                    />
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="s_public_key">Public Key</Label>
                     <Input
                       id="s_public_key"
                       value={sandboxPublicKey}
                       onChange={(e) => setSandboxPublicKey(e.target.value)}
-                      placeholder="ex: TEST-72123..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="s_client_secret">Client Secret</Label>
-                    <Input
-                      id="s_client_secret"
-                      type="password"
-                      value={sandboxClientSecret}
-                      onChange={(e) => setSandboxClientSecret(e.target.value)}
-                      placeholder="Mascarado"
+                      placeholder="ex: APP_USR-... ou TEST-..."
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="s_access_token">Access Token</Label>
+                    <div className="relative">
+                      <Input
+                        id="s_access_token"
+                        type={showSandboxToken ? "text" : "password"}
+                        value={sandboxAccessToken}
+                        onChange={(e) => setSandboxAccessToken(e.target.value)}
+                        placeholder="ex: TEST-3598901240..."
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
+                        onClick={() => setShowSandboxToken(!showSandboxToken)}
+                      >
+                        {showSandboxToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="s_client_id">Client ID (User ID)</Label>
                     <Input
-                      id="s_access_token"
-                      type="password"
-                      value={sandboxAccessToken}
-                      onChange={(e) => setSandboxAccessToken(e.target.value)}
-                      placeholder="Mascarado"
+                      id="s_client_id"
+                      value={sandboxClientId}
+                      onChange={(e) => setSandboxClientId(e.target.value)}
+                      placeholder="ex: 3598901240"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="s_client_secret">Client Secret (Opcional)</Label>
+                    <div className="relative">
+                      <Input
+                        id="s_client_secret"
+                        type={showSandboxSecret ? "text" : "password"}
+                        value={sandboxClientSecret}
+                        onChange={(e) => setSandboxClientSecret(e.target.value)}
+                        placeholder="Opcional"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
+                        onClick={() => setShowSandboxSecret(!showSandboxSecret)}
+                      >
+                        {showSandboxSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+            </div>
 
-            {/* Credenciais de Produção */}
-            {environment === "production" && (
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-sm font-semibold text-red-600 dark:text-red-500">
-                  Credenciais de Produção (Real)
-                </h3>
+            {/* Credenciais de Produção — sempre visível */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-semibold text-red-600 dark:text-red-500">
+                Credenciais de Produção (Real)
+              </h3>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="p_client_id">Client ID</Label>
-                    <Input
-                      id="p_client_id"
-                      value={productionClientId}
-                      onChange={(e) => setProductionClientId(e.target.value)}
-                      placeholder="ex: 123456789012345"
-                    />
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="p_public_key">Public Key</Label>
                     <Input
@@ -319,28 +343,60 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="p_client_secret">Client Secret</Label>
+                    <Label htmlFor="p_access_token">Access Token</Label>
+                    <div className="relative">
+                      <Input
+                        id="p_access_token"
+                        type={showProdToken ? "text" : "password"}
+                        value={productionAccessToken}
+                        onChange={(e) => setProductionAccessToken(e.target.value)}
+                        placeholder="ex: APP_USR-..."
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
+                        onClick={() => setShowProdToken(!showProdToken)}
+                      >
+                        {showProdToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p_client_id">Client ID (User ID)</Label>
                     <Input
-                      id="p_client_secret"
-                      type="password"
-                      value={productionClientSecret}
-                      onChange={(e) => setProductionClientSecret(e.target.value)}
-                      placeholder="Mascarado"
+                      id="p_client_id"
+                      value={productionClientId}
+                      onChange={(e) => setProductionClientId(e.target.value)}
+                      placeholder="ex: 123456789012345"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="p_access_token">Access Token</Label>
-                    <Input
-                      id="p_access_token"
-                      type="password"
-                      value={productionAccessToken}
-                      onChange={(e) => setProductionAccessToken(e.target.value)}
-                      placeholder="Mascarado"
-                    />
+                    <Label htmlFor="p_client_secret">Client Secret (Opcional)</Label>
+                    <div className="relative">
+                      <Input
+                        id="p_client_secret"
+                        type={showProdSecret ? "text" : "password"}
+                        value={productionClientSecret}
+                        onChange={(e) => setProductionClientSecret(e.target.value)}
+                        placeholder="Opcional"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
+                        onClick={() => setShowProdSecret(!showProdSecret)}
+                      >
+                        {showProdSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* Webhook URL Section */}
             <div className="space-y-4 border-t pt-4">
