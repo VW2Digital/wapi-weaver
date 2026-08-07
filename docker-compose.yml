@@ -42,15 +42,12 @@ services:
     env_file:
       - .env
     environment:
-      # Sobrescreve os valores do .env para usar os hostnames corretos
-      # dentro da rede Docker (nome dos serviços, não localhost)
-      DB_HOST: banco-mysql
-      REDIS_HOST: redis
+      # Usa o DB_HOST do .env se definido; caso contrário, usa o container interno banco-mysql
+      DB_HOST: ${DB_HOST:-banco-mysql}
+      REDIS_HOST: ${REDIS_HOST:-redis}
     volumes:
       - wapi_weaver_uploads:/app/public/uploads
     depends_on:
-      banco-mysql:
-        condition: service_healthy
       redis:
         condition: service_healthy
 
