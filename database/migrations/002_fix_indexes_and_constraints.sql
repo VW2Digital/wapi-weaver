@@ -21,4 +21,3 @@ WHERE tenant_id IS NULL
       GROUP BY client_email
     ) AS license_keepers
   );
-

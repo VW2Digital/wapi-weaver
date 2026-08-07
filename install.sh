@@ -225,15 +225,6 @@ if [ "$UPDATE_MODE" -eq 0 ]; then
   read -p "Deseja habilitar o phpMyAdmin interno? (s/N): " ENABLE_PHPMYADMIN
   ENABLE_PHPMYADMIN=$(echo "$ENABLE_PHPMYADMIN" | tr '[:upper:]' '[:lower:]' | xargs)
 
-  # 1.6 Dump do banco de dados opcional
-  if [ -z "$DATABASE_DUMP" ]; then
-    read -p "Possui um arquivo de dump (.sql ou .sql.gz) para restaurar? (s/N): " HAS_DUMP
-    HAS_DUMP=$(echo "$HAS_DUMP" | tr '[:upper:]' '[:lower:]' | xargs)
-    if [[ "$HAS_DUMP" == "s" ]]; then
-      read -p "Digite o caminho completo para o arquivo de dump: " DATABASE_DUMP
-      FRESH_DATABASE=1
-    fi
-  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -579,6 +570,5 @@ echo -e "     Gerar Backup BD:  sudo bash ${APP_DIR}/scripts/backup.sh"
 echo -e "     Restaurar BD:     sudo bash ${APP_DIR}/scripts/restore.sh /caminho/dump.sql"
 echo -e "     Atualizar CRM:    sudo bash ${APP_DIR}/install.sh --update"
 echo "============================================================"
-EOF
 
 chmod +x "${APP_DIR}/install.sh"
