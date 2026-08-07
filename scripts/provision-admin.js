@@ -51,6 +51,14 @@ try {
     [crypto.randomUUID(), userId],
   );
 
+  const [masterRoles] = await connection.query(
+    "SELECT 1 FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
+    [userId],
+  );
+  if (masterRoles.length !== 1) {
+    throw new Error(`Não foi possível confirmar admin_master para ${email}.`);
+  }
+
   await connection.commit();
   console.log(`[Admin] ${email} provisionado como admin_master.`);
 } catch (error) {

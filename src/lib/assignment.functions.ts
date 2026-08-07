@@ -296,9 +296,16 @@ export const createTeam = createServerFn({ method: "POST" })
       const teamId = crypto.randomUUID();
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
       await db.query(
-        `INSERT INTO teams (id, user_id, name, description, auto_assign_mode)
-         VALUES (?, ?, ?, ?, ?)`,
-        [teamId, effectiveUserId, data.name, data.description, data.autoAssignMode],
+        `INSERT INTO teams (id, tenant_id, user_id, name, description, auto_assign_mode)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          teamId,
+          effectiveUserId,
+          effectiveUserId,
+          data.name,
+          data.description,
+          data.autoAssignMode,
+        ],
       );
       return { ok: true, id: teamId };
     } catch (e: any) {

@@ -25,6 +25,16 @@ try {
     throw new Error(`Tabelas ausentes: ${missingTables.join(", ")}`);
   }
 
+  const [requiredColumns] = await connection.query(
+    `SELECT TABLE_NAME, COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND (TABLE_NAME, COLUMN_NAME) IN (('teams', 'tenant_id'))`,
+  );
+  if (requiredColumns.length !== 1) {
+    throw new Error("Coluna obrigatória ausente: teams.tenant_id");
+  }
+
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const [admins] = await connection.query(
     `SELECT u.id

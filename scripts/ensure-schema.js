@@ -1184,14 +1184,26 @@ export async function ensureDatabaseSchema() {
       `
       CREATE TABLE IF NOT EXISTS teams (
         id          VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id   VARCHAR(36) NOT NULL,
         user_id     VARCHAR(36) NOT NULL,
         name        VARCHAR(255) NOT NULL,
         description TEXT NULL,
         auto_assign_mode ENUM('manual', 'round_robin', 'least_busy') NOT NULL DEFAULT 'manual',
         created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
+    );
+
+    await ensureColumnExists(connection, "teams", "tenant_id", "VARCHAR(36) NULL");
+    await connection.query("UPDATE teams SET tenant_id = user_id WHERE tenant_id IS NULL");
+    await connection.query("ALTER TABLE teams MODIFY COLUMN tenant_id VARCHAR(36) NOT NULL");
+    await ensureIndexExists(
+      connection,
+      "teams",
+      "idx_teams_tenant",
+      "CREATE INDEX idx_teams_tenant ON teams(tenant_id)",
     );
 
     await ensureTableExists(
@@ -1629,11 +1641,11 @@ export async function ensureDatabaseSchema() {
             const salesTeamId = `demo-team-sales-${u.id.substring(0, 8)}`;
 
             await connection.query(
-              `INSERT IGNORE INTO teams (id, user_id, name, description, auto_assign_mode)
+              `INSERT IGNORE INTO teams (id, tenant_id, user_id, name, description, auto_assign_mode)
                VALUES 
-                 (?, ?, 'Suporte Técnico', 'Equipe de suporte e atendimento técnico', 'round_robin'),
-                 (?, ?, 'Comercial', 'Equipe de vendas e novos negócios', 'manual')`,
-              [supportTeamId, u.id, salesTeamId, u.id],
+                 (?, ?, ?, 'Suporte Técnico', 'Equipe de suporte e atendimento técnico', 'round_robin'),
+                 (?, ?, ?, 'Comercial', 'Equipe de vendas e novos negócios', 'manual')`,
+              [supportTeamId, u.id, u.id, salesTeamId, u.id, u.id],
             );
 
             await connection.query(

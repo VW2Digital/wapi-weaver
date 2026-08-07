@@ -857,11 +857,13 @@ CREATE TABLE IF NOT EXISTS whatsapp_flow_submissions (
 
 CREATE TABLE IF NOT EXISTS teams (
   id          VARCHAR(36) NOT NULL PRIMARY KEY,
+  tenant_id   VARCHAR(36) NOT NULL,
   user_id     VARCHAR(36) NOT NULL,
   name        VARCHAR(255) NOT NULL,
   description TEXT NULL,
   auto_assign_mode ENUM('manual', 'round_robin', 'least_busy') NOT NULL DEFAULT 'manual',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1190,4 +1192,5 @@ CREATE TABLE IF NOT EXISTS platform_banners (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_teams_user ON teams(user_id);
+CREATE INDEX idx_teams_tenant ON teams(tenant_id);
 CREATE INDEX idx_team_members_user ON team_members(user_id);

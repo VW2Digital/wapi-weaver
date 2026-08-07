@@ -66,13 +66,15 @@ async function setup() {
         user.role,
       ]);
     }
-    await db.execute("INSERT INTO teams (id, user_id, name) VALUES (?, ?, ?)", [
+    await db.execute("INSERT INTO teams (id, tenant_id, user_id, name) VALUES (?, ?, ?, ?)", [
       state.teamA.id,
+      state.ownerA.id,
       state.ownerA.id,
       state.teamA.name,
     ]);
-    await db.execute("INSERT INTO teams (id, user_id, name) VALUES (?, ?, ?)", [
+    await db.execute("INSERT INTO teams (id, tenant_id, user_id, name) VALUES (?, ?, ?, ?)", [
       state.teamB.id,
+      state.ownerB.id,
       state.ownerB.id,
       state.teamB.name,
     ]);
