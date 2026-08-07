@@ -1,72 +1,120 @@
-import bcrypt from "bcryptjs";
 import mysql from "mysql2/promise";
-import crypto from "node:crypto";
+import { randomUUID, createHash } from "crypto";
+import bcrypt from "bcryptjs";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
-const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-const password = process.env.ADMIN_PASSWORD;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (!email || !password) {
-  console.error("[Admin] ADMIN_EMAIL e ADMIN_PASSWORD são obrigatórios.");
-  process.exit(1);
+// Load .env if present
+const dotenvPath = path.resolve(__dirname, "../.env");
+if (fs.existsSync(dotenvPath)) {
+  const envContent = fs.readFileSync(dotenvPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+      const parts = trimmed.split("=");
+      const key = parts[0].trim();
+      const val = parts.slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+      if (!process.env[key]) {
+        process.env[key] = val;
+      }
+    }
+  }
 }
 
-const connection = await mysql.createConnection({
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || "wapi_user",
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || "wapi_weaver",
-});
+async function main() {
+  const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || "adminmaster123";
 
-try {
-  await connection.beginTransaction();
+  console.log(`[Provision Admin] Target admin email: ${adminEmail}`);
 
-  const [users] = await connection.query("SELECT id FROM users WHERE email = ? LIMIT 1", [email]);
-  const userId = users[0]?.id || crypto.randomUUID();
-  const passwordHash = await bcrypt.hash(password, 12);
+  const dbConfig = {
+    host: process.env.DB_HOST || "banco-mysql",
+    port: parseInt(process.env.DB_PORT || "3306", 10),
+    user: process.env.DB_USER || "wapi_user",
+    password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+    database: process.env.DB_NAME || "wapi_weaver",
+  };
 
-  if (users.length === 0) {
-    await connection.query("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
-      userId,
-      email,
-      passwordHash,
-    ]);
-  } else {
-    await connection.query("UPDATE users SET password_hash = ? WHERE id = ?", [
-      passwordHash,
-      userId,
-    ]);
+  let connection;
+  let attempts = 0;
+  while (attempts < 10) {
+    try {
+      connection = await mysql.createConnection(dbConfig);
+      break;
+    } catch (err) {
+      attempts++;
+      console.log(`[Provision Admin] Waiting for MySQL... (${attempts}/10)`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   }
 
-  await connection.query(
-    `INSERT INTO profiles (id, email, display_name)
-     VALUES (?, ?, 'Administrador Master')
-     ON DUPLICATE KEY UPDATE
-       email = VALUES(email),
-       display_name = VALUES(display_name)`,
-    [userId, email],
-  );
-  await connection.query(
-    `INSERT INTO user_roles (id, user_id, role)
-     VALUES (?, ?, 'admin_master')
-     ON DUPLICATE KEY UPDATE role = VALUES(role)`,
-    [crypto.randomUUID(), userId],
-  );
-
-  const [masterRoles] = await connection.query(
-    "SELECT 1 FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
-    [userId],
-  );
-  if (masterRoles.length !== 1) {
-    throw new Error(`Não foi possível confirmar admin_master para ${email}.`);
+  if (!connection) {
+    console.error("[Provision Admin] Failed to connect to MySQL database.");
+    process.exit(1);
   }
 
-  await connection.commit();
-  console.log(`[Admin] ${email} provisionado como admin_master.`);
-} catch (error) {
-  await connection.rollback();
-  console.error("[Admin] Falha ao provisionar administrador:", error);
-  process.exitCode = 1;
-} finally {
-  await connection.end();
+  try {
+    const [users] = await connection.execute(
+      "SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1",
+      [adminEmail]
+    );
+
+    let userId;
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+
+    if (users.length > 0) {
+      userId = users[0].id;
+      console.log(`[Provision Admin] Existing user found (ID: ${userId}). Updating role & password...`);
+      await connection.execute("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, userId]);
+    } else {
+      userId = randomUUID();
+      console.log(`[Provision Admin] Creating new admin_master user (ID: ${userId})...`);
+      await connection.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
+        userId,
+        adminEmail,
+        passwordHash,
+      ]);
+    }
+
+    // Ensure profile exists
+    const [profiles] = await connection.execute("SELECT id FROM profiles WHERE id = ? LIMIT 1", [userId]);
+    if (profiles.length === 0) {
+      await connection.execute(
+        "INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)",
+        [userId, adminEmail, "Master Admin"]
+      );
+    }
+
+    // Ensure role is admin_master
+    await connection.execute("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+    await connection.execute(
+      "INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin_master')",
+      [randomUUID(), userId]
+    );
+
+    // Ensure initial active license exists for this tenant
+    const [licenses] = await connection.execute("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [userId]);
+    if (licenses.length === 0) {
+      const keyHash = createHash("sha256").update(adminEmail).digest("hex");
+      await connection.execute(
+        `INSERT INTO licenses (id, license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [randomUUID(), keyHash, adminEmail, "Master Admin", adminEmail, "pro", "active", userId]
+      );
+    }
+
+    console.log(`[Provision Admin] Successfully provisioned admin_master for ${adminEmail}.`);
+    process.exit(0);
+  } catch (err) {
+    console.error("[Provision Admin] Error provisioning admin_master:", err.message);
+    process.exit(1);
+  } finally {
+    if (connection) await connection.end();
+  }
 }
+
+main();

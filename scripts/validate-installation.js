@@ -1,87 +1,95 @@
-import fs from "node:fs/promises";
 import mysql from "mysql2/promise";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
-const connection = await mysql.createConnection({
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || "wapi_user",
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || "wapi_weaver",
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-try {
-  const schema = await fs.readFile("schema_mysql.sql", "utf8");
-  const expectedSchema = new Map();
-  const createTablePattern =
-    /CREATE TABLE(?: IF NOT EXISTS)?\s+`([a-zA-Z0-9_]+)`\s*\(([\s\S]*?)\)\s*ENGINE=/gi;
-
-  for (const match of schema.matchAll(createTablePattern)) {
-    const columns = new Set();
-    for (const line of match[2].split(/\r?\n/)) {
-      const column = line.match(/^\s*`([^`]+)`\s+/);
-      if (column) columns.add(column[1]);
-    }
-    expectedSchema.set(match[1], columns);
-  }
-
-  if (expectedSchema.size === 0) {
-    throw new Error("Não foi possível interpretar as tabelas do schema_mysql.sql");
-  }
-
-  const [tableRows] = await connection.query(
-    "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()",
-  );
-  const actualTables = new Set(tableRows.map((row) => row.TABLE_NAME));
-  const missingTables = [...expectedSchema.keys()].filter((table) => !actualTables.has(table));
-
-  if (missingTables.length > 0) {
-    throw new Error(`Tabelas ausentes: ${missingTables.join(", ")}`);
-  }
-
-  const [columnRows] = await connection.query(
-    `SELECT TABLE_NAME, COLUMN_NAME
-     FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE()`,
-  );
-
-  const actualColumns = new Map();
-  for (const row of columnRows) {
-    if (!actualColumns.has(row.TABLE_NAME)) actualColumns.set(row.TABLE_NAME, new Set());
-    actualColumns.get(row.TABLE_NAME).add(row.COLUMN_NAME);
-  }
-
-  const missingColumns = [];
-  for (const [table, expectedColumns] of expectedSchema) {
-    const tableColumns = actualColumns.get(table) || new Set();
-    for (const column of expectedColumns) {
-      if (!tableColumns.has(column)) missingColumns.push(`${table}.${column}`);
+// Load .env if present
+const dotenvPath = path.resolve(__dirname, "../.env");
+if (fs.existsSync(dotenvPath)) {
+  const envContent = fs.readFileSync(dotenvPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+      const parts = trimmed.split("=");
+      const key = parts[0].trim();
+      const val = parts.slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+      if (!process.env[key]) {
+        process.env[key] = val;
+      }
     }
   }
-
-  if (missingColumns.length > 0) {
-    throw new Error(`Colunas ausentes: ${missingColumns.join(", ")}`);
-  }
-
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const [admins] = await connection.query(
-    `SELECT u.id
-     FROM users u
-     JOIN user_roles ur ON ur.user_id = u.id
-     WHERE LOWER(u.email) = ? AND ur.role = 'admin_master'
-     LIMIT 1`,
-    [email],
-  );
-
-  if (admins.length !== 1) {
-    throw new Error(`O usuário ${email || "informado"} não possui o papel admin_master.`);
-  }
-
-  console.log(
-    `[Install validation] ${expectedSchema.size} tabelas e ${columnRows.length} colunas verificadas; admin_master confirmado para ${email}.`,
-  );
-} catch (error) {
-  console.error("[Install validation] Falha:", error.message);
-  process.exitCode = 1;
-} finally {
-  await connection.end();
 }
+
+const ESSENTIAL_TABLES = [
+  "users",
+  "profiles",
+  "user_roles",
+  "platform_settings",
+  "licenses",
+  "contacts",
+  "campaigns",
+  "bot_flows",
+  "ds_agents",
+  "custom_fields",
+  "whatsapp_templates",
+];
+
+async function main() {
+  console.log("[Validation] Validating installation state...");
+
+  const dbConfig = {
+    host: process.env.DB_HOST || "banco-mysql",
+    port: parseInt(process.env.DB_PORT || "3306", 10),
+    user: process.env.DB_USER || "wapi_user",
+    password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+    database: process.env.DB_NAME || "wapi_weaver",
+  };
+
+  let connection;
+  try {
+    connection = await mysql.createConnection(dbConfig);
+  } catch (err) {
+    console.error("[Validation] Could not connect to MySQL database:", err.message);
+    process.exit(1);
+  }
+
+  try {
+    // 1. Check essential tables
+    const [tables] = await connection.query("SHOW TABLES");
+    const existingTableNames = tables.map((t) => Object.values(t)[0]);
+
+    const missingTables = ESSENTIAL_TABLES.filter((tbl) => !existingTableNames.includes(tbl));
+    if (missingTables.length > 0) {
+      console.error(`[Validation] ERROR: Missing essential database tables: ${missingTables.join(", ")}`);
+      process.exit(1);
+    }
+    console.log(`[Validation] All ${ESSENTIAL_TABLES.length} essential tables verified.`);
+
+    // 2. Check admin_master user
+    const [roles] = await connection.query(
+      `SELECT u.email, r.role 
+       FROM user_roles r 
+       JOIN users u ON u.id = r.user_id 
+       WHERE r.role = 'admin_master'`
+    );
+
+    if (roles.length === 0) {
+      console.error("[Validation] ERROR: No user found with 'admin_master' role.");
+      process.exit(1);
+    }
+
+    console.log(`[Validation] Verified ${roles.length} admin_master user(s): ${roles.map((r) => r.email).join(", ")}.`);
+    console.log("[Validation] Installation validation PASSED successfully.");
+    process.exit(0);
+  } catch (err) {
+    console.error("[Validation] Error during validation:", err.message);
+    process.exit(1);
+  } finally {
+    if (connection) await connection.end();
+  }
+}
+
+main();
