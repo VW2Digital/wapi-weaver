@@ -192,28 +192,44 @@ async function main() {
 
   console.log(`[Validation] Performing HTTP POST authentication check against ${authUrl}...`);
 
-  try {
-    const res = await fetch(authUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: adminEmail, password: adminPassword }),
-    });
+  let authSuccess = false;
+  let lastError = "";
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[Validation] ❌ FAIL: Authentication endpoint returned HTTP ${res.status}: ${errText}`);
-      process.exit(1);
+  for (let attempt = 1; attempt <= 30; attempt++) {
+    try {
+      const res = await fetch(authUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        lastError = `HTTP ${res.status}: ${errText}`;
+      } else {
+        const payload = await res.json();
+        if (!payload.access_token) {
+          lastError = `Response missing access_token: ${JSON.stringify(payload)}`;
+        } else if (payload.user?.role !== "admin_master") {
+          lastError = `Expected role 'admin_master', got '${payload.user?.role}'`;
+        } else {
+          authSuccess = true;
+          console.log(`[Validation] ✅ SUCCESS: HTTP login authentication test PASSED for ${adminEmail} (attempt ${attempt}/30).`);
+          break;
+        }
+      }
+    } catch (authErr) {
+      lastError = authErr.message || String(authErr);
     }
 
-    const payload = await res.json();
-    if (!payload.access_token && !payload.ok) {
-      console.error("[Validation] ❌ FAIL: Authentication response missing access_token!", payload);
-      process.exit(1);
-    }
+    console.log(`[Validation] Waiting for auth endpoint (${attempt}/30)... (${lastError})`);
+    await new Promise((r) => setTimeout(r, 2000));
+  }
 
-    console.log(`[Validation] ✅ SUCCESS: HTTP login authentication test PASSED for ${adminEmail}.`);
-  } catch (authErr) {
-    console.warn(`[Validation] ⚠️ WARNING: Application HTTP auth check failed (${authErr.message}). App may still be binding to port.`);
+  if (!authSuccess) {
+    console.error(`[Validation] ❌ FAIL: Application HTTP auth check failed after 30 attempts: ${lastError}`);
+    process.exit(1);
   }
 
   console.log("=================================================");

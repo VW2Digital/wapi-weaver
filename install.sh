@@ -28,6 +28,49 @@ CONFIGURE_SSL_ONLY=0
 ENABLE_PHPMYADMIN="n"
 DATABASE_DUMP=""
 
+print_header() {
+  echo -e "${GREEN}"
+  echo "=========================================================="
+  echo "         BLIV CRM / WAPI WEAVER - INSTALADOR DE PRODUÇÃO  "
+  echo "=========================================================="
+  echo -e "${NC}"
+}
+
+print_step() {
+  echo ""
+  echo -e "${BLUE}==>${NC} ${GREEN}$1${NC}"
+}
+
+print_ok() {
+  echo -e "  ${GREEN}✓ $1${NC}"
+}
+
+print_warn() {
+  echo -e "  ${YELLOW}⚠️ $1${NC}"
+}
+
+print_error() {
+  echo -e "  ${RED}❌ $1${NC}"
+}
+
+dump_diagnostics_and_exit() {
+  local reason="$1"
+  print_error "FALHA CRÍTICA: ${reason}"
+  echo ""
+  echo "=========================================================="
+  echo "         INSTALAÇÃO FALHOU - DIAGNÓSTICO DO DOCKER        "
+  echo "=========================================================="
+  echo ""
+  echo "--- DOCKER COMPOSE PS ---"
+  docker compose -f "${COMPOSE_FILE}" ps 2>/dev/null || true
+  echo ""
+  echo "--- DOCKER COMPOSE LOGS (APP) ---"
+  docker compose -f "${COMPOSE_FILE}" logs --tail=150 app 2>/dev/null || true
+  echo ""
+  echo "=========================================================="
+  exit 1
+}
+
 error_handler() {
   local exit_code=$1
   local line_number=$2
@@ -39,7 +82,7 @@ error_handler() {
   echo -e "${RED} Comando que falhou: ${command}${NC}"
   echo -e "${RED} Consulte o log detalhado em: ${LOG_FILE}${NC}"
   echo -e "${RED}=====================================================${NC}"
-  exit "${exit_code}"
+  dump_diagnostics_and_exit "Instalação interrompida na linha ${line_number} pelo comando: ${command}"
 }
 
 trap 'error_handler $? $LINENO "$BASH_COMMAND"' ERR
@@ -89,29 +132,114 @@ for arg in "$@"; do
   esac
 done
 
-print_header() {
-  echo -e "${GREEN}"
-  echo "=========================================================="
-  echo "         BLIV CRM / WAPI WEAVER - INSTALADOR DE PRODUÇÃO  "
-  echo "=========================================================="
-  echo -e "${NC}"
+wait_for_app_http() {
+  local max_attempts=60
+  local attempt=1
+
+  while [ $attempt -le $max_attempts ]; do
+    local container_status
+    container_status=$(docker inspect -f '{{.State.Status}}' wapi_weaver_app 2>/dev/null || echo "missing")
+
+    if [[ "$container_status" =~ ^(exited|dead|restarting|missing)$ ]]; then
+      dump_diagnostics_and_exit "O container 'wapi_weaver_app' não está executando adequadamente (Status: ${container_status})."
+    fi
+
+    local http_status
+    http_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3003/" 2>/dev/null || true)
+    http_status="${http_status:-000}"
+
+    if [[ "$http_status" =~ ^(200|301|302|401|403|404)$ ]]; then
+      print_ok "Aplicação respondendo na porta 3003 (Status HTTP: ${http_status})."
+      return 0
+    fi
+
+    echo "  Aguardando porta 3003 responder (${attempt}/${max_attempts}). Status atual: ${http_status}..."
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+
+  dump_diagnostics_and_exit "Aplicação não ficou disponível via HTTP na porta 3003 em 120 segundos."
 }
 
-print_step() {
-  echo ""
-  echo -e "${BLUE}==>${NC} ${GREEN}$1${NC}"
+wait_for_app_healthy() {
+  local max_attempts=30
+  local attempt=1
+
+  while [ $attempt -le $max_attempts ]; do
+    local health_status
+    health_status=$(docker inspect -f '{{.State.Health.Status}}' wapi_weaver_app 2>/dev/null || echo "missing")
+
+    if [ "$health_status" == "healthy" ]; then
+      print_ok "Container da aplicação reportou status HEALTHY!"
+      return 0
+    elif [ "$health_status" == "starting" ]; then
+      echo "  Aguardando healthcheck do Docker alterar de 'starting' para 'healthy' (${attempt}/${max_attempts})..."
+    else
+      dump_diagnostics_and_exit "Healthcheck Docker do container app reportou falha (Health Status: ${health_status})."
+    fi
+
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+
+  dump_diagnostics_and_exit "Healthcheck Docker do container app não transitou para 'healthy' no tempo limite."
 }
 
-print_ok() {
-  echo -e "  ${GREEN}✓ $1${NC}"
-}
+test_auth_login() {
+  local target_url="$1"
+  local label="$2"
 
-print_warn() {
-  echo -e "  ${YELLOW}⚠️ $1${NC}"
-}
+  echo "  Executando teste de autenticação em ${label} (${target_url})..."
 
-print_error() {
-  echo -e "  ${RED}❌ $1${NC}"
+  local result
+  result=$(ADMIN_EMAIL="${ADMIN_EMAIL}" ADMIN_PASSWORD="${ADMIN_PASSWORD}" TARGET_URL="${target_url}" node -e '
+    const url = process.env.TARGET_URL;
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+
+    async function check() {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!res.ok) {
+          const bodyText = await res.text().catch(() => "");
+          console.log(`HTTP_ERROR:${res.status}:${bodyText.substring(0, 100)}`);
+          process.exit(1);
+        }
+
+        const data = await res.json();
+        if (!data.access_token) {
+          console.log("NO_ACCESS_TOKEN");
+          process.exit(1);
+        }
+
+        if (data.user?.role !== "admin_master") {
+          console.log(`INVALID_ROLE:${data.user?.role || "none"}`);
+          process.exit(1);
+        }
+
+        console.log("OK");
+        process.exit(0);
+      } catch (err) {
+        console.log(`NETWORK_ERROR:${err.code || err.name}:${err.message}`);
+        process.exit(1);
+      }
+    }
+    check();
+  ' 2>&1 || echo "NODE_EXEC_FAILED")
+
+  if [ "$result" == "OK" ]; then
+    print_ok "Autenticação via login em ${label} validada com sucesso!"
+    return 0
+  else
+    print_error "Falha no teste de login em ${label}: ${result}"
+    return 1
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -136,9 +264,9 @@ if [ "$CONFIGURE_SSL_ONLY" -eq 1 ]; then
     read -p "Digite o domínio para emissão do SSL: " DOMAIN
   fi
   read -p "Digite o e-mail para avisos do SSL: " SSL_EMAIL
-  certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect || true
-  systemctl reload nginx || true
-  print_ok "SSL configurado."
+  certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect
+  systemctl reload nginx
+  print_ok "SSL configurado e testado com sucesso."
   exit 0
 fi
 
@@ -224,7 +352,6 @@ if [ "$UPDATE_MODE" -eq 0 ]; then
   # 1.5 phpMyAdmin opcional
   read -p "Deseja habilitar o phpMyAdmin interno? (s/N): " ENABLE_PHPMYADMIN
   ENABLE_PHPMYADMIN=$(echo "$ENABLE_PHPMYADMIN" | tr '[:upper:]' '[:lower:]' | xargs)
-
 fi
 
 # ---------------------------------------------------------------------------
@@ -353,7 +480,7 @@ print_step "[5/8] Gerando segredos e configurando o arquivo .env..."
 
 ENV_FILE="${APP_DIR}/.env"
 
-# Carregar ou gerar segredos únicos (sem reutilização de senhas)
+# Carregar ou gerar segredos únicos
 JWT_SECRET_VAL=$(grep '^JWT_SECRET=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 [ -n "${JWT_SECRET_VAL}" ] || JWT_SECRET_VAL=$(openssl rand -hex 32)
 
@@ -419,7 +546,7 @@ if [[ "${ENABLE_PHPMYADMIN}" == "s" ]]; then
   COMPOSE_PROFILE_FLAG="--profile phpmyadmin"
 fi
 
-# Build e inicialização dos containers com injeção do Commit SHA
+# Build e inicialização dos containers (SEM --wait para permitir execução prévia de migrations)
 echo "  Executando build da aplicação (sem cache antigo) e inicialização dos serviços..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d
@@ -436,8 +563,22 @@ for i in $(seq 1 30); do
 done
 
 if [ "$MYSQL_READY" -ne 1 ]; then
-  print_error "MySQL não estabilizou a tempo."
-  exit 1
+  dump_diagnostics_and_exit "MySQL não estabilizou a tempo."
+fi
+
+echo "  Aguardando inicialização do Redis..."
+REDIS_READY=0
+for i in $(seq 1 15); do
+  if docker compose -f "${COMPOSE_FILE}" exec -T redis redis-cli -a "${REDIS_PASS_VAL}" ping 2>/dev/null | grep -q PONG; then
+    REDIS_READY=1
+    print_ok "Redis está pronto!"
+    break
+  fi
+  sleep 2
+done
+
+if [ "$REDIS_READY" -ne 1 ]; then
+  dump_diagnostics_and_exit "Redis não estabilizou a tempo."
 fi
 
 # Importação de Dump se fornecido
@@ -458,6 +599,13 @@ docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/migrate.js
 # Provisionar Administrador Master
 echo "  Provisionando Administrador Master (${ADMIN_EMAIL})..."
 docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/provision-admin.js
+
+# Aguardar disponibilidade HTTP e Healthcheck Docker do App
+echo "  Aguardando disponibilidade HTTP da aplicação (porta 3003)..."
+wait_for_app_http
+
+echo "  Aguardando transição do status do container para 'healthy'..."
+wait_for_app_healthy
 
 # Validar Instalação
 echo "  Executando validador automatizado pós-instalação..."
@@ -510,8 +658,7 @@ if nginx -t; then
   systemctl reload nginx
   print_ok "Nginx reconfigurado e testado com sucesso."
 else
-  print_error "Falha no teste sintático do Nginx. A configuração anterior foi preservada."
-  exit 1
+  dump_diagnostics_and_exit "Falha no teste sintático do Nginx."
 fi
 
 # Checar apontamento DNS antes de emitir SSL
@@ -519,49 +666,124 @@ print_step "Verificando resolução de DNS para ${DOMAIN}..."
 VPS_IP=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com || echo "")
 RESOLVED_IP=$(dig +short "${DOMAIN}" | tail -n1 || echo "")
 
-if [ -n "$VPS_IP" ] && [ "$VPS_IP" == "$RESOLVED_IP" ]; then
+SSL_ACTIVE=0
+
+if [ -n "$VPS_IP" ] && [ -n "$RESOLVED_IP" ] && [ "$VPS_IP" == "$RESOLVED_IP" ]; then
   echo "  DNS resolvido corretamente para o IP da VPS (${VPS_IP}). Emitindo certificado SSL..."
-  certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect || print_warn "Falha ao emitir SSL com Certbot."
-  systemctl reload nginx || true
-  print_ok "Certificado SSL configurado com sucesso."
+  if certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect; then
+    systemctl reload nginx || true
+    SSL_ACTIVE=1
+    print_ok "Certificado SSL configurado com sucesso."
+  else
+    dump_diagnostics_and_exit "DNS aponta para a VPS, mas a emissão do certificado SSL via Certbot falhou."
+  fi
 else
-  print_warn "O domínio '${DOMAIN}' (IP: ${RESOLVED_IP:-não resolvido}) ainda não aponta para o IP desta VPS (${VPS_IP})."
-  print_warn "A aplicação está instalada via HTTP. Após atualizar o DNS no seu provedor, execute:"
-  print_warn "  sudo bash install.sh --configure-ssl"
+  print_warn "O domínio '${DOMAIN}' (IP resolvido: ${RESOLVED_IP:-nenhum}) ainda não aponta para o IP desta VPS (${VPS_IP})."
+  print_warn "A instalação prosseguirá via HTTP. Após atualizar o DNS no seu provedor, execute: sudo bash install.sh --configure-ssl"
 fi
 
 # ---------------------------------------------------------------------------
-# 8. Validação de Saúde Final
+# 8. Validação de Saúde e Integridade Final
 # ---------------------------------------------------------------------------
-print_step "[8/8] Executando validação de saúde final..."
+print_step "[8/8] Executando validação de saúde final e testes externos..."
 
-sleep 3
-
-# Testar se o Nginx responde em HTTP
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3003" || echo "000")
-if [[ "$HTTP_STATUS" =~ ^(200|301|302|404)$ ]]; then
+# 8.1 Teste local HTTP porta 3003
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3003/" 2>/dev/null || true)
+HTTP_STATUS="${HTTP_STATUS:-000}"
+if [[ "$HTTP_STATUS" =~ ^(200|301|302|401|403|404)$ ]]; then
   print_ok "Aplicação respondendo na porta 3003 (Status: ${HTTP_STATUS})."
 else
-  print_error "Aplicação não respondeu na porta 3003 (Status: ${HTTP_STATUS})."
-  exit 1
+  dump_diagnostics_and_exit "Aplicação não respondeu adequadamente na porta 3003 (Status: ${HTTP_STATUS})."
 fi
 
+# 8.2 Teste local Nginx com Host header
+NGINX_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 -H "Host: ${DOMAIN}" "http://127.0.0.1/" 2>/dev/null || true)
+NGINX_STATUS="${NGINX_STATUS:-000}"
+if [[ "$NGINX_STATUS" =~ ^(200|301|302|401|403|404)$ ]]; then
+  print_ok "Nginx local respondendo para o host ${DOMAIN} (Status: ${NGINX_STATUS})."
+else
+  dump_diagnostics_and_exit "Nginx local não respondeu adequadamente para o host ${DOMAIN} (Status: ${NGINX_STATUS})."
+fi
+
+# 8.3 Se SSL esteve ativo, validar HTTPS e Login externo via HTTPS
+if [ "$SSL_ACTIVE" -eq 1 ]; then
+  HTTPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${DOMAIN}/" 2>/dev/null || true)
+  HTTPS_STATUS="${HTTPS_STATUS:-000}"
+  if [[ "$HTTPS_STATUS" =~ ^(200|301|302|401|403|404)$ ]]; then
+    print_ok "Aplicação respondendo via HTTPS em https://${DOMAIN} (Status: ${HTTPS_STATUS})."
+  else
+    dump_diagnostics_and_exit "Falha ao acessar a aplicação via HTTPS em https://${DOMAIN} (Status: ${HTTPS_STATUS})."
+  fi
+
+  if ! test_auth_login "https://${DOMAIN}/api/auth/login" "HTTPS externo"; then
+    dump_diagnostics_and_exit "Falha na autenticação via HTTPS em https://${DOMAIN}/api/auth/login"
+  fi
+else
+  # Se SSL pendente, validar Login via HTTP local 3003
+  if ! test_auth_login "http://127.0.0.1:3003/api/auth/login" "HTTP interno 3003"; then
+    dump_diagnostics_and_exit "Falha na autenticação interna via HTTP em http://127.0.0.1:3003/api/auth/login"
+  fi
+fi
+
+# 8.4 Verificação estrita de Git SHA (HEAD == origin/main == container APP_GIT_SHA)
+print_step "Validando alinhamento estrito dos Git SHAs..."
+LOCAL_SHA=$(git rev-parse HEAD 2>/dev/null || echo "LOCAL_ERR")
+REMOTE_SHA=$(git rev-parse origin/main 2>/dev/null || echo "REMOTE_ERR")
+CONTAINER_SHA=$(docker compose -f "${COMPOSE_FILE}" exec -T app printenv APP_GIT_SHA 2>/dev/null | tr -d '\r' | xargs || echo "CONTAINER_ERR")
+
+echo "  SHA local (HEAD):        ${LOCAL_SHA}"
+echo "  SHA remoto (origin/main): ${REMOTE_SHA}"
+echo "  SHA no container app:    ${CONTAINER_SHA}"
+
+if [ "${LOCAL_SHA}" != "${REMOTE_SHA}" ] || [ "${LOCAL_SHA}" != "${CONTAINER_SHA}" ]; then
+  dump_diagnostics_and_exit "Mapeamento de versão divergente! HEAD (${LOCAL_SHA}), origin/main (${REMOTE_SHA}), container (${CONTAINER_SHA})."
+fi
+print_ok "Git SHAs 100% idênticos!"
+
+# 8.5 Confirmação dos status dos containers (docker compose ps)
+echo "  Confirmando status dos serviços no Docker..."
+echo "------------------------------------------------------------"
+docker compose -f "${COMPOSE_FILE}" ps
+echo "------------------------------------------------------------"
+
+MYSQL_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' wapi_weaver_mysql 2>/dev/null || echo "missing")
+REDIS_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' wapi_weaver_redis 2>/dev/null || echo "missing")
+APP_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' wapi_weaver_app 2>/dev/null || echo "missing")
+
+if [ "${MYSQL_HEALTH}" != "healthy" ] || [ "${REDIS_HEALTH}" != "healthy" ] || [ "${APP_HEALTH}" != "healthy" ]; then
+  dump_diagnostics_and_exit "Serviços Docker não estão todos 'healthy'. MySQL: ${MYSQL_HEALTH}, Redis: ${REDIS_HEALTH}, App: ${APP_HEALTH}"
+fi
+print_ok "Todos os serviços Docker (mysql, redis, app) estão HEALTHY!"
+
 echo ""
-echo -e "${GREEN}============================================================"
-echo " BLIV CRM / WAPI WEAVER - INSTALADO COM SUCESSO"
-echo "============================================================${NC}"
-echo ""
-echo -e "  🌐 Aplicação:       https://${DOMAIN}"
+if [ "$SSL_ACTIVE" -eq 1 ]; then
+  echo -e "${GREEN}============================================================"
+  echo " BLIV CRM INSTALADO E VALIDADO"
+  echo "============================================================${NC}"
+  echo ""
+  echo -e "  🌐 Aplicação:       https://${DOMAIN}"
+else
+  echo -e "${YELLOW}============================================================"
+  echo " BLIV CRM INSTALADO - SSL PENDENTE"
+  echo "============================================================${NC}"
+  echo ""
+  echo -e "  🌐 Aplicação (HTTP): http://${DOMAIN}"
+  echo -e "  ⚠️  O domínio ainda não resolvia para o IP da VPS (${VPS_IP})."
+  echo -e "     Após atualizar o DNS no seu provedor, execute:"
+  echo -e "     sudo bash ${APP_DIR}/install.sh --configure-ssl"
+fi
+
 echo -e "  👤 Admin Master:    ${ADMIN_EMAIL}"
 echo ""
 echo -e "  Serviços:"
-echo -e "    ✓ MySQL (Porta 3306 Privada)"
-echo -e "    ✓ Redis (Porta 6379 Privada)"
-echo -e "    ✓ BLIV CRM (127.0.0.1:3003)"
-echo -e "    ✓ Nginx Reverse Proxy (Portas 80/443)"
+echo -e "    ✓ MySQL (Porta 3306 Privada - Healthy)"
+echo -e "    ✓ Redis (Porta 6379 Privada - Healthy)"
+echo -e "    ✓ BLIV CRM (127.0.0.1:3003 - Healthy)"
+echo -e "    ✓ Nginx Reverse Proxy"
 echo -e "    ✓ Administrador Master Provisionado"
 echo -e "    ✓ Banco de Dados e Migrações Validadas"
-echo -e "    ✓ Autenticação HTTP Validada"
+echo -e "    ✓ Autenticação HTTP e Login Validados"
+echo -e "    ✓ Git Commit SHA Identificado e Alinhado: ${LOCAL_SHA}"
 echo ""
 echo -e "  📋 Comandos Úteis:"
 echo -e "     Status da Stack:  cd ${APP_DIR} && docker compose -f ${COMPOSE_FILE} ps"

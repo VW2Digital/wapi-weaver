@@ -64,6 +64,12 @@ services:
       - wapi_weaver_uploads:/app/public/uploads
     networks:
       - wapi_network
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     depends_on:
       mysql:
         condition: service_healthy
