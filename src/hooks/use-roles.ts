@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getCurrentUserRoles } from "@/lib/admin.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { hasCompanyAdminRole, hasMasterRole } from "@/lib/roles";
 
 export function useRoles() {
   const { user } = useAuth();
@@ -28,10 +29,14 @@ export function useRoles() {
     staleTime: 60_000,
     retry: false,
   });
+
+  const sessionRole = typeof user?.role === "string" ? user.role : null;
+  const roles = q.data?.roles?.length ? q.data.roles : sessionRole ? [sessionRole] : [];
+
   return {
-    roles: q.data?.roles ?? [],
-    isAdmin: q.data?.isAdmin ?? false,
-    loading: q.isLoading,
+    roles,
+    isAdmin: q.data?.isAdmin ?? (hasMasterRole(roles) || hasCompanyAdminRole(roles)),
+    loading: q.isLoading && !sessionRole,
     error: q.error,
   };
 }
