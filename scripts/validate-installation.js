@@ -29,10 +29,14 @@ try {
     `SELECT TABLE_NAME, COLUMN_NAME
      FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE()
-       AND (TABLE_NAME, COLUMN_NAME) IN (('teams', 'tenant_id'))`,
+       AND (TABLE_NAME, COLUMN_NAME) IN (
+         ('teams', 'tenant_id'),
+         ('tags', 'tenant_id'),
+         ('whatsapp_flows', 'flow_name')
+       )`,
   );
-  if (requiredColumns.length !== 1) {
-    throw new Error("Coluna obrigatória ausente: teams.tenant_id");
+  if (requiredColumns.length !== 3) {
+    throw new Error("Colunas obrigatórias ausentes em teams, tags ou whatsapp_flows");
   }
 
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();

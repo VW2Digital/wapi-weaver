@@ -1159,6 +1159,19 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+    await ensureColumnExists(connection, "whatsapp_flows", "flow_name", "VARCHAR(255) NULL");
+    if (await columnExists(connection, "whatsapp_flows", "name")) {
+      await connection.query(
+        "UPDATE whatsapp_flows SET flow_name = name WHERE flow_name IS NULL OR flow_name = ''",
+      );
+    }
+    await connection.query(
+      "ALTER TABLE whatsapp_flows MODIFY COLUMN flow_name VARCHAR(255) NOT NULL",
+    );
+    await ensureColumnExists(connection, "whatsapp_flows", "waba_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "whatsapp_flows", "phone_number_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "whatsapp_flows", "flow_json", "JSON NULL");
+    await ensureColumnExists(connection, "whatsapp_flows", "endpoint_url", "VARCHAR(500) NULL");
 
     await ensureTableExists(
       connection,
@@ -2245,6 +2258,52 @@ export async function ensureDatabaseSchema() {
 
     await ensureTableExists(
       connection,
+      "subscription_plans",
+      `CREATE TABLE IF NOT EXISTS subscription_plans (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(80) NOT NULL UNIQUE,
+        description TEXT NULL,
+        max_agents INT NOT NULL DEFAULT 1,
+        max_funnels INT NOT NULL DEFAULT 1,
+        max_users INT NOT NULL DEFAULT 1,
+        features_json JSON NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "billing_plans",
+      `CREATE TABLE IF NOT EXISTS billing_plans (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+        billing_interval ENUM('day', 'week', 'month', 'year') NOT NULL DEFAULT 'month',
+        billing_interval_count INT NOT NULL DEFAULT 1,
+        duration_days INT NOT NULL DEFAULT 30,
+        features JSON NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        subscription_plan_id VARCHAR(36) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_billing_plans_subscription_plan_id (subscription_plan_id),
+        FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+    await ensureColumnExists(
+      connection,
+      "billing_plans",
+      "subscription_plan_id",
+      "VARCHAR(36) NULL",
+    );
+
+    await ensureTableExists(
+      connection,
       "subscription_events",
       `CREATE TABLE IF NOT EXISTS subscription_events (
         id VARCHAR(36) PRIMARY KEY,
@@ -2300,6 +2359,52 @@ export async function ensureDatabaseSchema() {
         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
+
+    // O compilador aplica isolamento por tenant nestas tabelas. Versões antigas
+    // possuíam apenas user_id; adicionamos e preenchemos tenant_id de forma
+    // idempotente para que bancos locais e instalações novas tenham o mesmo contrato.
+    const tenantScopedLegacyTables = [
+      "bot_settings",
+      "bot_steps",
+      "bot_step_options",
+      "opportunity_lost_reasons",
+      "sales_funnels",
+      "sales_stages",
+      "tags",
+      "lists",
+      "templates",
+      "contact_custom_fields",
+      "contacts",
+      "opportunities",
+      "campaigns",
+      "bot_conversation_state",
+      "chat_sessions",
+      "conversation_assignments",
+      "contact_tags",
+      "list_contacts",
+      "opportunity_contacts",
+      "opportunity_stage_history",
+      "opportunity_activities",
+      "opportunity_notes",
+      "opportunity_tags",
+      "opportunity_audit_logs",
+      "direct_messages",
+      "campaign_messages",
+      "contact_activities",
+      "whatsapp_flows",
+      "ai_agent_settings",
+      "knowledge_base",
+    ];
+
+    for (const tableName of tenantScopedLegacyTables) {
+      if (!(await tableExists(connection, tableName))) continue;
+      await ensureColumnExists(connection, tableName, "tenant_id", "VARCHAR(36) NULL");
+      if (await columnExists(connection, tableName, "user_id")) {
+        await connection.query(
+          `UPDATE \`${tableName}\` SET tenant_id = user_id WHERE tenant_id IS NULL`,
+        );
+      }
+    }
 
     logSchema("Schema validado com sucesso.");
   } finally {

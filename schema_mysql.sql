@@ -1191,6 +1191,38 @@ CREATE TABLE IF NOT EXISTS platform_banners (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS subscription_plans (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  slug VARCHAR(80) NOT NULL UNIQUE,
+  description TEXT NULL,
+  max_agents INT NOT NULL DEFAULT 1,
+  max_funnels INT NOT NULL DEFAULT 1,
+  max_users INT NOT NULL DEFAULT 1,
+  features_json JSON NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS billing_plans (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+  billing_interval ENUM('day', 'week', 'month', 'year') NOT NULL DEFAULT 'month',
+  billing_interval_count INT NOT NULL DEFAULT 1,
+  duration_days INT NOT NULL DEFAULT 30,
+  features JSON NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  subscription_plan_id VARCHAR(36) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_billing_plans_subscription_plan_id (subscription_plan_id),
+  FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE INDEX idx_teams_user ON teams(user_id);
 CREATE INDEX idx_teams_tenant ON teams(tenant_id);
 CREATE INDEX idx_team_members_user ON team_members(user_id);
