@@ -9,10 +9,13 @@ export const Route = createFileRoute("/api/billing/subscription")({
       GET: async ({ request }) => {
         try {
           const user = await verifyApiUser(request);
+          const { getTenantSubscriptionAccess } = await import("@/lib/services/subscription-access.service");
+          const access = await getTenantSubscriptionAccess(user.userId);
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
           // Get active plan details
-          const plans = (await db.query("SELECT * FROM billing_plans WHERE id = ? LIMIT 1", [
+          const plans = (await db.query("SELECT * FROM billing_plans WHERE id = ? OR subscription_plan_id = ? LIMIT 1", [
+            sub.plan_id,
             sub.plan_id,
           ])) as any[];
 
@@ -22,6 +25,7 @@ export const Route = createFileRoute("/api/billing/subscription")({
             JSON.stringify({
               subscription: sub,
               plan,
+              access,
             }),
             {
               status: 200,

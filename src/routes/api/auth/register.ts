@@ -58,12 +58,16 @@ export const Route = createFileRoute("/api/auth/register")({
               displayName,
             ]);
 
-            // 4. Insert default subscription (license) record for this owner
+            // 4. Criar assinatura com Trial Gratuito de 3 Dias (72h) no subscriptions
+            const { createTrialSubscriptionForTenant } = await import("@/lib/services/subscription-access.service");
+            await createTrialSubscriptionForTenant(userId, userId, conn);
+
+            // 5. Manter licença como fallback de infraestrutura
             const crypto = await import("crypto");
             const licenseKey = cleanEmail;
             const keyHash = crypto.createHash("sha256").update(licenseKey).digest("hex");
             const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 15); // 15 days trial
+            expiresAt.setDate(expiresAt.getDate() + 3);
 
             await conn.execute(
               `INSERT INTO licenses (id, license_key_hash, license_key_preview, client_name, client_email, plan, status, expires_at, tenant_id)

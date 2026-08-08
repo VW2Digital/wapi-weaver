@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { requireAuth, requireSubscription } from "@/integrations/mysql/auth-middleware";
 import { normalizeToE164 } from "@/lib/phone";
 import crypto from "crypto";
 
@@ -16,7 +16,7 @@ const contactInput = z.object({
 });
 
 export const updateContactProfilePhoto = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d) =>
     z
       .object({
@@ -62,14 +62,14 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
   });
 
 export const listContacts = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .handler(async ({ context }) => {
     const { listContactsForUser } = await import("./services/contacts.service.js");
     return await listContactsForUser(context.userId);
   });
 
 export const createContact = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d) => contactInput.parse(d))
   .handler(async ({ data, context }) => {
     const { createContactForUser } = await import("./services/contacts.service.js");
@@ -77,7 +77,7 @@ export const createContact = createServerFn({ method: "POST" })
   });
 
 export const deleteContact = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { deleteContactForUser } = await import("./services/contacts.service.js");

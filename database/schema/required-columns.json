@@ -876,6 +876,11 @@
     "customer_id",
     "current_period_start",
     "current_period_end",
+    "trial_started_at",
+    "trial_ends_at",
+    "trial_consumed_at",
+    "activated_at",
+    "cancelled_at",
     "created_at",
     "updated_at"
   ],

@@ -71,3 +71,28 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
     },
   });
 });
+
+export const requireSubscription = createMiddleware({ type: "function" })
+  .middleware([requireAuth])
+  .server(async ({ next, context }) => {
+    const { getTenantSubscriptionAccess } = await import("@/lib/services/subscription-access.service");
+    const access = await getTenantSubscriptionAccess(context.userId);
+
+    if (!access.allowed) {
+      throw Object.assign(
+        new Error("SUBSCRIPTION_REQUIRED: Seu período de teste de 3 dias terminou. Ative sua assinatura para continuar."),
+        {
+          statusCode: 402,
+          code: "SUBSCRIPTION_REQUIRED",
+          access,
+        }
+      );
+    }
+
+    return next({
+      context: {
+        ...context,
+        subscriptionAccess: access,
+      },
+    });
+  });

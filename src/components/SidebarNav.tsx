@@ -15,13 +15,14 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen, PanelRightOpen } from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Lock } from "lucide-react";
 
 export type SidebarNavItem = {
   id: string;
   label: string;
   icon: React.ElementType<{ className?: string }>;
   badge?: string | number;
+  isLocked?: boolean;
   children?: SidebarNavItem[];
 };
 
@@ -149,6 +150,9 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
                                     >
                                       <ChildIcon className="h-4 w-4" />
                                       <span>{child.label}</span>
+                                      {child.isLocked && (
+                                        <Lock className="h-3.5 w-3.5 ml-auto text-amber-500 shrink-0" />
+                                      )}
                                     </SidebarMenuSubButton>
                                   </SidebarMenuSubItem>
                                 );
@@ -181,6 +185,9 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
                         <span className="transition-transform duration-200 group-hover/nav:translate-x-0.5 whitespace-nowrap group-data-[collapsible=icon]:hidden">
                           {item.label}
                         </span>
+                        {item.isLocked && (
+                          <Lock className="h-3.5 w-3.5 ml-auto text-amber-500 shrink-0 group-data-[collapsible=icon]:hidden" />
+                        )}
                         {item.badge != null && Number(item.badge) > 0 && (
                           <SidebarMenuBadge className="bg-destructive text-destructive-foreground rounded-full ml-auto group-data-[collapsible=icon]:hidden right-2 h-5 w-5 flex items-center justify-center p-0 text-[10px]">
                             {item.badge}

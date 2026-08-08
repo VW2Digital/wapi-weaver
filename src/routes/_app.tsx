@@ -124,13 +124,45 @@ const NAV: NavItem[] = [
 ];
 
 const ADMIN_ONLY_PATHS = new Set([
-  "/webhook-events", 
-  "/billing", 
-  "/automacoes", 
-  "/bot", 
-  "/ds-agente", 
-  "/webhooks"
+  "/webhook-events",
+  "/billing",
+  "/automacoes",
+  "/bot",
+  "/ds-agente",
+  "/webhooks",
 ]);
+
+const OPERATIONAL_PATHS = new Set([
+  "/chat",
+  "/contacts",
+  "/contacts/",
+  "/lists",
+  "/templates",
+  "/campaigns",
+  "/campaigns/",
+  "/crm",
+  "/agenda",
+  "/automacoes",
+  "/bot",
+  "/ds-agente",
+  "/webhooks",
+  "/webhook-events",
+]);
+
+const GROUP_ORDER: Record<string, number> = {
+  "/dashboard": 0,
+  "/chat": 0,
+  "/contacts/": 1,
+  "/lists": 1,
+  "/templates": 2,
+  "/campaigns/": 2,
+  "/crm": 3,
+  "/agenda": 3,
+  "/automacoes": 4,
+  "/billing": 5,
+  "/settings": 6,
+  "/licenses/": 7,
+};
 
 function AppLayout() {
   const { user, loading } = useAuth();
@@ -187,6 +219,22 @@ function AppLayout() {
     staleTime: 60_000,
   });
 
+  const subscriptionQuery = useQuery({
+    queryKey: ["subscription-access"],
+    queryFn: async () => {
+      const res = await fetch("/api/billing/subscription");
+      if (!res.ok) return null;
+      return await res.json();
+    },
+    enabled: !loading && !!user,
+    staleTime: 10000,
+    refetchInterval: 30000,
+  });
+
+  const subAccess = subscriptionQuery.data?.access;
+  const isSubscriptionBlocked = subAccess ? subAccess.allowed === false : false;
+  const isTrialActive = subAccess ? subAccess.status === "trialing" && subAccess.allowed : false;
+
   const navItems = useMemo(() => {
     const base: NavItem[] = [...NAV];
     const billingEnabled = import.meta.env.VITE_BILLING_ENABLED !== "false";
@@ -229,31 +277,20 @@ function AppLayout() {
     }
   }, [sidebarOrderData, navItems]);
 
-  const GROUP_ORDER: Record<string, number> = {
-    "/dashboard": 0,
-    "/chat": 0,
-    "/contacts/": 1,
-    "/lists": 1,
-    "/templates": 2,
-    "/campaigns/": 2,
-    "/crm": 3,
-    "/agenda": 3,
-    "/automacoes": 4,
-    "/billing": 5,
-    "/settings": 6,
-    "/licenses/": 7,
-  };
-
   const sidebarGroups = useMemo(() => {
     const groupMap = new Map<number, SidebarNavItem[]>();
     for (const item of orderedNav) {
       if (ADMIN_ONLY_PATHS.has(item.to) && !isAdmin) continue;
       const gIdx = GROUP_ORDER[item.to] ?? 0;
       if (!groupMap.has(gIdx)) groupMap.set(gIdx, []);
+      
+      const isLocked = isSubscriptionBlocked && OPERATIONAL_PATHS.has(item.to);
+
       const navItem: SidebarNavItem = {
         id: item.to,
         label: item.label,
         icon: item.icon,
+        isLocked,
         badge: item.to === "/chat" && totalUnread > 0 ? totalUnread : undefined,
       };
       if ("children" in item && item.children.length > 0) {
@@ -263,6 +300,7 @@ function AppLayout() {
             id: child.to,
             label: child.label,
             icon: child.icon,
+            isLocked: isSubscriptionBlocked && OPERATIONAL_PATHS.has(child.to),
           }));
         if (navItem.children.length === 0) continue;
       }
@@ -272,11 +310,15 @@ function AppLayout() {
       .sort(([a], [b]) => a - b)
       .map(([, items]) => items)
       .filter((g) => g.length > 0);
-  }, [orderedNav, isAdmin, totalUnread]);
+  }, [orderedNav, isAdmin, totalUnread, isSubscriptionBlocked]);
 
   const handleNavigate = useCallback(
     (path: string) => {
       const p = path.endsWith("/") && path !== "/" ? path.slice(0, -1) : path;
+      if (isSubscriptionBlocked && OPERATIONAL_PATHS.has(p)) {
+        setIsCheckoutModalOpen(true);
+        return;
+      }
       if (p === "/settings") {
         router.navigate({ to: "/settings", search: { s: undefined } });
       } else if (p === "/chat") {
@@ -317,7 +359,7 @@ function AppLayout() {
         router.navigate({ to: "/settings", search: { s: undefined } });
       }
     },
-    [router],
+    [router, isSubscriptionBlocked],
   );
 
   const profileSidebarQuery = useQuery({
@@ -533,25 +575,38 @@ function AppLayout() {
             </div>
           </header>
 
-          {/* Banner de Aviso de Assinatura Expirada / Vencendo */}
-          {isLicenseExpiredOrWarning && (
+          {/* Banner de Trial Ativo (3 Dias) */}
+          {isTrialActive && subAccess && (
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-4 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-indigo-500/30 z-30">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="h-5 w-5 text-amber-300 shrink-0 animate-pulse" />
+                <div>
+                  <span className="font-bold">Período de Teste Gratuito Ativo:</span>{" "}
+                  <span className="opacity-95">
+                    {subAccess.remainingSeconds > 86400
+                      ? `Você tem ${Math.floor(subAccess.remainingSeconds / 86400)} dia(s) e ${Math.floor((subAccess.remainingSeconds % 86400) / 3600)} hora(s) restantes de acesso completo.`
+                      : `Seu teste gratuito encerra em ${Math.floor(subAccess.remainingSeconds / 3600)} hora(s) e ${Math.floor((subAccess.remainingSeconds % 3600) / 60)} min.`}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCheckoutModalOpen(true)}
+                className="inline-flex items-center rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+              >
+                Conhecer Planos
+              </button>
+            </div>
+          )}
+
+          {/* Banner de Assinatura Expirada / Bloqueada */}
+          {(isSubscriptionBlocked || isLicenseExpiredOrWarning) && !isTrialActive && (
             <div className="bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 text-white px-4 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-red-500/30 z-30">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="h-5 w-5 text-amber-200 shrink-0 animate-bounce" />
                 <div>
-                  <span className="font-bold">
-                    {licenseData?.status === "past_due" || licenseData?.hasGraceStarted
-                      ? "Aviso de Pagamento:"
-                      : licenseData?.status === "expiring"
-                      ? "Atenção (Vencimento Próximo):"
-                      : "Sua Assinatura está Expirada!"}
-                  </span>{" "}
+                  <span className="font-bold">Seu Período de Teste Terminou:</span>{" "}
                   <span className="opacity-95">
-                    {licenseData?.status === "past_due" || licenseData?.hasGraceStarted
-                      ? `Sua conta está no período de carência (${licenseData.graceDaysRemaining} dias restantes). Renove para evitar bloqueio do atendimento.`
-                      : licenseData?.status === "expiring"
-                      ? "Sua assinatura vence em breve. Regularize agora para garantir a continuidade do serviço."
-                      : "Sua assinatura venceu. Clique no botão ao lado para renovar e liberar seu acesso completo."}
+                    Para continuar utilizando todos os recursos operacionais do BLIV CRM, ative sua assinatura.
                   </span>
                 </div>
               </div>
@@ -559,7 +614,7 @@ function AppLayout() {
                 onClick={() => setIsCheckoutModalOpen(true)}
                 className="inline-flex items-center rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
               >
-                Renovar Assinatura
+                Ativar Minha Assinatura
               </button>
             </div>
           )}

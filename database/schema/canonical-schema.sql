@@ -1182,6 +1182,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   customer_id VARCHAR(255) NULL,
   current_period_start DATETIME NULL,
   current_period_end DATETIME NULL,
+  trial_started_at DATETIME NULL,
+  trial_ends_at DATETIME NULL,
+  trial_consumed_at DATETIME NULL,
+  activated_at DATETIME NULL,
+  cancelled_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE CASCADE

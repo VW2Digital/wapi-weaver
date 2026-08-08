@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { requireAuth, requireSubscription } from "@/integrations/mysql/auth-middleware";
 import {
   createCalendarEventForUser,
   getCalendarEventsByRangeForUser,
@@ -64,7 +64,7 @@ const updateEventSchema = createEventSchema
   });
 
 export const listCalendarEvents = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireAuth, requireSubscription])
   .validator((d: any) =>
     z
       .object({
@@ -145,7 +145,7 @@ export const getCalendarEvent = createServerFn({ method: "POST" })
   });
 
 export const createCalendarEvent = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireAuth, requireSubscription])
   .validator((d: any) => createEventSchema.parse(d))
   .handler(async ({ data, context }) => {
     const result = await createCalendarEventForUser(context.userId, {
