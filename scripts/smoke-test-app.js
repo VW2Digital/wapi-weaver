@@ -1,8 +1,13 @@
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { runWithStartContext } from "@tanstack/start-storage-context";
-import { createContact, listContacts, updateContact, deleteContact } from "../src/lib/contacts.functions.js";
+import jwt from "jsonwebtoken";
+import {
+  createContactForUser,
+  listContactsForUser,
+  updateContactForUser,
+  deleteContactForUser
+} from "../src/lib/services/contacts.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +47,12 @@ async function main() {
     process.exit(1);
   }
 
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    console.error("[App Smoke Test] ❌ CRITICAL: JWT_SECRET environment variable is missing!");
+    process.exit(1);
+  }
+
   const targetUrl = process.env.TARGET_URL || "http://127.0.0.1:3000/api/auth/login";
   console.log(`[App Smoke Test] 1. Testing HTTP authentication against ${targetUrl}...`);
 
@@ -78,19 +89,22 @@ async function main() {
     process.exit(1);
   }
 
-  // Helper to run server functions with auth context
-  async function runAuthFn(fn, dataArg) {
-    const mockRequest = new Request("http://127.0.0.1:3000/api/server-fn", {
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-    });
-
-    return await runWithStartContext({ req: mockRequest }, async () => {
-      return await fn({ data: dataArg });
-    });
+  // 3. Obtain userId real do JWT
+  let decoded;
+  try {
+    decoded = jwt.verify(token, jwtSecret);
+  } catch (err) {
+    console.error("[App Smoke Test] ❌ FAIL: JWT verification failed with JWT_SECRET:", err.message);
+    process.exit(1);
   }
+
+  const userId = decoded?.sub;
+  if (!userId) {
+    console.error("[App Smoke Test] ❌ FAIL: decoded JWT did not contain 'sub' (userId) claim.");
+    process.exit(1);
+  }
+
+  console.log("[App Smoke Test] authenticated userId:", userId);
 
   const testPhone = "+5511977776666";
   const initialName = "App Smoke Test Contact";
@@ -98,64 +112,75 @@ async function main() {
   let createdId = "";
 
   try {
-    // 2. Create Contact via Server Function
-    console.log("[App Smoke Test] 2. Creating contact via application server function layer...");
-    const created = await runAuthFn(createContact, {
+    // 4. Executar as mesmas funções de serviço
+    console.log("[App Smoke Test] 2. Creating contact via application service layer...");
+    const created = await createContactForUser(userId, {
       phone: testPhone,
       name: initialName,
       email: "app_smoke@test.com",
       status: "lead",
+      custom_fields: {},
     });
 
     if (!created || !created.id) {
-      console.error("[App Smoke Test] ❌ FAIL: createContact returned invalid object.");
+      console.error("[App Smoke Test] ❌ FAIL: createContactForUser returned invalid object.");
       process.exit(1);
     }
     createdId = created.id;
-    console.log(`[App Smoke Test] ✅ 2. Contact created via application layer (ID: ${createdId}).`);
+    console.log(`[App Smoke Test] ✅ 2. Contact created via application service layer (ID: ${createdId}).`);
 
-    // 3. List Contacts via Server Function
-    console.log("[App Smoke Test] 3. Listing contacts via application server function layer...");
-    const list = await runAuthFn(listContacts, undefined);
+    // 5. List Contacts via Service Layer
+    console.log("[App Smoke Test] 3. Listing contacts via application service layer...");
+    const list = await listContactsForUser(userId);
     const foundInList = Array.isArray(list) && list.some((c) => c.id === createdId);
     if (!foundInList) {
-      console.error("[App Smoke Test] ❌ FAIL: Created contact not found in listContacts output.");
+      console.error("[App Smoke Test] ❌ FAIL: Created contact not found in listContactsForUser output.");
       process.exit(1);
     }
-    console.log("[App Smoke Test] ✅ 3. Verified created contact in listContacts.");
+    console.log("[App Smoke Test] ✅ 3. Contact found in list.");
 
-    // 4. Update Contact via Server Function
-    console.log("[App Smoke Test] 4. Updating contact via application server function layer...");
-    const updated = await runAuthFn(updateContact, {
+    // 6. Update Contact via Service Layer
+    console.log("[App Smoke Test] 4. Updating contact via application service layer...");
+    const updated = await updateContactForUser(userId, {
       id: createdId,
       phone: testPhone,
       name: updatedName,
+      email: "app_smoke@test.com",
       status: "qualificado",
+      custom_fields: {},
+      metadata: {},
+      opted_out: false,
+      channel: "whatsapp",
+      is_pinned: false,
+      is_archived: false,
+      chat_status: "aberto",
+      is_unread: false,
+      kanban_stage_id: null,
     });
 
     if (!updated || updated.name !== updatedName) {
-      console.error("[App Smoke Test] ❌ FAIL: updateContact did not update fields correctly.");
+      console.error("[App Smoke Test] ❌ FAIL: updateContactForUser did not update fields correctly.");
       process.exit(1);
     }
-    console.log("[App Smoke Test] ✅ 4. Contact updated and verified via application layer.");
+    console.log("[App Smoke Test] ✅ 4. Contact updated.");
 
-    // 5. Delete Contact via Server Function
-    console.log("[App Smoke Test] 5. Deleting contact via application server function layer...");
-    const deleteRes = await runAuthFn(deleteContact, { id: createdId });
+    // 7. Delete Contact via Service Layer
+    console.log("[App Smoke Test] 5. Deleting contact via application service layer...");
+    const deleteRes = await deleteContactForUser(userId, createdId);
     if (!deleteRes || deleteRes.ok !== true) {
-      console.error("[App Smoke Test] ❌ FAIL: deleteContact did not return ok: true.");
+      console.error("[App Smoke Test] ❌ FAIL: deleteContactForUser did not return ok: true.");
       process.exit(1);
     }
-    console.log("[App Smoke Test] ✅ 5. Contact deleted via application layer.");
+    console.log("[App Smoke Test] ✅ 5. Contact deleted.");
 
-    // 6. Confirm Contact Removed
-    const afterDeleteList = await runAuthFn(listContacts, undefined);
+    // 8. Confirm Contact Removed
+    const afterDeleteList = await listContactsForUser(userId);
     const stillExists = Array.isArray(afterDeleteList) && afterDeleteList.some((c) => c.id === createdId);
     if (stillExists) {
-      console.error("[App Smoke Test] ❌ FAIL: Contact still present in listContacts after deletion.");
+      console.error("[App Smoke Test] ❌ FAIL: Contact still present in listContactsForUser after deletion.");
       process.exit(1);
     }
-    console.log("[App Smoke Test] ✅ 6. Confirmed contact removed from listContacts.");
+    console.log("[App Smoke Test] ✅ 6. Contact removal confirmed.");
 
     console.log("=================================================");
     console.log("  APPLICATION SMOKE TEST PASSED                  ");
@@ -167,7 +192,7 @@ async function main() {
     // Attempt cleanup on failure
     if (createdId) {
       try {
-        await runAuthFn(deleteContact, { id: createdId });
+        await deleteContactForUser(userId, createdId);
       } catch (_) {}
     }
 

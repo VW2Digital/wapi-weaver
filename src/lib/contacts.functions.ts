@@ -64,120 +64,24 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
 export const listContacts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { getTenantFilter } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const { sqlWhere, params: filterParams } = await getTenantFilter(context.userId);
-    const PAGE = 1000;
-    const all: any[] = [];
-    for (let from = 0; ; from += PAGE) {
-      const data: any[] = (await db.query(
-        `SELECT * FROM contacts WHERE ${sqlWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-        [...filterParams, PAGE, from],
-      )) as any[];
-      if (!data || data.length === 0) break;
-      all.push(...data);
-      if (data.length < PAGE) break;
-    }
-    return all;
+    const { listContactsForUser } = await import("./services/contacts.service.js");
+    return await listContactsForUser(context.userId);
   });
 
 export const createContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => contactInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
-    const { emitEvent } = await import("@/lib/webhooks.server");
-
-    const phone = normalizeToE164(data.phone);
-    if (!phone) throw new Error("Telefone inválido");
-
-    const contact = await db.transaction(async (conn) => {
-      const [existing]: any = await conn.execute(
-        "SELECT id, custom_fields FROM contacts WHERE user_id = ? AND phone_e164 = ? FOR UPDATE",
-        [effectiveUserId, phone],
-      );
-
-      const mergedCustomFields =
-        existing?.[0]?.custom_fields && typeof existing[0].custom_fields === "object"
-          ? {
-              ...(existing[0].custom_fields as Record<string, any>),
-              ...(data.custom_fields ?? {}),
-            }
-          : (data.custom_fields ?? {});
-
-      const id = existing?.[0]?.id ?? crypto.randomUUID();
-      await conn.execute(
-        `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, contact_number, name, email, custom_fields, company, position, status, responsible_user_id, source, source_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual')
-         ON DUPLICATE KEY UPDATE contact_number = VALUES(contact_number), name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields), company = VALUES(company), position = VALUES(position), status = VALUES(status), responsible_user_id = VALUES(responsible_user_id)`,
-        [
-          id,
-          effectiveUserId,
-          effectiveUserId,
-          phone,
-          phone,
-          data.name || null,
-          data.email || null,
-          JSON.stringify(mergedCustomFields),
-          data.company || null,
-          data.position || null,
-          data.status || null,
-          data.responsible_user_id || null,
-        ],
-      );
-      const [rows]: any = await conn.execute("SELECT * FROM contacts WHERE id = ?", [id]);
-      return rows[0];
-    });
-
-    // Fire-and-forget: notify outgoing webhooks
-    emitEvent(effectiveUserId, "LEAD_CREATED", {
-      id: contact.id,
-      phone_e164: contact.phone_e164,
-      name: contact.name,
-      email: contact.email,
-    }).catch(() => {});
-
-    return contact;
+    const { createContactForUser } = await import("./services/contacts.service.js");
+    return await createContactForUser(context.userId, data);
   });
 
 export const deleteContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
-
-    return await db.transaction(async (conn) => {
-      const [contacts]: any = await conn.execute(
-        "SELECT phone_e164 FROM contacts WHERE id = ? AND user_id = ?",
-        [data.id, effectiveUserId],
-      );
-      const contact = contacts?.[0];
-
-      if (contact) {
-        await conn.execute(
-          "DELETE FROM conversation_assignments WHERE contact_phone = ? AND user_id = ?",
-          [contact.phone_e164, effectiveUserId],
-        );
-        await conn.execute(
-          "DELETE FROM conversation_tags WHERE contact_number = ? AND user_id = ?",
-          [contact.phone_e164, effectiveUserId],
-        );
-      }
-
-      // Limpar junction tables antes de deletar o contato
-      await conn.execute("DELETE FROM contact_tags WHERE contact_id = ?", [data.id]);
-      await conn.execute("DELETE FROM list_contacts WHERE contact_id = ?", [data.id]);
-
-      await conn.execute("DELETE FROM contacts WHERE id = ? AND user_id = ?", [
-        data.id,
-        effectiveUserId,
-      ]);
-      return { ok: true };
-    });
+    const { deleteContactForUser } = await import("./services/contacts.service.js");
+    return await deleteContactForUser(context.userId, data.id);
   });
 
 const updateContactInput = z.object({
@@ -210,92 +114,8 @@ export const updateContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => updateContactInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
-
-    const phone = normalizeToE164(data.phone);
-    if (!phone) throw new Error("Telefone inválido");
-
-    if (data.kanban_stage_id !== undefined && data.kanban_stage_id !== null) {
-      const existingContacts = (await db.query(
-        "SELECT kanban_stage_id FROM contacts WHERE id = ? AND user_id = ? LIMIT 1",
-        [data.id, effectiveUserId],
-      )) as any[];
-      const currentStageId = existingContacts?.[0]?.kanban_stage_id;
-
-      let requiredFunnelId: string | null = null;
-      if (currentStageId) {
-        const stages = (await db.query(
-          "SELECT funnel_id FROM sales_stages WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-          [currentStageId, effectiveUserId],
-        )) as any[];
-        requiredFunnelId = stages?.[0]?.funnel_id ?? null;
-      }
-      if (!requiredFunnelId) {
-        const funnels = (await db.query(
-          "SELECT id FROM sales_funnels WHERE user_id = ? AND is_default = TRUE AND is_active = TRUE AND deleted_at IS NULL LIMIT 1",
-          [effectiveUserId],
-        )) as any[];
-        requiredFunnelId = funnels?.[0]?.id ?? null;
-      }
-
-      if (requiredFunnelId) {
-        const validStages = (await db.query(
-          "SELECT 1 FROM sales_stages WHERE id = ? AND funnel_id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
-          [data.kanban_stage_id, requiredFunnelId, effectiveUserId],
-        )) as any[];
-        if (!validStages?.[0]) {
-          throw new Error("A etapa selecionada não pertence ao funil do contato.");
-        }
-      }
-    }
-
-    const fields: Record<string, any> = {
-      phone_e164: phone,
-      ...(data.name !== undefined ? { name: data.name || null } : {}),
-      ...(data.email !== undefined ? { email: data.email || null } : {}),
-      ...(data.company !== undefined ? { company: data.company || null } : {}),
-      ...(data.position !== undefined ? { position: data.position || null } : {}),
-      ...(data.status !== undefined ? { status: data.status || null } : {}),
-      ...(data.responsible_user_id !== undefined ? { responsible_user_id: data.responsible_user_id || null } : {}),
-      ...(data.source !== undefined ? { source: data.source || null } : {}),
-      ...(data.source_type !== undefined ? { source_type: data.source_type || null } : {}),
-      ...(data.source_name !== undefined ? { source_name: data.source_name || null } : {}),
-      ...(data.source_id !== undefined ? { source_id: data.source_id || null } : {}),
-      ...(data.external_id !== undefined ? { external_id: data.external_id || null } : {}),
-      ...(data.metadata !== undefined
-        ? { metadata: JSON.stringify(data.metadata) }
-        : {}),
-      ...(data.opted_out !== undefined ? { opted_out: data.opted_out ? 1 : 0 } : {}),
-      ...(data.channel !== undefined ? { channel: data.channel } : {}),
-      ...(data.external_contact_id !== undefined
-        ? { external_contact_id: data.external_contact_id || null }
-        : {}),
-      ...(data.custom_fields !== undefined
-        ? { custom_fields: JSON.stringify(data.custom_fields) }
-        : {}),
-      ...(data.is_pinned !== undefined ? { is_pinned: data.is_pinned ? 1 : 0 } : {}),
-      ...(data.is_archived !== undefined ? { is_archived: data.is_archived ? 1 : 0 } : {}),
-      ...(data.chat_status !== undefined ? { chat_status: data.chat_status } : {}),
-      ...(data.is_unread !== undefined ? { is_unread: data.is_unread ? 1 : 0 } : {}),
-      ...(data.kanban_stage_id !== undefined
-        ? { kanban_stage_id: data.kanban_stage_id || null }
-        : {}),
-    };
-
-    const setClause = Object.keys(fields)
-      .map((k) => `\`${k}\` = ?`)
-      .join(", ");
-    const values = Object.values(fields);
-
-    await db.query(`UPDATE contacts SET ${setClause} WHERE id = ? AND user_id = ?`, [
-      ...values,
-      data.id,
-      effectiveUserId,
-    ]);
-    const rows = await db.query("SELECT * FROM contacts WHERE id = ?", [data.id]);
-    return (rows as any[])[0];
+    const { updateContactForUser } = await import("./services/contacts.service.js");
+    return await updateContactForUser(context.userId, data);
   });
 
 export const getContactKanbanStages = createServerFn({ method: "GET" })
