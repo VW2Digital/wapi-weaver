@@ -162,6 +162,25 @@ function LicenseDetailPage() {
     }
   };
 
+  const { license, activations, logs } = data ?? {};
+
+  usePageHeader({
+    title: license?.license_key_preview ?? "",
+    subtitle: license ? `Cliente: ${license.client_name}` : "",
+    action: license ? (
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="capitalize">
+          {license.plan}
+        </Badge>
+        <Button variant="outline" size="icon" asChild>
+          <Link to="/licenses">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+    ) : undefined,
+  });
+
   if (roleLoading) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground p-12">
@@ -204,24 +223,8 @@ function LicenseDetailPage() {
     );
   }
 
-  const { license, activations, logs } = data;
-
-  usePageHeader({
-    title: license.license_key_preview,
-    subtitle: `Cliente: ${license.client_name}`,
-    action: (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="capitalize">
-          {license.plan}
-        </Badge>
-        <Button variant="outline" size="icon" asChild>
-          <Link to="/licenses">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
-    ),
-  });
+  // Após os guards, data está garantido — desestrutura sem opcional para satisfazer o TypeScript
+  const { activations: acts, logs: logEntries } = data;
 
   return (
     <div className="space-y-8 p-6 pb-16">
@@ -312,11 +315,11 @@ function LicenseDetailPage() {
           {/* Active Activations */}
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Conexões Ativas ({activations.length})</CardTitle>
+              <CardTitle>Conexões Ativas ({acts.length})</CardTitle>
               <CardDescription>Instâncias reportando requisições com este domínio.</CardDescription>
             </CardHeader>
             <CardContent>
-              {!activations.length ? (
+              {!acts.length ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <Globe className="h-8 w-8 mb-2 opacity-40" />
                   Nenhum servidor ativado atualmente.
@@ -333,7 +336,7 @@ function LicenseDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activations.map((act) => {
+                      {acts.map((act) => {
                         const lastCheck = act.last_check_at
                           ? new Date(act.last_check_at).toLocaleString()
                           : "N/A";
@@ -374,7 +377,7 @@ function LicenseDetailPage() {
               <CardDescription>Logs das requisições mais recentes.</CardDescription>
             </CardHeader>
             <CardContent>
-              {!logs.length ? (
+              {!logEntries.length ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <Database className="h-8 w-8 mb-2 opacity-40" />
                   Nenhuma validação gravada.
@@ -390,7 +393,7 @@ function LicenseDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {logs.map((log) => {
+                      {logEntries.map((log) => {
                         const date = new Date(log.created_at).toLocaleString();
                         const isSuccess = log.result === "success" || log.result === "active";
                         return (

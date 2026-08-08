@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { requireAuth, requireSubscription } from "@/integrations/mysql/auth-middleware";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -92,7 +92,7 @@ export const getDsFolders = createServerFn({ method: "GET" })
   });
 
 export const createDsFolder = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ name: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }: { data: { name: string }; context: any }) => {
     try {
@@ -120,7 +120,7 @@ export const createDsFolder = createServerFn({ method: "POST" })
   });
 
 export const updateDsFolder = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string(), name: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }: { data: { id: string; name: string }; context: any }) => {
     try {
@@ -142,7 +142,7 @@ export const updateDsFolder = createServerFn({ method: "POST" })
   });
 
 export const deleteDsFolder = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
     try {
@@ -213,7 +213,7 @@ export const getDsAgentsByFolder = createServerFn({ method: "GET" })
   });
 
 export const createDsAgent = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator(
     (d: any) =>
       z
@@ -358,7 +358,7 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
   });
 
 export const updateDsAgent = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string(), updates: z.record(z.string(), z.any()) }).parse(d))
   .handler(async ({ data, context }: { data: { id: string; updates: any }; context: any }) => {
     try {
@@ -421,7 +421,7 @@ export const updateDsAgent = createServerFn({ method: "POST" })
   });
 
 export const deleteDsAgent = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
     try {
@@ -439,7 +439,7 @@ export const deleteDsAgent = createServerFn({ method: "POST" })
   });
 
 export const moveDsAgent = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string(), folderId: z.string().nullable() }).parse(d))
   .handler(async ({ data, context }: { data: { id: string; folderId: string | null }; context: any }) => {
     try {
@@ -465,7 +465,7 @@ export const moveDsAgent = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const addDsKnowledgeFile = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator(
     (d: any) =>
       z
@@ -507,7 +507,7 @@ export const addDsKnowledgeFile = createServerFn({ method: "POST" })
   });
 
 export const deleteDsKnowledgeFile = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
     try {
@@ -528,7 +528,7 @@ export const deleteDsKnowledgeFile = createServerFn({ method: "POST" })
   });
 
 export const addDsKnowledgeLink = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ agent_id: z.string(), url: z.string().url() }).parse(d))
   .handler(async ({ data, context }: { data: { agent_id: string; url: string }; context: any }) => {
     try {
@@ -557,7 +557,7 @@ export const addDsKnowledgeLink = createServerFn({ method: "POST" })
   });
 
 export const deleteDsKnowledgeLink = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
     try {
@@ -582,7 +582,7 @@ export const deleteDsKnowledgeLink = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const updateDsTool = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator(
     (d: any) =>
       z
@@ -620,7 +620,7 @@ export const updateDsTool = createServerFn({ method: "POST" })
   });
 
 export const saveDsCalendarAvailability = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator(
     (d: any) =>
       z
@@ -665,7 +665,7 @@ export const saveDsCalendarAvailability = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const createDsFollowup = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator(
     (d: any) =>
       z
@@ -717,7 +717,7 @@ export const createDsFollowup = createServerFn({ method: "POST" })
   });
 
 export const deleteDsFollowup = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireSubscription])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }: { data: { id: string }; context: any }) => {
     try {
