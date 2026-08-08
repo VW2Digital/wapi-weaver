@@ -29,11 +29,17 @@ async function main() {
   console.log("    EXECUTING DATABASE CRUD SMOKE TEST           ");
   console.log("=================================================");
 
+  const dbPassword = process.env.DB_PASSWORD;
+  if (!dbPassword) {
+    console.error("[Smoke Test] ❌ CRITICAL: DB_PASSWORD environment variable is missing!");
+    process.exit(1);
+  }
+
   const dbConfig = {
     host: process.env.DB_HOST || "mysql",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
-    password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+    password: dbPassword,
     database: process.env.DB_NAME || "wapi_weaver",
   };
 

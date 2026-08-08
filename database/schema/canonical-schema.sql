@@ -1,8 +1,8 @@
 -- ==============================================================================
 -- BLIV CRM / WAPI WEAVER - CANONICAL DATABASE SCHEMA (FONTE UNICA DE VERDADE)
 -- ==============================================================================
--- Este arquivo contem a definicao completa de TODAS as tabelas da aplicacao.
--- Utilizado por scripts/create-all-tables.js em instalacoes novas e atualizacoes.
+-- USAGE: Instalação Nova (source of truth para scripts/create-all-tables.js)
+-- Para upgrade de instalações existentes, as migrações estão em database/migrations/.
 -- NENHUM COMANDO DELIMITER OU PROCEDIMENTO ARMAZENADO. 100% SQL PURO IDEMPOTENTE.
 -- ==============================================================================
 

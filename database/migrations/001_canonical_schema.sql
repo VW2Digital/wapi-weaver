@@ -1,5 +1,9 @@
--- 001_canonical_schema.sql
--- Schema canônico completo do BLIV CRM / WAPI Weaver
+-- ==============================================================================
+-- HISTORICAL MIGRATION: 001_canonical_schema.sql
+-- ==============================================================================
+-- USAGE: Upgrade de Instalação Existente (executado via scripts/migrate.js)
+-- Fonte canônica para instalações novas: database/schema/canonical-schema.sql
+-- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) NOT NULL PRIMARY KEY,

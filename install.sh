@@ -192,7 +192,11 @@ test_auth_login() {
   echo "  Executando teste de autenticação em ${label} (${target_url})..."
 
   local result
-  result=$(ADMIN_EMAIL="${ADMIN_EMAIL}" ADMIN_PASSWORD="${ADMIN_PASSWORD}" TARGET_URL="${target_url}" node -e '
+  result=$(docker compose -f "${COMPOSE_FILE}" exec -T \
+    -e ADMIN_EMAIL="${ADMIN_EMAIL}" \
+    -e ADMIN_PASSWORD="${ADMIN_PASSWORD}" \
+    -e TARGET_URL="${target_url}" \
+    app node -e '
     const url = process.env.TARGET_URL;
     const email = process.env.ADMIN_EMAIL;
     const password = process.env.ADMIN_PASSWORD;
@@ -231,7 +235,7 @@ test_auth_login() {
       }
     }
     check();
-  ' 2>&1 || echo "NODE_EXEC_FAILED")
+  ' 2>&1 | tr -d '\r' | tail -n 1 || echo "NODE_EXEC_FAILED")
 
   if [ "$result" == "OK" ]; then
     print_ok "Autenticação via login em ${label} validada com sucesso!"
@@ -537,7 +541,10 @@ print_step "[6/8] Inicializando a stack Docker e aplicando migrações..."
 # Se houver backup prévio antes do fresh install
 if [ "$FRESH_DATABASE" -eq 1 ] && [ -f "${APP_DIR}/scripts/backup.sh" ]; then
   print_warn "Executando backup prévio de segurança do banco..."
-  bash "${APP_DIR}/scripts/backup.sh" || true
+  if ! bash "${APP_DIR}/scripts/backup.sh"; then
+    dump_diagnostics_and_exit "Falha ao criar backup prévio de segurança antes de recriar o banco de dados."
+  fi
+  print_ok "Backup prévio de segurança concluído."
 fi
 
 # Definir se phpMyAdmin deve rodar
@@ -644,7 +651,15 @@ wait_for_app_healthy
 echo "  Executando validador automatizado pós-instalação..."
 docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/validate-installation.js
 
-print_ok "Stack de containers e banco de dados validados com sucesso."
+# Executar Smoke Test da Aplicação em nível de regras de negócio
+echo "  Executando Smoke Test da Aplicação (Autenticação + CRUD de Contatos)..."
+docker compose -f "${COMPOSE_FILE}" exec -T \
+  -e ADMIN_EMAIL="${ADMIN_EMAIL}" \
+  -e ADMIN_PASSWORD="${ADMIN_PASSWORD}" \
+  -e TARGET_URL="http://127.0.0.1:3000/api/auth/login" \
+  app node --import tsx/esm scripts/smoke-test-app.js
+
+print_ok "Stack de containers, banco de dados e regras de negócio validados com sucesso."
 
 # ---------------------------------------------------------------------------
 # 7. Configuração do Nginx e SSL Let's Encrypt

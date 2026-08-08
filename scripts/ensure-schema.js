@@ -339,13 +339,21 @@ export async function ensureDatabaseSchema() {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      connection = await mysql.createConnection({
-        host: process.env.DB_HOST || "localhost",
+      const dbPassword = process.env.DB_PASSWORD;
+      if (!dbPassword) {
+        console.error("[Schema] ❌ CRITICAL: DB_PASSWORD environment variable is missing!");
+        process.exit(1);
+      }
+
+      const config = {
+        host: process.env.DB_HOST || "mysql",
         port: parseInt(process.env.DB_PORT || "3306", 10),
         user: process.env.DB_USER || "wapi_user",
-        password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+        password: dbPassword,
         database: process.env.DB_NAME || "wapi_weaver",
-      });
+      };
+
+      connection = await mysql.createConnection(config);
       logSchema("Conexão com o banco de dados estabelecida com sucesso.");
       break;
     } catch (err) {

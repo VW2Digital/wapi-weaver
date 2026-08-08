@@ -28,11 +28,17 @@ async function main() {
   console.log("  VALIDATING DATABASE SCHEMA & DATA INTEGRITY    ");
   console.log("=================================================");
 
+  const dbPassword = process.env.DB_PASSWORD;
+  if (!dbPassword) {
+    console.error("[DB Validation] ❌ CRITICAL: DB_PASSWORD environment variable is missing!");
+    process.exit(1);
+  }
+
   const dbConfig = {
     host: process.env.DB_HOST || "mysql",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
-    password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+    password: dbPassword,
     database: process.env.DB_NAME || "wapi_weaver",
   };
 
@@ -84,7 +90,11 @@ async function main() {
     // 4. Verify required columns physically exist
     let columnErrors = 0;
     for (const [table, columns] of Object.entries(requiredColumns)) {
-      if (!existingTables.has(table)) continue;
+      if (!existingTables.has(table)) {
+        console.error(`[DB Validation] ❌ FAIL: Table '${table}' missing for column verification.`);
+        columnErrors++;
+        continue;
+      }
 
       const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
       const existingCols = new Set(colRows.map((c) => c.Field));
@@ -103,7 +113,7 @@ async function main() {
     }
     console.log("[DB Validation] ✅ SUCCESS: All required columns verified.");
 
-    // 5. Verify admin user & roles
+    // 5. Verify admin user strictly has role 'admin_master'
     const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
     const [adminRows] = await connection.query(
       `SELECT u.id, u.email, r.role 
@@ -119,11 +129,11 @@ async function main() {
     }
 
     const adminRole = adminRows[0].role;
-    if (!["admin_master", "admin"].includes(adminRole)) {
-      console.error(`[DB Validation] ❌ FAIL: Admin user '${adminEmail}' has invalid role '${adminRole}'.`);
+    if (adminRole !== "admin_master") {
+      console.error(`[DB Validation] ❌ FAIL: Admin user '${adminEmail}' has role '${adminRole}', but strictly requires 'admin_master'.`);
       process.exit(1);
     }
-    console.log(`[DB Validation] ✅ SUCCESS: Admin user '${adminEmail}' verified with role '${adminRole}'.`);
+    console.log(`[DB Validation] ✅ SUCCESS: Admin user '${adminEmail}' verified with strict role 'admin_master'.`);
 
     // 6. Verify no invalid roles exist in user_roles
     const [invalidRoles] = await connection.query(

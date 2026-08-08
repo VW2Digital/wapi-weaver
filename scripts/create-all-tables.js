@@ -91,33 +91,7 @@ async function main() {
       process.exit(1);
     }
 
-    // 3. Validate Required Columns
-    const requiredColumnsPath = path.resolve(__dirname, "../database/schema/required-columns.json");
-    const requiredColumnsMap = JSON.parse(fs.readFileSync(requiredColumnsPath, "utf8"));
-
-    const missingColumns = [];
-
-    for (const [table, columns] of Object.entries(requiredColumnsMap)) {
-      if (!existingTables.has(table)) continue;
-
-      const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
-      const existingCols = new Set(colRows.map((c) => c.Field));
-
-      for (const col of columns) {
-        if (!existingCols.has(col)) {
-          missingColumns.push(`${table}.${col}`);
-        }
-      }
-    }
-
-    if (missingColumns.length > 0) {
-      console.error("\nDATABASE BOOTSTRAP FAILED");
-      console.error("\nMissing columns:");
-      missingColumns.forEach((col) => console.error(`- ${col}`));
-      process.exit(1);
-    }
-
-    console.log(`[Create Tables] ✅ SUCCESS: Verified all ${requiredTables.length} tables and all essential columns exist.`);
+    console.log(`[Create Tables] ✅ SUCCESS: Verified all ${requiredTables.length} essential tables exist in database.`);
     console.log("=================================================");
     console.log("   DATABASE SCHEMA CREATION PASSED SUCCESSFULLY  ");
     console.log("=================================================");

@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/admin/kill-idle-connections")({
             host: process.env.DB_HOST || "localhost",
             port: parseInt(process.env.DB_PORT || "3306", 10),
             user: process.env.DB_USER || "wapi_user",
-            password: process.env.DB_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+            password: process.env.DB_PASSWORD || "",
             database: process.env.DB_NAME || "wapi_weaver",
           });
 

@@ -5,7 +5,7 @@ async function run() {
     host: "162.214.215.195",
     port: 3306,
     user: "wapi_user",
-    password: "S0xbxPfKazBVT8JFy1UEOjIsrjox",
+    password: process.env.DB_PASSWORD || "",
     database: "wapi_weaver",
   });
 
