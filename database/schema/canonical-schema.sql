@@ -1,5 +1,10 @@
--- 001_canonical_schema.sql
--- Schema canônico completo do BLIV CRM / WAPI Weaver
+-- ==============================================================================
+-- BLIV CRM / WAPI WEAVER - CANONICAL DATABASE SCHEMA (FONTE UNICA DE VERDADE)
+-- ==============================================================================
+-- Este arquivo contem a definicao completa de TODAS as tabelas da aplicacao.
+-- Utilizado por scripts/create-all-tables.js em instalacoes novas e atualizacoes.
+-- NENHUM COMANDO DELIMITER OU PROCEDIMENTO ARMAZENADO. 100% SQL PURO IDEMPOTENTE.
+-- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) NOT NULL PRIMARY KEY,

@@ -23,39 +23,6 @@ if (fs.existsSync(dotenvPath)) {
   }
 }
 
-const REQUIRED_TABLES = [
-  "schema_migrations",
-  "users",
-  "profiles",
-  "user_roles",
-  "platform_settings",
-  "license_settings",
-  "licenses",
-  "contacts",
-  "templates",
-  "campaigns",
-  "campaign_messages",
-  "bot_flows",
-  "bot_steps",
-  "direct_messages",
-  "webhook_events",
-];
-
-const REQUIRED_COLUMNS = {
-  profiles: [
-    "whatsapp_verify_token",
-    "whatsapp_access_token",
-    "whatsapp_phone_number_id",
-    "whatsapp_waba_id",
-    "rate_limit_per_second",
-  ],
-  user_roles: ["role"],
-  licenses: ["tenant_id", "status"],
-  campaigns: ["message_type", "payload", "template_id", "started_at", "status"],
-  campaign_messages: ["to_phone", "attempts", "failed_at", "error", "wa_message_id", "status"],
-  webhook_events: ["processed", "received_at"],
-};
-
 async function main() {
   console.log("=================================================");
   console.log("  VALIDATING DATABASE SCHEMA & DATA INTEGRITY    ");
@@ -79,7 +46,14 @@ async function main() {
   }
 
   try {
-    // 1. Verify schema_migrations contains 001, 002, 003
+    // 1. Load required tables and columns manifests (Single Contract)
+    const tablesPath = path.resolve(__dirname, "../database/schema/required-tables.json");
+    const columnsPath = path.resolve(__dirname, "../database/schema/required-columns.json");
+
+    const requiredTables = JSON.parse(fs.readFileSync(tablesPath, "utf8"));
+    const requiredColumns = JSON.parse(fs.readFileSync(columnsPath, "utf8"));
+
+    // 2. Verify schema_migrations contains 001, 002, 003
     const [migrations] = await connection.query("SELECT version FROM schema_migrations");
     const migrationVersions = new Set(migrations.map((m) => m.version));
     const expectedMigrations = [
@@ -96,20 +70,22 @@ async function main() {
     }
     console.log(`[DB Validation] ✅ SUCCESS: All ${expectedMigrations.length} migrations recorded in schema_migrations.`);
 
-    // 2. Verify required tables
+    // 3. Verify required tables physically exist
     const [tables] = await connection.query("SHOW TABLES");
     const existingTables = new Set(tables.map((t) => Object.values(t)[0]));
-    const missingTables = REQUIRED_TABLES.filter((tbl) => !existingTables.has(tbl));
+    const missingTables = requiredTables.filter((tbl) => !existingTables.has(tbl));
 
     if (missingTables.length > 0) {
       console.error(`[DB Validation] ❌ FAIL: Missing required table(s): ${missingTables.join(", ")}`);
       process.exit(1);
     }
-    console.log(`[DB Validation] ✅ SUCCESS: All ${REQUIRED_TABLES.length} essential tables exist.`);
+    console.log(`[DB Validation] ✅ SUCCESS: All ${requiredTables.length} essential tables physically exist.`);
 
-    // 3. Verify required columns
+    // 4. Verify required columns physically exist
     let columnErrors = 0;
-    for (const [table, columns] of Object.entries(REQUIRED_COLUMNS)) {
+    for (const [table, columns] of Object.entries(requiredColumns)) {
+      if (!existingTables.has(table)) continue;
+
       const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
       const existingCols = new Set(colRows.map((c) => c.Field));
 
@@ -127,7 +103,7 @@ async function main() {
     }
     console.log("[DB Validation] ✅ SUCCESS: All required columns verified.");
 
-    // 4. Verify admin user & roles
+    // 5. Verify admin user & roles
     const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
     const [adminRows] = await connection.query(
       `SELECT u.id, u.email, r.role 
@@ -149,7 +125,7 @@ async function main() {
     }
     console.log(`[DB Validation] ✅ SUCCESS: Admin user '${adminEmail}' verified with role '${adminRole}'.`);
 
-    // 5. Verify no invalid roles exist in user_roles
+    // 6. Verify no invalid roles exist in user_roles
     const [invalidRoles] = await connection.query(
       `SELECT id, user_id, role FROM user_roles WHERE role NOT IN ('admin_master', 'admin', 'user')`,
     );

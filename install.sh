@@ -594,6 +594,25 @@ if [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
   print_ok "Dump do banco importado com sucesso."
 fi
 
+create_database_schema() {
+  print_step "Criando estrutura completa do banco de dados (canonical-schema)..."
+
+  docker compose -f "${COMPOSE_FILE}" run \
+    --rm \
+    --no-deps \
+    app \
+    node scripts/create-all-tables.js
+
+  if [ $? -ne 0 ]; then
+    dump_diagnostics_and_exit "Falha ao criar estrutura completa do banco."
+  fi
+
+  print_ok "Todas as tabelas foram criadas com sucesso."
+}
+
+# Criar estrutura completa de tabelas (CREATE ALL TABLES)
+create_database_schema
+
 # Executar Migrações de Banco de Dados em container efêmero (one-shot)
 echo "  Executando migrações de banco de dados em container efêmero..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/migrate.js
@@ -606,7 +625,11 @@ docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/provisio
 echo "  Validando estrutura e integridade do Banco de Dados..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-database.js
 
-# Subir serviço da aplicação após banco migrado e validado
+# Executar CRUD Smoke Test no Banco de Dados
+echo "  Executando CRUD Smoke Test no Banco de Dados..."
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/smoke-test-database.js
+
+# Subir serviço da aplicação após banco criado, migrado e validado
 echo "  Iniciando serviço da aplicação (app)..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d app
 
