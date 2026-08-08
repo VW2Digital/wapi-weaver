@@ -37,7 +37,7 @@ import {
 
 function LicenseDetailPage() {
   const { id } = Route.useParams();
-  const numericId = Number(id);
+  const licenseId = id; // licenses.id é VARCHAR(36) UUID — não converter para number
   const router = useRouter();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -51,8 +51,8 @@ function LicenseDetailPage() {
   const isAdminMasterUser = hasMasterRole(roles);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["license-detail", numericId],
-    queryFn: () => fetchDetail({ data: { id: numericId } }),
+    queryKey: ["license-detail", licenseId],
+    queryFn: () => fetchDetail({ data: { id: licenseId } }),
     enabled: isAdminMasterUser,
   });
 
@@ -116,7 +116,7 @@ function LicenseDetailPage() {
   const updateMutation = useMutation({
     mutationFn: (payload: any) => updateLicenseMut({ data: payload }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["license-detail", numericId] });
+      queryClient.invalidateQueries({ queryKey: ["license-detail", licenseId] });
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
       toast.success("Domínio atualizado com sucesso.");
     },
@@ -126,9 +126,9 @@ function LicenseDetailPage() {
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (activationId: number) => deleteActivationMut({ data: { id: activationId } }),
+    mutationFn: (activationId: string) => deleteActivationMut({ data: { id: activationId } }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["license-detail", numericId] });
+      queryClient.invalidateQueries({ queryKey: ["license-detail", licenseId] });
       toast.success("Instancia removida com sucesso.");
     },
     onError: (err: any) => {
@@ -139,7 +139,7 @@ function LicenseDetailPage() {
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     updateMutation.mutate({
-      id: numericId,
+      id: licenseId,
       client_name: clientName,
       client_email: clientEmail,
       plan,
@@ -150,7 +150,7 @@ function LicenseDetailPage() {
     });
   };
 
-  const handleRevoke = async (actId: number, domain: string) => {
+  const handleRevoke = async (actId: string, domain: string) => {
     const ok = await confirm({
       title: "Revogar Instância",
       description: `Tem certeza que deseja revogar esta conexão ativa da máquina do domínio ${domain}? Ela será recriada automaticamente na próxima requisição se o acesso continuar ativo.`,

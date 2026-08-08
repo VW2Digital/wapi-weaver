@@ -206,7 +206,7 @@ export const getLicenseStats = createServerFn({ method: "GET" })
 // 4. Get individual license details
 export const getLicenseDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .validator(z.object({ id: z.number() }))
+  .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
@@ -244,7 +244,7 @@ export const updateLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator(
     z.object({
-      id: z.number(),
+      id: z.string().min(1),
       client_name: z.string().trim().min(1),
       client_email: z.string().trim().email().optional().or(z.literal("")),
       plan: z.string(),
@@ -313,7 +313,7 @@ export const updateLicense = createServerFn({ method: "POST" })
 // 6. Delete license
 export const deleteLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator(z.object({ id: z.number() }))
+  .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
@@ -360,7 +360,7 @@ export const deleteLicense = createServerFn({ method: "POST" })
 // 7. Delete activation
 export const deleteActivation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator(z.object({ id: z.number() }))
+  .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 

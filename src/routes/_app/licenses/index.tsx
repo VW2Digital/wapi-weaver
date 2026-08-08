@@ -215,7 +215,7 @@ function LicensesPage() {
   };
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteLicenseMut({ data: { id } }),
+    mutationFn: (id: string) => deleteLicenseMut({ data: { id } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
       queryClient.invalidateQueries({ queryKey: ["licenses-stats"] });
@@ -226,7 +226,7 @@ function LicensesPage() {
     },
   });
 
-  const handleDelete = async (id: number, domainName: string) => {
+  const handleDelete = async (id: string, domainName: string) => {
     const ok = await confirm({
       title: "Revogar Acesso",
       description: `Tem certeza que deseja revogar o acesso do domínio ${domainName}? O sistema cliente deixará de funcionar imediatamente.`,

@@ -15,6 +15,7 @@
     "type-check": "tsc --noEmit",
     "test": "jest",
     "test:subscription-trial": "node --import tsx/esm scripts/test-subscription-trial-smoke.js",
+    "test:license-admin": "node scripts/test-license-admin-smoke.js",
     "ci": "npm run lint && npm run type-check && npm run test && npm run build"
   },
   "dependencies": {
