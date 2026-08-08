@@ -36,6 +36,7 @@ import {
   BookOpen,
   AlertTriangle,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,7 @@ const NAV: NavItem[] = [
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns/", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Funil de Vendas", icon: Kanban },
+  { to: "/agenda", label: "Agenda", icon: Calendar },
   {
     to: "/automacoes",
     label: "Automações",
@@ -211,19 +213,15 @@ function AppLayout() {
         typeof raw === "string" ? (JSON.parse(raw) as string[]) : (raw as string[]);
       if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...navItems];
 
-      const navDefaults = navItems.map((item, idx) => ({ to: item.to, defaultIdx: idx }));
+      const navDefaults = new Map(navItems.map((item, idx) => [item.to, idx]));
       const navCopy = [...navItems];
       navCopy.sort((a, b) => {
         const idxA = pathsOrder.indexOf(a.to);
         const idxB = pathsOrder.indexOf(b.to);
         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        if (idxA === -1 && idxB === -1) {
-          const defA = navDefaults.find((n) => n.to === a.to)?.defaultIdx ?? 999;
-          const defB = navDefaults.find((n) => n.to === b.to)?.defaultIdx ?? 999;
-          return defA - defB;
-        }
-        if (idxA === -1) return 1;
-        return -1;
+        const defA = navDefaults.get(a.to) ?? 999;
+        const defB = navDefaults.get(b.to) ?? 999;
+        return defA - defB;
       });
       return navCopy;
     } catch {
@@ -239,6 +237,7 @@ function AppLayout() {
     "/templates": 2,
     "/campaigns/": 2,
     "/crm": 3,
+    "/agenda": 3,
     "/automacoes": 4,
     "/billing": 5,
     "/settings": 6,

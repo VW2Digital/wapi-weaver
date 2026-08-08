@@ -258,6 +258,12 @@ export const createDsAgent = createServerFn({ method: "POST" })
 
       const defaultTools = [
         "google_calendar",
+        "calendar_check_availability",
+        "calendar_create_event",
+        "calendar_update_event",
+        "calendar_cancel_event",
+        "calendar_list_events",
+        "calendar_get_event",
         "consulta_crm",
         "enviar_proposta",
         "webhook_customizado",

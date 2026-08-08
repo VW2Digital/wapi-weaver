@@ -83,5 +83,6 @@
   "tenant_storage",
   "audit_logs",
   "webhook_events",
-  "platform_banners"
+  "platform_banners",
+  "calendar_events"
 ]

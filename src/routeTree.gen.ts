@@ -35,6 +35,7 @@ import { Route as AppBotRouteImport } from './routes/_app/bot'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai-agent'
+import { Route as AppAgendaRouteImport } from './routes/_app/agenda'
 import { Route as AppLicensesIndexRouteImport } from './routes/_app/licenses/index'
 import { Route as AppDsAgenteIndexRouteImport } from './routes/_app/ds-agente/index'
 import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts.index'
@@ -224,6 +225,11 @@ const AppAuditRoute = AppAuditRouteImport.update({
 const AppAiAgentRoute = AppAiAgentRouteImport.update({
   id: '/ai-agent',
   path: '/ai-agent',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgendaRoute = AppAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLicensesIndexRoute = AppLicensesIndexRouteImport.update({
@@ -552,6 +558,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/agenda': typeof AppAgendaRoute
   '/ai-agent': typeof AppAiAgentRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
@@ -639,6 +646,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/agenda': typeof AppAgendaRoute
   '/ai-agent': typeof AppAiAgentRoute
   '/audit': typeof AppAuditRoute
   '/billing': typeof AppBillingRoute
@@ -728,6 +736,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/_app/agenda': typeof AppAgendaRoute
   '/_app/ai-agent': typeof AppAiAgentRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/billing': typeof AppBillingRoute
@@ -817,6 +826,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
+    | '/agenda'
     | '/ai-agent'
     | '/audit'
     | '/billing'
@@ -904,6 +914,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
+    | '/agenda'
     | '/ai-agent'
     | '/audit'
     | '/billing'
@@ -992,6 +1003,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
+    | '/_app/agenda'
     | '/_app/ai-agent'
     | '/_app/audit'
     | '/_app/billing'
@@ -1311,6 +1323,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-agent'
       fullPath: '/ai-agent'
       preLoaderRoute: typeof AppAiAgentRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/agenda': {
+      id: '/_app/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AppAgendaRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/licenses/': {
@@ -1749,6 +1768,7 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
+  AppAgendaRoute: typeof AppAgendaRoute
   AppAiAgentRoute: typeof AppAiAgentRoute
   AppAuditRoute: typeof AppAuditRoute
   AppBillingRoute: typeof AppBillingRoute
@@ -1777,6 +1797,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAgendaRoute: AppAgendaRoute,
   AppAiAgentRoute: AppAiAgentRoute,
   AppAuditRoute: AppAuditRoute,
   AppBillingRoute: AppBillingRoute,
