@@ -66,6 +66,7 @@ async function main() {
       "001_canonical_schema.sql",
       "002_fix_indexes_and_constraints.sql",
       "003_runtime_schema_alignment.sql",
+      "004_calendar_events.sql",
     ];
 
     for (const mig of expectedMigrations) {

@@ -6,17 +6,23 @@ import { CalendarEventCard, CalendarEventItem } from "./CalendarEventCard";
 interface WeekViewProps {
   currentDate: Date;
   events: CalendarEventItem[];
-  onClickSlot: (date: Date, hour: number) => void;
-  onClickEvent: (event: CalendarEventItem) => void;
+  onSelectSlot: (start: Date, end: Date) => void;
+  onSelectEvent: (event: CalendarEventItem) => void;
+  onOpenDayView?: (date: Date) => void;
 }
 
-export function WeekView({ currentDate, events, onClickSlot, onClickEvent }: WeekViewProps) {
+export function WeekView({
+  currentDate,
+  events,
+  onSelectSlot,
+  onSelectEvent,
+  onOpenDayView,
+}: WeekViewProps) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 }); // Sunday
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
-
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Auto-scroll to 07:00 AM on mount
@@ -26,28 +32,39 @@ export function WeekView({ currentDate, events, onClickSlot, onClickEvent }: Wee
     }
   }, []);
 
+  const handleSlotClick = (dayDate: Date, hour: number) => {
+    const start = new Date(dayDate);
+    start.setHours(hour, 0, 0, 0);
+    const end = new Date(dayDate);
+    end.setHours(hour + 1, 0, 0, 0);
+    onSelectSlot(start, end);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-card rounded-b-xl border-x border-b border-border overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Week Header Days */}
-      <div className="flex border-b border-border bg-muted/30 pl-16">
+      <div className="flex border-b border-border bg-muted/40 pl-16 shrink-0">
         {weekDays.map((dayDate) => {
           const isCurrentDay = isToday(dayDate);
           return (
-            <div
+            <button
+              type="button"
               key={dayDate.toISOString()}
-              className="flex-1 py-2 text-center border-l border-border/50 text-xs"
+              onClick={() => onOpenDayView?.(dayDate)}
+              title="Clique para ver a agenda deste dia"
+              className="flex-1 py-2 text-center border-l border-border/50 text-xs hover:bg-accent/40 transition-colors group cursor-pointer"
             >
-              <div className="text-muted-foreground uppercase text-[11px] font-bold">
+              <div className="text-muted-foreground group-hover:text-primary uppercase text-[11px] font-bold">
                 {format(dayDate, "eee", { locale: ptBR })}
               </div>
               <div
-                className={`inline-block mt-0.5 px-2 py-0.5 rounded-full font-semibold ${
-                  isCurrentDay ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-foreground"
+                className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  isCurrentDay ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-foreground group-hover:text-primary"
                 }`}
               >
                 {format(dayDate, "d MMM", { locale: ptBR })}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -81,7 +98,7 @@ export function WeekView({ currentDate, events, onClickSlot, onClickEvent }: Wee
                   {hours.map((h) => (
                     <div
                       key={h}
-                      onClick={() => onClickSlot(dayDate, h)}
+                      onClick={() => handleSlotClick(dayDate, h)}
                       className="h-[60px] border-b border-border/30 hover:bg-muted/20 cursor-pointer transition-colors"
                     />
                   ))}
@@ -94,9 +111,9 @@ export function WeekView({ currentDate, events, onClickSlot, onClickEvent }: Wee
                     const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
                     const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
 
-                    const durationMin = Math.max(20, endMinutes - startMinutes || 30);
+                    const durationMin = Math.max(25, endMinutes - startMinutes || 30);
 
-                    const topPx = startMinutes; // 1 min = 1 px (since 60min = 60px)
+                    const topPx = startMinutes; // 1 min = 1 px
                     const heightPx = durationMin;
 
                     return (
@@ -112,7 +129,7 @@ export function WeekView({ currentDate, events, onClickSlot, onClickEvent }: Wee
                           event={ev}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onClickEvent(ev);
+                            onSelectEvent(ev);
                           }}
                         />
                       </div>

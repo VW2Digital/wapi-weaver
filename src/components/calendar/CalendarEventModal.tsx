@@ -23,16 +23,37 @@ import {
 import { CalendarEventItem } from "./CalendarEventCard";
 import { AlertCircle } from "lucide-react";
 
+interface EventFormValues {
+  title: string;
+  description: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  contact_id: string;
+  responsible_user_id: string;
+  team_id: string;
+  ds_agent_id: string;
+  event_type: string;
+  status: string;
+  location: string;
+  meeting_url: string;
+  color: string;
+  reminder_minutes: string;
+}
+
 interface CalendarEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => Promise<void>;
   eventToEdit?: CalendarEventItem | null;
+  initialSlot?: { start: Date; end: Date } | null;
   initialDate?: Date;
   initialStartTime?: string;
   initialEndTime?: string;
+  isSubmitting?: boolean;
   auxData: {
-    contacts: Array<{ id: string; name: string | null; phone_e164: string | null }>;
+    contacts?: Array<{ id: string; name: string | null; phone_e164: string | null }>;
     users: Array<{ id: string; display_name: string | null; full_name: string | null }>;
     teams: Array<{ id: string; name: string }>;
     agents: Array<{ id: string; name: string }>;
@@ -44,40 +65,46 @@ export function CalendarEventModal({
   onClose,
   onSubmit,
   eventToEdit,
+  initialSlot,
   initialDate,
   initialStartTime,
   initialEndTime,
+  isSubmitting,
   auxData,
 }: CalendarEventModalProps) {
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
-  const defaultDateStr = eventToEdit
+  const effectiveDate = initialSlot?.start || initialDate;
+  const effectiveStart = initialSlot ? format(initialSlot.start, "HH:mm") : initialStartTime;
+  const effectiveEnd = initialSlot ? format(initialSlot.end, "HH:mm") : initialEndTime;
+
+  const defaultDateStr = eventToEdit?.start_at
     ? format(new Date(eventToEdit.start_at), "yyyy-MM-dd")
-    : initialDate
-    ? format(initialDate, "yyyy-MM-dd")
+    : effectiveDate
+    ? format(effectiveDate, "yyyy-MM-dd")
     : format(new Date(), "yyyy-MM-dd");
 
-  const defaultStartStr = eventToEdit
+  const defaultStartStr = eventToEdit?.start_at
     ? format(new Date(eventToEdit.start_at), "HH:mm")
-    : initialStartTime || "09:00";
+    : effectiveStart || "09:00";
 
-  const defaultEndStr = eventToEdit
+  const defaultEndStr = eventToEdit?.end_at
     ? format(new Date(eventToEdit.end_at), "HH:mm")
-    : initialEndTime || "10:00";
+    : effectiveEnd || "10:00";
 
-  const form = useForm({
+  const form = useForm<EventFormValues>({
     defaultValues: {
       title: eventToEdit?.title || "",
       description: eventToEdit?.description || "",
       date: defaultDateStr,
       start_time: defaultStartStr,
       end_time: defaultEndStr,
-      all_day: eventToEdit?.all_day || false,
-      contact_id: eventToEdit?.contact_id || "",
-      responsible_user_id: eventToEdit?.responsible_user_id || "",
-      team_id: eventToEdit?.team_id || "",
-      ds_agent_id: eventToEdit?.ds_agent_id || "",
+      all_day: Boolean(eventToEdit?.all_day),
+      contact_id: eventToEdit?.contact_id || "none",
+      responsible_user_id: eventToEdit?.responsible_user_id || "none",
+      team_id: eventToEdit?.team_id || "none",
+      ds_agent_id: eventToEdit?.ds_agent_id || "none",
       event_type: eventToEdit?.event_type || "reuniao",
       status: eventToEdit?.status || "agendado",
       location: eventToEdit?.location || "",
@@ -90,17 +117,31 @@ export function CalendarEventModal({
   React.useEffect(() => {
     if (isOpen) {
       setErrorMsg(null);
+      const dateStr = eventToEdit?.start_at
+        ? format(new Date(eventToEdit.start_at), "yyyy-MM-dd")
+        : initialDate
+        ? format(initialDate, "yyyy-MM-dd")
+        : format(new Date(), "yyyy-MM-dd");
+
+      const startStr = eventToEdit?.start_at
+        ? format(new Date(eventToEdit.start_at), "HH:mm")
+        : initialStartTime || "09:00";
+
+      const endStr = eventToEdit?.end_at
+        ? format(new Date(eventToEdit.end_at), "HH:mm")
+        : initialEndTime || "10:00";
+
       form.reset({
         title: eventToEdit?.title || "",
         description: eventToEdit?.description || "",
-        date: defaultDateStr,
-        start_time: defaultStartStr,
-        end_time: defaultEndStr,
-        all_day: eventToEdit?.all_day || false,
-        contact_id: eventToEdit?.contact_id || "",
-        responsible_user_id: eventToEdit?.responsible_user_id || "",
-        team_id: eventToEdit?.team_id || "",
-        ds_agent_id: eventToEdit?.ds_agent_id || "",
+        date: dateStr,
+        start_time: startStr,
+        end_time: endStr,
+        all_day: Boolean(eventToEdit?.all_day),
+        contact_id: eventToEdit?.contact_id || "none",
+        responsible_user_id: eventToEdit?.responsible_user_id || "none",
+        team_id: eventToEdit?.team_id || "none",
+        ds_agent_id: eventToEdit?.ds_agent_id || "none",
         event_type: eventToEdit?.event_type || "reuniao",
         status: eventToEdit?.status || "agendado",
         location: eventToEdit?.location || "",
@@ -131,10 +172,10 @@ export function CalendarEventModal({
         start_at: startAtIso,
         end_at: endAtIso,
         all_day: values.all_day,
-        contact_id: values.contact_id || null,
-        responsible_user_id: values.responsible_user_id || null,
-        team_id: values.team_id || null,
-        ds_agent_id: values.ds_agent_id || null,
+        contact_id: !values.contact_id || values.contact_id === "none" ? null : values.contact_id,
+        responsible_user_id: !values.responsible_user_id || values.responsible_user_id === "none" ? null : values.responsible_user_id,
+        team_id: !values.team_id || values.team_id === "none" ? null : values.team_id,
+        ds_agent_id: !values.ds_agent_id || values.ds_agent_id === "none" ? null : values.ds_agent_id,
         event_type: values.event_type,
         status: values.status,
         location: values.location?.trim() || null,

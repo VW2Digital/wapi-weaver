@@ -6,11 +6,16 @@ import { CalendarEventCard, CalendarEventItem } from "./CalendarEventCard";
 interface DayViewProps {
   currentDate: Date;
   events: CalendarEventItem[];
-  onClickSlot: (date: Date, hour: number) => void;
-  onClickEvent: (event: CalendarEventItem) => void;
+  onSelectSlot: (start: Date, end: Date) => void;
+  onSelectEvent: (event: CalendarEventItem) => void;
 }
 
-export function DayView({ currentDate, events, onClickSlot, onClickEvent }: DayViewProps) {
+export function DayView({
+  currentDate,
+  events,
+  onSelectSlot,
+  onSelectEvent,
+}: DayViewProps) {
   const dayKey = format(currentDate, "yyyy-MM-dd");
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
@@ -27,11 +32,24 @@ export function DayView({ currentDate, events, onClickSlot, onClickEvent }: DayV
     }
   }, []);
 
+  const handleSlotClick = (hour: number) => {
+    const start = new Date(currentDate);
+    start.setHours(hour, 0, 0, 0);
+    const end = new Date(currentDate);
+    end.setHours(hour + 1, 0, 0, 0);
+    onSelectSlot(start, end);
+  };
+
+  const formattedDayTitle = React.useMemo(() => {
+    const raw = format(currentDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }, [currentDate]);
+
   return (
-    <div className="flex flex-col h-full bg-card rounded-b-xl border-x border-b border-border overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Day Header */}
-      <div className="py-2.5 px-4 border-b border-border bg-muted/30 text-center font-bold text-sm text-foreground capitalize">
-        {format(currentDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+      <div className="py-2.5 px-4 border-b border-border bg-muted/40 text-center font-bold text-sm text-foreground shrink-0">
+        {formattedDayTitle}
       </div>
 
       {/* Timeline */}
@@ -51,7 +69,7 @@ export function DayView({ currentDate, events, onClickSlot, onClickEvent }: DayV
             {hours.map((h) => (
               <div
                 key={h}
-                onClick={() => onClickSlot(currentDate, h)}
+                onClick={() => handleSlotClick(h)}
                 className="h-[60px] border-b border-border/30 hover:bg-muted/20 cursor-pointer transition-colors"
               />
             ))}
@@ -82,7 +100,7 @@ export function DayView({ currentDate, events, onClickSlot, onClickEvent }: DayV
                     event={ev}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onClickEvent(ev);
+                      onSelectEvent(ev);
                     }}
                   />
                 </div>

@@ -15,6 +15,21 @@ import {
 import db from "./db";
 import { getTenantFilter } from "./chat-helpers";
 
+const optionalId = z.preprocess(
+  (val) => (val === "" || val === "none" || val === "null" || val === "undefined" || val === undefined ? null : val),
+  z.string().nullable().optional(),
+);
+
+const booleanCoerce = z.preprocess(
+  (val) => (val === 1 || val === "1" || val === true || val === "true"),
+  z.boolean().optional().default(false),
+);
+
+const optionalReminderMinutes = z.preprocess(
+  (val) => (val === null || val === "" || val === undefined ? null : Number(val)),
+  z.number().int().min(0).nullable().optional(),
+);
+
 const createEventSchema = z.object({
   title: z.string().trim().min(1, "Título é obrigatório").max(255),
   description: z.string().trim().max(2000).nullable().optional(),
@@ -22,65 +37,107 @@ const createEventSchema = z.object({
   status: z.string().trim().max(50).optional().default("agendado"),
   start_at: z.string().min(1, "Data inicial é obrigatória"),
   end_at: z.string().min(1, "Data final é obrigatória"),
-  all_day: z.boolean().optional().default(false),
+  all_day: booleanCoerce,
   timezone: z.string().trim().max(100).nullable().optional(),
-  contact_id: z.string().uuid().nullable().optional().or(z.literal("")),
-  responsible_user_id: z.string().uuid().nullable().optional().or(z.literal("")),
-  team_id: z.string().uuid().nullable().optional().or(z.literal("")),
-  ds_agent_id: z.string().uuid().nullable().optional().or(z.literal("")),
+  contact_id: optionalId,
+  responsible_user_id: optionalId,
+  team_id: optionalId,
+  ds_agent_id: optionalId,
   location: z.string().trim().max(500).nullable().optional(),
   meeting_url: z.string().trim().max(1000).nullable().optional(),
   color: z.string().trim().max(30).nullable().optional().default("#7C3AED"),
-  reminder_minutes: z.number().int().min(0).nullable().optional(),
+  reminder_minutes: optionalReminderMinutes,
   created_by_type: z.enum(["user", "ds_agent", "system"]).optional().default("user"),
-  created_by_agent_id: z.string().uuid().nullable().optional(),
+  created_by_agent_id: optionalId,
 });
 
-const updateEventSchema = createEventSchema.partial().extend({
-  id: z.string().uuid("ID inválido"),
-});
+const updateEventSchema = createEventSchema
+  .partial()
+  .extend({
+    id: z.string().optional(),
+    eventId: z.string().optional(),
+    data: z.any().optional(),
+  })
+  .refine((d) => !!(d.id || d.eventId || d.data?.id || d.data?.eventId), {
+    message: "ID do evento é obrigatório",
+    path: ["id"],
+  });
 
 export const listCalendarEvents = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) =>
     z
       .object({
-        startDate: z.string(),
-        endDate: z.string(),
-        responsible_user_id: z.string().nullable().optional(),
-        team_id: z.string().nullable().optional(),
-        ds_agent_id: z.string().nullable().optional(),
-        event_type: z.string().nullable().optional(),
-        status: z.string().nullable().optional(),
-        contact_id: z.string().nullable().optional(),
-        search: z.string().nullable().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        startDateUtc: z.string().optional(),
+        endDateUtc: z.string().optional(),
+        responsible_user_id: optionalId,
+        responsibleUserId: optionalId,
+        team_id: optionalId,
+        teamId: optionalId,
+        ds_agent_id: optionalId,
+        dsAgentId: optionalId,
+        event_type: z.preprocess((v) => (v === "" || v === "none" ? null : v), z.string().nullable().optional()),
+        eventType: z.preprocess((v) => (v === "" || v === "none" ? null : v), z.string().nullable().optional()),
+        status: z.preprocess((v) => (v === "" || v === "none" ? null : v), z.string().nullable().optional()),
+        contact_id: optionalId,
+        contactId: optionalId,
+        search: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
         my_events_only: z.boolean().optional(),
+        myEventsOnly: z.boolean().optional(),
+        filters: z
+          .object({
+            responsible_user_id: optionalId,
+            responsibleUserId: optionalId,
+            team_id: optionalId,
+            teamId: optionalId,
+            ds_agent_id: optionalId,
+            dsAgentId: optionalId,
+            event_type: z.preprocess((v) => (v === "" || v === "none" ? null : v), z.string().nullable().optional()),
+            eventType: z.preprocess((v) => (v === "" || v === "none" ? null : v), z.string().nullable().optional()),
+            status: z.preprocess((v) => (v === "" || v === "none" ? null : v), z.string().nullable().optional()),
+            contact_id: optionalId,
+            contactId: optionalId,
+            search: z.preprocess((v) => (v === "" ? null : v), z.string().nullable().optional()),
+            my_events_only: z.boolean().optional(),
+            myEventsOnly: z.boolean().optional(),
+          })
+          .optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const events = await getCalendarEventsByRangeForUser(
-      context.userId,
-      data.startDate,
-      data.endDate,
-      {
-        responsible_user_id: data.responsible_user_id,
-        team_id: data.team_id,
-        ds_agent_id: data.ds_agent_id,
-        event_type: data.event_type,
-        status: data.status,
-        contact_id: data.contact_id,
-        search: data.search,
-        my_events_only: data.my_events_only,
-      },
-    );
+    const start = data.startDateUtc || data.startDate || new Date().toISOString();
+    const end = data.endDateUtc || data.endDate || new Date(Date.now() + 30 * 86400000).toISOString();
+    const f = data.filters || {};
+
+    const respUserId = f.responsible_user_id ?? f.responsibleUserId ?? data.responsible_user_id ?? data.responsibleUserId;
+    const tId = f.team_id ?? f.teamId ?? data.team_id ?? data.teamId;
+    const agentId = f.ds_agent_id ?? f.dsAgentId ?? data.ds_agent_id ?? data.dsAgentId;
+    const eType = f.event_type ?? f.eventType ?? data.event_type ?? data.eventType;
+    const st = f.status ?? data.status;
+    const cId = f.contact_id ?? f.contactId ?? data.contact_id ?? data.contactId;
+    const s = f.search ?? data.search;
+    const myEvents = f.my_events_only ?? f.myEventsOnly ?? data.my_events_only ?? data.myEventsOnly;
+
+    const events = await getCalendarEventsByRangeForUser(context.userId, start, end, {
+      responsible_user_id: respUserId,
+      team_id: tId,
+      ds_agent_id: agentId,
+      event_type: eType,
+      status: st,
+      contact_id: cId,
+      search: s,
+      my_events_only: myEvents,
+    });
     const timezone = await resolveTenantTimezone(context.userId);
     return { ok: true, events, timezone };
   });
 
 export const getCalendarEvent = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: any) => z.object({ id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const event = await getCalendarEventByIdForUser(context.userId, data.id);
     if (!event) throw new Error("Evento não encontrado");
@@ -102,14 +159,19 @@ export const updateCalendarEvent = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => updateEventSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { id, ...updateData } = data;
-    const result = await updateCalendarEventForUser(context.userId, id, updateData);
+    const rawId = data.id || data.eventId || data.data?.id || data.data?.eventId;
+    const fieldsToUpdate = data.data && typeof data.data === "object" ? { ...data.data, ...data } : { ...data };
+    delete fieldsToUpdate.id;
+    delete fieldsToUpdate.eventId;
+    delete fieldsToUpdate.data;
+
+    const result = await updateCalendarEventForUser(context.userId, rawId, fieldsToUpdate);
     return { ok: true, ...result };
   });
 
 export const cancelCalendarEvent = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: any) => z.object({ id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const result = await cancelCalendarEventForUser(context.userId, data.id);
     return { ok: true, ...result };
@@ -117,7 +179,7 @@ export const cancelCalendarEvent = createServerFn({ method: "POST" })
 
 export const deleteCalendarEvent = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: any) => z.object({ id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const result = await deleteCalendarEventForUser(context.userId, data.id);
     return { ok: true, ...result };

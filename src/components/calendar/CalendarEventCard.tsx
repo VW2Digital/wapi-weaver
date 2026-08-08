@@ -17,17 +17,19 @@ export interface CalendarEventItem {
   contact_name?: string | null;
   responsible_user_id?: string | null;
   responsible_name?: string | null;
+  team_id?: string | null;
   team_name?: string | null;
   ds_agent_id?: string | null;
   agent_name?: string | null;
   location?: string | null;
   meeting_url?: string | null;
+  reminder_minutes?: number | null;
   created_by_type?: string;
 }
 
 interface CalendarEventCardProps {
   event: CalendarEventItem;
-  onClick: (e: React.MouseEvent) => void;
+  onClick?: (e: React.MouseEvent) => void;
   compact?: boolean;
 }
 
@@ -61,16 +63,16 @@ export function CalendarEventCard({ event, onClick, compact = false }: CalendarE
       onClick={onClick}
       style={{
         borderLeftColor: hexColor,
-        backgroundColor: `${hexColor}15`,
+        backgroundColor: `${hexColor}18`,
       }}
-      className={`group relative border-l-4 rounded-md p-1.5 cursor-pointer transition-all hover:shadow-xs hover:opacity-95 text-left overflow-hidden ${
+      className={`group relative border-l-4 rounded-md p-1.5 cursor-pointer transition-all hover:shadow-xs hover:brightness-110 border border-border/40 text-left overflow-hidden ${
         isCancelled ? "opacity-50 line-through" : ""
       }`}
     >
       <div className="flex items-center justify-between gap-1">
         <span className="font-semibold text-xs text-foreground truncate">{event.title}</span>
         {isCancelled && (
-          <Badge variant="outline" className="text-[9px] px-1 py-0 border-destructive text-destructive">
+          <Badge variant="outline" className="text-[9px] px-1 py-0 border-destructive text-destructive shrink-0">
             Cancelado
           </Badge>
         )}

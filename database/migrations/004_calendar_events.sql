@@ -4,8 +4,6 @@
 -- NOTA: Arquivo em SQL puro, sem comandos DELIMITER ou procedimentos armazenados.
 -- ==============================================================================
 
-ALTER TABLE ds_agent_tools MODIFY COLUMN tool_key VARCHAR(100) NOT NULL;
-
 CREATE TABLE IF NOT EXISTS calendar_events (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   tenant_id VARCHAR(36) NOT NULL,
@@ -59,3 +57,5 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
   FOREIGN KEY (ds_agent_id) REFERENCES ds_agents(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE ds_agent_tools MODIFY COLUMN tool_key VARCHAR(100) NOT NULL;

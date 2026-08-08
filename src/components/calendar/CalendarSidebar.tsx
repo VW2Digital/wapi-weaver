@@ -35,16 +35,36 @@ export function CalendarSidebar({
   onFilterChange,
   auxData,
 }: CalendarSidebarProps) {
-  const [openSections, setOpenSections] = React.useState({
-    agendas: true,
-    teams: true,
-    agents: true,
-    types: false,
-    status: false,
+  const STORAGE_KEY = "bliv_calendar_sidebar_open_sections";
+
+  const [openSections, setOpenSections] = React.useState<{
+    agendas: boolean;
+    teams: boolean;
+    agents: boolean;
+    types: boolean;
+    status: boolean;
+  }>(() => {
+    const defaults = { agendas: false, teams: false, agents: false, types: false, status: false };
+    if (typeof window === "undefined") return defaults;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
+    } catch (e) {
+      console.error("Error reading openSections from localStorage:", e);
+    }
+    return defaults;
   });
 
   const toggleSection = (section: keyof typeof openSections) => {
-    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+    setOpenSections((prev) => {
+      const next = { ...prev, [section]: !prev[section] };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.error("Error saving openSections to localStorage:", e);
+      }
+      return next;
+    });
   };
 
   const eventTypes = [
@@ -67,11 +87,11 @@ export function CalendarSidebar({
   ];
 
   return (
-    <aside className="w-full md:w-64 shrink-0 space-y-5 p-4 bg-sidebar border-r border-border rounded-l-xl">
+    <aside className="w-full md:w-64 shrink-0 flex flex-col gap-4 p-4 bg-sidebar border-r border-border overflow-y-auto">
       {/* Create Button */}
       <Button
         onClick={onCreateClick}
-        className="w-full h-10 font-semibold gap-2 shadow-sm bg-primary text-primary-foreground hover:opacity-90 rounded-xl"
+        className="w-full h-10 font-bold gap-2 shadow-sm bg-primary text-primary-foreground hover:opacity-90 rounded-xl"
       >
         <Plus className="h-4 w-4" />
         <span>Criar Evento</span>
@@ -82,7 +102,7 @@ export function CalendarSidebar({
 
       {/* Filters Header */}
       <div className="flex items-center justify-between border-b border-border/60 pb-2 pt-1">
-        <span className="text-xs font-bold font-display uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <span className="text-[11px] font-bold font-display uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
           <Filter className="h-3.5 w-3.5 text-primary" /> Filtros de Agenda
         </span>
         {(filters.myEventsOnly ||
@@ -102,37 +122,35 @@ export function CalendarSidebar({
                 status: null,
               })
             }
-            className="text-[11px] text-primary hover:underline"
+            className="text-[11px] text-primary hover:underline font-medium"
           >
             Limpar
           </button>
         )}
       </div>
 
-      <div className="space-y-4 text-xs">
-        {/* Minha Agenda */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="filter-my-events"
-              checked={filters.myEventsOnly}
-              onCheckedChange={(checked) =>
-                onFilterChange({ ...filters, myEventsOnly: !!checked, responsibleUserId: null })
-              }
-            />
-            <Label htmlFor="filter-my-events" className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-primary" />
-              Somente Minha Agenda
-            </Label>
-          </div>
+      <div className="space-y-3.5 text-xs">
+        {/* Minha Agenda Toggle */}
+        <div className="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border/60">
+          <Checkbox
+            id="filter-my-events"
+            checked={filters.myEventsOnly}
+            onCheckedChange={(checked) =>
+              onFilterChange({ ...filters, myEventsOnly: !!checked, responsibleUserId: null })
+            }
+          />
+          <Label htmlFor="filter-my-events" className="text-xs font-semibold cursor-pointer flex items-center gap-1.5 text-foreground">
+            <User className="h-3.5 w-3.5 text-primary" />
+            Somente Minha Agenda
+          </Label>
         </div>
 
-        {/* Responsible Users */}
+        {/* Responsible Users Filter */}
         {!filters.myEventsOnly && (
-          <div className="border-t border-border/40 pt-3">
+          <div className="space-y-1.5">
             <button
               onClick={() => toggleSection("agendas")}
-              className="flex items-center justify-between w-full font-semibold text-foreground text-xs mb-2"
+              className="flex items-center justify-between w-full font-semibold text-foreground text-xs py-1"
             >
               <span className="flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-muted-foreground" /> Responsáveis
@@ -145,17 +163,21 @@ export function CalendarSidebar({
             </button>
 
             {openSections.agendas && (
-              <div className="space-y-1.5 pl-2 max-h-36 overflow-y-auto">
-                <div
+              <div className="space-y-1 pl-1 max-h-36 overflow-y-auto">
+                <button
+                  type="button"
                   onClick={() => onFilterChange({ ...filters, responsibleUserId: null })}
-                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
-                    !filters.responsibleUserId ? "bg-accent text-accent-foreground font-semibold" : "hover:bg-muted/50"
+                  className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
+                    !filters.responsibleUserId
+                      ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                      : "text-foreground hover:bg-accent/60"
                   }`}
                 >
-                  <span>Todos os responsáveis</span>
-                </div>
+                  <span className="truncate">Todos os responsáveis</span>
+                </button>
                 {auxData.users.map((u) => (
-                  <div
+                  <button
+                    type="button"
                     key={u.id}
                     onClick={() =>
                       onFilterChange({
@@ -163,14 +185,14 @@ export function CalendarSidebar({
                         responsibleUserId: filters.responsibleUserId === u.id ? null : u.id,
                       })
                     }
-                    className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
+                    className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
                       filters.responsibleUserId === u.id
-                        ? "bg-accent text-accent-foreground font-semibold"
-                        : "hover:bg-muted/50 text-muted-foreground"
+                        ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                        : "text-foreground hover:bg-accent/60"
                     }`}
                   >
                     <span className="truncate">{u.display_name || u.full_name || "Usuário"}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -178,10 +200,10 @@ export function CalendarSidebar({
         )}
 
         {/* Teams Filter */}
-        <div className="border-t border-border/40 pt-3">
+        <div className="space-y-1.5 border-t border-border/40 pt-2.5">
           <button
             onClick={() => toggleSection("teams")}
-            className="flex items-center justify-between w-full font-semibold text-foreground text-xs mb-2"
+            className="flex items-center justify-between w-full font-semibold text-foreground text-xs py-1"
           >
             <span className="flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5 text-muted-foreground" /> Equipes
@@ -194,17 +216,21 @@ export function CalendarSidebar({
           </button>
 
           {openSections.teams && (
-            <div className="space-y-1.5 pl-2">
-              <div
+            <div className="space-y-1 pl-1">
+              <button
+                type="button"
                 onClick={() => onFilterChange({ ...filters, teamId: null })}
-                className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
-                  !filters.teamId ? "bg-accent text-accent-foreground font-semibold" : "hover:bg-muted/50"
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
+                  !filters.teamId
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-foreground hover:bg-accent/60"
                 }`}
               >
-                <span>Todas as equipes</span>
-              </div>
+                <span className="truncate">Todas as equipes</span>
+              </button>
               {auxData.teams.map((t) => (
-                <div
+                <button
+                  type="button"
                   key={t.id}
                   onClick={() =>
                     onFilterChange({
@@ -212,24 +238,24 @@ export function CalendarSidebar({
                       teamId: filters.teamId === t.id ? null : t.id,
                     })
                   }
-                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
+                  className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
                     filters.teamId === t.id
-                      ? "bg-accent text-accent-foreground font-semibold"
-                      : "hover:bg-muted/50 text-muted-foreground"
+                      ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                      : "text-foreground hover:bg-accent/60"
                   }`}
                 >
                   <span className="truncate">{t.name}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
 
         {/* DS Agents Filter */}
-        <div className="border-t border-border/40 pt-3">
+        <div className="space-y-1.5 border-t border-border/40 pt-2.5">
           <button
             onClick={() => toggleSection("agents")}
-            className="flex items-center justify-between w-full font-semibold text-foreground text-xs mb-2"
+            className="flex items-center justify-between w-full font-semibold text-foreground text-xs py-1"
           >
             <span className="flex items-center gap-1.5">
               <Bot className="h-3.5 w-3.5 text-primary" /> DS Agents
@@ -242,17 +268,21 @@ export function CalendarSidebar({
           </button>
 
           {openSections.agents && (
-            <div className="space-y-1.5 pl-2">
-              <div
+            <div className="space-y-1 pl-1">
+              <button
+                type="button"
                 onClick={() => onFilterChange({ ...filters, dsAgentId: null })}
-                className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
-                  !filters.dsAgentId ? "bg-accent text-accent-foreground font-semibold" : "hover:bg-muted/50"
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
+                  !filters.dsAgentId
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                    : "text-foreground hover:bg-accent/60"
                 }`}
               >
-                <span>Todos os agentes</span>
-              </div>
+                <span className="truncate">Todos os agentes</span>
+              </button>
               {auxData.agents.map((a) => (
-                <div
+                <button
+                  type="button"
                   key={a.id}
                   onClick={() =>
                     onFilterChange({
@@ -260,24 +290,24 @@ export function CalendarSidebar({
                       dsAgentId: filters.dsAgentId === a.id ? null : a.id,
                     })
                   }
-                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
+                  className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
                     filters.dsAgentId === a.id
-                      ? "bg-accent text-accent-foreground font-semibold"
-                      : "hover:bg-muted/50 text-muted-foreground"
+                      ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                      : "text-foreground hover:bg-accent/60"
                   }`}
                 >
                   <span className="truncate">{a.name}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Event Types */}
-        <div className="border-t border-border/40 pt-3">
+        {/* Event Types Filter */}
+        <div className="space-y-1.5 border-t border-border/40 pt-2.5">
           <button
             onClick={() => toggleSection("types")}
-            className="flex items-center justify-between w-full font-semibold text-foreground text-xs mb-2"
+            className="flex items-center justify-between w-full font-semibold text-foreground text-xs py-1"
           >
             <span className="flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5 text-muted-foreground" /> Tipos de Evento
@@ -290,9 +320,10 @@ export function CalendarSidebar({
           </button>
 
           {openSections.types && (
-            <div className="space-y-1 pl-2">
+            <div className="space-y-1 pl-1">
               {eventTypes.map((et) => (
-                <div
+                <button
+                  type="button"
                   key={et.value}
                   onClick={() =>
                     onFilterChange({
@@ -300,10 +331,10 @@ export function CalendarSidebar({
                       eventType: filters.eventType === et.value ? null : et.value,
                     })
                   }
-                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
+                  className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
                     filters.eventType === et.value
-                      ? "bg-accent text-accent-foreground font-semibold"
-                      : "hover:bg-muted/50 text-muted-foreground"
+                      ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                      : "text-foreground hover:bg-accent/60"
                   }`}
                 >
                   <span
@@ -311,17 +342,17 @@ export function CalendarSidebar({
                     style={{ backgroundColor: et.color }}
                   />
                   <span className="truncate">{et.label}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
 
         {/* Status Filter */}
-        <div className="border-t border-border/40 pt-3">
+        <div className="space-y-1.5 border-t border-border/40 pt-2.5">
           <button
             onClick={() => toggleSection("status")}
-            className="flex items-center justify-between w-full font-semibold text-foreground text-xs mb-2"
+            className="flex items-center justify-between w-full font-semibold text-foreground text-xs py-1"
           >
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" /> Status
@@ -334,9 +365,10 @@ export function CalendarSidebar({
           </button>
 
           {openSections.status && (
-            <div className="space-y-1 pl-2">
+            <div className="space-y-1 pl-1">
               {statuses.map((st) => (
-                <div
+                <button
+                  type="button"
                   key={st.value}
                   onClick={() =>
                     onFilterChange({
@@ -344,14 +376,14 @@ export function CalendarSidebar({
                       status: filters.status === st.value ? null : st.value,
                     })
                   }
-                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer ${
+                  className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
                     filters.status === st.value
-                      ? "bg-accent text-accent-foreground font-semibold"
-                      : "hover:bg-muted/50 text-muted-foreground"
+                      ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                      : "text-foreground hover:bg-accent/60"
                   }`}
                 >
                   <span className="truncate">{st.label}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}

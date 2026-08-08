@@ -1,7 +1,19 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from "date-fns";
+import {
+  addMonths,
+  subMonths,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  format,
+} from "date-fns";
 import { toast } from "sonner";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarSidebar, FilterState } from "./CalendarSidebar";
@@ -21,56 +33,81 @@ import {
 } from "@/lib/calendar.functions";
 
 export function CalendarPage() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
-  const fetchEvents = useServerFn(listCalendarEvents);
-  const fetchAuxData = useServerFn(listCalendarAuxData);
-  const createFn = useServerFn(createCalendarEvent);
-  const updateFn = useServerFn(updateCalendarEvent);
-  const cancelFn = useServerFn(cancelCalendarEvent);
-  const deleteFn = useServerFn(deleteCalendarEvent);
+  const STORAGE_KEY_FILTERS = "bliv_calendar_filters";
+  const STORAGE_KEY_VIEW = "bliv_calendar_view";
+
+  const [view, setView] = React.useState<"month" | "week" | "day">(() => {
+    if (typeof window === "undefined") return "month";
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_VIEW);
+      if (saved === "month" || saved === "week" || saved === "day") return saved;
+    } catch {}
+    return "month";
+  });
 
   const [currentDate, setCurrentDate] = React.useState<Date>(new Date());
-  const [view, setView] = React.useState<"month" | "week" | "day">("month");
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
 
-  const [filters, setFilters] = React.useState<FilterState>({
-    myEventsOnly: false,
-    responsibleUserId: null,
-    teamId: null,
-    dsAgentId: null,
-    eventType: null,
-    status: null,
+  const [filters, setFiltersState] = React.useState<FilterState>(() => {
+    const defaultFilters: FilterState = {
+      myEventsOnly: false,
+      responsibleUserId: null,
+      teamId: null,
+      dsAgentId: null,
+      eventType: null,
+      status: null,
+    };
+    if (typeof window === "undefined") return defaultFilters;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_FILTERS);
+      if (saved) return { ...defaultFilters, ...JSON.parse(saved) };
+    } catch {}
+    return defaultFilters;
   });
 
-  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
-  const [eventToEdit, setEventToEdit] = React.useState<CalendarEventItem | null>(null);
+  const setFilters = (newFilters: FilterState) => {
+    setFiltersState(newFilters);
+    try {
+      localStorage.setItem(STORAGE_KEY_FILTERS, JSON.stringify(newFilters));
+    } catch (e) {
+      console.error("Error saving filters to localStorage:", e);
+    }
+  };
 
-  const [initialDateForCreate, setInitialDateForCreate] = React.useState<Date | undefined>();
-  const [initialStartTimeForCreate, setInitialStartTimeForCreate] = React.useState<string | undefined>();
-  const [initialEndTimeForCreate, setInitialEndTimeForCreate] = React.useState<string | undefined>();
+  const handleViewChange = (newView: "month" | "week" | "day") => {
+    setView(newView);
+    try {
+      localStorage.setItem(STORAGE_KEY_VIEW, JSON.stringify(newView));
+    } catch (e) {
+      console.error("Error saving view to localStorage:", e);
+    }
+  };
 
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
+  // Modals state
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
+  const [selectedSlot, setSelectedSlot] = React.useState<{ start: Date; end: Date } | null>(null);
   const [selectedEvent, setSelectedEvent] = React.useState<CalendarEventItem | null>(null);
 
-  // Aux data query
-  const auxQuery = useQuery({
+  // Server functions
+  const fetchEvents = useServerFn(listCalendarEvents);
+  const fetchAux = useServerFn(listCalendarAuxData);
+  const createEv = useServerFn(createCalendarEvent);
+  const updateEv = useServerFn(updateCalendarEvent);
+  const cancelEv = useServerFn(cancelCalendarEvent);
+  const deleteEv = useServerFn(deleteCalendarEvent);
+
+  // Aux Data Query
+  const { data: auxData = { contacts: [], users: [], teams: [], agents: [] } } = useQuery({
     queryKey: ["calendar-aux-data"],
-    queryFn: () => fetchAuxData(),
-    staleTime: 60000,
+    queryFn: () => fetchAux(),
+    staleTime: 60_000,
   });
 
-  const auxData = React.useMemo(() => {
-    return {
-      contacts: auxQuery.data?.contacts || [],
-      users: auxQuery.data?.users || [],
-      teams: auxQuery.data?.teams || [],
-      agents: auxQuery.data?.agents || [],
-    };
-  }, [auxQuery.data]);
-
-  // Calculate range string in UTC
-  const range = React.useMemo(() => {
+  // Range calculation for Query
+  const { rangeStart, rangeEnd } = React.useMemo(() => {
     let start: Date;
     let end: Date;
 
@@ -81,54 +118,69 @@ export function CalendarPage() {
       start = startOfWeek(currentDate, { weekStartsOn: 0 });
       end = endOfWeek(currentDate, { weekStartsOn: 0 });
     } else {
-      start = currentDate;
-      end = currentDate;
+      start = new Date(currentDate);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(currentDate);
+      end.setHours(23, 59, 59, 999);
     }
 
-    const startDateStr = format(start, "yyyy-MM-dd") + " 00:00:00";
-    const endDateStr = format(end, "yyyy-MM-dd") + " 23:59:59";
-
-    return { startDateStr, endDateStr };
+    return {
+      rangeStart: start.toISOString(),
+      rangeEnd: end.toISOString(),
+    };
   }, [currentDate, view]);
 
   // Events Query
-  const eventsQuery = useQuery({
-    queryKey: [
-      "calendar-events",
-      range.startDateStr,
-      range.endDateStr,
-      filters,
-      searchQuery,
-    ],
-    queryFn: () =>
-      fetchEvents({
+  const { data: events = [], isLoading } = useQuery({
+    queryKey: ["calendar-events", rangeStart, rangeEnd, filters, searchQuery],
+    queryFn: async () => {
+      const res = await fetchEvents({
         data: {
-          startDate: range.startDateStr,
-          endDate: range.endDateStr,
+          startDateUtc: rangeStart,
+          endDateUtc: rangeEnd,
           responsible_user_id: filters.responsibleUserId,
+          responsibleUserId: filters.responsibleUserId,
           team_id: filters.teamId,
+          teamId: filters.teamId,
           ds_agent_id: filters.dsAgentId,
+          dsAgentId: filters.dsAgentId,
           event_type: filters.eventType,
+          eventType: filters.eventType,
           status: filters.status,
-          search: searchQuery,
           my_events_only: filters.myEventsOnly,
+          myEventsOnly: filters.myEventsOnly,
+          search: searchQuery || null,
+          filters: {
+            responsible_user_id: filters.responsibleUserId,
+            responsibleUserId: filters.responsibleUserId,
+            team_id: filters.teamId,
+            teamId: filters.teamId,
+            ds_agent_id: filters.dsAgentId,
+            dsAgentId: filters.dsAgentId,
+            event_type: filters.eventType,
+            eventType: filters.eventType,
+            status: filters.status,
+            my_events_only: filters.myEventsOnly,
+            myEventsOnly: filters.myEventsOnly,
+            search: searchQuery || null,
+          },
         },
-      }),
-    refetchInterval: 15000,
+      });
+      return (res?.events as CalendarEventItem[]) || [];
+    },
+    refetchInterval: 15_000,
   });
-
-  const eventsList: CalendarEventItem[] = eventsQuery.data?.events || [];
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (data: any) => createFn({ data }),
+    mutationFn: (input: any) => createEv({ data: input }),
     onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast.success("Evento criado com sucesso!");
       if (res.conflictWarning) {
         toast.warning(res.conflictWarning);
-      } else {
-        toast.success("Evento agendado com sucesso!");
       }
-      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      setIsCreateOpen(false);
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao criar evento");
@@ -136,14 +188,22 @@ export function CalendarPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => updateFn({ data }),
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      updateEv({
+        data: {
+          id,
+          eventId: id,
+          ...data,
+        },
+      }),
     onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast.success("Evento atualizado com sucesso!");
       if (res.conflictWarning) {
         toast.warning(res.conflictWarning);
-      } else {
-        toast.success("Evento atualizado com sucesso!");
       }
-      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      setIsCreateOpen(false);
+      setIsDetailsOpen(false);
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao atualizar evento");
@@ -151,10 +211,11 @@ export function CalendarPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => cancelFn({ data: { id } }),
+    mutationFn: (id: string) => cancelEv({ data: { eventId: id } }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
       toast.success("Evento cancelado");
-      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      setIsDetailsOpen(false);
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao cancelar evento");
@@ -162,10 +223,11 @@ export function CalendarPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    mutationFn: (id: string) => deleteEv({ data: { eventId: id } }),
     onSuccess: () => {
-      toast.success("Evento excluído da agenda");
-      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast.success("Evento excluído");
+      setIsDetailsOpen(false);
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao excluir evento");
@@ -173,152 +235,156 @@ export function CalendarPage() {
   });
 
   // Navigation handlers
-  const handleNavigatePrev = () => {
+  const handleToday = () => setCurrentDate(new Date());
+
+  const handlePrev = () => {
     if (view === "month") setCurrentDate((d) => subMonths(d, 1));
     else if (view === "week") setCurrentDate((d) => subWeeks(d, 1));
     else setCurrentDate((d) => subDays(d, 1));
   };
 
-  const handleNavigateNext = () => {
+  const handleNext = () => {
     if (view === "month") setCurrentDate((d) => addMonths(d, 1));
     else if (view === "week") setCurrentDate((d) => addWeeks(d, 1));
     else setCurrentDate((d) => addDays(d, 1));
   };
 
-  const handleToday = () => {
-    setCurrentDate(new Date());
+  const handleSlotSelect = (start: Date, end: Date) => {
+    setSelectedSlot({ start, end });
+    setSelectedEvent(null);
+    setIsCreateOpen(true);
   };
 
-  // Slot & Day clicks
-  const handleClickDay = (date: Date) => {
+  const handleEventSelect = (event: CalendarEventItem) => {
+    setSelectedEvent(event);
+    setIsDetailsOpen(true);
+  };
+
+  const handleOpenDayView = (date: Date) => {
     setCurrentDate(date);
     setView("day");
   };
 
-  const handleClickSlot = (date: Date, hour: number) => {
-    setInitialDateForCreate(date);
-    const startStr = `${String(hour).padStart(2, "0")}:00`;
-    const endStr = `${String(Math.min(23, hour + 1)).padStart(2, "0")}:00`;
-    setInitialStartTimeForCreate(startStr);
-    setInitialEndTimeForCreate(endStr);
-    setEventToEdit(null);
-    setIsCreateModalOpen(true);
-  };
-
-  const handleClickEvent = (event: CalendarEventItem) => {
-    setSelectedEvent(event);
-    setIsDetailsModalOpen(true);
-  };
-
-  const handleSaveModal = async (formData: any) => {
-    if (formData.id) {
-      await updateMutation.mutateAsync(formData);
-    } else {
-      await createMutation.mutateAsync(formData);
-    }
-  };
-
-  const handleStatusChange = async (eventId: string, newStatus: string) => {
-    await updateMutation.mutateAsync({ id: eventId, status: newStatus });
-    if (selectedEvent && selectedEvent.id === eventId) {
-      setSelectedEvent((prev) => (prev ? { ...prev, status: newStatus } : null));
-    }
-  };
-
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-[calc(100vh-5rem)] bg-background">
-      {/* Sidebar */}
-      <CalendarSidebar
-        selectedDate={currentDate}
-        onSelectDate={(d) => {
-          setCurrentDate(d);
-        }}
-        onCreateClick={() => {
-          setEventToEdit(null);
-          setInitialDateForCreate(currentDate);
-          setInitialStartTimeForCreate("09:00");
-          setInitialEndTimeForCreate("10:00");
-          setIsCreateModalOpen(true);
-        }}
-        filters={filters}
-        onFilterChange={setFilters}
-        auxData={auxData}
-      />
-
-      {/* Main Calendar View Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden p-2 md:p-4">
-        <CalendarHeader
-          currentDate={currentDate}
-          view={view}
-          onViewChange={setView}
-          onNavigatePrev={handleNavigatePrev}
-          onNavigateNext={handleNavigateNext}
-          onToday={handleToday}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+    <div className="p-2 md:p-3 h-[calc(100vh-2rem)] flex flex-col">
+      {/* Outer Single Unified Container */}
+      <div className="flex-1 flex flex-col md:flex-row rounded-2xl border border-border bg-card shadow-sm overflow-hidden min-h-0">
+        {/* Left Sidebar */}
+        <CalendarSidebar
+          selectedDate={currentDate}
+          onSelectDate={(d) => {
+            setCurrentDate(d);
+            if (view === "month") handleViewChange("day");
+          }}
+          onCreateClick={() => {
+            const start = new Date(currentDate);
+            start.setHours(9, 0, 0, 0);
+            const end = new Date(currentDate);
+            end.setHours(10, 0, 0, 0);
+            handleSlotSelect(start, end);
+          }}
+          filters={filters}
+          onFilterChange={setFilters}
+          auxData={auxData}
         />
 
-        <div className="flex-1 relative mt-1 min-h-[500px]">
-          {view === "month" && (
-            <MonthView
-              currentDate={currentDate}
-              events={eventsList}
-              onClickDay={handleClickDay}
-              onClickEvent={handleClickEvent}
-            />
-          )}
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+          {/* Header */}
+          <CalendarHeader
+            currentDate={currentDate}
+            view={view}
+            onViewChange={handleViewChange}
+            onNavigatePrev={handlePrev}
+            onNavigateNext={handleNext}
+            onToday={handleToday}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
 
-          {view === "week" && (
-            <WeekView
-              currentDate={currentDate}
-              events={eventsList}
-              onClickSlot={handleClickSlot}
-              onClickEvent={handleClickEvent}
-            />
-          )}
+          {/* Active View */}
+          <main className="flex-1 overflow-hidden relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-background/50 backdrop-blur-xs z-20 flex items-center justify-center">
+                <div className="text-xs font-semibold text-muted-foreground animate-pulse">
+                  Carregando agenda...
+                </div>
+              </div>
+            )}
 
-          {view === "day" && (
-            <DayView
-              currentDate={currentDate}
-              events={eventsList}
-              onClickSlot={handleClickSlot}
-              onClickEvent={handleClickEvent}
-            />
-          )}
+            {view === "month" && (
+              <MonthView
+                currentDate={currentDate}
+                events={events}
+                onSelectSlot={handleSlotSelect}
+                onSelectEvent={handleEventSelect}
+                onOpenDayView={handleOpenDayView}
+              />
+            )}
+
+            {view === "week" && (
+              <WeekView
+                currentDate={currentDate}
+                events={events}
+                onSelectSlot={handleSlotSelect}
+                onSelectEvent={handleEventSelect}
+                onOpenDayView={handleOpenDayView}
+              />
+            )}
+
+            {view === "day" && (
+              <DayView
+                currentDate={currentDate}
+                events={events}
+                onSelectSlot={handleSlotSelect}
+                onSelectEvent={handleEventSelect}
+              />
+            )}
+          </main>
         </div>
-      </main>
+      </div>
 
-      {/* Create / Edit Modal */}
-      <CalendarEventModal
-        isOpen={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          setEventToEdit(null);
-        }}
-        onSubmit={handleSaveModal}
-        eventToEdit={eventToEdit}
-        initialDate={initialDateForCreate}
-        initialStartTime={initialStartTimeForCreate}
-        initialEndTime={initialEndTimeForCreate}
-        auxData={auxData}
-      />
+      {/* Event Create / Edit Modal */}
+      {isCreateOpen && (
+        <CalendarEventModal
+          isOpen={isCreateOpen}
+          onClose={() => {
+            setIsCreateOpen(false);
+            setSelectedEvent(null);
+            setSelectedSlot(null);
+          }}
+          initialSlot={selectedSlot}
+          eventToEdit={selectedEvent}
+          auxData={auxData}
+          onSubmit={async (data) => {
+            if (selectedEvent) {
+              updateMutation.mutate({ id: selectedEvent.id, data });
+            } else {
+              createMutation.mutate(data);
+            }
+          }}
+          isSubmitting={createMutation.isPending || updateMutation.isPending}
+        />
+      )}
 
       {/* Event Details Modal */}
-      <CalendarEventDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => {
-          setIsDetailsModalOpen(false);
-          setSelectedEvent(null);
-        }}
-        event={selectedEvent}
-        onEdit={(ev) => {
-          setEventToEdit(ev);
-          setIsCreateModalOpen(true);
-        }}
-        onCancelEvent={(id) => cancelMutation.mutateAsync(id)}
-        onDeleteEvent={(id) => deleteMutation.mutateAsync(id)}
-        onStatusChange={handleStatusChange}
-      />
+      {isDetailsOpen && selectedEvent && (
+        <CalendarEventDetailsModal
+          isOpen={isDetailsOpen}
+          onClose={() => {
+            setIsDetailsOpen(false);
+            setSelectedEvent(null);
+          }}
+          event={selectedEvent}
+          onEdit={() => {
+            setIsDetailsOpen(false);
+            setIsCreateOpen(true);
+          }}
+          onCancel={() => cancelMutation.mutate(selectedEvent.id)}
+          onDelete={() => deleteMutation.mutate(selectedEvent.id)}
+          isActionPending={cancelMutation.isPending || deleteMutation.isPending}
+        />
+      )}
     </div>
   );
 }

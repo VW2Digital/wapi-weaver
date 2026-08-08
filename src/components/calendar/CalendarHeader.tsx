@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronLeft, ChevronRight, Search, ArrowRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
@@ -26,28 +26,30 @@ export function CalendarHeader({
   searchQuery,
   onSearchChange,
 }: CalendarHeaderProps) {
-  // Format header title based on view
+  // Format header title without CSS capitalize to avoid "Agosto De 2026"
   const formattedDateTitle = React.useMemo(() => {
     if (view === "day") {
-      return format(currentDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+      const raw = format(currentDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
     }
-    return format(currentDate, "MMMM 'de' yyyy", { locale: ptBR });
+    const raw = format(currentDate, "MMMM 'de' yyyy", { locale: ptBR });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   }, [currentDate, view]);
 
   return (
-    <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 border-b border-border bg-card/60 backdrop-blur-sm rounded-t-xl">
-      {/* Date Navigation & Controls */}
-      <div className="flex flex-wrap items-center gap-2">
+    <header className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-4 border-b border-border bg-card/90 backdrop-blur-sm shrink-0">
+      {/* Date Navigation & Title */}
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="outline"
           size="sm"
           onClick={onToday}
-          className="font-medium text-xs border-border hover:bg-accent"
+          className="font-semibold text-xs border-border hover:bg-accent h-8 rounded-lg"
         >
           Hoje
         </Button>
 
-        <div className="flex items-center rounded-lg border border-border bg-background p-0.5">
+        <div className="flex items-center rounded-lg border border-border bg-background p-0.5 shadow-2xs">
           <Button
             variant="ghost"
             size="icon"
@@ -68,14 +70,15 @@ export function CalendarHeader({
           </Button>
         </div>
 
-        <h2 className="text-base md:text-lg font-display font-semibold text-foreground capitalize ml-1">
+        <h2 className="text-base lg:text-lg font-display font-bold text-foreground ml-1">
           {formattedDateTitle}
         </h2>
       </div>
 
-      {/* Right Controls & Search */}
-      <div className="flex items-center gap-3 justify-between md:justify-end">
-        <div className="relative w-48 md:w-60">
+      {/* Right Actions, Search & View Selector */}
+      <div className="flex items-center gap-3 justify-between lg:justify-end">
+        {/* Search */}
+        <div className="relative w-40 sm:w-56">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             type="text"
@@ -86,13 +89,13 @@ export function CalendarHeader({
           />
         </div>
 
-        {/* View Switcher */}
-        <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5">
+        {/* View Switcher Segmented Control */}
+        <div className="flex items-center rounded-lg border border-border bg-muted/50 p-0.5">
           <button
             onClick={() => onViewChange("day")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
               view === "day"
-                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                ? "bg-primary text-primary-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -100,9 +103,9 @@ export function CalendarHeader({
           </button>
           <button
             onClick={() => onViewChange("week")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
               view === "week"
-                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                ? "bg-primary text-primary-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -110,9 +113,9 @@ export function CalendarHeader({
           </button>
           <button
             onClick={() => onViewChange("month")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
               view === "month"
-                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                ? "bg-primary text-primary-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -120,17 +123,17 @@ export function CalendarHeader({
           </button>
         </div>
 
-        {/* Header Action / Back button strictly on RIGHT */}
+        {/* Back Button strictly on the RIGHT */}
         <Button
           variant="outline"
           size="sm"
           onClick={() => window.history.back()}
-          className="h-8 text-xs border-border gap-1.5 text-muted-foreground hover:text-foreground"
+          className="h-8 text-xs border-border gap-1.5 text-muted-foreground hover:text-foreground rounded-lg"
         >
           <span>Voltar</span>
           <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       </div>
-    </div>
+    </header>
   );
 }

@@ -26,17 +26,20 @@ import {
   CheckCircle2,
   FileText,
   AlertTriangle,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 interface CalendarEventDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   event: CalendarEventItem | null;
   onEdit: (event: CalendarEventItem) => void;
-  onCancelEvent: (eventId: string) => Promise<void>;
-  onDeleteEvent: (eventId: string) => Promise<void>;
-  onStatusChange: (eventId: string, newStatus: string) => Promise<void>;
+  onCancel: (eventId: string) => void;
+  onDelete: (eventId: string) => void;
+  isActionPending?: boolean;
 }
 
 export function CalendarEventDetailsModal({
@@ -44,13 +47,13 @@ export function CalendarEventDetailsModal({
   onClose,
   event,
   onEdit,
-  onCancelEvent,
-  onDeleteEvent,
-  onStatusChange,
+  onCancel,
+  onDelete,
+  isActionPending = false,
 }: CalendarEventDetailsModalProps) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
+  const [copiedLink, setCopiedLink] = React.useState(false);
 
   if (!event) return null;
 
@@ -77,25 +80,11 @@ export function CalendarEventDetailsModal({
     }
   };
 
-  const handleCancel = async () => {
-    try {
-      setLoading(true);
-      await onCancelEvent(event.id);
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      setLoading(true);
-      await onDeleteEvent(event.id);
-      setConfirmDelete(false);
-      onClose();
-    } finally {
-      setLoading(false);
-    }
+  const handleCopyMeetingLink = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    toast.success("Link da reunião copiado!");
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   return (
@@ -112,7 +101,7 @@ export function CalendarEventDetailsModal({
 
         <div className="space-y-4 text-xs pt-1">
           {/* Date & Time */}
-          <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
+          <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-muted/20">
             <Calendar className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <div className="space-y-0.5">
               <div className="font-semibold text-foreground capitalize">{formattedDate}</div>
@@ -125,7 +114,7 @@ export function CalendarEventDetailsModal({
 
           {/* Contact Card with "Ver Contato" button */}
           {event.contact_id && (
-            <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between">
+            <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
                   Contato Vinculado
@@ -134,7 +123,7 @@ export function CalendarEventDetailsModal({
                   {event.contact_name || "Contato do CRM"}
                 </div>
                 {event.contact_phone && (
-                  <div className="text-muted-foreground font-mono">{event.contact_phone}</div>
+                  <div className="text-muted-foreground font-mono text-[11px]">{event.contact_phone}</div>
                 )}
               </div>
               <Button
@@ -144,7 +133,7 @@ export function CalendarEventDetailsModal({
                   onClose();
                   navigate({ to: "/contacts" });
                 }}
-                className="h-8 text-xs border-primary/30 text-primary hover:bg-primary/10 gap-1.5"
+                className="h-8 text-xs border-primary/30 text-primary hover:bg-primary/10 gap-1.5 rounded-lg"
               >
                 <span>Ver Contato</span>
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -184,7 +173,7 @@ export function CalendarEventDetailsModal({
 
           {/* Location & Meeting URL */}
           {(event.location || event.meeting_url) && (
-            <div className="space-y-2 pt-1 border-t border-border/60">
+            <div className="space-y-2 pt-2 border-t border-border/60">
               {event.location && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -192,17 +181,27 @@ export function CalendarEventDetailsModal({
                 </div>
               )}
               {event.meeting_url && (
-                <div className="flex items-center gap-2">
-                  <Video className="h-4 w-4 text-primary shrink-0" />
-                  <a
-                    href={event.meeting_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary hover:underline truncate flex items-center gap-1 font-medium"
+                <div className="flex items-center justify-between p-2 rounded-lg border border-border bg-background">
+                  <div className="flex items-center gap-2 truncate pr-2">
+                    <Video className="h-4 w-4 text-primary shrink-0" />
+                    <a
+                      href={event.meeting_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary hover:underline truncate font-medium text-xs"
+                    >
+                      {event.meeting_url}
+                    </a>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleCopyMeetingLink(event.meeting_url!)}
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                    title="Copiar Link"
                   >
-                    <span>Entrar na reunião</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                    {copiedLink ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
                 </div>
               )}
             </div>
@@ -210,7 +209,7 @@ export function CalendarEventDetailsModal({
 
           {/* Description */}
           {event.description && (
-            <div className="space-y-1 pt-1 border-t border-border/60">
+            <div className="space-y-1 pt-2 border-t border-border/60">
               <span className="font-semibold text-foreground flex items-center gap-1">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Observações
               </span>
@@ -222,7 +221,7 @@ export function CalendarEventDetailsModal({
 
           {/* Confirmation Alert for Soft Delete */}
           {confirmDelete && (
-            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg space-y-2">
+            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl space-y-2">
               <div className="flex items-center gap-2 text-destructive font-semibold text-xs">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>Tem certeza que deseja excluir este evento?</span>
@@ -235,18 +234,18 @@ export function CalendarEventDetailsModal({
                   size="sm"
                   variant="outline"
                   onClick={() => setConfirmDelete(false)}
-                  className="h-7 text-xs border-border"
+                  className="h-7 text-xs border-border rounded-lg"
                 >
                   Não, voltar
                 </Button>
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={handleDelete}
-                  disabled={loading}
-                  className="h-7 text-xs font-semibold"
+                  onClick={() => onDelete(event.id)}
+                  disabled={isActionPending}
+                  className="h-7 text-xs font-semibold rounded-lg"
                 >
-                  Sim, excluir
+                  {isActionPending ? "Excluindo..." : "Sim, excluir"}
                 </Button>
               </div>
             </div>
@@ -254,29 +253,18 @@ export function CalendarEventDetailsModal({
         </div>
 
         <DialogFooter className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border">
-          {/* Quick status actions */}
+          {/* Quick Cancel action */}
           <div className="flex items-center gap-1">
-            {event.status !== "concluido" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onStatusChange(event.id, "concluido")}
-                className="h-8 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 gap-1"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Concluir</span>
-              </Button>
-            )}
             {event.status !== "cancelled" && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleCancel}
-                disabled={loading}
-                className="h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 gap-1"
+                onClick={() => onCancel(event.id)}
+                disabled={isActionPending}
+                className="h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 gap-1 rounded-lg"
               >
                 <XCircle className="h-3.5 w-3.5" />
-                <span>Cancelar</span>
+                <span>{isActionPending ? "Processando..." : "Cancelar Compromisso"}</span>
               </Button>
             )}
           </div>
@@ -286,10 +274,9 @@ export function CalendarEventDetailsModal({
               variant="outline"
               size="sm"
               onClick={() => {
-                onClose();
                 onEdit(event);
               }}
-              className="h-8 text-xs border-border gap-1"
+              className="h-8 text-xs border-border gap-1 rounded-lg"
             >
               <Edit3 className="h-3.5 w-3.5" />
               <span>Editar</span>
@@ -298,7 +285,7 @@ export function CalendarEventDetailsModal({
               variant="outline"
               size="sm"
               onClick={() => setConfirmDelete(true)}
-              className="h-8 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 gap-1"
+              className="h-8 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 gap-1 rounded-lg"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Excluir</span>

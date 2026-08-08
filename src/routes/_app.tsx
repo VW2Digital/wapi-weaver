@@ -293,6 +293,8 @@ function AppLayout() {
         router.navigate({ to: "/campaigns" });
       } else if (p === "/crm") {
         router.navigate({ to: "/crm" });
+      } else if (p === "/agenda") {
+        router.navigate({ to: "/agenda" });
       } else if (p === "/bot") {
         router.navigate({ to: "/bot" });
       } else if (p === "/ds-agente") {
