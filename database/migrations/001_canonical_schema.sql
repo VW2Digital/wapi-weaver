@@ -1,8 +1,6 @@
 -- 001_canonical_schema.sql
 -- Schema canônico completo do BLIV CRM / WAPI Weaver
 
-SET FOREIGN_KEY_CHECKS = 0;
-
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -123,9 +121,13 @@ CREATE TABLE IF NOT EXISTS contacts (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
   contact_number VARCHAR(50) NOT NULL,
+  phone_e164 VARCHAR(50) NULL,
   name VARCHAR(255) NULL,
   email VARCHAR(255) NULL,
   notes TEXT NULL,
+  opted_out BOOLEAN NOT NULL DEFAULT false,
+  channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+  custom_fields JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_contacts_user_number (user_id, contact_number),
@@ -171,12 +173,42 @@ CREATE TABLE IF NOT EXISTS contact_custom_fields (
   FOREIGN KEY (field_id) REFERENCES custom_fields(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS templates (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  language VARCHAR(10) NOT NULL DEFAULT 'pt_BR',
+  category VARCHAR(50) NOT NULL DEFAULT 'MARKETING',
+  status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+  components JSON NULL,
+  parameter_format VARCHAR(50) NULL,
+  allow_category_change BOOLEAN NOT NULL DEFAULT TRUE,
+  cta_url_link_tracking_opted_out BOOLEAN NOT NULL DEFAULT FALSE,
+  message_send_ttl_seconds INT NULL,
+  sub_category VARCHAR(100) NULL,
+  display_format VARCHAR(100) NULL,
+  is_primary_device_delivery_only BOOLEAN NOT NULL DEFAULT FALSE,
+  meta_template_id VARCHAR(255) NULL,
+  synced_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_templates_user_name_lang (user_id, name, language),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS campaigns (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  status ENUM('draft', 'scheduled', 'processing', 'completed', 'paused', 'failed') NOT NULL DEFAULT 'draft',
+  message_type VARCHAR(50) NOT NULL DEFAULT 'text',
+  template_id VARCHAR(36) NULL,
+  list_id VARCHAR(36) NULL,
+  payload JSON NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'draft',
   scheduled_at DATETIME NULL,
+  started_at DATETIME NULL,
+  finished_at DATETIME NULL,
+  totals JSON NULL,
   total_contacts INT NOT NULL DEFAULT 0,
   sent_count INT NOT NULL DEFAULT 0,
   failed_count INT NOT NULL DEFAULT 0,
@@ -200,14 +232,19 @@ CREATE TABLE IF NOT EXISTS campaign_messages (
   campaign_id VARCHAR(36) NOT NULL,
   user_id VARCHAR(36) NOT NULL,
   contact_id VARCHAR(36) NULL,
-  contact_number VARCHAR(50) NOT NULL,
+  contact_number VARCHAR(50) NULL,
+  to_phone VARCHAR(50) NULL,
   message_type VARCHAR(50) NOT NULL DEFAULT 'text',
   message_body TEXT NULL,
-  status ENUM('pending', 'processing', 'sent', 'delivered', 'read', 'failed') NOT NULL DEFAULT 'pending',
+  attempts INT NOT NULL DEFAULT 0,
+  status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  error JSON NULL,
   error_message TEXT NULL,
+  wa_message_id VARCHAR(255) NULL,
   sent_at DATETIME NULL,
   delivered_at DATETIME NULL,
   read_at DATETIME NULL,
+  failed_at DATETIME NULL,
   pricing_billable BOOLEAN NOT NULL DEFAULT false,
   pricing_category VARCHAR(50) NULL,
   conversation_id VARCHAR(100) NULL,
@@ -231,6 +268,21 @@ CREATE TABLE IF NOT EXISTS bot_flows (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS bot_steps (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  flow_id VARCHAR(36) NULL,
+  user_id VARCHAR(36) NULL,
+  bot_settings_id VARCHAR(36) NULL,
+  step_order INT NOT NULL DEFAULT 0,
+  trigger_type VARCHAR(50) NULL,
+  trigger_value VARCHAR(255) NULL,
+  next_step_id VARCHAR(36) NULL,
+  step_type VARCHAR(50) NULL,
+  content JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS bot_flow_executions (
@@ -414,6 +466,8 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   event_type VARCHAR(100) NOT NULL,
   payload_json JSON NOT NULL,
   status ENUM('pending', 'processed', 'failed') NOT NULL DEFAULT 'pending',
+  processed BOOLEAN NOT NULL DEFAULT FALSE,
+  received_at DATETIME NULL,
   error_message TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_whe_tenant_status (tenant_id, status)
@@ -438,5 +492,3 @@ CREATE TABLE IF NOT EXISTS platform_banners (
 INSERT INTO platform_settings (id, meta_graph_version) 
 VALUES (1, 'v20.0') 
 ON DUPLICATE KEY UPDATE id=1;
-
-SET FOREIGN_KEY_CHECKS = 1;

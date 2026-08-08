@@ -546,10 +546,12 @@ if [[ "${ENABLE_PHPMYADMIN}" == "s" ]]; then
   COMPOSE_PROFILE_FLAG="--profile phpmyadmin"
 fi
 
-# Build e inicialização dos containers (SEM --wait para permitir execução prévia de migrations)
-echo "  Executando build da aplicação (sem cache antigo) e inicialização dos serviços..."
+# Build da imagem da aplicação e infraestrutura
+echo "  Executando build da aplicação (sem cache antigo)..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d
+
+echo "  Subindo serviços de infraestrutura (MySQL e Redis)..."
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d mysql redis
 
 echo "  Aguardando inicialização do banco MySQL..."
 MYSQL_READY=0
@@ -592,13 +594,21 @@ if [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
   print_ok "Dump do banco importado com sucesso."
 fi
 
-# Executar Migrações de Banco de Dados
-echo "  Executando migrações de banco de dados..."
-docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/migrate.js
+# Executar Migrações de Banco de Dados em container efêmero (one-shot)
+echo "  Executando migrações de banco de dados em container efêmero..."
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/migrate.js
 
-# Provisionar Administrador Master
-echo "  Provisionando Administrador Master (${ADMIN_EMAIL})..."
-docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/provision-admin.js
+# Provisionar Administrador Master em container efêmero
+echo "  Provisionando Administrador Master (${ADMIN_EMAIL}) em container efêmero..."
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/provision-admin.js
+
+# Validar Banco de Dados offline
+echo "  Validando estrutura e integridade do Banco de Dados..."
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-database.js
+
+# Subir serviço da aplicação após banco migrado e validado
+echo "  Iniciando serviço da aplicação (app)..."
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d app
 
 # Aguardar disponibilidade HTTP e Healthcheck Docker do App
 echo "  Aguardando disponibilidade HTTP da aplicação (porta 3003)..."
@@ -607,7 +617,7 @@ wait_for_app_http
 echo "  Aguardando transição do status do container para 'healthy'..."
 wait_for_app_healthy
 
-# Validar Instalação
+# Validar Instalação completa (HTTP/Auth/Cache)
 echo "  Executando validador automatizado pós-instalação..."
 docker compose -f "${COMPOSE_FILE}" exec -T app node scripts/validate-installation.js
 

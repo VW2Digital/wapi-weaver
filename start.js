@@ -2,12 +2,8 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import server from "./dist/server/server.js";
-import { ensureDatabaseSchema } from "./scripts/ensure-schema.js";
 
 import dsAgentApi from "./src/lib/ds-agent.api.js";
-
-// Run database init on startup
-await ensureDatabaseSchema();
 
 const app = new Hono();
 

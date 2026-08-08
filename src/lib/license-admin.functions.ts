@@ -124,12 +124,14 @@ export const createLicense = createServerFn({ method: "POST" })
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
     const features = input.features_json || { max_users: input.max_users || 1 };
 
+    const licenseId = crypto.randomUUID();
     try {
       await db.query(
         `INSERT INTO licenses
-         (license_key_hash, license_key_preview, client_name, client_email, product_name, app_id, plan, status, expires_at, max_activations, max_users, features_json, notes, tenant_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?)`,
+         (id, license_key_hash, license_key_preview, client_name, client_email, product_name, app_id, plan, status, expires_at, max_activations, max_users, features_json, notes, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?)`,
         [
+          licenseId,
           keyHash,
           keyPreview,
           input.client_name || null,

@@ -23,6 +23,43 @@ if (fs.existsSync(dotenvPath)) {
   }
 }
 
+async function ensureColumnExists(connection, tableName, columnName, columnDefinition) {
+  const [rows] = await connection.query(
+    `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [tableName, columnName],
+  );
+  if (rows.length === 0) {
+    console.log(`[Migrate] Adding missing column '${columnName}' to table '${tableName}'...`);
+    await connection.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${columnDefinition}`);
+  }
+}
+
+async function ensureRuntimeSchemaAlignment(connection) {
+  await ensureColumnExists(connection, "contacts", "phone_e164", "VARCHAR(50) NULL");
+  await ensureColumnExists(connection, "contacts", "opted_out", "BOOLEAN NOT NULL DEFAULT false");
+  await ensureColumnExists(connection, "contacts", "channel", "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'");
+  await ensureColumnExists(connection, "contacts", "custom_fields", "JSON NULL");
+
+  await ensureColumnExists(connection, "campaigns", "message_type", "VARCHAR(50) NOT NULL DEFAULT 'text'");
+  await ensureColumnExists(connection, "campaigns", "template_id", "VARCHAR(36) NULL");
+  await ensureColumnExists(connection, "campaigns", "list_id", "VARCHAR(36) NULL");
+  await ensureColumnExists(connection, "campaigns", "payload", "JSON NULL");
+  await ensureColumnExists(connection, "campaigns", "started_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "campaigns", "finished_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "campaigns", "totals", "JSON NULL");
+
+  await ensureColumnExists(connection, "campaign_messages", "to_phone", "VARCHAR(50) NULL");
+  await ensureColumnExists(connection, "campaign_messages", "attempts", "INT NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "campaign_messages", "error", "JSON NULL");
+  await ensureColumnExists(connection, "campaign_messages", "wa_message_id", "VARCHAR(255) NULL");
+  await ensureColumnExists(connection, "campaign_messages", "failed_at", "DATETIME NULL");
+
+  await ensureColumnExists(connection, "webhook_events", "processed", "BOOLEAN NOT NULL DEFAULT FALSE");
+  await ensureColumnExists(connection, "webhook_events", "received_at", "DATETIME NULL");
+
+  await ensureColumnExists(connection, "licenses", "tenant_id", "VARCHAR(36) NULL UNIQUE");
+}
+
 async function runMigrations() {
   console.log("[Migrate] Starting database migration runner...");
 
@@ -101,6 +138,9 @@ async function runMigrations() {
         throw migrationErr;
       }
     }
+
+    // Alinhamento condicional de colunas via information_schema
+    await ensureRuntimeSchemaAlignment(connection);
 
     console.log(`[Migrate] Migration runner completed successfully. ${appliedCount} migration(s) applied.`);
     process.exit(0);
