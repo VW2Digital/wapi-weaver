@@ -59,23 +59,39 @@ async function main() {
     const requiredTables = JSON.parse(fs.readFileSync(tablesPath, "utf8"));
     const requiredColumns = JSON.parse(fs.readFileSync(columnsPath, "utf8"));
 
-    // 2. Verify schema_migrations contains 001, 002, 003
-    const [migrations] = await connection.query("SELECT version FROM schema_migrations");
-    const migrationVersions = new Set(migrations.map((m) => m.version));
-    const expectedMigrations = [
-      "001_canonical_schema.sql",
-      "002_fix_indexes_and_constraints.sql",
-      "003_runtime_schema_alignment.sql",
-      "004_calendar_events.sql",
-    ];
+    // 2. Verify schema_migrations contains all physical migration files and no orphan records exist
+    const migrationsDir = path.resolve(__dirname, "../database/migrations");
+    if (!fs.existsSync(migrationsDir)) {
+      console.error("[DB Validation] ❌ FAIL: Migrations directory not found at " + migrationsDir);
+      process.exit(1);
+    }
 
+    const expectedMigrations = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
+
+    const [migrations] = await connection.query("SELECT version FROM schema_migrations");
+    const appliedVersions = new Set(migrations.map((m) => m.version));
+
+    // Check all physical files are recorded in database
     for (const mig of expectedMigrations) {
-      if (!migrationVersions.has(mig)) {
-        console.error(`[DB Validation] ❌ FAIL: Migration '${mig}' is missing in schema_migrations table!`);
+      if (!appliedVersions.has(mig)) {
+        console.error(`[DB Validation] ❌ FAIL: Migration file '${mig}' exists on disk but is missing in schema_migrations table!`);
         process.exit(1);
       }
     }
-    console.log(`[DB Validation] ✅ SUCCESS: All ${expectedMigrations.length} migrations recorded in schema_migrations.`);
+
+    // Check orphan migrations in database without physical file
+    const expectedSet = new Set(expectedMigrations);
+    for (const applied of appliedVersions) {
+      if (!expectedSet.has(applied)) {
+        console.error(`[DB Validation] ❌ FAIL: Orphan migration '${applied}' found in schema_migrations table but missing on disk!`);
+        process.exit(1);
+      }
+    }
+
+    console.log(`[DB Validation] ✅ SUCCESS: All ${expectedMigrations.length} physical migrations verified in schema_migrations (no orphans).`);
 
     // 3. Verify required tables physically exist
     const [tables] = await connection.query("SHOW TABLES");

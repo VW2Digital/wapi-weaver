@@ -538,14 +538,27 @@ print_ok "Arquivo .env gerado e protegido (chmod 600)."
 # ---------------------------------------------------------------------------
 print_step "[6/8] Inicializando a stack Docker e aplicando migrações..."
 
-# Se houver backup prévio antes do fresh install
-if [ "$FRESH_DATABASE" -eq 1 ] && [ -f "${APP_DIR}/scripts/backup.sh" ]; then
-  print_warn "Executando backup prévio de segurança do banco..."
-  if ! bash "${APP_DIR}/scripts/backup.sh"; then
-    dump_diagnostics_and_exit "Falha ao criar backup prévio de segurança antes de recriar o banco de dados."
+# 6.1 Backup prévio de segurança
+if [ "$FRESH_DATABASE" -eq 1 ]; then
+  if [ -f "${APP_DIR}/scripts/backup.sh" ]; then
+    print_warn "Executando backup prévio de segurança do banco..."
+    if ! bash "${APP_DIR}/scripts/backup.sh"; then
+      dump_diagnostics_and_exit "Fresh database abortado: backup de segurança falhou."
+    fi
+    print_ok "Backup prévio de segurança concluído."
   fi
-  print_ok "Backup prévio de segurança concluído."
+elif [ "$UPDATE_MODE" -eq 1 ] && [ -f "${APP_DIR}/scripts/backup.sh" ]; then
+  print_warn "Executando backup prévio de segurança do banco antes da atualização..."
+  if ! bash "${APP_DIR}/scripts/backup.sh"; then
+    print_warn "Aviso: Backup prévio automático falhou no modo update, prosseguindo com a atualização..."
+  else
+    print_ok "Backup prévio de segurança concluído."
+  fi
 fi
+
+# 6.2 Parar containers anteriores para garantir ciclo de vida limpo
+echo "  Parando containers anteriores para garantir ciclo de vida limpo..."
+docker compose -f "${COMPOSE_FILE}" down --remove-orphans 2>/dev/null || true
 
 # Definir se phpMyAdmin deve rodar
 COMPOSE_PROFILE_FLAG=""
@@ -553,7 +566,7 @@ if [[ "${ENABLE_PHPMYADMIN}" == "s" ]]; then
   COMPOSE_PROFILE_FLAG="--profile phpmyadmin"
 fi
 
-# Build da imagem da aplicação e infraestrutura
+# 6.3 Build da imagem da aplicação e subir infraestrutura
 echo "  Executando build da aplicação (sem cache antigo)..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull
 
@@ -590,8 +603,46 @@ if [ "$REDIS_READY" -ne 1 ]; then
   dump_diagnostics_and_exit "Redis não estabilizou a tempo."
 fi
 
-# Importação de Dump se fornecido
-if [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
+# 6.4 Se for FRESH_DATABASE=1, resetar logicamente o banco wapi_weaver de forma segura
+if [ "$FRESH_DATABASE" -eq 1 ]; then
+  print_step "Resetando banco de dados wapi_weaver (Fresh Install solicitado)..."
+  docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u root -p"${MYSQL_ROOT_PASS_VAL}" -e "
+    DROP DATABASE IF EXISTS wapi_weaver;
+    CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
+    FLUSH PRIVILEGES;
+  " 2>/dev/null || docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -e "
+    DROP DATABASE IF EXISTS wapi_weaver;
+    CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  "
+  print_ok "Banco de dados wapi_weaver resetado e recriado como novo."
+fi
+
+create_database_schema() {
+  print_step "Criando estrutura canônica do banco de dados (canonical-schema)..."
+  docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/create-all-tables.js
+  if [ $? -ne 0 ]; then
+    dump_diagnostics_and_exit "Falha ao criar estrutura canônica do banco."
+  fi
+  print_ok "Estrutura canônica criada com sucesso."
+}
+
+run_database_migrations() {
+  print_step "Executando migrações do banco de dados..."
+  docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/migrate.js
+  if [ $? -ne 0 ]; then
+    dump_diagnostics_and_exit "Falha ao executar migrações de banco de dados."
+  fi
+  print_ok "Migrações aplicadas com sucesso."
+}
+
+# 6.5 Execução do Banco por Modo (NOVO vs FRESH SEM DUMP vs FRESH COM DUMP vs UPDATE)
+if [ "$UPDATE_MODE" -eq 1 ]; then
+  # Fluxo UPDATE: Banco preservado. Executar SOMENTE migrações (sem canonical)
+  echo "  Executando fluxo de atualização (UPDATE)..."
+  run_database_migrations
+elif [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
+  # Fluxo FRESH COM DUMP: Importar dump restaurado e executar SOMENTE migrações (sem canonical)
   print_step "Importando dump do banco de dados (${DATABASE_DUMP})..."
   if [[ "$DATABASE_DUMP" == *.gz ]]; then
     gunzip -c "$DATABASE_DUMP" | docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver
@@ -599,30 +650,12 @@ if [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
     docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver < "$DATABASE_DUMP"
   fi
   print_ok "Dump do banco importado com sucesso."
+  run_database_migrations
+else
+  # Fluxo NOVO ou FRESH SEM DUMP: Banco limpo. Canonical PRIMEIRO, depois Migrações
+  create_database_schema
+  run_database_migrations
 fi
-
-create_database_schema() {
-  print_step "Criando estrutura completa do banco de dados (canonical-schema)..."
-
-  docker compose -f "${COMPOSE_FILE}" run \
-    --rm \
-    --no-deps \
-    app \
-    node scripts/create-all-tables.js
-
-  if [ $? -ne 0 ]; then
-    dump_diagnostics_and_exit "Falha ao criar estrutura completa do banco."
-  fi
-
-  print_ok "Todas as tabelas foram criadas com sucesso."
-}
-
-# Criar estrutura completa de tabelas (CREATE ALL TABLES)
-create_database_schema
-
-# Executar Migrações de Banco de Dados em container efêmero (one-shot)
-echo "  Executando migrações de banco de dados em container efêmero..."
-docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/migrate.js
 
 # Provisionar Administrador Master em container efêmero
 echo "  Provisionando Administrador Master (${ADMIN_EMAIL}) em container efêmero..."
