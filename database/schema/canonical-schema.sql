@@ -160,22 +160,36 @@ CREATE TABLE IF NOT EXISTS licenses (
   license_key_preview VARCHAR(255) NOT NULL,
   client_name VARCHAR(255) NOT NULL,
   client_email VARCHAR(255) NOT NULL,
+  product_name VARCHAR(255) NULL,
+  app_id VARCHAR(100) NULL,
   plan VARCHAR(50) NOT NULL DEFAULT 'basic',
   status ENUM('active', 'suspended', 'cancelled', 'expired') NOT NULL DEFAULT 'active',
-  tenant_id VARCHAR(36) NULL UNIQUE,
   expires_at DATETIME NULL,
+  max_activations INT NOT NULL DEFAULT 1,
+  max_users INT NULL,
+  features_json JSON NULL,
+  notes TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  tenant_id VARCHAR(36) NULL UNIQUE,
+  stripe_customer_id VARCHAR(255) NULL,
+  stripe_subscription_id VARCHAR(255) NULL,
+  ai_tokens_used INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS license_activations (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   license_id VARCHAR(36) NOT NULL,
   domain VARCHAR(255) NULL,
-  ip_address VARCHAR(45) NULL,
+  app_url VARCHAR(255) NULL,
   installation_id VARCHAR(255) NULL,
+  ip_address VARCHAR(45) NULL,
+  user_agent TEXT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
   activated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_check_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -183,9 +197,13 @@ CREATE TABLE IF NOT EXISTS license_validation_logs (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   license_id VARCHAR(36) NULL,
   domain VARCHAR(255) NULL,
+  app_url VARCHAR(255) NULL,
+  installation_id VARCHAR(255) NULL,
   ip_address VARCHAR(45) NULL,
-  status VARCHAR(50) NOT NULL,
-  message TEXT NULL,
+  app_id VARCHAR(100) NULL,
+  result VARCHAR(50) NULL,
+  reason TEXT NULL,
+  payload_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

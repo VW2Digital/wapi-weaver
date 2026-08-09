@@ -664,6 +664,8 @@ docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/provisio
 # Validar Banco de Dados offline
 echo "  Validando estrutura e integridade do Banco de Dados..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-database.js
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-schema-parity.js
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/audit-runtime-schema.js
 
 # Executar CRUD Smoke Test no Banco de Dados
 echo "  Executando CRUD Smoke Test no Banco de Dados..."
