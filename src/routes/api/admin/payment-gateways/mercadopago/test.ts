@@ -32,7 +32,26 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago/te
               ? current?.production_access_token
               : current?.sandbox_access_token;
           const isMasked = !submitted || submitted === MASKED_SECRET || /^[•\*\.\s]+$/.test(submitted);
-          const accessToken = isMasked ? decryptSecret(stored) : submitted;
+          let accessToken = submitted;
+          if (isMasked) {
+            if (!stored) {
+              return json(
+                { success: false, message: "Informe o Access Token do ambiente selecionado." },
+                400,
+              );
+            }
+            accessToken = decryptSecret(stored);
+            if (!accessToken) {
+              return json(
+                {
+                  success: false,
+                  message:
+                    "As credenciais armazenadas não podem ser descriptografadas com a chave atual. Reconfigure o Access Token ou restaure a chave de criptografia.",
+                },
+                400,
+              );
+            }
+          }
 
           if (!accessToken) {
             return json(

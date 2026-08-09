@@ -32,13 +32,13 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago")(
             checkout_mode: row?.checkout_mode ?? "redirect",
             sandbox_public_key: row?.sandbox_public_key ?? "",
             sandbox_client_id: row?.sandbox_client_id ?? "",
-            sandbox_access_token: decryptSecret(row?.sandbox_access_token),
-            sandbox_client_secret: decryptSecret(row?.sandbox_client_secret),
+            sandbox_access_token: secretField(row?.sandbox_access_token),
+            sandbox_client_secret: secretField(row?.sandbox_client_secret),
             production_public_key: row?.production_public_key ?? "",
             production_client_id: row?.production_client_id ?? "",
-            production_access_token: decryptSecret(row?.production_access_token),
-            production_client_secret: decryptSecret(row?.production_client_secret),
-            webhook_secret: decryptSecret(row?.webhook_secret),
+            production_access_token: secretField(row?.production_access_token),
+            production_client_secret: secretField(row?.production_client_secret),
+            webhook_secret: secretField(row?.webhook_secret),
             webhook_url: `${origin}/api/webhooks/mercadopago`,
           });
         } catch (error: any) {

@@ -91,5 +91,6 @@
   "ds_agent_sessions",
   "ds_agent_subagents",
   "ds_agent_usage",
-  "salvy_numbers"
+  "salvy_numbers",
+  "payment_gateway_settings"
 ]

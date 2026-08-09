@@ -6,7 +6,10 @@ const IV_LENGTH = 12;
 function getEncryptionKey(): Buffer {
   const rawKey = process.env.MERCADOPAGO_ENCRYPTION_KEY;
   if (!rawKey) {
-    const fallbackKey = process.env.JWT_SECRET || "default-encryption-key-for-mercadopago";
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("CRITICAL: MERCADOPAGO_ENCRYPTION_KEY is required in production environment.");
+    }
+    const fallbackKey = process.env.JWT_SECRET || "default-dev-encryption-key-for-mercadopago";
     return crypto.createHash("sha256").update(fallbackKey).digest();
   }
 

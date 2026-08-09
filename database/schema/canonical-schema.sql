@@ -1427,22 +1427,23 @@ CREATE TABLE IF NOT EXISTS billing_webhook_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS payment_gateway_settings (
-  id CHAR(36) NOT NULL PRIMARY KEY,
-  tenant_id VARCHAR(191) NOT NULL UNIQUE,
-  provider VARCHAR(40) NOT NULL DEFAULT 'mercadopago',
+  tenant_id VARCHAR(36) NOT NULL PRIMARY KEY,
   environment ENUM('sandbox', 'production') NOT NULL DEFAULT 'sandbox',
-  checkout_mode ENUM('redirect', 'transparent') NOT NULL DEFAULT 'redirect',
-  sandbox_public_key TEXT NULL,
-  sandbox_client_id TEXT NULL,
+  checkout_mode ENUM('transparent', 'redirect') NOT NULL DEFAULT 'redirect',
   sandbox_access_token TEXT NULL,
+  sandbox_public_key TEXT NULL,
+  sandbox_client_id VARCHAR(255) NULL,
   sandbox_client_secret TEXT NULL,
-  production_public_key TEXT NULL,
-  production_client_id TEXT NULL,
   production_access_token TEXT NULL,
+  production_public_key TEXT NULL,
+  production_client_id VARCHAR(255) NULL,
   production_client_secret TEXT NULL,
   webhook_secret TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  provider VARCHAR(40) NOT NULL DEFAULT 'mercadopago',
+  id CHAR(36) NULL,
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS audit_logs (

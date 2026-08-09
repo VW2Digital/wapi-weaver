@@ -12,21 +12,12 @@ export interface MercadoPagoConfig {
  * Recovers the active payment gateway configuration for a tenant and decrypts tokens.
  */
 export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPagoConfig | null> {
-  let rows: any[] = [];
+  if (!tenantId || tenantId === "__any__") return null;
 
-  if (tenantId && tenantId !== "__any__") {
-    rows = (await db.query(
-      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
-      [tenantId],
-    )) as any[];
-  }
-
-  if (rows.length === 0) {
-    // Fallback: grab any configured row (platform-wide config)
-    rows = (await db.query(
-      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings LIMIT 1",
-    )) as any[];
-  }
+  const rows = (await db.query(
+    "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
+    [tenantId],
+  )) as any[];
 
   if (rows.length === 0) return null;
   const row = rows[0];
@@ -44,7 +35,7 @@ export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPag
     publicKey = row.sandbox_public_key || "";
   }
 
-  console.log(`[getMercadoPagoConfig] tenantId=${tenantId} env=${env} mode=${checkoutMode} token_starts=${accessToken.slice(0, 12)}`);
+  console.log(`[getMercadoPagoConfig] tenantId=${tenantId} env=${env} mode=${checkoutMode} configured=${Boolean(accessToken)}`);
 
   return {
     accessToken,

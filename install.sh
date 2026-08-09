@@ -670,6 +670,7 @@ docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/audit-ru
 # Executar CRUD Smoke Test no Banco de Dados
 echo "  Executando CRUD Smoke Test no Banco de Dados..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/smoke-test-database.js
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/test-payment-gateway-settings.js
 
 # Subir serviço da aplicação após banco criado, migrado e validado
 echo "  Iniciando serviço da aplicação (app)..."

@@ -69,7 +69,9 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
       });
 
       if (!res.ok) {
-        // Se ainda não foi configurado ou retornou 404/401, simplesmente finaliza sem toast de erro intrusivo
+        if (res.status !== 404) {
+          toast.error("Não foi possível carregar as configurações do Mercado Pago.");
+        }
         return;
       }
 
@@ -88,6 +90,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
       setWebhookUrl(data.webhook_url || "");
     } catch (err: any) {
       console.warn("Mercado Pago settings fetch error:", err);
+      toast.error("Não foi possível carregar as configurações do Mercado Pago.");
     } finally {
       setLoading(false);
     }
@@ -125,7 +128,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
       }
 
       toast.success("Configurações do Mercado Pago salvas com sucesso!");
-      fetchSettings(); // Refresh list to get masked inputs again
+      await fetchSettings(); // Refresh list to get masked inputs again
     } catch (err: any) {
       toast.error(err.message || "Falha ao salvar gateway.");
     } finally {
