@@ -1,11 +1,15 @@
 /**
- * Audit Runtime Schema Script
+ * Audit Runtime Schema Script (ESM)
  * Verifies that key runtime SQL queries and table/column references in application source code
  * map directly to valid entries in database/schema/required-columns.json and database/schema/required-tables.json.
  */
 
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function main() {
   const tablesPath = path.resolve(__dirname, "../database/schema/required-tables.json");

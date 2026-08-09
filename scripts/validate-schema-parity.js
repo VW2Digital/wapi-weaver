@@ -1,12 +1,16 @@
 /**
- * Validate Schema Parity Script
+ * Validate Schema Parity Script (ESM)
  * Compares the active MySQL database against required-tables.json and required-columns.json,
  * verifying that column existence, data types, defaults, and key properties strictly match contract specifications.
  */
 
-const fs = require("fs");
-const path = require("path");
-const mysql = require("mysql2/promise");
+import fs from "fs";
+import path from "path";
+import mysql from "mysql2/promise";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Helper to load environment variables from .env if present
 function loadEnv() {
@@ -35,11 +39,16 @@ function loadEnv() {
 loadEnv();
 
 async function main() {
-  const host = process.env.MYSQL_HOST || "localhost";
-  const port = parseInt(process.env.MYSQL_PORT || "3306", 10);
-  const user = process.env.MYSQL_USER || "wapi_user";
-  const password = process.env.MYSQL_PASSWORD || "S0xbxPfKazBVT8JFy1UEOjIsrjox";
-  const database = process.env.MYSQL_DATABASE || "wapi_weaver";
+  const host = process.env.DB_HOST || process.env.MYSQL_HOST || "banco-mysql";
+  const port = parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || "3306", 10);
+  const user = process.env.DB_USER || process.env.MYSQL_USER || "wapi_user";
+  const database = process.env.DB_NAME || process.env.MYSQL_DATABASE || "wapi_weaver";
+  const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD;
+
+  if (!password) {
+    console.error("[Schema Parity] ❌ CRITICAL: DB_PASSWORD environment variable is missing.");
+    process.exit(1);
+  }
 
   let connection;
   try {

@@ -1,12 +1,27 @@
-const mysql = require("mysql2/promise");
-const { randomUUID } = require("crypto");
-const path = require("path");
-const fs = require("fs");
+import mysql from "mysql2/promise";
+import { randomUUID } from "crypto";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 const dotenvPath = path.resolve(__dirname, "../.env");
 if (fs.existsSync(dotenvPath)) {
-  require("dotenv").config({ path: dotenvPath });
+  const envContent = fs.readFileSync(dotenvPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+      const parts = trimmed.split("=");
+      const key = parts[0].trim();
+      const val = parts.slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+      if (!process.env[key]) {
+        process.env[key] = val;
+      }
+    }
+  }
 }
 
 async function main() {
