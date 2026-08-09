@@ -78,6 +78,25 @@ function main() {
       table: "notifications",
       columns: ["id", "tenant_id", "user_id", "type", "title", "message", "action_url", "is_read", "unique_key", "created_at", "read_at"],
     },
+    {
+      table: "subscription_plans",
+      columns: [
+        "id",
+        "name",
+        "slug",
+        "description",
+        "max_agents",
+        "max_funnels",
+        "max_users",
+        "features_json",
+        "is_active",
+        "created_at",
+        "updated_at",
+        "stripe_product_id",
+        "stripe_price_id",
+        "max_ai_tokens",
+      ],
+    },
   ];
 
   let missingTables = 0;

@@ -84,18 +84,43 @@ async function main() {
       }
     }
 
-    // Check column parity
+    // Check column parity (missing & extra columns)
+    const allowedExtraColumns = {
+      license_validation_logs: new Set(["status", "message"]),
+    };
+
     for (const [table, cols] of Object.entries(requiredColumns)) {
       if (!physicalTables.has(table)) continue;
 
       const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
       const existingCols = new Map(colRows.map((c) => [c.Field, c]));
+      const expectedCols = new Set(cols);
 
+      // 1. Missing columns check
       for (const colName of cols) {
         if (!existingCols.has(colName)) {
           console.error(`[Schema Parity] ❌ FAIL: Table '${table}' missing column '${colName}'.`);
           parityErrors++;
         }
+      }
+
+      // 2. Unexpected extra columns check
+      const allowedExtras = allowedExtraColumns[table] || new Set();
+      for (const existingCol of existingCols.keys()) {
+        if (!expectedCols.has(existingCol) && !allowedExtras.has(existingCol)) {
+          console.error(`[Schema Parity] ❌ FAIL: Table '${table}' has unexpected extra column '${existingCol}'.`);
+          parityErrors++;
+        }
+      }
+    }
+
+    // 3. Index & Key Parity Checks
+    if (physicalTables.has("subscription_plans")) {
+      const [subPlanIndexes] = await connection.query("SHOW INDEX FROM subscription_plans");
+      const subPlanUniqueKeys = new Set(subPlanIndexes.filter((i) => i.Non_unique === 0).map((i) => i.Column_name));
+      if (!subPlanUniqueKeys.has("slug")) {
+        console.error("[Schema Parity] ❌ FAIL: Table 'subscription_plans' missing UNIQUE index on column 'slug'.");
+        parityErrors++;
       }
     }
 
