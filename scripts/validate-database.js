@@ -93,6 +93,34 @@ async function main() {
 
     console.log(`[DB Validation] ✅ SUCCESS: All ${expectedMigrations.length} physical migrations verified in schema_migrations (no orphans).`);
 
+    // 2.5. Verify 1:1 parity between required-tables.json and required-columns.json manifests
+    const requiredTableSet = new Set(requiredTables);
+    const columnManifestTables = Object.keys(requiredColumns);
+
+    const orphanColumnManifests = columnManifestTables.filter(
+      (table) => !requiredTableSet.has(table)
+    );
+
+    if (orphanColumnManifests.length > 0) {
+      console.error(
+        `[DB Validation] ❌ FAIL: required-columns.json contains table(s) not declared in required-tables.json: ${orphanColumnManifests.join(", ")}`
+      );
+      process.exit(1);
+    }
+
+    const missingColumnManifests = requiredTables.filter(
+      (table) => !Object.prototype.hasOwnProperty.call(requiredColumns, table)
+    );
+
+    if (missingColumnManifests.length > 0) {
+      console.error(
+        `[DB Validation] ❌ FAIL: required-tables.json contains table(s) without column contract in required-columns.json: ${missingColumnManifests.join(", ")}`
+      );
+      process.exit(1);
+    }
+
+    console.log("[DB Validation] ✅ SUCCESS: Required table and column manifests are 1:1 consistent.");
+
     // 3. Verify required tables physically exist
     const [tables] = await connection.query("SHOW TABLES");
     const existingTables = new Set(tables.map((t) => Object.values(t)[0]));

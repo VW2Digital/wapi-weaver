@@ -323,17 +323,6 @@
     "assign_user_id",
     "created_at"
   ],
-  "bot_flow_executions": [
-    "id",
-    "bot_flow_id",
-    "user_id",
-    "contact_number",
-    "current_node_id",
-    "status",
-    "variables_json",
-    "created_at",
-    "updated_at"
-  ],
   "bot_conversation_state": [
     "id",
     "user_id",
@@ -536,16 +525,6 @@
     "created_at",
     "updated_at"
   ],
-  "ds_agent_documents": [
-    "id",
-    "agent_id",
-    "tenant_id",
-    "file_name",
-    "storage_path",
-    "mime_type",
-    "content_text",
-    "created_at"
-  ],
   "ds_agent_knowledge_files": [
     "id",
     "agent_id",
@@ -649,17 +628,6 @@
     "created_at"
   ],
   "message_tags": ["message_id", "tag_id", "user_id"],
-  "whatsapp_templates": [
-    "id",
-    "user_id",
-    "name",
-    "category",
-    "language",
-    "status",
-    "components_json",
-    "created_at",
-    "updated_at"
-  ],
   "whatsapp_flows": [
     "id",
     "user_id",
@@ -983,15 +951,6 @@
     "webhook_secret",
     "created_at",
     "updated_at"
-  ],
-  "tenant_storage": [
-    "id",
-    "tenant_id",
-    "file_name",
-    "storage_path",
-    "file_size",
-    "mime_type",
-    "created_at"
   ],
   "audit_logs": [
     "id",
