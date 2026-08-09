@@ -69,3 +69,12 @@ certbot --nginx -d seu-dominio.com
 
 ## 6. Checagem de Produção
 - Acesse `https://seu-dominio.com` e confira o login. O usuário `vw2digital@gmail.com` será promovido a `adminmaster` automaticamente se constar no `server.ts`.
+
+## 7. Regras Permanentes de Paridade e Instalação (`BANCO LOCAL == FRESH == VPS`)
+
+1. **Evolução Contínua do `install.sh`**: Toda nova tabela, coluna, índice, FK, migration, variável de ambiente, serviço ou dependência de infraestrutura **DEVE** ser integrada aos contratos do repositório (`canonical-schema.sql`, `required-tables.json`, `required-columns.json`, `database/migrations/`) e o `install.sh` deve ser auditado para garantir reprodutibilidade em instalações limpas e updates.
+2. **Paridade Absoluta**: Nenhuma funcionalidade pode existir apenas no banco local ou ambiente dev. Ela deve ser reproduzível por `bash install.sh` (fresh install) e `bash install.sh --update` (atualização de VPS).
+3. **DDL Centralizado**: O DDL SQL é gerenciado em `canonical-schema.sql` e `database/migrations/`. O `install.sh` orquestra via `create-all-tables.js`, `migrate.js` e `validate-database.js`.
+4. **Sem Hardcode de Tabelas**: A contagem de tabelas é verificada dinamicamente pelo manifesto `required-tables.json`.
+5. **Critério de Aceite**: Toda entrega exige que a aplicação funcione em ambiente local, passe em fresh install limpo e passe no teste de update sem perder dados.
+

@@ -1088,5 +1088,94 @@
     "raw_conditions",
     "raw_payload",
     "created_at"
+  ],
+  "ai_usage_logs": [
+    "id",
+    "tenant_id",
+    "contact_phone",
+    "model",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "created_at"
+  ],
+  "ds_agent_assignments": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "whatsapp_session_id",
+    "funnel_stage_id",
+    "created_at",
+    "updated_at"
+  ],
+  "ds_agent_knowledge": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "title",
+    "type",
+    "content",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "ds_agent_logs": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "level",
+    "message",
+    "details",
+    "created_at"
+  ],
+  "ds_agent_sessions": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "contact_id",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "ds_agent_subagents": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "name",
+    "role",
+    "instructions",
+    "exec_order",
+    "model",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "ds_agent_usage": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "session_id",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "tools_called",
+    "response_time_ms",
+    "created_at"
+  ],
+  "salvy_numbers": [
+    "id",
+    "user_id",
+    "salvy_id",
+    "phone_number",
+    "area_code",
+    "name",
+    "status",
+    "cost_center",
+    "cancel_reason",
+    "created_at_remote",
+    "canceled_at",
+    "raw",
+    "created_at",
+    "updated_at"
   ]
 }

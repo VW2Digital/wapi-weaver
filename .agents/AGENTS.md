@@ -133,3 +133,12 @@ Toda tarefa deve terminar com:
 
 Se qualquer uma dessas seções não puder ser preenchida com honestidade,
 isso é um sinal de que a tarefa não está realmente concluída.
+
+## 8. REGRA PERMANENTE DE PARIDADE E EVOLUÇÃO DO INSTALLER
+
+- **O `install.sh` DEVE ACOMPANHAR A EVOLUÇÃO DA APLICAÇÃO**: Toda nova tabela, coluna, índice, FK, migration, variável de ambiente ou dependência de infra DEVE ser integrada ao contrato do repositório (`canonical-schema.sql`, `required-tables.json`, `required-columns.json`, `database/migrations/`) e o `install.sh` DEVE ser auditado.
+- **PARIDADE OBRIGATÓRIA**: `BANCO LOCAL == FRESH INSTALL == UPDATE VPS`. A aplicação deve funcionar 1:1 tanto em instalações limpas quanto em updates de VPS.
+- **DDL CENTRALIZADO**: O `install.sh` orquestra instalações e updates executando `create-all-tables.js`, `migrate.js` e `validate-database.js`. Não colocar comandos SQL DDL diretamente no script Bash.
+- **NUNCA HARDCODAR QUANTIDADE DE TABELAS**: A validação lê dinamicamente a contagem do manifesto `database/schema/required-tables.json`.
+- **SEMPRE AUDITAR IMPACTO DE DEPLOY**: Ao criar qualquer funcionalidade nova, verificar se há impacto em banco, env, serviços ou dependências. Se houver, atualizar manifests e installer. Se não houver, registrar explicitamente `INSTALL.SH REVIEWED — NO CHANGE REQUIRED`.
+

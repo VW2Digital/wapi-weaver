@@ -1,0 +1,1 @@
+-- File superseded by 008_align_schema_with_local_database.sql

@@ -44,6 +44,40 @@ CREATE TABLE IF NOT EXISTS schema_backups (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  tenant_id VARCHAR(36) NOT NULL,
+  contact_phone VARCHAR(50) NULL,
+  model VARCHAR(100) NOT NULL,
+  prompt_tokens INT NOT NULL DEFAULT 0,
+  completion_tokens INT NOT NULL DEFAULT 0,
+  total_tokens INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ai_tenant (tenant_id, created_at),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS salvy_numbers (
+  id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
+  salvy_id VARCHAR(100) NOT NULL,
+  phone_number VARCHAR(50) NOT NULL,
+  area_code INT NULL,
+  name VARCHAR(255) NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  cost_center VARCHAR(255) NULL,
+  cancel_reason TEXT NULL,
+  created_at_remote DATETIME NULL,
+  canceled_at DATETIME NULL,
+  raw JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_user_salvy (user_id, salvy_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS profiles (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   email VARCHAR(255) NULL,
@@ -474,20 +508,6 @@ CREATE TABLE IF NOT EXISTS bot_step_options (
   FOREIGN KEY (step_id) REFERENCES bot_steps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS bot_flow_executions (
-  id VARCHAR(36) NOT NULL PRIMARY KEY,
-  bot_flow_id VARCHAR(36) NOT NULL,
-  user_id VARCHAR(36) NOT NULL,
-  contact_number VARCHAR(50) NOT NULL,
-  current_node_id VARCHAR(100) NULL,
-  status ENUM('active', 'completed', 'failed', 'cancelled') NOT NULL DEFAULT 'active',
-  variables_json JSON NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (bot_flow_id) REFERENCES bot_flows(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS bot_conversation_state (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
@@ -753,16 +773,105 @@ CREATE TABLE IF NOT EXISTS ds_agents (
   FOREIGN KEY (folder_id) REFERENCES ds_agent_folders(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS ds_agent_documents (
-  id VARCHAR(36) NOT NULL PRIMARY KEY,
-  agent_id VARCHAR(36) NOT NULL,
+CREATE TABLE IF NOT EXISTS ds_agent_assignments (
+  id VARCHAR(36) NOT NULL,
   tenant_id VARCHAR(36) NOT NULL,
-  file_name VARCHAR(255) NOT NULL,
-  storage_path VARCHAR(500) NOT NULL,
-  mime_type VARCHAR(100) NULL,
-  content_text LONGTEXT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  agent_id VARCHAR(36) NOT NULL,
+  whatsapp_session_id VARCHAR(36) NULL,
+  funnel_stage_id VARCHAR(36) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ds_agent_assignments_tenant (tenant_id),
+  INDEX idx_ds_agent_assignments_agent (agent_id),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ds_agent_knowledge (
+  id VARCHAR(36) NOT NULL,
+  tenant_id VARCHAR(36) NOT NULL,
+  agent_id VARCHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  type ENUM('text','faq','url','pdf') DEFAULT 'text',
+  content LONGTEXT NULL,
+  status ENUM('pending','indexed','error') DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ds_agent_knowledge_tenant (tenant_id),
+  INDEX idx_ds_agent_knowledge_agent (agent_id),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ds_agent_logs (
+  id VARCHAR(36) NOT NULL,
+  tenant_id VARCHAR(36) NOT NULL,
+  agent_id VARCHAR(36) NOT NULL,
+  level ENUM('info','warn','error') DEFAULT 'info',
+  message TEXT NOT NULL,
+  details JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ds_agent_logs_tenant (tenant_id),
+  INDEX idx_ds_agent_logs_agent (agent_id),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ds_agent_sessions (
+  id VARCHAR(36) NOT NULL,
+  tenant_id VARCHAR(36) NOT NULL,
+  agent_id VARCHAR(36) NOT NULL,
+  contact_id VARCHAR(36) NULL,
+  status ENUM('active','paused','completed') DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ds_agent_sessions_tenant (tenant_id),
+  INDEX idx_ds_agent_sessions_agent (agent_id),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ds_agent_subagents (
+  id VARCHAR(36) NOT NULL,
+  tenant_id VARCHAR(36) NOT NULL,
+  agent_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  role VARCHAR(255) NOT NULL DEFAULT '',
+  instructions TEXT NULL,
+  exec_order INT DEFAULT 0,
+  model VARCHAR(100) DEFAULT 'gpt-4o-mini',
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ds_agent_subagents_tenant (tenant_id),
+  INDEX idx_ds_agent_subagents_agent (agent_id),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ds_agent_usage (
+  id VARCHAR(36) NOT NULL,
+  tenant_id VARCHAR(36) NOT NULL,
+  agent_id VARCHAR(36) NOT NULL,
+  session_id VARCHAR(36) NULL,
+  prompt_tokens INT DEFAULT 0,
+  completion_tokens INT DEFAULT 0,
+  total_tokens INT DEFAULT 0,
+  tools_called JSON NULL,
+  response_time_ms INT DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_ds_agent_usage_tenant (tenant_id),
+  INDEX idx_ds_agent_usage_agent (agent_id),
+  INDEX idx_ds_agent_usage_session (session_id),
+  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (agent_id) REFERENCES ds_agents(id) ON DELETE CASCADE,
+  FOREIGN KEY (session_id) REFERENCES ds_agent_sessions(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ds_agent_knowledge_files (
@@ -934,19 +1043,6 @@ CREATE TABLE IF NOT EXISTS message_tags (
   PRIMARY KEY (message_id, tag_id),
   FOREIGN KEY (message_id) REFERENCES direct_messages(id) ON DELETE CASCADE,
   FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS whatsapp_templates (
-  id VARCHAR(36) NOT NULL PRIMARY KEY,
-  user_id VARCHAR(36) NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  category VARCHAR(100) NOT NULL DEFAULT 'UTILITY',
-  language VARCHAR(20) NOT NULL DEFAULT 'pt_BR',
-  status VARCHAR(50) NOT NULL DEFAULT 'APPROVED',
-  components_json JSON NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1331,17 +1427,6 @@ CREATE TABLE IF NOT EXISTS payment_gateway_settings (
   webhook_secret TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS tenant_storage (
-  id VARCHAR(36) NOT NULL PRIMARY KEY,
-  tenant_id VARCHAR(36) NOT NULL,
-  file_name VARCHAR(255) NOT NULL,
-  storage_path VARCHAR(500) NOT NULL,
-  file_size BIGINT NOT NULL DEFAULT 0,
-  mime_type VARCHAR(100) NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
