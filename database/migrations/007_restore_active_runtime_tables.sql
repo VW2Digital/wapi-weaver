@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS schema_backups (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   created_by VARCHAR(36) NULL,
   source VARCHAR(255) NOT NULL,
-  sql LONGTEXT NOT NULL,
+  `sql` LONGTEXT COLLATE utf8mb4_unicode_ci NOT NULL,
   size_bytes INT NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_schema_backups_created_by (created_by),
