@@ -84,5 +84,8 @@
   "audit_logs",
   "webhook_events",
   "platform_banners",
-  "calendar_events"
+  "calendar_events",
+  "notifications",
+  "schema_backups",
+  "webhook_bot_logs"
 ]
