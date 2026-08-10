@@ -29,7 +29,7 @@ export async function getGlobalMercadoPagoRow(tenantId?: string) {
     if (rows.length > 0) return rows[0];
   }
   const globalRows = (await db.query(
-    "SELECT * FROM payment_gateway_settings ORDER BY created_at ASC LIMIT 1"
+    "SELECT * FROM payment_gateway_settings WHERE tenant_id = 'global' OR tenant_id = '00000000-0000-0000-0000-000000000000' LIMIT 1"
   )) as any[];
   if (globalRows.length > 0) return globalRows[0];
   return null;
@@ -51,11 +51,14 @@ export function encryptedValue(value: unknown, currentValue?: string | null) {
 
 export function decryptSecret(value?: string | null) {
   if (!value) return "";
+  if (!value.includes(":")) {
+    return value;
+  }
   try {
     return decrypt(value);
   } catch (err) {
     console.error("[PaymentGateway] Secret decryption failed:", (err as Error).message);
-    return "";
+    return value;
   }
 }
 

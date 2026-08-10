@@ -26,27 +26,31 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago")(
           const adminUser = await requirePaymentGatewayAdmin(request);
           const row = await getGlobalMercadoPagoRow(adminUser.userId);
           const requestUrl = new URL(request.url);
-          const reveal = requestUrl.searchParams.get("reveal") === "true";
+          const revealParam = requestUrl.searchParams.get("reveal");
+          const revealAll = revealParam === "true";
           const origin = requestUrl.origin;
 
-          const secretVal = (val?: string | null) => {
+          const secretVal = (val?: string | null, fieldName?: string) => {
             if (!val) return "";
-            if (reveal) return decryptSecret(val);
+            if (revealAll || (revealParam && fieldName && revealParam === fieldName)) {
+              return decryptSecret(val);
+            }
             return MASKED_SECRET;
           };
 
           return json({
             environment: row?.environment ?? "sandbox",
             checkout_mode: row?.checkout_mode ?? "redirect",
+            provider: row?.provider ?? "mercadopago",
             sandbox_public_key: row?.sandbox_public_key ?? "",
             sandbox_client_id: row?.sandbox_client_id ?? "",
-            sandbox_access_token: secretVal(row?.sandbox_access_token),
-            sandbox_client_secret: secretVal(row?.sandbox_client_secret),
+            sandbox_access_token: secretVal(row?.sandbox_access_token, "sandbox_access_token"),
+            sandbox_client_secret: secretVal(row?.sandbox_client_secret, "sandbox_client_secret"),
             production_public_key: row?.production_public_key ?? "",
             production_client_id: row?.production_client_id ?? "",
-            production_access_token: secretVal(row?.production_access_token),
-            production_client_secret: secretVal(row?.production_client_secret),
-            webhook_secret: secretVal(row?.webhook_secret),
+            production_access_token: secretVal(row?.production_access_token, "production_access_token"),
+            production_client_secret: secretVal(row?.production_client_secret, "production_client_secret"),
+            webhook_secret: secretVal(row?.webhook_secret, "webhook_secret"),
             webhook_url: `${origin}/api/webhooks/mercadopago`,
           });
         } catch (error: any) {

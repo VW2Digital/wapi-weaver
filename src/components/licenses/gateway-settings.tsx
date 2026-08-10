@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, Check, Loader2, RefreshCw, Activity, ShieldAlert, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Copy, Check, Loader2, RefreshCw, Activity, ShieldAlert, KeyRound } from "lucide-react";
+import { PasswordInput } from "@/components/password-input";
 import { toast } from "sonner";
 
 export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
@@ -33,15 +34,12 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
   const [webhookSecret, setWebhookSecret] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
 
-  // Visibility Toggles
-  const [showSandboxToken, setShowSandboxToken] = useState(false);
-  const [showSandboxSecret, setShowSandboxSecret] = useState(false);
-  const [showProdToken, setShowProdToken] = useState(false);
-  const [showProdSecret, setShowProdSecret] = useState(false);
-
-  const fetchRevealedSecrets = async () => {
+  const fetchRevealedSecrets = async (field?: string) => {
     try {
-      const res = await fetch("/api/admin/payment-gateways/mercadopago?reveal=true", {
+      const url = field
+        ? `/api/admin/payment-gateways/mercadopago?reveal=${encodeURIComponent(field)}`
+        : "/api/admin/payment-gateways/mercadopago?reveal=true";
+      const res = await fetch(url, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -57,35 +55,9 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
     }
   };
 
-  const toggleSandboxToken = async () => {
-    const next = !showSandboxToken;
-    setShowSandboxToken(next);
-    if (next && sandboxAccessToken === "••••••••") {
-      await fetchRevealedSecrets();
-    }
-  };
-
-  const toggleSandboxSecret = async () => {
-    const next = !showSandboxSecret;
-    setShowSandboxSecret(next);
-    if (next && sandboxClientSecret === "••••••••") {
-      await fetchRevealedSecrets();
-    }
-  };
-
-  const toggleProdToken = async () => {
-    const next = !showProdToken;
-    setShowProdToken(next);
-    if (next && productionAccessToken === "••••••••") {
-      await fetchRevealedSecrets();
-    }
-  };
-
-  const toggleProdSecret = async () => {
-    const next = !showProdSecret;
-    setShowProdSecret(next);
-    if (next && productionClientSecret === "••••••••") {
-      await fetchRevealedSecrets();
+  const handleSecretVisibility = async (visible: boolean, currentVal: string, fieldName?: string) => {
+    if (visible && (currentVal === "••••••••" || !currentVal)) {
+      await fetchRevealedSecrets(fieldName);
     }
   };
 
@@ -121,6 +93,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
       if (!res.ok) {
         if (res.status !== 404) {
           toast.error("Não foi possível carregar as configurações do Mercado Pago.");
+          console.warn(`[MercadoPago GET Error] HTTP Status ${res.status}`);
         }
         return;
       }
@@ -328,27 +301,15 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="s_access_token">Access Token</Label>
-                    <div className="relative">
-                      <Input
-                        id="s_access_token"
-                        name="mp_sandbox_access_token"
-                        autoComplete="new-password"
-                        type={showSandboxToken ? "text" : "password"}
-                        value={sandboxAccessToken}
-                        onChange={(e) => setSandboxAccessToken(e.target.value)}
-                        placeholder="ex: TEST-3598901240..."
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={toggleSandboxToken}
-                      >
-                        {showSandboxToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    <PasswordInput
+                      id="s_access_token"
+                      name="mp_sandbox_access_token"
+                      autoComplete="new-password"
+                      value={sandboxAccessToken}
+                      onChange={(e) => setSandboxAccessToken(e.target.value)}
+                      onVisibleChange={(visible) => handleSecretVisibility(visible, sandboxAccessToken, "sandbox_access_token")}
+                      placeholder="ex: TEST-3598901240..."
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="s_client_id">Client ID (User ID)</Label>
@@ -363,27 +324,15 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="s_client_secret">Client Secret (Opcional)</Label>
-                    <div className="relative">
-                      <Input
-                        id="s_client_secret"
-                        name="mp_sandbox_client_secret"
-                        autoComplete="new-password"
-                        type={showSandboxSecret ? "text" : "password"}
-                        value={sandboxClientSecret}
-                        onChange={(e) => setSandboxClientSecret(e.target.value)}
-                        placeholder="Opcional"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={toggleSandboxSecret}
-                      >
-                        {showSandboxSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    <PasswordInput
+                      id="s_client_secret"
+                      name="mp_sandbox_client_secret"
+                      autoComplete="new-password"
+                      value={sandboxClientSecret}
+                      onChange={(e) => setSandboxClientSecret(e.target.value)}
+                      onVisibleChange={(visible) => handleSecretVisibility(visible, sandboxClientSecret, "sandbox_client_secret")}
+                      placeholder="Opcional"
+                    />
                   </div>
                 </div>
             </div>
@@ -407,27 +356,15 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="p_access_token">Access Token</Label>
-                    <div className="relative">
-                      <Input
-                        id="p_access_token"
-                        name="mp_production_access_token"
-                        autoComplete="new-password"
-                        type={showProdToken ? "text" : "password"}
-                        value={productionAccessToken}
-                        onChange={(e) => setProductionAccessToken(e.target.value)}
-                        placeholder="ex: APP_USR-..."
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={toggleProdToken}
-                      >
-                        {showProdToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    <PasswordInput
+                      id="p_access_token"
+                      name="mp_production_access_token"
+                      autoComplete="new-password"
+                      value={productionAccessToken}
+                      onChange={(e) => setProductionAccessToken(e.target.value)}
+                      onVisibleChange={(visible) => handleSecretVisibility(visible, productionAccessToken, "production_access_token")}
+                      placeholder="ex: APP_USR-..."
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="p_client_id">Client ID (User ID)</Label>
@@ -442,27 +379,15 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="p_client_secret">Client Secret (Opcional)</Label>
-                    <div className="relative">
-                      <Input
-                        id="p_client_secret"
-                        name="mp_production_client_secret"
-                        autoComplete="new-password"
-                        type={showProdSecret ? "text" : "password"}
-                        value={productionClientSecret}
-                        onChange={(e) => setProductionClientSecret(e.target.value)}
-                        placeholder="Opcional"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={toggleProdSecret}
-                      >
-                        {showProdSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    <PasswordInput
+                      id="p_client_secret"
+                      name="mp_production_client_secret"
+                      autoComplete="new-password"
+                      value={productionClientSecret}
+                      onChange={(e) => setProductionClientSecret(e.target.value)}
+                      onVisibleChange={(visible) => handleSecretVisibility(visible, productionClientSecret, "production_client_secret")}
+                      placeholder="Opcional"
+                    />
                   </div>
                 </div>
             </div>
@@ -531,11 +456,11 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
 
               <div className="space-y-2">
                 <Label htmlFor="webhook_secret">Chave de Assinatura Webhook (Opcional)</Label>
-                <Input
+                <PasswordInput
                   id="webhook_secret"
-                  type="password"
                   value={webhookSecret}
                   onChange={(e) => setWebhookSecret(e.target.value)}
+                  onVisibleChange={(visible) => handleSecretVisibility(visible, webhookSecret, "webhook_secret")}
                   placeholder="Se gerado pelo painel do Mercado Pago"
                 />
               </div>
