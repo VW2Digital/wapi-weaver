@@ -327,7 +327,7 @@ export function CalendarEventModal({
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border text-xs max-h-48">
                   <SelectItem value="none">Nenhum contato</SelectItem>
-                  {auxData.contacts.map((c) => (
+                  {auxData.contacts?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name || c.phone_e164 || "Contato sem nome"}
                     </SelectItem>

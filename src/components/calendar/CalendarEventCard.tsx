@@ -15,6 +15,7 @@ export interface CalendarEventItem {
   color?: string | null;
   contact_id?: string | null;
   contact_name?: string | null;
+  contact_phone?: string | null;
   responsible_user_id?: string | null;
   responsible_name?: string | null;
   team_id?: string | null;

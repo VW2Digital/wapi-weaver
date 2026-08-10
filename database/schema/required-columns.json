@@ -1152,23 +1152,5 @@
     "raw",
     "created_at",
     "updated_at"
-  ],
-  "payment_gateway_settings": [
-    "tenant_id",
-    "environment",
-    "checkout_mode",
-    "sandbox_access_token",
-    "sandbox_public_key",
-    "sandbox_client_id",
-    "sandbox_client_secret",
-    "production_access_token",
-    "production_public_key",
-    "production_client_id",
-    "production_client_secret",
-    "webhook_secret",
-    "created_at",
-    "updated_at",
-    "provider",
-    "id"
   ]
 }

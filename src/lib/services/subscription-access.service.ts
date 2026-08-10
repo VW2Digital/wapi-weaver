@@ -206,15 +206,13 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     if (now.getTime() >= trialEndsAt.getTime()) {
       // Trial Expirou! Persistir alteração de status se ainda estiver como trialing
-      if (currentStatus !== "expired") {
-        await db.query("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
-        const eventId = crypto.randomUUID();
-        await db.query(
-          `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-           VALUES (?, ?, ?, 'trial_expired', ?, 'expired', 'system', '{}')`,
-          [eventId, tenantId, sub.id, currentStatus]
-        );
-      }
+      await db.query("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+      const eventId = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
+         VALUES (?, ?, ?, 'trial_expired', ?, 'expired', 'system', '{}')`,
+        [eventId, tenantId, sub.id, currentStatus]
+      );
 
       return {
         allowed: false,
@@ -250,15 +248,13 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     if (periodEnd && now.getTime() >= periodEnd.getTime()) {
       // Período pago expirou!
-      if (currentStatus !== "expired") {
-        await db.query("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
-        const eventId = crypto.randomUUID();
-        await db.query(
-          `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-           VALUES (?, ?, ?, 'subscription_expired', ?, 'expired', 'system', '{}')`,
-          [eventId, tenantId, sub.id, currentStatus]
-        );
-      }
+      await db.query("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+      const eventId = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
+         VALUES (?, ?, ?, 'subscription_expired', ?, 'expired', 'system', '{}')`,
+        [eventId, tenantId, sub.id, currentStatus]
+      );
 
       return {
         allowed: false,
