@@ -1,0 +1,94 @@
+name: CI Pipeline & Schema Integrity Audit
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-schema-and-build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0.46
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: wapi_weaver
+          MYSQL_USER: wapi_user
+          MYSQL_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bootstrap Database Schema (Fresh Canonical)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/create-all-tables.js
+
+      - name: Run Database Migrations
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/migrate.js
+
+      - name: Validate Database Integrity
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/validate-database.js
+
+      - name: Validate Schema Parity Contract
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/validate-schema-parity.js
+
+      - name: Audit Runtime Schema
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/audit-runtime-schema.js
+
+      - name: Run Payment Gateway Smoke Test
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/test-payment-gateway-settings.js
+
+      - name: Run Type Check & Build
+        run: |
+          npm run type-check
+          npm run build

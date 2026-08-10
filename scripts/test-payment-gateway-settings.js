@@ -110,8 +110,13 @@ async function runSmokeTest() {
 
     // 0. Ensure user exists for FK
     await conn.query(
-      `INSERT IGNORE INTO users (id, name, email, password_hash, role)
-       VALUES (?, 'Gateway Smoke', 'gateway-smoke@test.com', 'hash', 'admin_master')`,
+      `INSERT IGNORE INTO users (id, email, password_hash)
+       VALUES (?, 'gateway-smoke@test.com', 'hash')`,
+      [testTenantId]
+    );
+    await conn.query(
+      `INSERT IGNORE INTO user_roles (user_id, role)
+       VALUES (?, 'admin_master')`,
       [testTenantId]
     );
 
@@ -197,6 +202,7 @@ async function runSmokeTest() {
 
     // Clean up test tenant
     await conn.query("DELETE FROM payment_gateway_settings WHERE tenant_id = ?", [testTenantId]);
+    await conn.query("DELETE FROM user_roles WHERE user_id = ?", [testTenantId]);
     await conn.query("DELETE FROM users WHERE id = ?", [testTenantId]);
 
     // Verify non-destructiveness: Real gateway rows unchanged

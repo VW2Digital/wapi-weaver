@@ -1,7 +1,7 @@
 -- REFERENCE SCHEMA (DDL ONLY - SINGLE SOURCE OF TRUTH FROM LOCAL MYSQL)
 -- Generated at 2026-08-10T18:02:01.298Z
 
-CREATE TABLE IF NOT EXISTS `ai_agent_settings` (
+CREATE TABLE `ai_agent_settings` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `instance_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `ai_agent_settings` (
   CONSTRAINT `ai_agent_settings_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ai_usage_logs` (
+CREATE TABLE `ai_usage_logs` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_phone` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS `ai_usage_logs` (
   CONSTRAINT `ai_usage_logs_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `audit_logs` (
+CREATE TABLE `audit_logs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `billing_invoices` (
+CREATE TABLE `billing_invoices` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `billing_invoices` (
   CONSTRAINT `billing_invoices_ibfk_4` FOREIGN KEY (`plan_id`) REFERENCES `billing_plans` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `billing_payments` (
+CREATE TABLE `billing_payments` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS `billing_payments` (
   CONSTRAINT `billing_payments_ibfk_4` FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `billing_plans` (
+CREATE TABLE `billing_plans` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS `billing_plans` (
   CONSTRAINT `fk_billing_subscription_plan` FOREIGN KEY (`subscription_plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `billing_webhook_events` (
+CREATE TABLE `billing_webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `environment` enum('sandbox','production') COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS `billing_webhook_events` (
   KEY `idx_billing_webhook_resource` (`provider`,`resource_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `bot_conversation_state` (
+CREATE TABLE `bot_conversation_state` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS `bot_conversation_state` (
   CONSTRAINT `fk_bot_conversation_state_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `bot_flows` (
+CREATE TABLE `bot_flows` (
   `id` varchar(36) NOT NULL,
   `tenant_id` varchar(36) NOT NULL,
   `name` varchar(255) NOT NULL,
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS `bot_flows` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `bot_settings` (
+CREATE TABLE `bot_settings` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS `bot_settings` (
   CONSTRAINT `fk_bot_settings_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `bot_step_options` (
+CREATE TABLE `bot_step_options` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS `bot_step_options` (
   CONSTRAINT `fk_bot_step_options_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `bot_steps` (
+CREATE TABLE `bot_steps` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -281,7 +281,7 @@ CREATE TABLE IF NOT EXISTS `bot_steps` (
   CONSTRAINT `fk_bot_steps_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `calendar_events` (
+CREATE TABLE `calendar_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS `calendar_events` (
   CONSTRAINT `calendar_events_ibfk_5` FOREIGN KEY (`ds_agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `campaign_logs` (
+CREATE TABLE `campaign_logs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `campaign_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -340,7 +340,7 @@ CREATE TABLE IF NOT EXISTS `campaign_logs` (
   CONSTRAINT `campaign_logs_ibfk_1` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `campaign_messages` (
+CREATE TABLE `campaign_messages` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -373,7 +373,7 @@ CREATE TABLE IF NOT EXISTS `campaign_messages` (
   CONSTRAINT `fk_camp_msg_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `campaigns` (
+CREATE TABLE `campaigns` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -400,7 +400,7 @@ CREATE TABLE IF NOT EXISTS `campaigns` (
   CONSTRAINT `fk_campaigns_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `chat_sessions` (
+CREATE TABLE `chat_sessions` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -418,7 +418,7 @@ CREATE TABLE IF NOT EXISTS `chat_sessions` (
   CONSTRAINT `fk_chat_sessions_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `contact_activities` (
+CREATE TABLE `contact_activities` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -437,7 +437,7 @@ CREATE TABLE IF NOT EXISTS `contact_activities` (
   CONSTRAINT `fk_contact_act_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `contact_custom_field_values` (
+CREATE TABLE `contact_custom_field_values` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -457,7 +457,7 @@ CREATE TABLE IF NOT EXISTS `contact_custom_field_values` (
   CONSTRAINT `contact_custom_field_values_ibfk_3` FOREIGN KEY (`custom_field_id`) REFERENCES `contact_custom_fields` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `contact_custom_fields` (
+CREATE TABLE `contact_custom_fields` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -485,7 +485,7 @@ CREATE TABLE IF NOT EXISTS `contact_custom_fields` (
   CONSTRAINT `fk_contact_custom_fields_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `contact_groups` (
+CREATE TABLE `contact_groups` (
   `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `group_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`contact_id`,`group_id`),
@@ -494,7 +494,7 @@ CREATE TABLE IF NOT EXISTS `contact_groups` (
   CONSTRAINT `contact_groups_ibfk_2` FOREIGN KEY (`group_id`) REFERENCES `groups` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `contact_tags` (
+CREATE TABLE `contact_tags` (
   `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tag_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -509,7 +509,7 @@ CREATE TABLE IF NOT EXISTS `contact_tags` (
   CONSTRAINT `fk_contact_tags_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `contacts` (
+CREATE TABLE `contacts` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -555,7 +555,7 @@ CREATE TABLE IF NOT EXISTS `contacts` (
   CONSTRAINT `fk_contacts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `conversation_assignments` (
+CREATE TABLE `conversation_assignments` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -579,7 +579,7 @@ CREATE TABLE IF NOT EXISTS `conversation_assignments` (
   CONSTRAINT `fk_conversation_assignments_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `conversation_tags` (
+CREATE TABLE `conversation_tags` (
   `contact_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tag_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -591,7 +591,7 @@ CREATE TABLE IF NOT EXISTS `conversation_tags` (
   CONSTRAINT `conversation_tags_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `custom_fields` (
+CREATE TABLE `custom_fields` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `field_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -604,7 +604,7 @@ CREATE TABLE IF NOT EXISTS `custom_fields` (
   CONSTRAINT `custom_fields_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `direct_messages` (
+CREATE TABLE `direct_messages` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -636,7 +636,7 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   CONSTRAINT `fk_dm_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_assignments` (
+CREATE TABLE `ds_agent_assignments` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -651,7 +651,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_assignments` (
   CONSTRAINT `ds_agent_assignments_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_calendar_availability` (
+CREATE TABLE `ds_agent_calendar_availability` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -666,7 +666,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_calendar_availability` (
   CONSTRAINT `ds_agent_calendar_availability_ibfk_1` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_folders` (
+CREATE TABLE `ds_agent_folders` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -677,7 +677,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_folders` (
   CONSTRAINT `ds_agent_folders_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_followups` (
+CREATE TABLE `ds_agent_followups` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -694,7 +694,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_followups` (
   CONSTRAINT `ds_agent_followups_ibfk_1` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_knowledge` (
+CREATE TABLE `ds_agent_knowledge` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -711,7 +711,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_knowledge` (
   CONSTRAINT `ds_agent_knowledge_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_knowledge_files` (
+CREATE TABLE `ds_agent_knowledge_files` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -727,7 +727,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_knowledge_files` (
   CONSTRAINT `ds_agent_knowledge_files_ibfk_1` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_knowledge_links` (
+CREATE TABLE `ds_agent_knowledge_links` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -740,7 +740,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_knowledge_links` (
   CONSTRAINT `ds_agent_knowledge_links_ibfk_1` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_logs` (
+CREATE TABLE `ds_agent_logs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -755,7 +755,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_logs` (
   CONSTRAINT `ds_agent_logs_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_sessions` (
+CREATE TABLE `ds_agent_sessions` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_sessions` (
   CONSTRAINT `ds_agent_sessions_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_subagents` (
+CREATE TABLE `ds_agent_subagents` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -789,7 +789,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_subagents` (
   CONSTRAINT `ds_agent_subagents_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_tools` (
+CREATE TABLE `ds_agent_tools` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -807,7 +807,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_tools` (
   CONSTRAINT `ds_agent_tools_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_usage` (
+CREATE TABLE `ds_agent_usage` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -827,7 +827,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_usage` (
   CONSTRAINT `ds_agent_usage_ibfk_3` FOREIGN KEY (`session_id`) REFERENCES `ds_agent_sessions` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agent_usage_logs` (
+CREATE TABLE `ds_agent_usage_logs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -844,7 +844,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_usage_logs` (
   CONSTRAINT `ds_agent_usage_logs_ibfk_1` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ds_agents` (
+CREATE TABLE `ds_agents` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `folder_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -879,7 +879,7 @@ CREATE TABLE IF NOT EXISTS `ds_agents` (
   CONSTRAINT `ds_agents_ibfk_2` FOREIGN KEY (`folder_id`) REFERENCES `ds_agent_folders` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `facebook_pages` (
+CREATE TABLE `facebook_pages` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `workspace_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -898,7 +898,7 @@ CREATE TABLE IF NOT EXISTS `facebook_pages` (
   CONSTRAINT `facebook_pages_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `facebook_webhook_events` (
+CREATE TABLE `facebook_webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `raw` json NOT NULL,
@@ -909,7 +909,7 @@ CREATE TABLE IF NOT EXISTS `facebook_webhook_events` (
   CONSTRAINT `facebook_webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `groups` (
+CREATE TABLE `groups` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -921,7 +921,7 @@ CREATE TABLE IF NOT EXISTS `groups` (
   CONSTRAINT `groups_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `incoming_webhook_events` (
+CREATE TABLE `incoming_webhook_events` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `incoming_webhook_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `payload` json NOT NULL,
@@ -955,7 +955,7 @@ CREATE TABLE IF NOT EXISTS `incoming_webhook_events` (
   CONSTRAINT `incoming_webhook_events_ibfk_1` FOREIGN KEY (`incoming_webhook_id`) REFERENCES `incoming_webhooks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
+CREATE TABLE `incoming_webhooks` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -974,7 +974,7 @@ CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
   CONSTRAINT `incoming_webhooks_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `instagram_accounts` (
+CREATE TABLE `instagram_accounts` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -990,7 +990,7 @@ CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   CONSTRAINT `instagram_accounts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `instagram_webhook_events` (
+CREATE TABLE `instagram_webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `raw` json NOT NULL,
@@ -1001,7 +1001,7 @@ CREATE TABLE IF NOT EXISTS `instagram_webhook_events` (
   CONSTRAINT `instagram_webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `knowledge_base` (
+CREATE TABLE `knowledge_base` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `ai_agent_settings_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1016,7 +1016,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_base` (
   CONSTRAINT `knowledge_base_ibfk_2` FOREIGN KEY (`ai_agent_settings_id`) REFERENCES `ai_agent_settings` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `license_activations` (
+CREATE TABLE `license_activations` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `license_id` bigint unsigned NOT NULL,
   `domain` varchar(190) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1035,7 +1035,7 @@ CREATE TABLE IF NOT EXISTS `license_activations` (
   CONSTRAINT `fk_license_activations_license` FOREIGN KEY (`license_id`) REFERENCES `licenses` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `license_settings` (
+CREATE TABLE `license_settings` (
   `id` int NOT NULL DEFAULT '1',
   `license_key_encrypted` text COLLATE utf8mb4_unicode_ci,
   `license_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1054,7 +1054,7 @@ CREATE TABLE IF NOT EXISTS `license_settings` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `license_validation_logs` (
+CREATE TABLE `license_validation_logs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `license_id` bigint unsigned DEFAULT NULL,
   `domain` varchar(190) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1071,7 +1071,7 @@ CREATE TABLE IF NOT EXISTS `license_validation_logs` (
   KEY `idx_license_logs_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `licenses` (
+CREATE TABLE `licenses` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `license_key_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `license_key_preview` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1100,7 +1100,7 @@ CREATE TABLE IF NOT EXISTS `licenses` (
   KEY `idx_licenses_tenant_id` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `list_contacts` (
+CREATE TABLE `list_contacts` (
   `list_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1116,7 +1116,7 @@ CREATE TABLE IF NOT EXISTS `list_contacts` (
   CONSTRAINT `list_contacts_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `lists` (
+CREATE TABLE `lists` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1131,7 +1131,7 @@ CREATE TABLE IF NOT EXISTS `lists` (
   CONSTRAINT `lists_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `message_tags` (
+CREATE TABLE `message_tags` (
   `message_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tag_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1144,7 +1144,7 @@ CREATE TABLE IF NOT EXISTS `message_tags` (
   CONSTRAINT `message_tags_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `notifications` (
+CREATE TABLE `notifications` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1164,7 +1164,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunities` (
+CREATE TABLE `opportunities` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1220,7 +1220,7 @@ CREATE TABLE IF NOT EXISTS `opportunities` (
   CONSTRAINT `opportunities_ibfk_8` FOREIGN KEY (`lost_reason_id`) REFERENCES `opportunity_lost_reasons` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_activities` (
+CREATE TABLE `opportunity_activities` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `opportunity_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1251,7 +1251,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_activities` (
   CONSTRAINT `opportunity_activities_ibfk_5` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_audit_logs` (
+CREATE TABLE `opportunity_audit_logs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1275,7 +1275,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_audit_logs` (
   CONSTRAINT `opportunity_audit_logs_ibfk_3` FOREIGN KEY (`user_id_actor`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_contacts` (
+CREATE TABLE `opportunity_contacts` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1298,7 +1298,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_contacts` (
   CONSTRAINT `opportunity_contacts_ibfk_3` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_lost_reasons` (
+CREATE TABLE `opportunity_lost_reasons` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1315,7 +1315,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_lost_reasons` (
   CONSTRAINT `opportunity_lost_reasons_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_notes` (
+CREATE TABLE `opportunity_notes` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `opportunity_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1335,7 +1335,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_notes` (
   CONSTRAINT `opportunity_notes_ibfk_3` FOREIGN KEY (`user_id_creator`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_stage_history` (
+CREATE TABLE `opportunity_stage_history` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1366,7 +1366,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_stage_history` (
   CONSTRAINT `opportunity_stage_history_ibfk_6` FOREIGN KEY (`moved_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `opportunity_tags` (
+CREATE TABLE `opportunity_tags` (
   `opportunity_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tag_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1378,7 +1378,7 @@ CREATE TABLE IF NOT EXISTS `opportunity_tags` (
   CONSTRAINT `opportunity_tags_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `outgoing_webhook_logs` (
+CREATE TABLE `outgoing_webhook_logs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `outgoing_webhook_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1393,7 +1393,7 @@ CREATE TABLE IF NOT EXISTS `outgoing_webhook_logs` (
   CONSTRAINT `outgoing_webhook_logs_ibfk_1` FOREIGN KEY (`outgoing_webhook_id`) REFERENCES `outgoing_webhooks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `outgoing_webhooks` (
+CREATE TABLE `outgoing_webhooks` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `url` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1407,7 +1407,7 @@ CREATE TABLE IF NOT EXISTS `outgoing_webhooks` (
   CONSTRAINT `outgoing_webhooks_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `payment_gateway_settings` (
+CREATE TABLE `payment_gateway_settings` (
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `environment` enum('sandbox','production') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sandbox',
   `checkout_mode` enum('transparent','redirect') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'redirect',
@@ -1428,7 +1428,7 @@ CREATE TABLE IF NOT EXISTS `payment_gateway_settings` (
   CONSTRAINT `payment_gateway_settings_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `platform_banners` (
+CREATE TABLE `platform_banners` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `subtitle` text COLLATE utf8mb4_unicode_ci,
@@ -1446,7 +1446,7 @@ CREATE TABLE IF NOT EXISTS `platform_banners` (
   CONSTRAINT `platform_banners_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `platform_settings` (
+CREATE TABLE `platform_settings` (
   `id` int NOT NULL DEFAULT '1',
   `meta_app_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `meta_app_secret` text COLLATE utf8mb4_unicode_ci,
@@ -1469,7 +1469,7 @@ CREATE TABLE IF NOT EXISTS `platform_settings` (
   CONSTRAINT `platform_settings_ibfk_1` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `profiles` (
+CREATE TABLE `profiles` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `full_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1498,7 +1498,7 @@ CREATE TABLE IF NOT EXISTS `profiles` (
   CONSTRAINT `profiles_ibfk_1` FOREIGN KEY (`id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `sales_funnels` (
+CREATE TABLE `sales_funnels` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1524,7 +1524,7 @@ CREATE TABLE IF NOT EXISTS `sales_funnels` (
   CONSTRAINT `sales_funnels_ibfk_3` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `sales_stages` (
+CREATE TABLE `sales_stages` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1556,7 +1556,7 @@ CREATE TABLE IF NOT EXISTS `sales_stages` (
   CONSTRAINT `sales_stages_ibfk_4` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `salvy_numbers` (
+CREATE TABLE `salvy_numbers` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `salvy_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1576,7 +1576,7 @@ CREATE TABLE IF NOT EXISTS `salvy_numbers` (
   CONSTRAINT `salvy_numbers_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `schema_backups` (
+CREATE TABLE `schema_backups` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `source` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1588,7 +1588,7 @@ CREATE TABLE IF NOT EXISTS `schema_backups` (
   CONSTRAINT `schema_backups_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `subscription_events` (
+CREATE TABLE `subscription_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1607,7 +1607,7 @@ CREATE TABLE IF NOT EXISTS `subscription_events` (
   CONSTRAINT `subscription_events_ibfk_2` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `subscription_plan_changes` (
+CREATE TABLE `subscription_plan_changes` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1622,7 +1622,7 @@ CREATE TABLE IF NOT EXISTS `subscription_plan_changes` (
   KEY `idx_plan_changes_effective` (`effective_date`,`applied_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `subscription_plans` (
+CREATE TABLE `subscription_plans` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `slug` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1641,7 +1641,7 @@ CREATE TABLE IF NOT EXISTS `subscription_plans` (
   UNIQUE KEY `slug` (`slug`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `subscriptions` (
+CREATE TABLE `subscriptions` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1665,7 +1665,7 @@ CREATE TABLE IF NOT EXISTS `subscriptions` (
   CONSTRAINT `subscriptions_ibfk_3` FOREIGN KEY (`plan_id`) REFERENCES `billing_plans` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `tags` (
+CREATE TABLE `tags` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1680,7 +1680,7 @@ CREATE TABLE IF NOT EXISTS `tags` (
   CONSTRAINT `tags_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `team_members` (
+CREATE TABLE `team_members` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `team_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1693,7 +1693,7 @@ CREATE TABLE IF NOT EXISTS `team_members` (
   CONSTRAINT `team_members_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `teams` (
+CREATE TABLE `teams` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1708,7 +1708,7 @@ CREATE TABLE IF NOT EXISTS `teams` (
   CONSTRAINT `teams_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `templates` (
+CREATE TABLE `templates` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1733,7 +1733,7 @@ CREATE TABLE IF NOT EXISTS `templates` (
   CONSTRAINT `templates_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `user_roles` (
+CREATE TABLE `user_roles` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `role` enum('admin_master','admin','user') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'user',
@@ -1743,7 +1743,7 @@ CREATE TABLE IF NOT EXISTS `user_roles` (
   CONSTRAINT `user_roles_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `users` (
+CREATE TABLE `users` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1753,7 +1753,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `webhook_bot_logs` (
+CREATE TABLE `webhook_bot_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `flow_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1767,7 +1767,7 @@ CREATE TABLE IF NOT EXISTS `webhook_bot_logs` (
   KEY `idx_wbl_tenant_contact` (`tenant_id`,`contact_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `webhook_events` (
+CREATE TABLE `webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `source` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1780,7 +1780,7 @@ CREATE TABLE IF NOT EXISTS `webhook_events` (
   CONSTRAINT `webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `webhook_field_mappings` (
+CREATE TABLE `webhook_field_mappings` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `webhook_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1805,7 +1805,7 @@ CREATE TABLE IF NOT EXISTS `webhook_field_mappings` (
   CONSTRAINT `webhook_field_mappings_ibfk_3` FOREIGN KEY (`custom_field_id`) REFERENCES `contact_custom_fields` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `whatsapp_business_profile_logs` (
+CREATE TABLE `whatsapp_business_profile_logs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1827,7 +1827,7 @@ CREATE TABLE IF NOT EXISTS `whatsapp_business_profile_logs` (
   CONSTRAINT `whatsapp_business_profile_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `whatsapp_flow_submissions` (
+CREATE TABLE `whatsapp_flow_submissions` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1840,7 +1840,7 @@ CREATE TABLE IF NOT EXISTS `whatsapp_flow_submissions` (
   CONSTRAINT `whatsapp_flow_submissions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `whatsapp_flows` (
+CREATE TABLE `whatsapp_flows` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `flow_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1858,7 +1858,7 @@ CREATE TABLE IF NOT EXISTS `whatsapp_flows` (
   CONSTRAINT `whatsapp_flows_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `whatsapp_group_participants` (
+CREATE TABLE `whatsapp_group_participants` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `group_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1874,7 +1874,7 @@ CREATE TABLE IF NOT EXISTS `whatsapp_group_participants` (
   CONSTRAINT `whatsapp_group_participants_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `whatsapp_groups` (
+CREATE TABLE `whatsapp_groups` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `instance_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

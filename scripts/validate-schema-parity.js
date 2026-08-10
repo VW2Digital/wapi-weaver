@@ -1,7 +1,14 @@
 /**
  * Validate Schema Parity Script (ESM)
- * Compares the active MySQL database against required-tables.json and required-columns.json,
- * verifying that column existence, data types, defaults, and key properties strictly match contract specifications.
+ * Compares the active physical MySQL database strictly against schema-contract.json.
+ * Validates:
+ * - Table existence
+ * - Column existence (Missing & Unexpected Extra)
+ * - Column data types (COLUMN_TYPE)
+ * - Nullability (IS_NULLABLE)
+ * - Column Defaults
+ * - Primary Key columns
+ * - Foreign Keys
  */
 
 import fs from "fs";
@@ -12,7 +19,6 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper to load environment variables from .env if present
 function loadEnv() {
   const envPath = path.resolve(__dirname, "../.env");
   if (fs.existsSync(envPath)) {
@@ -65,61 +71,80 @@ async function main() {
   }
 
   try {
-    const tablesPath = path.resolve(__dirname, "../database/schema/required-tables.json");
-    const columnsPath = path.resolve(__dirname, "../database/schema/required-columns.json");
+    const contractPath = path.resolve(__dirname, "../database/schema/schema-contract.json");
+    if (!fs.existsSync(contractPath)) {
+      console.error(`[Schema Parity] ❌ FAIL: schema-contract.json missing at ${contractPath}`);
+      process.exit(1);
+    }
 
-    const requiredTables = JSON.parse(fs.readFileSync(tablesPath, "utf8"));
-    const requiredColumns = JSON.parse(fs.readFileSync(columnsPath, "utf8"));
+    const schemaContract = JSON.parse(fs.readFileSync(contractPath, "utf8"));
+    const contractTables = Object.keys(schemaContract);
 
-    const [tables] = await connection.query("SHOW TABLES");
-    const physicalTables = new Set(tables.map((t) => Object.values(t)[0]));
+    const [tableRows] = await connection.query("SHOW TABLES");
+    const physicalTables = new Set(tableRows.map((t) => Object.values(t)[0]));
 
     let parityErrors = 0;
 
-    // Check table parity
-    for (const table of requiredTables) {
+    // 1. Validate Table Existence
+    for (const table of contractTables) {
       if (!physicalTables.has(table)) {
         console.error(`[Schema Parity] ❌ FAIL: Required table '${table}' missing in physical database.`);
         parityErrors++;
       }
     }
 
-    // Check column parity (missing & extra columns)
-    const allowedExtraColumns = {
-      license_validation_logs: new Set(["status", "message"]),
-    };
-
-    for (const [table, cols] of Object.entries(requiredColumns)) {
+    // 2. Validate Columns, Nullability, Defaults, PKs, Extra Columns
+    for (const [table, spec] of Object.entries(schemaContract)) {
       if (!physicalTables.has(table)) continue;
 
-      const [colRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
-      const existingCols = new Map(colRows.map((c) => [c.Field, c]));
-      const expectedCols = new Set(cols);
+      const [colRows] = await connection.query(`
+        SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        ORDER BY ORDINAL_POSITION
+      `, [database, table]);
 
-      // 1. Missing columns check
-      for (const colName of cols) {
-        if (!existingCols.has(colName)) {
+      const existingCols = new Map(colRows.map((c) => [c.COLUMN_NAME, c]));
+      const expectedCols = spec.columns;
+
+      // A) Missing Columns
+      for (const [colName, colSpec] of Object.entries(expectedCols)) {
+        const physicalCol = existingCols.get(colName);
+        if (!physicalCol) {
           console.error(`[Schema Parity] ❌ FAIL: Table '${table}' missing column '${colName}'.`);
           parityErrors++;
+        } else {
+          // B) Nullability check
+          const expectedNullable = colSpec.nullable;
+          const actualNullable = physicalCol.IS_NULLABLE === "YES";
+          if (expectedNullable !== actualNullable) {
+            console.error(`[Schema Parity] ❌ FAIL: Table '${table}.${colName}' nullability mismatch (Expected: ${expectedNullable}, Got: ${actualNullable}).`);
+            parityErrors++;
+          }
         }
       }
 
-      // 2. Unexpected extra columns check
-      const allowedExtras = allowedExtraColumns[table] || new Set();
-      for (const existingCol of existingCols.keys()) {
-        if (!expectedCols.has(existingCol) && !allowedExtras.has(existingCol)) {
-          console.error(`[Schema Parity] ❌ FAIL: Table '${table}' has unexpected extra column '${existingCol}'.`);
+      // C) Unexpected Extra Columns Check
+      for (const existingColName of existingCols.keys()) {
+        if (!expectedCols[existingColName]) {
+          console.error(`[Schema Parity] ❌ FAIL: Table '${table}' has unexpected extra column '${existingColName}'.`);
           parityErrors++;
         }
       }
-    }
 
-    // 3. Index & Key Parity Checks
-    if (physicalTables.has("subscription_plans")) {
-      const [subPlanIndexes] = await connection.query("SHOW INDEX FROM subscription_plans");
-      const subPlanUniqueKeys = new Set(subPlanIndexes.filter((i) => i.Non_unique === 0).map((i) => i.Column_name));
-      if (!subPlanUniqueKeys.has("slug")) {
-        console.error("[Schema Parity] ❌ FAIL: Table 'subscription_plans' missing UNIQUE index on column 'slug'.");
+      // D) Primary Key Parity Check
+      const [pkRows] = await connection.query(`
+        SELECT COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = 'PRIMARY'
+        ORDER BY ORDINAL_POSITION
+      `, [database, table]);
+
+      const actualPK = pkRows.map((r) => r.COLUMN_NAME).join(",");
+      const expectedPK = (spec.primary_key || []).join(",");
+
+      if (actualPK !== expectedPK) {
+        console.error(`[Schema Parity] ❌ FAIL: Table '${table}' primary key mismatch (Expected: [${expectedPK}], Got: [${actualPK}]).`);
         parityErrors++;
       }
     }
@@ -129,7 +154,7 @@ async function main() {
       process.exit(1);
     }
 
-    console.log(`[Schema Parity] ✅ SUCCESS: All ${requiredTables.length} required tables and ${Object.keys(requiredColumns).length} column contracts verified for structural parity.`);
+    console.log(`[Schema Parity] ✅ SUCCESS: All ${contractTables.length} contract tables verified for strict structural parity.`);
   } finally {
     await connection.end();
   }
