@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSchemaValidationRunnerRouteImport } from './routes/api/schema-validation-runner'
 import { Route as ApiSchemaReconciliationAuditRouteImport } from './routes/api/schema-reconciliation-audit'
 import { Route as ApiQueryRouteImport } from './routes/api/query'
 import { Route as AppWhatsappBusinessProfileRouteImport } from './routes/_app/whatsapp-business-profile'
@@ -137,6 +138,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSchemaValidationRunnerRoute =
+  ApiSchemaValidationRunnerRouteImport.update({
+    id: '/api/schema-validation-runner',
+    path: '/api/schema-validation-runner',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSchemaReconciliationAuditRoute =
   ApiSchemaReconciliationAuditRouteImport.update({
     id: '/api/schema-reconciliation-audit',
@@ -585,6 +592,7 @@ export interface FileRoutesByFullPath {
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/api/schema-reconciliation-audit': typeof ApiSchemaReconciliationAuditRoute
+  '/api/schema-validation-runner': typeof ApiSchemaValidationRunnerRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
   '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
@@ -674,6 +682,7 @@ export interface FileRoutesByTo {
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/api/schema-reconciliation-audit': typeof ApiSchemaReconciliationAuditRoute
+  '/api/schema-validation-runner': typeof ApiSchemaValidationRunnerRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
   '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
@@ -765,6 +774,7 @@ export interface FileRoutesById {
   '/_app/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
   '/api/schema-reconciliation-audit': typeof ApiSchemaReconciliationAuditRoute
+  '/api/schema-validation-runner': typeof ApiSchemaValidationRunnerRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/_app/contacts/$id': typeof AppContactsIdRoute
   '/_app/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
@@ -856,6 +866,7 @@ export interface FileRouteTypes {
     | '/whatsapp-business-profile'
     | '/api/query'
     | '/api/schema-reconciliation-audit'
+    | '/api/schema-validation-runner'
     | '/campaigns/$id'
     | '/contacts/$id'
     | '/ds-agente/$agentId'
@@ -945,6 +956,7 @@ export interface FileRouteTypes {
     | '/whatsapp-business-profile'
     | '/api/query'
     | '/api/schema-reconciliation-audit'
+    | '/api/schema-validation-runner'
     | '/campaigns/$id'
     | '/contacts/$id'
     | '/ds-agente/$agentId'
@@ -1035,6 +1047,7 @@ export interface FileRouteTypes {
     | '/_app/whatsapp-business-profile'
     | '/api/query'
     | '/api/schema-reconciliation-audit'
+    | '/api/schema-validation-runner'
     | '/_app/campaigns/$id'
     | '/_app/contacts/$id'
     | '/_app/ds-agente/$agentId'
@@ -1108,6 +1121,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ApiQueryRoute: typeof ApiQueryRoute
   ApiSchemaReconciliationAuditRoute: typeof ApiSchemaReconciliationAuditRoute
+  ApiSchemaValidationRunnerRoute: typeof ApiSchemaValidationRunnerRoute
   ApiAdminCheckPlansRoute: typeof ApiAdminCheckPlansRoute
   ApiAdminFixSubscriptionsTableRoute: typeof ApiAdminFixSubscriptionsTableRoute
   ApiAdminKillIdleConnectionsRoute: typeof ApiAdminKillIdleConnectionsRoute
@@ -1211,6 +1225,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/schema-validation-runner': {
+      id: '/api/schema-validation-runner'
+      path: '/api/schema-validation-runner'
+      fullPath: '/api/schema-validation-runner'
+      preLoaderRoute: typeof ApiSchemaValidationRunnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/schema-reconciliation-audit': {
@@ -1926,6 +1947,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ApiQueryRoute: ApiQueryRoute,
   ApiSchemaReconciliationAuditRoute: ApiSchemaReconciliationAuditRoute,
+  ApiSchemaValidationRunnerRoute: ApiSchemaValidationRunnerRoute,
   ApiAdminCheckPlansRoute: ApiAdminCheckPlansRoute,
   ApiAdminFixSubscriptionsTableRoute: ApiAdminFixSubscriptionsTableRoute,
   ApiAdminKillIdleConnectionsRoute: ApiAdminKillIdleConnectionsRoute,

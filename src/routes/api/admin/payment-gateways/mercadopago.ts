@@ -25,20 +25,28 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago")(
         try {
           const adminUser = await requirePaymentGatewayAdmin(request);
           const row = await getGlobalMercadoPagoRow(adminUser.userId);
-          const origin = new URL(request.url).origin;
+          const requestUrl = new URL(request.url);
+          const reveal = requestUrl.searchParams.get("reveal") === "true";
+          const origin = requestUrl.origin;
+
+          const secretVal = (val?: string | null) => {
+            if (!val) return "";
+            if (reveal) return decryptSecret(val);
+            return MASKED_SECRET;
+          };
 
           return json({
             environment: row?.environment ?? "sandbox",
             checkout_mode: row?.checkout_mode ?? "redirect",
             sandbox_public_key: row?.sandbox_public_key ?? "",
             sandbox_client_id: row?.sandbox_client_id ?? "",
-            sandbox_access_token: secretField(row?.sandbox_access_token),
-            sandbox_client_secret: secretField(row?.sandbox_client_secret),
+            sandbox_access_token: secretVal(row?.sandbox_access_token),
+            sandbox_client_secret: secretVal(row?.sandbox_client_secret),
             production_public_key: row?.production_public_key ?? "",
             production_client_id: row?.production_client_id ?? "",
-            production_access_token: secretField(row?.production_access_token),
-            production_client_secret: secretField(row?.production_client_secret),
-            webhook_secret: secretField(row?.webhook_secret),
+            production_access_token: secretVal(row?.production_access_token),
+            production_client_secret: secretVal(row?.production_client_secret),
+            webhook_secret: secretVal(row?.webhook_secret),
             webhook_url: `${origin}/api/webhooks/mercadopago`,
           });
         } catch (error: any) {

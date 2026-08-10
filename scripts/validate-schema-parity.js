@@ -45,7 +45,7 @@ function loadEnv() {
 loadEnv();
 
 async function main() {
-  const host = process.env.DB_HOST || process.env.MYSQL_HOST || "banco-mysql";
+  const host = process.env.DB_HOST || process.env.MYSQL_HOST || "localhost";
   const port = parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || "3306", 10);
   const user = process.env.DB_USER || process.env.MYSQL_USER || "wapi_user";
   const database = process.env.DB_NAME || process.env.MYSQL_DATABASE || "wapi_weaver";

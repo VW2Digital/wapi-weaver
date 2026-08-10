@@ -70,7 +70,7 @@ async function runMigrations() {
   }
 
   const dbConfig = {
-    host: process.env.DB_HOST || "mysql",
+    host: process.env.DB_HOST || "localhost",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
     password: dbPassword,

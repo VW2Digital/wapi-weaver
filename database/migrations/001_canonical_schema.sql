@@ -1304,6 +1304,18 @@ CREATE TABLE IF NOT EXISTS platform_banners (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  meta_graph_version VARCHAR(20) NOT NULL DEFAULT 'v20.0',
+  app_id VARCHAR(100) NULL,
+  app_secret TEXT NULL,
+  business_account_id VARCHAR(100) NULL,
+  webhook_verify_token TEXT NULL,
+  system_user_token TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT INTO platform_settings (id, meta_graph_version) 
-VALUES (1, 'v20.0') 
-ON DUPLICATE KEY UPDATE id=1;
+VALUES ('1', 'v20.0') 
+ON DUPLICATE KEY UPDATE id='1';

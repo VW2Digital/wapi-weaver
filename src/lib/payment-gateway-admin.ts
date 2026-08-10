@@ -28,17 +28,23 @@ export async function getGlobalMercadoPagoRow(tenantId?: string) {
     )) as any[];
     if (rows.length > 0) return rows[0];
   }
+  const globalRows = (await db.query(
+    "SELECT * FROM payment_gateway_settings ORDER BY created_at ASC LIMIT 1"
+  )) as any[];
+  if (globalRows.length > 0) return globalRows[0];
   return null;
 }
 
 export function encryptedValue(value: unknown, currentValue?: string | null) {
-  const normalized = typeof value === "string" ? value.trim() : "";
-  if (
-    !normalized ||
-    normalized === MASKED_SECRET ||
-    /^[•\*\.\s]+$/.test(normalized)
-  ) {
+  if (value === undefined || value === null) {
     return currentValue ?? null;
+  }
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (normalized === MASKED_SECRET || /^[•\*\.\s]+$/.test(normalized)) {
+    return currentValue ?? null;
+  }
+  if (normalized === "") {
+    return null;
   }
   return encrypt(normalized);
 }

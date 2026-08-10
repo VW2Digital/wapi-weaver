@@ -14,10 +14,16 @@ export interface MercadoPagoConfig {
 export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPagoConfig | null> {
   if (!tenantId || tenantId === "__any__") return null;
 
-  const rows = (await db.query(
+  let rows = (await db.query(
     "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
     [tenantId],
   )) as any[];
+
+  if (rows.length === 0) {
+    rows = (await db.query(
+      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings ORDER BY created_at ASC LIMIT 1"
+    )) as any[];
+  }
 
   if (rows.length === 0) return null;
   const row = rows[0];

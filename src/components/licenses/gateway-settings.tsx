@@ -39,6 +39,56 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
   const [showProdToken, setShowProdToken] = useState(false);
   const [showProdSecret, setShowProdSecret] = useState(false);
 
+  const fetchRevealedSecrets = async () => {
+    try {
+      const res = await fetch("/api/admin/payment-gateways/mercadopago?reveal=true", {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sandbox_access_token) setSandboxAccessToken(data.sandbox_access_token);
+        if (data.sandbox_client_secret !== undefined) setSandboxClientSecret(data.sandbox_client_secret);
+        if (data.production_access_token) setProductionAccessToken(data.production_access_token);
+        if (data.production_client_secret !== undefined) setProductionClientSecret(data.production_client_secret);
+        if (data.webhook_secret !== undefined) setWebhookSecret(data.webhook_secret);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch revealed secrets:", err);
+    }
+  };
+
+  const toggleSandboxToken = async () => {
+    const next = !showSandboxToken;
+    setShowSandboxToken(next);
+    if (next && sandboxAccessToken === "••••••••") {
+      await fetchRevealedSecrets();
+    }
+  };
+
+  const toggleSandboxSecret = async () => {
+    const next = !showSandboxSecret;
+    setShowSandboxSecret(next);
+    if (next && sandboxClientSecret === "••••••••") {
+      await fetchRevealedSecrets();
+    }
+  };
+
+  const toggleProdToken = async () => {
+    const next = !showProdToken;
+    setShowProdToken(next);
+    if (next && productionAccessToken === "••••••••") {
+      await fetchRevealedSecrets();
+    }
+  };
+
+  const toggleProdSecret = async () => {
+    const next = !showProdSecret;
+    setShowProdSecret(next);
+    if (next && productionClientSecret === "••••••••") {
+      await fetchRevealedSecrets();
+    }
+  };
+
   // Test Connection result state
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -269,6 +319,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <Label htmlFor="s_public_key">Public Key</Label>
                     <Input
                       id="s_public_key"
+                      name="mp_sandbox_public_key"
+                      autoComplete="off"
                       value={sandboxPublicKey}
                       onChange={(e) => setSandboxPublicKey(e.target.value)}
                       placeholder="ex: APP_USR-... ou TEST-..."
@@ -279,6 +331,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <div className="relative">
                       <Input
                         id="s_access_token"
+                        name="mp_sandbox_access_token"
+                        autoComplete="new-password"
                         type={showSandboxToken ? "text" : "password"}
                         value={sandboxAccessToken}
                         onChange={(e) => setSandboxAccessToken(e.target.value)}
@@ -290,7 +344,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                         variant="ghost"
                         size="icon"
                         className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={() => setShowSandboxToken(!showSandboxToken)}
+                        onClick={toggleSandboxToken}
                       >
                         {showSandboxToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
@@ -300,6 +354,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <Label htmlFor="s_client_id">Client ID (User ID)</Label>
                     <Input
                       id="s_client_id"
+                      name="mp_sandbox_client_id"
+                      autoComplete="off"
                       value={sandboxClientId}
                       onChange={(e) => setSandboxClientId(e.target.value)}
                       placeholder="ex: 3598901240"
@@ -310,6 +366,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <div className="relative">
                       <Input
                         id="s_client_secret"
+                        name="mp_sandbox_client_secret"
+                        autoComplete="new-password"
                         type={showSandboxSecret ? "text" : "password"}
                         value={sandboxClientSecret}
                         onChange={(e) => setSandboxClientSecret(e.target.value)}
@@ -321,7 +379,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                         variant="ghost"
                         size="icon"
                         className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={() => setShowSandboxSecret(!showSandboxSecret)}
+                        onClick={toggleSandboxSecret}
                       >
                         {showSandboxSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
@@ -340,6 +398,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <Label htmlFor="p_public_key">Public Key</Label>
                     <Input
                       id="p_public_key"
+                      name="mp_production_public_key"
+                      autoComplete="off"
                       value={productionPublicKey}
                       onChange={(e) => setProductionPublicKey(e.target.value)}
                       placeholder="ex: APP_USR-..."
@@ -350,6 +410,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <div className="relative">
                       <Input
                         id="p_access_token"
+                        name="mp_production_access_token"
+                        autoComplete="new-password"
                         type={showProdToken ? "text" : "password"}
                         value={productionAccessToken}
                         onChange={(e) => setProductionAccessToken(e.target.value)}
@@ -361,7 +423,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                         variant="ghost"
                         size="icon"
                         className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={() => setShowProdToken(!showProdToken)}
+                        onClick={toggleProdToken}
                       >
                         {showProdToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
@@ -371,6 +433,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <Label htmlFor="p_client_id">Client ID (User ID)</Label>
                     <Input
                       id="p_client_id"
+                      name="mp_production_client_id"
+                      autoComplete="off"
                       value={productionClientId}
                       onChange={(e) => setProductionClientId(e.target.value)}
                       placeholder="ex: 123456789012345"
@@ -381,6 +445,8 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                     <div className="relative">
                       <Input
                         id="p_client_secret"
+                        name="mp_production_client_secret"
+                        autoComplete="new-password"
                         type={showProdSecret ? "text" : "password"}
                         value={productionClientSecret}
                         onChange={(e) => setProductionClientSecret(e.target.value)}
@@ -392,7 +458,7 @@ export function GatewaySettings({ enabled = true }: { enabled?: boolean }) {
                         variant="ghost"
                         size="icon"
                         className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:bg-transparent"
-                        onClick={() => setShowProdSecret(!showProdSecret)}
+                        onClick={toggleProdSecret}
                       >
                         {showProdSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>

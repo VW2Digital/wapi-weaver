@@ -35,7 +35,7 @@ async function main() {
   }
 
   const dbConfig = {
-    host: process.env.DB_HOST || "mysql",
+    host: process.env.DB_HOST || "localhost",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
     password: dbPassword,
@@ -92,6 +92,16 @@ async function main() {
     }
 
     console.log(`[Create Tables] ✅ SUCCESS: Verified all ${requiredTables.length} essential tables exist in database.`);
+
+    // 3. Mark base migration as applied in schema_migrations
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version VARCHAR(255) PRIMARY KEY,
+        applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    await connection.query("INSERT IGNORE INTO schema_migrations (version) VALUES ('001_canonical_schema.sql')");
+
     console.log("=================================================");
     console.log("   DATABASE SCHEMA CREATION PASSED SUCCESSFULLY  ");
     console.log("=================================================");

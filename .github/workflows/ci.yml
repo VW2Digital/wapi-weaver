@@ -92,3 +92,96 @@ jobs:
         run: |
           npm run type-check
           npm run build
+
+  test-update-migration-flow:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0.46
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: wapi_weaver
+          MYSQL_USER: wapi_user
+          MYSQL_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Simulate Old VPS Database Base State (Migrations 001-011)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: |
+          mysql -h 127.0.0.1 -u wapi_user -pS0xbxPfKazBVT8JFy1UEOjIsrjox wapi_weaver < database/migrations/001_canonical_schema.sql
+          mysql -h 127.0.0.1 -u wapi_user -pS0xbxPfKazBVT8JFy1UEOjIsrjox wapi_weaver -e "CREATE TABLE IF NOT EXISTS schema_migrations (version VARCHAR(255) PRIMARY KEY, applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);"
+          mysql -h 127.0.0.1 -u wapi_user -pS0xbxPfKazBVT8JFy1UEOjIsrjox wapi_weaver -e "INSERT INTO schema_migrations (version) VALUES ('001_canonical_schema.sql');"
+          for file in database/migrations/*.sql; do
+            filename=$(basename "$file")
+            if [ "$filename" != "001_canonical_schema.sql" ] && [ "$filename" != "012_reconcile_full_schema_with_local.sql" ]; then
+              echo "Applying base migration $filename..."
+              mysql -h 127.0.0.1 -u wapi_user -pS0xbxPfKazBVT8JFy1UEOjIsrjox wapi_weaver < "$file" || true
+              mysql -h 127.0.0.1 -u wapi_user -pS0xbxPfKazBVT8JFy1UEOjIsrjox wapi_weaver -e "INSERT IGNORE INTO schema_migrations (version) VALUES ('$filename');"
+            fi
+          done
+
+      - name: Execute Reconciliation Migration 012 (UPDATE VPS Path)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/migrate.js
+
+      - name: Validate Database Integrity Post-Update
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/validate-database.js
+
+      - name: Validate Schema Parity Contract Post-Update
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/validate-schema-parity.js
+
+      - name: Audit Runtime Schema Post-Update
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/audit-runtime-schema.js
+
+      - name: Run Payment Gateway Smoke Test Post-Update
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+        run: node scripts/test-payment-gateway-settings.js
+
