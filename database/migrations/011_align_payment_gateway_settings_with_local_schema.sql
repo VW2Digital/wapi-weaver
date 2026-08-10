@@ -27,26 +27,7 @@ SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_S
 SET @sql_stmt = IF(@col_exists = 0, 'ALTER TABLE payment_gateway_settings ADD COLUMN tenant_id VARCHAR(36) NOT NULL', 'ALTER TABLE payment_gateway_settings MODIFY COLUMN tenant_id VARCHAR(36) NOT NULL');
 PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- 4. Modify id column to CHAR(36) NULL if exists
-SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'id');
-SET @sql_stmt = IF(@col_exists > 0, 'ALTER TABLE payment_gateway_settings MODIFY COLUMN id CHAR(36) NULL', 'ALTER TABLE payment_gateway_settings ADD COLUMN id CHAR(36) NULL');
-PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- 5. Modify sandbox_client_id and production_client_id to VARCHAR(255) NULL
-SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'sandbox_client_id');
-SET @sql_stmt = IF(@col_exists > 0, 'ALTER TABLE payment_gateway_settings MODIFY COLUMN sandbox_client_id VARCHAR(255) NULL', 'ALTER TABLE payment_gateway_settings ADD COLUMN sandbox_client_id VARCHAR(255) NULL');
-PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'production_client_id');
-SET @sql_stmt = IF(@col_exists > 0, 'ALTER TABLE payment_gateway_settings MODIFY COLUMN production_client_id VARCHAR(255) NULL', 'ALTER TABLE payment_gateway_settings ADD COLUMN production_client_id VARCHAR(255) NULL');
-PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- 6. Ensure provider column exists with DEFAULT 'mercadopago'
-SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'provider');
-SET @sql_stmt = IF(@col_exists = 0, 'ALTER TABLE payment_gateway_settings ADD COLUMN provider VARCHAR(40) NOT NULL DEFAULT \'mercadopago\'', 'ALTER TABLE payment_gateway_settings MODIFY COLUMN provider VARCHAR(40) NOT NULL DEFAULT \'mercadopago\'');
-PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- 7. Primary Key Alignment: Ensure tenant_id is the primary key
+-- 4. Primary Key Alignment: Ensure tenant_id is the primary key FIRST before modifying id column to NULL
 SET @pk_is_tenant = (
   SELECT COUNT(*)
   FROM information_schema.KEY_COLUMN_USAGE
@@ -66,6 +47,25 @@ SET @has_any_pk = (
 
 -- Drop old PK if not tenant_id, then add PK(tenant_id)
 SET @sql_stmt = IF(@pk_is_tenant = 0 AND @has_any_pk > 0, 'ALTER TABLE payment_gateway_settings DROP PRIMARY KEY, ADD PRIMARY KEY (tenant_id)', IF(@pk_is_tenant = 0, 'ALTER TABLE payment_gateway_settings ADD PRIMARY KEY (tenant_id)', 'SELECT 1'));
+PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 5. Modify id column to CHAR(36) NULL if exists (now safe as id is no longer part of PRIMARY KEY)
+SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'id');
+SET @sql_stmt = IF(@col_exists > 0, 'ALTER TABLE payment_gateway_settings MODIFY COLUMN id CHAR(36) NULL', 'ALTER TABLE payment_gateway_settings ADD COLUMN id CHAR(36) NULL');
+PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 6. Modify sandbox_client_id and production_client_id to VARCHAR(255) NULL
+SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'sandbox_client_id');
+SET @sql_stmt = IF(@col_exists > 0, 'ALTER TABLE payment_gateway_settings MODIFY COLUMN sandbox_client_id VARCHAR(255) NULL', 'ALTER TABLE payment_gateway_settings ADD COLUMN sandbox_client_id VARCHAR(255) NULL');
+PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'production_client_id');
+SET @sql_stmt = IF(@col_exists > 0, 'ALTER TABLE payment_gateway_settings MODIFY COLUMN production_client_id VARCHAR(255) NULL', 'ALTER TABLE payment_gateway_settings ADD COLUMN production_client_id VARCHAR(255) NULL');
+PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 7. Ensure provider column exists with DEFAULT 'mercadopago'
+SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'payment_gateway_settings' AND COLUMN_NAME = 'provider');
+SET @sql_stmt = IF(@col_exists = 0, 'ALTER TABLE payment_gateway_settings ADD COLUMN provider VARCHAR(40) NOT NULL DEFAULT \'mercadopago\'', 'ALTER TABLE payment_gateway_settings MODIFY COLUMN provider VARCHAR(40) NOT NULL DEFAULT \'mercadopago\'');
 PREPARE stmt FROM @sql_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- 8. Foreign Key Alignment: Ensure FK on tenant_id -> users(id) ON DELETE CASCADE
