@@ -1,40 +1,44 @@
+#!/usr/bin/env node
+/**
+ * cleanup-debug-routes.mjs
+ * Deletes temporary/debug API route files from src/routes/api/.
+ * Run manually: node scripts/cleanup-debug-routes.mjs
+ */
+
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, "..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const routesDir = path.resolve(__dirname, "../src/routes/api");
 
-const filesToDelete = [
-  "src/routes/api/debug-gateway-row.ts",
-  "src/routes/api/schema-audit.ts",
-  "src/routes/api/schema-migration-tester.ts",
-  "src/routes/api/schema-reconciliation-audit.ts",
-  "src/routes/api/schema-reconciliation-execute.ts",
-  "src/routes/api/schema-reconciliation-generator.ts",
-  "src/routes/api/schema-validation-runner.ts",
-  "src/routes/api/test-gateway-smoke-runner.ts",
-  "src/routes/api/type-check-runner.ts",
-  "src/routes/api/public/__tests__/whatsapp-webhook.test.ts"
+const DEBUG_ROUTES = [
+  "debug-gateway-row.ts",
+  "schema-audit.ts",
+  "schema-migration-tester.ts",
+  "schema-reconciliation-audit.ts",
+  "schema-reconciliation-execute.ts",
+  "schema-reconciliation-generator.ts",
+  "schema-validation-runner.ts",
+  "test-gateway-smoke-runner.ts",
+  "type-check-runner.ts",
 ];
 
-let deletedCount = 0;
+let deleted = 0;
+let missing = 0;
 
-for (const relPath of filesToDelete) {
-  const fullPath = path.resolve(rootDir, relPath);
+for (const file of DEBUG_ROUTES) {
+  const fullPath = path.join(routesDir, file);
   if (fs.existsSync(fullPath)) {
     fs.unlinkSync(fullPath);
-    console.log(`Deleted: ${relPath}`);
-    deletedCount++;
+    console.log(`[cleanup] ✅ DELETED: ${file}`);
+    deleted++;
+  } else {
+    console.log(`[cleanup] ⚠️  NOT FOUND (already removed?): ${file}`);
+    missing++;
   }
 }
 
-// Remove empty __tests__ dir if empty
-const testDir = path.resolve(rootDir, "src/routes/api/public/__tests__");
-if (fs.existsSync(testDir) && fs.readdirSync(testDir).length === 0) {
-  fs.rmdirSync(testDir);
-  console.log("Removed empty directory: src/routes/api/public/__tests__");
-}
-
-console.log(`Successfully cleaned up ${deletedCount} non-production route files.`);
+console.log(`\n[cleanup] SUMMARY: ${deleted} deleted, ${missing} not found.`);
+console.log(`[cleanup] ✅ Done. Now run your TanStack Router build/vite-dev to regenerate routeTree.gen.ts.`);
+console.log(`[cleanup] Expected: none of the debug routes remain in the regenerated routeTree.gen.ts.`);

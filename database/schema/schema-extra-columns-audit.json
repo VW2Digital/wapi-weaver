@@ -127,21 +127,23 @@
   },
   {
     "table": "billing_webhook_events",
-    "column": "payload_json",
-    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
-    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "column": "payload",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts", "src/routes/functions/v1/mercadopago-webhook.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts", "src/routes/functions/v1/mercadopago-webhook.ts"],
+    "created_by_migrations": ["001_canonical_schema.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "INSERT col list: 'payload' in lines 134/139. Migration 001 line 1231: payload JSON NOT NULL. Original audit had wrong column name 'payload_json'."
   },
   {
     "table": "billing_webhook_events",
     "column": "created_at",
-    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
-    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": ["001_canonical_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Migration 001 line 1235: created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP. Not referenced explicitly in runtime (implicit via MySQL DEFAULT). Real physical column."
   },
   {
     "table": "ds_agents",
@@ -308,65 +310,72 @@
   {
     "table": "payment_gateway_settings",
     "column": "payment_method_types_json",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL. Column does not exist in migration 001 or 011. Original audit had fabricated runtime_reads pointing to mercadopago.ts which does NOT reference this field. Must be investigated against VPS snapshot."
   },
   {
     "table": "payment_gateway_settings",
     "column": "is_sandbox",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL. Original audit fabricated runtime_reads."
   },
   {
     "table": "payment_gateway_settings",
     "column": "webhook_secret_enc",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
   },
   {
     "table": "payment_gateway_settings",
     "column": "public_key_enc",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
   },
   {
     "table": "payment_gateway_settings",
     "column": "access_token_enc",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
   },
   {
     "table": "payment_gateway_settings",
     "column": "client_id_enc",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
   },
   {
     "table": "payment_gateway_settings",
     "column": "client_secret_enc",
-    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
-    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "classification": "AUDIT_INVALID",
+    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
   },
   {
     "table": "licenses",

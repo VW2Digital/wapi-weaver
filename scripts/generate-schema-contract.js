@@ -195,9 +195,11 @@ for (const t of functionalTables) {
 fs.writeFileSync(reqColsPath, JSON.stringify(reqColsMap, null, 2), "utf8");
 console.log(`[Generate Schema Contract] ✅ Wrote required-columns.json`);
 
-// 4. Write reference-schema.sql (same as canonical, without IF NOT EXISTS)
-const refSql = canonicalSql.replace(/CREATE TABLE IF NOT EXISTS/g, "CREATE TABLE");
-fs.writeFileSync(referencePath, refSql, "utf8");
-console.log(`[Generate Schema Contract] ✅ Wrote reference-schema.sql`);
+// NOTE: reference-schema.sql is NOT generated here.
+// reference-schema.sql must remain the independent local-head snapshot
+// captured via mysqldump BEFORE canonical is approved as master.
+// Only after LOCAL HEAD == CANONICAL VERIFIED will reference-schema.sql
+// be treated as a derived artifact.
 
 console.log(`[Generate Schema Contract] ✅ SUCCESS: Generated contracts for ${functionalTables.length} functional tables from canonical-schema.sql (no live DB required).`);
+console.log(`[Generate Schema Contract] ⚠️  reference-schema.sql NOT overwritten — must remain independent until canonical is verified against local head.`);
