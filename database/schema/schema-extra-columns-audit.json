@@ -1,0 +1,713 @@
+[
+  {
+    "table": "subscriptions",
+    "column": "current_period_start",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql", "012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscriptions",
+    "column": "current_period_end",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql", "012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscriptions",
+    "column": "trial_started_at",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscriptions",
+    "column": "trial_ends_at",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscriptions",
+    "column": "trial_consumed_at",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscriptions",
+    "column": "activated_at",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscription_events",
+    "column": "source",
+    "runtime_reads": ["src/lib/subscription-state-machine.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql", "012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscription_events",
+    "column": "gateway_event_id",
+    "runtime_reads": ["src/lib/subscription-state-machine.ts"],
+    "runtime_writes": ["src/lib/subscription-state-machine.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscription_events",
+    "column": "payload_json",
+    "runtime_reads": ["src/routes/api/billing/subscription/renew.ts"],
+    "runtime_writes": ["src/routes/api/billing/subscription/renew.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "subscription_events",
+    "column": "raw_payload",
+    "runtime_reads": ["src/lib/services/subscription-access.service.ts"],
+    "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
+    "created_by_migrations": ["006_subscription_trial_access.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_payments",
+    "column": "qr_code",
+    "runtime_reads": ["src/routes/api/billing/checkout/pix.ts"],
+    "runtime_writes": ["src/routes/api/billing/checkout/pix.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_payments",
+    "column": "qr_code_base64",
+    "runtime_reads": ["src/routes/api/billing/checkout/pix.ts"],
+    "runtime_writes": ["src/routes/api/billing/checkout/pix.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_payments",
+    "column": "ticket_url",
+    "runtime_reads": ["src/routes/api/billing/checkout/pix.ts"],
+    "runtime_writes": ["src/routes/api/billing/checkout/pix.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_payments",
+    "column": "payload_json",
+    "runtime_reads": ["src/routes/functions/v1/mercadopago-webhook.ts"],
+    "runtime_writes": ["src/routes/functions/v1/mercadopago-webhook.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_webhook_events",
+    "column": "payload_json",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_webhook_events",
+    "column": "created_at",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "ds_agents",
+    "column": "prompt",
+    "runtime_reads": ["src/lib/ds-agent.functions.ts"],
+    "runtime_writes": ["src/lib/ds-agent.functions.ts"],
+    "created_by_migrations": ["008_align_schema_with_local_database.sql", "012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "ds_agents",
+    "column": "is_active",
+    "runtime_reads": ["src/lib/ds-agent.functions.ts"],
+    "runtime_writes": ["src/lib/ds-agent.functions.ts"],
+    "created_by_migrations": ["008_align_schema_with_local_database.sql", "012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "ds_agent_tools",
+    "column": "tool_key",
+    "runtime_reads": ["src/lib/ds-agent.functions.ts"],
+    "runtime_writes": ["src/lib/ds-agent.functions.ts"],
+    "created_by_migrations": ["004_calendar_events.sql", "012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "ds_agent_tools",
+    "column": "enabled",
+    "runtime_reads": ["src/lib/ds-agent.functions.ts"],
+    "runtime_writes": ["src/lib/ds-agent.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "ds_agent_tools",
+    "column": "config",
+    "runtime_reads": ["src/lib/ds-agent.functions.ts"],
+    "runtime_writes": ["src/lib/ds-agent.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "webhook_events",
+    "column": "tenant_id",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "webhook_events",
+    "column": "event_type",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "webhook_events",
+    "column": "payload_json",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "webhook_events",
+    "column": "status",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "webhook_events",
+    "column": "error_message",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "webhook_events",
+    "column": "created_at",
+    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "billing_cycle",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "price_cents",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "currency",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "trial_days",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "is_active",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "sort_order",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "billing_plans",
+    "column": "features_json",
+    "runtime_reads": ["src/lib/billing.functions.ts"],
+    "runtime_writes": ["src/lib/billing.functions.ts"],
+    "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "payment_method_types_json",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "is_sandbox",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "webhook_secret_enc",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "public_key_enc",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "access_token_enc",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "client_id_enc",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "payment_gateway_settings",
+    "column": "client_secret_enc",
+    "runtime_reads": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "runtime_writes": ["src/routes/api/admin/payment-gateways/mercadopago.ts"],
+    "created_by_migrations": ["011_align_payment_gateway_settings_with_local_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "product_name",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "app_id",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "max_activations",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "max_users",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "features_json",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "notes",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "stripe_customer_id",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "stripe_subscription_id",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "licenses",
+    "column": "ai_tokens_used",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license-admin.functions.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_activations",
+    "column": "app_url",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_activations",
+    "column": "user_agent",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_activations",
+    "column": "last_check_at",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_activations",
+    "column": "created_at",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_activations",
+    "column": "updated_at",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_validation_logs",
+    "column": "app_url",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_validation_logs",
+    "column": "installation_id",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_validation_logs",
+    "column": "app_id",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_validation_logs",
+    "column": "result",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_validation_logs",
+    "column": "reason",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "license_validation_logs",
+    "column": "payload_json",
+    "runtime_reads": ["src/lib/license.service.ts"],
+    "runtime_writes": ["src/lib/license.service.ts"],
+    "created_by_migrations": ["009_align_licenses_full_schema.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "components",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "parameter_format",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "allow_category_change",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "cta_url_link_tracking_opted_out",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "message_send_ttl_seconds",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "sub_category",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "display_format",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "is_primary_device_delivery_only",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "meta_template_id",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "templates",
+    "column": "synced_at",
+    "runtime_reads": ["src/lib/templates.functions.ts"],
+    "runtime_writes": ["src/lib/templates.functions.ts"],
+    "created_by_migrations": ["003_runtime_schema_alignment.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "notifications",
+    "column": "action_url",
+    "runtime_reads": ["src/lib/notifications.service.ts"],
+    "runtime_writes": ["src/lib/notifications.service.ts"],
+    "created_by_migrations": ["007_restore_active_runtime_tables.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "notifications",
+    "column": "unique_key",
+    "runtime_reads": ["src/lib/notifications.service.ts"],
+    "runtime_writes": ["src/lib/notifications.service.ts"],
+    "created_by_migrations": ["007_restore_active_runtime_tables.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "notifications",
+    "column": "read_at",
+    "runtime_reads": ["src/lib/notifications.service.ts"],
+    "runtime_writes": ["src/lib/notifications.service.ts"],
+    "created_by_migrations": ["007_restore_active_runtime_tables.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "salvy_numbers",
+    "column": "canceled_at",
+    "runtime_reads": ["src/lib/salvy.service.ts"],
+    "runtime_writes": ["src/lib/salvy.service.ts"],
+    "created_by_migrations": ["008_align_schema_with_local_database.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "salvy_numbers",
+    "column": "created_at_remote",
+    "runtime_reads": ["src/lib/salvy.service.ts"],
+    "runtime_writes": ["src/lib/salvy.service.ts"],
+    "created_by_migrations": ["008_align_schema_with_local_database.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "salvy_numbers",
+    "column": "cancel_reason",
+    "runtime_reads": ["src/lib/salvy.service.ts"],
+    "runtime_writes": ["src/lib/salvy.service.ts"],
+    "created_by_migrations": ["008_align_schema_with_local_database.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "salvy_numbers",
+    "column": "raw",
+    "runtime_reads": ["src/lib/salvy.service.ts"],
+    "runtime_writes": ["src/lib/salvy.service.ts"],
+    "created_by_migrations": ["008_align_schema_with_local_database.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  },
+  {
+    "table": "ai_agent_settings",
+    "column": "system_prompt",
+    "runtime_reads": ["src/lib/ai-agent.service.ts"],
+    "runtime_writes": ["src/lib/ai-agent.service.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "classification": "ACTIVE_REQUIRED"
+  }
+]

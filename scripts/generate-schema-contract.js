@@ -1,198 +1,203 @@
 /**
  * Generate Schema Contract Script (ESM)
- * Connects to local MySQL database and programmatically generates:
+ * Reads from canonical-schema.sql (single source of truth) and generates:
  * 1. database/schema/schema-contract.json
  * 2. database/schema/required-tables.json
  * 3. database/schema/required-columns.json
  * 4. database/schema/reference-schema.sql
- * 5. database/schema/canonical-schema.sql
+ *
+ * Does NOT connect to a live database — canonical-schema.sql is the master.
  */
 
 import fs from "fs";
 import path from "path";
-import mysql from "mysql2/promise";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
 
-function loadEnv() {
-  const envPath = path.resolve(__dirname, "../.env");
-  if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, "utf8").split("\n");
+const canonicalPath = path.resolve(rootDir, "database/schema/canonical-schema.sql");
+const contractPath = path.resolve(rootDir, "database/schema/schema-contract.json");
+const reqTablesPath = path.resolve(rootDir, "database/schema/required-tables.json");
+const reqColsPath = path.resolve(rootDir, "database/schema/required-columns.json");
+const referencePath = path.resolve(rootDir, "database/schema/reference-schema.sql");
+
+if (!fs.existsSync(canonicalPath)) {
+  console.error(`[Generate Schema Contract] ❌ CRITICAL: canonical-schema.sql not found at ${canonicalPath}`);
+  process.exit(1);
+}
+
+const canonicalSql = fs.readFileSync(canonicalPath, "utf8");
+
+// ─── Parser ─────────────────────────────────────────────────────────────────
+
+function parseCanonical(sql) {
+  const schemaContract = {};
+  const functionalTables = [];
+
+  // Split by CREATE TABLE block boundaries
+  const tableMatches = [...sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`([a-zA-Z0-9_]+)`\s*\(([\s\S]*?)\)\s*ENGINE=/gi)];
+
+  for (const tableMatch of tableMatches) {
+    const tableName = tableMatch[1];
+    const bodyRaw = tableMatch[2];
+
+    if (tableName === "schema_migrations") continue;
+
+    functionalTables.push(tableName);
+    schemaContract[tableName] = {
+      columns: {},
+      primary_key: [],
+      unique_indexes: {},
+      indexes: {},
+      foreign_keys: [],
+    };
+
+    const lines = bodyRaw.split("\n").map(l => l.trim()).filter(Boolean);
+    let ordinal = 1;
+
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith("#")) {
-        const eqIdx = trimmed.indexOf("=");
-        if (eqIdx > 0) {
-          const key = trimmed.slice(0, eqIdx).trim();
-          let value = trimmed.slice(eqIdx + 1).trim();
-          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
+      // Skip if this is a constraint/key line (starts with keywords)
+      const isConstraintLine =
+        line.startsWith("PRIMARY KEY") ||
+        line.startsWith("UNIQUE KEY") ||
+        line.startsWith("KEY ") ||
+        line.startsWith("CONSTRAINT") ||
+        line.startsWith("INDEX ");
+
+      // ─── Column definition ────────────────────────────────────────────────
+      if (!isConstraintLine) {
+        const colMatch = line.match(/^`([a-zA-Z0-9_]+)`\s+(.+?)(?:,)?$/);
+        if (colMatch) {
+          const colName = colMatch[1];
+          const colDef = colMatch[2];
+
+          // Determine data type (first token up to first '(' or space)
+          const typeMatch = colDef.match(/^([a-zA-Z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
+          const columnType = typeMatch ? typeMatch[1].toLowerCase().trim() : colDef.split(" ")[0].toLowerCase();
+          const dataType = columnType.split("(")[0].toLowerCase();
+
+          const nullable = !/NOT\s+NULL/i.test(colDef);
+
+          let defaultValue = null;
+          const defMatch = colDef.match(/DEFAULT\s+(?:'([^']*)'|(\d+(?:\.\d+)?)|([A-Z_]+(?:\(\))?))/i);
+          if (defMatch) {
+            if (defMatch[1] !== undefined) defaultValue = defMatch[1];
+            else if (defMatch[2] !== undefined) defaultValue = defMatch[2];
+            else if (defMatch[3] !== undefined) defaultValue = defMatch[3].replace(/\(\)$/, "");
           }
-          if (!process.env[key]) {
-            process.env[key] = value;
+          if (/DEFAULT\s+NULL/i.test(colDef)) defaultValue = null;
+
+          let extra = "";
+          if (/AUTO_INCREMENT/i.test(colDef)) extra = "auto_increment";
+          else if (/DEFAULT_GENERATED\s+on\s+update/i.test(colDef)) extra = "DEFAULT_GENERATED on update CURRENT_TIMESTAMP";
+          else if (/on\s+update\s+CURRENT_TIMESTAMP/i.test(colDef)) extra = "DEFAULT_GENERATED on update CURRENT_TIMESTAMP";
+          else if (/DEFAULT_GENERATED/i.test(colDef)) extra = "DEFAULT_GENERATED";
+
+          let key = "";
+
+          const isTextLike = ["char", "varchar", "text", "tinytext", "mediumtext", "longtext", "enum", "set"].some(t => dataType.startsWith(t));
+          const charset = isTextLike ? "utf8mb4" : null;
+          const collation = charset ? "utf8mb4_unicode_ci" : null;
+
+          schemaContract[tableName].columns[colName] = {
+            ordinal_position: ordinal++,
+            data_type: dataType,
+            column_type: columnType,
+            nullable,
+            default: defaultValue,
+            key,
+            extra,
+            charset,
+            collation,
+          };
+        }
+      }
+
+      // ─── PRIMARY KEY ──────────────────────────────────────────────────────
+      const pkMatch = line.match(/PRIMARY\s+KEY\s*\(([^)]+)\)/i);
+      if (pkMatch) {
+        const cols = pkMatch[1].split(",").map(c => c.replace(/`/g, "").trim());
+        schemaContract[tableName].primary_key = cols;
+        for (const c of cols) {
+          if (schemaContract[tableName].columns[c]) {
+            schemaContract[tableName].columns[c].key = "PRI";
           }
         }
       }
-    }
-  }
-}
 
-loadEnv();
-
-async function main() {
-  const host = process.env.DB_HOST || process.env.MYSQL_HOST || "localhost";
-  const port = parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || "3306", 10);
-  const user = process.env.DB_USER || process.env.MYSQL_USER || "wapi_user";
-  const database = process.env.DB_NAME || process.env.MYSQL_DATABASE || "wapi_weaver";
-  const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD;
-
-  if (!password) {
-    console.error("[Generate Schema Contract] ❌ CRITICAL: DB_PASSWORD environment variable is missing.");
-    process.exit(1);
-  }
-
-  const connection = await mysql.createConnection({ host, port, user, password, database });
-
-  try {
-    console.log(`[Generate Schema Contract] Connected to database '${database}' on ${host}:${port}...`);
-
-    const [tablesRows] = await connection.query(
-      "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME",
-      [database]
-    );
-    const allPhysicalTables = tablesRows.map((r) => r.TABLE_NAME);
-    const functionalTables = allPhysicalTables.filter((t) => t !== "schema_migrations");
-
-    const [columnsRows] = await connection.query(`
-      SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY, EXTRA, CHARACTER_SET_NAME, COLLATION_NAME
-      FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = '${database}'
-      ORDER BY TABLE_NAME, ORDINAL_POSITION
-    `);
-
-    const [pksRows] = await connection.query(`
-      SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION
-      FROM information_schema.KEY_COLUMN_USAGE
-      WHERE TABLE_SCHEMA = '${database}' AND CONSTRAINT_NAME = 'PRIMARY'
-      ORDER BY TABLE_NAME, ORDINAL_POSITION
-    `);
-
-    const [fksRows] = await connection.query(`
-      SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
-      FROM information_schema.KEY_COLUMN_USAGE
-      WHERE TABLE_SCHEMA = '${database}' AND REFERENCED_TABLE_NAME IS NOT NULL
-      ORDER BY TABLE_NAME, CONSTRAINT_NAME
-    `);
-
-    const [indexesRows] = await connection.query(`
-      SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX
-      FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = '${database}'
-      ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
-    `);
-
-    const schemaContract = {};
-
-    for (const t of functionalTables) {
-      schemaContract[t] = {
-        columns: {},
-        primary_key: [],
-        unique_indexes: {},
-        indexes: {},
-        foreign_keys: [],
-      };
-    }
-
-    for (const row of columnsRows) {
-      if (row.TABLE_NAME === "schema_migrations") continue;
-      if (!schemaContract[row.TABLE_NAME]) continue;
-      schemaContract[row.TABLE_NAME].columns[row.COLUMN_NAME] = {
-        ordinal_position: row.ORDINAL_POSITION,
-        data_type: row.DATA_TYPE,
-        column_type: row.COLUMN_TYPE,
-        nullable: row.IS_NULLABLE === "YES",
-        default: row.COLUMN_DEFAULT,
-        key: row.COLUMN_KEY,
-        extra: row.EXTRA,
-        charset: row.CHARACTER_SET_NAME,
-        collation: row.COLLATION_NAME,
-      };
-    }
-
-    for (const row of pksRows) {
-      if (row.TABLE_NAME === "schema_migrations") continue;
-      if (schemaContract[row.TABLE_NAME]) {
-        schemaContract[row.TABLE_NAME].primary_key.push(row.COLUMN_NAME);
+      // ─── UNIQUE KEY ───────────────────────────────────────────────────────
+      const uqMatch = line.match(/UNIQUE\s+KEY\s+`([^`]+)`\s*\(([^)]+)\)/i);
+      if (uqMatch) {
+        const idxName = uqMatch[1];
+        const cols = uqMatch[2].split(",").map(c => c.replace(/`/g, "").replace(/\(\d+\)/, "").trim());
+        schemaContract[tableName].unique_indexes[idxName] = cols;
+        for (const c of cols) {
+          if (schemaContract[tableName].columns[c] && !schemaContract[tableName].columns[c].key) {
+            schemaContract[tableName].columns[c].key = "UNI";
+          }
+        }
       }
-    }
 
-    for (const row of fksRows) {
-      if (row.TABLE_NAME === "schema_migrations") continue;
-      if (schemaContract[row.TABLE_NAME]) {
-        schemaContract[row.TABLE_NAME].foreign_keys.push({
-          column: row.COLUMN_NAME,
-          ref_table: row.REFERENCED_TABLE_NAME,
-          ref_column: row.REFERENCED_COLUMN_NAME,
-          constraint_name: row.CONSTRAINT_NAME,
+      // ─── NORMAL KEY ───────────────────────────────────────────────────────
+      const idxMatch = line.match(/^KEY\s+`([^`]+)`\s*\(([^)]+)\)/i);
+      if (idxMatch) {
+        const idxName = idxMatch[1];
+        const cols = idxMatch[2].split(",").map(c => c.replace(/`/g, "").replace(/\(\d+\)/, "").trim());
+        schemaContract[tableName].indexes[idxName] = cols;
+        for (const c of cols) {
+          if (schemaContract[tableName].columns[c] && !schemaContract[tableName].columns[c].key) {
+            schemaContract[tableName].columns[c].key = "MUL";
+          }
+        }
+      }
+
+      // ─── FOREIGN KEY ──────────────────────────────────────────────────────
+      const fkMatch = line.match(/CONSTRAINT\s+`([^`]+)`\s+FOREIGN\s+KEY\s*\(`([^`]+)`\)\s+REFERENCES\s+`([^`]+)`\s*\(`([^`]+)`\)/i);
+      if (fkMatch) {
+        schemaContract[tableName].foreign_keys.push({
+          column: fkMatch[2],
+          ref_table: fkMatch[3],
+          ref_column: fkMatch[4],
+          constraint_name: fkMatch[1],
         });
       }
     }
-
-    for (const row of indexesRows) {
-      if (row.TABLE_NAME === "schema_migrations") continue;
-      if (schemaContract[row.TABLE_NAME]) {
-        if (row.INDEX_NAME === "PRIMARY") continue;
-        const targetDict = row.NON_UNIQUE === 0 ? schemaContract[row.TABLE_NAME].unique_indexes : schemaContract[row.TABLE_NAME].indexes;
-        if (!targetDict[row.INDEX_NAME]) {
-          targetDict[row.INDEX_NAME] = [];
-        }
-        targetDict[row.INDEX_NAME].push(row.COLUMN_NAME);
-      }
-    }
-
-    // 1. Write schema-contract.json
-    const contractPath = path.resolve(__dirname, "../database/schema/schema-contract.json");
-    fs.writeFileSync(contractPath, JSON.stringify(schemaContract, null, 2), "utf8");
-
-    // 2. Write required-tables.json
-    const reqTablesPath = path.resolve(__dirname, "../database/schema/required-tables.json");
-    fs.writeFileSync(reqTablesPath, JSON.stringify(functionalTables, null, 2), "utf8");
-
-    // 3. Write required-columns.json
-    const reqColsMap = {};
-    for (const t of functionalTables) {
-      reqColsMap[t] = Object.keys(schemaContract[t].columns);
-    }
-    const reqColsPath = path.resolve(__dirname, "../database/schema/required-columns.json");
-    fs.writeFileSync(reqColsPath, JSON.stringify(reqColsMap, null, 2), "utf8");
-
-    // 4. Generate reference-schema.sql and canonical-schema.sql DDL
-    let ddlSql = `-- REFERENCE SCHEMA (DDL ONLY - SINGLE SOURCE OF TRUTH FROM LOCAL MYSQL)\n`;
-    ddlSql += `-- Generated at ${new Date().toISOString()}\n\n`;
-
-    for (const t of functionalTables) {
-      const [createSqlRows] = await connection.query(`SHOW CREATE TABLE \`${t}\``);
-      let createStmt = createSqlRows[0]?.["Create Table"] || "";
-      createStmt = createStmt.replace(/AUTO_INCREMENT=\d+\s*/g, "");
-      ddlSql += `${createStmt};\n\n`;
-    }
-
-    const referencePath = path.resolve(__dirname, "../database/schema/reference-schema.sql");
-    fs.writeFileSync(referencePath, ddlSql, "utf8");
-
-    const canonicalPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
-    const canonicalSql = ddlSql.replace(/CREATE TABLE `/g, "CREATE TABLE IF NOT EXISTS `");
-    fs.writeFileSync(canonicalPath, canonicalSql, "utf8");
-
-    console.log(`[Generate Schema Contract] ✅ SUCCESS: Generated contracts and manifests for ${functionalTables.length} functional tables.`);
-  } finally {
-    await connection.end();
   }
+
+  functionalTables.sort();
+  return { schemaContract, functionalTables };
 }
 
-main().catch((err) => {
-  console.error("[Generate Schema Contract] ❌ UNHANDLED EXCEPTION:", err);
+// ─── Main ────────────────────────────────────────────────────────────────────
+
+const { schemaContract, functionalTables } = parseCanonical(canonicalSql);
+
+if (functionalTables.length === 0) {
+  console.error("[Generate Schema Contract] ❌ CRITICAL: Parser found 0 tables in canonical-schema.sql. Aborting.");
   process.exit(1);
-});
+}
+
+// 1. Write schema-contract.json
+fs.writeFileSync(contractPath, JSON.stringify(schemaContract, null, 2), "utf8");
+console.log(`[Generate Schema Contract] ✅ Wrote schema-contract.json (${functionalTables.length} tables)`);
+
+// 2. Write required-tables.json
+fs.writeFileSync(reqTablesPath, JSON.stringify(functionalTables, null, 2), "utf8");
+console.log(`[Generate Schema Contract] ✅ Wrote required-tables.json`);
+
+// 3. Write required-columns.json
+const reqColsMap = {};
+for (const t of functionalTables) {
+  reqColsMap[t] = Object.keys(schemaContract[t].columns);
+}
+fs.writeFileSync(reqColsPath, JSON.stringify(reqColsMap, null, 2), "utf8");
+console.log(`[Generate Schema Contract] ✅ Wrote required-columns.json`);
+
+// 4. Write reference-schema.sql (same as canonical, without IF NOT EXISTS)
+const refSql = canonicalSql.replace(/CREATE TABLE IF NOT EXISTS/g, "CREATE TABLE");
+fs.writeFileSync(referencePath, refSql, "utf8");
+console.log(`[Generate Schema Contract] ✅ Wrote reference-schema.sql`);
+
+console.log(`[Generate Schema Contract] ✅ SUCCESS: Generated contracts for ${functionalTables.length} functional tables from canonical-schema.sql (no live DB required).`);

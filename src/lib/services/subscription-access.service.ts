@@ -68,7 +68,7 @@ export async function getDefaultTrialPlanId(connection?: any): Promise<string> {
   if (plans && plans.length > 0) {
     return plans[0].id;
   }
-  return "plan-basic";
+  throw new Error("❌ CRITICAL: Nenhum plano de assinatura ativo foi encontrado em subscription_plans.");
 }
 
 /**
@@ -167,7 +167,7 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
   // 2. Buscar assinatura do tenant
   const subs = (await db.query(
-    `SELECT s.*, p.name as plan_name, p.code as plan_code
+    `SELECT s.*, p.name as plan_name, p.slug as plan_code
      FROM subscriptions s
      LEFT JOIN subscription_plans p ON s.plan_id = p.id
      WHERE s.tenant_id = ? LIMIT 1`,
