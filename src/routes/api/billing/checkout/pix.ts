@@ -29,17 +29,20 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
             });
           }
 
-          // Fetch plan
-          const plans = (await db.query("SELECT * FROM billing_plans WHERE id = ? AND is_active = true LIMIT 1", [
-            planId,
-          ])) as any[];
-          if (plans.length === 0) {
-            return new Response(JSON.stringify({ error: "Plano não encontrado ou inativo." }), {
-              status: 404,
-              headers: { "Content-Type": "application/json" },
-            });
+          // Fetch & validate plan safely
+          const { validateOrRejectPlan } = await import("@/lib/plan-validator");
+          const planValidation = await validateOrRejectPlan(planId, {
+            userId: user.userId,
+            tenantId: user.tenantId,
+            operation: "checkout_pix_initiation",
+            source: "checkout_pix_route",
+          });
+
+          if (!planValidation.valid && planValidation.response) {
+            return planValidation.response;
           }
-          const plan = plans[0];
+
+          const plan = planValidation.planResult?.plan;
 
           // Fetch subscription
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);

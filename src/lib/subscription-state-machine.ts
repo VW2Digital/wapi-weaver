@@ -162,6 +162,22 @@ export async function schedulePlanChange(
   subscriptionId: string,
   newPlanId: string
 ): Promise<{ success: boolean; changeId: string; effectiveDate: Date; message: string }> {
+  const { validatePlanExistence, resolveValidPlanId } = await import("./plan-validator");
+  const check = await validatePlanExistence(newPlanId);
+
+  if (!check.exists) {
+    console.error("Invalid subscription plan", {
+      subscription_id: subscriptionId,
+      plan_id: newPlanId,
+      operation: "schedulePlanChange",
+    });
+  }
+
+  const validPlanId = await resolveValidPlanId(newPlanId, {
+    subscriptionId,
+    operation: "schedulePlanChange",
+  });
+
   const subs = (await db.query(
     "SELECT id, tenant_id, plan_id, expires_at FROM subscriptions WHERE id = ? LIMIT 1",
     [subscriptionId]
@@ -186,7 +202,7 @@ export async function schedulePlanChange(
     `INSERT INTO subscription_plan_changes (
       id, tenant_id, subscription_id, old_plan, new_plan, effective_date, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-    [changeId, sub.tenant_id, subscriptionId, oldPlanId, newPlanId, effectiveDate]
+    [changeId, sub.tenant_id, subscriptionId, oldPlanId, validPlanId, effectiveDate]
   );
 
   return {

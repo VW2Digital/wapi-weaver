@@ -60,15 +60,8 @@ export interface SubscriptionAccessState {
  * Retorna o plano padrão de trial a ser atribuído para novos clientes.
  */
 export async function getDefaultTrialPlanId(connection?: any): Promise<string> {
-  const executor = makeExecutor(connection);
-  const plans = await executor.query(
-    "SELECT id FROM subscription_plans WHERE is_active = true ORDER BY created_at ASC LIMIT 1"
-  );
-
-  if (plans && plans.length > 0) {
-    return plans[0].id;
-  }
-  throw new Error("❌ CRITICAL: Nenhum plano de assinatura ativo foi encontrado em subscription_plans.");
+  const { resolveValidPlanId } = await import("@/lib/plan-validator");
+  return await resolveValidPlanId(null, { operation: "getDefaultTrialPlanId" }, connection);
 }
 
 /**

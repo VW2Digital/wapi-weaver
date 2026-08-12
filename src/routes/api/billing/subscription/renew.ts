@@ -62,8 +62,28 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
             const sub = subs[0];
             const previousStatus = sub.status;
 
-            // Fetch plan
-            const targetPlanId = planId || sub.plan_id;
+            // Validate plan ID safely before renewal
+            const { validateOrRejectPlan, resolveValidPlanId } = await import("@/lib/plan-validator");
+            const requestedPlanId = planId || sub.plan_id;
+            const validation = await validateOrRejectPlan(requestedPlanId, {
+              userId: user.userId,
+              tenantId,
+              subscriptionId: sub.id,
+              operation: "manual_renewal",
+              source: "renew_route",
+            });
+
+            if (!validation.valid && validation.response) {
+              return validation.response;
+            }
+
+            const targetPlanId = await resolveValidPlanId(requestedPlanId, {
+              userId: user.userId,
+              tenantId,
+              subscriptionId: sub.id,
+              operation: "manual_renewal",
+            });
+
             const plans = (await db.query("SELECT * FROM billing_plans WHERE id = ? LIMIT 1", [
               targetPlanId,
             ])) as any[];

@@ -50,11 +50,19 @@ export async function applyPendingPlanChanges(): Promise<{ appliedCount: number;
 
   for (const change of pendingChanges) {
     try {
+      const { resolveValidPlanId } = await import("./plan-validator");
+      const targetPlanId = await resolveValidPlanId(change.new_plan, {
+        tenantId: change.tenant_id,
+        subscriptionId: change.subscription_id,
+        operation: "applyPendingPlanChanges",
+        source: "cron_subscription",
+      });
+
       await db.transaction(async (conn) => {
-        // 1. Atualizar o plan_id na assinatura
+        // 1. Atualizar o plan_id na assinatura com ID validado
         await conn.query(
           "UPDATE subscriptions SET plan_id = ?, updated_at = NOW() WHERE id = ?",
-          [change.new_plan, change.subscription_id]
+          [targetPlanId, change.subscription_id]
         );
 
         // 2. Marcar a mudança de plano como aplicada

@@ -113,9 +113,9 @@ export async function getOrCreateSubscription(tenantId: string, customerId: stri
     return sub;
   }
 
-  // Create default trial
-  const plans = (await db.query("SELECT id FROM billing_plans WHERE id = 'plan-mensal' LIMIT 1")) as any[];
-  const planId = plans.length > 0 ? plans[0].id : "plan-mensal";
+  // Create default trial with validated plan ID
+  const { resolveValidPlanId } = await import("@/lib/plan-validator");
+  const planId = await resolveValidPlanId("plan-mensal", { tenantId, operation: "getOrCreateSubscription" });
 
   const subId = crypto.randomUUID();
   const startsAt = new Date();
@@ -223,15 +223,43 @@ export async function processApprovedPayment(
     throw new Error(`Inconsistent payment amount. Received: ${amountReceived}, expected: ${invoice.amount}`);
   }
 
-  // 3. Fetch plan
-  const [plans] = await connection.execute(
+  // 3. Fetch plan safely
+  const { resolveValidPlanId } = await import("@/lib/plan-validator");
+  let [plans] = await connection.execute(
     "SELECT * FROM billing_plans WHERE id = ?",
     [invoice.plan_id],
   );
-  if (plans.length === 0) {
-    throw new Error(`Plan not found: ${invoice.plan_id}`);
+  let plan = plans.length > 0 ? plans[0] : null;
+
+  if (!plan) {
+    console.error("Invalid subscription plan", {
+      user_id: invoice.customer_id || invoice.tenant_id,
+      plan_id: invoice.plan_id,
+      payment_id: payment.id,
+      subscription_id: invoice.subscription_id,
+      operation: "processApprovedPayment",
+    });
+
+    const fallbackPlanId = await resolveValidPlanId(
+      invoice.plan_id,
+      {
+        tenantId: invoice.tenant_id,
+        subscriptionId: invoice.subscription_id,
+        paymentId: payment.id,
+        operation: "processApprovedPayment",
+      },
+      connection,
+    );
+
+    const [fallbackPlans] = await connection.execute(
+      "SELECT * FROM billing_plans WHERE id = ?",
+      [fallbackPlanId],
+    );
+    plan =
+      fallbackPlans.length > 0
+        ? fallbackPlans[0]
+        : { billing_interval: "month", billing_interval_count: 1, price: 0.0, duration_days: 30 };
   }
-  const plan = plans[0];
 
   // 4. Fetch subscription
   const [subs] = await connection.execute(
