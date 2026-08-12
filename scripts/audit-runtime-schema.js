@@ -26,6 +26,16 @@ function getAllSourceFiles(dirPath, arrayOfFiles = []) {
   return arrayOfFiles;
 }
 
+function stripCommentsAndImports(code) {
+  // Remove single line comments
+  let clean = code.replace(/\/\/.*$/gm, "");
+  // Remove multi-line comments
+  clean = clean.replace(/\/\*[\s\S]*?\*\//g, "");
+  // Remove ES import statements
+  clean = clean.replace(/import\s+[\s\S]*?\s+from\s+['"][^'"]+['"]/g, "");
+  return clean;
+}
+
 function main() {
   const tablesPath = path.resolve(rootDir, "database/schema/required-tables.json");
   const columnsPath = path.resolve(rootDir, "database/schema/required-columns.json");
@@ -36,6 +46,11 @@ function main() {
   let missingTables = 0;
   let missingColumns = 0;
   let unknownRefs = 0;
+  let ignoredRefs = 0;
+
+  let sqlStatementsCount = 0;
+  const tableRefsDiscovered = new Set();
+  const columnRefsDiscovered = new Set();
 
   // 1. Legacy checks
   const runtimeReferences = [
@@ -75,9 +90,11 @@ function main() {
       missingTables++;
       continue;
     }
+    tableRefsDiscovered.add(ref.table);
 
     const tableCols = new Set(requiredColumns[ref.table] || []);
     for (const col of ref.columns) {
+      columnRefsDiscovered.add(`${ref.table}.${col}`);
       if (!tableCols.has(col)) {
         console.error(`[Runtime Schema Audit] ❌ FAIL: Runtime column '${col}' in table '${ref.table}' missing in required-columns.json!`);
         missingColumns++;
@@ -92,45 +109,80 @@ function main() {
   let pCodeRefCount = 0;
   let planBasicFallbackCount = 0;
 
+  const sqlKeywordBlocklist = new Set([
+    "select", "where", "set", "values", "dual", "information_schema", "inner", "left", "right", "outer", "cross", "on", "as", "from", "join", "into", "update", "group", "order", "by", "limit", "offset", "and", "or", "not", "null", "is", "in", "like", "having", "count", "sum", "avg", "min", "max", "coalesce", "now", "concat", "if", "else", "then", "end", "case", "when", "table", "columns", "show", "alter", "create", "drop", "delete", "insert", "exec", "execute"
+  ]);
+
+  const allColumnNames = new Set();
+  for (const cols of Object.values(requiredColumns)) {
+    for (const c of cols) {
+      allColumnNames.add(c.toLowerCase());
+    }
+  }
+
   for (const filePath of sourceFiles) {
-    const content = fs.readFileSync(filePath, "utf8");
+    const rawContent = fs.readFileSync(filePath, "utf8");
 
     // Static check for forbidden p.code / plan-basic
-    if (/\bp\.code\b/.test(content)) {
+    if (/\bp\.code\b/.test(rawContent)) {
       console.error(`[Runtime Schema Audit] ❌ FAIL: Forbidden reference 'p.code' found in ${filePath}`);
       pCodeRefCount++;
     }
 
-    if (/\bplan-basic\b/.test(content)) {
+    if (/\bplan-basic\b/.test(rawContent)) {
       console.error(`[Runtime Schema Audit] ❌ FAIL: Forbidden fallback 'plan-basic' found in ${filePath}`);
       planBasicFallbackCount++;
     }
 
-    // Extract SQL table references: FROM `table` / JOIN `table` / INTO `table` / UPDATE `table`
-    const sqlTableMatches = [...content.matchAll(/(?:FROM|JOIN|INTO|UPDATE)\s+`?([a-zA-Z0-9_]+)`?/gi)];
-    for (const match of sqlTableMatches) {
-      const tblCandidate = match[1];
-      // Ignore common non-table words or aliases
-      const lower = tblCandidate.toLowerCase();
-      if (
-        ["select", "where", "set", "values", "dual", "information_schema", "inner", "left", "right", "outer", "cross", "on", "as"].includes(lower)
-      ) {
+    const cleanCode = stripCommentsAndImports(rawContent);
+
+    // Extract SQL query strings (template strings or string literals)
+    const stringLiterals = [...cleanCode.matchAll(/(`(?:[^`\\]|\\.)*`|'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")/g)].map(m => m[1]);
+
+    for (const strLit of stringLiterals) {
+      const inner = strLit.slice(1, -1).trim();
+      // Check if string contains SQL operation keywords
+      if (!/\b(?:SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|SHOW\s+COLUMNS)\b/i.test(inner)) {
         continue;
       }
 
-      // Check if table is valid
-      if (!requiredTables.has(tblCandidate) && !requiredTables.has(lower)) {
-        // Exclude subqueries or CTEs or JS variables if any
-        if (/[A-Z]/.test(tblCandidate)) continue; // ignore JS uppercase types/classes
+      sqlStatementsCount++;
+
+      // Extract SQL table references: FROM `table` / JOIN `table` / INTO `table` / UPDATE `table`
+      const sqlTableMatches = [...inner.matchAll(/(?:FROM|JOIN|INTO|UPDATE)\s+`?([a-zA-Z0-9_]+)`?/gi)];
+      for (const match of sqlTableMatches) {
+        const tblCandidate = match[1];
+        const lower = tblCandidate.toLowerCase();
+        if (sqlKeywordBlocklist.has(lower) || allColumnNames.has(lower)) {
+          ignoredRefs++;
+          continue;
+        }
+
+        if (requiredTables.has(tblCandidate) || requiredTables.has(lower)) {
+          tableRefsDiscovered.add(tblCandidate);
+        } else {
+          // If it starts with uppercase or is a JS variable interpolation, ignore
+          if (/[A-Z]/.test(tblCandidate) || tblCandidate.startsWith("process") || tblCandidate.startsWith("env")) {
+            ignoredRefs++;
+          } else {
+            console.error(`[Runtime Schema Audit] ❌ FAIL: Unknown table reference '${tblCandidate}' in ${filePath}`);
+            missingTables++;
+          }
+        }
       }
     }
   }
 
   console.log("==================================================");
   console.log("RUNTIME AUDIT MODE: COMPREHENSIVE");
-  console.log(`RUNTIME MISSING TABLE REFERENCES: ${missingTables}`);
-  console.log(`RUNTIME MISSING COLUMN REFERENCES: ${missingColumns}`);
-  console.log(`RUNTIME UNKNOWN REFERENCES: ${unknownRefs}`);
+  console.log(`SOURCE FILES SCANNED: ${sourceFiles.length}`);
+  console.log(`SQL STATEMENTS DISCOVERED: ${sqlStatementsCount}`);
+  console.log(`TABLE REFERENCES DISCOVERED: ${tableRefsDiscovered.size}`);
+  console.log(`COLUMN REFERENCES DISCOVERED: ${columnRefsDiscovered.size}`);
+  console.log(`IGNORED REFERENCES: ${ignoredRefs}`);
+  console.log(`MISSING TABLE REFERENCES: ${missingTables}`);
+  console.log(`MISSING COLUMN REFERENCES: ${missingColumns}`);
+  console.log(`UNKNOWN REFERENCES: ${unknownRefs}`);
   console.log(`subscription_plans.code REFERENCES: ${pCodeRefCount}`);
   console.log(`FAKE plan-basic FALLBACK: ${planBasicFallbackCount}`);
   console.log("==================================================");

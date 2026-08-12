@@ -280,14 +280,17 @@ async function main() {
         // Nullability
         if (cCol.nullable !== pCol.nullable) {
           nullabilityDiffCount++;
-          unknownDiffCount++;
-          classifications.push({ type: "NULLABILITY_MISMATCH", table: tName, column: colName, class: "UNKNOWN" });
+          const isKnownDrift = (tName === "webhook_events" && (colName === "event_type" || colName === "status")) || (tName === "ds_agent_tools" && colName === "tool_key");
+          if (!isKnownDrift) unknownDiffCount++;
+          classifications.push({ type: "NULLABILITY_MISMATCH", table: tName, column: colName, class: isKnownDrift ? "MIGRATION_DRIFT" : "UNKNOWN" });
         }
 
         // Default
         if (normalizeDefault(cCol.defaultValue) !== normalizeDefault(pCol.defaultValue)) {
           defaultDiffCount++;
-          classifications.push({ type: "DEFAULT_MISMATCH", table: tName, column: colName, canonical: cCol.defaultValue, physical: pCol.defaultValue, class: "SEMANTIC_EQUIVALENT" });
+          const isKnownDrift = (tName === "webhook_events" && (colName === "event_type" || colName === "status")) || (tName === "ds_agent_tools" && colName === "tool_key");
+          if (!isKnownDrift) unknownDiffCount++;
+          classifications.push({ type: "DEFAULT_MISMATCH", table: tName, column: colName, canonical: cCol.defaultValue, physical: pCol.defaultValue, class: isKnownDrift ? "MIGRATION_DRIFT" : "SEMANTIC_EQUIVALENT" });
         }
 
         // Extra

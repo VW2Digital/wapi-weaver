@@ -43,7 +43,7 @@ async function main() {
   }
 
   const dbConfig = {
-    host: process.env.DB_HOST || "mysql",
+    host: process.env.DB_HOST || "localhost",
     port: parseInt(process.env.DB_PORT || "3306", 10),
     user: process.env.DB_USER || "wapi_user",
     password: dbPassword,
@@ -69,6 +69,8 @@ async function main() {
   }
 
   try {
+    await connection.beginTransaction();
+
     const [users] = await connection.execute(
       "SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1",
       [adminEmail]
@@ -102,27 +104,35 @@ async function main() {
       await connection.execute("UPDATE profiles SET display_name = 'Master Admin' WHERE id = ?", [userId]);
     }
 
-    // Ensure role is admin_master
-    await connection.execute("DELETE FROM user_roles WHERE user_id = ?", [userId]);
-    await connection.execute(
-      "INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin_master')",
-      [randomUUID(), userId]
+    // Ensure role is admin_master idempotently
+    const [roles] = await connection.execute(
+      "SELECT id FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
+      [userId]
     );
+    if (roles.length === 0) {
+      await connection.execute("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+      await connection.execute(
+        "INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin_master')",
+        [randomUUID(), userId]
+      );
+    }
 
-    // Ensure initial active license exists for this tenant
+    // Ensure initial active license exists for this tenant (id is AUTO_INCREMENT)
     const [licenses] = await connection.execute("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [userId]);
     if (licenses.length === 0) {
       const keyHash = createHash("sha256").update(adminEmail).digest("hex");
       await connection.execute(
-        `INSERT INTO licenses (id, license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [randomUUID(), keyHash, adminEmail, "Master Admin", adminEmail, "pro", "active", userId]
+        `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [keyHash, adminEmail, "Master Admin", adminEmail, "pro", "active", userId]
       );
     }
 
+    await connection.commit();
     console.log(`[Provision Admin] Successfully provisioned admin_master for ${adminEmail}.`);
     process.exit(0);
   } catch (err) {
+    if (connection) await connection.rollback();
     console.error("[Provision Admin] Error provisioning admin_master:", err.message);
     process.exit(1);
   } finally {
