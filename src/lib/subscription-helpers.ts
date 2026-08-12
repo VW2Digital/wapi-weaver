@@ -221,30 +221,30 @@ export async function processApprovedPayment(
     return { success: true, alreadyProcessed: true };
   }
 
-  // Double check payment amount
+  // Validate monetary equality (prevent underpayment)
   if (Number(amountReceived) < Number(invoice.amount)) {
     throw new Error(`Inconsistent payment amount. Received: ${amountReceived}, expected: ${invoice.amount}`);
   }
 
-  // 3. Fetch plan safely
-  const { resolveValidPlanId } = await import("@/lib/plan-validator");
+  // 3. Fetch billing_plan from invoice.plan_id
+  const { validateSubscriptionPlan, resolveValidSubscriptionPlanId } = await import("@/lib/plan-validator");
   let [plans] = await connection.execute(
     "SELECT * FROM billing_plans WHERE id = ?",
     [invoice.plan_id],
   );
-  let plan = plans.length > 0 ? plans[0] : null;
+  let billingPlan = plans.length > 0 ? plans[0] : null;
 
-  if (!plan) {
-    console.error("Invalid subscription plan", {
-      user_id: invoice.customer_id || invoice.tenant_id,
-      plan_id: invoice.plan_id,
-      payment_id: payment.id,
-      subscription_id: invoice.subscription_id,
-      operation: "processApprovedPayment",
-    });
+  let targetSubscriptionPlanId: string | null = null;
+  if (billingPlan && billingPlan.subscription_plan_id) {
+    const subPlanCheck = await validateSubscriptionPlan(billingPlan.subscription_plan_id, connection);
+    if (subPlanCheck.exists && subPlanCheck.isActive) {
+      targetSubscriptionPlanId = billingPlan.subscription_plan_id;
+    }
+  }
 
-    const fallbackPlanId = await resolveValidPlanId(
-      invoice.plan_id,
+  if (!targetSubscriptionPlanId) {
+    targetSubscriptionPlanId = await resolveValidSubscriptionPlanId(
+      null,
       {
         tenantId: invoice.tenant_id,
         subscriptionId: invoice.subscription_id,
@@ -253,18 +253,13 @@ export async function processApprovedPayment(
       },
       connection,
     );
-
-    const [fallbackPlans] = await connection.execute(
-      "SELECT * FROM billing_plans WHERE id = ?",
-      [fallbackPlanId],
-    );
-    plan =
-      fallbackPlans.length > 0
-        ? fallbackPlans[0]
-        : { billing_interval: "month", billing_interval_count: 1, price: 0.0, duration_days: 30 };
   }
 
-  // 4. Fetch subscription
+  if (!billingPlan) {
+    billingPlan = { billing_interval: "month", billing_interval_count: 1, price: 0.0, duration_days: 30 };
+  }
+
+  // 4. Fetch subscription with FOR UPDATE lock
   const [subs] = await connection.execute(
     "SELECT * FROM subscriptions WHERE id = ? FOR UPDATE",
     [invoice.subscription_id],
@@ -278,20 +273,20 @@ export async function processApprovedPayment(
 
   // Calculate new expiration date
   const now = new Date();
-  const currentExpiresAt = new Date(sub.expires_at);
+  const currentExpiresAt = sub.expires_at ? new Date(sub.expires_at) : now;
   const baseDate = isAfter(currentExpiresAt, now) ? currentExpiresAt : now;
 
   let newExpiresAt = new Date(baseDate);
-  if (plan.billing_interval === "day") {
-    newExpiresAt = addDays(baseDate, plan.billing_interval_count);
-  } else if (plan.billing_interval === "week") {
-    newExpiresAt = addDays(baseDate, plan.billing_interval_count * 7);
-  } else if (plan.billing_interval === "month") {
-    newExpiresAt = addMonths(baseDate, plan.billing_interval_count);
-  } else if (plan.billing_interval === "year") {
-    newExpiresAt = addYears(baseDate, plan.billing_interval_count);
+  if (billingPlan.billing_interval === "day") {
+    newExpiresAt = addDays(baseDate, billingPlan.billing_interval_count);
+  } else if (billingPlan.billing_interval === "week") {
+    newExpiresAt = addDays(baseDate, billingPlan.billing_interval_count * 7);
+  } else if (billingPlan.billing_interval === "month") {
+    newExpiresAt = addMonths(baseDate, billingPlan.billing_interval_count);
+  } else if (billingPlan.billing_interval === "year") {
+    newExpiresAt = addYears(baseDate, billingPlan.billing_interval_count);
   } else {
-    newExpiresAt = addDays(baseDate, plan.duration_days);
+    newExpiresAt = addDays(baseDate, billingPlan.duration_days || 30);
   }
 
   const newGracePeriodEndsAt = addDays(newExpiresAt, 3); // 3 days tolerance
@@ -312,12 +307,12 @@ export async function processApprovedPayment(
     [approvedAtDate, invoice.id],
   );
 
-  // 7. Update subscription details and remove any tenant block state
+  // 7. Update subscription details AND update plan_id to billing_plans.subscription_plan_id
   await connection.execute(
     `UPDATE subscriptions
-     SET status = 'active', expires_at = ?, grace_period_ends_at = ?, last_payment_at = ?, next_billing_at = ?
+     SET status = 'active', plan_id = ?, expires_at = ?, grace_period_ends_at = ?, last_payment_at = ?, next_billing_at = ?
      WHERE id = ?`,
-    [newExpiresAt, newGracePeriodEndsAt, approvedAtDate, newExpiresAt, sub.id],
+    [targetSubscriptionPlanId, newExpiresAt, newGracePeriodEndsAt, approvedAtDate, newExpiresAt, sub.id],
   );
 
   // 8. Log history event
@@ -332,7 +327,7 @@ export async function processApprovedPayment(
       previousStatus,
       invoice.id,
       payment.id,
-      JSON.stringify({ expires_at: newExpiresAt }),
+      JSON.stringify({ expires_at: newExpiresAt, plan_id: targetSubscriptionPlanId }),
     ],
   );
 

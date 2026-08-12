@@ -4,6 +4,7 @@ import crypto from "crypto";
 import db from "@/lib/db";
 import { verifyApiUser, getOrCreateSubscription, logSubscriptionEvent, processApprovedPayment } from "@/lib/subscription-helpers";
 import { getMercadoPagoConfig, createPayment } from "@/lib/mercadopago";
+import { validateBillingPlan } from "@/lib/plan-validator";
 import { addDays } from "date-fns";
 
 export const Route = createFileRoute("/api/billing/checkout/card")({
@@ -15,38 +16,41 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           const body = await request.json();
           const { planId, token, payment_method_id, issuer_id, installments, payer } = body;
 
-          if (!planId || !token || !payment_method_id) {
+          // planId sent by frontend represents billing_plans.id
+          const billingPlanId = planId;
+
+          if (!billingPlanId || !token || !payment_method_id) {
             return new Response(
               JSON.stringify({ error: "Parâmetros obrigatórios ausentes (planId, token, payment_method_id)." }),
               {
                 status: 400,
                 headers: { "Content-Type": "application/json" },
-              },
+              }
             );
           }
 
-          // Fetch & validate plan safely
-          const { validateOrRejectPlan } = await import("@/lib/plan-validator");
-          const planValidation = await validateOrRejectPlan(planId, {
-            userId: user.userId,
-            tenantId: user.tenantId,
-            operation: "checkout_card_initiation",
-            source: "checkout_card_route",
-          });
+          // 1. Fetch & validate commercial billing_plan joined with subscription_plans
+          const planCheck = await validateBillingPlan(billingPlanId);
 
-          if (!planValidation.valid && planValidation.response) {
-            return planValidation.response;
+          if (!planCheck.exists || !planCheck.isActive || !planCheck.subscriptionPlanValid) {
+            return new Response(
+              JSON.stringify({ error: "O plano selecionado não está disponível ou está configurado incorretamente." }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
           }
 
-          const plan = planValidation.planResult?.plan;
+          const billingPlan = planCheck.billingPlan;
 
-          // Fetch subscription
+          // 2. Fetch or create tenant subscription
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
-          // Get Mercado Pago Config
+          // 3. Get platform Mercado Pago configuration
           let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
-            platformGatewayConfig = await getMercadoPagoConfig("__any__").catch(() => null);
+            platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
           }
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
@@ -55,14 +59,14 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
               {
                 status: 500,
                 headers: { "Content-Type": "application/json" },
-              },
+              }
             );
           }
 
-          // Get or create invoice
+          // 4. Get or create invoice for this billing_plan
           const existingInvoices = (await db.query(
             "SELECT * FROM billing_invoices WHERE tenant_id = ? AND plan_id = ? AND status = 'pending' LIMIT 1",
-            [user.tenantId, planId],
+            [user.tenantId, billingPlan.id]
           )) as any[];
 
           let invoice: any;
@@ -85,20 +89,20 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
                 user.tenantId,
                 user.userId,
                 sub.id,
-                plan.id,
+                billingPlan.id,
                 invoiceNumber,
-                `Renovação Cartão - ${plan.name}`,
-                plan.price,
+                `Renovação Cartão - ${billingPlan.name}`,
+                billingPlan.price,
                 dueAt,
                 externalRef,
-              ],
+              ]
             );
 
             await logSubscriptionEvent(user.tenantId, sub.id, "invoice_created", sub.status, sub.status, invoiceId);
 
             invoice = {
               id: invoiceId,
-              amount: plan.price,
+              amount: billingPlan.price,
               external_reference: externalRef,
               invoice_number: invoiceNumber,
             };
@@ -107,12 +111,14 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           const siteUrl = process.env.SITE_URL || "";
           const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
           const webhookUrl = isPublicUrl ? `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago` : undefined;
-          const idempotencyKey = crypto.randomUUID();
+
+          const paymentId = crypto.randomUUID();
+          const idempotencyKey = paymentId;
 
           const payload: Record<string, unknown> = {
             transaction_amount: Number(invoice.amount),
             token,
-            description: `Renovação de Assinatura - ${plan.name}`,
+            description: `Renovação de Assinatura - ${billingPlan.name}`,
             payment_method_id,
             issuer_id: issuer_id ? Number(issuer_id) : undefined,
             installments: installments ? Number(installments) : 1,
@@ -129,16 +135,15 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             external_reference: invoice.external_reference,
           };
 
-          console.log(`[MercadoPago Card] Creating payment for invoice ${invoice.invoice_number}`);
+          console.log(`[MercadoPago Card] Creating payment for invoice ${invoice.invoice_number} (Key: ${idempotencyKey})`);
           const mpResponse = await createPayment(platformGatewayConfig, {
             ...payload,
             idempotencyKey,
           });
 
           const providerPaymentId = String(mpResponse.id);
-          const paymentId = crypto.randomUUID();
 
-          // Save payment response
+          // Save payment response in database
           await db.query(
             `INSERT INTO billing_payments (
               id, tenant_id, customer_id, subscription_id, invoice_id,
@@ -162,7 +167,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
               payer?.email || user.email,
               JSON.stringify(mpResponse),
               platformGatewayConfig.environment,
-            ],
+            ]
           );
 
           await logSubscriptionEvent(
@@ -173,10 +178,10 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             sub.status,
             invoice.id,
             paymentId,
-            { provider_payment_id: providerPaymentId, method: "card" },
+            { provider_payment_id: providerPaymentId, method: "card" }
           );
 
-          // Process immediately if approved
+          // Process immediately if approved by Mercado Pago
           if (mpResponse.status === "approved") {
             console.log(`[MercadoPago Card] Payment immediately approved! Provisioning subscription...`);
             await db.transaction(async (conn) => {
@@ -186,7 +191,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
                 new Date(mpResponse.date_approved || new Date()),
                 Number(invoice.amount),
                 "BRL",
-                mpResponse,
+                mpResponse
               );
             });
 
@@ -201,7 +206,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
               {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
-              },
+              }
             );
           }
 
@@ -216,13 +221,13 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             {
               status: 200,
               headers: { "Content-Type": "application/json" },
-            },
+            }
           );
         } catch (err: any) {
           console.error("[Card Checkout Error]", err);
           const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: isAuthErr ? 401 : 500,
+          return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : (err.message || "Não foi possível processar o pagamento por cartão.") }), {
+            status: isAuthErr ? 401 : 400,
             headers: { "Content-Type": "application/json" },
           });
         }

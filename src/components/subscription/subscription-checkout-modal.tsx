@@ -56,8 +56,31 @@ function formatExpiry(v: string) {
   if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return digits;
 }
-function formatCPF(v: string) {
-  return v.replace(/\D/g, "").slice(0, 11);
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return { "Content-Type": "application/json" };
+
+  let token =
+    localStorage.getItem("app-token") ||
+    localStorage.getItem("wapi_token") ||
+    localStorage.getItem("sb-access-token") ||
+    localStorage.getItem("sb-token") ||
+    localStorage.getItem("token");
+
+  if (!token) {
+    const sessionStr = localStorage.getItem("app-session");
+    if (sessionStr) {
+      try {
+        const session = JSON.parse(sessionStr);
+        token = session?.access_token || session?.token || null;
+      } catch {}
+    }
+  }
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCheckoutModalProps) {
@@ -79,13 +102,13 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
   const [copied, setCopied] = useState(false);
 
   // Card result
-  const [cardResult, setCardResult] = useState<{ status: string; detail: string } | null>(null);
+  const [cardResult, setCardResult] = useState<{ status: "approved" | "rejected" | "pending"; detail?: string } | null>(null);
 
   // Gateway config
   const [gatewayConfig, setGatewayConfig] = useState<{
     publicKey: string;
     checkoutMode: "redirect" | "transparent";
-    environment: string;
+    environment: "sandbox" | "production";
   } | null>(null);
   const mpRef = useRef<any>(null);
 
@@ -96,7 +119,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
   const [cardCvv, setCardCvv] = useState("");
   const [cpf, setCpf] = useState("");
   const [installments, setInstallments] = useState(1);
-  const [detectedMethod, setDetectedMethod] = useState<{ id: string; name: string; issuer_id?: number } | null>(null);
+  const [detectedMethod, setDetectedMethod] = useState<{ id: string; name: string; issuer_id?: string } | null>(null);
 
   // Plans
   const { data: plansData, isLoading: isLoadingPlans } = useQuery({
@@ -105,9 +128,9 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
       try {
         return await fetchPublicPlans();
       } catch {
-        const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
         const res = await fetch("/api/billing/plans", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getAuthHeaders(),
+          credentials: "include",
         });
         if (!res.ok) throw new Error("Erro ao carregar planos de assinatura");
         return res.json();
@@ -177,9 +200,9 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
   // Fetch gateway config when modal opens
   useEffect(() => {
     if (!open) return;
-    const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
     fetch("/api/billing/public-key", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: getAuthHeaders(),
+      credentials: "include",
     })
       .then((r) => r.json())
       .then((data) => {
@@ -204,7 +227,6 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
       setDetectedMethod(null);
       return;
     }
-    const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
     if (!gatewayConfig?.publicKey) return;
     // Query MP payment methods by BIN
     fetch(`https://api.mercadopago.com/v1/payment_methods/search?public_key=${gatewayConfig.publicKey}&bin=${bin}&locale=pt-BR`, {
@@ -229,9 +251,9 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
     if (!pixData?.invoiceId || !open) return;
     const interval = setInterval(async () => {
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
         const res = await fetch(`/api/billing/invoices?id=${pixData.invoiceId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getAuthHeaders(),
+          credentials: "include",
         });
         if (res.ok) {
           const data = await res.json();
@@ -257,11 +279,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
     setErrorMessage(null);
 
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
-      const headers = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
+      const headers = getAuthHeaders();
 
       const isTransparent = gatewayConfig?.checkoutMode === "transparent";
 
@@ -292,6 +310,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
           const res = await fetch("/api/billing/checkout/card", {
             method: "POST",
             headers,
+            credentials: "include",
             body: JSON.stringify({
               planId: selectedCommercialPlanId,
               token: cardTokenResult.id,
@@ -320,6 +339,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
           const res = await fetch("/api/billing/checkout", {
             method: "POST",
             headers,
+            credentials: "include",
             body: JSON.stringify({ planId: selectedCommercialPlanId }),
           });
           const data = await res.json();
@@ -335,6 +355,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
         const res = await fetch("/api/billing/checkout/pix", {
           method: "POST",
           headers,
+          credentials: "include",
           body: JSON.stringify({
             planId: selectedCommercialPlanId,
             payer: { email: "cliente@bliv.app" },

@@ -1,5 +1,5 @@
 import db from "./db";
-import { decrypt } from "./encryption";
+import { decryptSecret } from "./payment-gateway-admin";
 
 export interface MercadoPagoConfig {
   accessToken: string;
@@ -9,15 +9,25 @@ export interface MercadoPagoConfig {
 }
 
 /**
- * Recovers the active payment gateway configuration for a tenant and decrypts tokens.
+ * Recovers the active payment gateway configuration for a tenant and safely decrypts tokens.
+ * Supports encrypted tokens ("iv:ciphertext:authTag") as well as unencrypted plain tokens.
  */
-export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPagoConfig | null> {
-  if (!tenantId || tenantId === "__any__") return null;
+export async function getMercadoPagoConfig(tenantId?: string): Promise<MercadoPagoConfig | null> {
+  const targetTenant = tenantId && tenantId !== "__any__" ? tenantId : null;
 
-  let rows = (await db.query(
-    "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
-    [tenantId],
-  )) as any[];
+  let rows: any[] = [];
+  if (targetTenant) {
+    rows = (await db.query(
+      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = ? LIMIT 1",
+      [targetTenant],
+    )) as any[];
+  }
+
+  if (rows.length === 0) {
+    rows = (await db.query(
+      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings WHERE tenant_id = 'global' OR tenant_id = '00000000-0000-0000-0000-000000000000' ORDER BY created_at ASC LIMIT 1"
+    )) as any[];
+  }
 
   if (rows.length === 0) {
     rows = (await db.query(
@@ -25,7 +35,19 @@ export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPag
     )) as any[];
   }
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    const envToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN || "";
+    if (envToken) {
+      return {
+        accessToken: envToken.trim(),
+        publicKey: (process.env.MERCADOPAGO_PUBLIC_KEY || process.env.MP_PUBLIC_KEY || "").trim(),
+        environment: (process.env.MERCADOPAGO_ENV as any) || "sandbox",
+        checkoutMode: "transparent",
+      };
+    }
+    return null;
+  }
+
   const row = rows[0];
   const env: "sandbox" | "production" = row.environment === "production" ? "production" : "sandbox";
   const checkoutMode: "redirect" | "transparent" = row.checkout_mode === "transparent" ? "transparent" : "redirect";
@@ -34,23 +56,27 @@ export async function getMercadoPagoConfig(tenantId: string): Promise<MercadoPag
   let publicKey = "";
 
   if (env === "production") {
-    accessToken = row.production_access_token ? decrypt(row.production_access_token) : "";
+    accessToken = row.production_access_token ? decryptSecret(row.production_access_token) : "";
     publicKey = row.production_public_key || "";
   } else {
-    accessToken = row.sandbox_access_token ? decrypt(row.sandbox_access_token) : "";
+    accessToken = row.sandbox_access_token ? decryptSecret(row.sandbox_access_token) : "";
     publicKey = row.sandbox_public_key || "";
   }
 
-  console.log(`[getMercadoPagoConfig] tenantId=${tenantId} env=${env} mode=${checkoutMode} configured=${Boolean(accessToken)}`);
+  // Fallback to process.env if token in DB is empty
+  if (!accessToken) {
+    accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN || "";
+  }
+
+  console.log(`[getMercadoPagoConfig] tenantId=${targetTenant} env=${env} mode=${checkoutMode} configured=${Boolean(accessToken)}`);
 
   return {
-    accessToken,
-    publicKey,
+    accessToken: accessToken.trim(),
+    publicKey: publicKey.trim(),
     environment: env,
     checkoutMode,
   };
 }
-
 
 /**
  * Creates a checkout preference (Checkout Pro) on Mercado Pago.
@@ -68,8 +94,8 @@ export async function createPreference(
     failureUrl?: string;
   },
 ): Promise<{ id: string; init_point: string; sandbox_init_point: string }> {
-  if (!config.accessToken) {
-    throw new Error("Mercado Pago Access Token is not configured.");
+  if (!config.accessToken || !config.accessToken.trim()) {
+    throw new Error("O Access Token do Mercado Pago não está configurado. Cadastre as chaves no painel do administrador em Configurações > Gateway de Pagamento.");
   }
 
   const body: Record<string, unknown> = {
@@ -125,7 +151,6 @@ export async function createPreference(
   };
 }
 
-
 /**
  * Creates a transparent card/PIX payment on Mercado Pago.
  */
@@ -133,8 +158,8 @@ export async function createPayment(
   config: MercadoPagoConfig,
   paymentData: any,
 ): Promise<any> {
-  if (!config.accessToken) {
-    throw new Error("Mercado Pago Access Token is not configured.");
+  if (!config.accessToken || !config.accessToken.trim()) {
+    throw new Error("O Access Token do Mercado Pago não está configurado. Cadastre as chaves no painel do administrador em Configurações > Gateway de Pagamento.");
   }
 
   // Extract idempotencyKey from payload (it must NOT be sent in the JSON body to MP)
@@ -167,8 +192,8 @@ export async function createPayment(
  * Retrieves payment details by ID directly from Mercado Pago API.
  */
 export async function getPaymentDetails(config: MercadoPagoConfig, paymentId: string): Promise<any> {
-  if (!config.accessToken) {
-    throw new Error("Mercado Pago Access Token is not configured.");
+  if (!config.accessToken || !config.accessToken.trim()) {
+    throw new Error("O Access Token do Mercado Pago não está configurado. Cadastre as chaves no painel do administrador em Configurações > Gateway de Pagamento.");
   }
 
   const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {

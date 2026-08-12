@@ -65,7 +65,7 @@ export interface SubscriptionAccessState {
 export async function getDefaultTrialPlanId(connection?: any): Promise<string> {
   const executor = makeExecutor(connection);
 
-  // 1. Buscar pelo plano com slug = 'basic' ativo
+  // 1. Buscar pelo plano com slug = 'basic' ou 'basico' ativo em subscription_plans
   const basicPlans = await executor.query(
     "SELECT id FROM subscription_plans WHERE (slug = 'basic' OR slug = 'basico') AND is_active = 1 LIMIT 1"
   );
@@ -73,7 +73,7 @@ export async function getDefaultTrialPlanId(connection?: any): Promise<string> {
     return basicPlans[0].id;
   }
 
-  // 2. Fallback: Primeiro plano ativo em subscription_plans
+  // 2. Fallback: Primeiro plano ativo em subscription_plans (NUNCA billing_plans)
   const activePlans = await executor.query(
     "SELECT id FROM subscription_plans WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1"
   );
@@ -81,15 +81,7 @@ export async function getDefaultTrialPlanId(connection?: any): Promise<string> {
     return activePlans[0].id;
   }
 
-  // 3. Fallback: Primeiro plano ativo em billing_plans (se vinculado comercialmente)
-  const billingPlans = await executor.query(
-    "SELECT id FROM billing_plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC LIMIT 1"
-  );
-  if (billingPlans && billingPlans.length > 0) {
-    return billingPlans[0].id;
-  }
-
-  throw new Error("Plano padrão de trial não configurado corretamente");
+  throw new Error("Plano padrão de assinatura não configurado corretamente.");
 }
 
 /**

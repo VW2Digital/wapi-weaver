@@ -1,10 +1,17 @@
 import db from "@/lib/db";
 
-export interface PlanValidationResult {
+export interface SubscriptionPlanValidationResult {
   exists: boolean;
   isActive: boolean;
   plan: any | null;
-  table: "billing_plans" | "subscription_plans" | null;
+}
+
+export interface BillingPlanValidationResult {
+  exists: boolean;
+  isActive: boolean;
+  billingPlan: any | null;
+  subscriptionPlanId: string | null;
+  subscriptionPlanValid: boolean;
 }
 
 export interface PlanContextInfo {
@@ -17,7 +24,7 @@ export interface PlanContextInfo {
 }
 
 /**
- * Normaliza a execução de query para suportar tanto a instância do `db` wrapper quanto conexões MySQL brutas.
+ * Normalizes query execution to support both db wrapper and raw MySQL connections.
  */
 async function executeQuery(conn: any, sql: string, params: any[]): Promise<any[]> {
   const target = conn || db;
@@ -28,7 +35,6 @@ async function executeQuery(conn: any, sql: string, params: any[]): Promise<any[
     rows = await target.query(sql, params);
   }
 
-  // Desestruturar tupla do mysql2 se necessário [rows, fields]
   if (Array.isArray(rows) && rows.length === 2 && Array.isArray(rows[1])) {
     return Array.isArray(rows[0]) ? rows[0] : [];
   }
@@ -36,188 +42,203 @@ async function executeQuery(conn: any, sql: string, params: any[]): Promise<any[
 }
 
 /**
- * Verifica se um `plan_id` existe na tabela `subscription_plans` ou `billing_plans`.
+ * Validates plan_id strictly against `subscription_plans` (operational access plan).
+ * MUST be used for subscriptions.plan_id validation.
  */
-export async function validatePlanExistence(
+export async function validateSubscriptionPlan(
   planId: string | null | undefined,
   conn?: any
-): Promise<PlanValidationResult> {
+): Promise<SubscriptionPlanValidationResult> {
   if (!planId) {
-    return { exists: false, isActive: false, plan: null, table: null };
+    return { exists: false, isActive: false, plan: null };
   }
 
-  // 1. Buscar primeiro em subscription_plans (tabela primária de planos operacionais)
-  const subPlanRows = await executeQuery(conn, "SELECT * FROM subscription_plans WHERE id = ? LIMIT 1", [planId]);
-  if (subPlanRows.length > 0) {
-    const plan = subPlanRows[0];
+  const rows = await executeQuery(conn, "SELECT * FROM subscription_plans WHERE id = ? LIMIT 1", [planId]);
+  if (rows.length > 0) {
+    const plan = rows[0];
     return {
       exists: true,
       isActive: Boolean(plan.is_active),
       plan,
-      table: "subscription_plans",
     };
   }
 
-  // 2. Buscar em billing_plans (tabela de planos comerciais)
-  const billingRows = await executeQuery(conn, "SELECT * FROM billing_plans WHERE id = ? LIMIT 1", [planId]);
-  if (billingRows.length > 0) {
-    const plan = billingRows[0];
+  return { exists: false, isActive: false, plan: null };
+}
+
+/**
+ * Validates billingPlanId strictly against `billing_plans` joined with `subscription_plans`.
+ * MUST be used for checkout and billing_invoices.plan_id validation.
+ */
+export async function validateBillingPlan(
+  billingPlanId: string | null | undefined,
+  conn?: any
+): Promise<BillingPlanValidationResult> {
+  if (!billingPlanId) {
+    return { exists: false, isActive: false, billingPlan: null, subscriptionPlanId: null, subscriptionPlanValid: false };
+  }
+
+  const rows = await executeQuery(
+    conn,
+    `SELECT bp.*, 
+            sp.id AS sp_id, 
+            sp.name AS sp_name, 
+            sp.is_active AS sp_is_active 
+     FROM billing_plans bp 
+     LEFT JOIN subscription_plans sp ON sp.id = bp.subscription_plan_id 
+     WHERE bp.id = ? LIMIT 1`,
+    [billingPlanId]
+  );
+
+  if (rows.length > 0) {
+    const row = rows[0];
+    const bpIsActive = Boolean(row.is_active);
+    const spIsActive = Boolean(row.sp_id && row.sp_is_active);
+
     return {
       exists: true,
-      isActive: Boolean(plan.is_active),
-      plan,
-      table: "billing_plans",
+      isActive: bpIsActive,
+      billingPlan: row,
+      subscriptionPlanId: row.sp_id || null,
+      subscriptionPlanValid: spIsActive,
     };
+  }
+
+  return { exists: false, isActive: false, billingPlan: null, subscriptionPlanId: null, subscriptionPlanValid: false };
+}
+
+/**
+ * Resolves a valid subscription_plan.id EXCLUSIVELY from `subscription_plans`.
+ * NEVER queries billing_plans and NEVER returns a billing_plans.id.
+ */
+export async function resolveValidSubscriptionPlanId(
+  requestedPlanId?: string | null,
+  context?: PlanContextInfo,
+  conn?: any
+): Promise<string> {
+  if (requestedPlanId) {
+    const check = await validateSubscriptionPlan(requestedPlanId, conn);
+    if (check.exists && check.isActive) {
+      return requestedPlanId;
+    }
+  }
+
+  console.warn("[Plan Validator] Direct subscription_plan lookup failed or inactive. Resolving active default trial plan.", {
+    requested_plan_id: requestedPlanId,
+    user_id: context?.userId || context?.tenantId || "system",
+    operation: context?.operation || "plan_resolution",
+  });
+
+  // 1. Query active plan with slug 'basic' or 'basico' in subscription_plans
+  const basicSubPlans = await executeQuery(
+    conn,
+    "SELECT id FROM subscription_plans WHERE (slug = 'basic' OR slug = 'basico') AND is_active = 1 LIMIT 1",
+    []
+  );
+  if (basicSubPlans.length > 0) {
+    return basicSubPlans[0].id;
+  }
+
+  // 2. Query any active plan in subscription_plans
+  const activeSubPlans = await executeQuery(
+    conn,
+    "SELECT id FROM subscription_plans WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1",
+    []
+  );
+  if (activeSubPlans.length > 0) {
+    return activeSubPlans[0].id;
+  }
+
+  throw new Error("Plano padrão de assinatura não configurado corretamente.");
+}
+
+/**
+ * Alias function maintaining backward compatibility while enforcing strict subscription_plan validation.
+ */
+export async function resolveValidPlanId(
+  requestedPlanId?: string | null,
+  context?: PlanContextInfo,
+  conn?: any
+): Promise<string> {
+  return resolveValidSubscriptionPlanId(requestedPlanId, context, conn);
+}
+
+/**
+ * Defensive assertion before any INSERT or UPDATE in `subscriptions`.
+ * Ensures planId exists in `subscription_plans` and is_active = 1.
+ */
+export async function assertValidPlanForSubscription(
+  planId: string | null | undefined,
+  conn?: any
+): Promise<string> {
+  return resolveValidSubscriptionPlanId(planId, { operation: "assertValidPlanForSubscription" }, conn);
+}
+
+/**
+ * Legacy support for validatePlanExistence (checks subscription_plans first, then billing_plans).
+ */
+export async function validatePlanExistence(planId: string | null | undefined, conn?: any) {
+  const subCheck = await validateSubscriptionPlan(planId, conn);
+  if (subCheck.exists) {
+    return { exists: true, isActive: subCheck.isActive, plan: subCheck.plan, table: "subscription_plans" as const };
+  }
+
+  const billCheck = await validateBillingPlan(planId, conn);
+  if (billCheck.exists) {
+    return { exists: true, isActive: billCheck.isActive, plan: billCheck.billingPlan, table: "billing_plans" as const };
   }
 
   return { exists: false, isActive: false, plan: null, table: null };
 }
 
 /**
- * Garante e resolve um `plan_id` válido no banco de dados.
- * Busca dinamicamente o plano com `slug = 'basic'` e `is_active = 1` em `subscription_plans`.
- * Se o plano solicitado não for encontrado, resolve o plano 'basic' ativo ou lança exceção defensiva.
+ * Validates billing plan for checkout and rejects with friendly 400 Response if invalid or inactive.
  */
-export async function resolveValidPlanId(
-  requestedPlanId: string | null | undefined,
-  context?: PlanContextInfo,
-  conn?: any
-): Promise<string> {
-  const check = await validatePlanExistence(requestedPlanId, conn);
-
-  if (check.exists && check.isActive && requestedPlanId) {
-    return requestedPlanId;
-  }
-
-  // Log de diagnóstico sobre plan_id inexistente/obsoleto
-  console.warn("[Plan Validator] Direct plan_id lookup failed or inactive. Resolving active default trial plan.", {
-    requested_plan_id: requestedPlanId,
-    user_id: context?.userId || context?.tenantId || "system",
-    subscription_id: context?.subscriptionId || "N/A",
-    operation: context?.operation || "plan_resolution",
-  });
-
-  // 1. Buscar plano com slug = 'basic' e is_active = 1 em subscription_plans
-  const basicSubPlan = await executeQuery(
-    conn,
-    "SELECT id FROM subscription_plans WHERE (slug = 'basic' OR slug = 'basico') AND is_active = 1 LIMIT 1",
-    []
-  );
-  if (basicSubPlan.length > 0) {
-    return basicSubPlan[0].id;
-  }
-
-  // 2. Buscar qualquer plano ativo em subscription_plans
-  const activeSubPlan = await executeQuery(
-    conn,
-    "SELECT id FROM subscription_plans WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1",
-    []
-  );
-  if (activeSubPlan.length > 0) {
-    return activeSubPlan[0].id;
-  }
-
-  // 3. Fallback em billing_plans se ativo
-  const activeBilling = await executeQuery(
-    conn,
-    "SELECT id FROM billing_plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC LIMIT 1",
-    []
-  );
-  if (activeBilling.length > 0) {
-    return activeBilling[0].id;
-  }
-
-  throw new Error("Plano padrão de trial não configurado corretamente");
-}
-
-/**
- * Validação defensiva pré-escrita: antes de qualquer INSERT ou UPDATE na tabela `subscriptions`,
- * garante que o `plan_id` existe em `subscription_plans` (ou `billing_plans`) e possui `is_active = 1`.
- * Lança exceção com mensagem clara caso o plano não seja válido ou não esteja configurado.
- */
-export async function assertValidPlanForSubscription(
-  planId: string | null | undefined,
-  conn?: any
-): Promise<string> {
-  if (!planId) {
-    throw new Error("Plano padrão de trial não configurado corretamente");
-  }
-
-  const check = await validatePlanExistence(planId, conn);
-  if (check.exists && check.isActive) {
-    return planId;
-  }
-
-  // Tenta resolver o plano básico ativo por slug
-  const resolvedPlanId = await resolveValidPlanId(planId, { operation: "assertValidPlanForSubscription" }, conn);
-  const resolvedCheck = await validatePlanExistence(resolvedPlanId, conn);
-
-  if (!resolvedCheck.exists || !resolvedCheck.isActive) {
-    throw new Error("Plano padrão de trial não configurado corretamente");
-  }
-
-  return resolvedPlanId;
-}
-
-/**
- * Valida a existência do plano e, caso não exista, retorna uma resposta HTTP 400 tratada
- * impedindo que o erro de Foreign Key ocorra ou chegue ao usuário.
- */
-export async function validateOrRejectPlan(
-  planId: string | null | undefined,
+export async function validateOrRejectBillingPlan(
+  billingPlanId: string | null | undefined,
   context: PlanContextInfo,
   conn?: any
-): Promise<{ valid: boolean; response?: Response; planResult?: PlanValidationResult }> {
-  const check = await validatePlanExistence(planId, conn);
+): Promise<{ valid: boolean; response?: Response; billingPlanResult?: BillingPlanValidationResult }> {
+  const check = await validateBillingPlan(billingPlanId, conn);
 
-  if (check.exists) {
-    if (!check.isActive) {
-      console.warn("[Plan Validator] Selected plan is inactive", {
-        plan_id: planId,
-        user_id: context.userId || context.tenantId,
-        operation: context.operation,
-      });
-      return {
-        valid: false,
-        response: new Response(
-          JSON.stringify({
-            success: false,
-            message: "O plano selecionado está inativo no momento. Selecione outro plano.",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          }
-        ),
-        planResult: check,
-      };
-    }
-
-    return { valid: true, planResult: check };
+  if (!check.exists) {
+    return {
+      valid: false,
+      response: new Response(
+        JSON.stringify({
+          error: "O plano selecionado não está disponível ou está configurado incorretamente.",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      ),
+      billingPlanResult: check,
+    };
   }
 
-  // Registrar log de erro de diagnóstico padronizado
-  console.error("Invalid subscription plan", {
-    user_id: context.userId || context.tenantId || "unknown",
-    plan_id: planId,
-    payment_id: context.paymentId || null,
-    subscription_id: context.subscriptionId || null,
-    operation: context.operation || "unknown",
-    source: context.source || "unknown",
-  });
+  if (!check.isActive || !check.subscriptionPlanValid) {
+    return {
+      valid: false,
+      response: new Response(
+        JSON.stringify({
+          error: "O plano selecionado está inativo no momento. Selecione outro plano.",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      ),
+      billingPlanResult: check,
+    };
+  }
 
-  return {
-    valid: false,
-    response: new Response(
-      JSON.stringify({
-        success: false,
-        message: "O plano selecionado não está mais disponível. Selecione um plano novamente.",
-      }),
-      {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }
-    ),
-    planResult: check,
-  };
+  return { valid: true, billingPlanResult: check };
+}
+
+/**
+ * Alias for backward compatibility
+ */
+export async function validateOrRejectPlan(planId: string | null | undefined, context: PlanContextInfo, conn?: any) {
+  return validateOrRejectBillingPlan(planId, context, conn);
 }
