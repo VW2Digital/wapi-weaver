@@ -16,7 +16,6 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           const body = await request.json();
           const { planId, token, payment_method_id, issuer_id, installments, payer } = body;
 
-          // planId sent by frontend represents billing_plans.id
           const billingPlanId = planId;
 
           if (!billingPlanId || !token || !payment_method_id) {
@@ -27,6 +26,21 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
                 headers: { "Content-Type": "application/json" },
               }
             );
+          }
+
+          let payerEmail = user.email || payer?.email;
+          if (!payerEmail) {
+            const userRows = (await db.query("SELECT email FROM users WHERE id = ? LIMIT 1", [user.userId])) as any[];
+            if (userRows.length > 0 && userRows[0].email) {
+              payerEmail = userRows[0].email;
+            }
+          }
+
+          if (!payerEmail) {
+            return new Response(JSON.stringify({ error: "Dados do pagador (e-mail) são obrigatórios." }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
           }
 
           // 1. Fetch & validate commercial billing_plan joined with subscription_plans
@@ -115,6 +129,28 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           const paymentId = crypto.randomUUID();
           const idempotencyKey = paymentId;
 
+          // 5. Persist local payment attempt BEFORE calling Mercado Pago
+          await db.query(
+            `INSERT INTO billing_payments (
+              id, tenant_id, customer_id, subscription_id, invoice_id,
+              provider, external_reference, payment_method, payment_type,
+              status, amount, currency, installments, payer_email, environment
+            ) VALUES (?, ?, ?, ?, ?, 'mercadopago', ?, ?, 'credit_card', 'pending', ?, 'BRL', ?, ?, ?)`,
+            [
+              paymentId,
+              user.tenantId,
+              user.userId,
+              sub.id,
+              invoice.id,
+              invoice.external_reference,
+              payment_method_id,
+              invoice.amount,
+              installments ? Number(installments) : 1,
+              payerEmail,
+              platformGatewayConfig.environment,
+            ]
+          );
+
           const payload: Record<string, unknown> = {
             transaction_amount: Number(invoice.amount),
             token,
@@ -123,7 +159,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             issuer_id: issuer_id ? Number(issuer_id) : undefined,
             installments: installments ? Number(installments) : 1,
             payer: {
-              email: payer?.email || user.email,
+              email: payerEmail,
               identification: payer?.identification
                 ? {
                     type: payer.identification.type,
@@ -136,87 +172,72 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           };
 
           console.log(`[MercadoPago Card] Creating payment for invoice ${invoice.invoice_number} (Key: ${idempotencyKey})`);
-          const mpResponse = await createPayment(platformGatewayConfig, {
-            ...payload,
-            idempotencyKey,
-          });
+          let mpResponse: any;
+          try {
+            mpResponse = await createPayment(platformGatewayConfig, {
+              ...payload,
+              idempotencyKey,
+            });
+          } catch (err: any) {
+            await db.query(
+              "UPDATE billing_payments SET status = 'failed', status_detail = ? WHERE id = ?",
+              [err.message || "Mercado Pago API error", paymentId]
+            );
+            throw err;
+          }
 
           const providerPaymentId = String(mpResponse.id);
+          const paymentStatus = mpResponse.status || "rejected";
+          const paymentStatusDetail = mpResponse.status_detail || null;
 
-          // Save payment response in database
+          // 6. Update payment record with provider response
           await db.query(
-            `INSERT INTO billing_payments (
-              id, tenant_id, customer_id, subscription_id, invoice_id,
-              provider, provider_payment_id, external_reference, payment_method, payment_type,
-              status, status_detail, amount, currency, installments, payer_email, raw_response, environment
-            ) VALUES (?, ?, ?, ?, ?, 'mercadopago', ?, ?, ?, ?, ?, ?, ?, 'BRL', ?, ?, ?, ?)`,
+            `UPDATE billing_payments
+             SET provider_payment_id = ?, status = ?, status_detail = ?, raw_response = ?
+             WHERE id = ?`,
             [
-              paymentId,
-              user.tenantId,
-              user.userId,
-              sub.id,
-              invoice.id,
               providerPaymentId,
-              invoice.external_reference,
-              payment_method_id,
-              mpResponse.payment_type_id || "credit_card",
-              mpResponse.status,
-              mpResponse.status_detail || null,
-              invoice.amount,
-              installments || 1,
-              payer?.email || user.email,
+              paymentStatus,
+              paymentStatusDetail,
               JSON.stringify(mpResponse),
-              platformGatewayConfig.environment,
+              paymentId,
             ]
           );
 
-          await logSubscriptionEvent(
-            user.tenantId,
-            sub.id,
-            `payment_${mpResponse.status}`,
-            sub.status,
-            sub.status,
-            invoice.id,
-            paymentId,
-            { provider_payment_id: providerPaymentId, method: "card" }
-          );
-
-          // Process immediately if approved by Mercado Pago
-          if (mpResponse.status === "approved") {
-            console.log(`[MercadoPago Card] Payment immediately approved! Provisioning subscription...`);
+          // 7. If approved, process atomically in transaction
+          if (paymentStatus === "approved") {
+            const dateApproved = mpResponse.date_approved ? new Date(mpResponse.date_approved) : new Date();
             await db.transaction(async (conn) => {
               await processApprovedPayment(
                 conn,
                 providerPaymentId,
-                new Date(mpResponse.date_approved || new Date()),
-                Number(invoice.amount),
+                dateApproved,
+                invoice.amount,
                 "BRL",
                 mpResponse
               );
             });
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                status: "approved",
-                statusDetail: mpResponse.status_detail,
-                invoiceId: invoice.id,
-                paymentId,
-              }),
-              {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-              }
+          } else {
+            await db.query("UPDATE billing_invoices SET status = 'failed' WHERE id = ?", [invoice.id]);
+            await logSubscriptionEvent(
+              user.tenantId,
+              sub.id,
+              "payment_failed",
+              sub.status,
+              sub.status,
+              invoice.id,
+              paymentId,
+              { status: paymentStatus, status_detail: paymentStatusDetail }
             );
           }
 
           return new Response(
             JSON.stringify({
-              success: false,
-              status: mpResponse.status,
-              statusDetail: mpResponse.status_detail,
-              invoiceId: invoice.id,
+              success: paymentStatus === "approved",
+              status: paymentStatus,
+              statusDetail: paymentStatusDetail,
               paymentId,
+              invoiceId: invoice.id,
             }),
             {
               status: 200,
@@ -226,7 +247,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
         } catch (err: any) {
           console.error("[Card Checkout Error]", err);
           const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
-          return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : (err.message || "Não foi possível processar o pagamento por cartão.") }), {
+          return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : (err.message || "Não foi possível processar o pagamento com cartão. Tente novamente.") }), {
             status: isAuthErr ? 401 : 400,
             headers: { "Content-Type": "application/json" },
           });

@@ -8,17 +8,29 @@ export const Route = createFileRoute("/api/billing/plans")({
     handlers: {
       GET: async ({ request }) => {
         try {
-          await verifyApiUser(request); // Protect, only authenticated users can view plans
-          const plans = (await db.query("SELECT * FROM billing_plans WHERE is_active = true ORDER BY price ASC")) as any[];
+          await verifyApiUser(request);
+          const plans = (await db.query(
+            `SELECT bp.*, sp.name as subscription_plan_name, sp.description as subscription_plan_desc,
+                    sp.max_agents, sp.max_funnels, sp.max_users
+             FROM billing_plans bp
+             LEFT JOIN subscription_plans sp ON bp.subscription_plan_id = sp.id
+             WHERE bp.is_active = 1 OR bp.is_active = true
+             ORDER BY bp.price ASC`
+          )) as any[];
+
+          const operationalPlans = (await db.query(
+            `SELECT * FROM subscription_plans WHERE is_active = 1 OR is_active = true ORDER BY name ASC`
+          )) as any[];
 
           return new Response(
             JSON.stringify({
               plans,
+              operationalPlans,
             }),
             {
               status: 200,
               headers: { "Content-Type": "application/json" },
-            },
+            }
           );
         } catch (err: any) {
           const isAuthErr = err.message?.toLowerCase().includes("unauthorized");

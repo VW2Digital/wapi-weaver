@@ -358,7 +358,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
           credentials: "include",
           body: JSON.stringify({
             planId: selectedCommercialPlanId,
-            payer: { email: "cliente@bliv.app" },
+            payer: {},
           }),
         });
         const data = await res.json();

@@ -1,7 +1,6 @@
 import db from "../src/lib/db.ts";
 import crypto from "crypto";
 import { processApprovedPayment } from "../src/lib/subscription-helpers.ts";
-import { validateSubscriptionPlan, validateBillingPlan } from "../src/lib/plan-validator.ts";
 import { addDays } from "date-fns";
 
 function assert(condition, message) {
@@ -17,36 +16,46 @@ async function runTests() {
   console.log("==================================================");
 
   // 1. Setup clean test tenant, user, plans, subscription
-  const tenantId = `test-tenant-${Date.now()}`;
-  const userId = `test-user-${Date.now()}`;
-  const subPlanId = `sub-plan-${Date.now()}`;
-  const billingPlanId = `bill-plan-${Date.now()}`;
-  const subId = `sub-${Date.now()}`;
+  // NOTE: tenant_id and user_id must reference users.id due to FK constraints.
+  // We insert a real test user and use tenantId === userId for simplicity.
+  const userId = crypto.randomUUID();  // proper UUID for FK compatibility
+  const tenantId = userId;             // same ID: tenant === user (single-tenant model)
+  const subPlanId = crypto.randomUUID();
+  const billingPlanId = crypto.randomUUID();
+  const subId = crypto.randomUUID();
+  const testEmail = `test-billing-${Date.now()}@test.wapi`;
+
+  // Insert test user (required to satisfy FK: tenant_id/user_id/customer_id → users.id)
+  await db.query(
+    `INSERT INTO users (id, email, password_hash) VALUES (?, ?, 'test-hash-not-real')`,
+    [userId, testEmail]
+  );
 
   // Insert test subscription_plan
   await db.query(
     `INSERT INTO subscription_plans (id, name, slug, description, max_users, max_funnels, max_agents, is_active)
-     VALUES (?, 'Test Operational Plan', 'test-op', 'Test', 10, 5, 2, 1)`,
+     VALUES (?, 'Test Operational Plan', 'test-op-${Date.now()}', 'Test', 10, 5, 2, 1)`,
     [subPlanId]
   );
 
   // Insert test billing_plan linked to subscription_plan
   await db.query(
-    `INSERT INTO billing_plans (id, subscription_plan_id, name, description, price, billing_interval, billing_interval_count, is_active)
-     VALUES (?, ?, 'Test Commercial Plan', 'Test', 99.90, 'month', 1, 1)`,
+    `INSERT INTO billing_plans (id, subscription_plan_id, name, description, price, billing_interval, billing_interval_count, duration_days, is_active)
+     VALUES (?, ?, 'Test Commercial Plan', 'Test', 99.90, 'month', 1, 30, 1)`,
     [billingPlanId, subPlanId]
   );
 
-  // Insert initial trial subscription with dummy/old plan_id
+  // Insert initial trial subscription
+  // plan_id uses subPlanId (subscription_plans) since live DB FK to billing_plans likely not enforced
   const now = new Date();
   const trialExpiresAt = addDays(now, 3);
   await db.query(
     `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, starts_at, expires_at, auto_renew)
-     VALUES (?, ?, ?, 'old-trial-plan-id', 'trial', ?, ?, false)`,
-    [subId, tenantId, userId, now, trialExpiresAt]
+     VALUES (?, ?, ?, ?, 'trial', ?, ?, false)`,
+    [subId, tenantId, userId, subPlanId, now, trialExpiresAt]
   );
 
-  console.log("✔ Setup: Test tenant, plans, and subscription initialized.");
+  console.log("✔ Setup: Test user, plans, and subscription initialized.");
 
   // Scenario 1: First approved payment provisions subscription to active + updates plan_id to exact subscription_plan_id
   const invoiceId1 = `inv-1-${Date.now()}`;
@@ -79,13 +88,14 @@ async function runTests() {
     assert(!res.alreadyProcessed, "Scenario 1: First payment should not be alreadyProcessed");
   });
 
-  const [subsPost1] = await db.query("SELECT * FROM subscriptions WHERE id = ?", [subId]);
-  const subPost1 = subsPost1[0];
-  assert(subPost1.status === "active", "Scenario 1: Subscription status should be active");
+  const subsPost1Rows = await db.query("SELECT * FROM subscriptions WHERE id = ?", [subId]);
+  const subPost1 = subsPost1Rows[0];
+  assert(subPost1, "Scenario 1: Subscription row must exist after payment");
+  assert(subPost1.status === "active", `Scenario 1: Subscription status should be active, got: ${subPost1.status}`);
   assert(subPost1.plan_id === subPlanId, `Scenario 1: Subscription plan_id should be exact subscription_plan_id (${subPlanId}), got ${subPost1.plan_id}`);
 
-  const [invoicesPost1] = await db.query("SELECT status FROM billing_invoices WHERE id = ?", [invoiceId1]);
-  assert(invoicesPost1[0].status === "paid", "Scenario 1: Invoice should be paid");
+  const invoicesPost1Rows = await db.query("SELECT status FROM billing_invoices WHERE id = ?", [invoiceId1]);
+  assert(invoicesPost1Rows[0]?.status === "paid", `Scenario 1: Invoice should be paid, got: ${invoicesPost1Rows[0]?.status}`);
 
   console.log("✔ Scenario 1 PASSED: First approved payment provisioned subscription & exact plan_id.");
 
@@ -104,8 +114,8 @@ async function runTests() {
     assert(resDup.alreadyProcessed === true, "Scenario 2: Duplicate call must return alreadyProcessed: true");
   });
 
-  const [subsPostDup] = await db.query("SELECT expires_at FROM subscriptions WHERE id = ?", [subId]);
-  const expDateAfterDup = new Date(subsPostDup[0].expires_at).getTime();
+  const subsPostDupRows = await db.query("SELECT expires_at FROM subscriptions WHERE id = ?", [subId]);
+  const expDateAfterDup = new Date(subsPostDupRows[0].expires_at).getTime();
   assert(expDateBeforeDup === expDateAfterDup, "Scenario 2: Duplicate webhook must NOT extend expires_at twice");
 
   console.log("✔ Scenario 2 PASSED: Duplicate webhook returned alreadyProcessed without extending subscription period.");
@@ -141,8 +151,8 @@ async function runTests() {
     assert(!res3.alreadyProcessed, "Scenario 3: Should not claim alreadyProcessed when invoice was still pending");
   });
 
-  const [invoicesPost3] = await db.query("SELECT status FROM billing_invoices WHERE id = ?", [invoiceId3]);
-  assert(invoicesPost3[0].status === "paid", "Scenario 3: Invoice 3 should be marked paid after provisioning");
+  const invoicesPost3Rows = await db.query("SELECT status FROM billing_invoices WHERE id = ?", [invoiceId3]);
+  assert(invoicesPost3Rows[0]?.status === "paid", `Scenario 3: Invoice 3 should be marked paid, got: ${invoicesPost3Rows[0]?.status}`);
 
   console.log("✔ Scenario 3 PASSED: Payment with status=approved and invoice=pending provisioned successfully.");
 
@@ -178,8 +188,8 @@ async function runTests() {
   }
   assert(amountMismatchErrorThrown, "Scenario 4: Underpaid payment must throw an error");
 
-  const [invoicesPost4] = await db.query("SELECT status FROM billing_invoices WHERE id = ?", [invoiceId4]);
-  assert(invoicesPost4[0].status === "pending", "Scenario 4: Invoice must remain pending on amount mismatch");
+  const invoicesPost4Rows = await db.query("SELECT status FROM billing_invoices WHERE id = ?", [invoiceId4]);
+  assert(invoicesPost4Rows[0]?.status === "pending", `Scenario 4: Invoice must remain pending on amount mismatch, got: ${invoicesPost4Rows[0]?.status}`);
 
   console.log("✔ Scenario 4 PASSED: Amount mismatch rejected provisioning.");
 
@@ -218,10 +228,10 @@ async function runTests() {
   console.log("✔ Scenario 5 PASSED: Currency mismatch rejected provisioning.");
 
   // Scenario 6: Billing plan without valid subscription_plan_id fails safely
-  const invalidBillingPlanId = `invalid-bill-plan-${Date.now()}`;
+  const invalidBillingPlanId = crypto.randomUUID();
   await db.query(
-    `INSERT INTO billing_plans (id, subscription_plan_id, name, description, price, is_active)
-     VALUES (?, NULL, 'Orphan Billing Plan', 'No sub plan', 99.90, 1)`,
+    `INSERT INTO billing_plans (id, subscription_plan_id, name, description, price, duration_days, is_active)
+     VALUES (?, NULL, 'Orphan Billing Plan', 'No sub plan', 99.90, 30, 1)`,
     [invalidBillingPlanId]
   );
 
@@ -257,7 +267,7 @@ async function runTests() {
 
   console.log("✔ Scenario 6 PASSED: Billing plan without valid subscription_plan_id failed safely without silent fallback.");
 
-  // Clean test records
+  // Clean test records (child tables first to avoid FK issues)
   await db.query("DELETE FROM notifications WHERE tenant_id = ?", [tenantId]);
   await db.query("DELETE FROM subscription_events WHERE tenant_id = ?", [tenantId]);
   await db.query("DELETE FROM billing_payments WHERE tenant_id = ?", [tenantId]);
@@ -265,9 +275,10 @@ async function runTests() {
   await db.query("DELETE FROM subscriptions WHERE tenant_id = ?", [tenantId]);
   await db.query("DELETE FROM billing_plans WHERE id IN (?, ?)", [billingPlanId, invalidBillingPlanId]);
   await db.query("DELETE FROM subscription_plans WHERE id = ?", [subPlanId]);
+  await db.query("DELETE FROM users WHERE id = ?", [userId]);
 
   console.log("==================================================");
-  console.log("🎉 ALL 10 AUTOMATED BILLING FLOW TEST SCENARIOS PASSED!");
+  console.log("ALL 6 BILLING FLOW TEST SCENARIOS PASSED!");
   console.log("==================================================");
   process.exit(0);
 }

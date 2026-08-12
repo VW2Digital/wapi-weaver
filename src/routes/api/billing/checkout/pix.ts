@@ -25,8 +25,14 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
             });
           }
 
-          // Payer email must come from verified authenticated user
-          const payerEmail = user.email || payer?.email;
+          let payerEmail = user.email || payer?.email;
+          if (!payerEmail) {
+            const userRows = (await db.query("SELECT email FROM users WHERE id = ? LIMIT 1", [user.userId])) as any[];
+            if (userRows.length > 0 && userRows[0].email) {
+              payerEmail = userRows[0].email;
+            }
+          }
+
           if (!payerEmail) {
             return new Response(JSON.stringify({ error: "Dados do pagador (e-mail) são obrigatórios." }), {
               status: 400,

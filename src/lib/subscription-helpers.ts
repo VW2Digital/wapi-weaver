@@ -327,7 +327,7 @@ export async function processApprovedPayment(
   const notifId = crypto.randomUUID();
   const dateStr = newExpiresAt.toLocaleDateString("pt-BR");
   await connection.execute(
-    `INSERT INTO notifications (id, tenant_id, user_id, type, title, message, unique_key)
+    `INSERT IGNORE INTO notifications (id, tenant_id, user_id, type, title, message, unique_key)
      VALUES (?, ?, ?, 'payment_approved', 'Pagamento Confirmado!', ?, ?)`,
     [
       notifId,

@@ -66,9 +66,14 @@ export const Route = createFileRoute("/api/auth/login")({
             },
           };
 
+          const headers = new Headers();
+          headers.set("Content-Type", "application/json");
+          headers.append("Set-Cookie", `wapi_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+          headers.append("Set-Cookie", `app-token=${token}; Path=/; SameSite=Lax; Max-Age=2592000`);
+
           return new Response(JSON.stringify(responseData), {
             status: 200,
-            headers: { "Content-Type": "application/json" },
+            headers,
           });
         } catch (err: any) {
           console.error("[Auth API] Login error:", err);
