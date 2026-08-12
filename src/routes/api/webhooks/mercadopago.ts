@@ -27,7 +27,8 @@ function verifyMercadoPagoSignature(
   dataId: string,
   secret: string
 ): boolean {
-  if (!secret || !signatureHeader) return true;
+  if (!secret) return true;
+  if (!signatureHeader) return false;
 
   const parts = signatureHeader.split(",");
   let ts = "";
@@ -47,7 +48,14 @@ function verifyMercadoPagoSignature(
     .update(manifest)
     .digest("hex");
 
-  return computedHash.toLowerCase() === v1.toLowerCase();
+  try {
+    const computedBuffer = Buffer.from(computedHash.toLowerCase(), "utf8");
+    const v1Buffer = Buffer.from(v1.toLowerCase(), "utf8");
+    if (computedBuffer.length !== v1Buffer.length) return false;
+    return crypto.timingSafeEqual(computedBuffer, v1Buffer);
+  } catch {
+    return false;
+  }
 }
 
 export const Route = createFileRoute("/api/webhooks/mercadopago")({
@@ -75,13 +83,13 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
           });
         }
 
-        // Validate webhook signature if secret is configured
+        // Validate webhook signature: when secret is configured, signature is STRICTLY REQUIRED
         const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET || "";
-        if (webhookSecret && signature) {
+        if (webhookSecret) {
           const isValid = verifyMercadoPagoSignature(signature, requestId, resourceId, webhookSecret);
           if (!isValid) {
-            console.warn(`[MercadoPago Webhook] Invalid signature for event resource: ${resourceId}`);
-            return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
+            console.warn(`[MercadoPago Webhook] Invalid or missing signature for event resource: ${resourceId}`);
+            return new Response(JSON.stringify({ error: "Invalid or missing webhook signature" }), {
               status: 401,
               headers: { "Content-Type": "application/json" },
             });
@@ -90,7 +98,7 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
 
         // Deduplication event ID based on unique request or resource + action/event
         const eventId = requestId ? `mp:${resourceId}:${requestId}` : `mp:${resourceId}:${Date.now()}`;
-        console.log(`[MercadoPago Webhook] Received event. Type: ${eventType}, Resource ID: ${resourceId}, Request ID: ${requestId}`);
+        console.log(`[MercadoPago Webhook] Received event. Type: ${eventType}, Resource ID: ${resourceId}`);
 
         // Safe payload sanitization
         const sanitizedBody = { ...body };
@@ -215,27 +223,13 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
           const isLive = Boolean(paymentDetails.live_mode);
           const actualEnv = isLive ? "production" : "sandbox";
 
-          // Update payment record in database
-          await db.query(
-            `UPDATE billing_payments 
-             SET provider_payment_id = ?, status = ?, status_detail = ?, raw_response = ?, environment = ? 
-             WHERE id = ?`,
-            [
-              resourceId,
-              status,
-              paymentDetails.status_detail || null,
-              JSON.stringify(paymentDetails),
-              actualEnv,
-              dbPayment.id,
-            ]
-          );
-
+          // DO NOT mark payment as approved here. Let processApprovedPayment atomically update payment + invoice + subscription in transaction
           await db.query(
             "UPDATE billing_webhook_events SET environment = ?, tenant_id = ?, invoice_id = ?, payment_id = ? WHERE id = ?",
             [actualEnv, dbPayment.tenant_id, dbPayment.invoice_id, dbPayment.id, eventUuid]
           );
 
-          // Handle approved payment
+          // Handle approved payment atomically inside transaction
           if (status === "approved") {
             await db.transaction(async (conn) => {
               await processApprovedPayment(
@@ -247,12 +241,16 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
                 paymentDetails
               );
             });
-            console.log(`[MercadoPago Webhook] Payment approved and processed for: ${resourceId}`);
+            console.log(`[MercadoPago Webhook] Payment approved and provisioned for: ${resourceId}`);
           } else if (status === "rejected" || status === "cancelled" || status === "refunded") {
             const invoiceStatus = status === "refunded" ? "refunded" : "failed";
             await db.query("UPDATE billing_invoices SET status = ? WHERE id = ?", [
               invoiceStatus,
               dbPayment.invoice_id,
+            ]);
+            await db.query("UPDATE billing_payments SET status = ? WHERE id = ?", [
+              status,
+              dbPayment.id,
             ]);
             console.log(`[MercadoPago Webhook] Payment status updated to ${status} for: ${resourceId}`);
           }
@@ -272,8 +270,10 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
             "UPDATE billing_webhook_events SET status = 'failed', error_code = ?, error_message = ? WHERE id = ?",
             [e.code || "PROCESSING_ERROR", e.message || String(e), eventUuid]
           );
-          return new Response(JSON.stringify({ success: false, error: e.message }), {
-            status: 200, // Return 200 so webhook sender doesn't retry indefinitely on unrecoverable logic errors
+
+          // Return HTTP 500 for transient internal failures so Mercado Pago can retry
+          return new Response(JSON.stringify({ error: "Ocorreu uma falha no processamento interno da notificação." }), {
+            status: 500,
             headers: { "Content-Type": "application/json" },
           });
         }

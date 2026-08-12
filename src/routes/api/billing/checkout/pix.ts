@@ -16,7 +16,6 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
           const body = await request.json();
           const { planId, payer } = body;
 
-          // planId sent by frontend represents billing_plans.id
           const billingPlanId = planId;
 
           if (!billingPlanId) {
@@ -26,7 +25,9 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
             });
           }
 
-          if (!payer || !payer.email) {
+          // Payer email must come from verified authenticated user
+          const payerEmail = user.email || payer?.email;
+          if (!payerEmail) {
             return new Response(JSON.stringify({ error: "Dados do pagador (e-mail) são obrigatórios." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
@@ -141,23 +142,45 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
             }
           }
 
-          // 6. Generate new PIX payment on Mercado Pago with persistent Idempotency Key
+          // 6. PERSIST local payment attempt BEFORE calling Mercado Pago to guarantee retry protection
+          const paymentId = crypto.randomUUID();
+          const idempotencyKey = paymentId;
+          const initialExpiresAt = addMinutes(new Date(), 30);
+
+          await db.query(
+            `INSERT INTO billing_payments (
+              id, tenant_id, customer_id, subscription_id, invoice_id,
+              provider, external_reference, payment_method, payment_type,
+              status, amount, currency, payer_email, expires_at, environment
+            ) VALUES (?, ?, ?, ?, ?, 'mercadopago', ?, 'pix', 'ticket', 'pending', ?, 'BRL', ?, ?, ?)`,
+            [
+              paymentId,
+              user.tenantId,
+              user.userId,
+              sub.id,
+              invoice.id,
+              invoice.external_reference,
+              invoice.amount,
+              payerEmail,
+              initialExpiresAt,
+              platformGatewayConfig.environment,
+            ]
+          );
+
+          // 7. Generate new PIX payment on Mercado Pago with persistent Idempotency Key
           const siteUrl = process.env.SITE_URL || "";
           const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
           const webhookUrl = isPublicUrl ? `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago` : undefined;
-
-          const paymentId = crypto.randomUUID();
-          const idempotencyKey = paymentId; // Deterministic persistent idempotency key per payment attempt
 
           const payload: Record<string, unknown> = {
             transaction_amount: Number(invoice.amount),
             description: `Renovação de Assinatura - ${billingPlan.name}`,
             payment_method_id: "pix",
             payer: {
-              email: payer.email,
-              first_name: payer.first_name || user.email.split("@")[0] || "Cliente",
-              last_name: payer.last_name || "SaaS",
-              identification: payer.identification?.number
+              email: payerEmail,
+              first_name: payer?.first_name || user.email.split("@")[0] || "Cliente",
+              last_name: payer?.last_name || "SaaS",
+              identification: payer?.identification?.number
                 ? {
                     type: payer.identification.type || "CPF",
                     number: payer.identification.number.replace(/\D/g, ""),
@@ -169,39 +192,39 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
             installments: 1,
           };
 
-          console.log(`[MercadoPago PIX] Creating payment request for ${invoice.invoice_number} (Key: ${idempotencyKey})`);
-          const mpResponse = await createPayment(platformGatewayConfig, {
-            ...payload,
-            idempotencyKey,
-          });
+          console.log(`[MercadoPago PIX] Calling API for invoice ${invoice.invoice_number} (Key: ${idempotencyKey})`);
+          let mpResponse: any;
+          try {
+            mpResponse = await createPayment(platformGatewayConfig, {
+              ...payload,
+              idempotencyKey,
+            });
+          } catch (err: any) {
+            // Update local payment record to failed status on API error
+            await db.query(
+              "UPDATE billing_payments SET status = 'failed', status_detail = ? WHERE id = ?",
+              [err.message || "Mercado Pago API error", paymentId]
+            );
+            throw err;
+          }
 
           const providerPaymentId = String(mpResponse.id);
           const qrCode = mpResponse.point_of_interaction?.transaction_data?.qr_code;
           const qrCodeBase64 = mpResponse.point_of_interaction?.transaction_data?.qr_code_base64;
-          const paymentExpiresAt = mpResponse.date_of_expiration ? new Date(mpResponse.date_of_expiration) : addMinutes(new Date(), 30);
+          const paymentExpiresAt = mpResponse.date_of_expiration ? new Date(mpResponse.date_of_expiration) : initialExpiresAt;
 
-          // 7. Save payment in database
+          // 8. Update local payment record with provider response
           await db.query(
-            `INSERT INTO billing_payments (
-              id, tenant_id, customer_id, subscription_id, invoice_id,
-              provider, provider_payment_id, external_reference, payment_method, payment_type,
-              status, status_detail, amount, currency, payer_email, expires_at, raw_response, environment
-            ) VALUES (?, ?, ?, ?, ?, 'mercadopago', ?, ?, 'pix', 'ticket', ?, ?, ?, 'BRL', ?, ?, ?, ?)`,
+            `UPDATE billing_payments 
+             SET provider_payment_id = ?, status = ?, status_detail = ?, expires_at = ?, raw_response = ?
+             WHERE id = ?`,
             [
-              paymentId,
-              user.tenantId,
-              user.userId,
-              sub.id,
-              invoice.id,
               providerPaymentId,
-              invoice.external_reference,
-              mpResponse.status,
-              mpResponse.status_detail,
-              invoice.amount,
-              payer.email,
+              mpResponse.status || "pending",
+              mpResponse.status_detail || null,
               paymentExpiresAt,
               JSON.stringify(mpResponse),
-              platformGatewayConfig.environment,
+              paymentId,
             ]
           );
 

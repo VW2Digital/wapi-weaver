@@ -203,10 +203,6 @@ export async function processApprovedPayment(
   }
   const payment = payments[0];
 
-  if (payment.status === "approved" || payment.status === "paid") {
-    return { success: true, alreadyProcessed: true };
-  }
-
   // 2. Fetch and lock invoice
   const [invoices] = await connection.execute(
     "SELECT * FROM billing_invoices WHERE id = ? FOR UPDATE",
@@ -217,49 +213,45 @@ export async function processApprovedPayment(
   }
   const invoice = invoices[0];
 
+  // Provisions idempotency: check if invoice has already been provisioned as paid
   if (invoice.status === "paid") {
     return { success: true, alreadyProcessed: true };
   }
 
-  // Validate monetary equality (prevent underpayment)
-  if (Number(amountReceived) < Number(invoice.amount)) {
+  // 3. Strict monetary and currency validation (prevent underpayment or currency mismatch)
+  const expectedCents = Math.round(Number(invoice.amount) * 100);
+  const receivedCents = Math.round(Number(amountReceived) * 100);
+
+  if (receivedCents !== expectedCents) {
     throw new Error(`Inconsistent payment amount. Received: ${amountReceived}, expected: ${invoice.amount}`);
   }
 
-  // 3. Fetch billing_plan from invoice.plan_id
-  const { validateSubscriptionPlan, resolveValidSubscriptionPlanId } = await import("@/lib/plan-validator");
+  if (currencyReceived && currencyReceived.toUpperCase() !== (invoice.currency || "BRL").toUpperCase()) {
+    throw new Error(`Inconsistent payment currency. Received: ${currencyReceived}, expected: ${invoice.currency}`);
+  }
+
+  // 4. Fetch exact billing_plan from invoice.plan_id (NO FALLBACK)
   let [plans] = await connection.execute(
     "SELECT * FROM billing_plans WHERE id = ?",
     [invoice.plan_id],
   );
-  let billingPlan = plans.length > 0 ? plans[0] : null;
+  if (plans.length === 0) {
+    throw new Error(`Plano comercial da fatura não foi encontrado: ${invoice.plan_id}`);
+  }
+  const billingPlan = plans[0];
 
-  let targetSubscriptionPlanId: string | null = null;
-  if (billingPlan && billingPlan.subscription_plan_id) {
-    const subPlanCheck = await validateSubscriptionPlan(billingPlan.subscription_plan_id, connection);
-    if (subPlanCheck.exists && subPlanCheck.isActive) {
-      targetSubscriptionPlanId = billingPlan.subscription_plan_id;
-    }
+  if (!billingPlan.subscription_plan_id) {
+    throw new Error(`O plano comercial comprado (${billingPlan.id}) não possui um plano de acesso vinculado.`);
   }
 
-  if (!targetSubscriptionPlanId) {
-    targetSubscriptionPlanId = await resolveValidSubscriptionPlanId(
-      null,
-      {
-        tenantId: invoice.tenant_id,
-        subscriptionId: invoice.subscription_id,
-        paymentId: payment.id,
-        operation: "processApprovedPayment",
-      },
-      connection,
-    );
+  const { validateSubscriptionPlan } = await import("@/lib/plan-validator");
+  const subPlanCheck = await validateSubscriptionPlan(billingPlan.subscription_plan_id, connection);
+  if (!subPlanCheck.exists || !subPlanCheck.isActive) {
+    throw new Error(`O plano de acesso vinculado (${billingPlan.subscription_plan_id}) está inativo ou inexistente.`);
   }
+  const targetSubscriptionPlanId = billingPlan.subscription_plan_id;
 
-  if (!billingPlan) {
-    billingPlan = { billing_interval: "month", billing_interval_count: 1, price: 0.0, duration_days: 30 };
-  }
-
-  // 4. Fetch subscription with FOR UPDATE lock
+  // 5. Fetch subscription with FOR UPDATE lock
   const [subs] = await connection.execute(
     "SELECT * FROM subscriptions WHERE id = ? FOR UPDATE",
     [invoice.subscription_id],
@@ -291,7 +283,7 @@ export async function processApprovedPayment(
 
   const newGracePeriodEndsAt = addDays(newExpiresAt, 3); // 3 days tolerance
 
-  // 5. Update billing_payments
+  // 6. Update billing_payments
   await connection.execute(
     `UPDATE billing_payments 
      SET status = 'approved', approved_at = ?, raw_response = ?
@@ -299,7 +291,7 @@ export async function processApprovedPayment(
     [approvedAtDate, JSON.stringify(rawResponse), payment.id],
   );
 
-  // 6. Update billing_invoices
+  // 7. Update billing_invoices
   await connection.execute(
     `UPDATE billing_invoices
      SET status = 'paid', paid_at = ?
@@ -307,7 +299,7 @@ export async function processApprovedPayment(
     [approvedAtDate, invoice.id],
   );
 
-  // 7. Update subscription details AND update plan_id to billing_plans.subscription_plan_id
+  // 8. Update subscription details AND set plan_id to billing_plans.subscription_plan_id
   await connection.execute(
     `UPDATE subscriptions
      SET status = 'active', plan_id = ?, expires_at = ?, grace_period_ends_at = ?, last_payment_at = ?, next_billing_at = ?
@@ -315,7 +307,7 @@ export async function processApprovedPayment(
     [targetSubscriptionPlanId, newExpiresAt, newGracePeriodEndsAt, approvedAtDate, newExpiresAt, sub.id],
   );
 
-  // 8. Log history event
+  // 9. Log history event
   const eventId = crypto.randomUUID();
   await connection.execute(
     `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, invoice_id, payment_id, metadata)
@@ -331,7 +323,7 @@ export async function processApprovedPayment(
     ],
   );
 
-  // 9. Generate tenant-scoped notifications
+  // 10. Generate tenant-scoped notifications
   const notifId = crypto.randomUUID();
   const dateStr = newExpiresAt.toLocaleDateString("pt-BR");
   await connection.execute(

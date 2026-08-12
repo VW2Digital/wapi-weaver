@@ -4,6 +4,7 @@ import crypto from "crypto";
 import db from "@/lib/db";
 import { verifyApiUser, getOrCreateSubscription, logSubscriptionEvent } from "@/lib/subscription-helpers";
 import { getMercadoPagoConfig, createPreference } from "@/lib/mercadopago";
+import { validateOrRejectBillingPlan } from "@/lib/plan-validator";
 import { addDays } from "date-fns";
 
 export const Route = createFileRoute("/api/billing/checkout")({
@@ -15,16 +16,17 @@ export const Route = createFileRoute("/api/billing/checkout")({
           const body = await request.json();
           const { planId } = body;
 
-          if (!planId) {
+          const billingPlanId = planId;
+
+          if (!billingPlanId) {
             return new Response(JSON.stringify({ error: "O identificador do plano é obrigatório." }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
             });
           }
 
-          // Fetch & validate plan safely
-          const { validateOrRejectPlan } = await import("@/lib/plan-validator");
-          const planValidation = await validateOrRejectPlan(planId, {
+          // Fetch & validate commercial billing_plan joined with subscription_plans
+          const planValidation = await validateOrRejectBillingPlan(billingPlanId, {
             userId: user.userId,
             tenantId: user.tenantId,
             operation: "checkout_initiation",
@@ -35,15 +37,24 @@ export const Route = createFileRoute("/api/billing/checkout")({
             return planValidation.response;
           }
 
-          const plan = planValidation.planResult?.plan;
+          const billingPlan = planValidation.billingPlanResult?.billingPlan;
+          if (!billingPlan) {
+            return new Response(
+              JSON.stringify({ error: "O plano selecionado não está disponível." }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
+          }
 
           // Fetch or create subscription for tenant
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
-          // Get Mercado Pago Config (tenant-specific or global platform credentials)
+          // Get platform Mercado Pago Config
           let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
-            platformGatewayConfig = await getMercadoPagoConfig("__any__").catch(() => null);
+            platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
           }
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
@@ -52,28 +63,24 @@ export const Route = createFileRoute("/api/billing/checkout")({
               {
                 status: 500,
                 headers: { "Content-Type": "application/json" },
-              },
+              }
             );
           }
 
-          // Check if checkout mode is redirect
-          // Note: even if configured transparently, we can fall back to Checkout Pro if needed, but we check preference here.
-          
           // Re-use existing pending invoice for this plan if valid
           const existingInvoices = (await db.query(
             "SELECT * FROM billing_invoices WHERE tenant_id = ? AND plan_id = ? AND status = 'pending' LIMIT 1",
-            [user.tenantId, planId],
+            [user.tenantId, billingPlan.id]
           )) as any[];
 
           let invoice: any;
           if (existingInvoices.length > 0) {
             invoice = existingInvoices[0];
           } else {
-            // Create a new invoice
             const invoiceId = crypto.randomUUID();
             const invoiceNumber = `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
             const externalRef = `invoice:${crypto.randomUUID()}`;
-            const dueAt = addDays(new Date(), 3); // 3 days to pay
+            const dueAt = addDays(new Date(), 3);
 
             await db.query(
               `INSERT INTO billing_invoices (
@@ -86,26 +93,25 @@ export const Route = createFileRoute("/api/billing/checkout")({
                 user.tenantId,
                 user.userId,
                 sub.id,
-                plan.id,
+                billingPlan.id,
                 invoiceNumber,
-                `Renovação de Assinatura - ${plan.name}`,
-                plan.price,
+                `Renovação de Assinatura - ${billingPlan.name}`,
+                billingPlan.price,
                 dueAt,
                 externalRef,
-              ],
+              ]
             );
 
             await logSubscriptionEvent(user.tenantId, sub.id, "invoice_created", sub.status, sub.status, invoiceId);
 
             invoice = {
               id: invoiceId,
-              amount: plan.price,
+              amount: billingPlan.price,
               external_reference: externalRef,
               invoice_number: invoiceNumber,
             };
           }
 
-          // Create payment preference on Mercado Pago
           const siteUrl = process.env.SITE_URL || "";
           const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
           const baseUrl = isPublicUrl ? siteUrl.replace(/\/+$/, "") : "";
@@ -121,10 +127,10 @@ export const Route = createFileRoute("/api/billing/checkout")({
             ? `${baseUrl}/billing?status=rejected&invoice_id=${invoice.id}`
             : undefined;
 
-          console.log(`[MercadoPago Checkout] Generating preference for invoice ${invoice.invoice_number || invoice.id} env=${platformGatewayConfig.environment} token=${platformGatewayConfig.accessToken.slice(0,12)}`);
+          console.log(`[MercadoPago Checkout] Generating preference for invoice ${invoice.invoice_number || invoice.id} env=${platformGatewayConfig.environment}`);
 
           const pref = await createPreference(platformGatewayConfig, {
-            title: `Assinatura ${plan.name} (${invoice.invoice_number || invoice.id})`,
+            title: `Assinatura ${billingPlan.name} (${invoice.invoice_number || invoice.id})`,
             amount: Number(invoice.amount),
             externalReference: invoice.external_reference,
             payerEmail: user.email || "billing@saas.com",
@@ -134,7 +140,7 @@ export const Route = createFileRoute("/api/billing/checkout")({
             failureUrl,
           });
 
-          // Save preference ID to invoice metadata or payments log
+          // Save preference ID to payments log
           const paymentId = crypto.randomUUID();
           await db.query(
             `INSERT INTO billing_payments (
@@ -151,41 +157,29 @@ export const Route = createFileRoute("/api/billing/checkout")({
               invoice.external_reference,
               invoice.amount,
               platformGatewayConfig.environment,
-            ],
+            ]
           );
 
-          await logSubscriptionEvent(
-            user.tenantId,
-            sub.id,
-            "payment_pending",
-            sub.status,
-            sub.status,
-            invoice.id,
-            paymentId,
-            { provider_preference_id: pref.id },
-          );
-
-          // In Sandbox, Checkout Pro uses sandbox_init_point
-          const checkoutUrl = platformGatewayConfig.environment === "sandbox" ? pref.sandbox_init_point : pref.init_point;
+          const checkoutUrl =
+            platformGatewayConfig.environment === "production" ? pref.init_point : pref.sandbox_init_point || pref.init_point;
 
           return new Response(
             JSON.stringify({
               success: true,
-              invoiceId: invoice.id,
               checkoutUrl,
               preferenceId: pref.id,
-              externalReference: invoice.external_reference,
+              invoiceId: invoice.id,
             }),
             {
               status: 200,
               headers: { "Content-Type": "application/json" },
-            },
+            }
           );
         } catch (err: any) {
           console.error("[Checkout Error]", err);
           const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
-          return new Response(JSON.stringify({ error: err.message }), {
-            status: isAuthErr ? 401 : 500,
+          return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : (err.message || "Não foi possível iniciar o checkout.") }), {
+            status: isAuthErr ? 401 : 400,
             headers: { "Content-Type": "application/json" },
           });
         }
