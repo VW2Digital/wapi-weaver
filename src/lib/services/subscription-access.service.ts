@@ -58,10 +58,38 @@ export interface SubscriptionAccessState {
 
 /**
  * Retorna o plano padrão de trial a ser atribuído para novos clientes.
+ * Busca o plano com slug = 'basic' e is_active = 1 em subscription_plans (NUNCA hardcoded).
+ * Se não for encontrado por 'basic', busca o primeiro plano ativo em subscription_plans.
+ * Caso não encontre nenhum plano ativo, lança erro defensivo claro.
  */
 export async function getDefaultTrialPlanId(connection?: any): Promise<string> {
-  const { resolveValidPlanId } = await import("@/lib/plan-validator");
-  return await resolveValidPlanId(null, { operation: "getDefaultTrialPlanId" }, connection);
+  const executor = makeExecutor(connection);
+
+  // 1. Buscar pelo plano com slug = 'basic' ativo
+  const basicPlans = await executor.query(
+    "SELECT id FROM subscription_plans WHERE (slug = 'basic' OR slug = 'basico') AND is_active = 1 LIMIT 1"
+  );
+  if (basicPlans && basicPlans.length > 0) {
+    return basicPlans[0].id;
+  }
+
+  // 2. Fallback: Primeiro plano ativo em subscription_plans
+  const activePlans = await executor.query(
+    "SELECT id FROM subscription_plans WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1"
+  );
+  if (activePlans && activePlans.length > 0) {
+    return activePlans[0].id;
+  }
+
+  // 3. Fallback: Primeiro plano ativo em billing_plans (se vinculado comercialmente)
+  const billingPlans = await executor.query(
+    "SELECT id FROM billing_plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC LIMIT 1"
+  );
+  if (billingPlans && billingPlans.length > 0) {
+    return billingPlans[0].id;
+  }
+
+  throw new Error("Plano padrão de trial não configurado corretamente");
 }
 
 /**
@@ -86,7 +114,12 @@ export async function createTrialSubscriptionForTenant(
     return existing[0];
   }
 
-  const planId = await getDefaultTrialPlanId(executor);
+  const rawPlanId = await getDefaultTrialPlanId(connection);
+
+  // Validação defensiva pré-inserção: garante que o plan_id existe e está ativo
+  const { assertValidPlanForSubscription } = await import("@/lib/plan-validator");
+  const planId = await assertValidPlanForSubscription(rawPlanId, connection);
+
   const subId = crypto.randomUUID();
 
   const now = new Date();

@@ -55,10 +55,12 @@ export default defineConfig(({ mode }) => {
   }
 
   // Adicionar variáveis do build automáticas
-  let commitHash = "unknown";
-  try {
-    commitHash = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
-  } catch (e) {}
+  let commitHash = process.env.VITE_COMMIT_HASH || process.env.COMMIT_SHA || "unknown";
+  if (commitHash === "unknown") {
+    try {
+      commitHash = execSync("git rev-parse --short HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch (e) {}
+  }
 
   envDefine["import.meta.env.VITE_COMMIT_HASH"] = JSON.stringify(commitHash);
   envDefine["import.meta.env.VITE_BUILD_TIME"] = JSON.stringify(new Date().toLocaleString("pt-BR"));

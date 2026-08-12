@@ -113,9 +113,12 @@ export async function getOrCreateSubscription(tenantId: string, customerId: stri
     return sub;
   }
 
-  // Create default trial with validated plan ID
-  const { resolveValidPlanId } = await import("@/lib/plan-validator");
-  const planId = await resolveValidPlanId("plan-mensal", { tenantId, operation: "getOrCreateSubscription" });
+  // Create default trial using dynamic trial plan retrieval and defensive validation
+  const { getDefaultTrialPlanId } = await import("@/lib/services/subscription-access.service");
+  const { assertValidPlanForSubscription } = await import("@/lib/plan-validator");
+
+  const rawPlanId = await getDefaultTrialPlanId();
+  const planId = await assertValidPlanForSubscription(rawPlanId);
 
   const subId = crypto.randomUUID();
   const startsAt = new Date();

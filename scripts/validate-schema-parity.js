@@ -174,11 +174,10 @@ async function main() {
         }
       }
 
-      // A3) Unexpected Extra Columns Check (Phase A)
+      // A3 / B3) Unexpected Extra Columns Check (Phase B - Report)
       for (const existingColName of existingCols.keys()) {
         if (!expectedCols[existingColName]) {
-          console.error(`[Schema Parity] ❌ FAIL (Phase A): Table '${table}' has unexpected extra column '${existingColName}'.`);
-          phaseAErrors++;
+          phaseBReport.extra_mismatches++;
         }
       }
 

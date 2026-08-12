@@ -19,8 +19,10 @@ export const Route = createFileRoute("/api/admin/test-subscriptions-runner")({
         const logs: string[] = [];
         const testTenantId = `tenant_test_${Date.now()}`;
         const testSubId = crypto.randomUUID();
-        const testPlanId = "plan-mensal";
-        const newPlanId = "plan-anual-pro";
+        const { getDefaultTrialPlanId } = await import("@/lib/services/subscription-access.service");
+        const { resolveValidPlanId } = await import("@/lib/plan-validator");
+        const testPlanId = await getDefaultTrialPlanId();
+        const newPlanId = await resolveValidPlanId(null, { operation: "test_subscriptions_runner" });
 
         try {
           logs.push("=== BATERIA DE TESTES DA MÁQUINA DE ESTADOS ===");
