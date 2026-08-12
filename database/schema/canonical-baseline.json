@@ -1,0 +1,25 @@
+{
+  "description": "Migrations already incorporated into canonical-schema.sql final state. On fresh install, these are registered in schema_migrations without being re-executed.",
+  "canonicalVersion": "018_fix_payment_gateway_global_tenant.sql",
+  "includedMigrations": [
+    "001_canonical_schema.sql",
+    "002_fix_indexes_and_constraints.sql",
+    "003_runtime_schema_alignment.sql",
+    "004_calendar_events.sql",
+    "005_legacy_contact_custom_fields_fix.sql",
+    "006_subscription_trial_access.sql",
+    "007_restore_active_runtime_tables.sql",
+    "008_align_schema_with_local_database.sql",
+    "008_restore_legacy_compatibility_tables.sql",
+    "009_align_licenses_full_schema.sql",
+    "010_align_subscription_plans_with_local_schema.sql",
+    "011_align_payment_gateway_settings_with_local_schema.sql",
+    "012_reconcile_full_schema_with_local.sql",
+    "013_reconcile_billing_plans_update.sql",
+    "014_reconcile_webhook_events_nullability.sql",
+    "015_reconcile_nullability_parity.sql",
+    "016_reconcile_opportunity_contacts_pk.sql",
+    "017_fix_subscriptions_plan_id_fk.sql",
+    "018_fix_payment_gateway_global_tenant.sql"
+  ]
+}

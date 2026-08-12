@@ -93,14 +93,26 @@ async function main() {
 
     console.log(`[Create Tables] ✅ SUCCESS: Verified all ${requiredTables.length} essential tables exist in database.`);
 
-    // 3. Mark base migration as applied in schema_migrations
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
-        version VARCHAR(255) PRIMARY KEY,
-        applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-    await connection.query("INSERT IGNORE INTO schema_migrations (version) VALUES ('001_canonical_schema.sql')");
+    // 3. Register ALL baseline migrations in schema_migrations
+    // schema_migrations is already created by canonical-schema.sql itself
+    // Read canonical-baseline.json to get the full list of migrations already incorporated
+    const baselinePath = path.resolve(__dirname, "../database/schema/canonical-baseline.json");
+    if (!fs.existsSync(baselinePath)) {
+      console.error(`[Create Tables] ❌ CRITICAL: canonical-baseline.json not found at ${baselinePath}`);
+      process.exit(1);
+    }
+
+    const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
+    const migrations = baseline.includedMigrations || [];
+
+    console.log(`[Create Tables] Registering ${migrations.length} baseline migrations in schema_migrations...`);
+    for (const migration of migrations) {
+      await connection.query(
+        "INSERT IGNORE INTO schema_migrations (version) VALUES (?)",
+        [migration]
+      );
+    }
+    console.log(`[Create Tables] ✅ Baseline registered: migrations up to '${baseline.canonicalVersion}' marked as applied.`);
 
     console.log("=================================================");
     console.log("   DATABASE SCHEMA CREATION PASSED SUCCESSFULLY  ");
@@ -115,3 +127,5 @@ async function main() {
 }
 
 main();
+
+

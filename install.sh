@@ -762,11 +762,25 @@ run_database_migrations() {
   print_ok "Migrações aplicadas com sucesso."
 }
 
+run_schema_sync() {
+  print_step "Sincronizando schema canônico (sync-schema.js — aditivo, sem DROP)..."
+  SYNC_EXIT=0
+  docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/sync-schema.js || SYNC_EXIT=$?
+  if [ "${SYNC_EXIT}" -eq 0 ]; then
+    print_ok "Schema sincronizado com sucesso."
+  elif [ "${SYNC_EXIT}" -eq 2 ]; then
+    print_warn "Schema sincronizado com pendências de migração manual (veja logs acima). Prosseguindo."
+  else
+    dump_diagnostics_and_exit "Falha ao sincronizar schema canônico."
+  fi
+}
+
 # 6.5 Execução do Banco por Modo (Single source of truth: DB_MODE)
 case "$DB_MODE" in
   UPDATE_EXISTING)
     echo "  Executando fluxo de atualização (UPDATE)..."
     run_database_migrations
+    run_schema_sync
     ;;
   RESTORE_DUMP)
     print_step "Importando dump do banco de dados (${DATABASE_DUMP})..."
@@ -777,6 +791,7 @@ case "$DB_MODE" in
     fi
     print_ok "Dump do banco importado com sucesso."
     run_database_migrations
+    run_schema_sync
     ;;
   FRESH|NEW)
     create_database_schema

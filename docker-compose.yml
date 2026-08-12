@@ -13,7 +13,6 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./schema_mysql.sql:/docker-entrypoint-initdb.d/1-schema.sql
     healthcheck:
       test:
         [
@@ -42,11 +41,13 @@ services:
     env_file:
       - .env
     environment:
-      DB_HOST: ${DB_HOST:-mysql}
-      REDIS_HOST: ${REDIS_HOST:-redis}
+      DB_HOST: ${DOCKER_DB_HOST:-mysql}
+      REDIS_HOST: ${DOCKER_REDIS_HOST:-redis}
     volumes:
       - wapi_weaver_uploads:/app/public/uploads
     depends_on:
+      mysql:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
