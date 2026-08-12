@@ -800,15 +800,12 @@ fi
 
 # Validar Paridade de Schema (BLOCKING para NEW/FRESH/RESTORE_DUMP; DIAGNÓSTICO para UPDATE_EXISTING)
 echo "  Executando verificação de paridade de schema (validate-schema-parity.js)..."
-set +e
-docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-schema-parity.js
-PARITY_EXIT=$?
-set -e
-
-if [ $PARITY_EXIT -eq 0 ]; then
+if docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-schema-parity.js; then
+  PARITY_EXIT=0
   print_ok "Paridade estrita de schema passou com 100% de sucesso."
 else
-  if [ "$PARITY_POLICY" == "DIAGNOSTIC" ]; then
+  PARITY_EXIT=$?
+  if [ "${PARITY_POLICY}" = "DIAGNOSTIC" ]; then
     print_warn "AVISO: Desvio de paridade de schema legado detectado no modo UPDATE (Exit code: ${PARITY_EXIT})."
     print_warn "O UPDATE continuará pois a validação essencial do banco de dados (validate-database.js) PASSOU com sucesso."
   else
