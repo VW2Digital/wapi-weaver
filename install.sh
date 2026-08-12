@@ -633,9 +633,43 @@ if [ "$REDIS_READY" -ne 1 ]; then
   dump_diagnostics_and_exit "Redis não estabilizou a tempo."
 fi
 
-# 6.4 Se for FRESH_DATABASE=1, resetar logicamente o banco wapi_weaver de forma segura
+# 6.4 Auto-detecção de Banco de Dados Existente
+EXISTING_INSTALLATION=0
+MIGRATION_COUNT=0
+
+CHECK_MIGRATION_SQL="SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='wapi_weaver' AND TABLE_NAME='schema_migrations';"
+HAS_MIGRATIONS_TABLE=$(docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -sN -e "${CHECK_MIGRATION_SQL}" 2>/dev/null || echo "0")
+HAS_MIGRATIONS_TABLE=$(echo "${HAS_MIGRATIONS_TABLE}" | tr -dc '0-9')
+[ -n "${HAS_MIGRATIONS_TABLE}" ] || HAS_MIGRATIONS_TABLE=0
+
+if [ "${HAS_MIGRATIONS_TABLE}" -gt 0 ]; then
+  COUNT_ROWS_SQL="SELECT COUNT(*) FROM wapi_weaver.schema_migrations;"
+  MIGRATION_COUNT=$(docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -sN -e "${COUNT_ROWS_SQL}" 2>/dev/null || echo "0")
+  MIGRATION_COUNT=$(echo "${MIGRATION_COUNT}" | tr -dc '0-9')
+  [ -n "${MIGRATION_COUNT}" ] || MIGRATION_COUNT=0
+  if [ "${MIGRATION_COUNT}" -gt 0 ]; then
+    EXISTING_INSTALLATION=1
+  fi
+fi
+
+if [ "${EXISTING_INSTALLATION}" -eq 0 ]; then
+  CHECK_USERS_SQL="SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='wapi_weaver' AND TABLE_NAME='users';"
+  HAS_USERS_TABLE=$(docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -sN -e "${CHECK_USERS_SQL}" 2>/dev/null || echo "0")
+  HAS_USERS_TABLE=$(echo "${HAS_USERS_TABLE}" | tr -dc '0-9')
+  [ -n "${HAS_USERS_TABLE}" ] || HAS_USERS_TABLE=0
+  if [ "${HAS_USERS_TABLE}" -gt 0 ]; then
+    EXISTING_INSTALLATION=1
+  fi
+fi
+
+# Determinar modo de banco de dados e execução do canônico
+CANONICAL_WILL_RUN=0
+DB_MODE="NEW"
+
 if [ "$FRESH_DATABASE" -eq 1 ]; then
-  print_step "Resetando banco de dados wapi_weaver (Fresh Install solicitado)..."
+  DB_MODE="FRESH"
+  CANONICAL_WILL_RUN=1
+  print_step "Resetando banco de dados wapi_weaver (Fresh Install explicitamente solicitado)..."
   docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u root -p"${MYSQL_ROOT_PASS_VAL}" -e "
     DROP DATABASE IF EXISTS wapi_weaver;
     CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -646,7 +680,24 @@ if [ "$FRESH_DATABASE" -eq 1 ]; then
     CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   "
   print_ok "Banco de dados wapi_weaver resetado e recriado como novo."
+elif [ "$EXISTING_INSTALLATION" -eq 1 ]; then
+  DB_MODE="UPDATE_EXISTING"
+  UPDATE_MODE=1
+  CANONICAL_WILL_RUN=0
+  print_warn "Banco de dados BLIV/WAPI existente detectado (${MIGRATION_COUNT} migração(ões) encontrada(s)). Alternando automaticamente para modo seguro UPDATE."
+elif [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
+  DB_MODE="RESTORE_DUMP"
+  CANONICAL_WILL_RUN=0
+else
+  DB_MODE="NEW"
+  CANONICAL_WILL_RUN=1
 fi
+
+echo "=================================================="
+echo "  DATABASE MODE:            ${DB_MODE}"
+echo "  EXISTING DATABASE DETECTED: $( [ "${EXISTING_INSTALLATION}" -eq 1 ] && echo "YES" || echo "NO" )"
+echo "  CANONICAL WILL RUN:         $( [ "${CANONICAL_WILL_RUN}" -eq 1 ] && echo "YES" || echo "NO" )"
+echo "=================================================="
 
 create_database_schema() {
   print_step "Criando estrutura canônica do banco de dados (canonical-schema)..."
@@ -666,13 +717,11 @@ run_database_migrations() {
   print_ok "Migrações aplicadas com sucesso."
 }
 
-# 6.5 Execução do Banco por Modo (NOVO vs FRESH SEM DUMP vs FRESH COM DUMP vs UPDATE)
-if [ "$UPDATE_MODE" -eq 1 ]; then
-  # Fluxo UPDATE: Banco preservado. Executar SOMENTE migrações (sem canonical)
-  echo "  Executando fluxo de atualização (UPDATE)..."
+# 6.5 Execução do Banco por Modo
+if [ "$CANONICAL_WILL_RUN" -eq 1 ]; then
+  create_database_schema
   run_database_migrations
 elif [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
-  # Fluxo FRESH COM DUMP: Importar dump restaurado e executar SOMENTE migrações (sem canonical)
   print_step "Importando dump do banco de dados (${DATABASE_DUMP})..."
   if [[ "$DATABASE_DUMP" == *.gz ]]; then
     gunzip -c "$DATABASE_DUMP" | docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver
@@ -682,20 +731,49 @@ elif [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
   print_ok "Dump do banco importado com sucesso."
   run_database_migrations
 else
-  # Fluxo NOVO ou FRESH SEM DUMP: Banco limpo. Canonical PRIMEIRO, depois Migrações
-  create_database_schema
+  # Modo UPDATE / EXISTING_INSTALLATION sem canonical
+  echo "  Executando fluxo de atualização (UPDATE)..."
   run_database_migrations
 fi
 
 # Provisionar Administrador Master em container efêmero
 echo "  Provisionando Administrador Master (${ADMIN_EMAIL}) em container efêmero..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/provision-admin.js
+if [ $? -ne 0 ]; then
+  dump_diagnostics_and_exit "Provisionamento do Administrador Master falhou."
+fi
 
 # Validar Banco de Dados offline
-echo "  Validando estrutura e integridade do Banco de Dados..."
+echo "  Validando estrutura essencial do Banco de Dados (validate-database.js)..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-database.js
+if [ $? -ne 0 ]; then
+  dump_diagnostics_and_exit "FALHA CRÍTICA: Validação essencial do banco de dados (validate-database.js) falhou."
+fi
+
+# Validar Paridade de Schema (BLOCKING no Fresh/New; DIAGNÓSTICO no UPDATE)
+echo "  Executando verificação de paridade de schema (validate-schema-parity.js)..."
+set +e
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-schema-parity.js
+PARITY_EXIT=$?
+set -e
+
+if [ $PARITY_EXIT -eq 0 ]; then
+  print_ok "Paridade estrita de schema passou com 100% de sucesso."
+else
+  if [ "$UPDATE_MODE" -eq 1 ] || [ "$EXISTING_INSTALLATION" -eq 1 ]; then
+    print_warn "AVISO: Desvio de paridade de schema legado detectado no modo UPDATE (Exit code: ${PARITY_EXIT})."
+    print_warn "O UPDATE continuará pois a validação essencial do banco de dados (validate-database.js) PASSOU com sucesso."
+  else
+    dump_diagnostics_and_exit "FALHA CRÍTICA: Paridade estrita de schema falhou em instalação limpa (Fresh/New)."
+  fi
+fi
+
+# Auditoria Runtime
+echo "  Executando auditoria runtime de schema..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/audit-runtime-schema.js
+if [ $? -ne 0 ]; then
+  dump_diagnostics_and_exit "Falha na auditoria runtime de schema."
+fi
 
 # Executar CRUD Smoke Test no Banco de Dados
 echo "  Executando CRUD Smoke Test no Banco de Dados..."
