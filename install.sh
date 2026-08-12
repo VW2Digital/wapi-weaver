@@ -132,6 +132,8 @@ for arg in "$@"; do
   esac
 done
 
+EXPLICIT_UPDATE_REQUESTED=${UPDATE_MODE}
+
 wait_for_app_http() {
   local max_attempts=60
   local attempt=1
@@ -662,41 +664,84 @@ if [ "${EXISTING_INSTALLATION}" -eq 0 ]; then
   fi
 fi
 
-# Determinar modo de banco de dados e execução do canônico
-CANONICAL_WILL_RUN=0
+# Validar solicitação explícita de --update em banco vazio (Item 4)
+if [ "${EXPLICIT_UPDATE_REQUESTED}" -eq 1 ] && [ "${EXISTING_INSTALLATION}" -eq 0 ]; then
+  dump_diagnostics_and_exit "UPDATE solicitado (--update), mas nenhuma instalação existente do BLIV/WAPI foi encontrada no banco de dados."
+fi
+
+# Determinar DB_MODE de forma determinística
 DB_MODE="NEW"
 
-if [ "$FRESH_DATABASE" -eq 1 ]; then
+if [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
+  DB_MODE="RESTORE_DUMP"
+elif [ "$FRESH_DATABASE" -eq 1 ]; then
   DB_MODE="FRESH"
-  CANONICAL_WILL_RUN=1
-  print_step "Resetando banco de dados wapi_weaver (Fresh Install explicitamente solicitado)..."
-  docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u root -p"${MYSQL_ROOT_PASS_VAL}" -e "
-    DROP DATABASE IF EXISTS wapi_weaver;
-    CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
-    FLUSH PRIVILEGES;
-  " 2>/dev/null || docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -e "
-    DROP DATABASE IF EXISTS wapi_weaver;
-    CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-  "
-  print_ok "Banco de dados wapi_weaver resetado e recriado como novo."
 elif [ "$EXISTING_INSTALLATION" -eq 1 ]; then
   DB_MODE="UPDATE_EXISTING"
-  UPDATE_MODE=1
-  CANONICAL_WILL_RUN=0
-  print_warn "Banco de dados BLIV/WAPI existente detectado (${MIGRATION_COUNT} migração(ões) encontrada(s)). Alternando automaticamente para modo seguro UPDATE."
-elif [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
-  DB_MODE="RESTORE_DUMP"
-  CANONICAL_WILL_RUN=0
 else
   DB_MODE="NEW"
-  CANONICAL_WILL_RUN=1
 fi
+
+# Derivar sinalizadores operacionais estritamente de DB_MODE (Item 5)
+CANONICAL_WILL_RUN=0
+DUMP_WILL_IMPORT=0
+PARITY_POLICY="BLOCKING"
+
+case "$DB_MODE" in
+  UPDATE_EXISTING)
+    UPDATE_MODE=1
+    CANONICAL_WILL_RUN=0
+    DUMP_WILL_IMPORT=0
+    PARITY_POLICY="DIAGNOSTIC"
+    print_warn "Banco de dados BLIV/WAPI existente detectado (${MIGRATION_COUNT} migração(ões) encontrada(s)). Executando modo seguro UPDATE."
+    ;;
+  RESTORE_DUMP)
+    CANONICAL_WILL_RUN=0
+    DUMP_WILL_IMPORT=1
+    PARITY_POLICY="BLOCKING"
+    if [ "$EXISTING_INSTALLATION" -eq 1 ] || [ "$FRESH_DATABASE" -eq 1 ]; then
+      print_step "Resetando banco de dados para restauração de dump..."
+      docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u root -p"${MYSQL_ROOT_PASS_VAL}" -e "
+        DROP DATABASE IF EXISTS wapi_weaver;
+        CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
+        FLUSH PRIVILEGES;
+      " 2>/dev/null || docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -e "
+        DROP DATABASE IF EXISTS wapi_weaver;
+        CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      "
+      print_ok "Banco de dados resetado para importação de dump."
+    fi
+    ;;
+  FRESH)
+    CANONICAL_WILL_RUN=1
+    DUMP_WILL_IMPORT=0
+    PARITY_POLICY="BLOCKING"
+    print_step "Resetando banco de dados wapi_weaver (Fresh Install explicitamente solicitado)..."
+    docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u root -p"${MYSQL_ROOT_PASS_VAL}" -e "
+      DROP DATABASE IF EXISTS wapi_weaver;
+      CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      GRANT ALL PRIVILEGES ON wapi_weaver.* TO 'wapi_user'@'%';
+      FLUSH PRIVILEGES;
+    " 2>/dev/null || docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" -e "
+      DROP DATABASE IF EXISTS wapi_weaver;
+      CREATE DATABASE wapi_weaver CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    "
+    print_ok "Banco de dados wapi_weaver resetado e recriado como novo."
+    ;;
+  NEW)
+    CANONICAL_WILL_RUN=1
+    DUMP_WILL_IMPORT=0
+    PARITY_POLICY="BLOCKING"
+    ;;
+esac
 
 echo "=================================================="
 echo "  DATABASE MODE:            ${DB_MODE}"
 echo "  EXISTING DATABASE DETECTED: $( [ "${EXISTING_INSTALLATION}" -eq 1 ] && echo "YES" || echo "NO" )"
 echo "  CANONICAL WILL RUN:         $( [ "${CANONICAL_WILL_RUN}" -eq 1 ] && echo "YES" || echo "NO" )"
+echo "  DATABASE DUMP WILL IMPORT:  $( [ "${DUMP_WILL_IMPORT}" -eq 1 ] && echo "YES" || echo "NO" )"
+echo "  PARITY POLICY:              ${PARITY_POLICY}"
 echo "=================================================="
 
 create_database_schema() {
@@ -717,24 +762,27 @@ run_database_migrations() {
   print_ok "Migrações aplicadas com sucesso."
 }
 
-# 6.5 Execução do Banco por Modo
-if [ "$CANONICAL_WILL_RUN" -eq 1 ]; then
-  create_database_schema
-  run_database_migrations
-elif [ -n "$DATABASE_DUMP" ] && [ -f "$DATABASE_DUMP" ]; then
-  print_step "Importando dump do banco de dados (${DATABASE_DUMP})..."
-  if [[ "$DATABASE_DUMP" == *.gz ]]; then
-    gunzip -c "$DATABASE_DUMP" | docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver
-  else
-    docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver < "$DATABASE_DUMP"
-  fi
-  print_ok "Dump do banco importado com sucesso."
-  run_database_migrations
-else
-  # Modo UPDATE / EXISTING_INSTALLATION sem canonical
-  echo "  Executando fluxo de atualização (UPDATE)..."
-  run_database_migrations
-fi
+# 6.5 Execução do Banco por Modo (Single source of truth: DB_MODE)
+case "$DB_MODE" in
+  UPDATE_EXISTING)
+    echo "  Executando fluxo de atualização (UPDATE)..."
+    run_database_migrations
+    ;;
+  RESTORE_DUMP)
+    print_step "Importando dump do banco de dados (${DATABASE_DUMP})..."
+    if [[ "$DATABASE_DUMP" == *.gz ]]; then
+      gunzip -c "$DATABASE_DUMP" | docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver
+    else
+      docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver < "$DATABASE_DUMP"
+    fi
+    print_ok "Dump do banco importado com sucesso."
+    run_database_migrations
+    ;;
+  FRESH|NEW)
+    create_database_schema
+    run_database_migrations
+    ;;
+esac
 
 # Provisionar Administrador Master em container efêmero
 echo "  Provisionando Administrador Master (${ADMIN_EMAIL}) em container efêmero..."
@@ -750,7 +798,7 @@ if [ $? -ne 0 ]; then
   dump_diagnostics_and_exit "FALHA CRÍTICA: Validação essencial do banco de dados (validate-database.js) falhou."
 fi
 
-# Validar Paridade de Schema (BLOCKING no Fresh/New; DIAGNÓSTICO no UPDATE)
+# Validar Paridade de Schema (BLOCKING para NEW/FRESH/RESTORE_DUMP; DIAGNÓSTICO para UPDATE_EXISTING)
 echo "  Executando verificação de paridade de schema (validate-schema-parity.js)..."
 set +e
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-schema-parity.js
@@ -760,11 +808,11 @@ set -e
 if [ $PARITY_EXIT -eq 0 ]; then
   print_ok "Paridade estrita de schema passou com 100% de sucesso."
 else
-  if [ "$UPDATE_MODE" -eq 1 ] || [ "$EXISTING_INSTALLATION" -eq 1 ]; then
+  if [ "$PARITY_POLICY" == "DIAGNOSTIC" ]; then
     print_warn "AVISO: Desvio de paridade de schema legado detectado no modo UPDATE (Exit code: ${PARITY_EXIT})."
     print_warn "O UPDATE continuará pois a validação essencial do banco de dados (validate-database.js) PASSOU com sucesso."
   else
-    dump_diagnostics_and_exit "FALHA CRÍTICA: Paridade estrita de schema falhou em instalação limpa (Fresh/New)."
+    dump_diagnostics_and_exit "FALHA CRÍTICA: Paridade estrita de schema falhou no modo ${DB_MODE} (Exit code: ${PARITY_EXIT})."
   fi
 fi
 
