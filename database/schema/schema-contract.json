@@ -18,7 +18,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -29,7 +29,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -85,7 +85,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -205,8 +205,8 @@
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
-        "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "key": "MUL",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -348,8 +348,8 @@
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
-        "key": "MUL",
-        "extra": "DEFAULT_GENERATED",
+        "key": "",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -359,14 +359,14 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
       "idx_audit_logs_created": [
-        "created_at"
+        "created_at DESC"
       ],
       "idx_audit_logs_tenant": [
         "tenant_id"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -552,7 +552,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -572,25 +572,25 @@
       "id"
     ],
     "unique_indexes": {
-      "external_reference": [
-        "external_reference"
-      ],
       "invoice_number": [
         "invoice_number"
+      ],
+      "external_reference": [
+        "external_reference"
       ]
     },
     "indexes": {
+      "tenant_id": [
+        "tenant_id"
+      ],
       "customer_id": [
         "customer_id"
-      ],
-      "plan_id": [
-        "plan_id"
       ],
       "subscription_id": [
         "subscription_id"
       ],
-      "tenant_id": [
-        "tenant_id"
+      "plan_id": [
+        "plan_id"
       ]
     },
     "foreign_keys": [
@@ -683,7 +683,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": "mercadopago",
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -694,7 +694,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -853,30 +853,74 @@
         "charset": null,
         "collation": null
       },
-      "environment": {
+      "qr_code": {
         "ordinal_position": 22,
-        "data_type": "enum",
-        "column_type": "enum('sandbox','production')",
-        "nullable": false,
-        "default": "sandbox",
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
         "key": "",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "created_at": {
+      "qr_code_base64": {
         "ordinal_position": 23,
+        "data_type": "longtext",
+        "column_type": "longtext",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "ticket_url": {
+        "ordinal_position": 24,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "payload_json": {
+        "ordinal_position": 25,
+        "data_type": "json",
+        "column_type": "json",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "environment": {
+        "ordinal_position": 26,
+        "data_type": "enum",
+        "column_type": "enum('sandbox','production')",
+        "nullable": false,
+        "default": "sandbox",
+        "key": "UNI",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "created_at": {
+        "ordinal_position": 27,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
       "updated_at": {
-        "ordinal_position": 24,
+        "ordinal_position": 28,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -898,17 +942,17 @@
       ]
     },
     "indexes": {
+      "tenant_id": [
+        "tenant_id"
+      ],
       "customer_id": [
         "customer_id"
-      ],
-      "invoice_id": [
-        "invoice_id"
       ],
       "subscription_id": [
         "subscription_id"
       ],
-      "tenant_id": [
-        "tenant_id"
+      "invoice_id": [
+        "invoice_id"
       ]
     },
     "foreign_keys": [
@@ -984,8 +1028,19 @@
         "charset": null,
         "collation": null
       },
-      "currency": {
+      "price_cents": {
         "ordinal_position": 5,
+        "data_type": "int",
+        "column_type": "int",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "currency": {
+        "ordinal_position": 6,
         "data_type": "varchar",
         "column_type": "varchar(10)",
         "nullable": false,
@@ -995,8 +1050,19 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
+      "billing_cycle": {
+        "ordinal_position": 7,
+        "data_type": "varchar",
+        "column_type": "varchar(20)",
+        "nullable": false,
+        "default": "monthly",
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
       "billing_interval": {
-        "ordinal_position": 6,
+        "ordinal_position": 8,
         "data_type": "enum",
         "column_type": "enum('day','week','month','year')",
         "nullable": false,
@@ -1007,7 +1073,7 @@
         "collation": "utf8mb4_unicode_ci"
       },
       "billing_interval_count": {
-        "ordinal_position": 7,
+        "ordinal_position": 9,
         "data_type": "int",
         "column_type": "int",
         "nullable": false,
@@ -1018,7 +1084,7 @@
         "collation": null
       },
       "duration_days": {
-        "ordinal_position": 8,
+        "ordinal_position": 10,
         "data_type": "int",
         "column_type": "int",
         "nullable": false,
@@ -1028,8 +1094,30 @@
         "charset": null,
         "collation": null
       },
+      "trial_days": {
+        "ordinal_position": 11,
+        "data_type": "int",
+        "column_type": "int",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
       "features": {
-        "ordinal_position": 9,
+        "ordinal_position": 12,
+        "data_type": "json",
+        "column_type": "json",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "features_json": {
+        "ordinal_position": 13,
         "data_type": "json",
         "column_type": "json",
         "nullable": true,
@@ -1040,7 +1128,7 @@
         "collation": null
       },
       "is_active": {
-        "ordinal_position": 10,
+        "ordinal_position": 14,
         "data_type": "tinyint",
         "column_type": "tinyint(1)",
         "nullable": false,
@@ -1050,19 +1138,30 @@
         "charset": null,
         "collation": null
       },
+      "sort_order": {
+        "ordinal_position": 15,
+        "data_type": "int",
+        "column_type": "int",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
       "created_at": {
-        "ordinal_position": 11,
+        "ordinal_position": 16,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
       "updated_at": {
-        "ordinal_position": 12,
+        "ordinal_position": 17,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -1073,7 +1172,7 @@
         "collation": null
       },
       "subscription_plan_id": {
-        "ordinal_position": 13,
+        "ordinal_position": 18,
         "data_type": "varchar",
         "column_type": "varchar(36)",
         "nullable": true,
@@ -1121,7 +1220,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1132,7 +1231,7 @@
         "column_type": "enum('sandbox','production')",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1143,7 +1242,7 @@
         "column_type": "varchar(255)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1165,7 +1264,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1297,8 +1396,8 @@
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
-        "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "key": "MUL",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -1323,6 +1422,17 @@
         "extra": "",
         "charset": null,
         "collation": null
+      },
+      "created_at": {
+        "ordinal_position": 21,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
       }
     },
     "primary_key": [
@@ -1336,13 +1446,13 @@
       ]
     },
     "indexes": {
-      "idx_billing_webhook_resource": [
-        "provider",
-        "resource_id"
-      ],
       "idx_billing_webhook_status": [
         "status",
         "received_at"
+      ],
+      "idx_billing_webhook_resource": [
+        "provider",
+        "resource_id"
       ]
     },
     "foreign_keys": []
@@ -1377,7 +1487,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1388,7 +1498,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1399,7 +1509,7 @@
         "column_type": "varchar(50)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1422,7 +1532,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -1466,7 +1576,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -1557,7 +1667,7 @@
         "key": "PRI",
         "extra": "",
         "charset": "utf8mb4",
-        "collation": "utf8mb4_0900_ai_ci"
+        "collation": "utf8mb4_unicode_ci"
       },
       "tenant_id": {
         "ordinal_position": 2,
@@ -1568,7 +1678,7 @@
         "key": "",
         "extra": "",
         "charset": "utf8mb4",
-        "collation": "utf8mb4_0900_ai_ci"
+        "collation": "utf8mb4_unicode_ci"
       },
       "name": {
         "ordinal_position": 3,
@@ -1579,7 +1689,7 @@
         "key": "",
         "extra": "",
         "charset": "utf8mb4",
-        "collation": "utf8mb4_0900_ai_ci"
+        "collation": "utf8mb4_unicode_ci"
       },
       "channel": {
         "ordinal_position": 4,
@@ -1590,7 +1700,7 @@
         "key": "",
         "extra": "",
         "charset": "utf8mb4",
-        "collation": "utf8mb4_0900_ai_ci"
+        "collation": "utf8mb4_unicode_ci"
       },
       "is_active": {
         "ordinal_position": 5,
@@ -1643,7 +1753,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -1696,7 +1806,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1707,7 +1817,7 @@
         "column_type": "varchar(50)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -1741,7 +1851,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -1971,7 +2081,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -1981,17 +2091,17 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
+      "next_step_id": [
+        "next_step_id"
+      ],
       "idx_bot_step_options_step": [
         "step_id"
       ],
       "idx_bot_step_options_tenant": [
         "tenant_id"
-      ],
-      "next_step_id": [
-        "next_step_id"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -2222,7 +2332,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -2287,17 +2397,17 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
+      "next_step_id": [
+        "next_step_id"
+      ],
       "idx_bot_steps_settings": [
         "bot_settings_id"
       ],
       "idx_bot_steps_tenant": [
         "tenant_id"
-      ],
-      "next_step_id": [
-        "next_step_id"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -2406,7 +2516,7 @@
         "column_type": "datetime",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -2417,7 +2527,7 @@
         "column_type": "datetime",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -2605,7 +2715,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -2637,21 +2747,8 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "ds_agent_id": [
-        "ds_agent_id"
-      ],
-      "idx_calendar_contact": [
-        "contact_id"
-      ],
-      "idx_calendar_deleted": [
-        "deleted_at"
-      ],
-      "idx_calendar_team": [
-        "team_id"
-      ],
-      "idx_calendar_tenant_agent_start": [
+      "idx_calendar_tenant_start": [
         "tenant_id",
-        "ds_agent_id",
         "start_at"
       ],
       "idx_calendar_tenant_end": [
@@ -2663,15 +2760,28 @@
         "responsible_user_id",
         "start_at"
       ],
-      "idx_calendar_tenant_start": [
+      "idx_calendar_tenant_agent_start": [
         "tenant_id",
+        "ds_agent_id",
         "start_at"
+      ],
+      "idx_calendar_contact": [
+        "contact_id"
+      ],
+      "idx_calendar_team": [
+        "team_id"
+      ],
+      "idx_calendar_deleted": [
+        "deleted_at"
+      ],
+      "user_id": [
+        "user_id"
       ],
       "responsible_user_id": [
         "responsible_user_id"
       ],
-      "user_id": [
-        "user_id"
+      "ds_agent_id": [
+        "ds_agent_id"
       ]
     },
     "foreign_keys": [
@@ -2771,7 +2881,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -2868,7 +2978,7 @@
         "column_type": "enum('pending','sending','sent','delivered','read','failed')",
         "nullable": false,
         "default": "pending",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -3012,7 +3122,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -3022,21 +3132,21 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
       "contact_id": [
         "contact_id"
       ],
-      "idx_camp_msg_tenant": [
-        "tenant_id"
+      "idx_campaign_messages_wa_msg": [
+        "wa_message_id"
       ],
       "idx_campaign_messages_camp_status": [
         "campaign_id",
         "status"
       ],
-      "idx_campaign_messages_wa_msg": [
-        "wa_message_id"
-      ],
-      "user_id": [
-        "user_id"
+      "idx_camp_msg_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -3218,7 +3328,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -3239,8 +3349,8 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_campaigns_tenant": [
-        "tenant_id"
+      "user_id": [
+        "user_id"
       ],
       "list_id": [
         "list_id"
@@ -3248,8 +3358,8 @@
       "template_id": [
         "template_id"
       ],
-      "user_id": [
-        "user_id"
+      "idx_campaigns_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -3343,7 +3453,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -3375,14 +3485,14 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
       "contact_id": [
         "contact_id"
       ],
       "idx_chat_sessions_tenant": [
         "tenant_id"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -3410,7 +3520,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -3514,7 +3624,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -3535,11 +3645,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_contact_act_tenant": [
-        "tenant_id"
-      ],
       "idx_contact_activities_contact": [
         "contact_id"
+      ],
+      "idx_contact_act_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -3561,7 +3671,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -3576,7 +3686,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -3587,7 +3697,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -3598,7 +3708,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -3632,7 +3742,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -3659,8 +3769,8 @@
       ]
     },
     "indexes": {
-      "contact_id": [
-        "contact_id"
+      "idx_cfv_user": [
+        "user_id"
       ],
       "idx_cfv_contact": [
         "user_id",
@@ -3669,8 +3779,8 @@
       "idx_cfv_field": [
         "custom_field_id"
       ],
-      "idx_cfv_user": [
-        "user_id"
+      "contact_id": [
+        "contact_id"
       ]
     },
     "foreign_keys": [
@@ -3724,7 +3834,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -3746,7 +3856,7 @@
         "column_type": "varchar(100)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -3856,7 +3966,7 @@
         "column_type": "int",
         "nullable": false,
         "default": "0",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -3868,7 +3978,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -3894,15 +4004,15 @@
       ]
     },
     "indexes": {
+      "idx_cf_user": [
+        "user_id"
+      ],
       "idx_cf_active": [
         "is_active"
       ],
       "idx_cf_sort": [
         "user_id",
         "sort_order"
-      ],
-      "idx_cf_user": [
-        "user_id"
       ],
       "idx_contact_custom_fields_tenant": [
         "tenant_id"
@@ -4026,14 +4136,14 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_contact_tags_tenant": [
-        "tenant_id"
-      ],
       "tag_id": [
         "tag_id"
       ],
       "user_id": [
         "user_id"
+      ],
+      "idx_contact_tags_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -4093,7 +4203,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4104,7 +4214,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4148,7 +4258,7 @@
         "column_type": "tinyint(1)",
         "nullable": false,
         "default": "0",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -4171,7 +4281,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -4247,7 +4357,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": "whatsapp",
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4258,7 +4368,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4269,7 +4379,7 @@
         "column_type": "varchar(50)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4291,7 +4401,7 @@
         "column_type": "varchar(36)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4302,7 +4412,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4390,7 +4500,7 @@
         "column_type": "varchar(50)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4400,20 +4510,36 @@
       "id"
     ],
     "unique_indexes": {
+      "uq_user_contact": [
+        "user_id",
+        "phone_e164"
+      ],
       "uq_contact_channel_external": [
         "user_id",
         "channel",
         "external_contact_id"
-      ],
-      "uq_user_contact": [
-        "user_id",
-        "phone_e164"
       ]
     },
     "indexes": {
+      "idx_contacts_user_opted": [
+        "user_id",
+        "opted_out"
+      ],
       "idx_contacts_channel_external": [
         "channel",
         "external_contact_id"
+      ],
+      "idx_contacts_user_channel": [
+        "user_id",
+        "channel"
+      ],
+      "idx_contacts_source_type": [
+        "user_id",
+        "source_type"
+      ],
+      "idx_contacts_source_id": [
+        "user_id",
+        "source_id"
       ],
       "idx_contacts_external_id": [
         "user_id",
@@ -4423,24 +4549,8 @@
         "user_id",
         "normalized_phone"
       ],
-      "idx_contacts_source_id": [
-        "user_id",
-        "source_id"
-      ],
-      "idx_contacts_source_type": [
-        "user_id",
-        "source_type"
-      ],
       "idx_contacts_tenant": [
         "tenant_id"
-      ],
-      "idx_contacts_user_channel": [
-        "user_id",
-        "channel"
-      ],
-      "idx_contacts_user_opted": [
-        "user_id",
-        "opted_out"
       ]
     },
     "foreign_keys": [
@@ -4544,7 +4654,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -4576,6 +4686,12 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
+      "team_id": [
+        "team_id"
+      ],
       "agent_id": [
         "agent_id"
       ],
@@ -4584,12 +4700,6 @@
       ],
       "idx_conversation_assignments_tenant": [
         "tenant_id"
-      ],
-      "team_id": [
-        "team_id"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -4712,7 +4822,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4723,7 +4833,7 @@
         "column_type": "varchar(100)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4768,7 +4878,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -4822,7 +4932,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4833,7 +4943,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4877,7 +4987,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4922,7 +5032,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -4932,7 +5042,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": "whatsapp",
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4943,7 +5053,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -4954,7 +5064,7 @@
         "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -5124,7 +5234,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -5145,11 +5255,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "agent_id": [
-        "agent_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "agent_id": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5186,7 +5296,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -5208,7 +5318,7 @@
         "column_type": "tinyint",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": null,
         "collation": null
@@ -5257,11 +5367,11 @@
       ]
     },
     "indexes": {
-      "idx_ds_cal_agent": [
-        "agent_id"
-      ],
       "idx_ds_cal_tenant": [
         "tenant_id"
+      ],
+      "idx_ds_cal_agent": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5315,7 +5425,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -5457,7 +5567,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -5467,11 +5577,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_ds_follow_agent": [
-        "agent_id"
-      ],
       "idx_ds_follow_tenant": [
         "tenant_id"
+      ],
+      "idx_ds_follow_agent": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5569,7 +5679,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -5590,11 +5700,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "agent_id": [
-        "agent_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "agent_id": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5709,7 +5819,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -5719,11 +5829,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_ds_files_agent": [
-        "agent_id"
-      ],
       "idx_ds_files_tenant": [
         "tenant_id"
+      ],
+      "idx_ds_files_agent": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5799,7 +5909,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -5809,11 +5919,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_ds_links_agent": [
-        "agent_id"
-      ],
       "idx_ds_links_tenant": [
         "tenant_id"
+      ],
+      "idx_ds_links_agent": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5900,7 +6010,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -5910,11 +6020,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "agent_id": [
-        "agent_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "agent_id": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -5996,7 +6106,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -6017,11 +6127,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "agent_id": [
-        "agent_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "agent_id": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -6147,7 +6257,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -6168,11 +6278,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "agent_id": [
-        "agent_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "agent_id": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -6225,8 +6335,19 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "name": {
+      "tool_key": {
         "ordinal_position": 4,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "name": {
+        "ordinal_position": 5,
         "data_type": "varchar",
         "column_type": "varchar(255)",
         "nullable": false,
@@ -6237,7 +6358,7 @@
         "collation": "utf8mb4_unicode_ci"
       },
       "description": {
-        "ordinal_position": 5,
+        "ordinal_position": 6,
         "data_type": "text",
         "column_type": "text",
         "nullable": true,
@@ -6248,7 +6369,7 @@
         "collation": "utf8mb4_unicode_ci"
       },
       "permissions": {
-        "ordinal_position": 6,
+        "ordinal_position": 7,
         "data_type": "json",
         "column_type": "json",
         "nullable": true,
@@ -6259,17 +6380,6 @@
         "collation": null
       },
       "require_confirmation": {
-        "ordinal_position": 7,
-        "data_type": "tinyint",
-        "column_type": "tinyint(1)",
-        "nullable": true,
-        "default": "1",
-        "key": "",
-        "extra": "",
-        "charset": null,
-        "collation": null
-      },
-      "is_active": {
         "ordinal_position": 8,
         "data_type": "tinyint",
         "column_type": "tinyint(1)",
@@ -6280,19 +6390,52 @@
         "charset": null,
         "collation": null
       },
-      "created_at": {
+      "is_active": {
         "ordinal_position": 9,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "enabled": {
+        "ordinal_position": 10,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "config": {
+        "ordinal_position": 11,
+        "data_type": "json",
+        "column_type": "json",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "created_at": {
+        "ordinal_position": 12,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
       "updated_at": {
-        "ordinal_position": 10,
+        "ordinal_position": 13,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": true,
@@ -6308,11 +6451,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "agent_id": [
-        "agent_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "agent_id": [
+        "agent_id"
       ]
     },
     "foreign_keys": [
@@ -6438,7 +6581,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -6448,14 +6591,14 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "tenant_id": [
+        "tenant_id"
+      ],
       "agent_id": [
         "agent_id"
       ],
       "session_id": [
         "session_id"
-      ],
-      "tenant_id": [
-        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -6576,7 +6719,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "MUL",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -6586,14 +6729,14 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "idx_ds_usage_tenant": [
+        "tenant_id"
+      ],
       "idx_ds_usage_agent": [
         "agent_id"
       ],
       "idx_ds_usage_created": [
         "created_at"
-      ],
-      "idx_ds_usage_tenant": [
-        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -6823,7 +6966,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -6903,6 +7046,28 @@
         "extra": "",
         "charset": null,
         "collation": null
+      },
+      "prompt": {
+        "ordinal_position": 28,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "is_active": {
+        "ordinal_position": 29,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
       }
     },
     "primary_key": [
@@ -6910,11 +7075,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "folder_id": [
-        "folder_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "folder_id": [
+        "folder_id"
       ]
     },
     "foreign_keys": [
@@ -7051,7 +7216,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7142,7 +7307,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -7218,7 +7383,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7256,7 +7421,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -7293,7 +7458,7 @@
         "column_type": "enum('success','error')",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -7316,7 +7481,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7337,7 +7502,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -7469,8 +7634,8 @@
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
-        "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "key": "MUL",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7487,7 +7652,7 @@
       },
       "processing_duration_ms": {
         "ordinal_position": 22,
-        "data_type": "int",
+        "data_type": "int unsigned",
         "column_type": "int unsigned",
         "nullable": true,
         "default": null,
@@ -7516,23 +7681,23 @@
       "idx_incoming_webhook_events_webhook": [
         "incoming_webhook_id"
       ],
-      "idx_iwe_contact": [
-        "contact_id"
-      ],
-      "idx_iwe_received": [
-        "user_id",
-        "received_at"
-      ],
-      "idx_iwe_status": [
-        "user_id",
-        "status"
-      ],
       "idx_iwe_user": [
         "user_id"
       ],
       "idx_iwe_webhook": [
         "user_id",
         "webhook_id"
+      ],
+      "idx_iwe_contact": [
+        "contact_id"
+      ],
+      "idx_iwe_status": [
+        "user_id",
+        "status"
+      ],
+      "idx_iwe_received": [
+        "user_id",
+        "received_at"
       ]
     },
     "foreign_keys": [
@@ -7641,7 +7806,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7677,11 +7842,11 @@
       ]
     },
     "indexes": {
-      "idx_incoming_webhooks_tenant": [
-        "tenant_id"
-      ],
       "idx_incoming_webhooks_token": [
         "token"
+      ],
+      "idx_incoming_webhooks_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -7779,7 +7944,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7870,7 +8035,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -7957,7 +8122,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -7978,11 +8143,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "ai_agent_settings_id": [
-        "ai_agent_settings_id"
-      ],
       "user_id": [
         "user_id"
+      ],
+      "ai_agent_settings_id": [
+        "ai_agent_settings_id"
       ]
     },
     "foreign_keys": [
@@ -8004,7 +8169,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -8015,11 +8180,11 @@
       },
       "license_id": {
         "ordinal_position": 2,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": null,
         "collation": null
@@ -8030,7 +8195,7 @@
         "column_type": "varchar(190)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -8052,7 +8217,7 @@
         "column_type": "varchar(120)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -8119,7 +8284,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -8311,7 +8476,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -8338,7 +8503,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -8349,7 +8514,7 @@
       },
       "license_id": {
         "ordinal_position": 2,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": true,
         "default": null,
@@ -8453,7 +8618,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "MUL",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -8463,11 +8628,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_license_logs_created_at": [
-        "created_at"
-      ],
       "idx_license_logs_license_id": [
         "license_id"
+      ],
+      "idx_license_logs_created_at": [
+        "created_at"
       ]
     },
     "foreign_keys": []
@@ -8476,7 +8641,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -8635,7 +8800,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -8707,11 +8872,11 @@
       ]
     },
     "indexes": {
-      "idx_licenses_app_id": [
-        "app_id"
-      ],
       "idx_licenses_status": [
         "status"
+      ],
+      "idx_licenses_app_id": [
+        "app_id"
       ],
       "idx_licenses_tenant_id": [
         "tenant_id"
@@ -8761,7 +8926,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -8786,11 +8951,11 @@
       "contact_id": [
         "contact_id"
       ],
-      "idx_list_contacts_tenant": [
-        "tenant_id"
-      ],
       "user_id": [
         "user_id"
+      ],
+      "idx_list_contacts_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -8884,7 +9049,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -8905,11 +9070,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_lists_tenant": [
-        "tenant_id"
-      ],
       "user_id": [
         "user_id"
+      ],
+      "idx_lists_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -9108,7 +9273,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -9350,7 +9515,7 @@
         "column_type": "enum('open','won','lost','paused','archived')",
         "nullable": false,
         "default": "open",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -9416,7 +9581,7 @@
         "column_type": "decimal(20,10)",
         "nullable": false,
         "default": "0.0000000000",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -9450,7 +9615,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -9482,17 +9647,20 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "created_by_user_id": [
-        "created_by_user_id"
-      ],
       "funnel_id": [
         "funnel_id"
       ],
-      "idx_opportunities_deleted": [
-        "deleted_at"
+      "stage_id": [
+        "stage_id"
       ],
-      "idx_opportunities_expected_close": [
-        "expected_close_date"
+      "created_by_user_id": [
+        "created_by_user_id"
+      ],
+      "updated_by_user_id": [
+        "updated_by_user_id"
+      ],
+      "lost_reason_id": [
+        "lost_reason_id"
       ],
       "idx_opportunities_funnel_stage_order": [
         "user_id",
@@ -9500,11 +9668,9 @@
         "stage_id",
         "kanban_order"
       ],
-      "idx_opportunities_last_act": [
-        "last_activity_at"
-      ],
-      "idx_opportunities_next_act": [
-        "next_activity_at"
+      "idx_opportunities_status": [
+        "user_id",
+        "status"
       ],
       "idx_opportunities_owner": [
         "owner_user_id"
@@ -9512,21 +9678,20 @@
       "idx_opportunities_primary_contact": [
         "primary_contact_id"
       ],
-      "idx_opportunities_status": [
-        "user_id",
-        "status"
+      "idx_opportunities_expected_close": [
+        "expected_close_date"
+      ],
+      "idx_opportunities_last_act": [
+        "last_activity_at"
+      ],
+      "idx_opportunities_next_act": [
+        "next_activity_at"
+      ],
+      "idx_opportunities_deleted": [
+        "deleted_at"
       ],
       "idx_opportunities_tenant": [
         "tenant_id"
-      ],
-      "lost_reason_id": [
-        "lost_reason_id"
-      ],
-      "stage_id": [
-        "stage_id"
-      ],
-      "updated_by_user_id": [
-        "updated_by_user_id"
       ]
     },
     "foreign_keys": [
@@ -9727,7 +9892,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -9759,26 +9924,26 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "assigned_to_user_id": [
-        "assigned_to_user_id"
+      "user_id": [
+        "user_id"
       ],
       "contact_id": [
         "contact_id"
       ],
+      "assigned_to_user_id": [
+        "assigned_to_user_id"
+      ],
       "created_by_user_id": [
         "created_by_user_id"
-      ],
-      "idx_opt_activities_due": [
-        "due_at"
       ],
       "idx_opt_activities_opp": [
         "opportunity_id"
       ],
+      "idx_opt_activities_due": [
+        "due_at"
+      ],
       "idx_opt_activities_status": [
         "status"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -9933,7 +10098,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "MUL",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -9943,20 +10108,20 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_opt_audit_created": [
-        "created_at"
-      ],
-      "idx_opt_audit_opp": [
-        "opportunity_id"
-      ],
-      "idx_opt_audit_tenant": [
-        "tenant_id"
-      ],
       "user_id": [
         "user_id"
       ],
       "user_id_actor": [
         "user_id_actor"
+      ],
+      "idx_opt_audit_opp": [
+        "opportunity_id"
+      ],
+      "idx_opt_audit_created": [
+        "created_at"
+      ],
+      "idx_opt_audit_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -10027,7 +10192,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -10038,7 +10203,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -10060,7 +10225,7 @@
         "column_type": "tinyint(1)",
         "nullable": false,
         "default": "0",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -10083,7 +10248,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -10109,8 +10274,8 @@
       ]
     },
     "indexes": {
-      "idx_opportunity_contacts_tenant": [
-        "tenant_id"
+      "user_id": [
+        "user_id"
       ],
       "idx_opt_contacts_contact": [
         "contact_id"
@@ -10119,8 +10284,8 @@
         "opportunity_id",
         "is_primary"
       ],
-      "user_id": [
-        "user_id"
+      "idx_opportunity_contacts_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -10180,7 +10345,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -10191,7 +10356,7 @@
         "column_type": "varchar(150)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -10236,7 +10401,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -10356,7 +10521,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -10388,17 +10553,17 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_opt_notes_opp": [
-        "opportunity_id"
-      ],
-      "idx_opt_notes_pinned": [
-        "is_pinned"
-      ],
       "user_id": [
         "user_id"
       ],
       "user_id_creator": [
         "user_id_creator"
+      ],
+      "idx_opt_notes_opp": [
+        "opportunity_id"
+      ],
+      "idx_opt_notes_pinned": [
+        "is_pinned"
       ]
     },
     "foreign_keys": [
@@ -10519,7 +10684,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "MUL",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -10562,11 +10727,20 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
       "from_stage_id": [
         "from_stage_id"
       ],
-      "idx_opportunity_stage_history_tenant": [
-        "tenant_id"
+      "to_stage_id": [
+        "to_stage_id"
+      ],
+      "moved_by_user_id": [
+        "moved_by_user_id"
+      ],
+      "idx_stage_history_opp": [
+        "opportunity_id"
       ],
       "idx_stage_history_funnel": [
         "funnel_id"
@@ -10574,17 +10748,8 @@
       "idx_stage_history_moved": [
         "moved_at"
       ],
-      "idx_stage_history_opp": [
-        "opportunity_id"
-      ],
-      "moved_by_user_id": [
-        "moved_by_user_id"
-      ],
-      "to_stage_id": [
-        "to_stage_id"
-      ],
-      "user_id": [
-        "user_id"
+      "idx_opportunity_stage_history_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -10706,7 +10871,7 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "bigint",
+        "data_type": "bigint unsigned",
         "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
@@ -10799,7 +10964,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -10897,7 +11062,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -11072,7 +11237,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -11209,7 +11374,7 @@
         "column_type": "int",
         "nullable": false,
         "default": "0",
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -11232,7 +11397,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -11253,12 +11418,12 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "created_by": [
-        "created_by"
-      ],
       "idx_pb_active_order": [
         "is_active",
         "display_order"
+      ],
+      "created_by": [
+        "created_by"
       ]
     },
     "foreign_keys": [
@@ -11707,7 +11872,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -11789,7 +11954,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -11811,7 +11976,7 @@
         "column_type": "varchar(180)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -11889,7 +12054,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -11929,11 +12094,11 @@
       "created_by_user_id": [
         "created_by_user_id"
       ],
-      "idx_sales_funnels_tenant": [
-        "tenant_id"
-      ],
       "updated_by_user_id": [
         "updated_by_user_id"
+      ],
+      "idx_sales_funnels_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -12004,7 +12169,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -12026,7 +12191,7 @@
         "column_type": "varchar(180)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -12137,7 +12302,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -12174,17 +12339,17 @@
       ]
     },
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
       "created_by_user_id": [
         "created_by_user_id"
-      ],
-      "idx_sales_stages_tenant": [
-        "tenant_id"
       ],
       "updated_by_user_id": [
         "updated_by_user_id"
       ],
-      "user_id": [
-        "user_id"
+      "idx_sales_stages_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -12239,7 +12404,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -12250,7 +12415,7 @@
         "column_type": "varchar(100)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -12361,7 +12526,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -12460,7 +12625,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -12584,19 +12749,63 @@
         "charset": null,
         "collation": null
       },
-      "created_at": {
+      "source": {
         "ordinal_position": 10,
+        "data_type": "varchar",
+        "column_type": "varchar(50)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "gateway_event_id": {
+        "ordinal_position": 11,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "payload_json": {
+        "ordinal_position": 12,
+        "data_type": "json",
+        "column_type": "json",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "raw_payload": {
+        "ordinal_position": 13,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "created_at": {
+        "ordinal_position": 14,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
       "created_by": {
-        "ordinal_position": 11,
+        "ordinal_position": 15,
         "data_type": "varchar",
         "column_type": "varchar(36)",
         "nullable": true,
@@ -12612,11 +12821,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "subscription_id": [
-        "subscription_id"
-      ],
       "tenant_id": [
         "tenant_id"
+      ],
+      "subscription_id": [
+        "subscription_id"
       ]
     },
     "foreign_keys": [
@@ -12708,7 +12917,7 @@
         "column_type": "datetime",
         "nullable": true,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": null,
         "collation": null
@@ -12720,7 +12929,7 @@
         "nullable": true,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -12730,15 +12939,15 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_plan_changes_effective": [
-        "effective_date",
-        "applied_at"
+      "idx_plan_changes_tenant": [
+        "tenant_id"
       ],
       "idx_plan_changes_sub": [
         "subscription_id"
       ],
-      "idx_plan_changes_tenant": [
-        "tenant_id"
+      "idx_plan_changes_effective": [
+        "effective_date",
+        "applied_at"
       ]
     },
     "foreign_keys": []
@@ -12851,7 +13060,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -13045,19 +13254,85 @@
         "charset": null,
         "collation": null
       },
-      "created_at": {
+      "current_period_start": {
         "ordinal_position": 13,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "current_period_end": {
+        "ordinal_position": 14,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "trial_started_at": {
+        "ordinal_position": 15,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "trial_ends_at": {
+        "ordinal_position": 16,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "trial_consumed_at": {
+        "ordinal_position": 17,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "activated_at": {
+        "ordinal_position": 18,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "created_at": {
+        "ordinal_position": 19,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
       "updated_at": {
-        "ordinal_position": 14,
+        "ordinal_position": 20,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -13135,7 +13410,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13146,7 +13421,7 @@
         "column_type": "varchar(255)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13169,7 +13444,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -13233,7 +13508,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13244,7 +13519,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13267,7 +13542,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -13376,7 +13651,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -13386,11 +13661,11 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_teams_tenant": [
-        "tenant_id"
-      ],
       "user_id": [
         "user_id"
+      ],
+      "idx_teams_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -13438,7 +13713,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13449,7 +13724,7 @@
         "column_type": "varchar(255)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13460,7 +13735,7 @@
         "column_type": "varchar(50)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13479,7 +13754,7 @@
       "status": {
         "ordinal_position": 7,
         "data_type": "enum",
-        "column_type": "enum('APPROVED','PENDING','REJECTED','PAUSED','DISABLED')",
+        "column_type": "enum('approved','pending','rejected','paused','disabled')",
         "nullable": false,
         "default": "PENDING",
         "key": "",
@@ -13516,7 +13791,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -13670,7 +13945,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -13735,7 +14010,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -13814,7 +14089,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13859,7 +14134,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -13889,8 +14164,19 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "user_id": {
+      "tenant_id": {
         "ordinal_position": 2,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "user_id": {
+        "ordinal_position": 3,
         "data_type": "varchar",
         "column_type": "varchar(36)",
         "nullable": true,
@@ -13901,7 +14187,7 @@
         "collation": "utf8mb4_unicode_ci"
       },
       "source": {
-        "ordinal_position": 3,
+        "ordinal_position": 4,
         "data_type": "varchar",
         "column_type": "varchar(100)",
         "nullable": false,
@@ -13911,8 +14197,19 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
+      "event_type": {
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": false,
+        "default": "generic",
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
       "raw": {
-        "ordinal_position": 4,
+        "ordinal_position": 6,
         "data_type": "json",
         "column_type": "json",
         "nullable": false,
@@ -13922,8 +14219,19 @@
         "charset": null,
         "collation": null
       },
+      "payload_json": {
+        "ordinal_position": 7,
+        "data_type": "json",
+        "column_type": "json",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
       "processed": {
-        "ordinal_position": 5,
+        "ordinal_position": 8,
         "data_type": "tinyint",
         "column_type": "tinyint(1)",
         "nullable": false,
@@ -13933,14 +14241,47 @@
         "charset": null,
         "collation": null
       },
-      "received_at": {
-        "ordinal_position": 6,
+      "status": {
+        "ordinal_position": 9,
+        "data_type": "varchar",
+        "column_type": "varchar(50)",
+        "nullable": false,
+        "default": "pending",
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "error_message": {
+        "ordinal_position": 10,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "created_at": {
+        "ordinal_position": 11,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "received_at": {
+        "ordinal_position": 12,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "key": "MUL",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -13950,12 +14291,12 @@
     ],
     "unique_indexes": {},
     "indexes": {
+      "user_id": [
+        "user_id"
+      ],
       "idx_webhook_events_processed": [
         "processed",
         "received_at"
-      ],
-      "user_id": [
-        "user_id"
       ]
     },
     "foreign_keys": [
@@ -13986,7 +14327,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -13997,7 +14338,7 @@
         "column_type": "varchar(36)",
         "nullable": false,
         "default": null,
-        "key": "MUL",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -14008,7 +14349,7 @@
         "column_type": "varchar(255)",
         "nullable": false,
         "default": null,
-        "key": "",
+        "key": "UNI",
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
@@ -14086,7 +14427,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -14113,18 +14454,18 @@
       ]
     },
     "indexes": {
-      "idx_wfm_custom_field": [
-        "custom_field_id"
-      ],
-      "idx_wfm_target_type": [
-        "target_type"
-      ],
       "idx_wfm_user": [
         "user_id"
       ],
       "idx_wfm_webhook": [
         "user_id",
         "webhook_id"
+      ],
+      "idx_wfm_target_type": [
+        "target_type"
+      ],
+      "idx_wfm_custom_field": [
+        "custom_field_id"
       ],
       "webhook_id": [
         "webhook_id"
@@ -14281,7 +14622,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -14302,16 +14643,16 @@
     ],
     "unique_indexes": {},
     "indexes": {
-      "idx_wab_logs_tenant": [
-        "tenant_id"
+      "idx_wab_profile_logs_user_created": [
+        "user_id",
+        "created_at DESC"
       ],
       "idx_wab_profile_logs_phone_created": [
         "phone_number_id",
-        "created_at"
+        "created_at DESC"
       ],
-      "idx_wab_profile_logs_user_created": [
-        "user_id",
-        "created_at"
+      "idx_wab_logs_tenant": [
+        "tenant_id"
       ]
     },
     "foreign_keys": [
@@ -14404,7 +14745,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       }
@@ -14535,7 +14876,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -14670,7 +15011,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },
@@ -14812,7 +15153,7 @@
         "nullable": false,
         "default": "CURRENT_TIMESTAMP",
         "key": "",
-        "extra": "DEFAULT_GENERATED",
+        "extra": "",
         "charset": null,
         "collation": null
       },

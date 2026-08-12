@@ -27,7 +27,12 @@ if (fs.existsSync(dotenvPath)) {
 
 async function main() {
   const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || "adminmaster123";
+  const adminPassword = (process.env.ADMIN_PASSWORD || "").trim();
+
+  if (!adminPassword) {
+    console.error("[Provision Admin] ❌ CRITICAL: ADMIN_PASSWORD environment variable is missing or empty!");
+    process.exit(1);
+  }
 
   console.log(`[Provision Admin] Provisioning master admin user: ${adminEmail}`);
 

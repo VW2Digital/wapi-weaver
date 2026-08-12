@@ -500,6 +500,36 @@ REDIS_PASS_VAL=$(grep '^REDIS_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' 
 MP_ENC_KEY_VAL=$(grep '^MERCADOPAGO_ENCRYPTION_KEY=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 [ -n "${MP_ENC_KEY_VAL}" ] || MP_ENC_KEY_VAL=$(openssl rand -hex 32)
 
+# Preservar DOMAIN, ADMIN_EMAIL e ADMIN_PASSWORD no modo UPDATE (ou se não informados interativamente)
+if [ -z "${DOMAIN}" ]; then
+  DOMAIN=$(grep '^CORS_ALLOWED_ORIGINS=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
+  [ -n "${DOMAIN}" ] || DOMAIN=$(grep '^APP_URL=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
+fi
+
+if [ -z "${ADMIN_EMAIL}" ]; then
+  ADMIN_EMAIL=$(grep '^ADMIN_EMAIL=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+fi
+
+if [ -z "${ADMIN_PASSWORD}" ]; then
+  ADMIN_PASSWORD=$(grep '^ADMIN_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+fi
+
+# Validação estrita dos parâmetros obrigatórios antes de sobrescrever o .env
+if [ -z "${DOMAIN}" ]; then
+  print_error "FALHA CRÍTICA: O domínio (DOMAIN) está vazio e não pôde ser restaurado do .env existente."
+  exit 1
+fi
+
+if [ -z "${ADMIN_EMAIL}" ]; then
+  print_error "FALHA CRÍTICA: O e-mail do admin (ADMIN_EMAIL) está vazio e não pôde ser restaurado do .env existente."
+  exit 1
+fi
+
+if [ -z "${ADMIN_PASSWORD}" ]; then
+  print_error "FALHA CRÍTICA: A senha do admin (ADMIN_PASSWORD) está vazia e não pôde ser restaurada do .env existente."
+  exit 1
+fi
+
 # Gravar o arquivo .env
 cat > "${ENV_FILE}" <<EOF
 # Configuração do Banco de Dados (MySQL)

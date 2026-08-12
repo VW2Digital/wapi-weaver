@@ -74,6 +74,10 @@
     "approved_at",
     "expires_at",
     "raw_response",
+    "qr_code",
+    "qr_code_base64",
+    "ticket_url",
+    "payload_json",
     "environment",
     "created_at",
     "updated_at"
@@ -83,12 +87,17 @@
     "name",
     "description",
     "price",
+    "price_cents",
     "currency",
+    "billing_cycle",
     "billing_interval",
     "billing_interval_count",
     "duration_days",
+    "trial_days",
     "features",
+    "features_json",
     "is_active",
+    "sort_order",
     "created_at",
     "updated_at",
     "subscription_plan_id"
@@ -113,7 +122,8 @@
     "provider_created_at",
     "received_at",
     "processing_started_at",
-    "processed_at"
+    "processed_at",
+    "created_at"
   ],
   "bot_conversation_state": [
     "id",
@@ -519,11 +529,14 @@
     "id",
     "tenant_id",
     "agent_id",
+    "tool_key",
     "name",
     "description",
     "permissions",
     "require_confirmation",
     "is_active",
+    "enabled",
+    "config",
     "created_at",
     "updated_at"
   ],
@@ -577,7 +590,9 @@
     "mode",
     "reply_with_assigned_agent",
     "split_replies_in_blocks",
-    "disabled_outside_platform"
+    "disabled_outside_platform",
+    "prompt",
+    "is_active"
   ],
   "facebook_pages": [
     "id",
@@ -1054,6 +1069,10 @@
     "invoice_id",
     "payment_id",
     "metadata",
+    "source",
+    "gateway_event_id",
+    "payload_json",
+    "raw_payload",
     "created_at",
     "created_by"
   ],
@@ -1096,6 +1115,12 @@
     "last_payment_at",
     "next_billing_at",
     "auto_renew",
+    "current_period_start",
+    "current_period_end",
+    "trial_started_at",
+    "trial_ends_at",
+    "trial_consumed_at",
+    "activated_at",
     "created_at",
     "updated_at"
   ],
@@ -1169,10 +1194,16 @@
   ],
   "webhook_events": [
     "id",
+    "tenant_id",
     "user_id",
     "source",
+    "event_type",
     "raw",
+    "payload_json",
     "processed",
+    "status",
+    "error_message",
+    "created_at",
     "received_at"
   ],
   "webhook_field_mappings": [
