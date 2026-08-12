@@ -61,7 +61,11 @@ function main() {
     },
     {
       table: "subscription_plans",
-      columns: ["id", "name", "slug", "description", "price", "currency", "features_json", "is_active", "created_at", "updated_at"],
+      columns: ["id", "name", "slug", "description", "max_agents", "max_funnels", "max_users", "features_json", "is_active", "created_at", "updated_at", "stripe_product_id", "stripe_price_id", "max_ai_tokens"],
+    },
+    {
+      table: "billing_plans",
+      columns: ["id", "name", "description", "price", "price_cents", "currency", "billing_cycle", "duration_days", "trial_days", "features_json", "is_active", "sort_order"],
     },
   ];
 

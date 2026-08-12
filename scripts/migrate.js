@@ -56,8 +56,50 @@ async function ensureRuntimeSchemaAlignment(connection) {
 
   await ensureColumnExists(connection, "webhook_events", "processed", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumnExists(connection, "webhook_events", "received_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "webhook_events", "tenant_id", "VARCHAR(36) NULL");
+  await ensureColumnExists(connection, "webhook_events", "event_type", "VARCHAR(100) NULL");
+  await ensureColumnExists(connection, "webhook_events", "payload_json", "JSON NULL");
+  await ensureColumnExists(connection, "webhook_events", "status", "VARCHAR(50) NULL");
+  await ensureColumnExists(connection, "webhook_events", "error_message", "TEXT NULL");
+  await ensureColumnExists(connection, "webhook_events", "created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
 
   await ensureColumnExists(connection, "licenses", "tenant_id", "VARCHAR(36) NULL UNIQUE");
+
+  // Subscriptions & Billing
+  await ensureColumnExists(connection, "subscriptions", "current_period_start", "DATETIME NULL");
+  await ensureColumnExists(connection, "subscriptions", "current_period_end", "DATETIME NULL");
+  await ensureColumnExists(connection, "subscriptions", "trial_started_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "subscriptions", "trial_ends_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "subscriptions", "trial_consumed_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "subscriptions", "activated_at", "DATETIME NULL");
+
+  await ensureColumnExists(connection, "subscription_events", "source", "VARCHAR(50) NULL");
+  await ensureColumnExists(connection, "subscription_events", "gateway_event_id", "VARCHAR(255) NULL");
+  await ensureColumnExists(connection, "subscription_events", "payload_json", "JSON NULL");
+  await ensureColumnExists(connection, "subscription_events", "raw_payload", "TEXT NULL");
+
+  await ensureColumnExists(connection, "billing_payments", "qr_code", "TEXT NULL");
+  await ensureColumnExists(connection, "billing_payments", "qr_code_base64", "LONGTEXT NULL");
+  await ensureColumnExists(connection, "billing_payments", "ticket_url", "TEXT NULL");
+  await ensureColumnExists(connection, "billing_payments", "payload_json", "JSON NULL");
+
+  await ensureColumnExists(connection, "billing_webhook_events", "created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
+
+  await ensureColumnExists(connection, "billing_plans", "billing_cycle", "VARCHAR(20) NOT NULL DEFAULT 'monthly'");
+  await ensureColumnExists(connection, "billing_plans", "price_cents", "INT NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "billing_plans", "currency", "VARCHAR(10) NOT NULL DEFAULT 'BRL'");
+  await ensureColumnExists(connection, "billing_plans", "trial_days", "INT NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "billing_plans", "is_active", "TINYINT(1) NOT NULL DEFAULT 1");
+  await ensureColumnExists(connection, "billing_plans", "sort_order", "INT NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "billing_plans", "features_json", "JSON NULL");
+
+  // DS Agent
+  await ensureColumnExists(connection, "ds_agents", "prompt", "TEXT NULL");
+  await ensureColumnExists(connection, "ds_agents", "is_active", "TINYINT(1) NOT NULL DEFAULT 1");
+
+  await ensureColumnExists(connection, "ds_agent_tools", "tool_key", "VARCHAR(100) NOT NULL DEFAULT 'tool'");
+  await ensureColumnExists(connection, "ds_agent_tools", "enabled", "TINYINT(1) NOT NULL DEFAULT 1");
+  await ensureColumnExists(connection, "ds_agent_tools", "config", "JSON NULL");
 }
 
 async function runMigrations() {
