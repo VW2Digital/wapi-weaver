@@ -65,8 +65,13 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago")(
           const body = (await request.json()) as Record<string, unknown>;
           const environment = body.environment === "production" ? "production" : "sandbox";
           const checkoutMode = body.checkout_mode === "transparent" ? "transparent" : "redirect";
-          const current = await getGlobalMercadoPagoRow(adminUser.userId);
-          const targetTenantId = current?.tenant_id || adminUser.userId;
+          // Platform billing config MUST always be identified by 'global', not by admin user ID
+          const targetTenantId = "global";
+          const globalRows = (await db.query(
+            "SELECT * FROM payment_gateway_settings WHERE tenant_id = 'global' LIMIT 1"
+          )) as any[];
+          const current = globalRows.length > 0 ? globalRows[0] : null;
+
 
           const values = {
             sandboxPublicKey: String(body.sandbox_public_key ?? "").trim(),

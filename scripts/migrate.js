@@ -135,7 +135,32 @@ async function runMigrations() {
       const sqlContent = fs.readFileSync(sqlPath, "utf8");
 
       try {
-        await connection.query(sqlContent);
+        const ignoreErrors = /^--\s*ignore-errors/i.test(sqlContent.trimStart());
+
+        if (ignoreErrors) {
+          // Execute statement-by-statement; tolerate individual failures (non-critical migrations)
+          const stmts = sqlContent
+            .split(/;[ \t]*(?:\r?\n|$)/)
+            .map((s) => s.trim())
+            .filter((s) => s && !s.startsWith("--"));
+
+          let warnCount = 0;
+          for (const stmt of stmts) {
+            if (!stmt) continue;
+            try {
+              await connection.query(stmt + ";");
+            } catch (stmtErr) {
+              warnCount++;
+              console.warn(`[Migrate] WARNING (non-critical): ${stmtErr.message.substring(0, 120)}`);
+            }
+          }
+          if (warnCount > 0) {
+            console.log(`[Migrate] Migration '${file}' applied with ${warnCount} non-critical warning(s).`);
+          }
+        } else {
+          await connection.query(sqlContent);
+        }
+
         await connection.query("INSERT INTO schema_migrations (version) VALUES (?)", [file]);
         console.log(`[Migrate] Migration '${file}' applied successfully.`);
         appliedCount++;

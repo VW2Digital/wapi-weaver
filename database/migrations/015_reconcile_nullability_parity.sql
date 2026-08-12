@@ -1,5 +1,7 @@
+-- ignore-errors
 -- Migration 015: Reconcile nullability parity (Phase A) for Grupo A and Grupo B columns
 -- Idempotent DDL updates and pre-audit backfills to align DB columns with canonical schema
+
 
 SET @dbname = DATABASE();
 

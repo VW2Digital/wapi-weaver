@@ -30,14 +30,10 @@ export async function getMercadoPagoConfig(tenantId?: string): Promise<MercadoPa
   }
 
   if (rows.length === 0) {
-    rows = (await db.query(
-      "SELECT environment, checkout_mode, sandbox_access_token, sandbox_public_key, production_access_token, production_public_key FROM payment_gateway_settings ORDER BY created_at ASC LIMIT 1"
-    )) as any[];
-  }
-
-  if (rows.length === 0) {
+    // Fallback to environment variable — never pick a random tenant's config
     const envToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN || "";
     if (envToken) {
+      console.warn("[getMercadoPagoConfig] No DB record found — using MERCADOPAGO_ACCESS_TOKEN env var.");
       return {
         accessToken: envToken.trim(),
         publicKey: (process.env.MERCADOPAGO_PUBLIC_KEY || process.env.MP_PUBLIC_KEY || "").trim(),
@@ -45,8 +41,10 @@ export async function getMercadoPagoConfig(tenantId?: string): Promise<MercadoPa
         checkoutMode: "transparent",
       };
     }
+    console.warn(`[getMercadoPagoConfig] tenantId=${targetTenant} — no gateway configuration found.`);
     return null;
   }
+
 
   const row = rows[0];
   const env: "sandbox" | "production" = row.environment === "production" ? "production" : "sandbox";

@@ -1438,9 +1438,9 @@ CREATE TABLE IF NOT EXISTS `payment_gateway_settings` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `provider` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'mercadopago',
   `id` char(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (`tenant_id`),
-  CONSTRAINT `payment_gateway_settings_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  PRIMARY KEY (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 CREATE TABLE IF NOT EXISTS `platform_banners` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1685,8 +1685,7 @@ CREATE TABLE IF NOT EXISTS `subscriptions` (
   KEY `customer_id` (`customer_id`),
   KEY `plan_id` (`plan_id`),
   CONSTRAINT `subscriptions_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `subscriptions_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `subscriptions_ibfk_3` FOREIGN KEY (`plan_id`) REFERENCES `billing_plans` (`id`) ON DELETE RESTRICT
+  CONSTRAINT `subscriptions_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `tags` (

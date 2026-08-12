@@ -58,15 +58,19 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
           // 2. Fetch or create tenant subscription
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
-          // 3. Get platform Mercado Pago configuration
-          let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
-          if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
-            platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
+          // 3. Get GLOBAL platform Mercado Pago configuration (never use tenant-specific credentials for billing)
+          let platformGatewayConfig: any = null;
+          try {
+            platformGatewayConfig = await getMercadoPagoConfig("global");
+          } catch (configErr: any) {
+            console.error("[PIX Checkout] Gateway config error:", configErr.message);
           }
+
+          console.log(`[PIX Checkout] userId=${user.userId} tenantId=${user.tenantId} planId=${billingPlanId} env=${platformGatewayConfig?.environment ?? "none"} tokenExists=${Boolean(platformGatewayConfig?.accessToken)}`);
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
             return new Response(
-              JSON.stringify({ error: "O portal de pagamento do Mercado Pago não está configurado." }),
+              JSON.stringify({ error: "O portal de pagamento do Mercado Pago não está configurado. Contate o suporte." }),
               {
                 status: 500,
                 headers: { "Content-Type": "application/json" },
@@ -174,9 +178,11 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
           );
 
           // 7. Generate new PIX payment on Mercado Pago with persistent Idempotency Key
-          const siteUrl = process.env.SITE_URL || "";
+          const siteUrl = process.env.SITE_URL || process.env.APP_URL || "";
           const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
           const webhookUrl = isPublicUrl ? `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago` : undefined;
+
+          console.log(`[PIX Checkout] notification_url=${webhookUrl ?? "(none — localhost skipped)"}`);
 
           const payload: Record<string, unknown> = {
             transaction_amount: Number(invoice.amount),

@@ -52,15 +52,20 @@ export function encryptedValue(value: unknown, currentValue?: string | null) {
 export function decryptSecret(value?: string | null) {
   if (!value) return "";
   if (!value.includes(":")) {
+    // Plain text (not encrypted) — return as-is
     return value;
   }
   try {
     return decrypt(value);
   } catch (err) {
     console.error("[PaymentGateway] Secret decryption failed:", (err as Error).message);
-    return value;
+    // NEVER return the raw ciphertext as a fallback — it would be sent as a Bearer token
+    throw new Error(
+      "Falha ao descriptografar credencial do gateway de pagamento. Verifique se MERCADOPAGO_ENCRYPTION_KEY está configurada corretamente e reconfigure o Access Token no painel administrativo."
+    );
   }
 }
+
 
 export function gatewayId() {
   return crypto.randomUUID();
