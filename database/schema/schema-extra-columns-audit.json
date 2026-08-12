@@ -6,7 +6,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Read and written by subscription-access.service.ts for billing cycle tracking. Present in canonical-schema.sql."
   },
   {
     "table": "subscriptions",
@@ -15,7 +17,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Read and written by subscription-access.service.ts for billing cycle tracking. Present in canonical-schema.sql."
   },
   {
     "table": "subscriptions",
@@ -24,7 +28,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Used by subscription trial state machine. Present in canonical-schema.sql."
   },
   {
     "table": "subscriptions",
@@ -33,7 +39,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Used by subscription trial state machine. Present in canonical-schema.sql."
   },
   {
     "table": "subscriptions",
@@ -42,7 +50,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Marks when trial period was consumed. Present in canonical-schema.sql."
   },
   {
     "table": "subscriptions",
@@ -51,7 +61,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Records subscription activation timestamp. Present in canonical-schema.sql."
   },
   {
     "table": "subscription_events",
@@ -60,7 +72,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Tracks event origin (webhook, manual, system). Present in canonical-schema.sql."
   },
   {
     "table": "subscription_events",
@@ -69,7 +83,9 @@
     "runtime_writes": ["src/lib/subscription-state-machine.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Stores payment gateway event ID for idempotency. Present in canonical-schema.sql."
   },
   {
     "table": "subscription_events",
@@ -78,7 +94,9 @@
     "runtime_writes": ["src/routes/api/billing/subscription/renew.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Raw event payload storage for audit trail. Present in canonical-schema.sql."
   },
   {
     "table": "subscription_events",
@@ -87,7 +105,9 @@
     "runtime_writes": ["src/lib/services/subscription-access.service.ts"],
     "created_by_migrations": ["006_subscription_trial_access.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Legacy raw payload field, still actively written. Present in canonical-schema.sql."
   },
   {
     "table": "billing_payments",
@@ -96,7 +116,9 @@
     "runtime_writes": ["src/routes/api/billing/checkout/pix.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Pix QR code string stored for payment flow. Present in canonical-schema.sql."
   },
   {
     "table": "billing_payments",
@@ -105,7 +127,9 @@
     "runtime_writes": ["src/routes/api/billing/checkout/pix.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Base64 Pix QR image for frontend display. Present in canonical-schema.sql."
   },
   {
     "table": "billing_payments",
@@ -114,7 +138,9 @@
     "runtime_writes": ["src/routes/api/billing/checkout/pix.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Pix/boleto ticket URL returned from Mercado Pago. Present in canonical-schema.sql."
   },
   {
     "table": "billing_payments",
@@ -123,17 +149,20 @@
     "runtime_writes": ["src/routes/functions/v1/mercadopago-webhook.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Full webhook payload stored for payment audit. Present in canonical-schema.sql."
   },
   {
     "table": "billing_webhook_events",
-    "column": "payload",
-    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts", "src/routes/functions/v1/mercadopago-webhook.ts"],
-    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts", "src/routes/functions/v1/mercadopago-webhook.ts"],
-    "created_by_migrations": ["001_canonical_schema.sql", "012_reconcile_full_schema_with_local.sql"],
-    "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED",
-    "evidence": "INSERT col list: 'payload' in lines 134/139. Migration 001 line 1231: payload JSON NOT NULL. Original audit had wrong column name 'payload_json'."
+    "column": "payload_json",
+    "runtime_reads": [],
+    "runtime_writes": [],
+    "created_by_migrations": [],
+    "exists_local_head": false,
+    "exists_canonical_target": false,
+    "classification": "LEGACY_UNUSED",
+    "evidence": "Historical VPS column name — the VPS had payload_json but canonical-schema.sql uses 'payload' (JSON column). The column was renamed in the local schema evolution. Runtime now writes to 'payload', not 'payload_json'. This entry preserves the historical VPS parity observation without modification."
   },
   {
     "table": "billing_webhook_events",
@@ -142,8 +171,9 @@
     "runtime_writes": [],
     "created_by_migrations": ["001_canonical_schema.sql"],
     "exists_local_head": true,
+    "exists_canonical_target": true,
     "classification": "ACTIVE_REQUIRED",
-    "evidence": "Migration 001 line 1235: created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP. Not referenced explicitly in runtime (implicit via MySQL DEFAULT). Real physical column."
+    "evidence": "Physical column in canonical-schema.sql line 169: created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP. Distinct from received_at. Populated automatically by MySQL DEFAULT."
   },
   {
     "table": "ds_agents",
@@ -152,7 +182,9 @@
     "runtime_writes": ["src/lib/ds-agent.functions.ts"],
     "created_by_migrations": ["008_align_schema_with_local_database.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Core system prompt for DS Agent. Actively read for AI inference. Present in canonical-schema.sql."
   },
   {
     "table": "ds_agents",
@@ -161,7 +193,9 @@
     "runtime_writes": ["src/lib/ds-agent.functions.ts"],
     "created_by_migrations": ["008_align_schema_with_local_database.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Activation toggle for DS Agent. Checked at runtime before processing. Present in canonical-schema.sql."
   },
   {
     "table": "ds_agent_tools",
@@ -170,7 +204,9 @@
     "runtime_writes": ["src/lib/ds-agent.functions.ts"],
     "created_by_migrations": ["004_calendar_events.sql", "012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Identifies which tool (calendar, crm, etc.) the agent has access to. Present in canonical-schema.sql."
   },
   {
     "table": "ds_agent_tools",
@@ -179,7 +215,9 @@
     "runtime_writes": ["src/lib/ds-agent.functions.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Per-tool enable/disable toggle for DS Agent. Present in canonical-schema.sql."
   },
   {
     "table": "ds_agent_tools",
@@ -188,7 +226,9 @@
     "runtime_writes": ["src/lib/ds-agent.functions.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Tool-specific JSON configuration. Present in canonical-schema.sql."
   },
   {
     "table": "webhook_events",
@@ -197,7 +237,9 @@
     "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Multi-tenant isolation key for webhook events. Present in canonical-schema.sql."
   },
   {
     "table": "webhook_events",
@@ -206,7 +248,9 @@
     "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Classifies webhook event type (payment.updated, etc.). Present in canonical-schema.sql."
   },
   {
     "table": "webhook_events",
@@ -215,7 +259,9 @@
     "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Parsed event payload for downstream processing. Present in canonical-schema.sql."
   },
   {
     "table": "webhook_events",
@@ -224,7 +270,9 @@
     "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Processing status (pending, processed, failed). Present in canonical-schema.sql."
   },
   {
     "table": "webhook_events",
@@ -233,16 +281,20 @@
     "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Stores failure reason for failed webhook processing. Present in canonical-schema.sql."
   },
   {
     "table": "webhook_events",
     "column": "created_at",
-    "runtime_reads": ["src/routes/api/webhooks/mercadopago.ts"],
-    "runtime_writes": ["src/routes/api/webhooks/mercadopago.ts"],
+    "runtime_reads": [],
+    "runtime_writes": [],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Timestamp of webhook receipt. Populated by MySQL DEFAULT. Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -251,7 +303,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Human-readable billing cycle descriptor (monthly, annually). Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -260,7 +314,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Integer price in cents for precise arithmetic. Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -269,7 +325,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "ISO 4217 currency code (BRL). Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -278,7 +336,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Free trial period in days for plan signup. Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -287,7 +347,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Soft-disable flag for deprecated plans. Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -296,7 +358,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Display ordering for plan listing UI. Present in canonical-schema.sql."
   },
   {
     "table": "billing_plans",
@@ -305,77 +369,9 @@
     "runtime_writes": ["src/lib/billing.functions.ts"],
     "created_by_migrations": ["010_align_subscription_plans_with_local_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "payment_method_types_json",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL. Column does not exist in migration 001 or 011. Original audit had fabricated runtime_reads pointing to mercadopago.ts which does NOT reference this field. Must be investigated against VPS snapshot."
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "is_sandbox",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL. Original audit fabricated runtime_reads."
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "webhook_secret_enc",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "public_key_enc",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "access_token_enc",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "client_id_enc",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
-  },
-  {
-    "table": "payment_gateway_settings",
-    "column": "client_secret_enc",
-    "runtime_reads": [],
-    "runtime_writes": [],
-    "created_by_migrations": [],
-    "exists_local_head": false,
-    "classification": "AUDIT_INVALID",
-    "evidence": "No reference in any .ts file, no ADD COLUMN in any migration SQL."
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "JSON array of plan feature flags for UI display. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -384,7 +380,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Product label on license (e.g. 'SaaS'). Shown in license admin panel. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -393,7 +391,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Application identifier for multi-product license server. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -402,7 +402,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Activation limit per license key. Enforced at validation time. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -411,7 +413,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Maximum users per licensed tenant. Enforced by license service. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -420,7 +424,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Feature flags granted by this license (JSON). Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -429,7 +435,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Admin notes field for license management. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -438,7 +446,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Stripe customer reference for billing linkage. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -447,7 +457,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Stripe subscription reference for billing linkage. Present in canonical-schema.sql."
   },
   {
     "table": "licenses",
@@ -456,7 +468,9 @@
     "runtime_writes": ["src/lib/license-admin.functions.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Tracks AI token consumption per license for quota enforcement. Present in canonical-schema.sql."
   },
   {
     "table": "license_activations",
@@ -465,7 +479,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "URL of the activating instance. Stored for audit. Present in canonical-schema.sql."
   },
   {
     "table": "license_activations",
@@ -474,7 +490,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Browser/agent string at activation. Security audit trail. Present in canonical-schema.sql."
   },
   {
     "table": "license_activations",
@@ -483,7 +501,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Last validation timestamp for heartbeat tracking. Present in canonical-schema.sql."
   },
   {
     "table": "license_activations",
@@ -492,7 +512,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Activation timestamp. Populated by MySQL DEFAULT. Present in canonical-schema.sql."
   },
   {
     "table": "license_activations",
@@ -501,7 +523,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Auto-updated timestamp on activation record changes. Present in canonical-schema.sql."
   },
   {
     "table": "license_validation_logs",
@@ -510,7 +534,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "URL of instance requesting validation. Audit trail. Present in canonical-schema.sql."
   },
   {
     "table": "license_validation_logs",
@@ -519,7 +545,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Unique identifier of the requesting installation. Present in canonical-schema.sql."
   },
   {
     "table": "license_validation_logs",
@@ -528,7 +556,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Application ID sent at validation time. Present in canonical-schema.sql."
   },
   {
     "table": "license_validation_logs",
@@ -537,7 +567,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Validation outcome (valid, expired, invalid). Present in canonical-schema.sql."
   },
   {
     "table": "license_validation_logs",
@@ -546,7 +578,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Human-readable reason for validation result. Present in canonical-schema.sql."
   },
   {
     "table": "license_validation_logs",
@@ -555,7 +589,9 @@
     "runtime_writes": ["src/lib/license.service.ts"],
     "created_by_migrations": ["009_align_licenses_full_schema.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Full request payload for validation audit. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -564,7 +600,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta template components JSON (header, body, footer, buttons). Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -573,7 +611,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta API parameter format (positional, named). Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -582,7 +622,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta template flag for category change permission. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -591,7 +633,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta template CTA link tracking opt-out flag. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -600,7 +644,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "TTL in seconds for Meta message delivery. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -609,7 +655,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta template sub-category for classification. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -618,7 +666,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta template display format field. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -627,7 +677,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta template primary device delivery restriction. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -636,7 +688,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Meta Graph API template ID for sync tracking. Present in canonical-schema.sql."
   },
   {
     "table": "templates",
@@ -645,7 +699,9 @@
     "runtime_writes": ["src/lib/templates.functions.ts"],
     "created_by_migrations": ["003_runtime_schema_alignment.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Last successful sync timestamp with Meta Graph API. Present in canonical-schema.sql."
   },
   {
     "table": "notifications",
@@ -654,7 +710,9 @@
     "runtime_writes": ["src/lib/notifications.service.ts"],
     "created_by_migrations": ["007_restore_active_runtime_tables.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Deep-link URL for notification click action. Present in canonical-schema.sql."
   },
   {
     "table": "notifications",
@@ -663,7 +721,9 @@
     "runtime_writes": ["src/lib/notifications.service.ts"],
     "created_by_migrations": ["007_restore_active_runtime_tables.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Deduplication key for idempotent notification creation. Present in canonical-schema.sql."
   },
   {
     "table": "notifications",
@@ -672,7 +732,9 @@
     "runtime_writes": ["src/lib/notifications.service.ts"],
     "created_by_migrations": ["007_restore_active_runtime_tables.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Timestamp when notification was read. Distinct from is_read flag. Present in canonical-schema.sql."
   },
   {
     "table": "salvy_numbers",
@@ -681,7 +743,9 @@
     "runtime_writes": ["src/lib/salvy.service.ts"],
     "created_by_migrations": ["008_align_schema_with_local_database.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Cancellation timestamp for Salvy number. Present in canonical-schema.sql."
   },
   {
     "table": "salvy_numbers",
@@ -690,7 +754,9 @@
     "runtime_writes": ["src/lib/salvy.service.ts"],
     "created_by_migrations": ["008_align_schema_with_local_database.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Remote creation timestamp from Salvy API. Present in canonical-schema.sql."
   },
   {
     "table": "salvy_numbers",
@@ -699,7 +765,9 @@
     "runtime_writes": ["src/lib/salvy.service.ts"],
     "created_by_migrations": ["008_align_schema_with_local_database.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Reason for number cancellation from Salvy API. Present in canonical-schema.sql."
   },
   {
     "table": "salvy_numbers",
@@ -708,7 +776,9 @@
     "runtime_writes": ["src/lib/salvy.service.ts"],
     "created_by_migrations": ["008_align_schema_with_local_database.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Raw JSON response from Salvy API stored for debugging. Present in canonical-schema.sql."
   },
   {
     "table": "ai_agent_settings",
@@ -717,6 +787,85 @@
     "runtime_writes": ["src/lib/ai-agent.service.ts"],
     "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
     "exists_local_head": true,
-    "classification": "ACTIVE_REQUIRED"
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "System prompt injected into AI agent context at inference time. Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "source_type",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Originating system type (webhook, import, manual). Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "source_name",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Human-readable name of the originating source. Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "source_id",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Reference ID to the originating source record. Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "external_id",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "External system contact ID for cross-system deduplication. Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "metadata",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Arbitrary JSON metadata from the originating source. Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "last_interaction_at",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Timestamp of most recent contact interaction for sorting/filtering. Present in canonical-schema.sql."
+  },
+  {
+    "table": "contacts",
+    "column": "company",
+    "runtime_reads": ["src/lib/contacts.functions.ts"],
+    "runtime_writes": ["src/lib/contacts.functions.ts"],
+    "created_by_migrations": ["012_reconcile_full_schema_with_local.sql"],
+    "exists_local_head": true,
+    "exists_canonical_target": true,
+    "classification": "ACTIVE_REQUIRED",
+    "evidence": "Company name for the contact. Present in canonical-schema.sql."
   }
 ]
