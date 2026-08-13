@@ -462,9 +462,64 @@ export async function processBotFlow(
         return;
       }
 
+      // Se o step tem mídia armazenada como data:URL (upload local via construtor),
+      // precisamos fazer o upload para a Meta antes de montar o payload.
+      // A Meta não consegue acessar data:URLs — apenas URLs públicas ou media_ids.
+      let stepToSend = stepToExecute;
+      const rawMediaUrl = String(stepToExecute.media_url || "").trim();
+      if (rawMediaUrl.startsWith("data:")) {
+        try {
+          // Extrai o mimeType e os dados base64
+          const [header, base64Data] = rawMediaUrl.split(",");
+          const mimeType = header.replace(/^data:/, "").replace(/;base64$/, "");
+          const binaryBuffer = Buffer.from(base64Data, "base64");
+
+          const form = new FormData();
+          form.append("messaging_product", "whatsapp");
+          form.append(
+            "file",
+            new Blob([binaryBuffer], { type: mimeType }),
+            `media.${mimeType.split("/")[1] || "bin"}`,
+          );
+
+          const uploadApiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+          const uploadRes = await fetch(
+            `https://graph.facebook.com/${uploadApiVersion}/${phoneNumberId}/media`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}` },
+              body: form,
+            },
+          );
+
+          if (uploadRes.ok) {
+            const uploadJson = await uploadRes.json();
+            const mediaId = uploadJson?.id;
+            if (mediaId) {
+              stepToSend = { ...stepToExecute, media_url: mediaId };
+              logInfo("Mídia do bot enviada para a Meta e substituída por media_id", {
+                stepId: stepToExecute.id,
+                mediaId,
+                mimeType,
+              });
+            } else {
+              logError("Upload de mídia retornou OK mas sem id", { uploadJson });
+            }
+          } else {
+            const errText = await uploadRes.text();
+            logError("Falha no upload de mídia para a Meta", {
+              status: uploadRes.status,
+              response: errText.slice(0, 500),
+            });
+          }
+        } catch (uploadErr: any) {
+          logError("Exceção ao fazer upload de mídia para a Meta", { error: uploadErr.message });
+        }
+      }
+
       const { payload, fallbackReason } = buildWhatsAppBotMessage(
         phoneDigits,
-        stepToExecute,
+        stepToSend,
         channel === "whatsapp" ? incomingMessageId : null,
       );
       if (channel === "whatsapp_group") payload.recipient_type = "group";
@@ -620,7 +675,45 @@ export async function executeInactivityStep(
 
       if (!p || !p.whatsapp_access_token) return;
 
-      const { payload, fallbackReason } = buildWhatsAppBotMessage(phoneDigits, stepToExecute);
+      // Se o step tem mídia armazenada como data:URL, fazer upload para Meta primeiro
+      let stepForInactivity = stepToExecute;
+      const rawInactivityMedia = String(stepToExecute.media_url || "").trim();
+      if (rawInactivityMedia.startsWith("data:")) {
+        try {
+          const [header, base64Data] = rawInactivityMedia.split(",");
+          const mimeType = header.replace(/^data:/, "").replace(/;base64$/, "");
+          const binaryBuffer = Buffer.from(base64Data, "base64");
+          const form = new FormData();
+          form.append("messaging_product", "whatsapp");
+          form.append(
+            "file",
+            new Blob([binaryBuffer], { type: mimeType }),
+            `media.${mimeType.split("/")[1] || "bin"}`,
+          );
+          const uploadApiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+          const uploadRes = await fetch(
+            `https://graph.facebook.com/${uploadApiVersion}/${phoneNumberId}/media`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+              body: form,
+            },
+          );
+          if (uploadRes.ok) {
+            const uploadJson = await uploadRes.json();
+            if (uploadJson?.id) {
+              stepForInactivity = { ...stepToExecute, media_url: uploadJson.id };
+              logInfo("Mídia de inatividade enviada para a Meta", { stepId: stepToExecute.id, mediaId: uploadJson.id });
+            }
+          } else {
+            logError("Falha no upload de mídia (inatividade)", { status: uploadRes.status });
+          }
+        } catch (uploadErr: any) {
+          logError("Exceção ao fazer upload de mídia (inatividade)", { error: uploadErr.message });
+        }
+      }
+
+      const { payload, fallbackReason } = buildWhatsAppBotMessage(phoneDigits, stepForInactivity);
       if (fallbackReason) logInfo("Etapa de inatividade convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
 
       const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";

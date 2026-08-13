@@ -1,4 +1,4 @@
-// Builds payloads accepted by https://graph.facebook.com/v20.0/{phone_id}/messages
+// Builds payloads accepted by https://graph.facebook.com/v26.0/{phone_id}/messages
 // WhatsApp Cloud API expects E.164 sem o sinal de '+', ex: "5511999999999"
 function toE164NoPlus(raw: string): string {
   return String(raw ?? "").replace(/\D+/g, "");
@@ -204,6 +204,7 @@ export function buildWhatsAppPayload(
 
         if (component?.type === "BUTTONS" && Array.isArray(component.buttons)) {
           component.buttons.forEach((button: any, index: number) => {
+            // Botões de URL com variável dinâmica (ex: {{1}} no campo url)
             const urlTokens = extractTemplateTokens(button?.url ?? "");
             if (button?.type === "URL" && urlTokens.length > 0) {
               components.push({
@@ -211,6 +212,18 @@ export function buildWhatsAppPayload(
                 sub_type: "url",
                 index: String(index),
                 parameters: makeTextParameters(urlTokens, `button_${index}_`),
+              });
+            }
+
+            // Botões QUICK_REPLY com payload dinâmico
+            // Formato Meta: { type: "button", sub_type: "quick_reply", index: "N",
+            //                 parameters: [{ type: "payload", payload: "..." }] }
+            if (button?.type === "QUICK_REPLY" && hasValue(button?.payload)) {
+              components.push({
+                type: "button",
+                sub_type: "quick_reply",
+                index: String(index),
+                parameters: [{ type: "payload", payload: String(button.payload) }],
               });
             }
           });
@@ -240,15 +253,13 @@ export function buildWhatsAppPayload(
 
   if (messageType === "media") {
     const mt = payload.media_type ?? "image";
-    return {
-      ...base,
-      type: mt,
-      [mt]: {
-        link: payload.media_url,
-        ...(payload.caption ? { caption: interpolate(payload.caption) } : {}),
-        ...(payload.filename && mt === "document" ? { filename: payload.filename } : {}),
-      },
-    };
+    const rawUrl = String(payload.media_url ?? "").trim();
+    // Usa { id } para media_ids numéricos/alfanuméricos (não-URL); { link } para URLs públicas
+    const isUrl = /^https?:\/\//i.test(rawUrl);
+    const mediaObj: Record<string, unknown> = isUrl ? { link: rawUrl } : { id: rawUrl };
+    if (payload.caption) mediaObj.caption = interpolate(payload.caption);
+    if (payload.filename && mt === "document") mediaObj.filename = payload.filename;
+    return { ...base, type: mt, [mt]: mediaObj };
   }
 
   if (messageType === "interactive") {
