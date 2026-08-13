@@ -11,8 +11,8 @@ RUN npm install && npm cache clean --force
 # Copy source code
 COPY . .
 
-# Build production bundle
-RUN npm run build
+# Build production bundle with increased memory limit
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 ARG APP_GIT_SHA=unknown
 ARG APP_GIT_BRANCH=main

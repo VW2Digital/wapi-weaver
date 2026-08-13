@@ -600,7 +600,7 @@ fi
 
 # 6.3 Build da imagem da aplicação e subir infraestrutura
 echo "  Executando build da aplicação (sem cache antigo)..."
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull app
 
 echo "  Subindo serviços de infraestrutura (MySQL e Redis)..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d mysql redis
