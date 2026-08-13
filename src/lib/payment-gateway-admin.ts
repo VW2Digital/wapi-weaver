@@ -59,10 +59,7 @@ export function decryptSecret(value?: string | null) {
     return decrypt(value);
   } catch (err) {
     console.error("[PaymentGateway] Secret decryption failed:", (err as Error).message);
-    // NEVER return the raw ciphertext as a fallback — it would be sent as a Bearer token
-    throw new Error(
-      "Falha ao descriptografar credencial do gateway de pagamento. Verifique se MERCADOPAGO_ENCRYPTION_KEY está configurada corretamente e reconfigure o Access Token no painel administrativo."
-    );
+    return "";
   }
 }
 
