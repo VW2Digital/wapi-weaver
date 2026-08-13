@@ -28,17 +28,16 @@ export async function processBotFlow(
   }
 
   try {
-    // 1. Localizar todos os fluxos (bot_settings) ativos para o canal
+    // 1. Localizar configurações legadas e fluxos criados pelo construtor.
+    // O construtor novo tem bot_flows como fonte de verdade; não dependa de
+    // bot_settings para descobrir seus passos, pois essa associação pode estar
+    // ausente/inconsistente em instalações antigas de produção.
     let { data: flows } = await dbAdmin
       .from("bot_settings")
       .select("*")
       .eq("user_id", userId)
       .eq("channel", channel);
-
-    if (!flows || flows.length === 0) {
-      logInfo("Nenhuma configuração de bot encontrada para o canal", { channel });
-      return;
-    }
+    flows = flows || [];
 
     const { data: builderFlows } = await dbAdmin
       .from("bot_flows")
@@ -48,6 +47,7 @@ export async function processBotFlow(
     const activeBuilderFlowIds = new Set(
       (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
     );
+    const activeBuilderFlows = (builderFlows || []).filter((f: any) => Boolean(f.is_active));
 
     // O status individual do fluxo é a fonte de verdade no construtor novo.
     // bot_settings.is_active continua valendo para fluxos legados, mas não pode
@@ -59,9 +59,11 @@ export async function processBotFlow(
     }
 
     // Filtrar por instance_id se configurado para evitar compartilhamento indevido
-    flows = flows.filter((f: any) => !f.instance_id || f.instance_id === phoneNumberId);
+    flows = flows.filter(
+      (f: any) => !f.instance_id || String(f.instance_id) === String(phoneNumberId),
+    );
 
-    if (flows.length === 0) {
+    if (flows.length === 0 && activeBuilderFlows.length === 0) {
       logInfo("Nenhum fluxo ativo correspondente a esta conta/instância", { phoneNumberId });
       return;
     }
@@ -98,27 +100,37 @@ export async function processBotFlow(
     }
 
     // 3. Escolher o fluxo correto com base na nova regra de precedência
-    let activeFlow = sortedFlows[0];
+    let activeFlow = sortedFlows[0] || activeBuilderFlows[0];
     let stepToExecute: any = null;
 
     // Buscar todos os passos ativos do canal
-    const { data: loadedSteps } = await dbAdmin
-      .from("bot_steps")
-      .select("*")
-      .eq("user_id", userId)
-      .in(
-        "bot_settings_id",
-        sortedFlows.map((f: any) => f.id),
-      );
+    const builderStepIds = Array.from(activeBuilderFlowIds);
+    const legacySettingIds = sortedFlows
+      .filter((flow: any) => Boolean(flow.is_active))
+      .map((flow: any) => flow.id);
+    const builderStepsResult = builderStepIds.length
+      ? await dbAdmin
+          .from("bot_steps")
+          .select("*")
+          .eq("user_id", userId)
+          .in("flow_id", builderStepIds)
+      : { data: [] as any[] };
+    const legacyStepsResult = legacySettingIds.length
+      ? await dbAdmin
+          .from("bot_steps")
+          .select("*")
+          .eq("user_id", userId)
+          .in("bot_settings_id", legacySettingIds)
+      : { data: [] as any[] };
 
-    // Os fluxos criados pelo construtor ficam em bot_flows e compartilham o
-    // mesmo bot_settings. Respeitar o flow_id/is_active evita executar passos
-    // de outro fluxo (ou de um fluxo que foi desativado na listagem).
-    const allSteps = (loadedSteps || []).filter(
-      (step: any) =>
-        (step.flow_id && activeBuilderFlowIds.has(step.flow_id)) ||
-        (!step.flow_id && hasActiveLegacySettings),
-    );
+    const stepById = new Map<string, any>();
+    for (const step of [
+      ...(builderStepsResult.data || []),
+      ...(legacyStepsResult.data || []).filter((step: any) => !step.flow_id),
+    ]) {
+      stepById.set(step.id, step);
+    }
+    const allSteps = Array.from(stepById.values());
     const normalizeTriggerValue = (value: unknown) =>
       String(value ?? "")
         .trim()
