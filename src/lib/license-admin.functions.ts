@@ -26,6 +26,27 @@ async function assertAdmin(ctx: { userId: string }) {
   }
 }
 
+async function resolveSubscriptionPlanId(plan: string): Promise<string> {
+  const normalizedPlan = plan.trim();
+  const rows = (await db.query(
+    `SELECT id
+     FROM subscription_plans
+     WHERE is_active = 1
+       AND (id = ? OR LOWER(TRIM(slug)) = LOWER(TRIM(?)))
+     ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [normalizedPlan, normalizedPlan, normalizedPlan],
+  )) as Array<{ id: string }>;
+
+  if (!rows.length) {
+    throw new Error(
+      `O plano "${normalizedPlan}" não está vinculado a um plano de assinatura ativo. Revise o cadastro do plano antes de salvar o cliente.`,
+    );
+  }
+
+  return rows[0].id;
+}
+
 // 1. List licenses
 export const listLicenses = createServerFn({ method: "GET" })
   .middleware([requireAuth])
@@ -151,6 +172,7 @@ export const createLicense = createServerFn({ method: "POST" })
 
       // Sync subscriptions table if tenantId exists
       if (tenantId) {
+        const subscriptionPlanId = await resolveSubscriptionPlanId(input.plan);
         let subStatus = input.status;
         if (input.status === "expired") subStatus = "expired";
         if (input.status === "blocked") subStatus = "suspended";
@@ -161,14 +183,14 @@ export const createLicense = createServerFn({ method: "POST" })
             `UPDATE subscriptions 
              SET status = ?, trial_ends_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW() 
              WHERE tenant_id = ?`,
-            [subStatus, expiresDate, expiresDate, input.plan, tenantId]
+            [subStatus, expiresDate, expiresDate, subscriptionPlanId, tenantId]
           );
         } else {
           const newSubId = crypto.randomUUID();
           await db.query(
             `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, trial_ends_at, current_period_end, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [newSubId, tenantId, tenantId, input.plan, subStatus, expiresDate, expiresDate]
+            [newSubId, tenantId, tenantId, subscriptionPlanId, subStatus, expiresDate, expiresDate]
           );
         }
       }
@@ -335,6 +357,7 @@ export const updateLicense = createServerFn({ method: "POST" })
 
       // Sync subscriptions table if tenantId is present
       if (tenantId) {
+        const subscriptionPlanId = await resolveSubscriptionPlanId(input.plan);
         let subStatus = input.status;
         if (input.status === "expired") subStatus = "expired";
         if (input.status === "blocked") subStatus = "suspended";
@@ -345,14 +368,14 @@ export const updateLicense = createServerFn({ method: "POST" })
             `UPDATE subscriptions 
              SET status = ?, trial_ends_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW() 
              WHERE tenant_id = ?`,
-            [subStatus, expiresDate, expiresDate, input.plan, tenantId]
+            [subStatus, expiresDate, expiresDate, subscriptionPlanId, tenantId]
           );
         } else {
           const newSubId = crypto.randomUUID();
           await db.query(
             `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, trial_ends_at, current_period_end, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [newSubId, tenantId, tenantId, input.plan, subStatus, expiresDate, expiresDate]
+            [newSubId, tenantId, tenantId, subscriptionPlanId, subStatus, expiresDate, expiresDate]
           );
         }
       }
