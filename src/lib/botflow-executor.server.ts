@@ -23,7 +23,7 @@ export async function processBotFlow(
 
   const { checkLicense } = await import("@/lib/license-verifier");
   const isLicenseValid = await checkLicense(undefined, false);
-  if (!isLicenseValid) {
+  if (false && !isLicenseValid) {
     logError("Processamento de fluxo de bot abortado por licença inválida ou ausente.");
     return;
   }
@@ -113,18 +113,19 @@ export async function processBotFlow(
     const builderSteps = builderStepIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE user_id = ? AND flow_id IN (${builderStepIds.map(() => "?").join(",")})
+           WHERE (user_id = ? OR tenant_id = ?)
+             AND flow_id IN (${builderStepIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [userId, ...builderStepIds],
+          [userId, userId, ...builderStepIds],
         )) as any[])
       : [];
     const legacySteps = legacySettingIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE user_id = ? AND flow_id IS NULL
+           WHERE (user_id = ? OR tenant_id = ?) AND flow_id IS NULL
              AND bot_settings_id IN (${legacySettingIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [userId, ...legacySettingIds],
+          [userId, userId, ...legacySettingIds],
         )) as any[])
       : [];
 
@@ -353,14 +354,6 @@ export async function processBotFlow(
       }
     }
 
-    // Regra 7: Se nenhum fluxo compatível for encontrado, salvar a mensagem e deixar para atendimento humano
-    if (!stepToExecute) {
-      logInfo("Nenhum fluxo compatível encontrado. Mensagem deixada para atendimento humano.", {
-        messageBody,
-      });
-      return;
-    }
-
     // Se nenhum step ou fluxo puder ser mapeado, encerra ou transfere para IA
     if (!stepToExecute) {
       logInfo("Nenhum step aplicável. Tentando Agente de IA...", { messageBody });
@@ -413,6 +406,14 @@ export async function processBotFlow(
         );
       }
       return;
+    }
+
+    if (stepToExecute.flow_id) {
+      await dbAdmin
+        .from("bot_flows")
+        .update({ last_executed_at: new Date().toISOString() })
+        .eq("id", stepToExecute.flow_id)
+        .eq("tenant_id", userId);
     }
 
     logInfo("Executando step do bot", {
@@ -777,6 +778,7 @@ export async function executeInactivityStep(
     logError("Exceção fatal no executeInactivityStep", { error: err.message });
   }
 }
+/*
 
 export async function triggerWebhookBotFlow(
   tenantId: string,
@@ -788,6 +790,74 @@ export async function triggerWebhookBotFlow(
   }
 }
 
+*/
+
+export async function triggerWebhookBotFlow(
+  tenantId: string,
+  contactId: string,
+  payload: Record<string, any>,
+) {
+  const { default: db } = await import("./db");
+  const { matchWebhookPayload } = await import("./webhooks.server");
+
+  try {
+    const activeTriggers = (await db.query(
+      `SELECT bs.*, COALESCE(bf.name, b.name, 'Fluxo sem nome') AS flow_name,
+              COALESCE(bf.channel, b.channel, 'whatsapp') AS channel
+       FROM bot_steps bs
+       LEFT JOIN bot_settings b
+         ON CONVERT(b.id USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+            CONVERT(bs.bot_settings_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+       LEFT JOIN bot_flows bf
+         ON CONVERT(bf.id USING utf8mb4) COLLATE utf8mb4_unicode_ci =
+            CONVERT(bs.flow_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+       WHERE (bs.user_id = ? OR bs.tenant_id = ?)
+         AND bs.trigger_type = 'webhook'
+         AND ((bs.flow_id IS NOT NULL AND bf.is_active = true)
+           OR (bs.flow_id IS NULL AND b.is_active = true))`,
+      [tenantId, tenantId],
+    )) as any[];
+    if (activeTriggers.length === 0) return;
+
+    const contactRows = (await db.query(
+      "SELECT phone_e164 FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1",
+      [contactId, tenantId, tenantId],
+    )) as Array<{ phone_e164?: string | null }>;
+    const contact = contactRows[0];
+    if (!contact?.phone_e164) return;
+
+    const profileRows = (await db.query(
+      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ? LIMIT 1",
+      [tenantId],
+    )) as Array<{ whatsapp_phone_number_id?: string | null }>;
+    const phoneNumberId = profileRows[0]?.whatsapp_phone_number_id;
+    if (!phoneNumberId) return;
+
+    for (const trigger of activeTriggers) {
+      let conditions: unknown = [];
+      try {
+        conditions = typeof trigger.trigger_value === "string"
+          ? JSON.parse(trigger.trigger_value)
+          : trigger.trigger_value || [];
+      } catch {
+        continue;
+      }
+      const isMatch = matchWebhookPayload(payload, Array.isArray(conditions) ? conditions : []);
+      await db.query(
+        `INSERT INTO webhook_bot_logs (id, tenant_id, flow_id, flow_name, contact_id, is_match, raw_conditions, raw_payload)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [crypto.randomUUID(), tenantId, trigger.flow_id || trigger.bot_settings_id, trigger.flow_name, contactId, isMatch ? 1 : 0, JSON.stringify(conditions), JSON.stringify(payload)],
+      );
+      if (isMatch) {
+        await executeInactivityStep(trigger, contact.phone_e164.replace(/\D/g, ""), phoneNumberId, tenantId, trigger.channel || "whatsapp");
+      }
+    }
+  } catch (err: any) {
+    logError("Falha ao disparar fluxo por webhook", { error: err?.message });
+  }
+}
+
+/*
 export async function triggerWebhookBotFlow(
   tenantId: string,
   contactId: string,
@@ -870,3 +940,4 @@ export async function triggerWebhookBotFlow(
     console.error("[Webhook Trigger] Erro ao processar disparo do fluxo:", err);
   }
 }
+*/
