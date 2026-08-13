@@ -6,6 +6,24 @@ import { resolveUploadFilePath, tenantUploadPath, verifyStorageUser } from "@/li
 // Get current directory path in ESM
 const __dirname = path.resolve();
 
+/**
+ * Lê o corpo do request como Buffer via ReadableStream, evitando o erro
+ * "Body has already been read" causado pelo Vinxi/h3 que consome o body
+ * antes de chegar ao handler quando se usa request.json() ou request.formData().
+ */
+async function readRawBody(request: Request): Promise<Buffer> {
+  if (!request.body) return Buffer.alloc(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)));
+}
+
 export const Route = createFileRoute("/api/storage/upload")({
   server: {
     handlers: {
@@ -16,8 +34,17 @@ export const Route = createFileRoute("/api/storage/upload")({
           let buffer: Buffer | null = null;
           const contentType = request.headers.get("content-type") || "";
 
+          // Lê o body raw uma única vez para evitar "Body has already been read"
+          const rawBody = await readRawBody(request);
+
           if (contentType.includes("multipart/form-data")) {
-            const form = await request.formData();
+            // Reconstrói um Request temporário com o body lido para usar formData()
+            const tempRequest = new Request(request.url, {
+              method: "POST",
+              headers: request.headers,
+              body: rawBody,
+            });
+            const form = await tempRequest.formData();
             const pathField = form.get("path");
             const fileField = form.get("file");
 
@@ -35,7 +62,16 @@ export const Route = createFileRoute("/api/storage/upload")({
             filePath = pathField.trim();
             buffer = Buffer.from(await fileField.arrayBuffer());
           } else {
-            const body = await request.json();
+            // JSON com base64
+            let body: any;
+            try {
+              body = JSON.parse(rawBody.toString("utf-8"));
+            } catch {
+              return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
             filePath = body?.path || "";
             const fileData = body?.fileData;
 
