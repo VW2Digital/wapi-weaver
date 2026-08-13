@@ -11,8 +11,17 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        let user: any;
         try {
-          const user = await verifyApiUser(request);
+          user = await verifyApiUser(request);
+        } catch (authErr: any) {
+          return new Response(
+            JSON.stringify({ error: "Sessão expirada. Faça login novamente." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        try {
           const body = await request.json();
           const { planId, token, payment_method_id, issuer_id, installments, payer } = body;
 
@@ -246,11 +255,13 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           );
         } catch (err: any) {
           console.error("[Card Checkout Error]", err);
-          const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
-          return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : (err.message || "Não foi possível processar o pagamento com cartão. Tente novamente.") }), {
-            status: isAuthErr ? 401 : 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ error: err.message || "Não foi possível processar o pagamento com cartão. Tente novamente." }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }
+          );
         }
       },
     },

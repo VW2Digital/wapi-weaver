@@ -69,8 +69,8 @@ export async function getMercadoPagoConfig(tenantId?: string): Promise<MercadoPa
   console.log(`[getMercadoPagoConfig] tenantId=${targetTenant} env=${env} mode=${checkoutMode} configured=${Boolean(accessToken)}`);
 
   return {
-    accessToken: accessToken.trim(),
-    publicKey: publicKey.trim(),
+    accessToken: accessToken.trim().replace(/^["']|["']$/g, ""),
+    publicKey: publicKey.trim().replace(/^["']|["']$/g, ""),
     environment: env,
     checkoutMode,
   };

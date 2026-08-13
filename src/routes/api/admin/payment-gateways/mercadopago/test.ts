@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/admin/payment-gateways/mercadopago/te
             environment === "production"
               ? (body.production_access_token ?? "")
               : (body.sandbox_access_token ?? ""),
-          ).trim();
+          ).trim().replace(/^["']|["']$/g, "");
           const current = await getGlobalMercadoPagoRow(adminUser.userId);
           const stored =
             environment === "production"

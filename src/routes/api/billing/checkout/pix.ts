@@ -11,8 +11,17 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        let user: any;
         try {
-          const user = await verifyApiUser(request);
+          user = await verifyApiUser(request);
+        } catch (authErr: any) {
+          return new Response(
+            JSON.stringify({ error: "Sessão expirada. Faça login novamente." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        try {
           const body = await request.json();
           const { planId, payer } = body;
 
@@ -268,11 +277,13 @@ export const Route = createFileRoute("/api/billing/checkout/pix")({
           );
         } catch (err: any) {
           console.error("[PIX Checkout Error]", err);
-          const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
-          return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : (err.message || "Não foi possível iniciar o pagamento. Tente novamente.") }), {
-            status: isAuthErr ? 401 : 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ error: err.message || "Não foi possível iniciar o pagamento. Tente novamente." }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }
+          );
         }
       },
     },
