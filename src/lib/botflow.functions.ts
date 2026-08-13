@@ -223,6 +223,9 @@ export const duplicateBotFlow = createServerFn({ method: "POST" })
       const { default: db } = await import("./db");
       const tenantId = await resolveEffectiveUserId(context.userId);
 
+      await ensureBotFlowsTable(db);
+      await ensureBotFlowsColumns(db);
+
       const [flow] = (await db.query("SELECT * FROM bot_flows WHERE id = ? AND tenant_id = ?", [
         data.id,
         tenantId,
