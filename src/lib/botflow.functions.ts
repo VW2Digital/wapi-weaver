@@ -37,9 +37,66 @@ async function ensureBotFlowsColumns(db: any) {
       );
       await db.query("ALTER TABLE bot_flows MODIFY COLUMN user_id VARCHAR(36) NOT NULL");
     }
+
+    // Bancos criados pelo schema legado possuem flow_data JSON NOT NULL, mas
+    // o editor atual persiste os passos em bot_steps. Tornar a coluna opcional
+    // mantém os dados antigos e permite criar fluxos no formato atual.
+    const legacyFlowData = cols.find((c: any) => c.Field === "flow_data");
+    if (legacyFlowData && legacyFlowData.Null === "NO") {
+      await db.query("ALTER TABLE bot_flows MODIFY COLUMN flow_data JSON NULL");
+    }
   } catch (err) {
     console.warn("[BotFlows] Aviso ao migrar colunas de bot_flows:", err);
   }
+}
+
+async function insertBotFlow(
+  db: any,
+  flow: {
+    id: string;
+    tenantId: string;
+    name: string;
+    channel: string;
+    triggersCount: number;
+    actionsCount: number;
+  },
+) {
+  const cols = (await db.query("SHOW COLUMNS FROM bot_flows")) as any[];
+  const hasLegacyFlowData = cols.some((c: any) => c.Field === "flow_data");
+
+  if (hasLegacyFlowData) {
+    await db.query(
+      `INSERT INTO bot_flows
+       (id, user_id, tenant_id, name, channel, is_active, triggers_count, actions_count, flow_data)
+       VALUES (?, ?, ?, ?, ?, false, ?, ?, ?)`,
+      [
+        flow.id,
+        flow.tenantId,
+        flow.tenantId,
+        flow.name,
+        flow.channel,
+        flow.triggersCount,
+        flow.actionsCount,
+        JSON.stringify({ nodes: [], edges: [] }),
+      ],
+    );
+    return;
+  }
+
+  await db.query(
+    `INSERT INTO bot_flows
+     (id, user_id, tenant_id, name, channel, is_active, triggers_count, actions_count)
+     VALUES (?, ?, ?, ?, ?, false, ?, ?)`,
+    [
+      flow.id,
+      flow.tenantId,
+      flow.tenantId,
+      flow.name,
+      flow.channel,
+      flow.triggersCount,
+      flow.actionsCount,
+    ],
+  );
 }
 
 async function ensureBotStepsColumns(db: any) {
@@ -177,11 +234,14 @@ export const createBotFlow = createServerFn({ method: "POST" })
       const flowId = crypto.randomUUID();
       const name = data.name || "Novo Fluxo";
 
-      await db.query(
-        `INSERT INTO bot_flows (id, user_id, tenant_id, name, channel, is_active, triggers_count, actions_count)
-         VALUES (?, ?, ?, ?, 'whatsapp', false, 1, 1)`,
-        [flowId, tenantId, tenantId, name],
-      );
+      await insertBotFlow(db, {
+        id: flowId,
+        tenantId,
+        name,
+        channel: "whatsapp",
+        triggersCount: 1,
+        actionsCount: 1,
+      });
 
       const [flow] = (await db.query("SELECT * FROM bot_flows WHERE id = ?", [flowId])) as any[];
 
@@ -236,11 +296,14 @@ export const duplicateBotFlow = createServerFn({ method: "POST" })
       const newId = crypto.randomUUID();
       const newName = `${flow.name} (Cópia)`;
 
-      await db.query(
-        `INSERT INTO bot_flows (id, user_id, tenant_id, name, channel, is_active, triggers_count, actions_count)
-         VALUES (?, ?, ?, ?, ?, false, ?, ?)`,
-        [newId, tenantId, tenantId, newName, flow.channel, flow.triggers_count, flow.actions_count],
-      );
+      await insertBotFlow(db, {
+        id: newId,
+        tenantId,
+        name: newName,
+        channel: flow.channel,
+        triggersCount: flow.triggers_count,
+        actionsCount: flow.actions_count,
+      });
 
       const steps = (await db.query("SELECT * FROM bot_steps WHERE flow_id = ?", [
         data.id,
