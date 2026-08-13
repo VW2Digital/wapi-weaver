@@ -108,26 +108,27 @@ export async function processBotFlow(
     const legacySettingIds = sortedFlows
       .filter((flow: any) => Boolean(flow.is_active))
       .map((flow: any) => flow.id);
-    const builderStepsResult = builderStepIds.length
-      ? await dbAdmin
-          .from("bot_steps")
-          .select("*")
-          .eq("user_id", userId)
-          .in("flow_id", builderStepIds)
-      : { data: [] as any[] };
-    const legacyStepsResult = legacySettingIds.length
-      ? await dbAdmin
-          .from("bot_steps")
-          .select("*")
-          .eq("user_id", userId)
-          .in("bot_settings_id", legacySettingIds)
-      : { data: [] as any[] };
+    const { default: db } = await import("./db");
+    const builderSteps = builderStepIds.length
+      ? ((await db.query(
+          `SELECT * FROM bot_steps
+           WHERE user_id = ? AND flow_id IN (${builderStepIds.map(() => "?").join(",")})
+           ORDER BY step_order ASC`,
+          [userId, ...builderStepIds],
+        )) as any[])
+      : [];
+    const legacySteps = legacySettingIds.length
+      ? ((await db.query(
+          `SELECT * FROM bot_steps
+           WHERE user_id = ? AND flow_id IS NULL
+             AND bot_settings_id IN (${legacySettingIds.map(() => "?").join(",")})
+           ORDER BY step_order ASC`,
+          [userId, ...legacySettingIds],
+        )) as any[])
+      : [];
 
     const stepById = new Map<string, any>();
-    for (const step of [
-      ...(builderStepsResult.data || []),
-      ...(legacyStepsResult.data || []).filter((step: any) => !step.flow_id),
-    ]) {
+    for (const step of [...builderSteps, ...legacySteps]) {
       stepById.set(step.id, step);
     }
     const allSteps = Array.from(stepById.values());

@@ -5,6 +5,12 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 import crypto from "crypto";
 
+export const PROFILE_MASKED_SECRET = "********";
+
+function isMaskedProfileSecret(value: unknown) {
+  return typeof value === "string" && /^[*•.\s]+$/.test(value.trim());
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -109,6 +115,8 @@ export const getProfile = createServerFn({ method: "GET" })
           ...data,
           hasAccessToken: Boolean(data.hasAccessToken),
           hasAppSecret: Boolean(data.hasAppSecret),
+          whatsapp_access_token: data.hasAccessToken ? PROFILE_MASKED_SECRET : "",
+          whatsapp_app_secret: data.hasAppSecret ? PROFILE_MASKED_SECRET : "",
         }
       : { id: context.userId, hasAccessToken: false, hasAppSecret: false };
   });
@@ -121,7 +129,14 @@ export const updateProfile = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
 
     // Construir dinamicamente apenas os campos enviados
-    const fields = Object.entries(data).filter(([, v]) => v !== undefined);
+    const fields = Object.entries(data).filter(
+      ([key, value]) =>
+        value !== undefined &&
+        !(
+          (key === "whatsapp_access_token" || key === "whatsapp_app_secret") &&
+          isMaskedProfileSecret(value)
+        ),
+    );
     if (fields.length === 0) return { ok: true };
 
     const cols = fields.map(([k]) => `\`${k}\``).join(", ");

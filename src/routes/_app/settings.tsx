@@ -52,6 +52,7 @@ import {
   listFacebookPages,
   connectFacebookPage,
   disconnectFacebookPage,
+  PROFILE_MASKED_SECRET,
 } from "@/lib/profile.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { onboardWhatsApp } from "@/lib/whatsapp-business-profile.functions";
@@ -290,6 +291,7 @@ function validateAccessToken(v: string): {
 } {
   const t = (v ?? "").trim();
   if (!t) return { error: null, warning: null, ok: false };
+  if (t === PROFILE_MASKED_SECRET) return { error: null, warning: null, ok: true };
   if (/\s/.test(t))
     return {
       error: `O token não pode conter espaços ou quebras de linha. Copie de novo, todo de uma vez.`,
@@ -802,11 +804,12 @@ function SettingsPage() {
 
   const handleDebugToken = () => {
     const token = String(form.whatsapp_access_token ?? "").trim();
-    if (!token && !form.hasAccessToken) {
+    const hasNewToken = token && token !== PROFILE_MASKED_SECRET;
+    if (!hasNewToken && !form.hasAccessToken) {
       toast.error("Insira o Access Token antes de depurar.");
       return;
     }
-    debugTokenMut.mutate(token || undefined);
+    debugTokenMut.mutate(hasNewToken ? token : undefined);
   };
 
   const { data: profile, isLoading } = useQuery({
