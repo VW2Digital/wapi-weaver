@@ -112,7 +112,7 @@ export const Route = createFileRoute("/api/billing/checkout")({
             };
           }
 
-          const siteUrl = process.env.SITE_URL || "";
+          const siteUrl = process.env.SITE_URL || process.env.APP_URL || "";
           const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
           const baseUrl = isPublicUrl ? siteUrl.replace(/\/+$/, "") : "";
 

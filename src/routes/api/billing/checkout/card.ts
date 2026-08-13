@@ -122,7 +122,7 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             };
           }
 
-          const siteUrl = process.env.SITE_URL || "";
+          const siteUrl = process.env.SITE_URL || process.env.APP_URL || "";
           const isPublicUrl = siteUrl && !/localhost|127\.0\.0\.1/.test(siteUrl);
           const webhookUrl = isPublicUrl ? `${siteUrl.replace(/\/+$/, "")}/api/webhooks/mercadopago` : undefined;
 

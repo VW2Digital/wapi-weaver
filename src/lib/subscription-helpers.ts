@@ -3,9 +3,7 @@ import jwt from "jsonwebtoken";
 import db from "./db";
 import { differenceInDays, isAfter, addDays, addMonths, addYears } from "date-fns";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "./jwt-secret";
 
 export interface AuthenticatedUser {
   userId: string;

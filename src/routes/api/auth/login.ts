@@ -68,8 +68,10 @@ export const Route = createFileRoute("/api/auth/login")({
 
           const headers = new Headers();
           headers.set("Content-Type", "application/json");
-          headers.append("Set-Cookie", `wapi_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
-          headers.append("Set-Cookie", `app-token=${token}; Path=/; SameSite=Lax; Max-Age=2592000`);
+          const isSecure = process.env.NODE_ENV === "production" || request.url.startsWith("https:");
+          const secureFlag = isSecure ? "; Secure" : "";
+          headers.append("Set-Cookie", `wapi_token=${token}; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=2592000`);
+          headers.append("Set-Cookie", `app-token=${token}; Path=/; SameSite=Lax${secureFlag}; Max-Age=2592000`);
 
           return new Response(JSON.stringify(responseData), {
             status: 200,
