@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS `bot_conversation_state` (
 
 CREATE TABLE IF NOT EXISTS `bot_flows` (
   `id` varchar(36) NOT NULL,
+  `user_id` varchar(36) NOT NULL,
   `tenant_id` varchar(36) NOT NULL,
   `name` varchar(255) NOT NULL,
   `channel` varchar(50) NOT NULL DEFAULT 'whatsapp',

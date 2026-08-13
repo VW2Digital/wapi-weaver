@@ -9,6 +9,7 @@ async function ensureBotFlowsTable(db: any) {
     await db.query(`
       CREATE TABLE IF NOT EXISTS bot_flows (
         id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
         tenant_id VARCHAR(36) NOT NULL,
         name VARCHAR(255) NOT NULL,
         channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
@@ -22,6 +23,22 @@ async function ensureBotFlowsTable(db: any) {
     `);
   } catch (err) {
     console.warn("[BotFlows] Aviso ao auto-criar tabela bot_flows:", err);
+  }
+}
+
+async function ensureBotFlowsColumns(db: any) {
+  try {
+    const cols = (await db.query("SHOW COLUMNS FROM bot_flows")) as any[];
+    const colNames = cols.map((c: any) => c.Field);
+    if (!colNames.includes("user_id")) {
+      await db.query("ALTER TABLE bot_flows ADD COLUMN user_id VARCHAR(36) NULL AFTER id");
+      await db.query(
+        "UPDATE bot_flows SET user_id = tenant_id WHERE user_id IS NULL OR user_id = ''",
+      );
+      await db.query("ALTER TABLE bot_flows MODIFY COLUMN user_id VARCHAR(36) NOT NULL");
+    }
+  } catch (err) {
+    console.warn("[BotFlows] Aviso ao migrar colunas de bot_flows:", err);
   }
 }
 
@@ -125,6 +142,7 @@ export const listBotFlows = createServerFn({ method: "GET" })
       const tenantId = await resolveEffectiveUserId(context.userId);
 
       await ensureBotFlowsTable(db);
+      await ensureBotFlowsColumns(db);
 
       const flows = (await db.query(
         "SELECT * FROM bot_flows WHERE tenant_id = ? ORDER BY created_at DESC",
@@ -154,14 +172,15 @@ export const createBotFlow = createServerFn({ method: "POST" })
       const tenantId = await resolveEffectiveUserId(context.userId);
 
       await ensureBotFlowsTable(db);
+      await ensureBotFlowsColumns(db);
 
       const flowId = crypto.randomUUID();
       const name = data.name || "Novo Fluxo";
 
       await db.query(
-        `INSERT INTO bot_flows (id, tenant_id, name, channel, is_active, triggers_count, actions_count)
-         VALUES (?, ?, ?, 'whatsapp', false, 1, 1)`,
-        [flowId, tenantId, name],
+        `INSERT INTO bot_flows (id, user_id, tenant_id, name, channel, is_active, triggers_count, actions_count)
+         VALUES (?, ?, ?, ?, 'whatsapp', false, 1, 1)`,
+        [flowId, tenantId, tenantId, name],
       );
 
       const [flow] = (await db.query("SELECT * FROM bot_flows WHERE id = ?", [flowId])) as any[];
@@ -215,9 +234,9 @@ export const duplicateBotFlow = createServerFn({ method: "POST" })
       const newName = `${flow.name} (Cópia)`;
 
       await db.query(
-        `INSERT INTO bot_flows (id, tenant_id, name, channel, is_active, triggers_count, actions_count)
-         VALUES (?, ?, ?, ?, false, ?, ?)`,
-        [newId, tenantId, newName, flow.channel, flow.triggers_count, flow.actions_count],
+        `INSERT INTO bot_flows (id, user_id, tenant_id, name, channel, is_active, triggers_count, actions_count)
+         VALUES (?, ?, ?, ?, ?, false, ?, ?)`,
+        [newId, tenantId, tenantId, newName, flow.channel, flow.triggers_count, flow.actions_count],
       );
 
       const steps = (await db.query("SELECT * FROM bot_steps WHERE flow_id = ?", [
