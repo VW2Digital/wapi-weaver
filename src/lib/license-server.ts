@@ -29,6 +29,9 @@ export function previewLicenseKey(key: string): string {
 
 export function mysqlDate(value: any): string | null {
   if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return `${value.trim()} 23:59:59`;
+  }
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString().slice(0, 19).replace("T", " ");

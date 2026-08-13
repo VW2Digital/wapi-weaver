@@ -575,9 +575,9 @@ function AppLayout() {
             </div>
           </header>
 
-          {/* Banner de Trial Ativo (3 Dias) */}
+          {/* Banner de Trial Ativo */}
           {isTrialActive && subAccess && (
-            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-4 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-indigo-500/30 z-30">
+            <div className="bg-gradient-to-r from-[#F23869] via-[#D93B92] to-[#BF39B6] text-white px-4 py-2.5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-white/10 z-30">
               <div className="flex items-center gap-2.5">
                 <Sparkles className="h-5 w-5 text-amber-300 shrink-0 animate-pulse" />
                 <div>
@@ -591,7 +591,7 @@ function AppLayout() {
               </div>
               <button
                 onClick={() => setIsCheckoutModalOpen(true)}
-                className="inline-flex items-center rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+                className="inline-flex items-center rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 px-4 py-2 text-xs font-extrabold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
               >
                 Conhecer Planos
               </button>
