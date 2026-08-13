@@ -782,6 +782,16 @@ export async function triggerWebhookBotFlow(
   tenantId: string,
   contactId: string,
   payload: Record<string, any>,
+    }
+  } catch (err: any) {
+    logError("Exceção fatal no executeInactivityStep", { error: err.message });
+  }
+}
+
+export async function triggerWebhookBotFlow(
+  tenantId: string,
+  contactId: string,
+  payload: Record<string, any>,
 ) {
   const { default: db } = await import("./db");
   const { matchWebhookPayload } = await import("./webhooks.server");
@@ -789,20 +799,12 @@ export async function triggerWebhookBotFlow(
   try {
     // 1. Busca todos os passos com gatilho de webhook ativos para o tenant
     const activeTriggers = (await db.query(
-      `SELECT bs.*, COALESCE(bf.name, b.name) as flow_name, b.channel
+      `SELECT bs.*, COALESCE(bf.name, b.name) as flow_name, COALESCE(bf.channel, b.channel, 'whatsapp') as channel
        FROM bot_steps bs
-       JOIN bot_settings b ON bs.bot_settings_id = b.id
+       LEFT JOIN bot_settings b ON bs.bot_settings_id = b.id
        LEFT JOIN bot_flows bf ON bs.flow_id = bf.id
-       WHERE b.user_id = ? AND (b.is_active = 1 OR bf.is_active = 1)
+       WHERE (bs.user_id = ? OR bs.tenant_id = ?)
          AND bs.trigger_type = 'webhook'
-         AND (bs.flow_id IS NULL OR bf.is_active = 1)`,
-      [tenantId],
-    )) as any[];
-
-    if (!activeTriggers || activeTriggers.length === 0) return;
-
-    // 2. Obtém dados do contato (telefone)
-    const contactRows = (await db.query(
       "SELECT phone_e164 FROM contacts WHERE id = ? LIMIT 1",
       [contactId],
     )) as any[];
