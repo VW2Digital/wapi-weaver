@@ -548,6 +548,8 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           "start",
           "keyword",
           "webhook",
+          "button",
+          "inactivity",
           "first_message",
           "tag_assigned",
           "queue_assigned",

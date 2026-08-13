@@ -84,7 +84,7 @@ export async function processBotFlow(
     let stepToExecute: any = null;
 
     // Buscar todos os passos ativos do canal
-    const { data: allSteps } = await dbAdmin
+    const { data: loadedSteps } = await dbAdmin
       .from("bot_steps")
       .select("*")
       .eq("user_id", userId)
@@ -92,6 +92,27 @@ export async function processBotFlow(
         "bot_settings_id",
         sortedFlows.map((f: any) => f.id),
       );
+
+    // Os fluxos criados pelo construtor ficam em bot_flows e compartilham o
+    // mesmo bot_settings. Respeitar o flow_id/is_active evita executar passos
+    // de outro fluxo (ou de um fluxo que foi desativado na listagem).
+    const { data: builderFlows } = await dbAdmin
+      .from("bot_flows")
+      .select("id, name, channel, is_active, last_executed_at")
+      .eq("tenant_id", userId)
+      .eq("channel", channel);
+    const activeBuilderFlowIds = new Set(
+      (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
+    );
+    const allSteps = (loadedSteps || []).filter(
+      (step: any) => !step.flow_id || activeBuilderFlowIds.has(step.flow_id),
+    );
+    const normalizeTriggerValue = (value: unknown) =>
+      String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+    const findFlowForStep = (step: any) =>
+      (step?.flow_id && (builderFlows || []).find((f: any) => f.id === step.flow_id)) ||
+      sortedFlows.find((f: any) => f.id === step?.bot_settings_id) ||
+      activeFlow;
 
     // Determinar expiração da sessão (24 horas)
     let isSessionExpired = false;
@@ -210,14 +231,28 @@ export async function processBotFlow(
       }
     }
 
+    // IDs de botões/listas configurados como gatilho também podem vir puros
+    // da API da Meta (sem o prefixo interno "step:").
+    if (!isButtonRedirect && buttonPayload) {
+      const buttonStep = allSteps.find(
+        (s: any) =>
+          s.trigger_type === "button" &&
+          normalizeTriggerValue(s.trigger_value) === normalizeTriggerValue(buttonPayload),
+      );
+      if (buttonStep) {
+        stepToExecute = buttonStep;
+        activeFlow = findFlowForStep(buttonStep);
+        isButtonRedirect = true;
+      }
+    }
+
     if (!isButtonRedirect) {
       // Regra 1: Se existe sessão ativa para a conversa (e não é comando global de interrupção nem está expirada), continuar o fluxo atual
       if (state && state.current_step_id && !isSessionExpired && !isInterruption) {
         const queuedStep = allSteps?.find((s: any) => s.id === state.current_step_id);
         if (queuedStep) {
           stepToExecute = queuedStep;
-          activeFlow =
-            sortedFlows.find((f: any) => f.id === queuedStep.bot_settings_id) || activeFlow;
+          activeFlow = findFlowForStep(queuedStep);
         }
       }
 
@@ -252,38 +287,28 @@ export async function processBotFlow(
         }
 
         // Regra 3, 4 & 5: Aplicar palavra-chave para iniciar novo fluxo (ordenado por priority DESC)
-        const keywordMatch = sortedFlows.find((f: any) => {
-          if (f.trigger_type === "keyword" && f.trigger_value) {
-            return messageBody.toLowerCase() === f.trigger_value.toLowerCase();
-          }
-          const startStep = allSteps?.find(
-            (s: any) => s.bot_settings_id === f.id && s.trigger_type === "keyword",
-          );
-          return (
-            startStep?.trigger_value &&
-            messageBody.toLowerCase() === startStep.trigger_value.toLowerCase()
-          );
-        });
+        const keywordStep = allSteps.find(
+          (s: any) =>
+            s.trigger_type === "keyword" &&
+            normalizeTriggerValue(s.trigger_value) === normalizeTriggerValue(messageBody),
+        );
 
-        if (keywordMatch) {
-          activeFlow = keywordMatch;
-          const startStep = allSteps?.find(
-            (s: any) =>
-              s.bot_settings_id === activeFlow.id &&
-              (s.trigger_type === "keyword" || s.trigger_type === "start"),
-          );
-          if (startStep) stepToExecute = startStep;
+        if (keywordStep) {
+          stepToExecute = keywordStep;
+          activeFlow = findFlowForStep(keywordStep);
         }
 
         // Regra 6: Usar fluxo padrão (is_default = true) se nenhum for compatível
         if (!stepToExecute) {
           const defaultFlow = sortedFlows.find((f: any) => f.is_default);
-          if (defaultFlow) {
-            activeFlow = defaultFlow;
-            const startStep = allSteps?.find(
-              (s: any) => s.bot_settings_id === activeFlow.id && s.trigger_type === "start",
-            );
-            if (startStep) stepToExecute = startStep;
+          const startStep = allSteps.find(
+            (s: any) =>
+              s.trigger_type === "start" &&
+              (!defaultFlow || s.bot_settings_id === defaultFlow.id),
+          ) || allSteps.find((s: any) => s.trigger_type === "start");
+          if (startStep) {
+            stepToExecute = startStep;
+            activeFlow = findFlowForStep(startStep);
           }
         }
       }
@@ -356,6 +381,14 @@ export async function processBotFlow(
       flowId: activeFlow.id,
       messageBody,
     });
+
+    if (stepToExecute.flow_id) {
+      await dbAdmin
+        .from("bot_flows")
+        .update({ last_executed_at: new Date().toISOString() })
+        .eq("id", stepToExecute.flow_id)
+        .eq("tenant_id", userId);
+    }
 
     const isHandoff = stepToExecute.next_step_id === "-999";
     const updateData = {
@@ -694,7 +727,7 @@ export async function executeInactivityStep(
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
-          current_step_id: null,
+          current_step_id: stepToExecute.next_step_id || null,
           last_interaction: new Date().toISOString(),
         },
         { onConflict: "user_id,contact_number,instance_id,channel" },
@@ -717,6 +750,14 @@ export async function executeInactivityStep(
         },
       });
       logInfo("Mensagem de inatividade enviada e salva", { providerMsgId });
+
+      if (stepToExecute.flow_id) {
+        await dbAdmin
+          .from("bot_flows")
+          .update({ last_executed_at: new Date().toISOString() })
+          .eq("id", stepToExecute.flow_id)
+          .eq("tenant_id", userId);
+      }
     }
   } catch (err: any) {
     logError("Exceção fatal no executeInactivityStep", { error: err.message });
@@ -734,10 +775,12 @@ export async function triggerWebhookBotFlow(
   try {
     // 1. Busca todos os passos com gatilho de webhook ativos para o tenant
     const activeTriggers = (await db.query(
-      `SELECT bs.*, b.name as flow_name, b.channel
+      `SELECT bs.*, COALESCE(bf.name, b.name) as flow_name, b.channel
        FROM bot_steps bs
        JOIN bot_settings b ON bs.bot_settings_id = b.id
-       WHERE b.user_id = ? AND b.is_active = 1 AND bs.trigger_type = 'webhook'`,
+       LEFT JOIN bot_flows bf ON bs.flow_id = bf.id
+       WHERE b.user_id = ? AND b.is_active = 1 AND bs.trigger_type = 'webhook'
+         AND (bs.flow_id IS NULL OR bf.is_active = 1)`,
       [tenantId],
     )) as any[];
 
