@@ -16,6 +16,7 @@ export async function processBotFlow(
   userId: string,
   buttonPayload?: string,
   channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" = "whatsapp",
+  incomingMessageId?: string | null,
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return;
 
@@ -119,7 +120,20 @@ export async function processBotFlow(
         (!step.flow_id && hasActiveLegacySettings),
     );
     const normalizeTriggerValue = (value: unknown) =>
-      String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+      String(value ?? "")
+        .trim()
+        .toLocaleLowerCase("pt-BR")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    const matchesConfiguredTrigger = (configured: unknown, received: unknown) => {
+      const normalizedReceived = normalizeTriggerValue(received);
+      if (!normalizedReceived) return false;
+      return String(configured ?? "")
+        .split(/[,;\n]/)
+        .map(normalizeTriggerValue)
+        .filter(Boolean)
+        .includes(normalizedReceived);
+    };
     const findFlowForStep = (step: any) =>
       (step?.flow_id && (builderFlows || []).find((f: any) => f.id === step.flow_id)) ||
       sortedFlows.find((f: any) => f.id === step?.bot_settings_id) ||
@@ -248,7 +262,7 @@ export async function processBotFlow(
       const buttonStep = allSteps.find(
         (s: any) =>
           s.trigger_type === "button" &&
-          normalizeTriggerValue(s.trigger_value) === normalizeTriggerValue(buttonPayload),
+          matchesConfiguredTrigger(s.trigger_value, buttonPayload),
       );
       if (buttonStep) {
         stepToExecute = buttonStep;
@@ -301,7 +315,7 @@ export async function processBotFlow(
         const keywordStep = allSteps.find(
           (s: any) =>
             s.trigger_type === "keyword" &&
-            normalizeTriggerValue(s.trigger_value) === normalizeTriggerValue(messageBody),
+            matchesConfiguredTrigger(s.trigger_value, messageBody),
         );
 
         if (keywordStep) {
@@ -445,13 +459,22 @@ export async function processBotFlow(
         recipient_type: channel === "whatsapp_group" ? "group" : "individual",
         to: phoneDigits,
       };
+      if (incomingMessageId && channel === "whatsapp") {
+        payload.context = { message_id: incomingMessageId };
+      }
 
       if (!stepToExecute.message_type || stepToExecute.message_type === "text") {
         payload.type = "text";
-        payload.text = { body: stepToExecute.message_content || "" };
+        payload.text = {
+          preview_url: false,
+          body: stepToExecute.message_content || "",
+        };
       } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
         payload.type = stepToExecute.message_type;
-        const mediaObj: any = { link: stepToExecute.media_url || "" };
+        const mediaReference = String(stepToExecute.media_url || "").trim();
+        const mediaObj: any = /^https?:\/\//i.test(mediaReference)
+          ? { link: mediaReference }
+          : { id: mediaReference };
         if (
           stepToExecute.media_caption &&
           ["image", "video", "document"].includes(stepToExecute.message_type)

@@ -893,7 +893,15 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
     if (phoneNumberId && body) {
-      await processBotFlow(body, phoneDigits, phoneNumberId, userId, buttonPayload);
+      await processBotFlow(
+        body,
+        phoneDigits,
+        phoneNumberId,
+        userId,
+        buttonPayload,
+        "whatsapp",
+        waMessageId,
+      );
     }
   }
 }
