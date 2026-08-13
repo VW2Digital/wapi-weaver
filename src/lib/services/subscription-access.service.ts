@@ -234,7 +234,6 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
   }
 
   const sub = subs[0];
-  const now = new Date();
   const planInfo = sub.plan_id
     ? { id: sub.plan_id, name: sub.plan_name || "Plano Padrão", code: sub.plan_code || "standard" }
     : null;

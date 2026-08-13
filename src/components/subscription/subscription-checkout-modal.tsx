@@ -56,6 +56,13 @@ function formatExpiry(v: string) {
   if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return digits;
 }
+function formatCPF(v: string) {
+  const digits = v.replace(/\D/g, "").slice(0, 11);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === "undefined") return { "Content-Type": "application/json" };
 
@@ -102,7 +109,10 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
   const [copied, setCopied] = useState(false);
 
   // Card result
-  const [cardResult, setCardResult] = useState<{ status: "approved" | "rejected" | "pending"; detail?: string } | null>(null);
+  const [cardResult, setCardResult] = useState<{
+    status: "approved" | "rejected" | "pending" | "in_process";
+    detail?: string;
+  } | null>(null);
 
   // Gateway config
   const [gatewayConfig, setGatewayConfig] = useState<{
@@ -654,7 +664,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                     placeholder="000.000.000-00"
                     value={cpf}
                     onChange={(e) => setCpf(formatCPF(e.target.value))}
-                    maxLength={11}
+                    maxLength={14}
                     inputMode="numeric"
                     className="font-mono rounded-xl bg-background"
                   />
