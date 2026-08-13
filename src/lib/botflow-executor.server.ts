@@ -459,7 +459,27 @@ export async function processBotFlow(
               : stepToExecute.buttons_config;
 
           payload.type = "interactive";
-          payload.interactive = configObj.interactive || configObj;
+          if (configObj.interactive) {
+            payload.interactive = configObj.interactive;
+          } else if (stepToExecute.message_type === "list") {
+            payload.interactive = {
+              type: "list",
+              body: { text: stepToExecute.message_content || "Escolha uma opção" },
+              ...(stepToExecute.footer_text
+                ? { footer: { text: stepToExecute.footer_text } }
+                : {}),
+              action: configObj.action || configObj,
+            };
+          } else {
+            payload.interactive = {
+              type: "button",
+              body: { text: stepToExecute.message_content || "Escolha uma opção" },
+              ...(stepToExecute.footer_text
+                ? { footer: { text: stepToExecute.footer_text } }
+                : {}),
+              action: configObj.action || configObj,
+            };
+          }
         } catch (e: any) {
           logError("Erro ao processar buttons_config", e);
           payload.type = "text";
@@ -481,6 +501,14 @@ export async function processBotFlow(
         isSuccess = true;
         const resJson = await r.json();
         providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || null;
+      } else {
+        const errorText = await r.text();
+        logError("Meta recusou a mensagem do fluxo", {
+          status: r.status,
+          stepId: stepToExecute.id,
+          messageType: stepToExecute.message_type,
+          response: errorText.slice(0, 2000),
+        });
       }
     } else if (channel === "instagram") {
       const { data: igAcc } = await dbAdmin
