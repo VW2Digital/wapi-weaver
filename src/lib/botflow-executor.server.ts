@@ -469,18 +469,49 @@ export async function processBotFlow(
       const rawMediaUrl = String(stepToExecute.media_url || "").trim();
       if (rawMediaUrl.startsWith("data:")) {
         try {
-          // Extrai o mimeType e os dados base64
-          const [header, base64Data] = rawMediaUrl.split(",");
-          const mimeType = header.replace(/^data:/, "").replace(/;base64$/, "");
+          const commaIdx = rawMediaUrl.indexOf(",");
+          if (commaIdx === -1) throw new Error("data:URL inválida — sem separador de conteúdo");
+
+          const header = rawMediaUrl.slice(0, commaIdx);       // "data:application/pdf;base64"
+          const base64Data = rawMediaUrl.slice(commaIdx + 1);  // dados base64 puros
+
+          // Extrai o mimeType removendo o prefixo "data:" e o sufixo ";base64"
+          const mimeType = header.replace(/^data:/, "").replace(/;base64$/i, "").trim();
+          // Ex: "application/pdf", "image/png", "audio/ogg", "video/mp4"
+
+          // Mapa de MIME → extensão compatível com a Meta
+          const MIME_EXT: Record<string, string> = {
+            "image/jpeg": "jpg",
+            "image/jpg": "jpg",
+            "image/png": "png",
+            "image/gif": "gif",
+            "image/webp": "webp",
+            "image/bmp": "bmp",
+            "video/mp4": "mp4",
+            "video/3gpp": "3gp",
+            "video/quicktime": "mov",
+            "audio/ogg": "ogg",
+            "audio/mpeg": "mp3",
+            "audio/mp4": "m4a",
+            "audio/aac": "aac",
+            "audio/wav": "wav",
+            "application/pdf": "pdf",
+            "application/msword": "doc",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+            "application/vnd.ms-excel": "xls",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+            "application/vnd.ms-powerpoint": "ppt",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+            "text/plain": "txt",
+          };
+          const ext = MIME_EXT[mimeType] || mimeType.split("/").pop()?.split(";")[0] || "bin";
+          const uploadFilename = `media.${ext}`;
+
           const binaryBuffer = Buffer.from(base64Data, "base64");
 
           const form = new FormData();
           form.append("messaging_product", "whatsapp");
-          form.append(
-            "file",
-            new Blob([binaryBuffer], { type: mimeType }),
-            `media.${mimeType.split("/")[1] || "bin"}`,
-          );
+          form.append("file", new Blob([binaryBuffer], { type: mimeType }), uploadFilename);
 
           const uploadApiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
           const uploadRes = await fetch(
@@ -501,6 +532,7 @@ export async function processBotFlow(
                 stepId: stepToExecute.id,
                 mediaId,
                 mimeType,
+                uploadFilename,
               });
             } else {
               logError("Upload de mídia retornou OK mas sem id", { uploadJson });
@@ -509,7 +541,9 @@ export async function processBotFlow(
             const errText = await uploadRes.text();
             logError("Falha no upload de mídia para a Meta", {
               status: uploadRes.status,
-              response: errText.slice(0, 500),
+              mimeType,
+              uploadFilename,
+              response: errText.slice(0, 800),
             });
           }
         } catch (uploadErr: any) {

@@ -27,6 +27,7 @@ export function StepInspector({
 }: any) {
   const [config, setConfig] = useState<any>({});
   const [mediaSourceTab, setMediaSourceTab] = useState<"upload" | "url">("upload");
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   const listFlowsFn = useServerFn(listWhatsAppFlows);
   const flowsQuery = useQuery({
@@ -1021,37 +1022,59 @@ export function StepInspector({
               </div>
             </div>
 
-            {/* Tab 1: Upload de Arquivo Directo */}
+            {/* Tab 1: Upload de Arquivo Direto para o Servidor */}
             {mediaSourceTab === "upload" && (
               <div>
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/60 bg-card p-4 rounded-xl cursor-pointer transition-all group text-center shadow-xs">
+                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/60 bg-card p-4 rounded-xl cursor-pointer transition-all group text-center shadow-xs ${isUploadingMedia ? "opacity-60 pointer-events-none" : ""}`}>
                   <FileUp className="h-6 w-6 text-primary group-hover:scale-110 transition-transform mb-1" />
                   <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
-                    Clique para fazer upload do arquivo
+                    {isUploadingMedia ? "Enviando arquivo..." : "Clique para fazer upload do arquivo"}
                   </span>
                   <span className="text-[10px] text-muted-foreground mt-0.5">
-                    Imagens (PNG, JPG), Vídeos (MP4), Áudios (MP3) ou PDF (máx. 25MB)
+                    Imagens (PNG, JPG), Vídeos (MP4), Áudios (MP3) ou PDF (máx. 20MB)
                   </span>
                   <input
                     type="file"
                     className="hidden"
+                    disabled={isUploadingMedia}
                     accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      if (file.size > 25 * 1024 * 1024) {
-                        toast.error("O arquivo excede o limite de 25MB.");
+                      if (file.size > 20 * 1024 * 1024) {
+                        toast.error("O arquivo excede o limite de 20MB.");
                         return;
                       }
-                      const reader = new FileReader();
-                      reader.onload = (event) => {
-                        const dataUrl = event.target?.result as string;
-                        if (dataUrl) {
-                          handleUpdateStep("media_url", dataUrl);
-                          toast.success(`Mídia "${file.name}" carregada com sucesso!`);
+                      setIsUploadingMedia(true);
+                      try {
+                        const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
+                        const uploadPath = `media/${crypto.randomUUID()}.${ext}`;
+
+                        const form = new FormData();
+                        form.append("path", uploadPath);
+                        form.append("file", file, file.name);
+
+                        const res = await fetch("/api/storage/upload", {
+                          method: "POST",
+                          body: form,
+                          credentials: "include",
+                        });
+                        const json = await res.json();
+                        if (!res.ok || !json.path) {
+                          toast.error(json.error || "Falha ao enviar o arquivo.");
+                          return;
                         }
-                      };
-                      reader.readAsDataURL(file);
+                        // Salva o path relativo (ex: "<tenantId>/media/<uuid>.pdf")
+                        // O executor convêrte para URL pública via resolveMediaReference
+                        handleUpdateStep("media_url", `uploads/${json.path}`);
+                        toast.success(`"${file.name}" enviado com sucesso!`);
+                      } catch (err: any) {
+                        toast.error(err?.message || "Erro ao enviar arquivo.");
+                      } finally {
+                        setIsUploadingMedia(false);
+                        // Reset input para permitir re-upload do mesmo arquivo
+                        e.target.value = "";
+                      }
                     }}
                   />
                 </label>
@@ -1077,7 +1100,7 @@ export function StepInspector({
                   {selectedStep.media_url.startsWith("data:image") ||
                   selectedStep.media_url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
                     <img
-                      src={selectedStep.media_url}
+                      src={selectedStep.media_url.startsWith("data:") ? selectedStep.media_url : `/api/storage/file?path=${encodeURIComponent(selectedStep.media_url.replace(/^\/?(uploads\/)?/, ""))}`}
                       alt="Preview"
                       className="h-10 w-10 object-cover rounded-md shrink-0 border border-border"
                     />
@@ -1092,7 +1115,12 @@ export function StepInspector({
                       Mídia Anexada
                     </span>
                     <span className="text-[10px] text-muted-foreground truncate block">
-                      {selectedStep.media_url.slice(0, 35)}...
+                      {(() => {
+                        const url = selectedStep.media_url as string;
+                        if (url.startsWith("data:")) return url.slice(0, 35) + "...";
+                        const parts = url.split("/");
+                        return parts[parts.length - 1] || url.slice(0, 35);
+                      })()}
                     </span>
                   </div>
                 </div>
