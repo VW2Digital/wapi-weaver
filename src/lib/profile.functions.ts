@@ -136,6 +136,35 @@ export const updateProfile = createServerFn({ method: "POST" })
       [context.userId, ...vals],
     );
 
+    // A configuração manual também precisa inscrever o aplicativo na WABA.
+    // Sem este POST oficial, a Meta aceita o token para envios, mas não entrega
+    // mensagens recebidas ao callback (e o bot nunca é acionado).
+    const profileRows = (await db.query(
+      `SELECT whatsapp_waba_id, whatsapp_access_token, meta_graph_version
+       FROM profiles WHERE id = ? LIMIT 1`,
+      [context.userId],
+    )) as any[];
+    const profile = profileRows?.[0];
+    if (profile?.whatsapp_waba_id && profile?.whatsapp_access_token) {
+      const apiVersion = profile.meta_graph_version || "v26.0";
+      const subscriptionResponse = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_waba_id}/subscribed_apps`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${profile.whatsapp_access_token}` },
+        },
+      );
+      const subscriptionBody = await subscriptionResponse.json().catch(() => ({}));
+      if (!subscriptionResponse.ok) {
+        return {
+          ok: true,
+          warning:
+            subscriptionBody?.error?.message ||
+            "Credenciais salvas, mas a Meta recusou a inscrição do webhook.",
+        };
+      }
+    }
+
     return { ok: true };
   });
 

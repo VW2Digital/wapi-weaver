@@ -109,15 +109,19 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
         }
 
         // Salvar evento no banco para auditoria
-        const { data: eventRow } = await dbAdmin
+        const { data: eventRow, error: eventInsertError } = await dbAdmin
           .from("instagram_webhook_events")
           .insert({
+            id: crypto.randomUUID(),
             user_id: account.user_id,
             raw: payload,
             processed: false,
           })
           .select("id")
           .single();
+        if (eventInsertError) {
+          logError("Falha ao registrar evento do Instagram", eventInsertError);
+        }
 
         // Processamento assíncrono para responder rapidamente à Meta
         setTimeout(() => {

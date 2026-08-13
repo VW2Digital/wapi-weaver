@@ -185,6 +185,35 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
   return { ok: true as const, settings, profile: p };
 }
 
+async function ensureMetaWebhookSubscription(userId: string) {
+  const { default: db } = await import("./db");
+  const rows = (await db.query(
+    `SELECT whatsapp_waba_id, whatsapp_access_token, meta_graph_version
+     FROM profiles WHERE id = ? LIMIT 1`,
+    [userId],
+  )) as any[];
+  const profile = rows?.[0];
+  if (!profile?.whatsapp_waba_id || !profile?.whatsapp_access_token) {
+    return { ok: false as const, error: "WABA ID ou Access Token não configurado." };
+  }
+
+  const apiVersion = profile.meta_graph_version || "v26.0";
+  const response = await fetch(
+    `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_waba_id}/subscribed_apps`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${profile.whatsapp_access_token}` },
+    },
+  );
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = body?.error?.message || "A Meta recusou a inscrição do webhook.";
+    console.error("[BotFlows] Falha ao inscrever aplicativo na WABA:", message);
+    return { ok: false as const, error: message };
+  }
+  return { ok: true as const };
+}
+
 // ============================================================================
 // LISTA DE FLUXOS DE AUTOMAÇÃO (bot_flows)
 // ============================================================================
@@ -261,11 +290,38 @@ export const toggleBotFlowStatus = createServerFn({ method: "POST" })
       const { default: db } = await import("./db");
       const tenantId = await resolveEffectiveUserId(context.userId);
 
+      const flowRows = (await db.query(
+        "SELECT channel FROM bot_flows WHERE id = ? AND tenant_id = ? LIMIT 1",
+        [data.id, tenantId],
+      )) as any[];
+      const flow = flowRows?.[0];
+      if (!flow) throw new Error("Fluxo não encontrado.");
+
       await db.query("UPDATE bot_flows SET is_active = ? WHERE id = ? AND tenant_id = ?", [
         data.isActive ? 1 : 0,
         data.id,
         tenantId,
       ]);
+
+      // Um fluxo ativo com o motor global desligado nunca pode executar. Ao
+      // ativar qualquer fluxo, habilitamos também o bot_settings do mesmo canal.
+      // Desativar um fluxo não desliga os demais fluxos ativos.
+      if (data.isActive) {
+        const settingsResult = await getOrCreateBotSettings(context, flow.channel || "whatsapp");
+        if (!settingsResult.ok) {
+          throw new Error(settingsResult.error || "Falha ao ativar o motor do bot.");
+        }
+        await db.query("UPDATE bot_settings SET is_active = 1 WHERE id = ?", [
+          settingsResult.settings.id,
+        ]);
+        const subscription = await ensureMetaWebhookSubscription(tenantId);
+        if (!subscription.ok) {
+          return {
+            ok: true,
+            warning: `Fluxo ativado, mas o webhook da Meta não foi inscrito: ${subscription.error}`,
+          };
+        }
+      }
 
       return { ok: true };
     } catch (err: any) {
@@ -669,7 +725,14 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
         );
       }
 
-      return { ok: true };
+      const subscription = await ensureMetaWebhookSubscription(effectiveUserId);
+
+      return {
+        ok: true,
+        ...(!subscription.ok
+          ? { warning: `Fluxo salvo, mas o webhook da Meta não foi inscrito: ${subscription.error}` }
+          : {}),
+      };
     },
   );
 

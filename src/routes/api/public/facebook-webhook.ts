@@ -101,15 +101,19 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
         }
 
         // Salvar evento no banco para auditoria
-        const { data: eventRow } = await dbAdmin
+        const { data: eventRow, error: eventInsertError } = await dbAdmin
           .from("facebook_webhook_events")
           .insert({
+            id: crypto.randomUUID(),
             user_id: page.user_id,
             raw: payload,
             processed: false,
           })
           .select("id")
           .single();
+        if (eventInsertError) {
+          logError("Falha ao registrar evento do Messenger", eventInsertError);
+        }
 
         // Processamento assíncrono para responder rapidamente à Meta
         setTimeout(() => {

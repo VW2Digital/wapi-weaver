@@ -32,10 +32,27 @@ export async function processBotFlow(
       .from("bot_settings")
       .select("*")
       .eq("user_id", userId)
-      .eq("channel", channel)
-      .eq("is_active", true);
+      .eq("channel", channel);
 
     if (!flows || flows.length === 0) {
+      logInfo("Nenhuma configuração de bot encontrada para o canal", { channel });
+      return;
+    }
+
+    const { data: builderFlows } = await dbAdmin
+      .from("bot_flows")
+      .select("id, name, channel, is_active, last_executed_at")
+      .eq("tenant_id", userId)
+      .eq("channel", channel);
+    const activeBuilderFlowIds = new Set(
+      (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
+    );
+
+    // O status individual do fluxo é a fonte de verdade no construtor novo.
+    // bot_settings.is_active continua valendo para fluxos legados, mas não pode
+    // bloquear um fluxo que aparece como ativo na tela.
+    const hasActiveLegacySettings = flows.some((flow: any) => Boolean(flow.is_active));
+    if (!hasActiveLegacySettings && activeBuilderFlowIds.size === 0) {
       logInfo("Nenhum fluxo de bot ativo configurado para o canal", { channel });
       return;
     }
@@ -96,16 +113,10 @@ export async function processBotFlow(
     // Os fluxos criados pelo construtor ficam em bot_flows e compartilham o
     // mesmo bot_settings. Respeitar o flow_id/is_active evita executar passos
     // de outro fluxo (ou de um fluxo que foi desativado na listagem).
-    const { data: builderFlows } = await dbAdmin
-      .from("bot_flows")
-      .select("id, name, channel, is_active, last_executed_at")
-      .eq("tenant_id", userId)
-      .eq("channel", channel);
-    const activeBuilderFlowIds = new Set(
-      (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
-    );
     const allSteps = (loadedSteps || []).filter(
-      (step: any) => !step.flow_id || activeBuilderFlowIds.has(step.flow_id),
+      (step: any) =>
+        (step.flow_id && activeBuilderFlowIds.has(step.flow_id)) ||
+        (!step.flow_id && hasActiveLegacySettings),
     );
     const normalizeTriggerValue = (value: unknown) =>
       String(value ?? "").trim().toLocaleLowerCase("pt-BR");
@@ -807,7 +818,8 @@ export async function triggerWebhookBotFlow(
        FROM bot_steps bs
        JOIN bot_settings b ON bs.bot_settings_id = b.id
        LEFT JOIN bot_flows bf ON bs.flow_id = bf.id
-       WHERE b.user_id = ? AND b.is_active = 1 AND bs.trigger_type = 'webhook'
+       WHERE b.user_id = ? AND (b.is_active = 1 OR bf.is_active = 1)
+         AND bs.trigger_type = 'webhook'
          AND (bs.flow_id IS NULL OR bf.is_active = 1)`,
       [tenantId],
     )) as any[];

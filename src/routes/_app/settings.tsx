@@ -917,8 +917,9 @@ function SettingsPage() {
 
   const saveMut = useMutation({
     mutationFn: (d: any) => save({ data: d }),
-    onSuccess: () => {
-      toast.success("Salvo");
+    onSuccess: (result: any) => {
+      if (result?.warning) toast.warning(result.warning);
+      else toast.success("Salvo e webhook inscrito na Meta");
       qc.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (e: any) => toast.error(e.message),

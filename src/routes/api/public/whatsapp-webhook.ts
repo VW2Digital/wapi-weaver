@@ -1477,7 +1477,8 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const matchedUserId = resolved.userId;
 
         if (!matchedUserId) {
-          await dbAdmin.from("webhook_events").insert({
+          const { error: rejectedEventError } = await dbAdmin.from("webhook_events").insert({
+            id: crypto.randomUUID(),
             source: "whatsapp",
             raw: {
               rejected: true,
@@ -1486,6 +1487,9 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               body: rawBody.slice(0, 4000),
             },
           });
+          if (rejectedEventError) {
+            logError("Falha ao registrar webhook rejeitado", rejectedEventError);
+          }
           logError("POST recusado (não foi possível resolver user)", {
             reason: resolved.reason,
             phone_number_ids: extractPhoneNumberIds(payload),
@@ -1494,18 +1498,61 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         }
 
         // Salva o payload bruto para debug e processa em seguida
-        const { data: evRow } = await dbAdmin
+        const { data: evRow, error: eventInsertError } = await dbAdmin
           .from("webhook_events")
-          .insert({ source: "whatsapp", raw: payload, user_id: matchedUserId })
+          .insert({
+            id: crypto.randomUUID(),
+            tenant_id: matchedUserId,
+            source: "whatsapp",
+            raw: payload,
+            payload_json: payload,
+            user_id: matchedUserId,
+          })
           .select("id")
           .single();
 
-        // Responde rápido para a Meta e empurra o payload para o Redis BullMQ
-        await webhookQueue.add("meta-event", {
-          entry: payload.entry,
-          matchedUserId,
-          evRowId: evRow?.id ?? null,
-        });
+        if (eventInsertError) {
+          logError("Falha ao registrar evento do webhook", eventInsertError);
+        }
+
+        // Preferimos a fila para responder rapidamente à Meta. Se o Redis
+        // estiver indisponível, processamos no próprio request para não perder
+        // mensagens recebidas nem impedir o bot de responder.
+        try {
+          await webhookQueue.add("meta-event", {
+            entry: payload.entry,
+            matchedUserId,
+            evRowId: evRow?.id ?? null,
+          });
+        } catch (queueError) {
+          logError("Fila de webhooks indisponível; usando processamento direto", queueError);
+
+          for (const entry of payload.entry ?? []) {
+            for (const change of entry.changes ?? []) {
+              if (change.field === "messages") {
+                await processStatusUpdate(change.value, matchedUserId);
+                await processInboundMessages(change.value, matchedUserId);
+                await processInboundDirectMessages(change.value, matchedUserId);
+              } else if (change.field === "history") {
+                await processHistorySync(change.value, matchedUserId);
+              } else if (change.field === "smb_app_state_sync") {
+                await processStateSync(change.value, matchedUserId);
+              } else if (change.field === "smb_message_echoes") {
+                await processMessageEchoes(change.value, matchedUserId);
+              } else if (change.field === "message_template_status_update") {
+                await processTemplateStatusUpdate(change.value, matchedUserId);
+              } else if (change.field === "template_category_update") {
+                await processTemplateCategoryUpdate(change.value, matchedUserId);
+              } else if (change.field === "account_update") {
+                await processAccountUpdate(change.value, matchedUserId);
+              }
+            }
+          }
+
+          if (evRow?.id) {
+            await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
+          }
+        }
 
         return new Response("ok", { status: 200 });
       },

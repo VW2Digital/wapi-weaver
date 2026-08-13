@@ -135,9 +135,10 @@ function BotPage() {
   const toggleFlowStatusMut = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       toggleFlowStatusFn({ data: { id, isActive } }),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["botFlows"] });
-      toast.success("Status atualizado");
+      if (res?.warning) toast.warning(res.warning);
+      else toast.success("Status atualizado");
     },
     onError: (err: any) => toast.error(err?.message || "Erro ao atualizar status"),
   });
@@ -221,10 +222,11 @@ function BotPage() {
       if (!res.ok) throw new Error(res.error || "Erro ao salvar o fluxo");
       return res;
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["botSteps", selectedChannel, activeFlowId] });
       queryClient.invalidateQueries({ queryKey: ["botFlows"] });
-      toast.success("Fluxo salvo no banco de dados com sucesso!");
+      if (res?.warning) toast.warning(res.warning);
+      else toast.success("Fluxo salvo no banco de dados com sucesso!");
     },
     onError: (err: any) => toast.error(err.message || "Erro desconhecido ao salvar"),
   });
