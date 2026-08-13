@@ -1515,6 +1515,19 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           logError("Falha ao registrar evento do webhook", eventInsertError);
         }
 
+        // Mensagens recebidas precisam acionar o atendimento no processo que
+        // recebeu o callback. Não podemos depender exclusivamente de um Worker
+        // BullMQ, pois a fila pode aceitar o job mesmo quando nenhum worker está
+        // ativo. O worker continua idempotente: ao reencontrar o mesmo wamid,
+        // processInboundDirectMessages ignora a duplicata.
+        for (const entry of payload.entry ?? []) {
+          for (const change of entry.changes ?? []) {
+            if (change.field !== "messages" || (change.value?.messages?.length ?? 0) === 0) continue;
+            await processInboundMessages(change.value, matchedUserId);
+            await processInboundDirectMessages(change.value, matchedUserId);
+          }
+        }
+
         // Preferimos a fila para responder rapidamente à Meta. Se o Redis
         // estiver indisponível, processamos no próprio request para não perder
         // mensagens recebidas nem impedir o bot de responder.
