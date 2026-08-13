@@ -1050,13 +1050,21 @@ export function StepInspector({
                         const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
                         const uploadPath = `media/${crypto.randomUUID()}.${ext}`;
 
-                        const form = new FormData();
-                        form.append("path", uploadPath);
-                        form.append("file", file, file.name);
+                        // Converte para base64 e envia como JSON para evitar
+                        // o erro "Body has already been read" do TanStack Start
+                        // com multipart/form-data
+                        const arrayBuffer = await file.arrayBuffer();
+                        const bytes = new Uint8Array(arrayBuffer);
+                        let binary = "";
+                        for (let i = 0; i < bytes.byteLength; i++) {
+                          binary += String.fromCharCode(bytes[i]);
+                        }
+                        const fileData = btoa(binary);
 
                         const res = await fetch("/api/storage/upload", {
                           method: "POST",
-                          body: form,
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ path: uploadPath, fileData }),
                           credentials: "include",
                         });
                         const json = await res.json();
@@ -1065,14 +1073,13 @@ export function StepInspector({
                           return;
                         }
                         // Salva o path relativo (ex: "<tenantId>/media/<uuid>.pdf")
-                        // O executor convêrte para URL pública via resolveMediaReference
+                        // O executor converte para URL pública via resolveMediaReference
                         handleUpdateStep("media_url", `uploads/${json.path}`);
                         toast.success(`"${file.name}" enviado com sucesso!`);
                       } catch (err: any) {
                         toast.error(err?.message || "Erro ao enviar arquivo.");
                       } finally {
                         setIsUploadingMedia(false);
-                        // Reset input para permitir re-upload do mesmo arquivo
                         e.target.value = "";
                       }
                     }}
