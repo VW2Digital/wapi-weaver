@@ -425,18 +425,8 @@ export const updateSidebarOrder = createServerFn({ method: "POST" })
 export const getLicenseStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const claims = context.claims as any;
-    if (claims && isMaster(claims.role)) {
-      return {
-        isValid: true,
-        isAccessAllowed: true,
-        graceDaysRemaining: 0,
-        hasGraceStarted: false,
-        status: "active",
-      };
-    }
-
     const tenantId = context.tenantId;
+    const claims = context.claims as any;
     const email = claims?.email;
 
     const { default: db } = await import("./db");
@@ -453,6 +443,32 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
         "SELECT status, expires_at FROM licenses WHERE LOWER(TRIM(client_email)) = ? LIMIT 1",
         [String(email).trim().toLowerCase()],
       )) as any[];
+    }
+
+    if (rows && rows.length > 0) {
+      const sub = rows[0];
+      const isExpired = sub.expires_at ? new Date(sub.expires_at) < new Date() : false;
+      const isAccessAllowed = sub.status === "active" && !isExpired;
+
+      if (!isAccessAllowed) {
+        return {
+          isValid: false,
+          isAccessAllowed: false,
+          graceDaysRemaining: 0,
+          hasGraceStarted: false,
+          status: sub.status || "expired",
+        };
+      }
+    }
+
+    if (claims && isMaster(claims.role)) {
+      return {
+        isValid: true,
+        isAccessAllowed: true,
+        graceDaysRemaining: 0,
+        hasGraceStarted: false,
+        status: "active",
+      };
     }
 
     if (!rows || rows.length === 0) {

@@ -149,6 +149,30 @@ export const createLicense = createServerFn({ method: "POST" })
         ],
       );
 
+      // Sync subscriptions table if tenantId exists
+      if (tenantId) {
+        let subStatus = input.status;
+        if (input.status === "expired") subStatus = "expired";
+        if (input.status === "blocked") subStatus = "suspended";
+
+        const existingSub = (await db.query("SELECT id FROM subscriptions WHERE tenant_id = ? LIMIT 1", [tenantId])) as any[];
+        if (existingSub.length > 0) {
+          await db.query(
+            `UPDATE subscriptions 
+             SET status = ?, trial_ends_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW() 
+             WHERE tenant_id = ?`,
+            [subStatus, expiresDate, expiresDate, input.plan, tenantId]
+          );
+        } else {
+          const newSubId = crypto.randomUUID();
+          await db.query(
+            `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, trial_ends_at, current_period_end, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [newSubId, tenantId, tenantId, input.plan, subStatus, expiresDate, expiresDate]
+          );
+        }
+      }
+
       return {
         success: true,
         licenseKey,
@@ -282,6 +306,14 @@ export const updateLicense = createServerFn({ method: "POST" })
       }
     }
 
+    if (!tenantId) {
+      // Fallback: check existing tenant_id from license record
+      const existingLicense = (await db.query("SELECT tenant_id FROM licenses WHERE id = ? LIMIT 1", [input.id])) as any[];
+      if (existingLicense.length > 0 && existingLicense[0].tenant_id) {
+        tenantId = existingLicense[0].tenant_id;
+      }
+    }
+
     try {
       await db.query(
         `UPDATE licenses
@@ -300,6 +332,30 @@ export const updateLicense = createServerFn({ method: "POST" })
           input.id,
         ],
       );
+
+      // Sync subscriptions table if tenantId is present
+      if (tenantId) {
+        let subStatus = input.status;
+        if (input.status === "expired") subStatus = "expired";
+        if (input.status === "blocked") subStatus = "suspended";
+
+        const existingSub = (await db.query("SELECT id FROM subscriptions WHERE tenant_id = ? LIMIT 1", [tenantId])) as any[];
+        if (existingSub.length > 0) {
+          await db.query(
+            `UPDATE subscriptions 
+             SET status = ?, trial_ends_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW() 
+             WHERE tenant_id = ?`,
+            [subStatus, expiresDate, expiresDate, input.plan, tenantId]
+          );
+        } else {
+          const newSubId = crypto.randomUUID();
+          await db.query(
+            `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, trial_ends_at, current_period_end, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [newSubId, tenantId, tenantId, input.plan, subStatus, expiresDate, expiresDate]
+          );
+        }
+      }
     } catch (err: any) {
       if (err.code === "ER_DUP_ENTRY" || err.errno === 1062 || String(err.message).includes("licenses.")) {
         throw new Error("Já existe outro cliente / licença cadastrada com este e-mail ou domínio.");

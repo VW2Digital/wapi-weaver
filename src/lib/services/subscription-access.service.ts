@@ -167,6 +167,35 @@ export async function createTrialSubscriptionForTenant(
 export async function getTenantSubscriptionAccess(userId: string): Promise<SubscriptionAccessState> {
   const tenantId = await resolveEffectiveUserId(userId);
 
+  const now = new Date();
+
+  // Check explicit licenses table status for this tenant or user email
+  const licenseRows = (await db.query(
+    `SELECT l.*, p.name as plan_name, p.slug as plan_code
+     FROM licenses l
+     LEFT JOIN subscription_plans p ON l.plan = p.id OR l.plan = p.slug
+     WHERE l.tenant_id = ? OR (l.client_email IS NOT NULL AND LOWER(TRIM(l.client_email)) = (SELECT LOWER(TRIM(email)) FROM users WHERE id = ? LIMIT 1))
+     ORDER BY l.created_at DESC LIMIT 1`,
+    [tenantId, userId]
+  )) as any[];
+
+  if (licenseRows && licenseRows.length > 0) {
+    const lic = licenseRows[0];
+    const isLicExpired = lic.expires_at ? new Date(lic.expires_at).getTime() <= now.getTime() : false;
+    const licStatus = String(lic.status || "").toLowerCase();
+
+    if (licStatus === "expired" || licStatus === "blocked" || isLicExpired) {
+      const finalStatus = licStatus === "blocked" ? "blocked" : "expired";
+      return {
+        allowed: false,
+        status: finalStatus as any,
+        remainingSeconds: 0,
+        reason: licStatus === "blocked" ? "license_blocked" : "license_expired",
+        plan: lic.plan ? { id: lic.plan, name: lic.plan_name || lic.plan, code: lic.plan_code || lic.plan } : null,
+      };
+    }
+  }
+
   // 1. Verificar se é Admin Master Global da Plataforma (Bypass de cobrança)
   const roleRows = (await db.query(
     "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
