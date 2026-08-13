@@ -80,7 +80,7 @@ export function buildWhatsAppBotMessage(
 
   const config = readConfig(step.buttons_config);
   const action = asObject(config?.action);
-  if (type === "buttons") {
+  if (type === "buttons" || type === "image_buttons" || type === "dynamic_buttons") {
     const buttons = Array.isArray(action?.buttons)
       ? action.buttons
           .map(asObject)
@@ -94,12 +94,15 @@ export function buildWhatsAppBotMessage(
           .slice(0, 3)
       : [];
     if (buttons.length) {
+      const referenceUrl = String(step.media_url || "").trim();
+      const hasImageHeader = (type === "image_buttons" || Boolean(referenceUrl)) && /^https?:\/\//i.test(referenceUrl);
       return {
         payload: {
           ...base,
           type: "interactive",
           interactive: {
             type: "button",
+            ...(hasImageHeader ? { header: { type: "image", image: { link: referenceUrl } } } : {}),
             body: { text: body.slice(0, 1024) || "Escolha uma opção" },
             ...(step.footer_text ? { footer: { text: String(step.footer_text).slice(0, 60) } } : {}),
             action: { buttons },
@@ -152,13 +155,33 @@ export function buildWhatsAppBotMessage(
     }
   }
 
-  // CTA por URL livre não é uma mensagem interativa livre da Cloud API; use URL no texto.
   if (type === "cta_url") {
     const parameters = asObject(action?.parameters);
-    const url = String(parameters?.url || "").trim();
+    const url = String(parameters?.url || step.media_url || "").trim();
+    const displayText = String(parameters?.display_text || action?.button || "Abrir link").trim();
+    if (url && /^https?:\/\//i.test(url)) {
+      return {
+        payload: {
+          ...base,
+          type: "interactive",
+          interactive: {
+            type: "cta_url",
+            body: { text: body.slice(0, 1024) || "Acesse o link abaixo:" },
+            ...(step.footer_text ? { footer: { text: String(step.footer_text).slice(0, 60) } } : {}),
+            action: {
+              name: "cta_url",
+              parameters: {
+                display_text: displayText.slice(0, 20),
+                url: url.slice(0, 2000),
+              },
+            },
+          },
+        },
+      };
+    }
     return {
       payload: textPayload(to, [body, url].filter(Boolean).join("\n\n"), contextMessageId),
-      fallbackReason: "CTA enviado como texto com URL, formato compatível com a Cloud API.",
+      fallbackReason: "CTA enviado como texto com URL.",
     };
   }
 

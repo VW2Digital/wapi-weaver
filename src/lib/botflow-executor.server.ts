@@ -342,6 +342,8 @@ export async function processBotFlow(
         if (!stepToExecute) {
           const defaultFlow = sortedFlows.find((f: any) => f.is_default);
           const startStep = allSteps.find(
+            (s: any) => s.flow_id && activeBuilderFlowIds.has(s.flow_id) && s.trigger_type === "start",
+          ) || allSteps.find(
             (s: any) =>
               s.trigger_type === "start" &&
               (!defaultFlow || s.bot_settings_id === defaultFlow.id),
@@ -354,57 +356,10 @@ export async function processBotFlow(
       }
     }
 
-    // Se nenhum step ou fluxo puder ser mapeado, encerra ou transfere para IA
+    // IA só pode ser acionada por uma etapa explícita `link_ai_agent`.
+    // Nunca envie "digitando" como mensagem quando o fluxo não tiver etapa.
     if (!stepToExecute) {
-      logInfo("Nenhum step aplicável. Tentando Agente de IA...", { messageBody });
-
-      // Envia indicador de digitando (melhoria de UX)
-      try {
-        const { data: p } = await dbAdmin
-          .from("profiles")
-          .select("whatsapp_access_token, meta_graph_version")
-          .eq("id", userId)
-          .maybeSingle();
-
-        if (p?.whatsapp_access_token) {
-          const apiVersion = p.meta_graph_version || "v18.0";
-          const typingPayload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: phoneDigits,
-            type: "text",
-            text: { body: "_...digitando..._ ✍️" }
-          };
-
-          // Não bloqueia a execução do Gemini para responder isso
-          fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${p.whatsapp_access_token}`,
-            },
-            body: JSON.stringify(typingPayload),
-          }).catch(err => logError("Erro ao enviar typing indicator", err));
-        }
-      } catch (err) {
-        logError("Exceção ao tentar enviar typing indicator", err);
-      }
-
-      const { processAiAgent } = await import("./ai-agent.server");
-      const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
-      if (handledByAi) {
-        await dbAdmin.from("bot_conversation_state").upsert(
-          {
-            user_id: userId,
-            tenant_id: userId,
-            contact_number: phoneDigits,
-            instance_id: phoneNumberId,
-            channel,
-            last_interaction: new Date().toISOString(),
-          },
-          { onConflict: "user_id,contact_number,instance_id,channel" },
-        );
-      }
+      logInfo("Nenhuma etapa aplicável; nenhuma resposta automática enviada.", { messageBody, channel });
       return;
     }
 

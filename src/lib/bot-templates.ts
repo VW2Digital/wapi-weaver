@@ -324,6 +324,9 @@ export function mapTemplateSteps(templateSteps: any[]) {
   });
 
   idMap["-999"] = "-999";
+  idMap["-998"] = "-998";
+  idMap["-997"] = "-997";
+  idMap["0"] = "0";
 
   return templateSteps.map((step) => {
     const newStep = { ...step, id: idMap[step.id] || generateUUID() };

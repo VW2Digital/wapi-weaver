@@ -145,27 +145,37 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
   )) as any[];
   const p = profileRows?.[0] ?? null;
 
+  const requestedInstanceId = channel === "whatsapp" ? p?.whatsapp_phone_number_id || null : null;
   const settingsList = (await db.query(
-    "SELECT * FROM bot_settings WHERE user_id = ? AND channel = ?",
-    [effectiveUserId, channel],
+    "SELECT * FROM bot_settings WHERE user_id = ? AND (channel = ? OR instance_id <=> ?) ORDER BY (instance_id <=> ?) DESC, is_active DESC, created_at ASC LIMIT 1",
+    [effectiveUserId, channel, requestedInstanceId, requestedInstanceId],
   )) as any[];
   let settings = settingsList?.[0] ?? null;
 
   if (!settings) {
     const id = crypto.randomUUID();
-    await db.query(
-      "INSERT INTO bot_settings (id, tenant_id, user_id, instance_id, channel, is_active, pause_timeout_minutes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [
-        id,
-        effectiveUserId,
-        effectiveUserId,
-        channel === "whatsapp" ? p?.whatsapp_phone_number_id || null : null,
-        channel,
-        false,
-        60,
-      ],
-    );
-    const rows = (await db.query("SELECT * FROM bot_settings WHERE id = ?", [id])) as any[];
+    const instanceId = requestedInstanceId;
+    try {
+      await db.query(
+        `INSERT INTO bot_settings (id, tenant_id, user_id, instance_id, channel, is_active, pause_timeout_minutes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           tenant_id = VALUES(tenant_id),
+           channel = VALUES(channel),
+           updated_at = CURRENT_TIMESTAMP`,
+        [id, effectiveUserId, effectiveUserId, instanceId, channel, false, 60],
+      );
+    } catch (error: any) {
+      // Dois controles podem inicializar o bot ao mesmo tempo. A chave única
+      // (user_id, instance_id) protege o banco; nesse caso reutilizamos a
+      // configuração criada pela outra requisição em vez de falhar na UI.
+      const duplicate = error?.code === "ER_DUP_ENTRY" || String(error?.message || error).includes("uq_bot_settings_instance");
+      if (!duplicate) throw error;
+    }
+    const rows = (await db.query(
+      "SELECT * FROM bot_settings WHERE user_id = ? AND (channel = ? OR instance_id <=> ?) ORDER BY (instance_id <=> ?) DESC, is_active DESC, created_at ASC LIMIT 1",
+      [effectiveUserId, channel, instanceId, instanceId],
+    )) as any[];
     settings = rows?.[0] ?? null;
     if (!settings) {
       return { ok: false as const, error: "Erro ao criar configurações do bot" };
@@ -175,11 +185,31 @@ async function getOrCreateBotSettings(context: any, channelInput?: string) {
     p?.whatsapp_phone_number_id &&
     settings.instance_id !== p.whatsapp_phone_number_id
   ) {
-    await db.query("UPDATE bot_settings SET instance_id = ? WHERE id = ?", [
-      p.whatsapp_phone_number_id,
-      settings.id,
-    ]);
-    settings.instance_id = p.whatsapp_phone_number_id;
+    const existingInstance = (await db.query(
+      "SELECT * FROM bot_settings WHERE user_id = ? AND instance_id = ? LIMIT 1",
+      [effectiveUserId, p.whatsapp_phone_number_id],
+    )) as any[];
+    if (existingInstance?.[0]) {
+      settings = existingInstance[0];
+    } else {
+      try {
+        await db.query("UPDATE bot_settings SET instance_id = ? WHERE id = ?", [
+          p.whatsapp_phone_number_id,
+          settings.id,
+        ]);
+        settings.instance_id = p.whatsapp_phone_number_id;
+      } catch (err: any) {
+        if (err?.code === "ER_DUP_ENTRY" || String(err?.message || err).includes("uq_bot_settings_instance")) {
+          const rows = (await db.query(
+            "SELECT * FROM bot_settings WHERE user_id = ? AND instance_id = ? LIMIT 1",
+            [effectiveUserId, p.whatsapp_phone_number_id],
+          )) as any[];
+          if (rows?.[0]) settings = rows[0];
+        } else {
+          throw err;
+        }
+      }
+    }
   }
 
   return { ok: true as const, settings, profile: p };
@@ -321,6 +351,18 @@ export const toggleBotFlowStatus = createServerFn({ method: "POST" })
             warning: `Fluxo ativado, mas o webhook da Meta não foi inscrito: ${subscription.error}`,
           };
         }
+      } else {
+        const activeRows = (await db.query(
+          "SELECT COUNT(*) AS total FROM bot_flows WHERE tenant_id = ? AND channel = ? AND is_active = 1",
+          [tenantId, flow.channel || "whatsapp"],
+        )) as Array<{ total: number }>;
+        const settingsResult = await getOrCreateBotSettings(context, flow.channel || "whatsapp");
+        if (settingsResult.ok) {
+          await db.query("UPDATE bot_settings SET is_active = ? WHERE id = ?", [
+            Number(activeRows[0]?.total || 0) > 0 ? 1 : 0,
+            settingsResult.settings.id,
+          ]);
+        }
       }
 
       return { ok: true };
@@ -434,12 +476,19 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }: { data: any; context: any }) => {
     const { default: db } = await import("./db");
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const tenantId = await resolveEffectiveUserId(context.userId);
     const result = await getOrCreateBotSettings(context, data.channel);
     if (!result.ok) return result;
 
     await db.query("UPDATE bot_settings SET is_active = ? WHERE id = ?", [
       data.isActive ? 1 : 0,
       result.settings.id,
+    ]);
+    await db.query("UPDATE bot_flows SET is_active = ? WHERE tenant_id = ? AND channel = ?", [
+      data.isActive ? 1 : 0,
+      tenantId,
+      data.channel || result.settings.channel || "whatsapp",
     ]);
 
     return { ok: true };
@@ -496,8 +545,8 @@ export const listBotSteps = createServerFn({ method: "GET" })
       if (data?.flowId) {
         await assertBelongsToTenant(data.flowId, "bot_flow", effectiveUserId);
         steps = (await db.query(
-          "SELECT * FROM bot_steps WHERE flow_id = ? AND user_id = ? ORDER BY step_order ASC",
-          [data.flowId, effectiveUserId],
+          "SELECT * FROM bot_steps WHERE flow_id = ? AND (user_id = ? OR tenant_id = ?) ORDER BY step_order ASC",
+          [data.flowId, effectiveUserId, effectiveUserId],
         )) as any[];
       } else {
         steps = (await db.query(
@@ -597,9 +646,17 @@ export const saveBotStepsBatch = createServerFn({ method: "POST" })
           await assertBelongsToTenant(step.assign_team_id, "team", effectiveUserId);
         if (step.assign_user_id)
           await assertUserBelongsToTenant(step.assign_user_id, effectiveUserId);
-        if (step.next_step_id && !incomingIds.includes(step.next_step_id))
+        const isSentinelStepId = (id: string | null | undefined) =>
+          !id || ["-999", "-998", "-997", "0"].includes(id) || id.startsWith("step:");
+
+        if (
+          step.next_step_id &&
+          !isSentinelStepId(step.next_step_id) &&
+          !incomingIds.includes(step.next_step_id)
+        )
           await assertBelongsToTenant(step.next_step_id, "bot_step", effectiveUserId);
         const stepId = step.id || crypto.randomUUID();
+        step.id = stepId;
         const isTrigger = [
           "start",
           "keyword",

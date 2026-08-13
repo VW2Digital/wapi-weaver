@@ -8,6 +8,11 @@ import {
   Bot,
   Send,
   Image,
+  Video,
+  Music,
+  FileText,
+  MousePointerClick,
+  Link,
   List,
   Database,
   GitFork,
@@ -50,93 +55,125 @@ export interface TriggerItem {
 
 const ACTION_COMPONENTS: ComponentItem[] = [
   {
-    id: "create_chat",
+    id: "text",
     category: "action",
-    title: "Criar Conversa",
-    description: "Cria uma nova conversa",
+    title: "Mensagem de Texto",
+    description: "Texto simples com suporte a emojis e formatação",
     icon: MessageSquare,
-    type: "create_chat",
+    type: "text",
   },
   {
-    id: "search_chat",
+    id: "image",
     category: "action",
-    title: "Buscar Conversa",
-    description: "Busca uma conversa existente",
-    icon: Search,
-    type: "search_chat",
+    title: "Imagem",
+    description: "Enviar imagem com legenda opcional",
+    icon: Image,
+    type: "image",
   },
   {
-    id: "add_tag",
+    id: "video",
     category: "action",
-    title: "Adicionar Tag",
-    description: "Adiciona tags ao contato",
-    icon: Tag,
-    type: "add_tag",
+    title: "Vídeo",
+    description: "Enviar vídeo com legenda opcional",
+    icon: Video,
+    type: "video",
   },
   {
-    id: "http_request",
+    id: "audio",
     category: "action",
-    title: "Requisição HTTP",
-    description: "Faz uma requisição HTTP para API externa",
-    icon: Webhook,
-    type: "http_request",
+    title: "Áudio",
+    description: "Enviar mensagem de áudio gravado (OGG Opus)",
+    icon: Music,
+    type: "audio",
   },
   {
-    id: "transfer_chat",
+    id: "document",
     category: "action",
-    title: "Transferir Conversa",
-    description: "Transfere para outra fila ou canal",
-    icon: ArrowRightLeft,
-    type: "transfer_chat",
+    title: "Documento",
+    description: "Enviar arquivo ou documento PDF",
+    icon: FileText,
+    type: "document",
+  },
+  {
+    id: "list",
+    category: "action",
+    title: "Lista Interativa",
+    description: "Menu de lista interativa com até 10 opções",
+    icon: List,
+    type: "list",
+  },
+  {
+    id: "dynamic_buttons",
+    category: "action",
+    title: "Botões de Resposta",
+    description: "Botões rápidos de resposta (até 3 opções)",
+    icon: MousePointerClick,
+    type: "dynamic_buttons",
+  },
+  {
+    id: "image_buttons",
+    category: "action",
+    title: "Imagem com Botões",
+    description: "Cabeçalho com imagem + texto + até 3 botões",
+    icon: Image,
+    type: "image_buttons",
+  },
+  {
+    id: "cta_url",
+    category: "action",
+    title: "Botão de Link",
+    description: "Botão de redirecionamento para URL externa",
+    icon: Link,
+    type: "cta_url",
+  },
+  {
+    id: "poll",
+    category: "action",
+    title: "Enquete",
+    description: "Enquete com até 12 opções",
+    icon: List,
+    type: "poll",
+  },
+  {
+    id: "pix",
+    category: "action",
+    title: "Cobrança PIX",
+    description: "Enviar chave PIX e valor para pagamento",
+    icon: FileText,
+    type: "pix",
   },
   {
     id: "link_ai_agent",
     category: "action",
     title: "Vincular Agente IA",
-    description: "Vincula um agente IA à conversa",
+    description: "Transfere a conversa para um Agente de IA inteligente",
     icon: Bot,
     type: "link_ai_agent",
   },
   {
-    id: "text_message",
+    id: "transfer_chat",
     category: "action",
-    title: "Mensagem de Texto",
-    description: "Envia uma mensagem de texto ao contato",
-    icon: Send,
-    type: "text",
-  },
-  {
-    id: "media_message",
-    category: "action",
-    title: "Mensagem de Mídia",
-    description: "Envia mídia (imagem, áudio, vídeo)",
-    icon: Image,
-    type: "image",
-  },
-  {
-    id: "options_menu",
-    category: "action",
-    title: "Menu de opções",
-    description: "Envia um menu com opções e aguarda resposta",
-    icon: List,
-    type: "list",
-  },
-  {
-    id: "save_variable",
-    category: "action",
-    title: "Salvar Variável",
-    description: "Salva uma variável no contato",
-    icon: Database,
-    type: "save_variable",
+    title: "Transferir (Handoff)",
+    description: "Transfere o atendimento para operador ou time humano",
+    icon: ArrowRightLeft,
+    type: "transfer_chat",
   },
 ];
 
 const FLOW_COMPONENTS: ComponentItem[] = [
   {
+    id: "delay",
+    category: "flow",
+    title: "Delay / Atraso",
+    description: "Aguarda N segundos antes de enviar o próximo passo",
+    icon: Clock,
+    type: "delay",
+  },
+  {
     id: "condition",
     category: "flow",
     title: "Condicional",
-    description: "Divide o fluxo baseado em condições",
+    description: "Divide o fluxo com base em condições de variáveis",
     icon: GitFork,
     type: "condition",
   },
@@ -144,17 +181,25 @@ const FLOW_COMPONENTS: ComponentItem[] = [
     id: "randomizer",
     category: "flow",
     title: "Randomizador",
-    description: "Escolhe um caminho aleatório ou sequencial",
+    description: "Divide o tráfego aleatoriamente para teste A/B",
     icon: Shuffle,
     type: "randomizer",
   },
   {
-    id: "delay",
+    id: "save_variable",
     category: "flow",
-    title: "Delay",
-    description: "Aguarda um período antes de continuar",
-    icon: Clock,
-    type: "delay",
+    title: "Salvar Variável",
+    description: "Armazena dados coletados no cadastro do contato",
+    icon: Database,
+    type: "save_variable",
+  },
+  {
+    id: "http_request",
+    category: "flow",
+    title: "Requisição HTTP",
+    description: "Faz webhook / chamada HTTP para API externa",
+    icon: Webhook,
+    type: "http_request",
   },
 ];
 
@@ -216,12 +261,16 @@ interface BotComponentsSidebarProps {
   onAddComponent: (item: ComponentItem) => void;
   onSelectTrigger: (trigger: TriggerItem) => void;
   onOpenTemplates: () => void;
+  onExportJson?: () => void;
+  onImportJson?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function BotComponentsSidebar({
   onAddComponent,
   onSelectTrigger,
   onOpenTemplates,
+  onExportJson,
+  onImportJson,
 }: BotComponentsSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
@@ -268,6 +317,42 @@ export function BotComponentsSidebar({
           <BookOpen className="h-4 w-4 mr-2 text-primary" />
           Galeria de Templates
         </Button>
+
+        <div className="grid grid-cols-2 gap-2">
+          {onExportJson && (
+            <Button
+              onClick={onExportJson}
+              variant="outline"
+              size="sm"
+              className="w-full border-border bg-background text-foreground hover:bg-muted text-[11px] font-semibold"
+            >
+              <Database className="h-3.5 w-3.5 mr-1 text-blue-500" />
+              Exportar JSON
+            </Button>
+          )}
+
+          {onImportJson && (
+            <label className="w-full">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full border-border bg-background text-foreground hover:bg-muted text-[11px] font-semibold cursor-pointer"
+                asChild
+              >
+                <span>
+                  <Layers className="h-3.5 w-3.5 mr-1 text-purple-500" />
+                  Importar JSON
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={onImportJson}
+                    className="hidden"
+                  />
+                </span>
+              </Button>
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Search Input */}
