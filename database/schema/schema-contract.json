@@ -2360,8 +2360,8 @@
       },
       "media_url": {
         "ordinal_position": 21,
-        "data_type": "varchar",
-        "column_type": "varchar(1024)",
+        "data_type": "longtext",
+        "column_type": "longtext",
         "nullable": true,
         "default": null,
         "key": "",

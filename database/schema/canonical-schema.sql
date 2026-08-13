@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS `bot_steps` (
   `card_color` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `media_url` varchar(1024) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `media_url` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `position_x` float NOT NULL DEFAULT '0',
   `position_y` float NOT NULL DEFAULT '0',
   `flow_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

@@ -279,15 +279,31 @@ export async function processBotFlow(
     // IDs de botões/listas configurados como gatilho também podem vir puros
     // da API da Meta (sem o prefixo interno "step:").
     if (!isButtonRedirect && buttonPayload) {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        buttonPayload,
+      );
+
+      // Caso 1: botão configurado como gatilho (trigger_type = button + trigger_value match)
+      // ou o próprio id do step foi colocado como buttonPayload (legado sem prefixo step:)
       const buttonStep = allSteps.find(
         (s: any) =>
-          s.trigger_type === "button" &&
-          matchesConfiguredTrigger(s.trigger_value, buttonPayload),
+          (s.trigger_type === "button" && matchesConfiguredTrigger(s.trigger_value, buttonPayload)),
       );
+
       if (buttonStep) {
         stepToExecute = buttonStep;
         activeFlow = findFlowForStep(buttonStep);
         isButtonRedirect = true;
+      } else if (isUUID) {
+        // Caso 2: buttonPayload é um UUID puro → é o ID do step destino
+        // (item de lista/botão salvo antes da migração para o prefixo "step:")
+        const targetStep = allSteps.find((s: any) => s.id === buttonPayload);
+        if (targetStep) {
+          stepToExecute = targetStep;
+          activeFlow = findFlowForStep(targetStep);
+          isButtonRedirect = true;
+          logInfo("Roteamento por UUID puro (sem prefixo step:)", { buttonPayload, stepId: targetStep.id });
+        }
       }
     }
 
@@ -453,6 +469,7 @@ export async function processBotFlow(
       );
       if (channel === "whatsapp_group") payload.recipient_type = "group";
       if (fallbackReason) logInfo("Etapa convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
+      logInfo("Payload WhatsApp enviado para API Meta", { stepId: stepToExecute.id, stepType: stepToExecute.message_type, payload });
 
       const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
@@ -606,7 +623,7 @@ export async function executeInactivityStep(
       const { payload, fallbackReason } = buildWhatsAppBotMessage(phoneDigits, stepToExecute);
       if (fallbackReason) logInfo("Etapa de inatividade convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
 
-      const apiVersion = p.meta_graph_version || "v20.0";
+      const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
         headers: {

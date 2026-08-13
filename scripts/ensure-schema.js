@@ -939,7 +939,7 @@ export async function ensureDatabaseSchema() {
         trigger_value VARCHAR(255) NULL,
         message_type VARCHAR(50) NOT NULL DEFAULT 'text',
         message_content TEXT NULL,
-        media_url VARCHAR(1024) NULL,
+        media_url LONGTEXT NULL,
         media_caption TEXT NULL,
         footer_text VARCHAR(255) NULL,
         buttons_config JSON NULL,
@@ -1074,7 +1074,10 @@ export async function ensureDatabaseSchema() {
     }
 
     // Adiciona colunas que podem não ter sido criadas na v1
-    await ensureColumnExists(connection, "bot_steps", "media_url", "VARCHAR(1024) NULL");
+    await ensureColumnExists(connection, "bot_steps", "media_url", "LONGTEXT NULL");
+    try {
+      await connection.query("ALTER TABLE bot_steps MODIFY COLUMN media_url LONGTEXT NULL");
+    } catch (_) {}
     await ensureColumnExists(connection, "bot_steps", "position_x", "FLOAT NOT NULL DEFAULT 0");
     await ensureColumnExists(connection, "bot_steps", "position_y", "FLOAT NOT NULL DEFAULT 0");
     await ensureColumnExists(

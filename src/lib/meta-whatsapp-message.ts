@@ -42,6 +42,43 @@ function asObject(value: unknown): JsonObject | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : null;
 }
 
+function resolveMediaReference(reference: string): { isUrl: boolean; value: string } {
+  const trimmed = reference.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return { isUrl: true, value: trimmed };
+  }
+  if (trimmed.startsWith("/") || trimmed.startsWith("uploads/")) {
+    const baseUrl = (process.env.APP_URL || process.env.PUBLIC_URL || "http://localhost:8080").replace(/\/+$/, "");
+    const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+    return { isUrl: true, value: `${baseUrl}${cleanPath}` };
+  }
+  return { isUrl: false, value: trimmed };
+}
+
+function detectMediaType(urlOrId: string, explicitType?: string | null): "image" | "video" | "audio" | "document" | "sticker" {
+  const type = String(explicitType || "").toLowerCase();
+  if (["image", "video", "audio", "document", "sticker"].includes(type)) {
+    return type as "image" | "video" | "audio" | "document" | "sticker";
+  }
+  const clean = urlOrId.split("?")[0].split("#")[0];
+  const ext = clean.split(".").pop()?.toLowerCase() || "";
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext) || urlOrId.startsWith("data:image")) return "image";
+  if (["mp4", "mov", "webm", "avi", "3gp", "m4v"].includes(ext) || urlOrId.startsWith("data:video")) return "video";
+  if (["mp3", "ogg", "wav", "m4a", "aac", "opus"].includes(ext) || urlOrId.startsWith("data:audio")) return "audio";
+  if (["pdf", "doc", "docx", "xls", "xlsx", "csv", "ppt", "pptx", "txt", "zip"].includes(ext) || urlOrId.startsWith("data:application")) return "document";
+  return "image";
+}
+
+function getFilenameFromUrl(url: string, defaultName = "document.pdf"): string {
+  try {
+    const clean = url.split("?")[0].split("#")[0];
+    const parts = clean.split("/");
+    const last = parts.pop();
+    if (last && last.includes(".")) return decodeURIComponent(last);
+  } catch {}
+  return defaultName;
+}
+
 /**
  * Produz somente payloads aceitos pelo endpoint /{phone-number-id}/messages.
  * Ações internas do construtor (IA, criar conversa e CTA livre) nunca são
@@ -61,25 +98,12 @@ export function buildWhatsAppBotMessage(
     ...(contextMessageId ? { context: { message_id: contextMessageId } } : {}),
   };
 
-  if (type === "text" || !type) return { payload: textPayload(to, body, contextMessageId) };
-
-  if (["image", "audio", "video", "document", "sticker"].includes(type)) {
-    const reference = String(step.media_url || "").trim();
-    if (!reference) {
-      return {
-        payload: textPayload(to, body, contextMessageId),
-        fallbackReason: `A etapa ${type} não possui mídia configurada.`,
-      };
-    }
-    const media: JsonObject = /^https?:\/\//i.test(reference) ? { link: reference } : { id: reference };
-    if (step.media_caption && ["image", "video", "document"].includes(type)) {
-      media.caption = String(step.media_caption).slice(0, 1024);
-    }
-    return { payload: { ...base, type, [type]: media } };
-  }
-
+  const mediaRefRaw = String(step.media_url || "").trim();
+  const mediaRef = mediaRefRaw ? resolveMediaReference(mediaRefRaw) : null;
   const config = readConfig(step.buttons_config);
   const action = asObject(config?.action);
+
+  // 1. Botões interativos (buttons, image_buttons, dynamic_buttons)
   if (type === "buttons" || type === "image_buttons" || type === "dynamic_buttons") {
     const buttons = Array.isArray(action?.buttons)
       ? action.buttons
@@ -93,16 +117,41 @@ export function buildWhatsAppBotMessage(
           .filter(Boolean)
           .slice(0, 3)
       : [];
+
     if (buttons.length) {
-      const referenceUrl = String(step.media_url || "").trim();
-      const hasImageHeader = (type === "image_buttons" || Boolean(referenceUrl)) && /^https?:\/\//i.test(referenceUrl);
+      let headerObj: JsonObject | null = null;
+      if (mediaRef) {
+        const headerMediaType = detectMediaType(mediaRef.value, type === "image_buttons" ? "image" : null);
+        const mediaObj: JsonObject = mediaRef.isUrl ? { link: mediaRef.value } : { id: mediaRef.value };
+
+        if (headerMediaType === "document") {
+          headerObj = {
+            type: "document",
+            document: {
+              ...mediaObj,
+              filename: getFilenameFromUrl(mediaRef.value, "document.pdf"),
+            },
+          };
+        } else if (headerMediaType === "video") {
+          headerObj = {
+            type: "video",
+            video: mediaObj,
+          };
+        } else {
+          headerObj = {
+            type: "image",
+            image: mediaObj,
+          };
+        }
+      }
+
       return {
         payload: {
           ...base,
           type: "interactive",
           interactive: {
             type: "button",
-            ...(hasImageHeader ? { header: { type: "image", image: { link: referenceUrl } } } : {}),
+            ...(headerObj ? { header: headerObj } : {}),
             body: { text: body.slice(0, 1024) || "Escolha uma opção" },
             ...(step.footer_text ? { footer: { text: String(step.footer_text).slice(0, 60) } } : {}),
             action: { buttons },
@@ -112,6 +161,7 @@ export function buildWhatsAppBotMessage(
     }
   }
 
+  // 2. Lista dinâmica / Menu (list)
   if (type === "list") {
     const rawSections = Array.isArray(action?.sections) ? action.sections : [];
     const sections = rawSections
@@ -155,6 +205,7 @@ export function buildWhatsAppBotMessage(
     }
   }
 
+  // 3. CTA URL (cta_url)
   if (type === "cta_url") {
     const parameters = asObject(action?.parameters);
     const url = String(parameters?.url || step.media_url || "").trim();
@@ -185,6 +236,57 @@ export function buildWhatsAppBotMessage(
     };
   }
 
+  // 4. Mensagem de Mídia dedicada (image, video, audio, document, sticker) OU se mediaRef estiver presente sem botões
+  if (["image", "audio", "video", "document", "sticker"].includes(type) || mediaRef) {
+    if (!mediaRef) {
+      return {
+        payload: textPayload(to, body, contextMessageId),
+        fallbackReason: `A etapa ${type} não possui mídia configurada.`,
+      };
+    }
+
+    const targetType = detectMediaType(mediaRef.value, type);
+    const media: JsonObject = mediaRef.isUrl ? { link: mediaRef.value } : { id: mediaRef.value };
+
+    const captionText = String(step.media_caption || body).trim();
+    if (captionText && ["image", "video", "document"].includes(targetType)) {
+      media.caption = captionText.slice(0, 1024);
+    }
+    if (targetType === "document") {
+      media.filename = getFilenameFromUrl(mediaRef.value, "document.pdf");
+    }
+
+    return { payload: { ...base, type: targetType, [targetType]: media } };
+  }
+
+  // 5. Localização
+  if (type === "location") {
+    let lat = -1.4558;
+    let long = -48.4814;
+    if (mediaRefRaw && mediaRefRaw.includes(",")) {
+      const parts = mediaRefRaw.split(",");
+      const pLat = parseFloat(parts[0]);
+      const pLong = parseFloat(parts[1]);
+      if (!isNaN(pLat) && !isNaN(pLong)) {
+        lat = pLat;
+        long = pLong;
+      }
+    }
+    return {
+      payload: {
+        ...base,
+        type: "location",
+        location: {
+          latitude: lat,
+          longitude: long,
+          name: "Localização",
+          ...(body ? { address: body.slice(0, 1000) } : {}),
+        },
+      },
+    };
+  }
+
+  // 5. Ações internas do construtor
   if (type === "link_ai_agent") {
     return {
       payload: textPayload(to, "Não consegui acionar o assistente automático agora. Um atendente seguirá com você.", contextMessageId),
@@ -201,6 +303,5 @@ export function buildWhatsAppBotMessage(
 
   return {
     payload: textPayload(to, body, contextMessageId),
-    fallbackReason: `Tipo de etapa interno não enviável pela Meta: ${type}.`,
   };
 }

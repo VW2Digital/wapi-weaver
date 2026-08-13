@@ -96,18 +96,31 @@ interface WebhookInboundMessage {
   };
   image?: {
     id?: string;
+    caption?: string;
+    mime_type?: string;
+    sha256?: string;
   };
   audio?: {
     id?: string;
+    mime_type?: string;
   };
   video?: {
     id?: string;
+    caption?: string;
+    mime_type?: string;
+    sha256?: string;
   };
   document?: {
     id?: string;
+    caption?: string;
+    filename?: string;
+    mime_type?: string;
+    sha256?: string;
   };
   sticker?: {
     id?: string;
+    mime_type?: string;
+    sha256?: string;
   };
   location?: {
     name?: string;
@@ -351,15 +364,15 @@ function resolveDirectMessageContent(message: WebhookInboundMessage): ResolvedDi
   } else if (message.type === "reaction") {
     body = message.reaction?.emoji ?? "";
   } else if (message.type === "image") {
-    body = message.image?.id ?? "";
+    body = message.image?.caption || message.image?.id || "[Imagem]";
   } else if (message.type === "audio") {
-    body = message.audio?.id ?? "";
+    body = message.audio?.id || "[Áudio]";
   } else if (message.type === "video") {
-    body = message.video?.id ?? "";
+    body = message.video?.caption || message.video?.id || "[Vídeo]";
   } else if (message.type === "document") {
-    body = message.document?.id ?? "";
+    body = message.document?.caption || message.document?.filename || message.document?.id || "[Documento]";
   } else if (message.type === "sticker") {
-    body = message.sticker?.id ?? "";
+    body = message.sticker?.id || "[Figurinha]";
   } else if (message.type === "location") {
     body =
       message.location?.name || `${message.location?.latitude}, ${message.location?.longitude}`;
