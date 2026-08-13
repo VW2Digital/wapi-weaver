@@ -284,6 +284,10 @@ function parseCoexistenceSyncResponse(value: unknown) {
 }
 
 /** Validação em tempo real para o Access Token da Meta. */
+function isPersistedSecretMask(value: string): boolean {
+  return /^[*â€¢.\s]+$/.test((value ?? "").trim());
+}
+
 function validateAccessToken(v: string): {
   error: string | null;
   warning: string | null;
@@ -291,7 +295,9 @@ function validateAccessToken(v: string): {
 } {
   const t = (v ?? "").trim();
   if (!t) return { error: null, warning: null, ok: false };
-  if (t === PROFILE_MASKED_SECRET) return { error: null, warning: null, ok: true };
+  if (t === PROFILE_MASKED_SECRET || isPersistedSecretMask(t)) {
+    return { error: null, warning: null, ok: true };
+  }
   if (/\s/.test(t))
     return {
       error: `O token não pode conter espaços ou quebras de linha. Copie de novo, todo de uma vez.`,
@@ -804,7 +810,7 @@ function SettingsPage() {
 
   const handleDebugToken = () => {
     const token = String(form.whatsapp_access_token ?? "").trim();
-    const hasNewToken = token && token !== PROFILE_MASKED_SECRET;
+    const hasNewToken = token && !isPersistedSecretMask(token);
     if (!hasNewToken && !form.hasAccessToken) {
       toast.error("Insira o Access Token antes de depurar.");
       return;

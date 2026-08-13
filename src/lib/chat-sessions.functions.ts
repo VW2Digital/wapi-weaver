@@ -29,8 +29,8 @@ export async function startChatSession(
 
   // Otherwise, create a new one
   await db.query(
-    "INSERT INTO chat_sessions (id, user_id, contact_id, status) VALUES (?, ?, ?, ?)",
-    [sessionId, userId, contactId, normalizedStatus],
+    "INSERT INTO chat_sessions (id, tenant_id, user_id, contact_id, status) VALUES (?, ?, ?, ?, ?)",
+    [sessionId, userId, userId, contactId, normalizedStatus],
   );
   return sessionId;
 }
@@ -57,8 +57,8 @@ export async function answerChatSession(userId: string, contactId: string) {
     // If there's no active session, create one as already answered
     const sessionId = crypto.randomUUID();
     await db.query(
-      "INSERT INTO chat_sessions (id, user_id, contact_id, status, answered_at) VALUES (?, ?, ?, 'aberto', CURRENT_TIMESTAMP)",
-      [sessionId, userId, contactId],
+      "INSERT INTO chat_sessions (id, tenant_id, user_id, contact_id, status, answered_at) VALUES (?, ?, ?, ?, 'aberto', CURRENT_TIMESTAMP)",
+      [sessionId, userId, userId, contactId],
     );
     return sessionId;
   }

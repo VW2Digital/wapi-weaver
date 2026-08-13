@@ -283,6 +283,13 @@ export const listChatContacts = createServerFn({ method: "GET" })
             last_dm.created_at IS NOT NULL
             OR last_cm.sent_at IS NOT NULL
             OR c.channel = 'whatsapp_group'
+            OR EXISTS (
+              SELECT 1
+              FROM chat_sessions cs
+              WHERE cs.user_id = c.user_id
+                AND cs.contact_id = c.id
+                AND cs.closed_at IS NULL
+            )
           )
         ORDER BY 
           c.is_pinned DESC,
@@ -327,22 +334,40 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
 
 export const getChatContactDetails = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        phone: z.string().trim().min(5).optional(),
+        contactId: z.string().uuid().optional(),
+      })
+      .refine((value) => Boolean(value.phone || value.contactId), "Informe o contato ou telefone")
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
-    const phone = normalizeChatContactId(data.phone);
+    const phone = data.phone ? normalizeChatContactId(data.phone) : null;
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     const contacts = (await db.query(
-      `SELECT * FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
-      [effectiveUserId, phone],
+      `SELECT *
+       FROM contacts
+       WHERE user_id = ?
+         AND (
+           (? IS NOT NULL AND id = ?)
+           OR (? IS NOT NULL AND (
+             phone_e164 = ?
+             OR REGEXP_REPLACE(phone_e164, '[^0-9]', '') = ?
+           ))
+         )
+       LIMIT 1`,
+      [effectiveUserId, data.contactId ?? null, data.contactId ?? null, phone, phone, phone],
     )) as ChatContactDetailsRow[];
     const contact = contacts?.[0] ?? null;
 
     if (contact) {
       const botStates = (await db.query(
         `SELECT bot_active FROM bot_conversation_state WHERE user_id = ? AND contact_number = ? AND channel = ? LIMIT 1`,
-        [effectiveUserId, phone, contact.channel],
+        [effectiveUserId, phone ?? normalizeChatContactId(contact.phone_e164 ?? ""), contact.channel],
       )) as BotStateFlagRow[];
       contact.bot_active = botStates?.[0] ? !!botStates[0].bot_active : true;
     }
@@ -785,14 +810,15 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     };
     const msgId = crypto.randomUUID();
     await db.query(
-      `INSERT INTO direct_messages (id, user_id, contact_phone, direction, type, body, wa_message_id, status, reply_to_message_id, metadata, channel, provider_account_id)
-       VALUES (?, ?, ?, 'outgoing', ?, ?, ?, 'sent', ?, ?, ?, ?)
+      `INSERT INTO direct_messages (id, tenant_id, user_id, contact_phone, direction, type, body, wa_message_id, status, reply_to_message_id, metadata, channel, provider_account_id)
+       VALUES (?, ?, ?, ?, 'outgoing', ?, ?, ?, 'sent', ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          status = VALUES(status),
          body = VALUES(body),
          metadata = VALUES(metadata)`,
       [
         msgId,
+        effectiveUserId,
         effectiveUserId,
         digits,
         data.type,

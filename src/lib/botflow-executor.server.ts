@@ -1,5 +1,6 @@
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
 
 function logInfo(message: string, data?: any) {
   console.log(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
@@ -454,6 +455,19 @@ export async function processBotFlow(
       );
     };
 
+    // "Vincular Agente IA" é uma ação interna do construtor, não um tipo de
+    // mensagem da Cloud API. Executamos a IA antes de montar um payload Meta.
+    if (stepToExecute.message_type === "link_ai_agent" && channel === "whatsapp") {
+      const { processAiAgent } = await import("./ai-agent.server");
+      const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
+      if (handledByAi) {
+        await commitState();
+        logInfo("Resposta gerada pelo agente IA", { stepId: stepToExecute.id });
+        return;
+      }
+      logError("Agente IA não respondeu; usando mensagem de contingência", { stepId: stepToExecute.id });
+    }
+
     // 4. Disparar o envio da mensagem para o canal correto
     let isSuccess = false;
     let providerMsgId: string | null = null;
@@ -467,72 +481,13 @@ export async function processBotFlow(
 
       if (!p || !p.whatsapp_access_token) return;
 
-      const payload: any = {
-        messaging_product: "whatsapp",
-        recipient_type: channel === "whatsapp_group" ? "group" : "individual",
-        to: phoneDigits,
-      };
-      if (incomingMessageId && channel === "whatsapp") {
-        payload.context = { message_id: incomingMessageId };
-      }
-
-      if (!stepToExecute.message_type || stepToExecute.message_type === "text") {
-        payload.type = "text";
-        payload.text = {
-          preview_url: false,
-          body: stepToExecute.message_content || "",
-        };
-      } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
-        payload.type = stepToExecute.message_type;
-        const mediaReference = String(stepToExecute.media_url || "").trim();
-        const mediaObj: any = /^https?:\/\//i.test(mediaReference)
-          ? { link: mediaReference }
-          : { id: mediaReference };
-        if (
-          stepToExecute.media_caption &&
-          ["image", "video", "document"].includes(stepToExecute.message_type)
-        ) {
-          mediaObj.caption = stepToExecute.media_caption;
-        }
-        payload[stepToExecute.message_type] = mediaObj;
-      } else if (
-        ["buttons", "list"].includes(stepToExecute.message_type) &&
-        stepToExecute.buttons_config
-      ) {
-        try {
-          const configObj =
-            typeof stepToExecute.buttons_config === "string"
-              ? JSON.parse(stepToExecute.buttons_config)
-              : stepToExecute.buttons_config;
-
-          payload.type = "interactive";
-          if (configObj.interactive) {
-            payload.interactive = configObj.interactive;
-          } else if (stepToExecute.message_type === "list") {
-            payload.interactive = {
-              type: "list",
-              body: { text: stepToExecute.message_content || "Escolha uma opção" },
-              ...(stepToExecute.footer_text
-                ? { footer: { text: stepToExecute.footer_text } }
-                : {}),
-              action: configObj.action || configObj,
-            };
-          } else {
-            payload.interactive = {
-              type: "button",
-              body: { text: stepToExecute.message_content || "Escolha uma opção" },
-              ...(stepToExecute.footer_text
-                ? { footer: { text: stepToExecute.footer_text } }
-                : {}),
-              action: configObj.action || configObj,
-            };
-          }
-        } catch (e: any) {
-          logError("Erro ao processar buttons_config", e);
-          payload.type = "text";
-          payload.text = { body: stepToExecute.message_content || "" };
-        }
-      }
+      const { payload, fallbackReason } = buildWhatsAppBotMessage(
+        phoneDigits,
+        stepToExecute,
+        channel === "whatsapp" ? incomingMessageId : null,
+      );
+      if (channel === "whatsapp_group") payload.recipient_type = "group";
+      if (fallbackReason) logInfo("Etapa convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
 
       const apiVersion = p.meta_graph_version || "v20.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
@@ -637,6 +592,7 @@ export async function processBotFlow(
       await commitState();
 
       await dbAdmin.from("direct_messages").insert({
+        tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
         direction: "outgoing",
@@ -682,26 +638,8 @@ export async function executeInactivityStep(
 
       if (!p || !p.whatsapp_access_token) return;
 
-      const payload: any = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: phoneDigits,
-      };
-
-      if (!stepToExecute.message_type || stepToExecute.message_type === "text") {
-        payload.type = "text";
-        payload.text = { body: stepToExecute.message_content || "" };
-      } else if (["image", "audio", "video", "document"].includes(stepToExecute.message_type)) {
-        payload.type = stepToExecute.message_type;
-        const mediaObj: any = { link: stepToExecute.media_url || "" };
-        if (
-          stepToExecute.media_caption &&
-          ["image", "video", "document"].includes(stepToExecute.message_type)
-        ) {
-          mediaObj.caption = stepToExecute.media_caption;
-        }
-        payload[stepToExecute.message_type] = mediaObj;
-      }
+      const { payload, fallbackReason } = buildWhatsAppBotMessage(phoneDigits, stepToExecute);
+      if (fallbackReason) logInfo("Etapa de inatividade convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
 
       const apiVersion = p.meta_graph_version || "v20.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
@@ -809,6 +747,7 @@ export async function executeInactivityStep(
       );
 
       await dbAdmin.from("direct_messages").insert({
+        tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
         direction: "outgoing",

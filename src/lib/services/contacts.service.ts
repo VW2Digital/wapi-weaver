@@ -28,14 +28,13 @@ export async function createContactForUser(userId: string, data: any) {
 
     const id = existing?.[0]?.id ?? crypto.randomUUID();
     await conn.execute(
-      `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, contact_number, name, email, custom_fields, company, position, status, responsible_user_id, source, source_type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual')
-       ON DUPLICATE KEY UPDATE contact_number = VALUES(contact_number), name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields), company = VALUES(company), position = VALUES(position), status = VALUES(status), responsible_user_id = VALUES(responsible_user_id)`,
+      `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, name, email, custom_fields, company, position, status, responsible_user_id, source, source_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual')
+       ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields), company = VALUES(company), position = VALUES(position), status = VALUES(status), responsible_user_id = VALUES(responsible_user_id)`,
       [
         id,
         effectiveUserId,
         effectiveUserId,
-        phone,
         phone,
         data.name || null,
         data.email || null,
@@ -150,12 +149,11 @@ export async function updateContactForUser(userId: string, data: any) {
 
   await db.query(
     `UPDATE contacts 
-     SET name = ?, email = ?, phone_e164 = ?, contact_number = ?, company = ?, position = ?, status = ?, responsible_user_id = ?, source = ?, source_type = ?, source_name = ?, source_id = ?, external_id = ?, metadata = ?, opted_out = ?, channel = ?, external_contact_id = ?, custom_fields = ?, is_pinned = ?, is_archived = ?, chat_status = ?, is_unread = ?, kanban_stage_id = ?
+     SET name = ?, email = ?, phone_e164 = ?, company = ?, position = ?, status = ?, responsible_user_id = ?, source = ?, source_type = ?, source_name = ?, source_id = ?, external_id = ?, metadata = ?, opted_out = ?, channel = ?, external_contact_id = ?, custom_fields = ?, is_pinned = ?, is_archived = ?, chat_status = ?, is_unread = ?, kanban_stage_id = ?
      WHERE id = ? AND user_id = ?`,
     [
       data.name !== undefined ? data.name : null,
       data.email !== undefined ? data.email : null,
-      phone,
       phone,
       data.company !== undefined ? data.company : null,
       data.position !== undefined ? data.position : null,

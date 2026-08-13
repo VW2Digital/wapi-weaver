@@ -149,6 +149,7 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
                     // 2. Salvar mensagem recebida (com dedup via unique key)
                     await dbAdmin.from("direct_messages").upsert(
                       {
+                        tenant_id: page.user_id,
                         user_id: page.user_id,
                         contact_phone: phonePlaceholder,
                         direction: "incoming",

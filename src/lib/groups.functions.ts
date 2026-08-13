@@ -302,10 +302,11 @@ export const sendGroupMessage = createServerFn({ method: "POST" })
       // Salvar a mensagem no histórico (tabela direct_messages)
       const msgId = crypto.randomUUID();
       await db.query(
-        `INSERT INTO direct_messages (id, user_id, contact_phone, direction, type, body, wa_message_id, status, channel, provider_message_id, provider_account_id, recipient_type, external_group_id)
-         VALUES (?, ?, ?, 'outgoing', 'text', ?, ?, 'sent', 'whatsapp_group', ?, ?, 'group', ?)`,
+        `INSERT INTO direct_messages (id, tenant_id, user_id, contact_phone, direction, type, body, wa_message_id, status, channel, provider_message_id, provider_account_id, recipient_type, external_group_id)
+         VALUES (?, ?, ?, ?, 'outgoing', 'text', ?, ?, 'sent', 'whatsapp_group', ?, ?, 'group', ?)`,
         [
           msgId,
+          effectiveUserId,
           effectiveUserId,
           group.group_id,
           data.body,

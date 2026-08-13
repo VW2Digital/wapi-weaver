@@ -1986,10 +1986,32 @@ function ChatPage() {
             setMainTab("conversas");
           }
           setSelectedContact(found);
+          return;
+        }
+
+        // Um deep link vindo da ficha do contato deve abrir a conversa mesmo
+        // antes da lista/polling incluir o contato (por exemplo, sem mensagens
+        // anteriores). Busca-o diretamente e o mantém na lista temporária.
+        if (cleanedSearchPhone) {
+          fetchContactDetails({
+            data: { phone: cleanedSearchPhone, contactId: searchContactId || undefined },
+          })
+            .then((details) => {
+              const directContact = normalizeChatContactRecord(details);
+              if (!directContact) return;
+              upsertDraftChatContact(directContact);
+              setMainTab(
+                directContact.channel === "whatsapp_group" ? "grupos" : "conversas",
+              );
+              setSelectedContact(directContact);
+            })
+            .catch(() => {
+              toast.error("NÃ£o foi possÃ­vel abrir a conversa deste contato.");
+            });
         }
       }
     }
-  }, [contactsQuery.data, selectedContact]);
+  }, [contactsQuery.data, selectedContact, fetchContactDetails]);
 
   // Mantém o contato selecionado sincronizado com a lista em polling.
   useEffect(() => {
@@ -1998,12 +2020,13 @@ function ChatPage() {
     const freshSelected = contactsQuery.data.find((contact) => contact.id === selectedContact.id);
 
     if (!freshSelected) {
+      if (draftChatContacts.some((contact) => contact.id === selectedContact.id)) return;
       setSelectedContact(null);
       return;
     }
 
     setSelectedContact((prev) => (prev ? mergeChatContactRecord(prev, freshSelected) : prev));
-  }, [contactsQuery.data, selectedContact?.id]);
+  }, [contactsQuery.data, draftChatContacts, selectedContact?.id]);
 
   const selectedPhone = selectedContact?.phone_e164;
 

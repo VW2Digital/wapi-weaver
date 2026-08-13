@@ -127,6 +127,22 @@ export async function processAiAgent(
     });
 
     if (r.ok) {
+      const responseBody = await r.json().catch(() => null) as any;
+      await dbAdmin.from("direct_messages").insert({
+        id: crypto.randomUUID(),
+        tenant_id: userId,
+        user_id: userId,
+        contact_phone: phoneDigits,
+        direction: "outgoing",
+        type: "text",
+        body: replyText,
+        wa_message_id: responseBody?.messages?.[0]?.id ?? null,
+        provider_message_id: responseBody?.messages?.[0]?.id ?? null,
+        provider_account_id: phoneNumberId,
+        channel: "whatsapp",
+        status: "sent",
+        metadata: { ai_agent: true, model: settings.model || "gemini-2.5-flash" },
+      });
       return true;
     } else {
       const errBody = await r.text();

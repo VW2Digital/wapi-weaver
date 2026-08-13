@@ -869,6 +869,7 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
     try {
       await dbAdmin.from("direct_messages").insert({
         id: randomUUID(),
+        tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
         direction: "incoming",
@@ -1071,6 +1072,7 @@ export async function processHistorySync(value: WebhookValue | undefined, userId
 
         await dbAdmin.from("direct_messages").insert({
           id: randomUUID(),
+          tenant_id: userId,
           user_id: userId,
           contact_phone: contactPhone,
           direction,
@@ -1161,6 +1163,7 @@ export async function processHistorySync(value: WebhookValue | undefined, userId
 
     await dbAdmin.from("direct_messages").insert({
       id: randomUUID(),
+      tenant_id: userId,
       user_id: userId,
       contact_phone: inferredContactPhone,
       direction,
@@ -1227,6 +1230,7 @@ export async function processMessageEchoes(value: WebhookValue | undefined, user
 
     await dbAdmin.from("direct_messages").insert({
       id: randomUUID(),
+      tenant_id: userId,
       user_id: userId,
       contact_phone: contactPhone,
       direction: "outgoing",
@@ -1393,6 +1397,7 @@ async function handleWhatsAppGroupMessage(
   await dbAdmin.from("direct_messages").upsert(
     {
       id: randomUUID(),
+      tenant_id: userId,
       user_id: userId,
       contact_phone: groupId, // A conversa é vinculada ao ID do grupo
       direction: "incoming",

@@ -33,6 +33,7 @@ import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/mysql/client";
 import { listAllAgents } from "@/lib/assignment.functions";
+import { updateChatStatus } from "@/lib/chat-actions.functions";
 
 export const Route = createFileRoute("/_app/contacts/$id")({ component: ContactDetailPage });
 
@@ -72,6 +73,7 @@ function ContactDetailPage() {
   const addNoteFn = useServerFn(addContactNote);
   const fetchCustomFields = useServerFn(listCustomFields);
   const fetchAgents = useServerFn(listAllAgents);
+  const openChat = useServerFn(updateChatStatus);
   const [tab, setTab] = useState<"trajetoria" | "notas" | "metricas" | "historico">("trajetoria");
   const [sidebarTab, setSidebarTab] = useState<"info" | "atividades">("info");
   const [uploading, setUploading] = useState(false);
@@ -89,6 +91,19 @@ function ContactDetailPage() {
       qc.invalidateQueries({ queryKey: ["contact-detail", id] });
     },
     onError: (e: any) => toast.error(e.message),
+  });
+
+  const openChatMut = useMutation({
+    mutationFn: async (contactId: string) =>
+      openChat({ data: { contactId, status: "aberto" } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      const phone = String(contact.phone_e164 ?? "").replace(/\D/g, "");
+      window.location.assign(
+        `/chat?contactId=${encodeURIComponent(contact.id)}&phone=${encodeURIComponent(phone)}`,
+      );
+    },
+    onError: (error: any) => toast.error(error.message || "NÃ£o foi possÃ­vel abrir a conversa."),
   });
 
   const { data, isLoading, error } = useQuery({
@@ -235,16 +250,20 @@ function ContactDetailPage() {
 
           {/* Botões de Ação Rápida */}
           <div className="flex gap-2 px-4 pb-4">
-            <Button 
+            <Button
+              type="button"
               variant="outline" 
               size="sm" 
-              className="flex-1 bg-primary/10 hover:bg-primary/20 border-primary/20 text-primary gap-1.5 h-9" 
-              asChild
+              className="flex-1 bg-primary/10 hover:bg-primary/20 border-primary/20 text-primary gap-1.5 h-9"
+              onClick={() => openChatMut.mutate(contact.id)}
+              disabled={openChatMut.isPending}
             >
-              <Link to="/chat" search={{ contactId: contact.id, phone: contact.phone_e164 } as any}>
+              {openChatMut.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
                 <MessageSquare className="h-4 w-4" />
-                <span>Mensagem</span>
-              </Link>
+              )}
+              <span>Mensagem</span>
             </Button>
             {contact.phone_e164 && (
               <Button 
