@@ -40,11 +40,11 @@ export async function processBotFlow(
       .eq("channel", channel);
     flows = flows || [];
 
-    const { data: builderFlows } = await dbAdmin
-      .from("bot_flows")
-      .select("id, name, channel, is_active, last_executed_at")
-      .or(`tenant_id.eq.${userId},user_id.eq.${userId}`)
-      .eq("channel", channel);
+    const { default: db } = await import("./db");
+    const builderFlows: any[] = (await db.query(
+      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE (tenant_id = ? OR user_id = ?) AND channel = ?`,
+      [userId, userId, channel],
+    )) as any[];
     const activeBuilderFlowIds = new Set(
       (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
     );
@@ -87,8 +87,14 @@ export async function processBotFlow(
     }
 
     if (state && state.is_paused) {
-      const pausedUntil = state.paused_until ? new Date(state.paused_until) : new Date(0);
-      if (new Date() < pausedUntil) {
+      const rawPaused = state.paused_until;
+      let pausedUntil = new Date(0);
+      if (rawPaused) {
+        const str = typeof rawPaused === "string" ? rawPaused : new Date(rawPaused).toISOString();
+        pausedUntil = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
+      }
+
+      if (Date.now() < pausedUntil.getTime()) {
         logInfo("Bot pausado para este contato", { phoneDigits, pausedUntil });
         return;
       } else {
@@ -109,7 +115,6 @@ export async function processBotFlow(
     const legacySettingIds = sortedFlows
       .filter((flow: any) => Boolean(flow.is_active))
       .map((flow: any) => flow.id);
-    const { default: db } = await import("./db");
     const builderSteps = builderStepIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
