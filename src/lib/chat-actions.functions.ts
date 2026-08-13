@@ -473,16 +473,27 @@ export const toggleBotActive = createServerFn({ method: "POST" })
 
       if (existing) {
         await db.query(
-          "UPDATE bot_conversation_state SET bot_active = ?, is_paused = ? WHERE id = ? AND user_id = ?",
-          [data.botActive ? 1 : 0, data.botActive ? 0 : 1, existing.id, effectiveUserId],
+          `UPDATE bot_conversation_state
+           SET bot_active = ?, is_paused = ?, tenant_id = COALESCE(tenant_id, ?)
+           WHERE id = ? AND user_id = ?`,
+          [
+            data.botActive ? 1 : 0,
+            data.botActive ? 0 : 1,
+            effectiveUserId,
+            existing.id,
+            effectiveUserId,
+          ],
         );
       } else {
         const id = crypto.randomUUID();
 
         await db.query(
-          "INSERT INTO bot_conversation_state (id, user_id, contact_number, instance_id, channel, bot_active, is_paused) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          `INSERT INTO bot_conversation_state
+           (id, tenant_id, user_id, contact_number, instance_id, channel, bot_active, is_paused)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
+            effectiveUserId,
             effectiveUserId,
             digits,
             instanceId,

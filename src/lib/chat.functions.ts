@@ -805,21 +805,51 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       ],
     );
 
-    // 5. PAUSA O BOT (Fase 1 do BotFlow)
-    const d = new Date(Date.now() + 60 * 60 * 1000);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const pausedUntil = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-    await db.query(
-      `UPDATE bot_conversation_state
-       SET is_paused = true, paused_until = ?
-       WHERE user_id = ? AND contact_number = ? AND channel = ?`,
-      [
-        pausedUntil,
-        effectiveUserId,
-        digits,
-        isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp",
-      ],
-    );
+    // 5. Intervenção humana: pausa o bot e renova o prazo a cada mensagem do atendente.
+    const messageChannel = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
+    const botSettings = (await db.query(
+      `SELECT instance_id, pause_timeout_minutes
+       FROM bot_settings
+       WHERE user_id = ? AND channel = ?
+       LIMIT 1`,
+      [effectiveUserId, messageChannel],
+    )) as Array<{ instance_id?: string | null; pause_timeout_minutes?: number | null }>;
+    const configuredMinutes = Number(botSettings[0]?.pause_timeout_minutes ?? 60);
+    const pauseMinutes = Number.isFinite(configuredMinutes)
+      ? Math.min(Math.max(Math.trunc(configuredMinutes), 1), 7 * 24 * 60)
+      : 60;
+    const pausedUntil = new Date(Date.now() + pauseMinutes * 60 * 1000);
+    const stateRows = (await db.query(
+      `SELECT id
+       FROM bot_conversation_state
+       WHERE user_id = ? AND contact_number = ? AND channel = ?
+       LIMIT 1`,
+      [effectiveUserId, digits, messageChannel],
+    )) as Array<{ id: string }>;
+
+    if (stateRows[0]) {
+      await db.query(
+        `UPDATE bot_conversation_state
+         SET tenant_id = COALESCE(tenant_id, ?), is_paused = true, paused_until = ?
+         WHERE id = ? AND user_id = ?`,
+        [effectiveUserId, pausedUntil, stateRows[0].id, effectiveUserId],
+      );
+    } else {
+      await db.query(
+        `INSERT INTO bot_conversation_state
+         (id, tenant_id, user_id, contact_number, instance_id, channel, bot_active, is_paused, paused_until)
+         VALUES (?, ?, ?, ?, ?, ?, true, true, ?)`,
+        [
+          crypto.randomUUID(),
+          effectiveUserId,
+          effectiveUserId,
+          digits,
+          botSettings[0]?.instance_id || providerAccountId || "default",
+          messageChannel,
+          pausedUntil,
+        ],
+      );
+    }
 
     return { ok: true, wamid, body };
   });

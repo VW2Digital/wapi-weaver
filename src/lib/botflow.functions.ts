@@ -389,6 +389,29 @@ export const toggleBotStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const updateBotPauseTimeout = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) =>
+    z
+      .object({
+        minutes: z.number().int().min(1).max(7 * 24 * 60),
+        channel: z.string().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }: { data: { minutes: number; channel?: string }; context: any }) => {
+    const { default: db } = await import("./db");
+    const result = await getOrCreateBotSettings(context, data.channel);
+    if (!result.ok) return result;
+
+    await db.query("UPDATE bot_settings SET pause_timeout_minutes = ? WHERE id = ?", [
+      data.minutes,
+      result.settings.id,
+    ]);
+
+    return { ok: true, pause_timeout_minutes: data.minutes };
+  });
+
 export const listBotSteps = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d: any) =>

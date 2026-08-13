@@ -22,6 +22,7 @@ import {
 import {
   getBotSettings,
   toggleBotStatus,
+  updateBotPauseTimeout,
   listBotSteps,
   saveBotStepsBatch,
   listBotFlows,
@@ -68,6 +69,7 @@ function BotPage() {
   const queryClient = useQueryClient();
   const getSettingsFn = useServerFn(getBotSettings);
   const toggleStatusFn = useServerFn(toggleBotStatus);
+  const updatePauseTimeoutFn = useServerFn(updateBotPauseTimeout);
   const listStepsFn = useServerFn(listBotSteps);
   const saveStepsBatchFn = useServerFn(saveBotStepsBatch);
   const getProfileFn = useServerFn(getProfile);
@@ -171,6 +173,21 @@ function BotPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const updatePauseTimeout = useMutation({
+    mutationFn: async (minutes: number) => {
+      const res = await updatePauseTimeoutFn({
+        data: { minutes, channel: selectedChannel },
+      });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["botSettings", selectedChannel] });
+      toast.success("Tempo de retomada automática atualizado");
+    },
+    onError: (err: any) => toast.error(err?.message || "Erro ao atualizar tempo de retomada"),
+  });
+
   const saveBatch = useMutation({
     mutationFn: async (payload: any[]) => {
       for (const step of payload) {
@@ -261,6 +278,9 @@ function BotPage() {
     (settingsQuery.data as any)?.settings?.is_active ||
     (settingsQuery.data as any)?.is_active ||
     false;
+  const pauseTimeoutMinutes = Number(
+    (settingsQuery.data as any)?.settings?.pause_timeout_minutes ?? 60,
+  );
 
   const filteredTemplates = BOT_TEMPLATES.filter((t) => {
     if (templateFilter === "todos") return true;
@@ -286,14 +306,37 @@ function BotPage() {
             </p>
           </div>
 
-          <Button
-            onClick={() => createFlowMut.mutate()}
-            disabled={createFlowMut.isPending}
-            className="bg-brand-gradient text-white font-bold shadow-md hover:opacity-95 px-5"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Adicionar
-          </Button>
+          <div className="flex items-end gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Retomar após intervenção humana</Label>
+              <Select
+                value={String(pauseTimeoutMinutes)}
+                onValueChange={(value) => updatePauseTimeout.mutate(Number(value))}
+                disabled={settingsQuery.isLoading || updatePauseTimeout.isPending}
+              >
+                <SelectTrigger className="w-44 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 minutos</SelectItem>
+                  <SelectItem value="15">15 minutos</SelectItem>
+                  <SelectItem value="30">30 minutos</SelectItem>
+                  <SelectItem value="60">1 hora</SelectItem>
+                  <SelectItem value="120">2 horas</SelectItem>
+                  <SelectItem value="480">8 horas</SelectItem>
+                  <SelectItem value="1440">24 horas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => createFlowMut.mutate()}
+              disabled={createFlowMut.isPending}
+              className="bg-brand-gradient text-white font-bold shadow-md hover:opacity-95 px-5"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Adicionar
+            </Button>
+          </div>
         </div>
 
         {/* Table of Flows */}

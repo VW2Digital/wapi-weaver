@@ -187,6 +187,7 @@ export async function processBotFlow(
         } else {
           await dbAdmin.from("bot_conversation_state").insert({
             user_id: userId,
+            tenant_id: userId,
             contact_number: phoneDigits,
             instance_id: phoneNumberId,
             channel,
@@ -238,6 +239,7 @@ export async function processBotFlow(
             } else {
               await dbAdmin.from("bot_conversation_state").insert({
                 user_id: userId,
+                tenant_id: userId,
                 contact_number: phoneDigits,
                 instance_id: phoneNumberId,
                 channel,
@@ -337,6 +339,7 @@ export async function processBotFlow(
         await dbAdmin.from("bot_conversation_state").upsert(
           {
             user_id: userId,
+            tenant_id: userId,
             contact_number: phoneDigits,
             instance_id: phoneNumberId,
             channel,
@@ -370,6 +373,7 @@ export async function processBotFlow(
       await dbAdmin.from("bot_conversation_state").upsert(
         {
           user_id: userId,
+          tenant_id: userId,
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
@@ -686,6 +690,7 @@ export async function executeInactivityStep(
       await dbAdmin.from("bot_conversation_state").upsert(
         {
           user_id: userId,
+          tenant_id: userId,
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
