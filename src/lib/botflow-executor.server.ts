@@ -19,7 +19,7 @@ export async function processBotFlow(
   channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" = "whatsapp",
   incomingMessageId?: string | null,
 ) {
-  if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return;
+  if (!phoneNumberId || !phoneDigits || !userId || (!messageBody && !buttonPayload)) return;
 
   const { checkLicense } = await import("@/lib/license-verifier");
   const isLicenseValid = await checkLicense(undefined, false);
@@ -43,7 +43,7 @@ export async function processBotFlow(
     const { data: builderFlows } = await dbAdmin
       .from("bot_flows")
       .select("id, name, channel, is_active, last_executed_at")
-      .eq("tenant_id", userId)
+      .or(`tenant_id.eq.${userId},user_id.eq.${userId}`)
       .eq("channel", channel);
     const activeBuilderFlowIds = new Set(
       (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
@@ -435,7 +435,11 @@ export async function processBotFlow(
         .eq("id", userId)
         .maybeSingle();
 
-      if (!p || !p.whatsapp_access_token) return;
+      const accessToken = p?.whatsapp_access_token || process.env.META_ACCESS_TOKEN;
+      if (!accessToken) {
+        logError("Token de acesso do WhatsApp (whatsapp_access_token) não encontrado no perfil ou env", { userId });
+        return;
+      }
 
       const { payload, fallbackReason } = buildWhatsAppBotMessage(
         phoneDigits,
@@ -445,11 +449,11 @@ export async function processBotFlow(
       if (channel === "whatsapp_group") payload.recipient_type = "group";
       if (fallbackReason) logInfo("Etapa convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
 
-      const apiVersion = p.meta_graph_version || "v20.0";
+      const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),

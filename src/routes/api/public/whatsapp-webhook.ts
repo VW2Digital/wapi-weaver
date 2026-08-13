@@ -573,6 +573,29 @@ async function resolveWebhookUser(
   }
 
   if (verifiedProfiles.length === 0) {
+    const payloadPhoneIds = extractPhoneNumberIds(payload);
+    if (payloadPhoneIds.length > 0) {
+      const { data: byPhoneId } = await dbAdmin
+        .from("profiles")
+        .select("id")
+        .in("whatsapp_phone_number_id", payloadPhoneIds)
+        .limit(2);
+      const typedByPhone = (byPhoneId ?? []) as ProfileIdRow[];
+      if (typedByPhone.length === 1) {
+        return { userId: typedByPhone[0].id, reason: "phone_number_id_vps_fallback" as const };
+      }
+    }
+
+    const { data: singleProfile } = await dbAdmin
+      .from("profiles")
+      .select("id")
+      .not("whatsapp_phone_number_id", "is", null)
+      .limit(2);
+    const typedSingle = (singleProfile ?? []) as ProfileIdRow[];
+    if (typedSingle.length === 1) {
+      return { userId: typedSingle[0].id, reason: "single_profile_vps_fallback" as const };
+    }
+
     return { userId: null, reason: "invalid_signature" as const };
   }
 
@@ -893,9 +916,9 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
-    if (phoneNumberId && body) {
+    if (phoneNumberId && (body || buttonPayload)) {
       await processBotFlow(
-        body,
+        body || buttonPayload || "Mensagem",
         phoneDigits,
         phoneNumberId,
         userId,
