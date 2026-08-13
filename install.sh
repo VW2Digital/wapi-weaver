@@ -20,6 +20,8 @@ NC='\033[0m'
 
 APP_DIR="/var/www/wapi-weaver"
 COMPOSE_FILE="docker-compose.production.yml"
+PERSISTENT_CONFIG_DIR="/etc/blivcrm"
+PERSISTENT_ENV_FILE="${PERSISTENT_CONFIG_DIR}/app.env"
 
 UPDATE_MODE=0
 FRESH_DATABASE=0
@@ -258,6 +260,20 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# O .env contém chaves criptográficas que precisam sobreviver até mesmo quando
+# o diretório da aplicação é removido e clonado novamente. Sem essa cópia
+# externa, os segredos já gravados no banco deixam de ser descriptografáveis.
+mkdir -p "${PERSISTENT_CONFIG_DIR}"
+chmod 700 "${PERSISTENT_CONFIG_DIR}"
+if [ -f "${APP_DIR}/.env" ]; then
+  cp "${APP_DIR}/.env" "${PERSISTENT_ENV_FILE}"
+  chmod 600 "${PERSISTENT_ENV_FILE}"
+elif [ -f "${PERSISTENT_ENV_FILE}" ]; then
+  mkdir -p "${APP_DIR}"
+  cp "${PERSISTENT_ENV_FILE}" "${APP_DIR}/.env"
+  chmod 600 "${APP_DIR}/.env"
+fi
+
 # Se for apenas configuração de SSL
 if [ "$CONFIGURE_SSL_ONLY" -eq 1 ]; then
   print_step "Executando apenas configuração de SSL Let's Encrypt..."
@@ -433,6 +449,11 @@ if [ ! -d "${APP_DIR}/.git" ]; then
   rm -rf "${APP_DIR}"
   git clone --branch main https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
   cd "${APP_DIR}"
+  if [ -f "${PERSISTENT_ENV_FILE}" ]; then
+    cp "${PERSISTENT_ENV_FILE}" "${APP_DIR}/.env"
+    chmod 600 "${APP_DIR}/.env"
+    print_ok "Configuração persistente restaurada após o clone."
+  fi
 else
   cd "${APP_DIR}"
   echo "  Verificando modificações locais descartáveis em ${APP_DIR}..."
@@ -485,6 +506,8 @@ print_ok "Código-fonte 100% alinhado com origin/main. Commit implantado: ${LOCA
 print_step "[5/8] Gerando segredos e configurando o arquivo .env..."
 
 ENV_FILE="${APP_DIR}/.env"
+ENV_FILE_ALREADY_EXISTS=0
+[ -f "${ENV_FILE}" ] && ENV_FILE_ALREADY_EXISTS=1
 
 # Carregar ou gerar segredos únicos
 JWT_SECRET_VAL=$(grep '^JWT_SECRET=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
@@ -500,7 +523,16 @@ REDIS_PASS_VAL=$(grep '^REDIS_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' 
 [ -n "${REDIS_PASS_VAL}" ] || REDIS_PASS_VAL=$(openssl rand -hex 24)
 
 MP_ENC_KEY_VAL=$(grep '^MERCADOPAGO_ENCRYPTION_KEY=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
-[ -n "${MP_ENC_KEY_VAL}" ] || MP_ENC_KEY_VAL=$(openssl rand -hex 32)
+if [ -z "${MP_ENC_KEY_VAL}" ]; then
+  if [ "${ENV_FILE_ALREADY_EXISTS}" -eq 1 ] && [ -n "${JWT_SECRET_VAL}" ]; then
+    # Compatibilidade com versões antigas: antes desta variável existir, a
+    # aplicação usava JWT_SECRET como fallback para criptografar o gateway.
+    MP_ENC_KEY_VAL="${JWT_SECRET_VAL}"
+    print_warn "MERCADOPAGO_ENCRYPTION_KEY ausente no .env antigo; preservando JWT_SECRET como chave legada."
+  else
+    MP_ENC_KEY_VAL=$(openssl rand -hex 32)
+  fi
+fi
 
 # Preservar DOMAIN, ADMIN_EMAIL e ADMIN_PASSWORD no modo UPDATE (ou se não informados interativamente)
 if [ -z "${DOMAIN}" ]; then
@@ -563,7 +595,10 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 EOF
 
 chmod 600 "${ENV_FILE}"
+cp "${ENV_FILE}" "${PERSISTENT_ENV_FILE}"
+chmod 600 "${PERSISTENT_ENV_FILE}"
 print_ok "Arquivo .env gerado e protegido (chmod 600)."
+print_ok "Configuração persistente sincronizada em ${PERSISTENT_ENV_FILE}."
 
 # ---------------------------------------------------------------------------
 # 6. Subir a Stack Docker Compose e aplicar Migrações

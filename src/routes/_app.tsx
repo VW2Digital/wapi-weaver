@@ -126,10 +126,6 @@ const NAV: NavItem[] = [
 const ADMIN_ONLY_PATHS = new Set([
   "/webhook-events",
   "/billing",
-  "/automacoes",
-  "/bot",
-  "/ds-agente",
-  "/webhooks",
 ]);
 
 const OPERATIONAL_PATHS = new Set([

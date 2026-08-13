@@ -110,17 +110,26 @@ export function TabTraining({
 
         {/* Provedor */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground font-medium">Provedor</Label>
+          <Label className="text-xs text-muted-foreground font-medium">Provedor de Inteligência Artificial</Label>
           <Select
-            value={agentData.provider || "OpenAI Padrão"}
-            onValueChange={(val) => onChangeField("provider", val)}
+            value={agentData.provider || "Google Gemini"}
+            onValueChange={(val) => {
+              onChangeField("provider", val);
+              if (val === "Google Gemini" && (!agentData.model || agentData.model.startsWith("gpt"))) {
+                onChangeField("model", "gemini-2.5-flash");
+              } else if (val === "OpenAI Padrão" && (!agentData.model || agentData.model.startsWith("gemini"))) {
+                onChangeField("model", "gpt-4o-mini");
+              } else if (val === "Anthropic Claude" && (!agentData.model || !agentData.model.startsWith("claude"))) {
+                onChangeField("model", "claude-3-5-sonnet");
+              }
+            }}
           >
             <SelectTrigger className="bg-background border-border text-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover border-border text-popover-foreground">
+              <SelectItem value="Google Gemini">Google Gemini (Recomendado)</SelectItem>
               <SelectItem value="OpenAI Padrão">OpenAI Padrão</SelectItem>
-              <SelectItem value="Google Gemini">Google Gemini</SelectItem>
               <SelectItem value="Anthropic Claude">Anthropic Claude</SelectItem>
             </SelectContent>
           </Select>
@@ -129,13 +138,25 @@ export function TabTraining({
         {/* Chave de API mascarada com Olho */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground font-medium flex items-center justify-between">
-            <span>API Key</span>
+            <span>
+              {agentData.provider === "Google Gemini"
+                ? "API Key do Google Gemini"
+                : agentData.provider === "Anthropic Claude"
+                ? "API Key da Anthropic"
+                : "API Key da OpenAI"}
+            </span>
             <span className="text-[10px] text-muted-foreground">Opcional se global</span>
           </Label>
           <div className="relative">
             <Input
               type={showApiKey ? "text" : "password"}
-              placeholder="sk-..."
+              placeholder={
+                agentData.provider === "Google Gemini"
+                  ? "AIzaSy... (Chave do Google AI Studio)"
+                  : agentData.provider === "Anthropic Claude"
+                  ? "sk-ant-... (Chave Anthropic)"
+                  : "sk-... (Chave OpenAI)"
+              }
               value={agentData.api_key_encrypted || ""}
               onChange={(e) => onChangeField("api_key_encrypted", e.target.value)}
               className="bg-background border-border text-foreground pr-10 focus:border-primary"
@@ -148,25 +169,64 @@ export function TabTraining({
               {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            {agentData.provider === "Google Gemini" ? (
+              <>👉 Obtenha sua API Key gratuita no <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-primary underline font-medium">Google AI Studio (aistudio.google.com)</a>.</>
+            ) : agentData.provider === "Anthropic Claude" ? (
+              <>👉 Obtenha sua API Key no <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" className="text-primary underline font-medium">Console Anthropic</a>.</>
+            ) : (
+              <>👉 Obtenha sua API Key na <a href="https://platform.openai.com" target="_blank" rel="noreferrer" className="text-primary underline font-medium">Plataforma OpenAI</a>.</>
+            )}
+          </p>
         </div>
 
-        {/* Modelo OpenAI */}
+        {/* Seleção do Modelo baseada no Provedor */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground font-medium flex items-center justify-between">
-            <span>Modelo OpenAI</span>
+            <span>
+              {agentData.provider === "Google Gemini"
+                ? "Modelo Gemini"
+                : agentData.provider === "Anthropic Claude"
+                ? "Modelo Claude"
+                : "Modelo OpenAI"}
+            </span>
             <Settings className="h-3.5 w-3.5 text-muted-foreground cursor-pointer hover:text-primary" />
           </Label>
           <Select
-            value={agentData.model || "gpt-4o-mini"}
+            value={
+              agentData.model ||
+              (agentData.provider === "Google Gemini"
+                ? "gemini-2.5-flash"
+                : agentData.provider === "Anthropic Claude"
+                ? "claude-3-5-sonnet"
+                : "gpt-4o-mini")
+            }
             onValueChange={(val) => onChangeField("model", val)}
           >
             <SelectTrigger className="bg-background border-border text-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover border-border text-popover-foreground">
-              <SelectItem value="gpt-4o-mini">gpt-4o-mini (Recomendado)</SelectItem>
-              <SelectItem value="gpt-4o">gpt-4o (Avançado)</SelectItem>
-              <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+              {agentData.provider === "Google Gemini" ? (
+                <>
+                  <SelectItem value="gemini-2.5-flash">gemini-2.5-flash (Recomendado / Ultra Rápido)</SelectItem>
+                  <SelectItem value="gemini-2.0-flash">gemini-2.0-flash (Nova Geração)</SelectItem>
+                  <SelectItem value="gemini-1.5-pro">gemini-1.5-pro (Raciocínio Avançado)</SelectItem>
+                  <SelectItem value="gemini-1.5-flash">gemini-1.5-flash</SelectItem>
+                </>
+              ) : agentData.provider === "Anthropic Claude" ? (
+                <>
+                  <SelectItem value="claude-3-5-sonnet">claude-3-5-sonnet (Recomendado)</SelectItem>
+                  <SelectItem value="claude-3-haiku">claude-3-haiku (Rápido)</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="gpt-4o-mini">gpt-4o-mini (Recomendado)</SelectItem>
+                  <SelectItem value="gpt-4o">gpt-4o (Avançado)</SelectItem>
+                  <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
+                  <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>

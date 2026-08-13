@@ -29,12 +29,17 @@ apt-get update -y -qq
 apt-get install -y -qq curl git rsync
 
 APP_DIR="/var/www/wapi-weaver"
+PERSISTENT_CONFIG_DIR="/etc/blivcrm"
+PERSISTENT_ENV_FILE="${PERSISTENT_CONFIG_DIR}/app.env"
 mkdir -p /var/www
+mkdir -p "${PERSISTENT_CONFIG_DIR}"
+chmod 700 "${PERSISTENT_CONFIG_DIR}"
 
 # Fazer backup do arquivo .env se ele existir
 if [ -f "${APP_DIR}/.env" ]; then
   echo "Salvando backup do arquivo .env atual..."
-  cp "${APP_DIR}/.env" /tmp/wapi-weaver-env-backup
+  cp "${APP_DIR}/.env" "${PERSISTENT_ENV_FILE}"
+  chmod 600 "${PERSISTENT_ENV_FILE}"
 fi
 
 echo -e "${YELLOW}Clonando repositório do Wapi Weaver para ${APP_DIR}...${NC}"
@@ -43,10 +48,10 @@ rm -rf "${APP_DIR}"
 git clone https://github.com/VW2Digital/wapi-weaver.git "${APP_DIR}"
 
 # Restaurar o arquivo .env do backup
-if [ -f /tmp/wapi-weaver-env-backup ]; then
+if [ -f "${PERSISTENT_ENV_FILE}" ]; then
   echo "Restaurando o arquivo .env do backup..."
-  cp /tmp/wapi-weaver-env-backup "${APP_DIR}/.env"
-  rm -f /tmp/wapi-weaver-env-backup
+  cp "${PERSISTENT_ENV_FILE}" "${APP_DIR}/.env"
+  chmod 600 "${APP_DIR}/.env"
 fi
 
 cd "${APP_DIR}"
