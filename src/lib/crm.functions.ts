@@ -933,6 +933,16 @@ export const createOpportunity = createServerFn({ method: "POST" })
         throw new Error("Etapa selecionada não pertence ao funil informado");
       }
 
+      // `opportunities.probability_percent` é NOT NULL em instalações atuais.
+      // A etapa inicial é a fonte de verdade; fluxos antigos sem percentual
+      // recebem 0 em vez de tentar gravar NULL.
+      const [stageRows] = (await conn.execute(
+        "SELECT probability_percent FROM sales_stages WHERE id = ? AND funnel_id = ? LIMIT 1",
+        [data.stage_id, data.funnel_id],
+      )) as [Array<{ probability_percent: number | null }>, unknown];
+      const stageProbability = Number(stageRows?.[0]?.probability_percent);
+      const probabilityPercent = data.probability_percent ?? (Number.isFinite(stageProbability) ? stageProbability : 0);
+
       // Calculate kanban order (placed at the end by default)
       const [maxOrderRow] = (await conn.execute(
         "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
@@ -962,7 +972,7 @@ export const createOpportunity = createServerFn({ method: "POST" })
           context.userId,
           data.value,
           data.currency ?? "BRL",
-          data.probability_percent ?? null,
+          probabilityPercent,
           data.expected_close_date ?? null,
           data.source ?? null,
           data.temperature ?? null,
