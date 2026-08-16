@@ -53,14 +53,32 @@ export const Route = createFileRoute("/api/storage/file")({
 
           const fileData = fs.readFileSync(fullPath);
 
-          // Determine mime type roughly
+          // Determine mime type
           const ext = path.extname(fullPath).toLowerCase();
-          let contentType = "application/octet-stream";
-          if (ext === ".jpg" || ext === ".jpeg") contentType = "image/jpeg";
-          else if (ext === ".png") contentType = "image/png";
-          else if (ext === ".webp") contentType = "image/webp";
-          else if (ext === ".gif") contentType = "image/gif";
-          else if (ext === ".svg") contentType = "image/svg+xml";
+          const MIME_TYPES: Record<string, string> = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".svg": "image/svg+xml",
+            ".pdf": "application/pdf",
+            ".doc": "application/msword",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xls": "application/vnd.ms-excel",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".ppt": "application/vnd.ms-powerpoint",
+            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".txt": "text/plain",
+            ".csv": "text/csv",
+            ".zip": "application/zip",
+            ".mp3": "audio/mpeg",
+            ".ogg": "audio/ogg",
+            ".opus": "audio/ogg",
+            ".wav": "audio/wav",
+            ".mp4": "video/mp4",
+          };
+          const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
           return new Response(fileData, {
             status: 200,

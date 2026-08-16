@@ -7,6 +7,8 @@ export type WhatsAppBotStep = {
   media_caption?: string | null;
   footer_text?: string | null;
   buttons_config?: unknown;
+  filename?: string | null;
+  original_filename?: string | null;
 };
 
 export type WhatsAppMessageBuildResult = {
@@ -253,7 +255,12 @@ export function buildWhatsAppBotMessage(
       media.caption = captionText.slice(0, 1024);
     }
     if (targetType === "document") {
-      media.filename = getFilenameFromUrl(mediaRef.value, "document.pdf");
+      const docFilename =
+        step.filename ||
+        step.original_filename ||
+        (mediaRef.isUrl ? getFilenameFromUrl(mediaRef.value, "document.pdf") : null) ||
+        "document.pdf";
+      media.filename = docFilename;
     }
 
     return { payload: { ...base, type: targetType, [targetType]: media } };

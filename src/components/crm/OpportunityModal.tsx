@@ -50,6 +50,7 @@ import {
   Clock,
   Pin,
   Check,
+  CheckCircle2,
   UserPlus,
   MessageCircle,
   FileText,
@@ -65,6 +66,12 @@ import {
   MessageSquare,
   Phone,
   X,
+  Search,
+  Filter,
+  ArrowRight,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Zap,
 } from "lucide-react";
 
 interface OpportunityModalProps {
@@ -295,7 +302,7 @@ export function OpportunityModal({
   const winMutation = useMutation({
     mutationFn: () => markWon({ data: { id: opportunityId } }),
     onSuccess: () => {
-      toast.success("Oportunidade ganha! 🏆");
+      toast.success("Oportunidade marcada como ganha");
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       refetchOppData();
       refetchTimelineData();
@@ -312,7 +319,7 @@ export function OpportunityModal({
         },
       }),
     onSuccess: () => {
-      toast.success("Oportunidade perdida");
+      toast.success("Oportunidade marcada como perdida");
       setLostDialogOpen(false);
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       refetchOppData();
@@ -335,26 +342,53 @@ export function OpportunityModal({
   const noteMutation = useMutation({
     mutationFn: () => addNoteFn({ data: { opportunity_id: opportunityId, body: newNoteBody } }),
     onSuccess: () => {
+      toast.success("Nota salva com sucesso");
       setNewNoteBody("");
       refetchNotesData();
       refetchTimelineData();
     },
+    onError: (err: any) => toast.error(err.message || "Erro ao salvar nota"),
   });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: string) => removeNoteFn({ data: { id: noteId } }),
+    onSuccess: () => {
+      toast.success("Nota removida");
+      refetchNotesData();
+      refetchTimelineData();
+    },
+    onError: (err: any) => toast.error(err.message || "Erro ao remover nota"),
+  });
+
+  const defaultTitlesByType: Record<string, string> = {
+    whatsapp: "Mensagem no WhatsApp",
+    call: "Ligação Comercial",
+    meeting: "Reunião de Alinhamento",
+    task: "Tarefa Comercial",
+    follow_up: "Follow-up Comercial",
+    email: "Envio de E-mail",
+    note: "Anotação Comercial",
+    proposal: "Apresentação de Proposta",
+    other: "Atividade Comercial",
+  };
 
   // Activities mutation
   const activityMutation = useMutation({
-    mutationFn: () =>
-      addAct({
+    mutationFn: () => {
+      const finalTitle = actTitle.trim() || defaultTitlesByType[actType] || "Atividade Comercial";
+      return addAct({
         data: {
           opportunity_id: opportunityId,
-          title: actTitle,
-          description: actDesc || null,
+          title: finalTitle,
+          description: actDesc.trim() || null,
           type: actType,
           due_at: actDue ? new Date(actDue).toISOString().slice(0, 19).replace("T", " ") : null,
           status: "pending",
         },
-      }),
+      });
+    },
     onSuccess: () => {
+      toast.success("Atividade registrada");
       setActTitle("");
       setActDesc("");
       setActDue("");
@@ -362,14 +396,14 @@ export function OpportunityModal({
       refetchTimelineData();
       qc.invalidateQueries({ queryKey: ["opportunities"] });
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message || "Erro ao criar atividade"),
   });
 
   const completeActMutation = useMutation({
     mutationFn: (act: any) =>
       editAct({
         data: {
-          id: act.id,
+          id: act.id || act.activity_id,
           data: {
             ...act,
             status: "done",
@@ -378,11 +412,94 @@ export function OpportunityModal({
         },
       }),
     onSuccess: () => {
+      toast.success("Atividade concluída");
       refetchActsData();
       refetchTimelineData();
       qc.invalidateQueries({ queryKey: ["opportunities"] });
     },
+    onError: (err: any) => toast.error(err.message || "Erro ao concluir atividade"),
   });
+
+  const deleteActMutation = useMutation({
+    mutationFn: (actId: string) => removeAct({ data: { id: actId, opportunity_id: opportunityId } }),
+    onSuccess: () => {
+      toast.success("Atividade removida");
+      refetchActsData();
+      refetchTimelineData();
+      qc.invalidateQueries({ queryKey: ["opportunities"] });
+    },
+    onError: (err: any) => toast.error(err.message || "Erro ao remover atividade"),
+  });
+
+  // Timeline filters and search state
+  const [timelineFilter, setTimelineFilter] = useState<
+    "all" | "messages" | "activities" | "notes" | "stages"
+  >("all");
+  const [timelineSearch, setTimelineSearch] = useState("");
+
+  const timelineCounts = useMemo(() => {
+    const list = (timeline as any[]) || [];
+    return {
+      all: list.length,
+      messages: list.filter((i) => i.event_type === "message").length,
+      activities: list.filter((i) => i.event_type === "activity").length,
+      notes: list.filter((i) => i.event_type === "note").length,
+      stages: list.filter(
+        (i) =>
+          i.event_type === "stage_history" ||
+          i.event_type === "contact_activity" ||
+          i.event_type === "lead_created" ||
+          i.event_type === "opp_created",
+      ).length,
+    };
+  }, [timeline]);
+
+  const filteredTimeline = useMemo(() => {
+    const list = (timeline as any[]) || [];
+    let res = list;
+
+    if (timelineFilter === "messages") {
+      res = res.filter((i) => i.event_type === "message");
+    } else if (timelineFilter === "activities") {
+      res = res.filter((i) => i.event_type === "activity");
+    } else if (timelineFilter === "notes") {
+      res = res.filter((i) => i.event_type === "note");
+    } else if (timelineFilter === "stages") {
+      res = res.filter(
+        (i) =>
+          i.event_type === "stage_history" ||
+          i.event_type === "contact_activity" ||
+          i.event_type === "lead_created" ||
+          i.event_type === "opp_created",
+      );
+    }
+
+    if (timelineSearch.trim()) {
+      const q = timelineSearch.toLowerCase().trim();
+      res = res.filter((i) => {
+        const t = (i.title || "").toLowerCase();
+        const d = (i.description || "").toLowerCase();
+        const b = (i.body || "").toLowerCase();
+        const a = (i.actor_name || i.actor_email || "").toLowerCase();
+        const r = (i.reason || "").toLowerCase();
+        const f = (i.from_stage_name || "").toLowerCase();
+        const to = (i.to_stage_name || "").toLowerCase();
+        const s = (i.sender_name || "").toLowerCase();
+        return (
+          t.includes(q) ||
+          d.includes(q) ||
+          b.includes(q) ||
+          a.includes(q) ||
+          r.includes(q) ||
+          f.includes(q) ||
+          to.includes(q) ||
+          s.includes(q)
+        );
+      });
+    }
+
+    return res;
+  }, [timeline, timelineFilter, timelineSearch]);
 
   // Add additional contact
   const handleAddSecondaryContact = () => {
@@ -867,120 +984,498 @@ export function OpportunityModal({
 
             {/* TABS CONTENT: ACTIVITIES */}
             <TabsContent value="activities" className="space-y-4 m-0">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Left Column: Histórico de Atividades */}
-                <div className="space-y-6">
-                  <h3 className="font-semibold text-lg tracking-tight">Histórico de Atividades</h3>
-                  
-                  <div className="relative border-l-2 border-muted-foreground/10 pl-6 ml-2 space-y-6">
-                    {(activities ?? []).map((act: any) => (
-                      <div key={act.id} className="relative">
-                        <div className="absolute -left-[35px] top-1 w-6 h-6 rounded-full bg-background border-2 border-primary flex items-center justify-center">
-                          {act.status === "done" ? (
-                            <Check className="w-3 h-3 text-primary" />
-                          ) : (
-                            <Activity className="w-3 h-3 text-primary" />
-                          )}
-                        </div>
-                        <div className="bg-muted/10 border border-muted-foreground/10 rounded-xl p-4 transition-colors hover:bg-muted/20">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className={`font-semibold text-sm ${act.status === "done" ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                                {act.title}
-                              </p>
-                              {act.description && (
-                                <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{act.description}</p>
-                              )}
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                              <span className="text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full font-medium">
-                                {act.type}
-                              </span>
-                              {act.status === "pending" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs text-green-500 hover:text-green-600 hover:bg-green-500/10"
-                                  onClick={() => completeActMutation.mutate(act)}
-                                >
-                                  Concluir
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between mt-3 text-[10px] text-muted-foreground pt-3 border-t border-muted-foreground/10">
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="w-3 h-3" />
-                              <span>{act.due_at ? new Date(act.due_at).toLocaleString("pt-BR") : "Sem prazo"}</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                              onClick={() => removeAct({ data: { id: act.id, opportunity_id: opportunityId } })}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Histórico Completo do Contato & Atividades (7 cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-base tracking-tight text-foreground">
+                        Histórico do Contato & Atividades
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Mensagens de WhatsApp, tarefas, anotações e movimentações integradas.
+                      </p>
+                    </div>
+                    {opportunity?.primary_contact_phone && (
+                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/40 border border-border/40 text-[11px] text-muted-foreground font-mono">
+                        <MessageSquare className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        <span>+{opportunity.primary_contact_phone}</span>
                       </div>
-                    ))}
-                    
-                    {(activities ?? []).length === 0 && (
-                      <div className="py-8 text-muted-foreground text-sm italic">
-                        Nenhuma atividade registrada ainda.
+                    )}
+                  </div>
+
+                  {/* Search and Category Filters */}
+                  <div className="space-y-2.5">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input
+                        value={timelineSearch}
+                        onChange={(e) => setTimelineSearch(e.target.value)}
+                        placeholder="Buscar no histórico (mensagens, tarefas, notas)..."
+                        className="pl-9 h-9 text-xs bg-muted/10 border-border/40 rounded-lg"
+                      />
+                      {timelineSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setTimelineSearch("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={timelineFilter === "all" ? "default" : "outline"}
+                        onClick={() => setTimelineFilter("all")}
+                        className="h-7 text-xs px-2.5 rounded-lg shrink-0"
+                      >
+                        Todos ({timelineCounts.all})
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={timelineFilter === "messages" ? "default" : "outline"}
+                        onClick={() => setTimelineFilter("messages")}
+                        className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        Mensagens ({timelineCounts.messages})
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={timelineFilter === "activities" ? "default" : "outline"}
+                        onClick={() => setTimelineFilter("activities")}
+                        className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        Tarefas ({timelineCounts.activities})
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={timelineFilter === "notes" ? "default" : "outline"}
+                        onClick={() => setTimelineFilter("notes")}
+                        className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                      >
+                        <FileText className="w-3 h-3" />
+                        Notas ({timelineCounts.notes})
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={timelineFilter === "stages" ? "default" : "outline"}
+                        onClick={() => setTimelineFilter("stages")}
+                        className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                      >
+                        <History className="w-3 h-3" />
+                        Funil ({timelineCounts.stages})
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Timeline Stream */}
+                  <div className="relative border-l-2 border-muted-foreground/10 pl-6 ml-3 space-y-5 pt-1">
+                    {filteredTimeline.map((evt: any, idx: number) => {
+                      if (evt.event_type === "message") {
+                        const isIncoming = evt.direction === "incoming";
+                        const statusLabels: Record<string, string> = {
+                          sent: "Enviada",
+                          delivered: "Entregue",
+                          read: "Lida",
+                          failed: "Falhou",
+                        };
+                        return (
+                          <div key={evt.id || idx} className="relative group">
+                            <span
+                              className={`absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background shadow-xs ${
+                                isIncoming
+                                  ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
+                              }`}
+                            >
+                              {isIncoming ? (
+                                <ArrowDownLeft className="w-3.5 h-3.5" />
+                              ) : (
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                              )}
+                            </span>
+                            <div
+                              className={`border rounded-xl p-4 transition-all duration-150 shadow-xs ${
+                                isIncoming
+                                  ? "bg-muted/15 border-border/40 hover:bg-muted/25"
+                                  : "bg-primary/[0.03] border-primary/15 hover:bg-primary/[0.06]"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                                      isIncoming
+                                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                    }`}
+                                  >
+                                    <MessageSquare className="w-2.5 h-2.5" />
+                                    {isIncoming ? "Mensagem Recebida" : "Mensagem Enviada"}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded font-mono">
+                                    {evt.channel || "whatsapp"}
+                                  </span>
+                                  {evt.status && !isIncoming && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      • {statusLabels[evt.status] || evt.status}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                                  {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+
+                              <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed break-words bg-background/50 rounded-lg p-3 border border-border/30">
+                                {evt.body || <span className="italic text-muted-foreground">Mídia ou anexo recebido</span>}
+                              </div>
+
+                              {evt.sender_name && (
+                                <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1">
+                                  <User className="w-3 h-3 text-muted-foreground/70" />
+                                  <span>{evt.sender_name}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (evt.event_type === "activity") {
+                        const isDone = evt.status === "done";
+                        const typeIcons: Record<string, any> = {
+                          whatsapp: MessageSquare,
+                          call: Phone,
+                          meeting: Calendar,
+                          task: Bell,
+                          follow_up: Clock,
+                          email: MessageSquare,
+                          other: Activity,
+                        };
+                        const TypeIcon = typeIcons[evt.type] || Activity;
+                        const typeLabels: Record<string, string> = {
+                          whatsapp: "WhatsApp",
+                          call: "Ligação",
+                          meeting: "Reunião",
+                          task: "Lembrete",
+                          follow_up: "Agendamento",
+                          email: "E-mail",
+                          note: "Nota",
+                          proposal: "Proposta",
+                          other: "Atividade",
+                        };
+
+                        return (
+                          <div key={evt.id || evt.activity_id || idx} className="relative group">
+                            <span
+                              className={`absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background shadow-xs ${
+                                isDone
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20"
+                              }`}
+                            >
+                              {isDone ? <Check className="w-3.5 h-3.5" /> : <TypeIcon className="w-3.5 h-3.5" />}
+                            </span>
+
+                            <div className="bg-muted/10 border border-muted-foreground/10 rounded-xl p-4 transition-all duration-150 hover:bg-muted/20 shadow-xs">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 text-muted-foreground">
+                                      {typeLabels[evt.type] || evt.type}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                                        isDone
+                                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                      }`}
+                                    >
+                                      {isDone ? "Concluída" : "Pendente"}
+                                    </span>
+                                  </div>
+                                  <p
+                                    className={`font-medium text-sm leading-snug ${
+                                      isDone ? "line-through text-muted-foreground" : "text-foreground"
+                                    }`}
+                                  >
+                                    {evt.title}
+                                  </p>
+                                  {evt.description && (
+                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed pt-0.5">
+                                      {evt.description}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {!isDone && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 font-medium"
+                                      onClick={() => completeActMutation.mutate(evt)}
+                                    >
+                                      <Check className="w-3 h-3 mr-1" /> Concluir
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => deleteActMutation.mutate(evt.id || evt.activity_id)}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-muted-foreground/10 text-[11px] text-muted-foreground">
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3 h-3 text-muted-foreground/70" />
+                                  <span>
+                                    {evt.due_at ? `Prazo: ${new Date(evt.due_at).toLocaleString("pt-BR")}` : "Sem prazo definido"}
+                                  </span>
+                                </div>
+                                {(evt.assigned_to_name || evt.actor_name || evt.actor_email) && (
+                                  <span className="text-[10px] text-muted-foreground/80">
+                                    Resp: {evt.assigned_to_name || evt.actor_name || evt.actor_email}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (evt.event_type === "note") {
+                        return (
+                          <div key={evt.id || evt.note_id || idx} className="relative group">
+                            <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border-2 border-background ring-1 ring-amber-500/20 shadow-xs">
+                              <FileText className="w-3.5 h-3.5" />
+                            </span>
+
+                            <div className="bg-amber-500/[0.03] border border-amber-500/20 rounded-xl p-4 transition-all duration-150 hover:bg-amber-500/[0.06] shadow-xs">
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                    Anotação Comercial
+                                  </span>
+                                  {(evt.actor_name || evt.actor_email) && (
+                                    <span className="text-[11px] text-muted-foreground">
+                                      Por {evt.actor_name || evt.actor_email}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                                    {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => deleteNoteMutation.mutate(evt.id || evt.note_id)}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                                {evt.body}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (evt.event_type === "stage_history") {
+                        return (
+                          <div key={evt.id || idx} className="relative group">
+                            <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border-2 border-background ring-1 ring-sky-500/20 shadow-xs">
+                              <History className="w-3.5 h-3.5" />
+                            </span>
+
+                            <div className="bg-sky-500/[0.03] border border-sky-500/15 rounded-xl p-4 transition-all duration-150 hover:bg-sky-500/[0.06] shadow-xs">
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                                  Movimentação no Funil
+                                </span>
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                  {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 flex-wrap font-medium text-xs my-2">
+                                <span className="px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-border/40">
+                                  {evt.from_stage_name || "Início do Funil"}
+                                </span>
+                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                                <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold">
+                                  {evt.to_stage_name}
+                                </span>
+                              </div>
+
+                              <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1">
+                                <span>Movido por {evt.actor_name || evt.actor_email || "Sistema"}</span>
+                                {evt.reason && <span className="italic">Motivo: {evt.reason}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (evt.event_type === "contact_activity") {
+                        return (
+                          <div key={evt.id || idx} className="relative group">
+                            <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border-2 border-background ring-1 ring-purple-500/20 shadow-xs">
+                              <Zap className="w-3.5 h-3.5" />
+                            </span>
+
+                            <div className="bg-purple-500/[0.03] border border-purple-500/15 rounded-xl p-4 transition-all duration-150 hover:bg-purple-500/[0.06] shadow-xs">
+                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
+                                  Evento do Contato
+                                </span>
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                  {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold text-foreground">{evt.title}</p>
+                              {evt.description && (
+                                <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap leading-relaxed">
+                                  {evt.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (evt.event_type === "lead_created") {
+                        return (
+                          <div key={evt.id || idx} className="relative group">
+                            <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-2 border-background ring-1 ring-emerald-500/20 shadow-xs">
+                              <UserPlus className="w-3.5 h-3.5" />
+                            </span>
+
+                            <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-xl p-3.5 shadow-xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold text-foreground">{evt.title}</span>
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                  {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{evt.description}</p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (evt.event_type === "opp_created") {
+                        return (
+                          <div key={evt.id || idx} className="relative group">
+                            <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary border-2 border-background ring-1 ring-primary/20 shadow-xs">
+                              <Briefcase className="w-3.5 h-3.5" />
+                            </span>
+
+                            <div className="bg-primary/[0.03] border border-primary/15 rounded-xl p-3.5 shadow-xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold text-foreground">{evt.title}</span>
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                  {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{evt.description}</p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })}
+
+                    {filteredTimeline.length === 0 && (
+                      <div className="py-12 text-center text-muted-foreground text-xs italic border border-dashed border-border/40 rounded-xl bg-muted/[0.03] space-y-1">
+                        <p className="font-medium text-foreground/80 text-sm not-italic">
+                          Nenhum registro histórico encontrado
+                        </p>
+                        <p>
+                          {timelineSearch
+                            ? "Tente buscar com outros termos."
+                            : "Mensagens, notas e atividades criadas aparecerão automaticamente aqui."}
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Right Column: Criar Atividade */}
-                <div>
-                  <div className="bg-card border border-muted-foreground/10 rounded-xl p-6 shadow-sm space-y-5 sticky top-0">
-                    <h3 className="font-bold text-[15px] text-foreground">Criar atividade</h3>
-                    
-                    <div className="space-y-4">
+                {/* Right Column: Criar Atividade (5 cols) */}
+                <div className="lg:col-span-5">
+                  <div className="bg-card border border-border/40 rounded-xl p-5 shadow-xs space-y-4 sticky top-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm text-foreground">Criar Nova Atividade</h3>
+                      <span className="text-[10px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
+                        Agendamento & Tarefas
+                      </span>
+                    </div>
+
+                    <div className="space-y-3.5">
                       {/* Tipo */}
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] text-muted-foreground">Tipo</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Tipo de Atividade
+                        </Label>
                         <Select value={actType} onValueChange={(v: any) => setActType(v)}>
-                          <SelectTrigger className="h-10 border-muted-foreground/20 rounded-lg text-sm bg-transparent shadow-none w-full flex items-center">
+                          <SelectTrigger className="h-9 border-border/40 rounded-lg text-xs bg-muted/10">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="rounded-xl shadow-lg border-muted-foreground/10">
-                            <SelectItem value="task">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Bell className="w-4 h-4 text-muted-foreground" /> Lembrete
-                              </div>
-                            </SelectItem>
+                          <SelectContent className="rounded-xl shadow-lg border-border/40">
                             <SelectItem value="whatsapp">
-                              <div className="flex items-center gap-2 text-sm">
-                                <MessageSquare className="w-4 h-4 text-muted-foreground" /> Mensagem
+                              <div className="flex items-center gap-2 text-xs">
+                                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp
                               </div>
                             </SelectItem>
                             <SelectItem value="call">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Phone className="w-4 h-4 text-muted-foreground" /> Ligação
+                              <div className="flex items-center gap-2 text-xs">
+                                <Phone className="w-3.5 h-3.5 text-blue-600" /> Ligação
                               </div>
                             </SelectItem>
                             <SelectItem value="meeting">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="w-4 h-4 text-muted-foreground" /> Reunião
+                              <div className="flex items-center gap-2 text-xs">
+                                <Calendar className="w-3.5 h-3.5 text-purple-600" /> Reunião
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="task">
+                              <div className="flex items-center gap-2 text-xs">
+                                <Bell className="w-3.5 h-3.5 text-amber-600" /> Lembrete / Tarefa
                               </div>
                             </SelectItem>
                             <SelectItem value="follow_up">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Clock className="w-4 h-4 text-muted-foreground" /> Agendamento
+                              <div className="flex items-center gap-2 text-xs">
+                                <Clock className="w-3.5 h-3.5 text-sky-600" /> Follow-up Comercial
                               </div>
                             </SelectItem>
                             <SelectItem value="email">
-                              <div className="flex items-center gap-2 text-sm">
-                                <MessageSquare className="w-4 h-4 text-muted-foreground" /> E-mail
+                              <div className="flex items-center gap-2 text-xs">
+                                <MessageSquare className="w-3.5 h-3.5 text-indigo-600" /> E-mail
                               </div>
                             </SelectItem>
                             <SelectItem value="other">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Activity className="w-4 h-4 text-muted-foreground" /> Outro
+                              <div className="flex items-center gap-2 text-xs">
+                                <Activity className="w-3.5 h-3.5 text-muted-foreground" /> Outro
                               </div>
                             </SelectItem>
                           </SelectContent>
@@ -989,14 +1484,16 @@ export function OpportunityModal({
 
                       {/* Responsável */}
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] text-muted-foreground">Responsável</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Responsável
+                        </Label>
                         <Select value={ownerUserId} onValueChange={setOwnerUserId}>
-                          <SelectTrigger className="h-10 border-muted-foreground/20 rounded-lg text-sm bg-transparent shadow-none text-muted-foreground">
-                            <SelectValue placeholder="Responsável" />
+                          <SelectTrigger className="h-9 border-border/40 rounded-lg text-xs bg-muted/10 text-muted-foreground">
+                            <SelectValue placeholder="Selecione o responsável" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-xl shadow-lg border-muted-foreground/10">
+                          <SelectContent className="rounded-xl shadow-lg border-border/40">
                             {owners.map((o) => (
-                              <SelectItem key={o.id} value={o.id}>
+                              <SelectItem key={o.id} value={o.id} className="text-xs">
                                 {o.display_name || o.full_name || o.email}
                               </SelectItem>
                             ))}
@@ -1006,56 +1503,64 @@ export function OpportunityModal({
 
                       {/* Assunto */}
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] text-muted-foreground">Assunto</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Assunto
+                        </Label>
                         <Input
                           value={actTitle}
                           onChange={(e) => setActTitle(e.target.value)}
-                          placeholder="Assunto"
-                          className="h-10 border-muted-foreground/20 rounded-lg text-sm bg-transparent shadow-none placeholder:text-muted-foreground"
+                          placeholder={defaultTitlesByType[actType] || "Ex: Ligação de alinhamento"}
+                          className="h-9 border-border/40 rounded-lg text-xs bg-muted/10 placeholder:text-muted-foreground/60"
                         />
                       </div>
 
                       {/* Agendar para & Duração */}
-                      <div className="grid grid-cols-[3fr_2fr] gap-4">
+                      <div className="grid grid-cols-[3fr_2fr] gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-[11px] text-muted-foreground">Agendar para</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Agendar para
+                          </Label>
                           <Input
                             type="datetime-local"
                             value={actDue}
                             onChange={(e) => setActDue(e.target.value)}
-                            className="h-10 border-muted-foreground/20 rounded-lg text-sm bg-transparent shadow-none text-muted-foreground flex-1"
+                            className="h-9 border-border/40 rounded-lg text-xs bg-muted/10 text-muted-foreground"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[11px] text-muted-foreground">Duração (minutos)</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Duração (min)
+                          </Label>
                           <Input
                             type="number"
                             value={actDuration}
                             onChange={(e) => setActDuration(Number(e.target.value))}
-                            className="h-10 border-muted-foreground/20 rounded-lg text-sm bg-transparent shadow-none"
+                            className="h-9 border-border/40 rounded-lg text-xs bg-muted/10"
                           />
                         </div>
                       </div>
 
                       {/* Descrição */}
-                      <div className="space-y-1.5 mt-2">
-                        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Descrição / Detalhes
+                        </Label>
                         <Textarea
                           value={actDesc}
                           onChange={(e) => setActDesc(e.target.value)}
-                          placeholder="Descrição"
-                          className="min-h-[100px] border-none shadow-none rounded-none bg-transparent resize-none focus-visible:ring-0 text-sm placeholder:text-muted-foreground"
+                          placeholder="Descreva os pontos a serem tratados nesta atividade..."
+                          className="min-h-[85px] border-border/40 rounded-lg bg-muted/10 text-xs placeholder:text-muted-foreground/60 resize-none"
                         />
                       </div>
 
                       <div className="pt-2">
                         <Button
                           type="button"
-                          className="w-full h-11 font-medium rounded-xl text-sm transition-colors"
+                          className="w-full h-10 font-medium rounded-lg text-xs transition-colors"
                           onClick={() => activityMutation.mutate()}
-                          disabled={!actTitle.trim()}
+                          disabled={activityMutation.isPending}
                         >
-                          Criar Atividade
+                          <Plus className="w-3.5 h-3.5 mr-1.5" /> Criar Atividade
                         </Button>
                       </div>
                     </div>
@@ -1079,7 +1584,7 @@ export function OpportunityModal({
                         <div className="flex items-center justify-between mt-4 pt-3 border-t border-muted-foreground/10 text-[10px] text-muted-foreground">
                           <div className="flex items-center gap-1.5">
                             <User className="w-3 h-3" />
-                            <span>{n.creator_email || "Sistema"}</span>
+                            <span>{n.creator_name || n.creator_email || "Sistema"}</span>
                             <span className="px-1.5">•</span>
                             <Clock className="w-3 h-3" />
                             <span>{new Date(n.created_at).toLocaleString("pt-BR")}</span>
@@ -1088,7 +1593,7 @@ export function OpportunityModal({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                            onClick={() => removeNoteFn({ data: { id: n.id } })}
+                            onClick={() => deleteNoteMutation.mutate(n.id)}
                           >
                             <Trash2 className="w-3 h-3" />
                           </Button>
@@ -1120,7 +1625,7 @@ export function OpportunityModal({
                       <Button
                         className="w-full h-10 font-medium"
                         onClick={() => noteMutation.mutate()}
-                        disabled={!newNoteBody.trim()}
+                        disabled={!newNoteBody.trim() || noteMutation.isPending}
                       >
                         Salvar Nota
                       </Button>
@@ -1132,58 +1637,431 @@ export function OpportunityModal({
 
             {/* TABS CONTENT: TIMELINE */}
             <TabsContent value="timeline" className="space-y-6 m-0">
-              <div className="max-w-2xl">
-                <h3 className="font-semibold text-lg tracking-tight mb-6">Histórico Completo</h3>
-                <div className="relative border-l-2 border-muted-foreground/10 pl-6 ml-3 space-y-8">
-                  {(timeline ?? []).map((evt: any, idx: number) => {
-                    let icon = <Activity className="w-4 h-4 text-foreground" />;
-                    let titleStr = "";
-                    let bodyStr = "";
-                    let bgColor = "bg-muted";
+              <div className="max-w-3xl space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-base tracking-tight text-foreground">
+                      Linha do Tempo Completa
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Visão cronológica de todas as interações e alterações comerciais.
+                    </p>
+                  </div>
+                </div>
 
-                    if (evt.event_type === "stage_history") {
-                      icon = <History className="w-4 h-4 text-blue-500" />;
-                      bgColor = "bg-blue-500/10";
-                      titleStr = `Mapeamento de Etapa`;
-                      bodyStr = `Movido de "${evt.from_stage_name || "Início"}" para "${evt.to_stage_name}" por ${evt.actor_email || "Sistema"}`;
-                      if (evt.reason) bodyStr += ` · Motivo: ${evt.reason}`;
-                    } else if (evt.event_type === "note") {
-                      icon = <FileText className="w-4 h-4 text-amber-500" />;
-                      bgColor = "bg-amber-500/10";
-                      titleStr = `Nova Nota Comercial`;
-                      bodyStr = evt.body;
-                    } else if (evt.event_type === "activity") {
-                      icon = <Check className="w-4 h-4 text-green-500" />;
-                      bgColor = "bg-green-500/10";
-                      titleStr = `Atividade: ${evt.title}`;
-                      bodyStr = `Tipo: ${evt.type} · Status: ${evt.status === "done" ? "Concluída" : "Pendente"}`;
-                      if (evt.description) bodyStr += ` · Descrição: ${evt.description}`;
+                {/* Search and Filters */}
+                <div className="space-y-2.5">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      value={timelineSearch}
+                      onChange={(e) => setTimelineSearch(e.target.value)}
+                      placeholder="Buscar no histórico..."
+                      className="pl-9 h-9 text-xs bg-muted/10 border-border/40 rounded-lg"
+                    />
+                    {timelineSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTimelineSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={timelineFilter === "all" ? "default" : "outline"}
+                      onClick={() => setTimelineFilter("all")}
+                      className="h-7 text-xs px-2.5 rounded-lg shrink-0"
+                    >
+                      Todos ({timelineCounts.all})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={timelineFilter === "messages" ? "default" : "outline"}
+                      onClick={() => setTimelineFilter("messages")}
+                      className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      Mensagens ({timelineCounts.messages})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={timelineFilter === "activities" ? "default" : "outline"}
+                      onClick={() => setTimelineFilter("activities")}
+                      className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      Tarefas ({timelineCounts.activities})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={timelineFilter === "notes" ? "default" : "outline"}
+                      onClick={() => setTimelineFilter("notes")}
+                      className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                    >
+                      <FileText className="w-3 h-3" />
+                      Notas ({timelineCounts.notes})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={timelineFilter === "stages" ? "default" : "outline"}
+                      onClick={() => setTimelineFilter("stages")}
+                      className="h-7 text-xs px-2.5 rounded-lg shrink-0 gap-1.5"
+                    >
+                      <History className="w-3 h-3" />
+                      Funil ({timelineCounts.stages})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Timeline Stream */}
+                <div className="relative border-l-2 border-muted-foreground/10 pl-6 ml-3 space-y-5 pt-1">
+                  {filteredTimeline.map((evt: any, idx: number) => {
+                    if (evt.event_type === "message") {
+                      const isIncoming = evt.direction === "incoming";
+                      const statusLabels: Record<string, string> = {
+                        sent: "Enviada",
+                        delivered: "Entregue",
+                        read: "Lida",
+                        failed: "Falhou",
+                      };
+                      return (
+                        <div key={evt.id || idx} className="relative group">
+                          <span
+                            className={`absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background shadow-xs ${
+                              isIncoming
+                                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
+                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
+                            }`}
+                          >
+                            {isIncoming ? (
+                              <ArrowDownLeft className="w-3.5 h-3.5" />
+                            ) : (
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            )}
+                          </span>
+                          <div
+                            className={`border rounded-xl p-4 transition-all duration-150 shadow-xs ${
+                              isIncoming
+                                ? "bg-muted/15 border-border/40 hover:bg-muted/25"
+                                : "bg-primary/[0.03] border-primary/15 hover:bg-primary/[0.06]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                                    isIncoming
+                                      ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  }`}
+                                >
+                                  <MessageSquare className="w-2.5 h-2.5" />
+                                  {isIncoming ? "Mensagem Recebida" : "Mensagem Enviada"}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded font-mono">
+                                  {evt.channel || "whatsapp"}
+                                </span>
+                                {evt.status && !isIncoming && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    • {statusLabels[evt.status] || evt.status}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                                {new Date(evt.event_date).toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+
+                            <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed break-words bg-background/50 rounded-lg p-3 border border-border/30">
+                              {evt.body || <span className="italic text-muted-foreground">Mídia ou anexo recebido</span>}
+                            </div>
+
+                            {evt.sender_name && (
+                              <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1">
+                                <User className="w-3 h-3 text-muted-foreground/70" />
+                                <span>{evt.sender_name}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
                     }
 
-                    return (
-                      <div key={idx} className="relative group">
-                        {/* Left timeline dot */}
-                        <span className={`absolute -left-[37px] top-0 flex h-8 w-8 items-center justify-center rounded-full ${bgColor} border-2 border-background ring-1 ring-muted-foreground/20`}>
-                          {icon}
-                        </span>
-                        <div className="bg-muted/5 border border-muted-foreground/10 rounded-xl p-4 group-hover:bg-muted/10 transition-colors">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-medium text-muted-foreground">
-                              {new Date(evt.event_date).toLocaleString("pt-BR")}
-                            </span>
+                    if (evt.event_type === "activity") {
+                      const isDone = evt.status === "done";
+                      const typeIcons: Record<string, any> = {
+                        whatsapp: MessageSquare,
+                        call: Phone,
+                        meeting: Calendar,
+                        task: Bell,
+                        follow_up: Clock,
+                        email: MessageSquare,
+                        other: Activity,
+                      };
+                      const TypeIcon = typeIcons[evt.type] || Activity;
+                      const typeLabels: Record<string, string> = {
+                        whatsapp: "WhatsApp",
+                        call: "Ligação",
+                        meeting: "Reunião",
+                        task: "Lembrete",
+                        follow_up: "Agendamento",
+                        email: "E-mail",
+                        note: "Nota",
+                        proposal: "Proposta",
+                        other: "Atividade",
+                      };
+
+                      return (
+                        <div key={evt.id || evt.activity_id || idx} className="relative group">
+                          <span
+                            className={`absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background shadow-xs ${
+                              isDone
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20"
+                            }`}
+                          >
+                            {isDone ? <Check className="w-3.5 h-3.5" /> : <TypeIcon className="w-3.5 h-3.5" />}
+                          </span>
+
+                          <div className="bg-muted/10 border border-muted-foreground/10 rounded-xl p-4 transition-all duration-150 hover:bg-muted/20 shadow-xs">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted/40 border border-border/40 text-muted-foreground">
+                                    {typeLabels[evt.type] || evt.type}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                                      isDone
+                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                    }`}
+                                  >
+                                    {isDone ? "Concluída" : "Pendente"}
+                                  </span>
+                                </div>
+                                <p
+                                  className={`font-medium text-sm leading-snug ${
+                                    isDone ? "line-through text-muted-foreground" : "text-foreground"
+                                  }`}
+                                >
+                                  {evt.title}
+                                </p>
+                                {evt.description && (
+                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed pt-0.5">
+                                    {evt.description}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {!isDone && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 font-medium"
+                                    onClick={() => completeActMutation.mutate(evt)}
+                                  >
+                                    <Check className="w-3 h-3 mr-1" /> Concluir
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => deleteActMutation.mutate(evt.id || evt.activity_id)}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-muted-foreground/10 text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="w-3 h-3 text-muted-foreground/70" />
+                                <span>
+                                  {evt.due_at ? `Prazo: ${new Date(evt.due_at).toLocaleString("pt-BR")}` : "Sem prazo definido"}
+                                </span>
+                              </div>
+                              {(evt.assigned_to_name || evt.actor_name || evt.actor_email) && (
+                                <span className="text-[10px] text-muted-foreground/80">
+                                  Resp: {evt.assigned_to_name || evt.actor_name || evt.actor_email}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <h4 className="text-sm font-semibold text-foreground">{titleStr}</h4>
-                          <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap leading-relaxed">
-                            {bodyStr}
-                          </p>
                         </div>
-                      </div>
-                    );
+                      );
+                    }
+
+                    if (evt.event_type === "note") {
+                      return (
+                        <div key={evt.id || evt.note_id || idx} className="relative group">
+                          <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border-2 border-background ring-1 ring-amber-500/20 shadow-xs">
+                            <FileText className="w-3.5 h-3.5" />
+                          </span>
+
+                          <div className="bg-amber-500/[0.03] border border-amber-500/20 rounded-xl p-4 transition-all duration-150 hover:bg-amber-500/[0.06] shadow-xs">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                  Anotação Comercial
+                                </span>
+                                {(evt.actor_name || evt.actor_email) && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Por {evt.actor_name || evt.actor_email}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                  {new Date(evt.event_date).toLocaleString("pt-BR")}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => deleteNoteMutation.mutate(evt.id || evt.note_id)}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                              {evt.body}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (evt.event_type === "stage_history") {
+                      return (
+                        <div key={evt.id || idx} className="relative group">
+                          <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border-2 border-background ring-1 ring-sky-500/20 shadow-xs">
+                            <History className="w-3.5 h-3.5" />
+                          </span>
+
+                          <div className="bg-sky-500/[0.03] border border-sky-500/15 rounded-xl p-4 transition-all duration-150 hover:bg-sky-500/[0.06] shadow-xs">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                                Movimentação no Funil
+                              </span>
+                              <span className="text-[11px] text-muted-foreground tabular-nums">
+                                {new Date(evt.event_date).toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap font-medium text-xs my-2">
+                              <span className="px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-border/40">
+                                {evt.from_stage_name || "Início do Funil"}
+                              </span>
+                              <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                              <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold">
+                                {evt.to_stage_name}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1">
+                              <span>Movido por {evt.actor_name || evt.actor_email || "Sistema"}</span>
+                              {evt.reason && <span className="italic">Motivo: {evt.reason}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (evt.event_type === "contact_activity") {
+                      return (
+                        <div key={evt.id || idx} className="relative group">
+                          <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border-2 border-background ring-1 ring-purple-500/20 shadow-xs">
+                            <Zap className="w-3.5 h-3.5" />
+                          </span>
+
+                          <div className="bg-purple-500/[0.03] border border-purple-500/15 rounded-xl p-4 transition-all duration-150 hover:bg-purple-500/[0.06] shadow-xs">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
+                                Evento do Contato
+                              </span>
+                              <span className="text-[11px] text-muted-foreground tabular-nums">
+                                {new Date(evt.event_date).toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground">{evt.title}</p>
+                            {evt.description && (
+                              <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap leading-relaxed">
+                                {evt.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (evt.event_type === "lead_created") {
+                      return (
+                        <div key={evt.id || idx} className="relative group">
+                          <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-2 border-background ring-1 ring-emerald-500/20 shadow-xs">
+                            <UserPlus className="w-3.5 h-3.5" />
+                          </span>
+
+                          <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-xl p-3.5 shadow-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-foreground">{evt.title}</span>
+                              <span className="text-[11px] text-muted-foreground tabular-nums">
+                                {new Date(evt.event_date).toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{evt.description}</p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (evt.event_type === "opp_created") {
+                      return (
+                        <div key={evt.id || idx} className="relative group">
+                          <span className="absolute -left-[35px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary border-2 border-background ring-1 ring-primary/20 shadow-xs">
+                            <Briefcase className="w-3.5 h-3.5" />
+                          </span>
+
+                          <div className="bg-primary/[0.03] border border-primary/15 rounded-xl p-3.5 shadow-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-foreground">{evt.title}</span>
+                              <span className="text-[11px] text-muted-foreground tabular-nums">
+                                {new Date(evt.event_date).toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{evt.description}</p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return null;
                   })}
 
-                  {(timeline ?? []).length === 0 && (
-                    <div className="py-8 text-muted-foreground text-sm italic">
-                      Nenhum registro histórico encontrado.
+                  {filteredTimeline.length === 0 && (
+                    <div className="py-12 text-center text-muted-foreground text-xs italic border border-dashed border-border/40 rounded-xl bg-muted/[0.03] space-y-1">
+                      <p className="font-medium text-foreground/80 text-sm not-italic">
+                        Nenhum registro histórico encontrado
+                      </p>
+                      <p>
+                        {timelineSearch
+                          ? "Tente buscar com outros termos."
+                          : "Interações e alterações comerciais aparecerão automaticamente aqui."}
+                      </p>
                     </div>
                   )}
                 </div>

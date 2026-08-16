@@ -55,7 +55,7 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             return json({ ok: false, error: "Access Token não configurado." }, 400);
           }
 
-          const apiVersion = p.meta_graph_version || "v20.0";
+          const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
           const metaForm = new FormData();
           metaForm.append("file", file, file.name);
           metaForm.append("messaging_product", "whatsapp");

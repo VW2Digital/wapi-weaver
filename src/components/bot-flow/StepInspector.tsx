@@ -1031,13 +1031,13 @@ export function StepInspector({
                     {isUploadingMedia ? "Enviando arquivo..." : "Clique para fazer upload do arquivo"}
                   </span>
                   <span className="text-[10px] text-muted-foreground mt-0.5">
-                    Imagens (PNG, JPG), Vídeos (MP4), Áudios (MP3) ou PDF (máx. 20MB)
+                    Imagens (PNG, JPG), Vídeos (MP4), Áudios (MP3) ou Documentos (PDF, DOCX, XLSX, TXT, etc. máx. 20MB)
                   </span>
                   <input
                     type="file"
                     className="hidden"
                     disabled={isUploadingMedia}
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;

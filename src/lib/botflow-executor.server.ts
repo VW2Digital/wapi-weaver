@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
@@ -8,6 +10,234 @@ function logInfo(message: string, data?: any) {
 
 function logError(message: string, data?: any) {
   console.error(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
+}
+
+const MIME_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/bmp": "bmp",
+  "image/svg+xml": "svg",
+  "video/mp4": "mp4",
+  "video/3gpp": "3gp",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/wav": "wav",
+  "audio/opus": "opus",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "application/zip": "zip",
+  "application/x-zip-compressed": "zip",
+};
+
+const EXT_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  svg: "image/svg+xml",
+  mp4: "video/mp4",
+  "3gp": "video/3gpp",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  ogg: "audio/ogg",
+  opus: "audio/ogg",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  wav: "audio/wav",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain",
+  csv: "text/csv",
+  zip: "application/zip",
+};
+
+async function uploadBufferToMeta(
+  binaryBuffer: Buffer,
+  mimeType: string,
+  uploadFilename: string,
+  phoneNumberId: string,
+  accessToken: string,
+  apiVersion: string,
+): Promise<string | null> {
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("file", new Blob([binaryBuffer], { type: mimeType }), uploadFilename);
+
+  const uploadRes = await fetch(
+    `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/media`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    },
+  );
+
+  if (uploadRes.ok) {
+    const uploadJson = await uploadRes.json();
+    return uploadJson?.id || null;
+  } else {
+    const errText = await uploadRes.text();
+    logError("Falha no upload de mídia para a Meta", {
+      status: uploadRes.status,
+      mimeType,
+      uploadFilename,
+      response: errText.slice(0, 800),
+    });
+    return null;
+  }
+}
+
+async function prepareStepMediaForMeta(
+  stepToExecute: any,
+  phoneNumberId: string,
+  accessToken: string,
+  apiVersion: string,
+): Promise<any> {
+  const rawMediaUrl = String(stepToExecute.media_url || "").trim();
+  if (!rawMediaUrl) return stepToExecute;
+
+  // Se já for um ID numérico da Meta (ex: "1234567890"), mantém diretamente
+  if (/^\d{10,25}$/.test(rawMediaUrl)) {
+    return stepToExecute;
+  }
+
+  // 1. data:URL (base64)
+  if (rawMediaUrl.startsWith("data:")) {
+    try {
+      const commaIdx = rawMediaUrl.indexOf(",");
+      if (commaIdx === -1) throw new Error("data:URL inválida — sem separador de conteúdo");
+
+      const header = rawMediaUrl.slice(0, commaIdx);
+      const base64Data = rawMediaUrl.slice(commaIdx + 1);
+      const mimeType = header.replace(/^data:/, "").replace(/;base64$/i, "").trim();
+      const ext = MIME_EXT[mimeType] || mimeType.split("/").pop()?.split(";")[0] || "bin";
+      const uploadFilename = `document.${ext}`;
+      const binaryBuffer = Buffer.from(base64Data, "base64");
+
+      const mediaId = await uploadBufferToMeta(
+        binaryBuffer,
+        mimeType,
+        uploadFilename,
+        phoneNumberId,
+        accessToken,
+        apiVersion,
+      );
+      if (mediaId) {
+        return { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename };
+      }
+    } catch (err: any) {
+      logError("Exceção ao processar data:URL de mídia para a Meta", { error: err.message });
+    }
+  }
+
+  // 2. Arquivo no disco local (uploads/..., /uploads/..., /api/storage/file?path=..., etc.)
+  let cleanLocalPath: string | null = null;
+
+  if (rawMediaUrl.includes("/api/storage/file") || rawMediaUrl.includes("/api/storage/global-file")) {
+    try {
+      const urlObj = new URL(rawMediaUrl, "http://localhost");
+      cleanLocalPath = urlObj.searchParams.get("path");
+    } catch {
+      cleanLocalPath = null;
+    }
+  } else if (
+    rawMediaUrl.startsWith("uploads/") ||
+    rawMediaUrl.startsWith("/uploads/") ||
+    rawMediaUrl.startsWith("public/uploads/") ||
+    rawMediaUrl.startsWith("/public/uploads/")
+  ) {
+    cleanLocalPath = rawMediaUrl.replace(/^\/?(public\/)?uploads\//, "");
+  } else if (!rawMediaUrl.startsWith("http://") && !rawMediaUrl.startsWith("https://")) {
+    cleanLocalPath = rawMediaUrl.replace(/^\/+/, "");
+  } else if (rawMediaUrl.startsWith("http://localhost") || rawMediaUrl.startsWith("http://127.0.0.1")) {
+    try {
+      const urlObj = new URL(rawMediaUrl);
+      if (urlObj.pathname.includes("/api/storage/file") || urlObj.pathname.includes("/api/storage/global-file")) {
+        cleanLocalPath = urlObj.searchParams.get("path");
+      } else {
+        cleanLocalPath = urlObj.pathname.replace(/^\/?(public\/)?(uploads\/)?/, "");
+      }
+    } catch {
+      cleanLocalPath = null;
+    }
+  }
+
+  if (cleanLocalPath) {
+    try {
+      const decodedPath = decodeURIComponent(cleanLocalPath).trim().replace(/\\/g, "/").replace(/^\/+/, "");
+      const possibleLocations = [
+        path.resolve(process.cwd(), "public", "uploads", decodedPath),
+        path.resolve(process.cwd(), "public", decodedPath),
+        path.resolve(process.cwd(), decodedPath),
+      ];
+
+      let foundPath: string | null = null;
+      for (const loc of possibleLocations) {
+        if (fs.existsSync(loc) && fs.statSync(loc).isFile()) {
+          foundPath = loc;
+          break;
+        }
+      }
+
+      if (foundPath) {
+        const binaryBuffer = fs.readFileSync(foundPath);
+        const ext = path.extname(foundPath).toLowerCase().replace(/^\./, "") || "pdf";
+        const mimeType = EXT_MIME[ext] || "application/octet-stream";
+        const uploadFilename = path.basename(foundPath) || `document.${ext}`;
+
+        const mediaId = await uploadBufferToMeta(
+          binaryBuffer,
+          mimeType,
+          uploadFilename,
+          phoneNumberId,
+          accessToken,
+          apiVersion,
+        );
+
+        if (mediaId) {
+          logInfo("Arquivo local do bot enviado com sucesso para a Meta", {
+            stepId: stepToExecute.id,
+            mediaId,
+            foundPath,
+            uploadFilename,
+          });
+          return { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename };
+        }
+      } else {
+        logError("Arquivo local do bot não encontrado no disco", {
+          rawMediaUrl,
+          cleanLocalPath,
+          possibleLocations,
+        });
+      }
+    } catch (err: any) {
+      logError("Exceção ao resolver arquivo local para a Meta", { error: err.message });
+    }
+  }
+
+  return stepToExecute;
 }
 
 export async function processBotFlow(
@@ -462,94 +692,13 @@ export async function processBotFlow(
         return;
       }
 
-      // Se o step tem mídia armazenada como data:URL (upload local via construtor),
-      // precisamos fazer o upload para a Meta antes de montar o payload.
-      // A Meta não consegue acessar data:URLs — apenas URLs públicas ou media_ids.
-      let stepToSend = stepToExecute;
-      const rawMediaUrl = String(stepToExecute.media_url || "").trim();
-      if (rawMediaUrl.startsWith("data:")) {
-        try {
-          const commaIdx = rawMediaUrl.indexOf(",");
-          if (commaIdx === -1) throw new Error("data:URL inválida — sem separador de conteúdo");
-
-          const header = rawMediaUrl.slice(0, commaIdx);       // "data:application/pdf;base64"
-          const base64Data = rawMediaUrl.slice(commaIdx + 1);  // dados base64 puros
-
-          // Extrai o mimeType removendo o prefixo "data:" e o sufixo ";base64"
-          const mimeType = header.replace(/^data:/, "").replace(/;base64$/i, "").trim();
-          // Ex: "application/pdf", "image/png", "audio/ogg", "video/mp4"
-
-          // Mapa de MIME → extensão compatível com a Meta
-          const MIME_EXT: Record<string, string> = {
-            "image/jpeg": "jpg",
-            "image/jpg": "jpg",
-            "image/png": "png",
-            "image/gif": "gif",
-            "image/webp": "webp",
-            "image/bmp": "bmp",
-            "video/mp4": "mp4",
-            "video/3gpp": "3gp",
-            "video/quicktime": "mov",
-            "audio/ogg": "ogg",
-            "audio/mpeg": "mp3",
-            "audio/mp4": "m4a",
-            "audio/aac": "aac",
-            "audio/wav": "wav",
-            "application/pdf": "pdf",
-            "application/msword": "doc",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-            "application/vnd.ms-excel": "xls",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-            "application/vnd.ms-powerpoint": "ppt",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
-            "text/plain": "txt",
-          };
-          const ext = MIME_EXT[mimeType] || mimeType.split("/").pop()?.split(";")[0] || "bin";
-          const uploadFilename = `media.${ext}`;
-
-          const binaryBuffer = Buffer.from(base64Data, "base64");
-
-          const form = new FormData();
-          form.append("messaging_product", "whatsapp");
-          form.append("file", new Blob([binaryBuffer], { type: mimeType }), uploadFilename);
-
-          const uploadApiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
-          const uploadRes = await fetch(
-            `https://graph.facebook.com/${uploadApiVersion}/${phoneNumberId}/media`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${accessToken}` },
-              body: form,
-            },
-          );
-
-          if (uploadRes.ok) {
-            const uploadJson = await uploadRes.json();
-            const mediaId = uploadJson?.id;
-            if (mediaId) {
-              stepToSend = { ...stepToExecute, media_url: mediaId };
-              logInfo("Mídia do bot enviada para a Meta e substituída por media_id", {
-                stepId: stepToExecute.id,
-                mediaId,
-                mimeType,
-                uploadFilename,
-              });
-            } else {
-              logError("Upload de mídia retornou OK mas sem id", { uploadJson });
-            }
-          } else {
-            const errText = await uploadRes.text();
-            logError("Falha no upload de mídia para a Meta", {
-              status: uploadRes.status,
-              mimeType,
-              uploadFilename,
-              response: errText.slice(0, 800),
-            });
-          }
-        } catch (uploadErr: any) {
-          logError("Exceção ao fazer upload de mídia para a Meta", { error: uploadErr.message });
-        }
-      }
+      const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const stepToSend = await prepareStepMediaForMeta(
+        stepToExecute,
+        phoneNumberId,
+        accessToken,
+        apiVersion,
+      );
 
       const { payload, fallbackReason } = buildWhatsAppBotMessage(
         phoneDigits,
@@ -560,7 +709,6 @@ export async function processBotFlow(
       if (fallbackReason) logInfo("Etapa convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
       logInfo("Payload WhatsApp enviado para API Meta", { stepId: stepToExecute.id, stepType: stepToExecute.message_type, payload });
 
-      const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
         headers: {
@@ -662,13 +810,23 @@ export async function processBotFlow(
     if (isSuccess) {
       await commitState();
 
+      const msgType = ["image", "video", "audio", "document", "sticker", "location"].includes(
+        stepToExecute.message_type,
+      )
+        ? stepToExecute.message_type
+        : "text";
+      const msgBody =
+        stepToExecute.message_content ||
+        stepToExecute.media_caption ||
+        (stepToExecute.message_type === "document" ? "Documento enviado pelo bot" : "");
+
       await dbAdmin.from("direct_messages").insert({
         tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
         direction: "outgoing",
-        type: "text",
-        body: stepToExecute.message_content || "",
+        type: msgType,
+        body: msgBody,
         channel,
         provider_message_id: providerMsgId,
         provider_account_id: phoneNumberId,
@@ -676,11 +834,14 @@ export async function processBotFlow(
         metadata: {
           step_id: stepToExecute.id,
           bot_triggered: true,
+          media_url: stepToExecute.media_url,
+          filename: stepToExecute.media_caption || "document.pdf",
+          caption: stepToExecute.media_caption || stepToExecute.message_content,
         },
         recipient_type: channel === "whatsapp_group" ? "group" : "individual",
         external_group_id: channel === "whatsapp_group" ? phoneDigits : null,
       });
-      logInfo("Mensagem enviada pelo bot salva no banco", { providerMsgId });
+      logInfo("Mensagem enviada pelo bot salva no banco", { providerMsgId, msgType });
     }
   } catch (err: any) {
     logError("Exceção fatal no processBotFlow", { error: err.message });
@@ -709,48 +870,17 @@ export async function executeInactivityStep(
 
       if (!p || !p.whatsapp_access_token) return;
 
-      // Se o step tem mídia armazenada como data:URL, fazer upload para Meta primeiro
-      let stepForInactivity = stepToExecute;
-      const rawInactivityMedia = String(stepToExecute.media_url || "").trim();
-      if (rawInactivityMedia.startsWith("data:")) {
-        try {
-          const [header, base64Data] = rawInactivityMedia.split(",");
-          const mimeType = header.replace(/^data:/, "").replace(/;base64$/, "");
-          const binaryBuffer = Buffer.from(base64Data, "base64");
-          const form = new FormData();
-          form.append("messaging_product", "whatsapp");
-          form.append(
-            "file",
-            new Blob([binaryBuffer], { type: mimeType }),
-            `media.${mimeType.split("/")[1] || "bin"}`,
-          );
-          const uploadApiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
-          const uploadRes = await fetch(
-            `https://graph.facebook.com/${uploadApiVersion}/${phoneNumberId}/media`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-              body: form,
-            },
-          );
-          if (uploadRes.ok) {
-            const uploadJson = await uploadRes.json();
-            if (uploadJson?.id) {
-              stepForInactivity = { ...stepToExecute, media_url: uploadJson.id };
-              logInfo("Mídia de inatividade enviada para a Meta", { stepId: stepToExecute.id, mediaId: uploadJson.id });
-            }
-          } else {
-            logError("Falha no upload de mídia (inatividade)", { status: uploadRes.status });
-          }
-        } catch (uploadErr: any) {
-          logError("Exceção ao fazer upload de mídia (inatividade)", { error: uploadErr.message });
-        }
-      }
+      const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const stepForInactivity = await prepareStepMediaForMeta(
+        stepToExecute,
+        phoneNumberId,
+        p.whatsapp_access_token,
+        apiVersion,
+      );
 
       const { payload, fallbackReason } = buildWhatsAppBotMessage(phoneDigits, stepForInactivity);
       if (fallbackReason) logInfo("Etapa de inatividade convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
 
-      const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
         headers: {
@@ -855,13 +985,23 @@ export async function executeInactivityStep(
         { onConflict: "user_id,contact_number,instance_id,channel" },
       );
 
+      const msgType = ["image", "video", "audio", "document", "sticker", "location"].includes(
+        stepToExecute.message_type,
+      )
+        ? stepToExecute.message_type
+        : "text";
+      const msgBody =
+        stepToExecute.message_content ||
+        stepToExecute.media_caption ||
+        (stepToExecute.message_type === "document" ? "Documento enviado pelo bot" : "");
+
       await dbAdmin.from("direct_messages").insert({
         tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
         direction: "outgoing",
-        type: "text",
-        body: stepToExecute.message_content || "",
+        type: msgType,
+        body: msgBody,
         channel,
         provider_message_id: providerMsgId,
         provider_account_id: phoneNumberId,
@@ -870,9 +1010,12 @@ export async function executeInactivityStep(
           step_id: stepToExecute.id,
           bot_triggered: true,
           is_inactivity_trigger: true,
+          media_url: stepToExecute.media_url,
+          filename: stepToExecute.media_caption || "document.pdf",
+          caption: stepToExecute.media_caption || stepToExecute.message_content,
         },
       });
-      logInfo("Mensagem de inatividade enviada e salva", { providerMsgId });
+      logInfo("Mensagem de inatividade enviada e salva", { providerMsgId, msgType });
 
       if (stepToExecute.flow_id) {
         await dbAdmin
@@ -886,19 +1029,6 @@ export async function executeInactivityStep(
     logError("Exceção fatal no executeInactivityStep", { error: err.message });
   }
 }
-/*
-
-export async function triggerWebhookBotFlow(
-  tenantId: string,
-  contactId: string,
-  payload: Record<string, any>,
-    }
-  } catch (err: any) {
-    logError("Exceção fatal no executeInactivityStep", { error: err.message });
-  }
-}
-
-*/
 
 export async function triggerWebhookBotFlow(
   tenantId: string,
@@ -964,88 +1094,3 @@ export async function triggerWebhookBotFlow(
     logError("Falha ao disparar fluxo por webhook", { error: err?.message });
   }
 }
-
-/*
-export async function triggerWebhookBotFlow(
-  tenantId: string,
-  contactId: string,
-  payload: Record<string, any>,
-) {
-  const { default: db } = await import("./db");
-  const { matchWebhookPayload } = await import("./webhooks.server");
-
-  try {
-    // 1. Busca todos os passos com gatilho de webhook ativos para o tenant
-    const activeTriggers = (await db.query(
-      `SELECT bs.*, COALESCE(bf.name, b.name) as flow_name, COALESCE(bf.channel, b.channel, 'whatsapp') as channel
-       FROM bot_steps bs
-       LEFT JOIN bot_settings b ON bs.bot_settings_id = b.id
-       LEFT JOIN bot_flows bf ON bs.flow_id = bf.id
-       WHERE (bs.user_id = ? OR bs.tenant_id = ?)
-         AND bs.trigger_type = 'webhook'
-      "SELECT phone_e164 FROM contacts WHERE id = ? LIMIT 1",
-      [contactId],
-    )) as any[];
-    const contact = contactRows?.[0];
-    if (!contact || !contact.phone_e164) {
-      console.warn("[Webhook Trigger] Contato sem phone_e164, abortando.", { contactId });
-      return;
-    }
-
-    // 3. Obtém o whatsapp_phone_number_id do perfil do tenant
-    const profileRows = (await db.query(
-      "SELECT whatsapp_phone_number_id FROM profiles WHERE id = ? LIMIT 1",
-      [tenantId],
-    )) as any[];
-    const profile = profileRows?.[0];
-    const phoneNumberId = profile?.whatsapp_phone_number_id;
-    if (!phoneNumberId) {
-      console.warn("[Webhook Trigger] Tenant sem phoneNumberId, abortando.", { tenantId });
-      return;
-    }
-
-    for (const trigger of activeTriggers) {
-      let conditions: any[] = [];
-      try {
-        conditions = typeof trigger.trigger_value === "string"
-          ? JSON.parse(trigger.trigger_value)
-          : trigger.trigger_value || [];
-      } catch (e) {
-        console.error("[Webhook Trigger] Erro ao parsear condições do trigger:", trigger.id, e);
-        continue;
-      }
-
-      // 4. Avalia se o payload atende a todas as condições (AND)
-      const isMatch = matchWebhookPayload(payload, conditions);
-
-      // 5. Grava log de auditoria
-      await db.query(
-        `INSERT INTO webhook_bot_logs (tenant_id, flow_id, flow_name, contact_id, is_match, raw_conditions, raw_payload)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          tenantId,
-          trigger.bot_settings_id,
-          trigger.flow_name,
-          contactId,
-          isMatch ? 1 : 0,
-          JSON.stringify(conditions),
-          JSON.stringify(payload),
-        ],
-      );
-
-      // 6. Se deu match, inicia a execução enviando a primeira mensagem (nó de webhook)
-      if (isMatch) {
-        await executeInactivityStep(
-          trigger,
-          contact.phone_e164.replace(/\D/g, ""), // apenas dígitos
-          phoneNumberId,
-          tenantId,
-          trigger.channel || "whatsapp",
-        );
-      }
-    }
-  } catch (err: any) {
-    console.error("[Webhook Trigger] Erro ao processar disparo do fluxo:", err);
-  }
-}
-*/

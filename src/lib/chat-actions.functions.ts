@@ -248,10 +248,11 @@ export const setContactKanbanStage = createServerFn({ method: "POST" })
             // Inserir oportunidade
             await conn.execute(
               `INSERT INTO opportunities (
-                 id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', ?)`,
+                 id, tenant_id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', ?)`,
               [
                 oppId,
+                effectiveUserId,
                 effectiveUserId,
                 funnelId,
                 data.stageId,
@@ -265,10 +266,10 @@ export const setContactKanbanStage = createServerFn({ method: "POST" })
 
             // Associar na tabela pivot opportunity_contacts
             await conn.execute(
-              `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-               VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)
+              `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+               VALUES (UUID(), ?, ?, ?, ?, 'Principal', TRUE)
                ON DUPLICATE KEY UPDATE is_primary = TRUE`,
-              [effectiveUserId, oppId, data.contactId],
+              [effectiveUserId, effectiveUserId, oppId, data.contactId],
             );
           }
         } else {

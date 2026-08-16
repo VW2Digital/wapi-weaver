@@ -313,10 +313,11 @@ export const addContactNote = createServerFn({ method: "POST" })
       const name = contact.name || contact.phone_e164 || "Contato";
       opportunityId = crypto.randomUUID();
       await db.query(
-        `INSERT INTO opportunities (id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', 0)`,
+        `INSERT INTO opportunities (id, tenant_id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', 0)`,
         [
           opportunityId,
+          effectiveUserId,
           effectiveUserId,
           funnelId,
           stageId,
@@ -328,9 +329,9 @@ export const addContactNote = createServerFn({ method: "POST" })
       );
 
       await db.query(
-        `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-         VALUES (?, ?, ?, ?, 'Principal', TRUE)`,
-        [crypto.randomUUID(), effectiveUserId, opportunityId, data.contact_id],
+        `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+         VALUES (?, ?, ?, ?, ?, 'Principal', TRUE)`,
+        [crypto.randomUUID(), effectiveUserId, effectiveUserId, opportunityId, data.contact_id],
       );
     } else {
       opportunityId = opps[0].id;

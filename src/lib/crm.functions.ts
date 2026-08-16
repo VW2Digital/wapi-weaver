@@ -216,10 +216,11 @@ async function logAudit(
 ) {
   const auditId = crypto.randomUUID();
   await connection.execute(
-    `INSERT INTO opportunity_audit_logs (id, user_id, user_id_actor, opportunity_id, action, old_values, new_values)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO opportunity_audit_logs (id, tenant_id, user_id, user_id_actor, opportunity_id, action, old_values, new_values)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       auditId,
+      userId,
       userId,
       actorId ?? userId,
       opportunityId,
@@ -944,11 +945,12 @@ export const createOpportunity = createServerFn({ method: "POST" })
       // Insert opportunity
       await conn.execute(
         `INSERT INTO opportunities (
-           id, user_id, funnel_id, stage_id, title, description, primary_contact_id, company_name,
+           id, tenant_id, user_id, funnel_id, stage_id, title, description, primary_contact_id, company_name,
            owner_user_id, created_by_user_id, value, currency, probability_percent, expected_close_date, source, temperature, priority, kanban_order
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           oppId,
+          effectiveUserId,
           effectiveUserId,
           data.funnel_id,
           data.stage_id,
@@ -972,10 +974,10 @@ export const createOpportunity = createServerFn({ method: "POST" })
       // Save primary contact association in pivot table
       if (data.primary_contact_id) {
         await conn.execute(
-          `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-           VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)
+          `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+           VALUES (UUID(), ?, ?, ?, ?, 'Principal', TRUE)
            ON DUPLICATE KEY UPDATE is_primary = TRUE`,
-          [effectiveUserId, oppId, data.primary_contact_id],
+          [effectiveUserId, effectiveUserId, oppId, data.primary_contact_id],
         );
         await syncContactKanbanStage(conn, effectiveUserId, data.primary_contact_id, data.stage_id);
       }
@@ -984,10 +986,10 @@ export const createOpportunity = createServerFn({ method: "POST" })
       if (data.additional_contacts && data.additional_contacts.length > 0) {
         for (const ac of data.additional_contacts) {
           await conn.execute(
-            `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-             VALUES (UUID(), ?, ?, ?, ?, FALSE)
+            `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+             VALUES (UUID(), ?, ?, ?, ?, ?, FALSE)
              ON DUPLICATE KEY UPDATE role = VALUES(role), is_primary = FALSE`,
-            [effectiveUserId, oppId, ac.contact_id, ac.role ?? null],
+            [effectiveUserId, effectiveUserId, oppId, ac.contact_id, ac.role ?? null],
           );
         }
       }
@@ -1006,8 +1008,8 @@ export const createOpportunity = createServerFn({ method: "POST" })
           } else {
             tagId = crypto.randomUUID();
             await conn.execute(
-              "INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, '#8B5CF6')",
-              [tagId, effectiveUserId, tagName],
+              "INSERT INTO tags (id, tenant_id, user_id, name, color) VALUES (?, ?, ?, ?, '#8B5CF6')",
+              [tagId, effectiveUserId, effectiveUserId, tagName],
             );
           }
           await conn.execute(
@@ -1104,9 +1106,9 @@ export const updateOpportunity = createServerFn({ method: "POST" })
       );
       if (data.data.primary_contact_id) {
         await conn.execute(
-          `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-           VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)`,
-          [effectiveUserId, data.id, data.data.primary_contact_id],
+          `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+           VALUES (UUID(), ?, ?, ?, ?, 'Principal', TRUE)`,
+          [effectiveUserId, effectiveUserId, data.id, data.data.primary_contact_id],
         );
       }
 
@@ -1133,9 +1135,9 @@ export const updateOpportunity = createServerFn({ method: "POST" })
       if (data.data.additional_contacts && data.data.additional_contacts.length > 0) {
         for (const ac of data.data.additional_contacts) {
           await conn.execute(
-            `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-             VALUES (UUID(), ?, ?, ?, ?, FALSE)`,
-            [effectiveUserId, data.id, ac.contact_id, ac.role ?? null],
+            `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+             VALUES (UUID(), ?, ?, ?, ?, ?, FALSE)`,
+            [effectiveUserId, effectiveUserId, data.id, ac.contact_id, ac.role ?? null],
           );
         }
       }
@@ -1154,8 +1156,8 @@ export const updateOpportunity = createServerFn({ method: "POST" })
           } else {
             tagId = crypto.randomUUID();
             await conn.execute(
-              "INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, '#8B5CF6')",
-              [tagId, effectiveUserId, tagName],
+              "INSERT INTO tags (id, tenant_id, user_id, name, color) VALUES (?, ?, ?, ?, '#8B5CF6')",
+              [tagId, effectiveUserId, effectiveUserId, tagName],
             );
           }
           await conn.execute(
@@ -1344,10 +1346,11 @@ export const moveOpportunity = createServerFn({ method: "POST" })
       const historyId = crypto.randomUUID();
       await conn.execute(
         `INSERT INTO opportunity_stage_history (
-           id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, reason, old_status, new_status
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           id, tenant_id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, reason, old_status, new_status
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           historyId,
+          effectiveUserId,
           effectiveUserId,
           data.id,
           opportunity.funnel_id,
@@ -1444,9 +1447,10 @@ export const markOpportunityWon = createServerFn({ method: "POST" })
 
       // History
       await conn.execute(
-        `INSERT INTO opportunity_stage_history (id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status)
-         VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, 'won')`,
+        `INSERT INTO opportunity_stage_history (id, tenant_id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status)
+         VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, 'won')`,
         [
+          effectiveUserId,
           effectiveUserId,
           data.id,
           opportunity.funnel_id,
@@ -1533,9 +1537,10 @@ export const markOpportunityLost = createServerFn({ method: "POST" })
 
       // History
       await conn.execute(
-        `INSERT INTO opportunity_stage_history (id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status, reason)
-         VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, 'lost', ?)`,
+        `INSERT INTO opportunity_stage_history (id, tenant_id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status, reason)
+         VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, 'lost', ?)`,
         [
+          effectiveUserId,
           effectiveUserId,
           data.id,
           opportunity.funnel_id,
@@ -1598,9 +1603,10 @@ export const reopenOpportunity = createServerFn({ method: "POST" })
       );
 
       await conn.execute(
-        `INSERT INTO opportunity_stage_history (id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status)
-         VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, 'open')`,
+        `INSERT INTO opportunity_stage_history (id, tenant_id, user_id, opportunity_id, funnel_id, from_stage_id, to_stage_id, moved_by_user_id, old_status, new_status)
+         VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
         [
+          effectiveUserId,
           effectiveUserId,
           data.id,
           opportunity.funnel_id,
@@ -1725,11 +1731,12 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
       // Insert duplicate
       await conn.execute(
         `INSERT INTO opportunities (
-           id, user_id, funnel_id, stage_id, title, description, primary_contact_id, company_name,
+           id, tenant_id, user_id, funnel_id, stage_id, title, description, primary_contact_id, company_name,
            owner_user_id, created_by_user_id, value, currency, expected_close_date, source, temperature, priority, kanban_order, status
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
         [
           newId,
+          effectiveUserId,
           effectiveUserId,
           o.funnel_id,
           o.stage_id,
@@ -1756,9 +1763,9 @@ export const duplicateOpportunity = createServerFn({ method: "POST" })
       )) as [OpportunityContactRow[], unknown];
       for (const c of contacts) {
         await conn.execute(
-          `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-           VALUES (UUID(), ?, ?, ?, ?, ?)`,
-          [effectiveUserId, newId, c.contact_id, c.role, c.is_primary],
+          `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+           VALUES (UUID(), ?, ?, ?, ?, ?, ?)`,
+          [effectiveUserId, effectiveUserId, newId, c.contact_id, c.role, c.is_primary],
         );
       }
 
@@ -2048,48 +2055,136 @@ export const getOpportunityTimeline = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    // 0. Fetch Opportunity & Contact details
+    const oppRows = (await db.query(
+      `SELECT o.id, o.primary_contact_id, o.title, o.value, o.currency, o.status, o.created_at,
+              c.phone_e164 AS contact_phone, c.name AS contact_name, c.email AS contact_email,
+              c.created_at AS contact_created_at, c.source AS contact_source, c.source_type AS contact_source_type
+       FROM opportunities o
+       LEFT JOIN contacts c ON c.id = o.primary_contact_id
+       WHERE o.id = ? AND o.user_id = ? AND o.deleted_at IS NULL
+       LIMIT 1`,
+      [data.opportunity_id, effectiveUserId],
+    )) as any[];
+
+    const opp = oppRows?.[0];
+    if (!opp) return [];
+
     // 1. Get Stage changes
     const stageHistory = (await db.query(
-      `SELECT h.moved_at AS event_date, 'stage_history' AS event_type, 
+      `SELECT h.id, h.moved_at AS event_date, 'stage_history' AS event_type, 
               h.reason, h.old_status, h.new_status,
-              s1.name AS from_stage_name, s2.name AS to_stage_name,
-              u.email AS actor_email
+              s1.name AS from_stage_name, s1.color AS from_stage_color,
+              s2.name AS to_stage_name, s2.color AS to_stage_color,
+              u.email AS actor_email,
+              COALESCE(p.display_name, p.full_name) AS actor_name
        FROM opportunity_stage_history h
        LEFT JOIN sales_stages s1 ON h.from_stage_id = s1.id
        LEFT JOIN sales_stages s2 ON h.to_stage_id = s2.id
        LEFT JOIN users u ON h.moved_by_user_id = u.id
+       LEFT JOIN profiles p ON p.id = h.moved_by_user_id
        WHERE h.opportunity_id = ? AND h.user_id = ?
        ORDER BY h.moved_at DESC`,
       [data.opportunity_id, effectiveUserId],
-    )) as TimelineEventRow[];
+    )) as any[];
 
     // 2. Get Notes
     const notes = (await db.query(
-      `SELECT n.created_at AS event_date, 'note' AS event_type,
+      `SELECT n.id, n.created_at AS event_date, 'note' AS event_type,
               n.body, n.is_pinned, n.id AS note_id,
-              u.email AS actor_email
+              u.email AS actor_email,
+              COALESCE(p.display_name, p.full_name) AS actor_name
        FROM opportunity_notes n
        LEFT JOIN users u ON n.user_id_creator = u.id
-       WHERE n.opportunity_id = ? AND n.user_id = ? AND n.deleted_at IS NULL`,
+       LEFT JOIN profiles p ON p.id = n.user_id_creator
+       WHERE n.opportunity_id = ? AND n.user_id = ? AND n.deleted_at IS NULL
+       ORDER BY n.created_at DESC`,
       [data.opportunity_id, effectiveUserId],
-    )) as TimelineEventRow[];
+    )) as any[];
 
     // 3. Get Activities
     const activities = (await db.query(
-      `SELECT a.created_at AS event_date, 'activity' AS event_type,
+      `SELECT a.id, a.created_at AS event_date, 'activity' AS event_type,
               a.id AS activity_id, a.type, a.title, a.description, a.status, a.due_at, a.completed_at,
-              u.email AS actor_email
+              u.email AS actor_email,
+              COALESCE(p.display_name, p.full_name) AS actor_name,
+              COALESCE(pa.display_name, pa.full_name) AS assigned_to_name
        FROM opportunity_activities a
        LEFT JOIN users u ON a.created_by_user_id = u.id
-       WHERE a.opportunity_id = ? AND a.user_id = ? AND a.deleted_at IS NULL`,
+       LEFT JOIN profiles p ON p.id = a.created_by_user_id
+       LEFT JOIN profiles pa ON pa.id = a.assigned_to_user_id
+       WHERE a.opportunity_id = ? AND a.user_id = ? AND a.deleted_at IS NULL
+       ORDER BY a.created_at DESC`,
       [data.opportunity_id, effectiveUserId],
-    )) as TimelineEventRow[];
+    )) as any[];
+
+    // 4. Get Direct Messages (WhatsApp / Chat)
+    let messages: any[] = [];
+    if (opp.contact_phone) {
+      messages = (await db.query(
+        `SELECT m.id, m.created_at AS event_date, 'message' AS event_type,
+                m.direction, m.type AS message_type, m.body, m.status, m.channel,
+                m.sender_name, m.wa_message_id
+         FROM direct_messages m
+         WHERE m.contact_phone = ? AND (m.user_id = ? OR m.tenant_id = ?)
+         ORDER BY m.created_at DESC
+         LIMIT 100`,
+        [opp.contact_phone, effectiveUserId, effectiveUserId],
+      )) as any[];
+    }
+
+    // 5. Get Contact Activities (Webhooks, Automation, Lifecycle events)
+    let contactActivities: any[] = [];
+    if (opp.primary_contact_id) {
+      contactActivities = (await db.query(
+        `SELECT ca.id, ca.created_at AS event_date, 'contact_activity' AS event_type,
+                ca.type AS activity_type, ca.title, ca.description, ca.source_type, ca.payload
+         FROM contact_activities ca
+         WHERE ca.contact_id = ? AND (ca.user_id = ? OR ca.tenant_id = ?)
+         ORDER BY ca.created_at DESC
+         LIMIT 50`,
+        [opp.primary_contact_id, effectiveUserId, effectiveUserId],
+      )) as any[];
+    }
+
+    // 6. Milestones
+    const milestones: any[] = [];
+    if (opp.contact_created_at) {
+      milestones.push({
+        id: `contact-created-${opp.primary_contact_id}`,
+        event_date: new Date(opp.contact_created_at).toISOString(),
+        event_type: "lead_created",
+        title: "Contato Cadastrado",
+        description: opp.contact_source
+          ? `Origem: ${opp.contact_source}${opp.contact_source_type ? ` (${opp.contact_source_type})` : ""}`
+          : "Contato adicionado à base do CRM",
+        source: opp.contact_source || null,
+        contact_name: opp.contact_name,
+        contact_phone: opp.contact_phone,
+      });
+    }
+
+    if (opp.created_at) {
+      milestones.push({
+        id: `opp-created-${opp.id}`,
+        event_date: new Date(opp.created_at).toISOString(),
+        event_type: "opp_created",
+        title: "Oportunidade Comercial Criada",
+        description: `Negócio "${opp.title}" aberto no funil`,
+        value: opp.value,
+        currency: opp.currency,
+      });
+    }
 
     // Merge and sort timeline
     const timeline = [
-      ...stageHistory.map((h) => ({ ...h, event_date: new Date(h.event_date).toISOString() })),
-      ...notes.map((n) => ({ ...n, event_date: new Date(n.event_date).toISOString() })),
-      ...activities.map((a) => ({ ...a, event_date: new Date(a.event_date).toISOString() })),
+      ...stageHistory.map((h: any) => ({ ...h, event_date: new Date(h.event_date).toISOString() })),
+      ...notes.map((n: any) => ({ ...n, event_date: new Date(n.event_date).toISOString() })),
+      ...activities.map((a: any) => ({ ...a, event_date: new Date(a.event_date).toISOString() })),
+      ...messages.map((m: any) => ({ ...m, event_date: new Date(m.event_date).toISOString() })),
+      ...contactActivities.map((c: any) => ({ ...c, event_date: new Date(c.event_date).toISOString() })),
+      ...milestones,
     ];
 
     timeline.sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
@@ -2285,10 +2380,11 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
 
           await conn.execute(
             `INSERT INTO opportunities (
-               id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', ?)`,
+               id, tenant_id, user_id, funnel_id, stage_id, title, primary_contact_id, owner_user_id, created_by_user_id, value, currency, kanban_order
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'BRL', ?)`,
             [
               oppId,
+              effectiveUserId,
               effectiveUserId,
               data.funnelId,
               data.stageId,
@@ -2302,10 +2398,10 @@ export const bulkAssignToKanban = createServerFn({ method: "POST" })
 
           // Save primary contact association in pivot table
           await conn.execute(
-            `INSERT INTO opportunity_contacts (id, user_id, opportunity_id, contact_id, role, is_primary)
-             VALUES (UUID(), ?, ?, ?, 'Principal', TRUE)
+            `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+             VALUES (UUID(), ?, ?, ?, ?, 'Principal', TRUE)
              ON DUPLICATE KEY UPDATE is_primary = TRUE`,
-            [effectiveUserId, oppId, contactId],
+            [effectiveUserId, effectiveUserId, oppId, contactId],
           );
 
           await logAudit(

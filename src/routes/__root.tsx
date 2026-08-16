@@ -1,3 +1,4 @@
+import React, { useEffect } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import {
   Outlet,
@@ -108,12 +109,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <HeadContent />
         <script async defer crossOrigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>
@@ -136,8 +137,6 @@ function RootSeoProvider() {
     />
   );
 }
-
-import { useEffect } from "react";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();

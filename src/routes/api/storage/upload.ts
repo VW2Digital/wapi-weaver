@@ -95,9 +95,16 @@ export const Route = createFileRoute("/api/storage/upload")({
             ".mp4",
             ".mp3",
             ".ogg",
+            ".wav",
             ".csv",
             ".doc",
             ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".txt",
+            ".zip",
           ]);
           const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
