@@ -12,6 +12,11 @@ import {
   Video,
   Music,
   FileJson,
+  Clock,
+  GitFork,
+  Shuffle,
+  Database,
+  Webhook,
 } from "lucide-react";
 
 const getMediaType = (url: string, type: string) => {
@@ -59,6 +64,16 @@ export function CustomNode({ data, selected }: any) {
       case "product_list":
       case "catalog_message":
         return <ShoppingBag className="w-4 h-4 text-amber-500" />;
+      case "delay":
+        return <Clock className="w-4 h-4 text-sky-500" />;
+      case "condition":
+        return <GitFork className="w-4 h-4 text-amber-500" />;
+      case "randomizer":
+        return <Shuffle className="w-4 h-4 text-violet-500" />;
+      case "save_variable":
+        return <Database className="w-4 h-4 text-emerald-500" />;
+      case "http_request":
+        return <Webhook className="w-4 h-4 text-rose-500" />;
       default:
         return <MessageSquare className="w-4 h-4" />;
     }
@@ -112,6 +127,11 @@ export function CustomNode({ data, selected }: any) {
       product: "Produto",
       product_list: "Produtos",
       catalog_message: "Catálogo",
+      delay: "Delay",
+      condition: "Condicional",
+      randomizer: "Randomizador",
+      save_variable: "Salvar Variável",
+      http_request: "Requisição HTTP",
     };
     return typeMap[stepLike.message_type] || "Passo";
   };
@@ -464,7 +484,176 @@ export function CustomNode({ data, selected }: any) {
           );
         })()}
 
-      {!["buttons", "list"].includes(step.message_type) && (
+      {/* Control Node: Delay */}
+      {step.message_type === "delay" &&
+        (() => {
+          const duration = config?.control?.duration || config?.duration || step.delay_seconds || 5;
+          const unit = config?.control?.unit || config?.unit || "seconds";
+          const unitMap: Record<string, string> = {
+            seconds: "segundos",
+            minutes: "minutos",
+            hours: "horas",
+          };
+          return (
+            <div className="px-3 pb-3 text-[11px] border-t border-border/30 pt-2 space-y-1 text-muted-foreground">
+              <div className="flex items-center justify-between bg-sky-500/10 text-sky-700 dark:text-sky-300 px-2 py-1 rounded font-medium">
+                <span>Tempo de espera:</span>
+                <span className="font-bold">{duration} {unitMap[unit] || unit}</span>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Control Node: Condition */}
+      {step.message_type === "condition" &&
+        (() => {
+          const ctrl = config?.control || config || {};
+          const rules = ctrl.rules || [];
+          const logic = ctrl.logic || "AND";
+          const trueDest = getTargetLabel(ctrl.trueStepId);
+          const falseDest = getTargetLabel(ctrl.falseStepId);
+          return (
+            <div className="px-3 pb-3 space-y-2 border-t border-border/30 pt-2 text-[10px]">
+              <div className="text-muted-foreground text-[10px]">
+                {rules.length === 0 ? (
+                  <span className="italic">Nenhuma regra configurada</span>
+                ) : (
+                  <span>{rules.length} regra(s) com operador <strong className="text-foreground">{logic}</strong></span>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {/* Branch Sim / Verdadeiro */}
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded px-2 py-1 flex items-center justify-between relative shadow-sm">
+                  <span className="font-semibold text-[11px]">Sim (Verdadeiro)</span>
+                  {trueDest && <span className="text-[9px] font-bold truncate max-w-[110px]">→ {trueDest}</span>}
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="condition_true"
+                    style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                    className="bg-emerald-500 hover:scale-125 transition-transform"
+                  />
+                </div>
+                {/* Branch Nao / Falso */}
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 rounded px-2 py-1 flex items-center justify-between relative shadow-sm">
+                  <span className="font-semibold text-[11px]">Não (Falso)</span>
+                  {falseDest && <span className="text-[9px] font-bold truncate max-w-[110px]">→ {falseDest}</span>}
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="condition_false"
+                    style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                    className="bg-rose-500 hover:scale-125 transition-transform"
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Control Node: Randomizer */}
+      {step.message_type === "randomizer" &&
+        (() => {
+          const ctrl = config?.control || config || {};
+          const branches = ctrl.branches || [
+            { id: "branch_a", label: "Caminho A", weight: 50 },
+            { id: "branch_b", label: "Caminho B", weight: 50 },
+          ];
+          return (
+            <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2 text-[10px]">
+              <div className="text-muted-foreground text-[10px] mb-1">Divisão de Tráfego (Teste A/B):</div>
+              {branches.map((b: any, idx: number) => {
+                const branchDest = getTargetLabel(b.nextStepId);
+                const handleId = b.handleId || b.id || `branch_${idx}`;
+                return (
+                  <div
+                    key={b.id || idx}
+                    className="bg-violet-500/10 border border-violet-500/20 text-violet-700 dark:text-violet-300 rounded px-2 py-1 flex items-center justify-between relative shadow-sm"
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="font-semibold text-[11px] truncate">{b.label || `Caminho ${idx + 1}`}</span>
+                      <span className="text-[9px] font-bold opacity-75">({b.weight}%)</span>
+                    </div>
+                    {branchDest && <span className="text-[9px] font-bold truncate max-w-[90px]">→ {branchDest}</span>}
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={handleId}
+                      style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                      className="bg-violet-500 hover:scale-125 transition-transform"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+      {/* Control Node: Save Variable */}
+      {step.message_type === "save_variable" &&
+        (() => {
+          const ctrl = config?.control || config || {};
+          const scope = ctrl.scope || "flow";
+          const key = ctrl.key || "variavel";
+          const value = ctrl.value || "";
+          return (
+            <div className="px-3 pb-3 text-[10px] border-t border-border/30 pt-2 space-y-1 text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span>Escopo:</span>
+                <span className="font-bold text-foreground capitalize">{scope === "flow" ? "Fluxo" : "Contato"}</span>
+              </div>
+              <div className="bg-muted/40 p-1.5 rounded font-mono text-[10px] text-foreground truncate">
+                {key} = {value || '""'}
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Control Node: HTTP Request */}
+      {step.message_type === "http_request" &&
+        (() => {
+          const ctrl = config?.control || config || {};
+          const method = (ctrl.method || "GET").toUpperCase();
+          const url = ctrl.url || "https://api.exemplo.com";
+          const successDest = getTargetLabel(ctrl.successStepId);
+          const errorDest = getTargetLabel(ctrl.errorStepId);
+          return (
+            <div className="px-3 pb-3 space-y-2 border-t border-border/30 pt-2 text-[10px]">
+              <div className="bg-background border rounded px-2 py-1 flex items-center gap-1.5 font-mono text-[10px] truncate shadow-sm">
+                <span className="font-bold text-rose-500">{method}</span>
+                <span className="truncate text-foreground text-[9px]">{url}</span>
+              </div>
+              <div className="space-y-1.5">
+                {/* Sucesso */}
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded px-2 py-1 flex items-center justify-between relative shadow-sm">
+                  <span className="font-semibold text-[11px]">Sucesso (2xx)</span>
+                  {successDest && <span className="text-[9px] font-bold truncate max-w-[110px]">→ {successDest}</span>}
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="http_success"
+                    style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                    className="bg-emerald-500 hover:scale-125 transition-transform"
+                  />
+                </div>
+                {/* Erro */}
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 rounded px-2 py-1 flex items-center justify-between relative shadow-sm">
+                  <span className="font-semibold text-[11px]">Falha / Erro</span>
+                  {errorDest && <span className="text-[9px] font-bold truncate max-w-[110px]">→ {errorDest}</span>}
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="http_error"
+                    style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
+                    className="bg-rose-500 hover:scale-125 transition-transform"
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {!["buttons", "list", "condition", "randomizer", "http_request"].includes(step.message_type) && (
         <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary" />
       )}
     </div>

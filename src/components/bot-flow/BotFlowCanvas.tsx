@@ -163,6 +163,119 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
               itemIdx++;
             });
           });
+      // 4. Conexões de Condicional (condition_true e condition_false)
+      if (s.message_type === "condition" && s.buttons_config) {
+        try {
+          const configObj =
+            typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
+          const ctrl = configObj?.control || configObj || {};
+          if (ctrl.trueStepId && ctrl.trueStepId !== "-999" && ctrl.trueStepId !== "-997" && ctrl.trueStepId !== "-998") {
+            const targetExists = steps.some((step) => step.id === ctrl.trueStepId);
+            if (targetExists) {
+              newEdges.push({
+                id: `e-${s.id}-${ctrl.trueStepId}-condition-true`,
+                source: s.id,
+                sourceHandle: "condition_true",
+                target: ctrl.trueStepId,
+                type: "smoothstep",
+                label: "Sim ✔",
+                style: { stroke: "#10b981", strokeWidth: 2 },
+                labelStyle: { fill: "#10b981", fontWeight: 600, fontSize: 10 },
+                animated: true,
+              });
+            }
+          }
+          if (ctrl.falseStepId && ctrl.falseStepId !== "-999" && ctrl.falseStepId !== "-997" && ctrl.falseStepId !== "-998") {
+            const targetExists = steps.some((step) => step.id === ctrl.falseStepId);
+            if (targetExists) {
+              newEdges.push({
+                id: `e-${s.id}-${ctrl.falseStepId}-condition-false`,
+                source: s.id,
+                sourceHandle: "condition_false",
+                target: ctrl.falseStepId,
+                type: "smoothstep",
+                label: "Não ✖",
+                style: { stroke: "#f43f5e", strokeWidth: 2 },
+                labelStyle: { fill: "#f43f5e", fontWeight: 600, fontSize: 10 },
+                animated: true,
+              });
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // 5. Conexões de Randomizador (branches)
+      if (s.message_type === "randomizer" && s.buttons_config) {
+        try {
+          const configObj =
+            typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
+          const ctrl = configObj?.control || configObj || {};
+          const branches = ctrl.branches || [];
+          branches.forEach((branch: any, bIdx: number) => {
+            const targetId = branch.nextStepId;
+            if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+              const targetExists = steps.some((step) => step.id === targetId);
+              if (targetExists) {
+                const handleId = branch.handleId || branch.id || `branch_${bIdx}`;
+                newEdges.push({
+                  id: `e-${s.id}-${targetId}-${handleId}`,
+                  source: s.id,
+                  sourceHandle: handleId,
+                  target: targetId,
+                  type: "smoothstep",
+                  label: `${branch.label || `Caminho ${bIdx + 1}`} (${branch.weight}%)`,
+                  style: { stroke: "#8b5cf6", strokeWidth: 2 },
+                  labelStyle: { fill: "#8b5cf6", fontWeight: 600, fontSize: 10 },
+                  animated: true,
+                });
+              }
+            }
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // 6. Conexões de Requisição HTTP (http_success e http_error)
+      if (s.message_type === "http_request" && s.buttons_config) {
+        try {
+          const configObj =
+            typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
+          const ctrl = configObj?.control || configObj || {};
+          if (ctrl.successStepId && ctrl.successStepId !== "-999" && ctrl.successStepId !== "-997" && ctrl.successStepId !== "-998") {
+            const targetExists = steps.some((step) => step.id === ctrl.successStepId);
+            if (targetExists) {
+              newEdges.push({
+                id: `e-${s.id}-${ctrl.successStepId}-http-success`,
+                source: s.id,
+                sourceHandle: "http_success",
+                target: ctrl.successStepId,
+                type: "smoothstep",
+                label: "Sucesso (2xx) ✔",
+                style: { stroke: "#10b981", strokeWidth: 2 },
+                labelStyle: { fill: "#10b981", fontWeight: 600, fontSize: 10 },
+                animated: true,
+              });
+            }
+          }
+          if (ctrl.errorStepId && ctrl.errorStepId !== "-999" && ctrl.errorStepId !== "-997" && ctrl.errorStepId !== "-998") {
+            const targetExists = steps.some((step) => step.id === ctrl.errorStepId);
+            if (targetExists) {
+              newEdges.push({
+                id: `e-${s.id}-${ctrl.errorStepId}-http-error`,
+                source: s.id,
+                sourceHandle: "http_error",
+                target: ctrl.errorStepId,
+                type: "smoothstep",
+                label: "Falha / Erro ✖",
+                style: { stroke: "#f43f5e", strokeWidth: 2 },
+                labelStyle: { fill: "#f43f5e", fontWeight: 600, fontSize: 10 },
+                animated: true,
+              });
+            }
+          }
         } catch (e) {
           // ignore
         }
@@ -225,6 +338,38 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
                 }
                 return sec;
               });
+            } else if (s.message_type === "condition") {
+              const ctrl = configObj?.control || configObj || {};
+              if (params.sourceHandle === "condition_true") {
+                ctrl.trueStepId = params.target;
+                updated = true;
+              } else if (params.sourceHandle === "condition_false") {
+                ctrl.falseStepId = params.target;
+                updated = true;
+              }
+              configObj.control = ctrl;
+            } else if (s.message_type === "randomizer") {
+              const ctrl = configObj?.control || configObj || {};
+              const branches = ctrl.branches || [];
+              ctrl.branches = branches.map((b: any, bIdx: number) => {
+                const hId = b.handleId || b.id || `branch_${bIdx}`;
+                if (hId === params.sourceHandle) {
+                  updated = true;
+                  return { ...b, nextStepId: params.target };
+                }
+                return b;
+              });
+              configObj.control = ctrl;
+            } else if (s.message_type === "http_request") {
+              const ctrl = configObj?.control || configObj || {};
+              if (params.sourceHandle === "http_success") {
+                ctrl.successStepId = params.target;
+                updated = true;
+              } else if (params.sourceHandle === "http_error") {
+                ctrl.errorStepId = params.target;
+                updated = true;
+              }
+              configObj.control = ctrl;
             }
 
             if (updated) {

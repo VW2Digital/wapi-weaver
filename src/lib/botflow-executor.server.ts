@@ -607,6 +607,176 @@ export async function processBotFlow(
       }
     }
 
+    // 3.5. LOOP DE EXECUÇÃO DE NÓS DE CONTROLE (Control Nodes)
+    // Delay, Condition, Randomizer, Save Variable, HTTP Request
+    // Control nodes NÃO são enviados como mensagens para o provedor (Meta/WhatsApp).
+    // Eles executam internamente e roteiam o fluxo até o próximo nó de mensagem ou fim do fluxo.
+    const {
+      resolveTemplate,
+      evaluateCondition,
+      evaluateRandomizer,
+      executeHttpRequest,
+      executeSaveVariable,
+    } = await import("./botflow-control");
+
+    // Carrega dados do contato para contexto de resolução de variáveis
+    let contactRecord: any = null;
+    try {
+      const { default: db } = await import("./db");
+      const cRows = (await db.query(
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 LIKE ? OR phone_e164 LIKE ?) LIMIT 1",
+        [userId, userId, `%${phoneDigits}%`, `%${phoneDigits.slice(-8)}%`],
+      )) as any[];
+      contactRecord = cRows?.[0] || null;
+    } catch {
+      contactRecord = null;
+    }
+
+    let parsedCustomFields: Record<string, any> = {};
+    try {
+      if (contactRecord?.custom_fields) {
+        parsedCustomFields =
+          typeof contactRecord.custom_fields === "string"
+            ? JSON.parse(contactRecord.custom_fields)
+            : contactRecord.custom_fields || {};
+      }
+    } catch {
+      parsedCustomFields = {};
+    }
+
+    const executionContext: any = {
+      tenantId: userId,
+      userId,
+      contact: {
+        id: contactRecord?.id,
+        phone: phoneDigits,
+        name: contactRecord?.name || "",
+        email: contactRecord?.email || "",
+        company: contactRecord?.company || "",
+        notes: contactRecord?.notes || "",
+        customFields: parsedCustomFields,
+      },
+      message: {
+        text: messageBody,
+        buttonPayload,
+        type: "text",
+      },
+      channel,
+      flowId: stepToExecute?.flow_id || activeFlow?.id,
+      stepId: stepToExecute?.id,
+      variables: {},
+      httpResponse: null,
+    };
+
+    const CONTROL_TYPES = new Set(["delay", "condition", "randomizer", "save_variable", "http_request"]);
+    const MAX_CONTROL_HOPS = 50;
+    let hops = 0;
+
+    while (stepToExecute && CONTROL_TYPES.has(stepToExecute.message_type)) {
+      hops++;
+      if (hops > MAX_CONTROL_HOPS) {
+        logError("Limite máximo de 50 hops de controle atingido. Possível loop infinito.", {
+          stepId: stepToExecute.id,
+          flowId: activeFlow?.id,
+        });
+        break;
+      }
+
+      logInfo(`Executando nó de controle (#${hops}): ${stepToExecute.message_type}`, {
+        stepId: stepToExecute.id,
+      });
+
+      let stepConfig: any = {};
+      try {
+        stepConfig =
+          typeof stepToExecute.buttons_config === "string"
+            ? JSON.parse(stepToExecute.buttons_config || "{}")
+            : stepToExecute.buttons_config || {};
+      } catch {
+        stepConfig = {};
+      }
+      const ctrl = stepConfig.control || stepConfig;
+
+      if (stepToExecute.message_type === "delay") {
+        // Bloco Delay: aguarda N segundos/minutos/horas de forma durável
+        const duration = Number(ctrl.duration) || Number(stepToExecute.delay_seconds) || 5;
+        const unit = ctrl.unit || "seconds";
+        const delaySec = unit === "hours" ? duration * 3600 : unit === "minutes" ? duration * 60 : duration;
+        const nextStepId = stepToExecute.next_step_id || ctrl.nextStepId || null;
+
+        logInfo(`Nó Delay pausando fluxo por ${delaySec}s`, { stepId: stepToExecute.id, nextStepId });
+
+        if (delaySec <= 10 && nextStepId) {
+          // Delay curto (<= 10s): aguarda localmente no servidor
+          await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+          stepToExecute = allSteps.find((s: any) => s.id === nextStepId) || null;
+          continue;
+        } else {
+          // Delay longo: agenda estado para retomada
+          await dbAdmin.from("bot_conversation_state").upsert(
+            {
+              user_id: userId,
+              tenant_id: userId,
+              contact_number: phoneDigits,
+              instance_id: phoneNumberId,
+              channel,
+              current_step_id: stepToExecute.id,
+              last_interaction: new Date().toISOString(),
+              is_paused: true,
+              paused_until: new Date(Date.now() + delaySec * 1000).toISOString(),
+            },
+            { onConflict: "user_id,contact_number,instance_id,channel" },
+          );
+          return;
+        }
+      } else if (stepToExecute.message_type === "condition") {
+        const isTrue = evaluateCondition(ctrl, executionContext);
+        const targetStepId = isTrue ? ctrl.trueStepId : ctrl.falseStepId;
+        logInfo(`Nó Condition avaliado como ${isTrue ? "VERDADEIRO" : "FALSO"} -> destino: ${targetStepId}`);
+        stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
+      } else if (stepToExecute.message_type === "randomizer") {
+        executionContext.stepId = stepToExecute.id;
+        const result = evaluateRandomizer(ctrl, executionContext);
+        logInfo(`Nó Randomizer selecionou branch ${result.branchId} -> destino: ${result.nextStepId}`);
+        stepToExecute = result.nextStepId ? allSteps.find((s: any) => s.id === result.nextStepId) || null : null;
+      } else if (stepToExecute.message_type === "save_variable") {
+        const { default: db } = await import("./db");
+        const result = await executeSaveVariable(ctrl, executionContext, db);
+        const targetStepId = result.nextStepId || stepToExecute.next_step_id;
+        logInfo(`Nó Save Variable persistiu ${ctrl.key} -> destino: ${targetStepId}`);
+        stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
+      } else if (stepToExecute.message_type === "http_request") {
+        const httpRes = await executeHttpRequest(ctrl, executionContext);
+        logInfo(`Nó HTTP Request ${httpRes.success ? "SUCESSO" : "ERRO"} (status ${httpRes.status}) -> destino: ${httpRes.nextStepId}`);
+        stepToExecute = httpRes.nextStepId ? allSteps.find((s: any) => s.id === httpRes.nextStepId) || null : null;
+      }
+    }
+
+    if (!stepToExecute) {
+      logInfo("Fluxo finalizado após processamento dos nós de controle.", { channel });
+      await dbAdmin.from("bot_conversation_state").upsert(
+        {
+          user_id: userId,
+          tenant_id: userId,
+          contact_number: phoneDigits,
+          instance_id: phoneNumberId,
+          channel,
+          current_step_id: null,
+          last_interaction: new Date().toISOString(),
+        },
+        { onConflict: "user_id,contact_number,instance_id,channel" },
+      );
+      return;
+    }
+
+    // Resolve variáveis dinâmicas no texto da mensagem do próximo passo
+    if (stepToExecute.message_content) {
+      stepToExecute.message_content = resolveTemplate(stepToExecute.message_content, executionContext);
+    }
+    if (stepToExecute.media_caption) {
+      stepToExecute.media_caption = resolveTemplate(stepToExecute.media_caption, executionContext);
+    }
+
     // IA só pode ser acionada por uma etapa explícita `link_ai_agent`.
     // Nunca envie "digitando" como mensagem quando o fluxo não tiver etapa.
     if (!stepToExecute) {
@@ -627,14 +797,6 @@ export async function processBotFlow(
       flowId: activeFlow.id,
       messageBody,
     });
-
-    if (stepToExecute.flow_id) {
-      await dbAdmin
-        .from("bot_flows")
-        .update({ last_executed_at: new Date().toISOString() })
-        .eq("id", stepToExecute.flow_id)
-        .eq("tenant_id", userId);
-    }
 
     const isHandoff = stepToExecute.next_step_id === "-999";
     const updateData = {
@@ -855,9 +1017,145 @@ export async function executeInactivityStep(
   userId: string,
   channel: "whatsapp" | "instagram" | "messenger" = "whatsapp",
 ) {
-  if (!phoneNumberId || !phoneDigits || !userId) return;
+  if (!phoneNumberId || !phoneDigits || !userId || !stepToExecute) return;
 
   try {
+    const { default: db } = await import("./db");
+    const {
+      resolveTemplate,
+      evaluateCondition,
+      evaluateRandomizer,
+      executeHttpRequest,
+      executeSaveVariable,
+    } = await import("./botflow-control");
+
+    // Carrega passos do fluxo se necessário para navegar nós de controle
+    let allSteps: any[] = [];
+    if (stepToExecute.flow_id) {
+      allSteps = (await db.query(
+        "SELECT * FROM bot_steps WHERE flow_id = ? AND (user_id = ? OR tenant_id = ?)",
+        [stepToExecute.flow_id, userId, userId],
+      )) as any[];
+    }
+
+    // Carrega dados do contato
+    let contactRecord: any = null;
+    try {
+      const cRows = (await db.query(
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 LIKE ? OR phone_e164 LIKE ?) LIMIT 1",
+        [userId, userId, `%${phoneDigits}%`, `%${phoneDigits.slice(-8)}%`],
+      )) as any[];
+      contactRecord = cRows?.[0] || null;
+    } catch {
+      contactRecord = null;
+    }
+
+    let parsedCustomFields: Record<string, any> = {};
+    try {
+      if (contactRecord?.custom_fields) {
+        parsedCustomFields =
+          typeof contactRecord.custom_fields === "string"
+            ? JSON.parse(contactRecord.custom_fields)
+            : contactRecord.custom_fields || {};
+      }
+    } catch {
+      parsedCustomFields = {};
+    }
+
+    const executionContext: any = {
+      tenantId: userId,
+      userId,
+      contact: {
+        id: contactRecord?.id,
+        phone: phoneDigits,
+        name: contactRecord?.name || "",
+        email: contactRecord?.email || "",
+        company: contactRecord?.company || "",
+        notes: contactRecord?.notes || "",
+        customFields: parsedCustomFields,
+      },
+      message: {
+        text: "",
+        type: "text",
+      },
+      channel,
+      flowId: stepToExecute?.flow_id,
+      stepId: stepToExecute?.id,
+      variables: {},
+      httpResponse: null,
+    };
+
+    const CONTROL_TYPES = new Set(["delay", "condition", "randomizer", "save_variable", "http_request"]);
+    let hops = 0;
+    while (stepToExecute && CONTROL_TYPES.has(stepToExecute.message_type)) {
+      hops++;
+      if (hops > 50) break;
+
+      let stepConfig: any = {};
+      try {
+        stepConfig =
+          typeof stepToExecute.buttons_config === "string"
+            ? JSON.parse(stepToExecute.buttons_config || "{}")
+            : stepToExecute.buttons_config || {};
+      } catch {
+        stepConfig = {};
+      }
+      const ctrl = stepConfig.control || stepConfig;
+
+      if (stepToExecute.message_type === "delay") {
+        const duration = Number(ctrl.duration) || Number(stepToExecute.delay_seconds) || 5;
+        const unit = ctrl.unit || "seconds";
+        const delaySec = unit === "hours" ? duration * 3600 : unit === "minutes" ? duration * 60 : duration;
+        const nextStepId = stepToExecute.next_step_id || ctrl.nextStepId || null;
+
+        if (delaySec <= 10 && nextStepId) {
+          await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+          stepToExecute = allSteps.find((s: any) => s.id === nextStepId) || null;
+          continue;
+        } else {
+          await dbAdmin.from("bot_conversation_state").upsert(
+            {
+              user_id: userId,
+              tenant_id: userId,
+              contact_number: phoneDigits,
+              instance_id: phoneNumberId,
+              channel,
+              current_step_id: stepToExecute.id,
+              last_interaction: new Date().toISOString(),
+              is_paused: true,
+              paused_until: new Date(Date.now() + delaySec * 1000).toISOString(),
+            },
+            { onConflict: "user_id,contact_number,instance_id,channel" },
+          );
+          return;
+        }
+      } else if (stepToExecute.message_type === "condition") {
+        const isTrue = evaluateCondition(ctrl, executionContext);
+        const targetStepId = isTrue ? ctrl.trueStepId : ctrl.falseStepId;
+        stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
+      } else if (stepToExecute.message_type === "randomizer") {
+        executionContext.stepId = stepToExecute.id;
+        const result = evaluateRandomizer(ctrl, executionContext);
+        stepToExecute = result.nextStepId ? allSteps.find((s: any) => s.id === result.nextStepId) || null : null;
+      } else if (stepToExecute.message_type === "save_variable") {
+        const result = await executeSaveVariable(ctrl, executionContext, db);
+        const targetStepId = result.nextStepId || stepToExecute.next_step_id;
+        stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
+      } else if (stepToExecute.message_type === "http_request") {
+        const httpRes = await executeHttpRequest(ctrl, executionContext);
+        stepToExecute = httpRes.nextStepId ? allSteps.find((s: any) => s.id === httpRes.nextStepId) || null : null;
+      }
+    }
+
+    if (!stepToExecute) return;
+
+    if (stepToExecute.message_content) {
+      stepToExecute.message_content = resolveTemplate(stepToExecute.message_content, executionContext);
+    }
+    if (stepToExecute.media_caption) {
+      stepToExecute.media_caption = resolveTemplate(stepToExecute.media_caption, executionContext);
+    }
+
     let isSuccess = false;
     let providerMsgId: string | null = null;
 

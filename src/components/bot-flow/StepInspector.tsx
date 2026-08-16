@@ -790,6 +790,703 @@ export function StepInspector({
         );
       }
 
+      {/* Control Node: Delay */}
+      case "delay": {
+        const ctrl = config?.control || config || {};
+        const duration = ctrl.duration || selectedStep.delay_seconds || 5;
+        const unit = ctrl.unit || "seconds";
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <Label className="text-sm font-semibold flex items-center gap-1.5">
+              <span>Configuração de Delay / Espera</span>
+            </Label>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Duração</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={unit === "hours" ? 24 : unit === "minutes" ? 1440 : 86400}
+                  value={duration}
+                  onChange={(e) => {
+                    const dur = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, duration: dur, unit },
+                    });
+                    handleUpdateStep("delay_seconds", unit === "hours" ? dur * 3600 : unit === "minutes" ? dur * 60 : dur);
+                  }}
+                  className="text-xs h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Unidade</Label>
+                <Select
+                  value={unit}
+                  onValueChange={(val) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, duration, unit: val },
+                    });
+                    handleUpdateStep("delay_seconds", val === "hours" ? duration * 3600 : val === "minutes" ? duration * 60 : duration);
+                  }}
+                >
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="seconds">Segundos</SelectItem>
+                    <SelectItem value="minutes">Minutos</SelectItem>
+                    <SelectItem value="hours">Horas (Máx 24h)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              O fluxo aguardará {duration} {unit === "hours" ? "hora(s)" : unit === "minutes" ? "minuto(s)" : "segundo(s)"} antes de prosseguir para o próximo passo.
+            </div>
+          </div>
+        );
+      }
+
+      {/* Control Node: Condition */}
+      case "condition": {
+        const ctrl = config?.control || config || {};
+        const rules = ctrl.rules || [];
+        const logic = ctrl.logic || "AND";
+        const trueStepId = ctrl.trueStepId || "";
+        const falseStepId = ctrl.falseStepId || "";
+
+        const updateConditionRules = (newRules: any[]) => {
+          updateConfig({
+            ...config,
+            control: { ...ctrl, rules: newRules, logic, trueStepId, falseStepId },
+          });
+        };
+
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Regras Condicionais</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground">Lógica:</Label>
+                <Select
+                  value={logic}
+                  onValueChange={(val) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, logic: val, rules, trueStepId, falseStepId },
+                    });
+                  }}
+                >
+                  <SelectTrigger className="text-xs h-7 w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AND">E (AND)</SelectItem>
+                    <SelectItem value="OR">OU (OR)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {rules.map((rule: any, rIdx: number) => (
+                <div key={rIdx} className="space-y-1.5 bg-background p-2 border rounded-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-muted-foreground">Regra #{rIdx + 1}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-destructive hover:bg-destructive/10"
+                      onClick={() => {
+                        const newR = rules.filter((_: any, i: number) => i !== rIdx);
+                        updateConditionRules(newR);
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="Variável (ex: {{contact.name}} ou {{cpf}})"
+                      className="text-xs h-7"
+                      value={rule.left || ""}
+                      onChange={(e) => {
+                        const newR = [...rules];
+                        newR[rIdx] = { ...rule, left: e.target.value };
+                        updateConditionRules(newR);
+                      }}
+                    />
+                    <Select
+                      value={rule.operator || "equals"}
+                      onValueChange={(op) => {
+                        const newR = [...rules];
+                        newR[rIdx] = { ...rule, operator: op };
+                        updateConditionRules(newR);
+                      }}
+                    >
+                      <SelectTrigger className="text-xs h-7">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="equals">Igual a (==)</SelectItem>
+                        <SelectItem value="not_equals">Diferente de (!=)</SelectItem>
+                        <SelectItem value="contains">Contém</SelectItem>
+                        <SelectItem value="not_contains">Não contém</SelectItem>
+                        <SelectItem value="starts_with">Começa com</SelectItem>
+                        <SelectItem value="ends_with">Termina com</SelectItem>
+                        <SelectItem value="exists">Existe / Não vazio</SelectItem>
+                        <SelectItem value="not_exists">Não existe / Vazio</SelectItem>
+                        <SelectItem value="greater_than">Maior que (&gt;)</SelectItem>
+                        <SelectItem value="greater_or_equal">Maior ou igual (&gt;=)</SelectItem>
+                        <SelectItem value="less_than">Menor que (&lt;)</SelectItem>
+                        <SelectItem value="less_or_equal">Menor ou igual (&lt;=)</SelectItem>
+                        <SelectItem value="in">Está na lista (sep. por vírgula)</SelectItem>
+                        <SelectItem value="not_in">Não está na lista</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {!["exists", "not_exists", "is_empty", "not_empty"].includes(rule.operator) && (
+                      <Input
+                        placeholder="Valor de comparação (ex: 'sim', 10)"
+                        className="text-xs h-7"
+                        value={rule.right || ""}
+                        onChange={(e) => {
+                          const newR = [...rules];
+                          newR[rIdx] = { ...rule, right: e.target.value };
+                          updateConditionRules(newR);
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full text-xs h-7"
+                onClick={() => {
+                  updateConditionRules([
+                    ...rules,
+                    { left: "{{message.text}}", operator: "equals", right: "" },
+                  ]);
+                }}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Regra
+              </Button>
+            </div>
+
+            {/* Roteamento de Saída */}
+            <div className="space-y-3 pt-3 border-t">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-emerald-600">Destino se Verdadeiro (Sim ✔)</Label>
+                <Select
+                  value={trueStepId || "none"}
+                  onValueChange={(val) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, rules, logic, trueStepId: val === "none" ? "" : val, falseStepId },
+                    });
+                  }}
+                >
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {steps
+                      .filter((s: any) => s.id !== selectedStep.id)
+                      .map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {renderStepTargetItem(s)}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-rose-600">Destino se Falso (Não ✖)</Label>
+                <Select
+                  value={falseStepId || "none"}
+                  onValueChange={(val) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, rules, logic, trueStepId, falseStepId: val === "none" ? "" : val },
+                    });
+                  }}
+                >
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {steps
+                      .filter((s: any) => s.id !== selectedStep.id)
+                      .map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {renderStepTargetItem(s)}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      {/* Control Node: Randomizer */}
+      case "randomizer": {
+        const ctrl = config?.control || config || {};
+        const branches = ctrl.branches || [
+          { id: "branch_a", label: "Caminho A", weight: 50 },
+          { id: "branch_b", label: "Caminho B", weight: 50 },
+        ];
+
+        const updateBranches = (newBranches: any[]) => {
+          updateConfig({
+            ...config,
+            control: { ...ctrl, branches: newBranches },
+          });
+        };
+
+        const totalWeight = branches.reduce((acc: number, b: any) => acc + (Number(b.weight) || 0), 0);
+
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Divisão de Tráfego (Teste A/B)</Label>
+              <span className={`text-xs font-bold ${totalWeight === 100 ? "text-emerald-600" : "text-amber-500"}`}>
+                Total: {totalWeight}%
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {branches.map((b: any, bIdx: number) => (
+                <div key={b.id || bIdx} className="space-y-1.5 bg-background p-2 border rounded-md">
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      placeholder="Nome do Caminho"
+                      className="text-xs h-7 flex-1"
+                      value={b.label || ""}
+                      onChange={(e) => {
+                        const newB = [...branches];
+                        newB[bIdx] = { ...b, label: e.target.value };
+                        updateBranches(newB);
+                      }}
+                    />
+                    <div className="flex items-center gap-1 w-20 shrink-0">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="text-xs h-7 px-1 text-center"
+                        value={b.weight}
+                        onChange={(e) => {
+                          const newB = [...branches];
+                          newB[bIdx] = { ...b, weight: parseInt(e.target.value, 10) || 0 };
+                          updateBranches(newB);
+                        }}
+                      />
+                      <span className="text-xs font-bold">%</span>
+                    </div>
+                    {branches.length > 2 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          const newB = branches.filter((_: any, i: number) => i !== bIdx);
+                          updateBranches(newB);
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                  <Select
+                    value={b.nextStepId || "none"}
+                    onValueChange={(val) => {
+                      const newB = [...branches];
+                      newB[bIdx] = { ...b, nextStepId: val === "none" ? "" : val };
+                      updateBranches(newB);
+                    }}
+                  >
+                    <SelectTrigger className="text-xs h-7">
+                      <SelectValue placeholder="Destino deste caminho..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {steps
+                        .filter((s: any) => s.id !== selectedStep.id)
+                        .map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {renderStepTargetItem(s)}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+
+              {branches.length < 10 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs h-7"
+                  onClick={() => {
+                    const nextLetter = String.fromCharCode(65 + branches.length);
+                    updateBranches([
+                      ...branches,
+                      {
+                        id: `branch_${Math.random().toString(36).substring(2, 7)}`,
+                        label: `Caminho ${nextLetter}`,
+                        weight: 0,
+                      },
+                    ]);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Caminho
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      {/* Control Node: Save Variable */}
+      case "save_variable": {
+        const ctrl = config?.control || config || {};
+        const scope = ctrl.scope || "flow";
+        const key = ctrl.key || "";
+        const value = ctrl.value || "";
+
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <Label className="text-sm font-semibold">Salvar Variável</Label>
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Escopo</Label>
+                <Select
+                  value={scope}
+                  onValueChange={(val) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, scope: val, key, value },
+                    });
+                  }}
+                >
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="flow">Fluxo (Persiste na sessão do bot)</SelectItem>
+                    <SelectItem value="contact">Contato (Persiste no cadastro)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Nome da Variável / Chave</Label>
+                <Input
+                  placeholder={scope === "contact" ? "Ex: name, email, company, cpf" : "Ex: nome_digitado, saldo"}
+                  className="text-xs h-8 font-mono"
+                  value={key}
+                  onChange={(e) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, scope, key: e.target.value, value },
+                    });
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Valor a Atribuir</Label>
+                <Input
+                  placeholder="Ex: {{message.text}}, {{http.response.id}} ou fixo"
+                  className="text-xs h-8 font-mono"
+                  value={value}
+                  onChange={(e) => {
+                    updateConfig({
+                      ...config,
+                      control: { ...ctrl, scope, key, value: e.target.value },
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Você pode reutilizar esta variável em passos seguintes usando a sintaxe <code className="text-primary font-bold">{"{{" + (key || "variavel") + "}}"}</code>.
+            </div>
+          </div>
+        );
+      }
+
+      {/* Control Node: HTTP Request */}
+      case "http_request": {
+        const ctrl = config?.control || config || {};
+        const method = ctrl.method || "POST";
+        const url = ctrl.url || "";
+        const bodyType = ctrl.bodyType || "json";
+        const body = ctrl.body || "";
+        const headers = ctrl.headers || [];
+        const responseMappings = ctrl.responseMappings || [];
+        const successStepId = ctrl.successStepId || "";
+        const errorStepId = ctrl.errorStepId || "";
+        const timeoutMs = ctrl.timeoutMs || 10000;
+
+        const updateHttpConfig = (patch: any) => {
+          updateConfig({
+            ...config,
+            control: {
+              ...ctrl,
+              method,
+              url,
+              bodyType,
+              body,
+              headers,
+              responseMappings,
+              successStepId,
+              errorStepId,
+              timeoutMs,
+              ...patch,
+            },
+          });
+        };
+
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <Label className="text-sm font-semibold">Requisição HTTP (Webhook Externo)</Label>
+
+            <div className="space-y-2">
+              <div className="flex gap-1.5">
+                <Select
+                  value={method}
+                  onValueChange={(val) => updateHttpConfig({ method: val })}
+                >
+                  <SelectTrigger className="text-xs h-8 w-24 shrink-0 font-bold text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GET">GET</SelectItem>
+                    <SelectItem value="POST">POST</SelectItem>
+                    <SelectItem value="PUT">PUT</SelectItem>
+                    <SelectItem value="PATCH">PATCH</SelectItem>
+                    <SelectItem value="DELETE">DELETE</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="https://api.exemplo.com/endpoint"
+                  className="text-xs h-8 font-mono flex-1"
+                  value={url}
+                  onChange={(e) => updateHttpConfig({ url: e.target.value })}
+                />
+              </div>
+
+              {/* Headers */}
+              <div className="space-y-1.5 border-t pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Headers HTTP</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px]"
+                    onClick={() => {
+                      updateHttpConfig({
+                        headers: [...headers, { key: "", value: "" }],
+                      });
+                    }}
+                  >
+                    + Header
+                  </Button>
+                </div>
+                {headers.map((h: any, hIdx: number) => (
+                  <div key={hIdx} className="flex gap-1 items-center">
+                    <Input
+                      placeholder="Header (ex: Authorization)"
+                      className="text-xs h-7 flex-1 font-mono"
+                      value={h.key || ""}
+                      onChange={(e) => {
+                        const newH = [...headers];
+                        newH[hIdx] = { ...h, key: e.target.value };
+                        updateHttpConfig({ headers: newH });
+                      }}
+                    />
+                    <Input
+                      placeholder="Valor (ex: Bearer {{token}})"
+                      className="text-xs h-7 flex-1 font-mono"
+                      value={h.value || ""}
+                      onChange={(e) => {
+                        const newH = [...headers];
+                        newH[hIdx] = { ...h, value: e.target.value };
+                        updateHttpConfig({ headers: newH });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
+                      onClick={() => {
+                        updateHttpConfig({
+                          headers: headers.filter((_: any, i: number) => i !== hIdx),
+                        });
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Corpo / Payload */}
+              {!["GET", "DELETE"].includes(method) && (
+                <div className="space-y-1.5 border-t pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Corpo da Requisição (Body)</Label>
+                    <Select
+                      value={bodyType}
+                      onValueChange={(val) => updateHttpConfig({ bodyType: val })}
+                    >
+                      <SelectTrigger className="text-[10px] h-6 w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        <SelectItem value="json">JSON</SelectItem>
+                        <SelectItem value="text">Texto</SelectItem>
+                        <SelectItem value="form-urlencoded">Form URL Encoded</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {bodyType !== "none" && (
+                    <Textarea
+                      placeholder='{\n  "telefone": "{{contact.phone}}",\n  "mensagem": "{{message.text}}"\n}'
+                      className="text-xs font-mono min-h-[90px]"
+                      value={body}
+                      onChange={(e) => updateHttpConfig({ body: e.target.value })}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Mapeamento de Resposta para Variáveis */}
+              <div className="space-y-1.5 border-t pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Mapear Resposta em Variáveis</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px]"
+                    onClick={() => {
+                      updateHttpConfig({
+                        responseMappings: [...responseMappings, { path: "", variable: "" }],
+                      });
+                    }}
+                  >
+                    + Mapeamento
+                  </Button>
+                </div>
+                {responseMappings.map((m: any, mIdx: number) => (
+                  <div key={mIdx} className="flex gap-1 items-center">
+                    <Input
+                      placeholder="Caminho JSON (ex: data.id)"
+                      className="text-xs h-7 flex-1 font-mono"
+                      value={m.path || ""}
+                      onChange={(e) => {
+                        const newM = [...responseMappings];
+                        newM[mIdx] = { ...m, path: e.target.value };
+                        updateHttpConfig({ responseMappings: newM });
+                      }}
+                    />
+                    <span className="text-xs font-bold text-muted-foreground">→</span>
+                    <Input
+                      placeholder="Variável (ex: user_id)"
+                      className="text-xs h-7 flex-1 font-mono"
+                      value={m.variable || ""}
+                      onChange={(e) => {
+                        const newM = [...responseMappings];
+                        newM[mIdx] = { ...m, variable: e.target.value };
+                        updateHttpConfig({ responseMappings: newM });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
+                      onClick={() => {
+                        updateHttpConfig({
+                          responseMappings: responseMappings.filter((_: any, i: number) => i !== mIdx),
+                        });
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Roteamento de Saída */}
+              <div className="space-y-3 pt-3 border-t">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-emerald-600">Passo de Sucesso (HTTP 2xx ✔)</Label>
+                  <Select
+                    value={successStepId || "none"}
+                    onValueChange={(val) => updateHttpConfig({ successStepId: val === "none" ? "" : val })}
+                  >
+                    <SelectTrigger className="text-xs h-8">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {steps
+                        .filter((s: any) => s.id !== selectedStep.id)
+                        .map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {renderStepTargetItem(s)}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-rose-600">Passo de Falha / Erro (✖)</Label>
+                  <Select
+                    value={errorStepId || "none"}
+                    onValueChange={(val) => updateHttpConfig({ errorStepId: val === "none" ? "" : val })}
+                  >
+                    <SelectTrigger className="text-xs h-8">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {steps
+                        .filter((s: any) => s.id !== selectedStep.id)
+                        .map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {renderStepTargetItem(s)}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       default:
         return null;
     }
@@ -807,6 +1504,14 @@ export function StepInspector({
     "product_list",
     "catalog_message",
     "whatsapp_flow",
+  ].includes(selectedStep.message_type);
+
+  const isControlNode = [
+    "delay",
+    "condition",
+    "randomizer",
+    "save_variable",
+    "http_request",
   ].includes(selectedStep.message_type);
 
   return (
@@ -1158,15 +1863,17 @@ export function StepInspector({
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label>Corpo da Mensagem (Texto)</Label>
-          <Textarea
-            value={selectedStep.message_content || ""}
-            onChange={(e) => handleUpdateStep("message_content", e.target.value)}
-            className="min-h-[100px]"
-            placeholder="Digite a mensagem principal..."
-          />
-        </div>
+        {!isControlNode && (
+          <div className="space-y-2">
+            <Label>Corpo da Mensagem (Texto)</Label>
+            <Textarea
+              value={selectedStep.message_content || ""}
+              onChange={(e) => handleUpdateStep("message_content", e.target.value)}
+              className="min-h-[100px]"
+              placeholder="Digite a mensagem principal..."
+            />
+          </div>
+        )}
 
         {isInteractive && (
           <div className="space-y-2">
@@ -1181,32 +1888,34 @@ export function StepInspector({
 
         {renderConfigFields()}
 
-        <div className="space-y-2 pt-4 border-t">
-          <Label>Próximo Passo (Fallback Automático)</Label>
-          <div className="text-xs text-muted-foreground mb-2">
-            Se for uma mensagem sem botões, ou se o usuário não clicar em nada, para onde ir?
+        {!["condition", "randomizer", "http_request"].includes(selectedStep.message_type) && (
+          <div className="space-y-2 pt-4 border-t">
+            <Label>Próximo Passo (Fallback Automático)</Label>
+            <div className="text-xs text-muted-foreground mb-2">
+              Para onde ir após a conclusão deste passo?
+            </div>
+            <Select
+              value={selectedStep.next_step_id || "none"}
+              onValueChange={(v) => handleUpdateStep("next_step_id", v === "none" ? null : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum (Terminar ou aguarda resposta)</SelectItem>
+                <SelectItem value="-999">Transferir p/ Atendente</SelectItem>
+                <SelectItem value="-997">Reiniciar (Start)</SelectItem>
+                {steps
+                  .filter((s: any) => s.id !== selectedStep.id)
+                  .map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {renderStepTargetItem(s)}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select
-            value={selectedStep.next_step_id || "none"}
-            onValueChange={(v) => handleUpdateStep("next_step_id", v === "none" ? null : v)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Nenhum (Aguarda resposta livre)</SelectItem>
-              <SelectItem value="-999">Transferir p/ Atendente</SelectItem>
-              <SelectItem value="-997">Reiniciar (Start)</SelectItem>
-              {steps
-                .filter((s: any) => s.id !== selectedStep.id)
-                .map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {renderStepTargetItem(s)}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
+        )}
       </div>
 
       <div className="p-4 border-t bg-muted/10 shrink-0">

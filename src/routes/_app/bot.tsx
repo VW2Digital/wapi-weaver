@@ -231,6 +231,50 @@ function BotPage() {
   });
 
   const handleAddComponent = (item: ComponentItem) => {
+    let initialButtonsConfig: any = null;
+
+    if (item.type === "delay") {
+      initialButtonsConfig = {
+        control: { duration: 5, unit: "seconds" },
+      };
+    } else if (item.type === "condition") {
+      initialButtonsConfig = {
+        control: {
+          logic: "AND",
+          rules: [{ left: "{{message.text}}", operator: "equals", right: "" }],
+          trueStepId: "",
+          falseStepId: "",
+        },
+      };
+    } else if (item.type === "randomizer") {
+      initialButtonsConfig = {
+        control: {
+          branches: [
+            { id: "branch_a", label: "Caminho A", weight: 50, nextStepId: "" },
+            { id: "branch_b", label: "Caminho B", weight: 50, nextStepId: "" },
+          ],
+        },
+      };
+    } else if (item.type === "save_variable") {
+      initialButtonsConfig = {
+        control: { scope: "flow", key: "resposta", value: "{{message.text}}" },
+      };
+    } else if (item.type === "http_request") {
+      initialButtonsConfig = {
+        control: {
+          method: "POST",
+          url: "https://api.exemplo.com/webhook",
+          bodyType: "json",
+          body: '{\n  "phone": "{{contact.phone}}",\n  "text": "{{message.text}}"\n}',
+          headers: [{ key: "Content-Type", value: "application/json" }],
+          responseMappings: [],
+          timeoutMs: 10000,
+          successStepId: "",
+          errorStepId: "",
+        },
+      };
+    }
+
     const newStep = {
       id: crypto.randomUUID(),
       step_order: steps.length + 1,
@@ -238,6 +282,7 @@ function BotPage() {
       trigger_value: "",
       message_type: item.type,
       message_content: item.title,
+      buttons_config: initialButtonsConfig,
       position_x: 250 + (steps.length % 3) * 60,
       position_y: 100 + steps.length * 90,
     };

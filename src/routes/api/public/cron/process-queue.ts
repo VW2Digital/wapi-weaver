@@ -120,7 +120,7 @@ export async function processOnce() {
     .not("scheduled_at", "is", null)
     .lte("scheduled_at", new Date().toISOString());
 
-  // 0c. Processar inatividade de bots (Timeout)
+  // 0c. Processar inatividade de bots (Timeout) e retomada de Delays
   try {
     const { data: activeConversations } = await dbAdmin
       .from("bot_conversation_state")
@@ -178,8 +178,47 @@ export async function processOnce() {
         }
       }
     }
+
+    // 0d. Retomada de Delays que expiraram (paused_until <= now)
+    const { data: delayedConversations } = await dbAdmin
+      .from("bot_conversation_state")
+      .select("*")
+      .not("current_step_id", "is", null)
+      .eq("is_paused", true)
+      .not("paused_until", "is", null)
+      .lte("paused_until", new Date().toISOString());
+
+    if (delayedConversations && delayedConversations.length > 0) {
+      for (const conv of delayedConversations) {
+        const { data: stepRows } = await dbAdmin
+          .from("bot_steps")
+          .select("*")
+          .eq("id", conv.current_step_id);
+        const delayStep = stepRows?.[0];
+        if (delayStep && delayStep.message_type === "delay" && delayStep.next_step_id) {
+          const { data: nextStepRows } = await dbAdmin
+            .from("bot_steps")
+            .select("*")
+            .eq("id", delayStep.next_step_id);
+          const nextStep = nextStepRows?.[0];
+          if (nextStep) {
+            console.log(
+              `[Queue] Retomando fluxo pós-delay para ${conv.contact_number} -> próximo passo #${nextStep.step_order}`,
+            );
+            const { executeInactivityStep } = await import("@/lib/botflow-executor.server");
+            await executeInactivityStep(
+              nextStep,
+              conv.contact_number,
+              conv.instance_id,
+              conv.user_id,
+              conv.channel,
+            );
+          }
+        }
+      }
+    }
   } catch (err: any) {
-    console.error("[Queue] Erro ao processar inatividade de bots:", err);
+    console.error("[Queue] Erro ao processar inatividade/delays de bots:", err);
   }
 
   // Fetch active campaigns first
