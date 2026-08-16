@@ -83,7 +83,7 @@ async function uploadBufferToMeta(
 ): Promise<string | null> {
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
-  form.append("file", new Blob([binaryBuffer], { type: mimeType }), uploadFilename);
+  form.append("file", new Blob([new Uint8Array(binaryBuffer)], { type: mimeType }), uploadFilename);
 
   const uploadRes = await fetch(
     `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/media`,
@@ -114,13 +114,13 @@ async function prepareStepMediaForMeta(
   phoneNumberId: string,
   accessToken: string,
   apiVersion: string,
-): Promise<any> {
+): Promise<{ ok: true; step: any } | { ok: false; code: string; message: string }> {
   const rawMediaUrl = String(stepToExecute.media_url || "").trim();
-  if (!rawMediaUrl) return stepToExecute;
+  if (!rawMediaUrl) return { ok: true, step: stepToExecute };
 
   // Se já for um ID numérico da Meta (ex: "1234567890"), mantém diretamente
   if (/^\d{10,25}$/.test(rawMediaUrl)) {
-    return stepToExecute;
+    return { ok: true, step: stepToExecute };
   }
 
   // 1. data:URL (base64)
@@ -145,7 +145,7 @@ async function prepareStepMediaForMeta(
         apiVersion,
       );
       if (mediaId) {
-        return { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename };
+        return { ok: true, step: { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename } };
       }
     } catch (err: any) {
       logError("Exceção ao processar data:URL de mídia para a Meta", { error: err.message });
@@ -223,7 +223,7 @@ async function prepareStepMediaForMeta(
             foundPath,
             uploadFilename,
           });
-          return { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename };
+          return { ok: true, step: { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename } };
         }
       } else {
         logError("Arquivo local do bot não encontrado no disco", {
@@ -237,7 +237,12 @@ async function prepareStepMediaForMeta(
     }
   }
 
-  return stepToExecute;
+  // Arquivo local, data URL ou localhost nunca pode chegar ao endpoint Meta
+  // como URL pública. O passo falha fechado para evitar envio inválido.
+  if (rawMediaUrl.startsWith("data:") || cleanLocalPath || /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(rawMediaUrl)) {
+    return { ok: false, code: "BOTFLOW_MEDIA_PREPARATION_FAILED", message: "Não foi possível enviar a mídia local para a Meta." };
+  }
+  return { ok: true, step: stepToExecute };
 }
 
 export async function processBotFlow(
@@ -798,14 +803,26 @@ export async function processBotFlow(
       messageBody,
     });
 
-    const isHandoff = stepToExecute.next_step_id === "-999";
+    const isHandoff = stepToExecute.next_step_id === "-999" || stepToExecute.message_type === "transfer_chat";
+    let handoffPauseMinutes = 24 * 60;
+    if (stepToExecute.message_type === "transfer_chat") {
+      try {
+        const handoffConfig = typeof stepToExecute.buttons_config === "string"
+          ? JSON.parse(stepToExecute.buttons_config || "{}")
+          : stepToExecute.buttons_config || {};
+        const configuredMinutes = Number(handoffConfig?.action?.pause_minutes);
+        if (Number.isFinite(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 10080) handoffPauseMinutes = configuredMinutes;
+      } catch {
+        // Política padrão de 24h permanece quando a configuração estiver inválida.
+      }
+    }
     const updateData = {
       current_step_id: isHandoff ? null : stepToExecute.next_step_id || null,
       last_interaction: new Date().toISOString(),
       ...(isHandoff
         ? {
             is_paused: true,
-            paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            paused_until: new Date(Date.now() + handoffPauseMinutes * 60 * 1000).toISOString(),
           }
         : {}),
     };
@@ -824,6 +841,40 @@ export async function processBotFlow(
       );
     };
 
+    // Handoff é uma ação interna: pausa o bot e só envia confirmação quando
+    // ela foi configurada. Nunca envia `type=transfer_chat` para a Meta.
+    if (stepToExecute.message_type === "transfer_chat") {
+      try {
+        // Reutiliza a mesma tabela de atribuição usada pelo roteamento de botões.
+        await dbAdmin
+          .from("conversation_assignments")
+          .update({ is_active: false })
+          .eq("user_id", userId)
+          .eq("contact_phone", phoneDigits)
+          .eq("is_active", true);
+        const { randomUUID } = await import("crypto");
+        await dbAdmin.from("conversation_assignments").insert({
+          id: randomUUID(),
+          user_id: userId,
+          contact_phone: phoneDigits,
+          team_id: stepToExecute.assign_team_id || null,
+          agent_id: stepToExecute.assign_user_id || null,
+          assigned_by: null,
+          is_active: true,
+        });
+      } catch (error: any) {
+        logError("Falha ao atribuir conversa durante handoff", { stepId: stepToExecute.id, error: error?.message });
+        return;
+      }
+      const confirmation = String(stepToExecute.handoff_message || stepToExecute.message_content || "").trim();
+      if (!confirmation) {
+        await commitState();
+        logInfo("Handoff executado sem mensagem de confirmação", { stepId: stepToExecute.id });
+        return;
+      }
+      stepToExecute = { ...stepToExecute, message_type: "text", message_content: confirmation };
+    }
+
     // "Vincular Agente IA" é uma ação interna do construtor, não um tipo de
     // mensagem da Cloud API. Executamos a IA antes de montar um payload Meta.
     if (stepToExecute.message_type === "link_ai_agent" && channel === "whatsapp") {
@@ -834,7 +885,23 @@ export async function processBotFlow(
         logInfo("Resposta gerada pelo agente IA", { stepId: stepToExecute.id });
         return;
       }
-      logError("Agente IA não respondeu; usando mensagem de contingência", { stepId: stepToExecute.id });
+      let fallbackText = "";
+      try {
+        const cfg = typeof stepToExecute.buttons_config === "string"
+          ? JSON.parse(stepToExecute.buttons_config || "{}")
+          : stepToExecute.buttons_config || {};
+        fallbackText = String(cfg?.action?.fallback_text || "").trim();
+      } catch {
+        fallbackText = "";
+      }
+      if (!fallbackText) {
+        logError("Agente IA não respondeu e não há mensagem de contingência", { stepId: stepToExecute.id });
+        return;
+      }
+      // Contingência é uma mensagem de texto válida; a ação interna nunca é
+      // enviada como type=link_ai_agent para a Meta.
+      stepToExecute = { ...stepToExecute, message_type: "text", message_content: fallbackText };
+      logError("Agente IA não respondeu; enviando contingência configurada", { stepId: stepToExecute.id });
     }
 
     // 4. Disparar o envio da mensagem para o canal correto
@@ -855,21 +922,29 @@ export async function processBotFlow(
       }
 
       const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
-      const stepToSend = await prepareStepMediaForMeta(
+      const preparedMedia = await prepareStepMediaForMeta(
         stepToExecute,
         phoneNumberId,
         accessToken,
         apiVersion,
       );
 
-      const { payload, fallbackReason } = buildWhatsAppBotMessage(
+      if (!preparedMedia.ok) {
+        logError("BOTFLOW_MEDIA_PREPARATION_FAILED", { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, reason: preparedMedia.message });
+        return;
+      }
+      const build = buildWhatsAppBotMessage(
         phoneDigits,
-        stepToSend,
+        preparedMedia.step,
         channel === "whatsapp" ? incomingMessageId : null,
       );
+      if (!build.ok) {
+        logError(build.code, { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, messageType: stepToExecute.message_type, reason: build.message });
+        return;
+      }
+      const { payload } = build;
       if (channel === "whatsapp_group") payload.recipient_type = "group";
-      if (fallbackReason) logInfo("Etapa convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
-      logInfo("Payload WhatsApp enviado para API Meta", { stepId: stepToExecute.id, stepType: stepToExecute.message_type, payload });
+      logInfo("Enviando mensagem WhatsApp do fluxo", { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, botflowType: build.meta.botflowType, metaType: build.meta.metaType, interactiveType: build.meta.interactiveType, recipient: `${phoneDigits.slice(0, 4)}***${phoneDigits.slice(-2)}` });
 
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
@@ -890,7 +965,7 @@ export async function processBotFlow(
           status: r.status,
           stepId: stepToExecute.id,
           messageType: stepToExecute.message_type,
-          response: errorText.slice(0, 2000),
+          response: errorText.slice(0, 1000),
         });
       }
     } else if (channel === "instagram") {
@@ -1169,15 +1244,23 @@ export async function executeInactivityStep(
       if (!p || !p.whatsapp_access_token) return;
 
       const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
-      const stepForInactivity = await prepareStepMediaForMeta(
+      const preparedMedia = await prepareStepMediaForMeta(
         stepToExecute,
         phoneNumberId,
         p.whatsapp_access_token,
         apiVersion,
       );
 
-      const { payload, fallbackReason } = buildWhatsAppBotMessage(phoneDigits, stepForInactivity);
-      if (fallbackReason) logInfo("Etapa de inatividade convertida para payload compatível", { stepId: stepToExecute.id, fallbackReason });
+      if (!preparedMedia.ok) {
+        logError("BOTFLOW_MEDIA_PREPARATION_FAILED", { stepId: stepToExecute.id, reason: preparedMedia.message });
+        return;
+      }
+      const build = buildWhatsAppBotMessage(phoneDigits, preparedMedia.step);
+      if (!build.ok) {
+        logError(build.code, { stepId: stepToExecute.id, messageType: stepToExecute.message_type, reason: build.message });
+        return;
+      }
+      const { payload } = build;
 
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",

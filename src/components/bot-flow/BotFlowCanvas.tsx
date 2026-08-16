@@ -163,6 +163,11 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
               itemIdx++;
             });
           });
+        } catch (e) {
+          // ignore
+        }
+      }
+
       // 4. Conexões de Condicional (condition_true e condition_false)
       if (s.message_type === "condition" && s.buttons_config) {
         try {

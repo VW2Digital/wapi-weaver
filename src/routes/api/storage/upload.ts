@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/storage/upload")({
             const tempRequest = new Request(request.url, {
               method: "POST",
               headers: request.headers,
-              body: rawBody,
+              body: new Uint8Array(rawBody),
             });
             const form = await tempRequest.formData();
             const pathField = form.get("path");

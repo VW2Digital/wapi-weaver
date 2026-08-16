@@ -15,8 +15,10 @@ import {
   Plus,
   ArrowLeft,
   FileText,
+  Pencil,
   Copy,
   X,
+  MoreHorizontal,
   Zap,
   Play,
   Send,
@@ -41,6 +43,7 @@ import {
   toggleBotFlowStatus,
   duplicateBotFlow,
   deleteBotFlow,
+  renameBotFlow,
 } from "@/lib/botflow.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { toast } from "sonner";
@@ -75,6 +78,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function BotPage() {
   const queryClient = useQueryClient();
@@ -89,6 +99,7 @@ function BotPage() {
   const toggleFlowStatusFn = useServerFn(toggleBotFlowStatus);
   const duplicateFlowFn = useServerFn(duplicateBotFlow);
   const deleteFlowFn = useServerFn(deleteBotFlow);
+  const renameFlowFn = useServerFn(renameBotFlow);
 
   const [currentView, setCurrentView] = useState<"list" | "canvas">("list");
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
@@ -98,6 +109,8 @@ function BotPage() {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [templateFilter, setTemplateFilter] = useState<string>("todos");
+  const [renameDialogFlowId, setRenameDialogFlowId] = useState<string | null>(null);
+  const [editingFlowName, setEditingFlowName] = useState("");
 
   // Queries
   const flowsQuery = useQuery({
@@ -173,6 +186,17 @@ function BotPage() {
     onError: (err: any) => toast.error(err?.message || "Erro ao deletar fluxo"),
   });
 
+  const renameFlowMut = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => renameFlowFn({ data: { id, name } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["botFlows"] });
+      setRenameDialogFlowId(null);
+      setEditingFlowName("");
+      toast.success("Nome do fluxo atualizado.");
+    },
+    onError: (err: any) => toast.error(err?.message || "Não foi possível atualizar o nome do fluxo."),
+  });
+
   const updatePauseTimeout = useMutation({
     mutationFn: async (minutes: number) => {
       const res = await updatePauseTimeoutFn({
@@ -191,6 +215,18 @@ function BotPage() {
   const saveBatch = useMutation({
     mutationFn: async (payload: any[]) => {
       for (const step of payload) {
+        if (step.message_type === "pix") {
+          let action: any = {};
+          try {
+            const config = typeof step.buttons_config === "string" ? JSON.parse(step.buttons_config || "{}") : step.buttons_config || {};
+            action = config.action || {};
+          } catch {
+            action = {};
+          }
+          if (!String(action.copyPaste || action.pixKey || "").trim()) {
+            throw new Error(`O Passo #${step.step_order} (Cobrança PIX) precisa de um código Copia e Cola ou chave PIX.`);
+          }
+        }
         if (step.trigger_type === "webhook") {
           let conditions: any[] = [];
           try {
@@ -232,6 +268,7 @@ function BotPage() {
 
   const handleAddComponent = (item: ComponentItem) => {
     let initialButtonsConfig: any = null;
+    let initialMessageContent = "";
 
     if (item.type === "delay") {
       initialButtonsConfig = {
@@ -273,6 +310,16 @@ function BotPage() {
           errorStepId: "",
         },
       };
+    } else if (item.type === "buttons" || item.type === "image_buttons") {
+      initialButtonsConfig = { action: { buttons: [] } };
+    } else if (item.type === "list") {
+      initialButtonsConfig = { action: { button: "Ver opções", sections: [] } };
+    } else if (item.type === "poll") {
+      initialButtonsConfig = { action: { button: "Escolher", options: [] } };
+    } else if (item.type === "cta_url") {
+      initialButtonsConfig = { action: { parameters: { display_text: "", url: "" } } };
+    } else if (item.type === "pix") {
+      initialButtonsConfig = { action: { mode: "static", amount: "", pixKey: "", copyPaste: "", description: "" } };
     }
 
     const newStep = {
@@ -281,7 +328,7 @@ function BotPage() {
       trigger_type: steps.length === 0 ? "start" : "keyword",
       trigger_value: "",
       message_type: item.type,
-      message_content: item.title,
+      message_content: initialMessageContent,
       buttons_config: initialButtonsConfig,
       position_x: 250 + (steps.length % 3) * 60,
       position_y: 100 + steps.length * 90,
@@ -487,36 +534,30 @@ function BotPage() {
                         : "Nunca"}
                     </TableCell>
 
-                    {/* Row Actions Icons */}
+                    {/* Menu de ações */}
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2 text-muted-foreground">
-                        <button
-                          title="Editar Fluxo"
-                          onClick={() => {
-                            setActiveFlowId(flow.id);
-                            setCurrentView("canvas");
-                          }}
-                          className="p-1.5 rounded hover:bg-muted hover:text-foreground transition-colors"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          title="Duplicar Fluxo"
-                          onClick={() => duplicateFlowMut.mutate(flow.id)}
-                          className="p-1.5 rounded hover:bg-muted hover:text-foreground transition-colors"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          title="Deletar Fluxo"
-                          onClick={() => deleteFlowMut.mutate(flow.id)}
-                          className="p-1.5 rounded hover:bg-muted hover:text-destructive transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" title="Ações do fluxo" className="h-8 w-8 text-muted-foreground">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onSelect={() => { setRenameDialogFlowId(flow.id); setEditingFlowName(flow.name); }}>
+                            <Pencil /> Renomear
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => { setActiveFlowId(flow.id); setCurrentView("canvas"); }}>
+                            <FileText /> Editar fluxo
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => duplicateFlowMut.mutate(flow.id)}>
+                            <Copy /> Duplicar fluxo
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem variant="destructive" onSelect={() => deleteFlowMut.mutate(flow.id)}>
+                            <X /> Excluir fluxo
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
@@ -524,6 +565,50 @@ function BotPage() {
             </TableBody>
           </Table>
         </div>
+
+        <Dialog
+          open={Boolean(renameDialogFlowId)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setRenameDialogFlowId(null);
+              setEditingFlowName("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Renomear fluxo</DialogTitle>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const name = editingFlowName.trim();
+                if (renameDialogFlowId && name) renameFlowMut.mutate({ id: renameDialogFlowId, name });
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="flow-name">Nome do fluxo</Label>
+                <Input
+                  id="flow-name"
+                  autoFocus
+                  value={editingFlowName}
+                  maxLength={120}
+                  onChange={(event) => setEditingFlowName(event.target.value)}
+                  placeholder="Ex.: Atendimento inicial"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => { setRenameDialogFlowId(null); setEditingFlowName(""); }}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={!editingFlowName.trim() || renameFlowMut.isPending}>
+                  {renameFlowMut.isPending ? "Salvando..." : "Salvar nome"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

@@ -311,6 +311,20 @@ export const createBotFlow = createServerFn({ method: "POST" })
     }
   });
 
+export const renameBotFlow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) => z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d))
+  .handler(async ({ data, context }: { data: { id: string; name: string }; context: any }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { default: db } = await import("./db");
+    const tenantId = await resolveEffectiveUserId(context.userId);
+    await ensureBotFlowsTable(db);
+    await db.query("UPDATE bot_flows SET name = ? WHERE id = ? AND tenant_id = ?", [data.name, data.id, tenantId]);
+    const rows = (await db.query("SELECT id FROM bot_flows WHERE id = ? AND tenant_id = ? LIMIT 1", [data.id, tenantId])) as any[];
+    if (!rows[0]) throw new Error("Fluxo não encontrado ou sem permissão.");
+    return { ok: true, name: data.name };
+  });
+
 export const toggleBotFlowStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => z.object({ id: z.string(), isActive: z.boolean() }).parse(d))

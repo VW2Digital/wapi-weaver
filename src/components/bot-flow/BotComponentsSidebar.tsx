@@ -103,12 +103,12 @@ const ACTION_COMPONENTS: ComponentItem[] = [
     type: "list",
   },
   {
-    id: "dynamic_buttons",
+    id: "buttons",
     category: "action",
     title: "Botões de Resposta",
     description: "Botões rápidos de resposta (até 3 opções)",
     icon: MousePointerClick,
-    type: "dynamic_buttons",
+    type: "buttons",
   },
   {
     id: "image_buttons",
@@ -129,8 +129,8 @@ const ACTION_COMPONENTS: ComponentItem[] = [
   {
     id: "poll",
     category: "action",
-    title: "Enquete",
-    description: "Enquete com até 12 opções",
+    title: "Enquete / Escolha",
+    description: "Pergunta compatível com até 10 opções",
     icon: List,
     type: "poll",
   },

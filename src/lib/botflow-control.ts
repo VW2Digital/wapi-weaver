@@ -1,4 +1,4 @@
-import dns.promises from "dns";
+import dns from "dns";
 import ipaddr from "ipaddr.js";
 import crypto from "crypto";
 

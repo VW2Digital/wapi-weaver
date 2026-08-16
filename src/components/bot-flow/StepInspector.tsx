@@ -121,7 +121,9 @@ export function StepInspector({
 
   const renderConfigFields = () => {
     switch (selectedStep.message_type) {
-      case "buttons": {
+      case "buttons":
+      case "dynamic_buttons":
+      case "image_buttons": {
         const buttons = config?.action?.buttons || [];
         return (
           <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
@@ -566,6 +568,187 @@ export function StepInspector({
         );
       }
 
+      case "poll": {
+        const options = config?.action?.options || [];
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div>
+              <Label className="text-sm font-semibold">Enquete / Escolha</Label>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                A resposta é enviada como escolha interativa compatível com WhatsApp (máximo de 10 opções).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Texto do botão</Label>
+              <Input
+                placeholder="Ex.: Escolher"
+                value={config?.action?.button || "Escolher"}
+                onChange={(event) => updateConfig({ ...config, action: { ...config.action, button: event.target.value } })}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">Opções: {options.length} / 10</div>
+            {options.map((option: any, index: number) => (
+              <div key={option.handleId || index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                <Input
+                  placeholder="Texto da opção"
+                  maxLength={24}
+                  value={option.title || ""}
+                  onChange={(event) => {
+                    const next = [...options];
+                    next[index] = { ...next[index], title: event.target.value };
+                    updateConfig({ ...config, action: { ...config.action, options: next } });
+                  }}
+                />
+                <Input
+                  placeholder="ID da resposta"
+                  maxLength={200}
+                  value={option.id || ""}
+                  onChange={(event) => {
+                    const next = [...options];
+                    next[index] = { ...next[index], id: event.target.value };
+                    updateConfig({ ...config, action: { ...config.action, options: next } });
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:bg-destructive/10"
+                  onClick={() => updateConfig({ ...config, action: { ...config.action, options: options.filter((_: any, i: number) => i !== index) } })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {options.length < 10 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => updateConfig({
+                  ...config,
+                  action: { ...config.action, options: [...options, { id: `poll_${generateHandleId("option")}`, title: "", handleId: generateHandleId("poll") }] },
+                })}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Adicionar opção
+              </Button>
+            )}
+          </div>
+        );
+      }
+
+      case "pix": {
+        const pix = config?.action || {};
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div>
+              <Label className="text-sm font-semibold">Cobrança PIX</Label>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Envia uma mensagem com os dados de pagamento. Não é um tipo de mensagem nativo da Meta.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Valor (opcional)</Label>
+              <Input
+                placeholder="Ex.: R$ 49,90"
+                value={pix.amount || ""}
+                onChange={(event) => updateConfig({ ...config, action: { ...pix, amount: event.target.value } })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Descrição (opcional)</Label>
+              <Input
+                placeholder="Ex.: Pagamento do pedido #123"
+                value={pix.description || ""}
+                onChange={(event) => updateConfig({ ...config, action: { ...pix, description: event.target.value } })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Chave PIX (opcional se informar o Copia e Cola)</Label>
+              <Input
+                placeholder="CPF, e-mail, telefone ou chave aleatória"
+                value={pix.pixKey || ""}
+                onChange={(event) => updateConfig({ ...config, action: { ...pix, pixKey: event.target.value } })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Código PIX Copia e Cola</Label>
+              <Textarea
+                value={pix.copyPaste || ""}
+                onChange={(event) => updateConfig({ ...config, action: { ...pix, copyPaste: event.target.value } })}
+                placeholder="Cole aqui o código PIX gerado pela sua instituição de pagamento"
+                className="min-h-24 font-mono text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground">Informe o Copia e Cola ou uma chave PIX para salvar e enviar esta ação.</p>
+            </div>
+          </div>
+        );
+      }
+
+      case "link_ai_agent": {
+        const ai = config?.action || {};
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div>
+              <Label className="text-sm font-semibold">Vincular Agente IA</Label>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Usa o Agente IA ativo configurado para este número do WhatsApp, incluindo a base de conhecimento e o prompt já cadastrados.
+              </p>
+            </div>
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-muted-foreground">
+              Esta ação não envia um texto próprio: ela entrega a mensagem recebida ao Agente IA.
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Mensagem de contingência (opcional)</Label>
+              <Textarea
+                value={ai.fallback_text || ""}
+                onChange={(event) => updateConfig({ ...config, action: { ...ai, fallback_text: event.target.value } })}
+                placeholder="Ex.: Nosso assistente está indisponível. Um atendente continuará seu atendimento."
+                className="min-h-20"
+              />
+              <p className="text-[10px] text-muted-foreground">Só será enviada se o Agente IA não puder responder.</p>
+            </div>
+          </div>
+        );
+      }
+
+      case "transfer_chat": {
+        const handoff = config?.action || {};
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div>
+              <Label className="text-sm font-semibold">Transferir para atendimento</Label>
+              <p className="text-[11px] text-muted-foreground mt-1">Atribui a conversa, pausa o bot e pode enviar uma confirmação ao contato.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Setor (opcional)</Label>
+                <Select value={selectedStep.assign_team_id || "none"} onValueChange={(value) => handleUpdateStep("assign_team_id", value === "none" ? null : value)}>
+                  <SelectTrigger><SelectValue placeholder="Sem setor" /></SelectTrigger>
+                  <SelectContent><SelectItem value="none">Sem setor</SelectItem>{(teamsQuery.data ?? []).map((team: any) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Responsável (opcional)</Label>
+                <Select value={selectedStep.assign_user_id || "none"} onValueChange={(value) => handleUpdateStep("assign_user_id", value === "none" ? null : value)}>
+                  <SelectTrigger><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                  <SelectContent><SelectItem value="none">Sem responsável</SelectItem>{(agentsQuery.data ?? []).map((agent: any) => <SelectItem key={agent.id} value={agent.id}>{agent.full_name || agent.display_name || agent.email}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Pausar bot por (minutos)</Label>
+              <Input type="number" min={1} max={10080} value={handoff.pause_minutes || 1440} onChange={(event) => updateConfig({ ...config, action: { ...handoff, pause_minutes: event.target.value } })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Mensagem de confirmação (opcional)</Label>
+              <Textarea value={selectedStep.handoff_message || ""} onChange={(event) => handleUpdateStep("handoff_message", event.target.value)} placeholder="Ex.: Um atendente continuará seu atendimento em instantes." className="min-h-20" />
+            </div>
+          </div>
+        );
+      }
+
       case "cta_url": {
         return (
           <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
@@ -639,6 +822,36 @@ export function StepInspector({
                 }
               />
             </div>
+          </div>
+        );
+      }
+
+      case "product_list": {
+        const action = config?.action || {};
+        const sections = Array.isArray(action.sections) ? action.sections : [];
+        const updateAction = (next: any) => updateConfig({ ...config, action: next });
+        return (
+          <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
+            <div>
+              <Label className="text-sm font-semibold">Lista de Produtos</Label>
+              <p className="text-[11px] text-muted-foreground mt-1">Exibe produtos do catálogo Meta em seções. O texto principal é configurado no corpo da mensagem.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label className="text-xs">Catalog ID</Label><Input placeholder="ID do catálogo Meta" value={action.catalog_id || ""} onChange={(event) => updateAction({ ...action, catalog_id: event.target.value })} /></div>
+              <div className="space-y-2"><Label className="text-xs">Cabeçalho</Label><Input placeholder="Ex.: Ofertas para você" maxLength={60} value={action.header || ""} onChange={(event) => updateAction({ ...action, header: event.target.value })} /></div>
+            </div>
+            <div className="text-xs text-muted-foreground">Seções: {sections.length} / 10</div>
+            {sections.map((section: any, sectionIndex: number) => {
+              const products = Array.isArray(section.product_items) ? section.product_items : [];
+              return (
+                <div key={section.handleId || sectionIndex} className="space-y-2 rounded-md border bg-background p-3">
+                  <div className="flex gap-2"><Input placeholder="Título da seção" value={section.title || ""} onChange={(event) => { const next = [...sections]; next[sectionIndex] = { ...next[sectionIndex], title: event.target.value }; updateAction({ ...action, sections: next }); }} /><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => updateAction({ ...action, sections: sections.filter((_: any, i: number) => i !== sectionIndex) })}><Trash2 className="h-4 w-4" /></Button></div>
+                  {products.map((product: any, productIndex: number) => <div key={product.handleId || productIndex} className="flex gap-2"><Input placeholder="Retailer ID / SKU do produto" value={product.product_retailer_id || ""} onChange={(event) => { const next = [...sections]; const nextProducts = [...products]; nextProducts[productIndex] = { ...nextProducts[productIndex], product_retailer_id: event.target.value }; next[sectionIndex] = { ...next[sectionIndex], product_items: nextProducts }; updateAction({ ...action, sections: next }); }} /><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { const next = [...sections]; next[sectionIndex] = { ...next[sectionIndex], product_items: products.filter((_: any, i: number) => i !== productIndex) }; updateAction({ ...action, sections: next }); }}><Trash2 className="h-4 w-4" /></Button></div>)}
+                  {products.length < 30 && <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { const next = [...sections]; next[sectionIndex] = { ...next[sectionIndex], product_items: [...products, { product_retailer_id: "", handleId: generateHandleId("product") }] }; updateAction({ ...action, sections: next }); }}><Plus className="h-4 w-4 mr-1" />Adicionar produto</Button>}
+                </div>
+              );
+            })}
+            {sections.length < 10 && <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => updateAction({ ...action, sections: [...sections, { title: "", product_items: [], handleId: generateHandleId("section") }] })}><Plus className="h-4 w-4 mr-2" />Adicionar seção</Button>}
           </div>
         );
       }
@@ -1492,7 +1705,7 @@ export function StepInspector({
     }
   };
 
-  const isMedia = ["image", "video", "audio", "document", "buttons", "list", "cta_url"].includes(
+  const isMedia = ["image", "video", "audio", "document", "buttons", "dynamic_buttons", "image_buttons", "list", "cta_url"].includes(
     selectedStep.message_type,
   );
   const isInteractive = [
@@ -1500,6 +1713,7 @@ export function StepInspector({
     "buttons",
     "list",
     "cta_url",
+    "poll",
     "product",
     "product_list",
     "catalog_message",
@@ -1513,6 +1727,7 @@ export function StepInspector({
     "save_variable",
     "http_request",
   ].includes(selectedStep.message_type);
+  const isInternalAction = ["pix", "link_ai_agent", "transfer_chat"].includes(selectedStep.message_type);
 
   return (
     <div className="w-[400px] shrink-0 border-l bg-card flex flex-col h-full overflow-hidden">
@@ -1684,8 +1899,13 @@ export function StepInspector({
               <SelectItem value="video">Vídeo</SelectItem>
               <SelectItem value="document">Documento</SelectItem>
               <SelectItem value="buttons">Botões de Resposta</SelectItem>
+              <SelectItem value="image_buttons">Imagem com Botões</SelectItem>
               <SelectItem value="list">Lista Dinâmica</SelectItem>
               <SelectItem value="cta_url">Botão de Link (CTA)</SelectItem>
+              <SelectItem value="poll">Enquete / Escolha</SelectItem>
+              <SelectItem value="pix">Cobrança PIX</SelectItem>
+              <SelectItem value="link_ai_agent">Vincular Agente IA</SelectItem>
+              <SelectItem value="transfer_chat">Transferir para atendimento</SelectItem>
               <SelectItem value="whatsapp_flow">WhatsApp Flow</SelectItem>
               <SelectItem value="product">Produto Único</SelectItem>
               <SelectItem value="product_list">Lista de Produtos</SelectItem>
@@ -1863,7 +2083,7 @@ export function StepInspector({
           </div>
         )}
 
-        {!isControlNode && (
+        {!isControlNode && !isInternalAction && (
           <div className="space-y-2">
             <Label>Corpo da Mensagem (Texto)</Label>
             <Textarea

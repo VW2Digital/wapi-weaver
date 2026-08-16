@@ -1,0 +1,291 @@
+export type BotFlowActionCategory = "whatsapp_native" | "whatsapp_native_advanced" | "internal" | "flow_control";
+
+export interface BotFlowActionDefinition {
+  id: string;
+  category: BotFlowActionCategory;
+  title: string;
+  description: string;
+  canonicalType: string;
+  metaType?: "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "interactive" | "template" | "reaction";
+  interactiveType?: "button" | "list" | "cta_url" | "flow" | "product" | "product_list" | "catalog_message";
+  channels: ("whatsapp" | "whatsapp_group" | "instagram" | "messenger")[];
+  isControlNode?: boolean;
+  isInternalAction?: boolean;
+  badgeText?: string;
+}
+
+export const BOTFLOW_ACTION_REGISTRY: Record<string, BotFlowActionDefinition> = {
+  text: {
+    id: "text",
+    category: "whatsapp_native",
+    title: "Mensagem de Texto",
+    description: "Texto com formatação, links e emojis",
+    canonicalType: "text",
+    metaType: "text",
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "WhatsApp Nativo",
+  },
+  image: {
+    id: "image",
+    category: "whatsapp_native",
+    title: "Imagem",
+    description: "Enviar imagem com legenda opcional (JPEG, PNG)",
+    canonicalType: "image",
+    metaType: "image",
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "WhatsApp Nativo",
+  },
+  video: {
+    id: "video",
+    category: "whatsapp_native",
+    title: "Vídeo",
+    description: "Enviar vídeo MP4 ou 3GP com legenda",
+    canonicalType: "video",
+    metaType: "video",
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "WhatsApp Nativo",
+  },
+  audio: {
+    id: "audio",
+    category: "whatsapp_native",
+    title: "Áudio / Voz",
+    description: "Enviar áudio gravado (OGG Opus) ou música",
+    canonicalType: "audio",
+    metaType: "audio",
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "WhatsApp Nativo",
+  },
+  document: {
+    id: "document",
+    category: "whatsapp_native",
+    title: "Documento / PDF",
+    description: "Enviar PDF, DOCX, XLSX ou arquivo até 20MB",
+    canonicalType: "document",
+    metaType: "document",
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "WhatsApp Nativo",
+  },
+  buttons: {
+    id: "buttons",
+    category: "whatsapp_native",
+    title: "Botões de Resposta",
+    description: "Até 3 botões rápidos de resposta interativa",
+    canonicalType: "buttons",
+    metaType: "interactive",
+    interactiveType: "button",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+  dynamic_buttons: {
+    id: "dynamic_buttons",
+    category: "whatsapp_native",
+    title: "Botões de Resposta",
+    description: "Alias legado para Botões de Resposta",
+    canonicalType: "buttons",
+    metaType: "interactive",
+    interactiveType: "button",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+  image_buttons: {
+    id: "image_buttons",
+    category: "whatsapp_native",
+    title: "Imagem com Botões",
+    description: "Cabeçalho com imagem + texto + até 3 botões",
+    canonicalType: "buttons",
+    metaType: "interactive",
+    interactiveType: "button",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+  list: {
+    id: "list",
+    category: "whatsapp_native",
+    title: "Lista Interativa",
+    description: "Menu de lista com seções (máximo 10 opções no total)",
+    canonicalType: "list",
+    metaType: "interactive",
+    interactiveType: "list",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+  cta_url: {
+    id: "cta_url",
+    category: "whatsapp_native",
+    title: "Botão com Link",
+    description: "Botão interativo de redirecionamento para URL HTTPS",
+    canonicalType: "cta_url",
+    metaType: "interactive",
+    interactiveType: "cta_url",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+  poll: {
+    id: "poll",
+    category: "internal",
+    title: "Enquete / Escolha",
+    description: "Pergunta estruturada compilada em botões (2-3) ou lista (4-10)",
+    canonicalType: "poll",
+    isInternalAction: true,
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "Compatibilidade via Lista/Botões",
+  },
+  pix: {
+    id: "pix",
+    category: "internal",
+    title: "Cobrança PIX",
+    description: "Gera e apresenta chave PIX Copia-e-Cola e instruções",
+    canonicalType: "pix",
+    isInternalAction: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Interno BLIV",
+  },
+  link_ai_agent: {
+    id: "link_ai_agent",
+    category: "internal",
+    title: "Vincular Agente IA",
+    description: "Transfere o processamento da resposta para IA",
+    canonicalType: "link_ai_agent",
+    isInternalAction: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Interno BLIV",
+  },
+  transfer_chat: {
+    id: "transfer_chat",
+    category: "internal",
+    title: "Transferir (Handoff)",
+    description: "Transfere o atendimento para atendente humano ou fila",
+    canonicalType: "transfer_chat",
+    isInternalAction: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Interno BLIV",
+  },
+
+  // WhatsApp Nativo — Avançado
+  whatsapp_flow: {
+    id: "whatsapp_flow",
+    category: "whatsapp_native_advanced",
+    title: "WhatsApp Flow",
+    description: "Formulário nativo dinâmico do WhatsApp",
+    canonicalType: "whatsapp_flow",
+    metaType: "interactive",
+    interactiveType: "flow",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo — Avançado",
+  },
+  product: {
+    id: "product",
+    category: "whatsapp_native_advanced",
+    title: "Produto Individual",
+    description: "Apresenta produto do Catálogo Meta",
+    canonicalType: "product",
+    metaType: "interactive",
+    interactiveType: "product",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo — Avançado",
+  },
+  product_list: {
+    id: "product_list",
+    category: "whatsapp_native_advanced",
+    title: "Lista de Produtos",
+    description: "Lista de produtos com seções do Catálogo",
+    canonicalType: "product_list",
+    metaType: "interactive",
+    interactiveType: "product_list",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo — Avançado",
+  },
+  catalog_message: {
+    id: "catalog_message",
+    category: "whatsapp_native_advanced",
+    title: "Mensagem de Catálogo",
+    description: "Exibe o catálogo completo da empresa",
+    canonicalType: "catalog_message",
+    metaType: "interactive",
+    interactiveType: "catalog_message",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo — Avançado",
+  },
+  location: {
+    id: "location",
+    category: "whatsapp_native",
+    title: "Localização",
+    description: "Enviar localização geográfica com coordenadas",
+    canonicalType: "location",
+    metaType: "location",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+  sticker: {
+    id: "sticker",
+    category: "whatsapp_native",
+    title: "Figurinha (Sticker)",
+    description: "Enviar figurinha WebP animada ou estática",
+    canonicalType: "sticker",
+    metaType: "sticker",
+    channels: ["whatsapp", "whatsapp_group"],
+    badgeText: "WhatsApp Nativo",
+  },
+
+  // Flow Control Nodes
+  delay: {
+    id: "delay",
+    category: "flow_control",
+    title: "Delay / Atraso",
+    description: "Pausa a execução do fluxo pelo tempo configurado",
+    canonicalType: "delay",
+    isControlNode: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Controle de Fluxo",
+  },
+  condition: {
+    id: "condition",
+    category: "flow_control",
+    title: "Condicional",
+    description: "Bifurca o fluxo (Sim / Não) avaliando variáveis",
+    canonicalType: "condition",
+    isControlNode: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Controle de Fluxo",
+  },
+  randomizer: {
+    id: "randomizer",
+    category: "flow_control",
+    title: "Randomizador (Teste A/B)",
+    description: "Distribui contatos entre caminhos por porcentagem",
+    canonicalType: "randomizer",
+    isControlNode: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Controle de Fluxo",
+  },
+  save_variable: {
+    id: "save_variable",
+    category: "flow_control",
+    title: "Salvar Variável",
+    description: "Salva dados no fluxo ou no cadastro do contato",
+    canonicalType: "save_variable",
+    isControlNode: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Controle de Fluxo",
+  },
+  http_request: {
+    id: "http_request",
+    category: "flow_control",
+    title: "Requisição HTTP (Webhook)",
+    description: "Chama API REST externa e mapeia a resposta",
+    canonicalType: "http_request",
+    isControlNode: true,
+    channels: ["whatsapp", "whatsapp_group", "instagram", "messenger"],
+    badgeText: "Controle de Fluxo",
+  },
+};
+
+export function normalizeBotFlowMessageType(rawType?: string | null): string {
+  const t = String(rawType || "text").toLowerCase().trim();
+  if (t === "dynamic_buttons" || t === "image_buttons") return "buttons";
+  return t;
+}
+
+export function getBotFlowChannelCapabilities(channel: "whatsapp" | "whatsapp_group" | "instagram" | "messenger") {
+  return Object.values(BOTFLOW_ACTION_REGISTRY).filter((def) => def.channels.includes(channel));
+}
