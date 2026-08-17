@@ -9,7 +9,7 @@ export async function verifyStorageUser(request: Request): Promise<Authenticated
     const headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${queryToken}`);
     try {
-      return await verifyApiUser(new Request(request, { headers }));
+      return await verifyApiUser(new Request(request.url, { method: request.method, headers }));
     } catch (e) {
       // Ignore query token error and fallback to standard request headers
     }
@@ -25,7 +25,7 @@ export async function verifyStorageUser(request: Request): Promise<Authenticated
         const headers = new Headers(request.headers);
         headers.set("Authorization", `Bearer ${token}`);
         try {
-          return await verifyApiUser(new Request(request, { headers }));
+          return await verifyApiUser(new Request(request.url, { method: request.method, headers }));
         } catch (e) {
           // Fallback to default verifyApiUser
         }

@@ -17,7 +17,7 @@ const object = (value: unknown): JsonObject | null => value && typeof value === 
 function config(value: unknown): JsonObject { if (typeof value === "string") { try { return object(JSON.parse(value)) || {}; } catch { return {}; } } return object(value) || {}; }
 const text = (value: unknown): string => String(value ?? "").trim();
 function mediaReference(value: unknown): { id: string } | { link: string } | null { const ref = text(value); if (!ref) return null; if (/^https:\/\//i.test(ref)) return { link: ref }; if (/^\d{6,30}$/.test(ref)) return { id: ref }; return null; }
-function extension(ref: string): string { try { return new URL(ref).pathname.split(".").pop()?.toLowerCase() || ""; } catch { return ""; } }
+function extension(ref: string): string { try { return new URL(ref).pathname.split(".").pop()?.toLowerCase() || ""; } catch { return ref.split(/[?#]/, 1)[0].split(".").pop()?.toLowerCase() || ""; } }
 function base(to: string, contextMessageId?: string | null): JsonObject { return { messaging_product: "whatsapp", recipient_type: "individual", to, ...(contextMessageId ? { context: { message_id: contextMessageId } } : {}) }; }
 function success(payload: JsonObject, botflowType: string, metaType: string, interactiveType?: string): WhatsAppMessageBuildResult { return { ok: true, payload, meta: { botflowType, metaType, ...(interactiveType ? { interactiveType } : {}) } }; }
 function requireText(value: string, label: string, max: number): string | WhatsAppMessageBuildResult { if (!value) return invalid(`${label} é obrigatório.`); if (value.length > max) return invalid(`${label} excede ${max} caracteres.`); return value; }
@@ -45,6 +45,24 @@ export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, conte
     if (rawType === "image_buttons") { const ref = mediaReference(step.media_url); if (!ref) return invalid("Imagem com botões exige uma imagem."); header = { type: "image", image: ref }; }
     else if (text(headerCfg.type) === "text") { const headerText = requireText(text(headerCfg.text), "Cabeçalho", 60); if (typeof headerText !== "string") return headerText; header = { type: "text", text: headerText }; }
     else if (["image", "video", "document"].includes(text(headerCfg.type))) { const headerType = text(headerCfg.type); const ref = mediaReference(headerCfg.media || step.media_url); if (!ref) return invalid(`Cabeçalho ${headerType} exige mídia.`); header = { type: headerType, [headerType]: ref }; }
+    else if (step.media_url) {
+      const ref = mediaReference(step.media_url);
+      const mediaName = text(step.filename || step.original_filename);
+      const mediaExt = extension(mediaName || text(step.media_url));
+      const inferredHeaderType = MEDIA_EXTENSIONS.document.includes(mediaExt)
+        ? "document"
+        : MEDIA_EXTENSIONS.video.includes(mediaExt)
+          ? "video"
+          : MEDIA_EXTENSIONS.image.includes(mediaExt)
+            ? "image"
+            : "";
+      if (ref && inferredHeaderType) {
+        const headerMedia = inferredHeaderType === "document" && mediaName
+          ? { ...ref, filename: mediaName }
+          : ref;
+        header = { type: inferredHeaderType, [inferredHeaderType]: headerMedia };
+      }
+    }
     const footer = text(step.footer_text); if (footer.length > 60) return invalid("Rodapé excede 60 caracteres.");
     return success({ ...payloadBase, type: "interactive", interactive: { type: "button", ...(header ? { header } : {}), body: { text: validBody }, ...(footer ? { footer: { text: footer } } : {}), action: { buttons } } }, type, "interactive", "button");
   }

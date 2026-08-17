@@ -23,6 +23,30 @@ describe("buildWhatsAppBotMessage", () => {
     expect(buildWhatsAppBotMessage(to, { message_type: "document", media_url: "123456789012", original_filename: "proposta.pdf", media_caption: "Proposta" })).toMatchObject({ ok: true, payload: { document: { id: "123456789012", filename: "proposta.pdf", caption: "Proposta" } } });
   });
 
+  test("inclui PDF anexado como cabeçalho de botões de resposta", () => {
+    expect(buildWhatsAppBotMessage("5511999999999", {
+      message_type: "buttons",
+      message_content: "Escolha uma opção",
+      media_url: "123456789012",
+      original_filename: "contrato.pdf",
+      buttons_config: {
+        action: {
+          buttons: [{ type: "reply", reply: { id: "aceitar", title: "Aceitar" } }],
+        },
+      },
+    })).toMatchObject({
+      ok: true,
+      payload: {
+        interactive: {
+          header: {
+            type: "document",
+            document: { id: "123456789012", filename: "contrato.pdf" },
+          },
+        },
+      },
+    });
+  });
+
   test("normaliza dynamic_buttons e valida limite", () => {
     expect(buildWhatsAppBotMessage(to, { message_type: "dynamic_buttons", message_content: "Escolha", buttons_config: buttonConfig })).toMatchObject({ ok: true, payload: { type: "interactive", interactive: { type: "button" } } });
     expect(buildWhatsAppBotMessage(to, { message_type: "buttons", message_content: "Escolha", buttons_config: { action: { buttons: [...buttonConfig.action.buttons, { reply: { id: "x", title: "X" } }, { reply: { id: "y", title: "Y" } }] } } }).ok).toBe(false);

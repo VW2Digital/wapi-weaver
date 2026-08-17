@@ -16,7 +16,19 @@ export const Route = createFileRoute("/api/storage/upload")({
           let buffer: Buffer | null = null;
           const contentType = request.headers.get("content-type") || "";
 
-          if (contentType.includes("multipart/form-data")) {
+          if (contentType.includes("application/octet-stream")) {
+            // Arquivos grandes não devem ser encapsulados em JSON/base64: além
+            // de aumentar o corpo em ~33%, o parser do runtime pode truncá-lo.
+            // Receber os bytes diretamente mantém o upload dentro do limite real.
+            filePath = request.headers.get("x-upload-path")?.trim() || "";
+            if (!filePath) {
+              return new Response(JSON.stringify({ error: "Missing upload path" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+            buffer = Buffer.from(await request.arrayBuffer());
+          } else if (contentType.includes("multipart/form-data")) {
             const form = await request.formData();
             const pathField = form.get("path");
             const fileField = form.get("file");

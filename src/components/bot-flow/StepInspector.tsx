@@ -1975,21 +1975,13 @@ export function StepInspector({
                         const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
                         const uploadPath = `media/${crypto.randomUUID()}.${ext}`;
 
-                        // Converte para base64 e envia como JSON para evitar
-                        // o erro "Body has already been read" do TanStack Start
-                        // com multipart/form-data
-                        const arrayBuffer = await file.arrayBuffer();
-                        const bytes = new Uint8Array(arrayBuffer);
-                        let binary = "";
-                        for (let i = 0; i < bytes.byteLength; i++) {
-                          binary += String.fromCharCode(bytes[i]);
-                        }
-                        const fileData = btoa(binary);
-
                         const res = await fetch("/api/storage/upload", {
                           method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ path: uploadPath, fileData }),
+                          headers: {
+                            "Content-Type": "application/octet-stream",
+                            "X-Upload-Path": uploadPath,
+                          },
+                          body: file,
                           credentials: "include",
                         });
                         const json = await res.json();
