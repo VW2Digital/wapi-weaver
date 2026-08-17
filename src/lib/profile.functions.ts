@@ -121,6 +121,40 @@ export const getProfile = createServerFn({ method: "GET" })
       : { id: context.userId, hasAccessToken: false, hasAppSecret: false };
   });
 
+export const revealWhatsAppAccessToken = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    const rows = (await db.query(
+      `SELECT whatsapp_access_token
+       FROM profiles
+       WHERE id = ?
+       LIMIT 1`,
+      [context.userId],
+    )) as Array<{ whatsapp_access_token?: string | null }>;
+
+    return {
+      token: rows[0]?.whatsapp_access_token || "",
+    };
+  });
+
+export const revealWhatsAppAppSecret = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    const rows = (await db.query(
+      `SELECT whatsapp_app_secret
+       FROM profiles
+       WHERE id = ?
+       LIMIT 1`,
+      [context.userId],
+    )) as Array<{ whatsapp_app_secret?: string | null }>;
+
+    return {
+      secret: rows[0]?.whatsapp_app_secret || "",
+    };
+  });
+
 
 export const updateProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])

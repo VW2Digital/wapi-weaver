@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   getProfile,
+  revealWhatsAppAccessToken,
+  revealWhatsAppAppSecret,
   updateProfile,
   rotateApiKey,
   pingMeta,
@@ -670,6 +672,8 @@ function SettingsPage() {
   const { isAdmin, roles } = useRoles();
   const isAdminMaster = hasMasterRole(roles);
   const fetchProfile = useServerFn(getProfile);
+  const revealAccessToken = useServerFn(revealWhatsAppAccessToken);
+  const revealAppSecret = useServerFn(revealWhatsAppAppSecret);
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
@@ -794,6 +798,107 @@ function SettingsPage() {
     );
   };
   const [debugResult, setDebugResult] = useState<any>(null);
+  const [showAccessToken, setShowAccessToken] = useState(false);
+  const [showAppSecret, setShowAppSecret] = useState(false);
+
+  const revealAccessTokenMut = useMutation({
+    mutationFn: () => revealAccessToken(),
+    onSuccess: (result) => {
+      if (!result.token) {
+        toast.error("Nenhum token salvo foi encontrado.");
+        return;
+      }
+      setForm((current: any) => ({
+        ...current,
+        whatsapp_access_token: result.token,
+      }));
+      setShowAccessToken(true);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Não foi possível carregar o token.");
+    },
+  });
+
+  const toggleAccessTokenVisibility = () => {
+    if (showAccessToken) {
+      setShowAccessToken(false);
+      return;
+    }
+
+    const currentToken = String(form.whatsapp_access_token ?? "").trim();
+    if (form.hasAccessToken && isPersistedSecretMask(currentToken)) {
+      revealAccessTokenMut.mutate();
+      return;
+    }
+    setShowAccessToken(true);
+  };
+
+  const handleCopyAccessToken = async () => {
+    try {
+      let token = String(form.whatsapp_access_token ?? "").trim();
+      if (form.hasAccessToken && isPersistedSecretMask(token)) {
+        const result = await revealAccessToken();
+        token = result.token;
+      }
+      if (!token) {
+        toast.error("Nenhum token disponível para copiar.");
+        return;
+      }
+      await navigator.clipboard.writeText(token);
+      toast.success("Access Token copiado");
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível copiar o token.");
+    }
+  };
+
+  const revealAppSecretMut = useMutation({
+    mutationFn: () => revealAppSecret(),
+    onSuccess: (result) => {
+      if (!result.secret) {
+        toast.error("Nenhuma chave secreta salva foi encontrada.");
+        return;
+      }
+      setForm((current: any) => ({
+        ...current,
+        whatsapp_app_secret: result.secret,
+      }));
+      setShowAppSecret(true);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Não foi possível carregar a chave secreta.");
+    },
+  });
+
+  const toggleAppSecretVisibility = () => {
+    if (showAppSecret) {
+      setShowAppSecret(false);
+      return;
+    }
+    const currentSecret = String(form.whatsapp_app_secret ?? "").trim();
+    if (form.hasAppSecret && isPersistedSecretMask(currentSecret)) {
+      revealAppSecretMut.mutate();
+      return;
+    }
+    setShowAppSecret(true);
+  };
+
+  const handleCopyAppSecret = async () => {
+    try {
+      let secret = String(form.whatsapp_app_secret ?? "").trim();
+      if (form.hasAppSecret && isPersistedSecretMask(secret)) {
+        const result = await revealAppSecret();
+        secret = result.secret;
+      }
+      if (!secret) {
+        toast.error("Nenhuma chave secreta disponível para copiar.");
+        return;
+      }
+      await navigator.clipboard.writeText(secret);
+      toast.success("App Secret copiado");
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível copiar a chave secreta.");
+    }
+  };
 
   const debugTokenMut = useMutation({
     mutationFn: (token?: string) => fetchDebugToken({ data: { token } }),
@@ -1880,12 +1985,7 @@ function SettingsPage() {
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(
-                                              form.whatsapp_access_token ?? "",
-                                            );
-                                            toast.success("Access Token copiado");
-                                          }}
+                                          onClick={handleCopyAccessToken}
                                           title="Copiar Access Token"
                                         >
                                           <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
@@ -1929,46 +2029,73 @@ function SettingsPage() {
                                     {(() => {
                                       const tokenValue = form.whatsapp_access_token ?? "";
                                       const v = validateAccessToken(tokenValue);
+                                      const isStoredTokenHidden =
+                                        form.hasAccessToken && !showAccessToken;
+                                      const displayedTokenValue = isStoredTokenHidden
+                                        ? PROFILE_MASKED_SECRET
+                                        : tokenValue;
                                       return (
                                         <>
-                                          <Textarea
-                                            rows={4}
-                                            value={tokenValue}
-                                            onChange={(e) =>
-                                              setForm({
-                                                ...form,
-                                                whatsapp_access_token: e.target.value,
-                                              })
-                                            }
-                                            placeholder="Cole o token permanente longo aqui (EAA...)"
-                                            className={cn(
-                                              "font-mono text-xs leading-relaxed",
-                                              v.error &&
-                                                "border-destructive focus-visible:ring-destructive",
-                                              !v.error &&
-                                                v.ok &&
-                                                "border-success/60 focus-visible:ring-success",
-                                            )}
-                                          />
-                                          {v.error && (
+                                          <div className="relative">
+                                            <Textarea
+                                              rows={4}
+                                              value={displayedTokenValue}
+                                              readOnly={isStoredTokenHidden}
+                                              onChange={(e) =>
+                                                setForm({
+                                                  ...form,
+                                                  whatsapp_access_token: e.target.value,
+                                                })
+                                              }
+                                              placeholder="Cole o token permanente longo aqui (EAA...)"
+                                              className={cn(
+                                                "pr-11 font-mono text-xs leading-relaxed",
+                                                v.error &&
+                                                  "border-destructive focus-visible:ring-destructive",
+                                                !v.error &&
+                                                  v.ok &&
+                                                  "border-success/60 focus-visible:ring-success",
+                                              )}
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={toggleAccessTokenVisibility}
+                                              disabled={revealAccessTokenMut.isPending || (!tokenValue && !form.hasAccessToken)}
+                                              aria-label={showAccessToken ? "Ocultar token" : "Mostrar token"}
+                                              title={showAccessToken ? "Ocultar token" : "Mostrar token"}
+                                              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                              {revealAccessTokenMut.isPending ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : showAccessToken ? (
+                                                <EyeOff className="h-4 w-4" />
+                                              ) : (
+                                                <Eye className="h-4 w-4" />
+                                              )}
+                                            </button>
+                                          </div>
+                                          {isStoredTokenHidden ? (
+                                            <p className="flex items-center gap-1.5 text-xs text-success font-medium">
+                                              <Check className="h-3.5 w-3.5" />
+                                              Token salvo. Clique no olho para visualizar a credencial.
+                                            </p>
+                                          ) : v.error ? (
                                             <p className="flex items-start gap-1.5 text-xs text-destructive">
                                               <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                               <span>{v.error}</span>
                                             </p>
-                                          )}
-                                          {!v.error && v.warning && (
+                                          ) : v.warning ? (
                                             <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                                               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                               <span>{v.warning}</span>
                                             </p>
-                                          )}
-                                          {!v.error && !v.warning && v.ok && (
+                                          ) : v.ok ? (
                                             <p className="flex items-center gap-1.5 text-xs text-success font-medium">
                                               <Check className="h-3.5 w-3.5" />
                                               Token formatado corretamente (
                                               {tokenValue.trim().length} caracteres)
                                             </p>
-                                          )}
+                                          ) : null}
 
                                           {debugResult && (
                                             <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
@@ -2429,23 +2556,40 @@ function SettingsPage() {
                                       </span>
                                     </Label>
                                     <div className="flex gap-2">
-                                      <Input
-                                        type="password"
-                                        value={form.whatsapp_app_secret ?? ""}
-                                        onChange={(e) =>
-                                          setForm({ ...form, whatsapp_app_secret: e.target.value })
-                                        }
-                                        placeholder="Cole aqui o App Secret"
-                                      />
+                                      <div className="relative flex-1">
+                                        <Input
+                                          type={showAppSecret ? "text" : "password"}
+                                          value={form.whatsapp_app_secret ?? ""}
+                                          onChange={(e) =>
+                                            setForm({ ...form, whatsapp_app_secret: e.target.value })
+                                          }
+                                          placeholder="Cole aqui o App Secret"
+                                          className="pr-10 font-mono"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={toggleAppSecretVisibility}
+                                          disabled={
+                                            revealAppSecretMut.isPending ||
+                                            (!(form.whatsapp_app_secret ?? "").trim() && !form.hasAppSecret)
+                                          }
+                                          aria-label={showAppSecret ? "Ocultar chave secreta" : "Mostrar chave secreta"}
+                                          title={showAppSecret ? "Ocultar chave secreta" : "Mostrar chave secreta"}
+                                          className="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                          {revealAppSecretMut.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : showAppSecret ? (
+                                            <EyeOff className="h-4 w-4" />
+                                          ) : (
+                                            <Eye className="h-4 w-4" />
+                                          )}
+                                        </button>
+                                      </div>
                                       <Button
                                         variant="outline"
                                         size="icon"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(
-                                            form.whatsapp_app_secret ?? "",
-                                          );
-                                          toast.success("App Secret copiado");
-                                        }}
+                                        onClick={handleCopyAppSecret}
                                         title="Copiar App Secret"
                                       >
                                         <Copy className="h-4 w-4" />
