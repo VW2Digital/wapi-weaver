@@ -1100,6 +1100,28 @@ function SettingsPage() {
     toast.success(`${label} copiado`);
   };
 
+  const saveWebhookCredentials = () => {
+    const verifyToken = String(form.whatsapp_verify_token ?? "").trim();
+    const appSecret = String(form.whatsapp_app_secret ?? "").trim();
+
+    if (!verifyToken) {
+      toast.error("Informe e salve o Verify Token usado no painel da Meta.");
+      return;
+    }
+    if (!appSecret && !form.hasAppSecret) {
+      toast.error("Informe a Chave Secreta do App antes de salvar o webhook.");
+      return;
+    }
+
+    saveMut.mutate({
+      whatsapp_verify_token: verifyToken,
+      whatsapp_app_secret: appSecret || undefined,
+      whatsapp_waba_id: form.whatsapp_waba_id,
+      whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+      meta_graph_version: form.meta_graph_version || "v26.0",
+    });
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {!activeSection ? (
@@ -2609,13 +2631,10 @@ function SettingsPage() {
                                         </a>
                                       </Button>
                                       <Button
-                                        onClick={() =>
-                                          saveMut.mutate({
-                                            whatsapp_app_secret: form.whatsapp_app_secret,
-                                          })
-                                        }
+                                        onClick={saveWebhookCredentials}
+                                        disabled={saveMut.isPending}
                                       >
-                                        Salvar
+                                        {saveMut.isPending ? "Salvando..." : "Salvar Webhook"}
                                       </Button>
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
