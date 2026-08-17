@@ -189,11 +189,56 @@ export const updateProfile = createServerFn({ method: "POST" })
     // Sem este POST oficial, a Meta aceita o token para envios, mas não entrega
     // mensagens recebidas ao callback (e o bot nunca é acionado).
     const profileRows = (await db.query(
-      `SELECT whatsapp_waba_id, whatsapp_access_token, meta_graph_version
+      `SELECT whatsapp_waba_id, whatsapp_access_token, whatsapp_app_id,
+              whatsapp_app_secret, whatsapp_verify_token, meta_graph_version
        FROM profiles WHERE id = ? LIMIT 1`,
       [context.userId],
     )) as any[];
     const profile = profileRows?.[0];
+
+    // Configura o objeto e o campo que efetivamente entregam mensagens ao
+    // callback. Inscrever somente a WABA em /subscribed_apps não cria esta
+    // assinatura no App Dashboard.
+    if (
+      profile?.whatsapp_app_id &&
+      profile?.whatsapp_app_secret &&
+      profile?.whatsapp_verify_token
+    ) {
+      const publicAppUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
+      if (!publicAppUrl) {
+        return {
+          ok: true,
+          warning: "Credenciais salvas, mas APP_URL não está configurada para registrar o webhook na Meta.",
+        };
+      }
+
+      const apiVersion = profile.meta_graph_version || "v26.0";
+      const callbackUrl = new URL("/api/public/whatsapp-webhook", publicAppUrl).toString();
+      const appSubscriptionResponse = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_app_id}/subscriptions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            object: "whatsapp_business_account",
+            callback_url: callbackUrl,
+            fields: "messages",
+            verify_token: profile.whatsapp_verify_token,
+            access_token: `${profile.whatsapp_app_id}|${profile.whatsapp_app_secret}`,
+          }),
+        },
+      );
+      const appSubscriptionBody = await appSubscriptionResponse.json().catch(() => ({}));
+      if (!appSubscriptionResponse.ok || appSubscriptionBody?.success !== true) {
+        return {
+          ok: true,
+          warning:
+            appSubscriptionBody?.error?.message ||
+            "Credenciais salvas, mas a Meta recusou a configuração do campo messages.",
+        };
+      }
+    }
+
     if (profile?.whatsapp_waba_id && profile?.whatsapp_access_token) {
       const apiVersion = profile.meta_graph_version || "v26.0";
       const subscriptionResponse = await fetch(

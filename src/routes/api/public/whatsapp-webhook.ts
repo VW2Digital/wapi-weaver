@@ -1457,6 +1457,36 @@ export async function processAccountUpdate(value: WebhookValue | undefined, user
   }
 }
 
+/**
+ * Processa um evento que já foi autenticado. Normalmente é chamado pelo
+ * worker BullMQ; o próprio endpoint também pode usá-lo como contingência se
+ * o Redis estiver indisponível, para que mensagens recebidas não sejam
+ * perdidas apenas porque a fila caiu.
+ */
+export async function processMetaWebhookEvent(entry: any[], userId: string) {
+  for (const ent of entry ?? []) {
+    for (const change of ent?.changes ?? []) {
+      if (change.field === "messages") {
+        await processStatusUpdate(change.value, userId);
+        await processInboundMessages(change.value, userId);
+        await processInboundDirectMessages(change.value, userId);
+      } else if (change.field === "history") {
+        await processHistorySync(change.value, userId);
+      } else if (change.field === "smb_app_state_sync") {
+        await processStateSync(change.value, userId);
+      } else if (change.field === "smb_message_echoes") {
+        await processMessageEchoes(change.value, userId);
+      } else if (change.field === "message_template_status_update") {
+        await processTemplateStatusUpdate(change.value, userId);
+      } else if (change.field === "template_category_update") {
+        await processTemplateCategoryUpdate(change.value, userId);
+      } else if (change.field === "account_update") {
+        await processAccountUpdate(change.value, userId);
+      }
+    }
+  }
+}
+
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
   server: {
     handlers: {
@@ -1552,13 +1582,17 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
             evRowId: evRow?.id ?? null,
           });
         } catch (queueError) {
-          // Não confirme o evento se ele não pôde ser enfileirado. O 503 faz a
-          // Meta tentar novamente sem manter a conexão aberta processando o bot.
-          logError("Fila de webhooks indisponível; solicitando retry da Meta", queueError);
-          return new Response("Webhook temporarily unavailable", {
-            status: 503,
-            headers: { "Retry-After": "5" },
-          });
+          // Redis não pode impedir recebimento. Processamos de forma síncrona
+          // e a idempotência por wa_message_id protege contra uma eventual
+          // entrega duplicada que a Meta faça depois.
+          logError("Fila de webhooks indisponível; usando processamento de contingência", queueError);
+          try {
+            await processMetaWebhookEvent(payload.entry ?? [], matchedUserId);
+            if (evRow?.id) await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
+          } catch (processingError) {
+            logError("Falha no processamento de contingência do webhook", processingError);
+            return new Response("Webhook processing failed", { status: 500 });
+          }
         }
 
         return new Response("ok", { status: 200 });
