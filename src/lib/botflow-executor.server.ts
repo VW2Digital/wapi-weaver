@@ -308,13 +308,32 @@ export async function processBotFlow(
     const sortedFlows = [...flows].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
     // 2. Verificar estado da conversa
-    const { data: state } = await dbAdmin
+    // O estado de uma conversa pertence ao número conectado. Sem filtrar por
+    // instance_id, uma pausa/desativação deixada por uma conexão anterior pode
+    // bloquear o bot de um número reconectado (ou de outra instância do mesmo
+    // tenant).
+    const { data: stateForCurrentInstance } = await dbAdmin
       .from("bot_conversation_state")
       .select("*")
       .eq("user_id", userId)
       .eq("contact_number", phoneDigits)
       .eq("channel", channel)
+      .eq("instance_id", phoneNumberId)
       .maybeSingle();
+
+    // Estados legados não tinham instance_id. Eles seguem válidos somente
+    // quando não houver um estado explícito para o número atual.
+    const { data: legacyState } = stateForCurrentInstance
+      ? { data: null }
+      : await dbAdmin
+          .from("bot_conversation_state")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("contact_number", phoneDigits)
+          .eq("channel", channel)
+          .is("instance_id", null)
+          .maybeSingle();
+    const state = stateForCurrentInstance ?? legacyState;
 
     if (state && !state.bot_active) {
       logInfo("Bot desativado manualmente para este contato", { phoneDigits });
