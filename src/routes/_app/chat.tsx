@@ -81,7 +81,9 @@ import {
   Check,
   CheckCheck,
   Loader2,
+  RefreshCw,
   X,
+  XCircle,
   MessageCircle,
   Link as LinkIcon,
   User,
@@ -4459,6 +4461,18 @@ function ChatPage() {
                           <Loader2 className="h-8 w-8 animate-spin text-primary" />
                           <span>Carregando conversa...</span>
                         </div>
+                      </div>
+                    ) : messagesQuery.isError ? (
+                      <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
+                        <XCircle className="h-9 w-9 text-destructive" />
+                        <div>
+                          <p className="font-semibold text-foreground">Não foi possível carregar a conversa</p>
+                          <p className="mt-1 text-xs">Tente novamente. Se persistir, a falha ficará visível para diagnóstico.</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => messagesQuery.refetch()}>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Tentar novamente
+                        </Button>
                       </div>
                     ) : displayMessages.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-6 gap-2">

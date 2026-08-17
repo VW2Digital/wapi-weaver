@@ -383,15 +383,25 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const messages = (await db.query(
-      `SELECT * FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ?
-       ORDER BY created_at ASC`,
-      [effectiveUserId, phone],
-    )) as DirectMessageRow[];
-
-    const assignments = (await db.query(
-      `SELECT 
+    // O chat não precisa trazer anos de payloads brutos para abrir uma única
+    // conversa. Limitar e executar as três leituras em paralelo evita que uma
+    // tabela grande deixe a interface em carregamento indefinido.
+    const [messages, assignments, campaignMessages] = await Promise.all([
+      db.query(
+        `SELECT * FROM (
+           SELECT id, wa_message_id, provider_message_id, direction, created_at,
+                  type, body, status, sender_name, sender_wa_id,
+                  reply_to_message_id, metadata
+           FROM direct_messages
+           WHERE user_id = ? AND contact_phone = ?
+           ORDER BY created_at DESC
+           LIMIT 500
+         ) AS recent_messages
+         ORDER BY created_at ASC`,
+        [effectiveUserId, phone],
+      ),
+      db.query(
+        `SELECT 
         ca.id,
         ca.assigned_at,
         t.name as team_name,
@@ -404,20 +414,25 @@ export const getChatMessages = createServerFn({ method: "POST" })
        LEFT JOIN users u_by ON u_by.id = ca.assigned_by
        LEFT JOIN profiles p_by ON p_by.id = u_by.id
        WHERE ca.user_id = ? AND ca.contact_phone = ?
-       ORDER BY ca.assigned_at ASC`,
-      [effectiveUserId, phone],
-    )) as AssignmentRow[];
-
-    const campaignMessages = (await db.query(
-      `SELECT cm.id, cm.status, cm.sent_at, cm.created_at, c.name AS campaign_name
+       ORDER BY ca.assigned_at DESC
+       LIMIT 200`,
+        [effectiveUserId, phone],
+      ),
+      db.query(
+        `SELECT cm.id, cm.status, cm.sent_at, cm.created_at, c.name AS campaign_name
        FROM campaign_messages cm
        LEFT JOIN campaigns c ON c.id = cm.campaign_id AND c.user_id = cm.user_id
        WHERE cm.user_id = ? AND cm.to_phone = ?
-       ORDER BY COALESCE(cm.sent_at, cm.created_at) ASC`,
-      [effectiveUserId, phone],
-    )) as CampaignMessageRow[];
+       ORDER BY COALESCE(cm.sent_at, cm.created_at) DESC
+       LIMIT 200`,
+        [effectiveUserId, phone],
+      ),
+    ]);
+    const typedMessages = (messages ?? []) as DirectMessageRow[];
+    const typedAssignments = (assignments ?? []) as AssignmentRow[];
+    const typedCampaignMessages = (campaignMessages ?? []) as CampaignMessageRow[];
 
-    const formattedMessages = (messages ?? []).map((row) => {
+    const formattedMessages = typedMessages.map((row) => {
       const meta = asJsonRecord(row.metadata);
       const rawPayload = asJsonRecord(row.raw_payload);
       const metaMessage = asJsonRecord(meta?.message);
@@ -474,7 +489,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
       };
     });
 
-    const formattedAssignments = (assignments ?? []).map((a) => {
+    const formattedAssignments = typedAssignments.map((a) => {
       let body = "";
       const teamLabel = a.team_name ? ` (${a.team_name.toUpperCase()})` : "";
 
@@ -516,7 +531,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
       };
     });
 
-    const formattedCampaignMessages = (campaignMessages ?? []).map((m) => ({
+    const formattedCampaignMessages = typedCampaignMessages.map((m) => ({
       id: `campaign-${m.id}`,
       direction: "outgoing" as const,
       timestamp: m.sent_at || m.created_at,
