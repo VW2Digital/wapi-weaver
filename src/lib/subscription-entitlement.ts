@@ -7,6 +7,9 @@ export interface CombinedEntitlement {
   reason: string | null;
 }
 
+export const SUBSCRIPTION_GRACE_PERIOD_DAYS = 3;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 function validDate(value: unknown): Date | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -34,7 +37,7 @@ export function resolveCombinedEntitlement(
   const subscriptionStatus = String(subscription?.status || "").toLowerCase();
   const licenseEnd = validDate(license?.expires_at);
   const subEnd = subscriptionEnd(subscription);
-  const graceEnd = validDate(subscription?.grace_period_ends_at);
+  const configuredGraceEnd = validDate(subscription?.grace_period_ends_at);
 
   // Bloqueio manual na licença é uma decisão administrativa explícita.
   if (["blocked", "suspended", "cancelled"].includes(licenseStatus)) {
@@ -50,7 +53,19 @@ export function resolveCombinedEntitlement(
   const licenseValid = licenseStatus === "active" && (licenseUnlimited || licenseEnd!.getTime() > nowMs);
   const subPeriodValid = ["active", "expiring", "trial", "trialing"].includes(subscriptionStatus) &&
     (!subEnd || subEnd.getTime() > nowMs);
-  const graceValid = subscriptionStatus === "past_due" && !!graceEnd && graceEnd.getTime() > nowMs;
+  const isTrial = ["trial", "trialing"].includes(subscriptionStatus);
+  const renewalEnd = [licenseEnd, subEnd]
+    .filter((date): date is Date => !!date)
+    .reduce<Date | null>((latest, date) =>
+      !latest || date.getTime() > latest.getTime() ? date : latest, null);
+  const calculatedGraceEnd = renewalEnd
+    ? new Date(renewalEnd.getTime() + SUBSCRIPTION_GRACE_PERIOD_DAYS * DAY_IN_MS)
+    : null;
+  // A regra funcional é fixa: bloqueio exatamente 3 dias após a renovação.
+  // O campo persistido é usado apenas quando não há uma data de renovação disponível.
+  const graceEnd = calculatedGraceEnd || configuredGraceEnd;
+  const graceValid = !isTrial && subscriptionStatus !== "cancelled" && !!renewalEnd &&
+    nowMs >= renewalEnd.getTime() && !!graceEnd && nowMs < graceEnd.getTime();
 
   if (licenseValid || subPeriodValid || graceValid) {
     const validEnds = [
@@ -86,4 +101,3 @@ export function resolveCombinedEntitlement(
     reason: "subscription_expired",
   };
 }
-

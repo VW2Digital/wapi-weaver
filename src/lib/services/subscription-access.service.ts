@@ -286,20 +286,18 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
   const currentStatus = String(sub.status || "").toLowerCase();
 
-  if (currentStatus === "past_due") {
-    const entitlement = resolveCombinedEntitlement(null, sub, now);
-    if (entitlement.allowed) {
-      return {
-        allowed: true,
-        status: "past_due",
-        currentPeriodEnd: entitlement.effectiveEnd?.toISOString() || null,
-        remainingSeconds: entitlement.effectiveEnd
-          ? Math.max(0, Math.floor((entitlement.effectiveEnd.getTime() - now.getTime()) / 1000))
-          : 0,
-        reason: entitlement.reason,
-        plan: planInfo,
-      };
-    }
+  const temporalEntitlement = resolveCombinedEntitlement(null, sub, now);
+  if (temporalEntitlement.allowed && temporalEntitlement.status === "past_due") {
+    return {
+      allowed: true,
+      status: "past_due",
+      currentPeriodEnd: temporalEntitlement.effectiveEnd?.toISOString() || null,
+      remainingSeconds: temporalEntitlement.effectiveEnd
+        ? Math.max(0, Math.floor((temporalEntitlement.effectiveEnd.getTime() - now.getTime()) / 1000))
+        : 0,
+      reason: temporalEntitlement.reason,
+      plan: planInfo,
+    };
   }
 
   // A) STATUS = TRIALING / TRIAL
