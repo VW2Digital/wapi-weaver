@@ -589,30 +589,36 @@ async function resolveWebhookUser(
   signatureHeader: string | null,
   payload: WebhookPayload | null,
 ) {
-  const envSecret = process.env.META_APP_SECRET;
-  if (envSecret && (await verifySignature(rawBody, signatureHeader, envSecret))) {
-    return resolveUserForVerifiedSharedAppSecret(payload, "env_secret");
-  }
-
-  // Instalações centralizadas salvam a App Secret em platform_settings. Essa
-  // é a mesma chave usada para assinar webhooks de todos os números daquele
-  // App Meta; depois da assinatura validada, o Phone Number ID define o
-  // tenant correto. Antes este local não era consultado, fazendo a entrada
-  // falhar quando a secret não era duplicada em cada perfil.
+  // Caminho principal e único da plataforma: uma App Secret do App Meta
+  // valida todos os callbacks e o phone_number_id escolhe o tenant. Não há
+  // dependência do fluxo, da conversa ou do perfil do contato para receber.
+  const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
   const { data: platformSettings } = await dbAdmin
     .from("platform_settings")
     .select("meta_app_secret")
     .eq("id", 1)
     .maybeSingle();
   const platformSecret = String(platformSettings?.meta_app_secret ?? "").trim();
-  if (
-    platformSecret &&
-    platformSecret !== envSecret &&
-    (await verifySignature(rawBody, signatureHeader, platformSecret))
-  ) {
-    return resolveUserForVerifiedSharedAppSecret(payload, "platform_secret");
+  const sharedSecrets = Array.from(new Set([envSecret, platformSecret].filter(Boolean)));
+
+  if (sharedSecrets.length > 0) {
+    for (const secret of sharedSecrets) {
+      if (await verifySignature(rawBody, signatureHeader, secret)) {
+        return resolveUserForVerifiedSharedAppSecret(
+          payload,
+          secret === envSecret ? "env_secret" : "platform_secret",
+        );
+      }
+    }
+
+    // Quando existe uma configuração central, não tentamos chaves de perfis
+    // individuais. Isso impede que um perfil antigo e fora de sincronia faça
+    // o recebimento variar entre números do mesmo App Meta.
+    return { userId: null, reason: "invalid_signature" as const };
   }
 
+  // Compatibilidade apenas para instalações antigas que ainda não migraram a
+  // App Secret para META_APP_SECRET ou platform_settings.
   const { data: profiles } = await dbAdmin
     .from("profiles")
     .select("id, whatsapp_app_secret, whatsapp_phone_number_id")

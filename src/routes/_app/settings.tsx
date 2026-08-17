@@ -5,6 +5,7 @@ import {
   getProfile,
   revealWhatsAppAccessToken,
   revealWhatsAppAppSecret,
+  disconnectMetaConnection,
   updateProfile,
   rotateApiKey,
   pingMeta,
@@ -674,6 +675,7 @@ function SettingsPage() {
   const fetchProfile = useServerFn(getProfile);
   const revealAccessToken = useServerFn(revealWhatsAppAccessToken);
   const revealAppSecret = useServerFn(revealWhatsAppAppSecret);
+  const disconnectMeta = useServerFn(disconnectMetaConnection);
   const save = useServerFn(updateProfile);
   const rotate = useServerFn(rotateApiKey);
   const ping = useServerFn(pingMeta);
@@ -688,6 +690,7 @@ function SettingsPage() {
   const [showSetupPin, setShowSetupPin] = useState(false);
   const [connectionCollapsed, setConnectionCollapsed] = useState(false);
   const [advancedCollapsed, setAdvancedCollapsed] = useState(true);
+  const [showDisconnectMetaDialog, setShowDisconnectMetaDialog] = useState(false);
   const connectionCollapseInitialized = useRef(false);
 
   const registerMainPhoneMut = useMutation({
@@ -701,6 +704,21 @@ function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (e: any) => toast.error(e.message),
+  });
+
+  const disconnectMetaMut = useMutation({
+    mutationFn: () => disconnectMeta(),
+    onSuccess: () => {
+      setShowDisconnectMetaDialog(false);
+      setForm({});
+      setErrors({});
+      setShowAccessToken(false);
+      setShowAppSecret(false);
+      setConnectionCollapsed(false);
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Conexão com a Meta removida. Você já pode configurar um novo número.");
+    },
+    onError: (error: any) => toast.error(error?.message || "Não foi possível remover a conexão."),
   });
 
   const doOnboardWhatsApp = useServerFn(onboardWhatsApp);
@@ -2652,6 +2670,61 @@ function SettingsPage() {
                     </div>
                   )}
                 </Card>
+
+                <Card className="border border-destructive/30 bg-destructive/5 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h2 className="font-display text-base font-semibold">Desconectar da Meta</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Remove IDs, token e segredos deste cliente. Conversas, contatos e fluxos serão mantidos.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setShowDisconnectMetaDialog(true)}
+                      disabled={disconnectMetaMut.isPending}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Apagar conexão
+                    </Button>
+                  </div>
+                </Card>
+
+                <Dialog
+                  open={showDisconnectMetaDialog}
+                  onOpenChange={(open) => {
+                    if (!disconnectMetaMut.isPending) setShowDisconnectMetaDialog(open);
+                  }}
+                >
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Apagar conexão com a Meta?</DialogTitle>
+                      <DialogDescription>
+                        O Phone Number ID, WABA ID, App ID, Verify Token, Access Token e App Secret deste
+                        cliente serão removidos. O histórico de conversas e os fluxos não serão apagados.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowDisconnectMetaDialog(false)}
+                        disabled={disconnectMetaMut.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => disconnectMetaMut.mutate()}
+                        disabled={disconnectMetaMut.isPending}
+                      >
+                        {disconnectMetaMut.isPending ? "Apagando..." : "Sim, apagar conexão"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
                 <Card className="border border-dashed border-primary/25 bg-muted/10 p-6">
                   <div className="flex items-start justify-between gap-4">

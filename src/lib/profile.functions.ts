@@ -155,6 +155,33 @@ export const revealWhatsAppAppSecret = createServerFn({ method: "GET" })
     };
   });
 
+/**
+ * Remove somente a conexão Meta deste tenant. Dados operacionais (contatos,
+ * conversas, campanhas e fluxos) permanecem intactos para que uma nova
+ * conexão possa ser feita sem perda de histórico.
+ */
+export const disconnectMetaConnection = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    await db.query(
+      `UPDATE profiles
+       SET whatsapp_phone_number_id = NULL,
+           whatsapp_waba_id = NULL,
+           whatsapp_business_id = NULL,
+           whatsapp_business_phone = NULL,
+           whatsapp_access_token = NULL,
+           whatsapp_app_secret = NULL,
+           whatsapp_app_id = NULL,
+           whatsapp_verify_token = NULL,
+           meta_graph_version = 'v26.0'
+       WHERE id = ?`,
+      [context.userId],
+    );
+
+    return { ok: true as const };
+  });
+
 
 export const updateProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
