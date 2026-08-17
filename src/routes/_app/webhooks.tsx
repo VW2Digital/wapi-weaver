@@ -92,6 +92,7 @@ import {
   Pin,
   Tag,
   FileCode,
+  Code,
 } from "lucide-react";
 import {
   Sheet,
@@ -100,6 +101,71 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Component: EmbedSnippetBox
+// ──────────────────────────────────────────────────────────────────────────────
+function EmbedSnippetBox({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
+  const webhookUrl = `${origin}/api/public/webhooks/incoming/${token}`;
+  const snippet = `<script>
+(function(){
+  var WAPI_URL="${webhookUrl}";
+  function getData(form){
+    var d={},els=form.elements;
+    for(var i=0;i<els.length;i++){
+      var e=els[i];if(!e.name)continue;
+      if(e.type==="checkbox")d[e.name]=e.checked;
+      else if(e.type==="radio"){if(e.checked)d[e.name]=e.value;}
+      else if(e.tagName==="SELECT")d[e.name]=e.options[e.selectedIndex]?.text||e.value;
+      else d[e.name]=e.value;
+    }
+    return d;
+  }
+  document.addEventListener("submit",function(ev){
+    var form=ev.target;
+    fetch(WAPI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(getData(form)),keepalive:true}).catch(function(){});
+  },true);
+})();
+<\/script>`;
+
+  return (
+    <div className="bg-background border border-border rounded-xl p-3.5 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold font-display text-foreground flex items-center gap-1.5">
+          <Code className="h-3.5 w-3.5 text-primary" /> Snippet para Formulários do Site
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            navigator.clipboard.writeText(snippet).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2500);
+            });
+          }}
+          className="h-7 text-[11px] text-primary hover:bg-primary/10"
+        >
+          {copied ? (
+            <><CheckCircle2 className="h-3 w-3 mr-1 text-green-500" /> Copiado!</>
+          ) : (
+            <><Copy className="h-3 w-3 mr-1" /> Copiar Snippet</>
+          )}
+        </Button>
+      </div>
+
+      <div className="bg-card p-2.5 rounded-lg border border-border font-mono text-[10px] text-muted-foreground overflow-x-auto whitespace-pre leading-relaxed max-h-32 overflow-y-auto select-all">
+        {snippet}
+      </div>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Cole no <code className="bg-muted px-1 rounded text-[10px]">&lt;head&gt;</code> do seu site (Webflow, Wix, WordPress, HTML).
+        Captura automaticamente todos os campos do formulário e envia ao CRM — sem depender da integração nativa da plataforma.
+      </p>
+    </div>
+  );
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Component: WebhookLeadsPanel
@@ -1540,6 +1606,9 @@ export function WebhooksPage() {
                 {typeof window !== "undefined" ? window.location.origin : "http://localhost:8080"}/api/public/webhooks/incoming/{selectedWebhook?.token}
               </div>
             </div>
+
+            {/* Box Snippet de Formulário (Embed) — estilo RD Station */}
+            {selectedWebhook?.token && <EmbedSnippetBox token={selectedWebhook.token} />}
 
             {/* Secao 1: Rótulos e Mapeamentos dos Campos Descobertos */}
             <div className="space-y-4">
