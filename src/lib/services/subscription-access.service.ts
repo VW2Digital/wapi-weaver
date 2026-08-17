@@ -194,6 +194,23 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
         plan: lic.plan ? { id: lic.plan, name: lic.plan_name || lic.plan, code: lic.plan_code || lic.plan } : null,
       };
     }
+
+    // A licença administrativa é a fonte de verdade para clientes cadastrados
+    // no painel. Não deixe uma assinatura antiga/expirada bloquear uma licença
+    // que foi renovada e continua válida.
+    if (licStatus === "active") {
+      const licenseEndsAt = lic.expires_at ? new Date(lic.expires_at) : null;
+      return {
+        allowed: true,
+        status: "active",
+        currentPeriodEnd: licenseEndsAt?.toISOString() || null,
+        remainingSeconds: licenseEndsAt
+          ? Math.max(0, Math.floor((licenseEndsAt.getTime() - now.getTime()) / 1000))
+          : 315360000,
+        reason: null,
+        plan: lic.plan ? { id: lic.plan, name: lic.plan_name || lic.plan, code: lic.plan_code || lic.plan } : null,
+      };
+    }
   }
 
   // 1. Verificar se é Admin Master Global da Plataforma (Bypass de cobrança)
