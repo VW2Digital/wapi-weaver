@@ -586,29 +586,8 @@ async function resolveWebhookUser(
   }
 
   if (verifiedProfiles.length === 0) {
-    const payloadPhoneIds = extractPhoneNumberIds(payload);
-    if (payloadPhoneIds.length > 0) {
-      const { data: byPhoneId } = await dbAdmin
-        .from("profiles")
-        .select("id")
-        .in("whatsapp_phone_number_id", payloadPhoneIds)
-        .limit(2);
-      const typedByPhone = (byPhoneId ?? []) as ProfileIdRow[];
-      if (typedByPhone.length === 1) {
-        return { userId: typedByPhone[0].id, reason: "phone_number_id_vps_fallback" as const };
-      }
-    }
-
-    const { data: singleProfile } = await dbAdmin
-      .from("profiles")
-      .select("id")
-      .not("whatsapp_phone_number_id", "is", null)
-      .limit(2);
-    const typedSingle = (singleProfile ?? []) as ProfileIdRow[];
-    if (typedSingle.length === 1) {
-      return { userId: typedSingle[0].id, reason: "single_profile_vps_fallback" as const };
-    }
-
+    // A Meta exige que todo POST seja autenticado por X-Hub-Signature-256.
+    // O phone_number_id identifica o destino, mas não autentica o remetente.
     return { userId: null, reason: "invalid_signature" as const };
   }
 
@@ -1564,22 +1543,8 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           logError("Falha ao registrar evento do webhook", eventInsertError);
         }
 
-        // Mensagens recebidas precisam acionar o atendimento no processo que
-        // recebeu o callback. Não podemos depender exclusivamente de um Worker
-        // BullMQ, pois a fila pode aceitar o job mesmo quando nenhum worker está
-        // ativo. O worker continua idempotente: ao reencontrar o mesmo wamid,
-        // processInboundDirectMessages ignora a duplicata.
-        for (const entry of payload.entry ?? []) {
-          for (const change of entry.changes ?? []) {
-            if (change.field !== "messages" || (change.value?.messages?.length ?? 0) === 0) continue;
-            await processInboundMessages(change.value, matchedUserId);
-            await processInboundDirectMessages(change.value, matchedUserId);
-          }
-        }
-
-        // Preferimos a fila para responder rapidamente à Meta. Se o Redis
-        // estiver indisponível, processamos no próprio request para não perder
-        // mensagens recebidas nem impedir o bot de responder.
+        // O callback apenas valida, persiste e enfileira. Todo processamento
+        // de mensagens fica no worker para devolver 200 rapidamente à Meta.
         try {
           await webhookQueue.add("meta-event", {
             entry: payload.entry,
@@ -1587,33 +1552,13 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
             evRowId: evRow?.id ?? null,
           });
         } catch (queueError) {
-          logError("Fila de webhooks indisponível; usando processamento direto", queueError);
-
-          for (const entry of payload.entry ?? []) {
-            for (const change of entry.changes ?? []) {
-              if (change.field === "messages") {
-                await processStatusUpdate(change.value, matchedUserId);
-                await processInboundMessages(change.value, matchedUserId);
-                await processInboundDirectMessages(change.value, matchedUserId);
-              } else if (change.field === "history") {
-                await processHistorySync(change.value, matchedUserId);
-              } else if (change.field === "smb_app_state_sync") {
-                await processStateSync(change.value, matchedUserId);
-              } else if (change.field === "smb_message_echoes") {
-                await processMessageEchoes(change.value, matchedUserId);
-              } else if (change.field === "message_template_status_update") {
-                await processTemplateStatusUpdate(change.value, matchedUserId);
-              } else if (change.field === "template_category_update") {
-                await processTemplateCategoryUpdate(change.value, matchedUserId);
-              } else if (change.field === "account_update") {
-                await processAccountUpdate(change.value, matchedUserId);
-              }
-            }
-          }
-
-          if (evRow?.id) {
-            await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
-          }
+          // Não confirme o evento se ele não pôde ser enfileirado. O 503 faz a
+          // Meta tentar novamente sem manter a conexão aberta processando o bot.
+          logError("Fila de webhooks indisponível; solicitando retry da Meta", queueError);
+          return new Response("Webhook temporarily unavailable", {
+            status: 503,
+            headers: { "Retry-After": "5" },
+          });
         }
 
         return new Response("ok", { status: 200 });
