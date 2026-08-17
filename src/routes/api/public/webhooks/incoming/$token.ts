@@ -55,12 +55,46 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             });
           }
 
-          // 2. Tratar Payload JSON (suporta objeto único ou array tipo n8n)
+          // 2. Tratar Payload — suporta JSON, application/x-www-form-urlencoded e multipart/form-data
+          //    Webflow, Wix e formulários HTML nativos enviam form-urlencoded por padrão.
           let rawBody: unknown;
+          const contentType = request.headers.get("content-type") ?? "";
+
           try {
-            rawBody = await request.json();
+            if (contentType.includes("application/json")) {
+              rawBody = await request.json();
+            } else if (
+              contentType.includes("application/x-www-form-urlencoded") ||
+              contentType.includes("multipart/form-data")
+            ) {
+              const formData = await request.formData();
+              const obj: Record<string, string> = {};
+              formData.forEach((value, key) => {
+                obj[key] = typeof value === "string" ? value : (value as File).name;
+              });
+              rawBody = obj;
+            } else {
+              // Tenta JSON como fallback
+              const text = await request.text();
+              try {
+                rawBody = JSON.parse(text);
+              } catch {
+                // Tenta form-urlencoded como segundo fallback
+                try {
+                  const params = new URLSearchParams(text);
+                  const obj: Record<string, string> = {};
+                  params.forEach((value, key) => { obj[key] = value; });
+                  rawBody = obj;
+                } catch {
+                  return new Response(JSON.stringify({ error: "Payload inválido: formato não suportado" }), {
+                    status: 400,
+                    headers,
+                  });
+                }
+              }
+            }
           } catch {
-            return new Response(JSON.stringify({ error: "Payload JSON inválido" }), {
+            return new Response(JSON.stringify({ error: "Erro ao ler o corpo da requisição" }), {
               status: 400,
               headers,
             });
