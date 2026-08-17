@@ -116,6 +116,16 @@ export async function transitionSubscriptionState(
     [newState, gracePeriodEndsAt, subscriptionId]
   );
 
+  const licenseStatus = newState === "active" || newState === "past_due"
+    ? "active"
+    : newState === "cancelled"
+      ? "cancelled"
+      : "suspended";
+  await db.query(
+    "UPDATE licenses SET status = ? WHERE tenant_id = ?",
+    [licenseStatus, sub.tenant_id],
+  );
+
   // 6. Registrar evento em subscription_events para histórico auditável e idempotência
   const eventId = crypto.randomUUID();
   await db.query(
@@ -229,4 +239,3 @@ export async function cancelScheduledPlanChange(
     message: "Agendamento de troca de plano cancelado com sucesso.",
   };
 }
-

@@ -1,6 +1,7 @@
 import db from "@/lib/db";
 import { verifyApiUser, AuthenticatedUser } from "@/lib/subscription-helpers";
 import { resolveEffectiveUserId } from "@/lib/chat-helpers";
+import { resolveCombinedEntitlement, subscriptionEnd } from "@/lib/subscription-entitlement";
 import crypto from "crypto";
 
 /**
@@ -120,14 +121,18 @@ export async function createTrialSubscriptionForTenant(
   await executor.query(
     `INSERT INTO subscriptions (
       id, tenant_id, customer_id, plan_id, status,
+      starts_at, expires_at, grace_period_ends_at,
       trial_started_at, trial_ends_at, trial_consumed_at,
       current_period_start, current_period_end, created_at
-    ) VALUES (?, ?, ?, ?, 'trialing', ?, ?, ?, ?, ?, NOW())`,
+    ) VALUES (?, ?, ?, ?, 'trial', ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
     [
       subId,
       tenantId,
       customerId,
       planId,
+      now,
+      trialEndsAt,
+      trialEndsAt,
       now,
       trialEndsAt,
       now,
@@ -140,7 +145,7 @@ export async function createTrialSubscriptionForTenant(
   const eventId = crypto.randomUUID();
   await executor.query(
     `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-     VALUES (?, ?, ?, 'trial_started', NULL, 'trialing', 'system', ?)`,
+     VALUES (?, ?, ?, 'trial_started', NULL, 'trial', 'system', ?)`,
     [
       eventId,
       tenantId,
@@ -169,6 +174,23 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
   const now = new Date();
 
+  // Admin Master Global sempre possui bypass, independentemente de registros
+  // comerciais antigos associados ao mesmo e-mail.
+  const roleRows = (await db.query(
+    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
+    [userId]
+  )) as any[];
+
+  if (roleRows && roleRows.length > 0) {
+    return {
+      allowed: true,
+      status: "admin_bypass",
+      remainingSeconds: 315360000,
+      reason: null,
+      plan: { id: "admin", name: "Admin Master", code: "admin_master" },
+    };
+  }
+
   // Check explicit licenses table status for this tenant or user email
   const licenseRows = (await db.query(
     `SELECT l.*, p.name as plan_name, p.slug as plan_code
@@ -179,57 +201,6 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
     [tenantId, userId]
   )) as any[];
 
-  if (licenseRows && licenseRows.length > 0) {
-    const lic = licenseRows[0];
-    const isLicExpired = lic.expires_at ? new Date(lic.expires_at).getTime() <= now.getTime() : false;
-    const licStatus = String(lic.status || "").toLowerCase();
-
-    if (licStatus === "expired" || licStatus === "blocked" || isLicExpired) {
-      const finalStatus = licStatus === "blocked" ? "blocked" : "expired";
-      return {
-        allowed: false,
-        status: finalStatus as any,
-        remainingSeconds: 0,
-        reason: licStatus === "blocked" ? "license_blocked" : "license_expired",
-        plan: lic.plan ? { id: lic.plan, name: lic.plan_name || lic.plan, code: lic.plan_code || lic.plan } : null,
-      };
-    }
-
-    // A licença administrativa é a fonte de verdade para clientes cadastrados
-    // no painel. Não deixe uma assinatura antiga/expirada bloquear uma licença
-    // que foi renovada e continua válida.
-    if (licStatus === "active") {
-      const licenseEndsAt = lic.expires_at ? new Date(lic.expires_at) : null;
-      return {
-        allowed: true,
-        status: "active",
-        currentPeriodEnd: licenseEndsAt?.toISOString() || null,
-        remainingSeconds: licenseEndsAt
-          ? Math.max(0, Math.floor((licenseEndsAt.getTime() - now.getTime()) / 1000))
-          : 315360000,
-        reason: null,
-        plan: lic.plan ? { id: lic.plan, name: lic.plan_name || lic.plan, code: lic.plan_code || lic.plan } : null,
-      };
-    }
-  }
-
-  // 1. Verificar se é Admin Master Global da Plataforma (Bypass de cobrança)
-  const roleRows = (await db.query(
-    "SELECT role FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
-    [userId]
-  )) as any[];
-
-  if (roleRows && roleRows.length > 0) {
-    return {
-      allowed: true,
-      status: "admin_bypass",
-      remainingSeconds: 315360000, // 10 anos
-      reason: null,
-      plan: { id: "admin", name: "Admin Master", code: "admin_master" },
-    };
-  }
-
-  // 2. Buscar assinatura do tenant
   const subs = (await db.query(
     `SELECT s.*, p.name as plan_name, p.slug as plan_code
      FROM subscriptions s
@@ -237,6 +208,64 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
      WHERE s.tenant_id = ? LIMIT 1`,
     [tenantId]
   )) as any[];
+
+  if (licenseRows && licenseRows.length > 0) {
+    const lic = licenseRows[0];
+    const sub = subs?.[0] || null;
+    const entitlement = resolveCombinedEntitlement(lic, sub, now);
+    const effectiveEnd = entitlement.effectiveEnd;
+    const plan = lic.plan
+      ? { id: lic.plan, name: lic.plan_name || lic.plan, code: lic.plan_code || lic.plan }
+      : sub?.plan_id
+        ? { id: sub.plan_id, name: sub.plan_name || "Plano Padrão", code: sub.plan_code || "standard" }
+        : null;
+
+    // Reconcilia os espelhos somente quando há divergência. A maior vigência
+    // válida prevalece; bloqueio administrativo explícito permanece soberano.
+    if (sub) {
+      if (entitlement.allowed && entitlement.status === "active" && effectiveEnd) {
+        const currentSubEnd = subscriptionEnd(sub);
+        if (String(sub.status).toLowerCase() !== "active" || currentSubEnd?.getTime() !== effectiveEnd.getTime()) {
+          await db.query(
+            `UPDATE subscriptions
+             SET status = 'active', expires_at = ?, current_period_end = ?, updated_at = NOW()
+             WHERE id = ?`,
+            [effectiveEnd, effectiveEnd, sub.id],
+          );
+        }
+        const licenseEnd = lic.expires_at ? new Date(lic.expires_at) : null;
+        if (String(lic.status).toLowerCase() !== "active" || licenseEnd?.getTime() !== effectiveEnd.getTime()) {
+          await db.query(
+            "UPDATE licenses SET status = 'active', expires_at = ? WHERE id = ?",
+            [effectiveEnd, lic.id],
+          );
+        }
+      } else if (!entitlement.allowed) {
+        const targetLicenseStatus = entitlement.reason === "license_blocked"
+          ? String(lic.status).toLowerCase()
+          : "expired";
+        if (String(sub.status).toLowerCase() !== "suspended") {
+          await db.query("UPDATE subscriptions SET status = 'suspended', updated_at = NOW() WHERE id = ?", [sub.id]);
+        }
+        if (String(lic.status).toLowerCase() !== targetLicenseStatus) {
+          await db.query("UPDATE licenses SET status = ? WHERE id = ?", [targetLicenseStatus, lic.id]);
+        }
+      }
+    }
+
+    return {
+      allowed: entitlement.allowed,
+      status: entitlement.status,
+      currentPeriodEnd: effectiveEnd?.toISOString() || null,
+      remainingSeconds: entitlement.allowed
+        ? effectiveEnd
+          ? Math.max(0, Math.floor((effectiveEnd.getTime() - now.getTime()) / 1000))
+          : 315360000
+        : 0,
+      reason: entitlement.reason,
+      plan,
+    };
+  }
 
   // 3. Se não houver assinatura registrada (Tenants legados anteriores à regra de trial):
   if (!subs || subs.length === 0) {
@@ -257,6 +286,22 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
   const currentStatus = String(sub.status || "").toLowerCase();
 
+  if (currentStatus === "past_due") {
+    const entitlement = resolveCombinedEntitlement(null, sub, now);
+    if (entitlement.allowed) {
+      return {
+        allowed: true,
+        status: "past_due",
+        currentPeriodEnd: entitlement.effectiveEnd?.toISOString() || null,
+        remainingSeconds: entitlement.effectiveEnd
+          ? Math.max(0, Math.floor((entitlement.effectiveEnd.getTime() - now.getTime()) / 1000))
+          : 0,
+        reason: entitlement.reason,
+        plan: planInfo,
+      };
+    }
+  }
+
   // A) STATUS = TRIALING / TRIAL
   if (currentStatus === "trialing" || currentStatus === "trial") {
     const trialEndsAt = sub.trial_ends_at
@@ -269,11 +314,11 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     if (now.getTime() >= trialEndsAt.getTime()) {
       // Trial Expirou! Persistir alteração de status se ainda estiver como trialing
-      await db.query("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+      await db.query("UPDATE subscriptions SET status = 'suspended' WHERE id = ?", [sub.id]);
       const eventId = crypto.randomUUID();
       await db.query(
         `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-         VALUES (?, ?, ?, 'trial_expired', ?, 'expired', 'system', '{}')`,
+         VALUES (?, ?, ?, 'trial_expired', ?, 'suspended', 'system', '{}')`,
         [eventId, tenantId, sub.id, currentStatus]
       );
 
@@ -311,11 +356,11 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     if (periodEnd && now.getTime() >= periodEnd.getTime()) {
       // Período pago expirou!
-      await db.query("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+      await db.query("UPDATE subscriptions SET status = 'suspended' WHERE id = ?", [sub.id]);
       const eventId = crypto.randomUUID();
       await db.query(
         `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-         VALUES (?, ?, ?, 'subscription_expired', ?, 'expired', 'system', '{}')`,
+         VALUES (?, ?, ?, 'subscription_expired', ?, 'suspended', 'system', '{}')`,
         [eventId, tenantId, sub.id, currentStatus]
       );
 
@@ -414,9 +459,15 @@ export async function activateSubscriptionFromPayment(
 
     await executor.query(
       `UPDATE subscriptions
-       SET plan_id = ?, status = 'active', current_period_start = ?, current_period_end = ?, activated_at = ?
+       SET plan_id = ?, status = 'active', starts_at = ?, expires_at = ?,
+           current_period_start = ?, current_period_end = ?, activated_at = ?
        WHERE id = ?`,
-      [planId, now, periodEnd, now, sub.id]
+      [planId, now, periodEnd, now, periodEnd, now, sub.id]
+    );
+
+    await executor.query(
+      "UPDATE licenses SET plan = ?, status = 'active', expires_at = ? WHERE tenant_id = ?",
+      [planId, periodEnd, tenantId],
     );
 
     const eventId = crypto.randomUUID();
@@ -430,9 +481,15 @@ export async function activateSubscriptionFromPayment(
     await executor.query(
       `INSERT INTO subscriptions (
         id, tenant_id, customer_id, plan_id, status,
+        starts_at, expires_at,
         current_period_start, current_period_end, activated_at, created_at
-      ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, NOW())`,
-      [subId, tenantId, tenantId, planId, now, periodEnd, now]
+      ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, NOW())`,
+      [subId, tenantId, tenantId, planId, now, periodEnd, now, periodEnd, now]
+    );
+
+    await executor.query(
+      "UPDATE licenses SET plan = ?, status = 'active', expires_at = ? WHERE tenant_id = ?",
+      [planId, periodEnd, tenantId],
     );
 
     const eventId = crypto.randomUUID();

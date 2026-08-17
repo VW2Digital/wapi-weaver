@@ -58,6 +58,15 @@ async function executarBillingJobInterno(connection: any) {
     // Update status if it changed
     if (realStatus !== sub.status) {
       await connection.query("UPDATE subscriptions SET status = ? WHERE id = ?", [realStatus, sub.id]);
+      const licenseStatus = realStatus === "suspended"
+        ? "expired"
+        : realStatus === "cancelled"
+          ? "cancelled"
+          : "active";
+      await connection.query(
+        "UPDATE licenses SET status = ?, expires_at = ? WHERE tenant_id = ?",
+        [licenseStatus, expiresAt, sub.tenant_id],
+      );
       await logSubscriptionEvent(
         sub.tenant_id,
         sub.id,

@@ -300,9 +300,20 @@ export async function processApprovedPayment(
   // 8. Update subscription details AND set plan_id to billing_plans.subscription_plan_id
   await connection.execute(
     `UPDATE subscriptions
-     SET status = 'active', plan_id = ?, expires_at = ?, grace_period_ends_at = ?, last_payment_at = ?, next_billing_at = ?
+     SET status = 'active', plan_id = ?, expires_at = ?, current_period_end = ?,
+         grace_period_ends_at = ?, last_payment_at = ?, next_billing_at = ?
      WHERE id = ?`,
-    [targetSubscriptionPlanId, newExpiresAt, newGracePeriodEndsAt, approvedAtDate, newExpiresAt, sub.id],
+    [targetSubscriptionPlanId, newExpiresAt, newExpiresAt, newGracePeriodEndsAt, approvedAtDate, newExpiresAt, sub.id],
+  );
+
+  // `licenses` é o espelho administrativo da mesma vigência. Atualizá-la
+  // na mesma transação impede que um pagamento aprovado continue bloqueado
+  // por uma data antiga em outra tabela.
+  await connection.execute(
+    `UPDATE licenses
+     SET plan = ?, status = 'active', expires_at = ?
+     WHERE tenant_id = ?`,
+    [targetSubscriptionPlanId, newExpiresAt, sub.tenant_id],
   );
 
   // 9. Log history event

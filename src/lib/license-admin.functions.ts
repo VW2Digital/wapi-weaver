@@ -143,6 +143,7 @@ export const createLicense = createServerFn({ method: "POST" })
     const keyPreview = licenseKey;
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
+    const subscriptionExpiresDate = expiresDate || "9999-12-31 23:59:59";
     const features = input.features_json || { max_users: input.max_users || 1 };
 
     const licenseId = crypto.randomUUID();
@@ -174,23 +175,25 @@ export const createLicense = createServerFn({ method: "POST" })
       if (tenantId) {
         const subscriptionPlanId = await resolveSubscriptionPlanId(input.plan);
         let subStatus = input.status;
-        if (input.status === "expired") subStatus = "expired";
+        if (input.status === "expired") subStatus = "suspended";
         if (input.status === "blocked") subStatus = "suspended";
 
         const existingSub = (await db.query("SELECT id FROM subscriptions WHERE tenant_id = ? LIMIT 1", [tenantId])) as any[];
         if (existingSub.length > 0) {
           await db.query(
             `UPDATE subscriptions 
-             SET status = ?, trial_ends_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW() 
+             SET status = ?, expires_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW()
              WHERE tenant_id = ?`,
-            [subStatus, expiresDate, expiresDate, subscriptionPlanId, tenantId]
+            [subStatus, subscriptionExpiresDate, subscriptionExpiresDate, subscriptionPlanId, tenantId]
           );
         } else {
           const newSubId = crypto.randomUUID();
           await db.query(
-            `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, trial_ends_at, current_period_end, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [newSubId, tenantId, tenantId, subscriptionPlanId, subStatus, expiresDate, expiresDate]
+            `INSERT INTO subscriptions (
+               id, tenant_id, customer_id, plan_id, status, starts_at, expires_at,
+               current_period_start, current_period_end, created_at
+             ) VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, NOW())`,
+            [newSubId, tenantId, tenantId, subscriptionPlanId, subStatus, subscriptionExpiresDate, subscriptionExpiresDate]
           );
         }
       }
@@ -306,6 +309,7 @@ export const updateLicense = createServerFn({ method: "POST" })
     await assertAdmin(context);
 
     const expiresDate = input.expires_at ? mysqlDate(input.expires_at) : null;
+    const subscriptionExpiresDate = expiresDate || "9999-12-31 23:59:59";
 
     // Re-resolve tenant_id from updated email
     let tenantId: string | null = null;
@@ -359,23 +363,25 @@ export const updateLicense = createServerFn({ method: "POST" })
       if (tenantId) {
         const subscriptionPlanId = await resolveSubscriptionPlanId(input.plan);
         let subStatus = input.status;
-        if (input.status === "expired") subStatus = "expired";
+        if (input.status === "expired") subStatus = "suspended";
         if (input.status === "blocked") subStatus = "suspended";
 
         const existingSub = (await db.query("SELECT id FROM subscriptions WHERE tenant_id = ? LIMIT 1", [tenantId])) as any[];
         if (existingSub.length > 0) {
           await db.query(
             `UPDATE subscriptions 
-             SET status = ?, trial_ends_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW() 
+             SET status = ?, expires_at = ?, current_period_end = ?, plan_id = ?, updated_at = NOW()
              WHERE tenant_id = ?`,
-            [subStatus, expiresDate, expiresDate, subscriptionPlanId, tenantId]
+            [subStatus, subscriptionExpiresDate, subscriptionExpiresDate, subscriptionPlanId, tenantId]
           );
         } else {
           const newSubId = crypto.randomUUID();
           await db.query(
-            `INSERT INTO subscriptions (id, tenant_id, customer_id, plan_id, status, trial_ends_at, current_period_end, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [newSubId, tenantId, tenantId, subscriptionPlanId, subStatus, expiresDate, expiresDate]
+            `INSERT INTO subscriptions (
+               id, tenant_id, customer_id, plan_id, status, starts_at, expires_at,
+               current_period_start, current_period_end, created_at
+             ) VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, NOW())`,
+            [newSubId, tenantId, tenantId, subscriptionPlanId, subStatus, subscriptionExpiresDate, subscriptionExpiresDate]
           );
         }
       }

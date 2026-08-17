@@ -28,6 +28,20 @@ interface SubscriptionCheckoutModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface MercadoPagoInstallmentOption {
+  installments: number;
+  installmentAmount: number;
+  totalAmount: number;
+  installmentRate: number;
+}
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 // ─── Mercado Pago SDK loader ──────────────────────────────────────────────────
 function loadMercadoPagoSdk(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -129,6 +143,9 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
   const [cardCvv, setCardCvv] = useState("");
   const [cpf, setCpf] = useState("");
   const [installments, setInstallments] = useState(1);
+  const [installmentOptions, setInstallmentOptions] = useState<MercadoPagoInstallmentOption[]>([]);
+  const [isLoadingInstallments, setIsLoadingInstallments] = useState(false);
+  const [installmentMessage, setInstallmentMessage] = useState<string | null>(null);
   const [detectedMethod, setDetectedMethod] = useState<{ id: string; name: string; issuer_id?: string } | null>(null);
 
   // Plans
@@ -203,6 +220,9 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
       setCardCvv("");
       setCpf("");
       setInstallments(1);
+      setInstallmentOptions([]);
+      setIsLoadingInstallments(false);
+      setInstallmentMessage(null);
       setDetectedMethod(null);
     }
   }, [open]);
@@ -256,6 +276,82 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
       .catch(() => null);
   }, [cardNumber, gatewayConfig?.publicKey]);
 
+  const selectedPlan = commercialPlans.find((c) => c.id === selectedCommercialPlanId);
+  const selectedAmount = Number(selectedPlan?.price || 0);
+
+  // Mercado Pago determines the available installments from the card BIN and amount.
+  useEffect(() => {
+    const bin = cardNumber.replace(/\D/g, "").slice(0, 8);
+    const publicKey = gatewayConfig?.publicKey;
+
+    if (bin.length < 6 || !publicKey || !Number.isFinite(selectedAmount) || selectedAmount <= 0) {
+      setInstallmentOptions([]);
+      setInstallments(1);
+      setIsLoadingInstallments(false);
+      setInstallmentMessage(bin.length > 0 && bin.length < 6 ? "Digite os primeiros 6 números para consultar as parcelas." : null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      public_key: publicKey,
+      amount: selectedAmount.toFixed(2),
+      bin,
+      locale: "pt-BR",
+    });
+
+    setIsLoadingInstallments(true);
+    setInstallmentMessage(null);
+
+    fetch(`https://api.mercadopago.com/v1/payment_methods/installments?${params.toString()}`, {
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Não foi possível consultar o parcelamento.");
+        return response.json();
+      })
+      .then((data) => {
+        const payerCosts = Array.isArray(data)
+          ? data.flatMap((method: any) => (Array.isArray(method?.payer_costs) ? method.payer_costs : []))
+          : [];
+
+        const options = payerCosts
+          .map((cost: any): MercadoPagoInstallmentOption | null => {
+            const count = Number(cost.installments);
+            const installmentAmount = Number(cost.installment_amount);
+            const totalAmount = Number(cost.total_amount);
+            const installmentRate = Number(cost.installment_rate || 0);
+            if (!Number.isInteger(count) || count < 1 || !Number.isFinite(installmentAmount)) return null;
+            return {
+              installments: count,
+              installmentAmount,
+              totalAmount: Number.isFinite(totalAmount) ? totalAmount : installmentAmount * count,
+              installmentRate: Number.isFinite(installmentRate) ? installmentRate : 0,
+            };
+          })
+          .filter((option: MercadoPagoInstallmentOption | null): option is MercadoPagoInstallmentOption => option !== null)
+          .sort((a: MercadoPagoInstallmentOption, b: MercadoPagoInstallmentOption) => a.installments - b.installments);
+
+        setInstallmentOptions(options);
+        setInstallments((current) => options.some((option) => option.installments === current)
+          ? current
+          : (options[0]?.installments ?? 1));
+        setInstallmentMessage(options.length === 0 ? "Parcelamento indisponível para este cartão; pagamento em 1x." : null);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setInstallmentOptions([]);
+        setInstallments(1);
+        setInstallmentMessage("Não foi possível consultar as parcelas agora; pagamento em 1x.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingInstallments(false);
+      });
+
+    return () => controller.abort();
+  }, [cardNumber, gatewayConfig?.publicKey, selectedAmount]);
+
   // PIX poll
   useEffect(() => {
     if (!pixData?.invoiceId || !open) return;
@@ -280,8 +376,6 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
     }, 5000);
     return () => clearInterval(interval);
   }, [pixData?.invoiceId, open, queryClient, onOpenChange]);
-
-  const selectedPlan = commercialPlans.find((c) => c.id === selectedCommercialPlanId);
 
   const handleCheckout = async () => {
     if (!selectedCommercialPlanId) return;
@@ -398,7 +492,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] rounded-2xl p-6 bg-card text-card-foreground shadow-2xl border border-border">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain sm:max-h-[90dvh] sm:max-w-[520px] lg:max-w-[920px] rounded-2xl p-4 sm:p-5 gap-4 bg-card text-card-foreground shadow-2xl border border-border">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-[#F23869]" />
@@ -485,7 +579,8 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
         /* ── MAIN FORM ───────────────────────────────────────────────── */
         ) : (
-          <div className="space-y-5 py-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 py-2 items-start">
+            <div className="space-y-5 lg:pr-6 lg:border-r lg:border-border/60">
 
             {/* Step 1: Operational Plan */}
             <div className="space-y-2">
@@ -562,6 +657,9 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
               </div>
             </div>
 
+            </div>
+
+            <div className="space-y-4 min-w-0">
             {/* Step 3: Payment Method */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -677,26 +775,31 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                     <select
                       value={installments}
                       onChange={(e) => setInstallments(Number(e.target.value))}
+                      disabled={isLoadingInstallments}
                       className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
-                        const price = selectedPlan ? Number(selectedPlan.price) / n : 0;
-                        return (
-                          <option key={n} value={n}>
-                            {n}x de R$ {price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                            {n === 1 ? " (sem juros)" : ""}
-                          </option>
-                        );
-                      })}
+                      {installmentOptions.length > 0 ? installmentOptions.map((option) => (
+                        <option key={option.installments} value={option.installments}>
+                          {option.installments}x de R$ {formatCurrency(option.installmentAmount)}
+                          {option.installmentRate > 0
+                            ? ` (com juros · total R$ ${formatCurrency(option.totalAmount)})`
+                            : " (sem juros)"}
+                        </option>
+                      )) : (
+                        <option value={1}>
+                          1x de R$ {formatCurrency(selectedAmount)} {isLoadingInstallments ? "(consultando...)" : ""}
+                        </option>
+                      )}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   </div>
+                  {installmentMessage && <p className="text-[11px] text-muted-foreground">{installmentMessage}</p>}
                 </div>
               </div>
             )}
 
             {/* Action Button */}
-            <div className="pt-2">
+            <div className="sticky bottom-0 z-20 -mx-2 px-2 pt-3 pb-1 bg-gradient-to-t from-card via-card to-card/90">
               <Button
                 disabled={isSubmitting || !selectedCommercialPlanId}
                 onClick={handleCheckout}
@@ -718,6 +821,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                   <span className="flex items-center gap-2"><ExternalLink className="h-4 w-4" /> Ir para Checkout Mercado Pago</span>
                 )}
               </Button>
+            </div>
             </div>
           </div>
         )}

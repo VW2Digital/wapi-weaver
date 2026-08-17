@@ -137,17 +137,21 @@ export const Route = createFileRoute("/api/public/webhooks/stripe")({
                 )) as any[];
 
                 if (licenseRows.length > 0) {
-                  const currentStatus = licenseRows[0].status;
-                  if (currentStatus !== "active") {
-                    await db.query(
-                      `UPDATE licenses SET 
+                  await db.query(
+                    `UPDATE licenses SET
                    stripe_customer_id = ?, 
                    stripe_subscription_id = ?, 
                    status = 'active' 
                    WHERE client_email = ?`,
-                      [customerId, subscriptionId, clientEmail],
-                    );
-                  }
+                    [customerId, subscriptionId, clientEmail],
+                  );
+                  await db.query(
+                    `UPDATE subscriptions s
+                     JOIN licenses l ON l.tenant_id = s.tenant_id
+                     SET s.status = 'active', s.updated_at = NOW()
+                     WHERE l.client_email = ?`,
+                    [clientEmail],
+                  );
                 }
               }
               break;
@@ -160,6 +164,13 @@ export const Route = createFileRoute("/api/public/webhooks/stripe")({
                 "UPDATE licenses SET status = 'suspended' WHERE stripe_subscription_id = ?",
                 [subscription.id],
               );
+              await db.query(
+                `UPDATE subscriptions s
+                 JOIN licenses l ON l.tenant_id = s.tenant_id
+                 SET s.status = 'suspended', s.updated_at = NOW()
+                 WHERE l.stripe_subscription_id = ?`,
+                [subscription.id],
+              );
               break;
             }
 
@@ -170,9 +181,23 @@ export const Route = createFileRoute("/api/public/webhooks/stripe")({
                   "UPDATE licenses SET status = 'active' WHERE stripe_subscription_id = ?",
                   [subscription.id],
                 );
+                await db.query(
+                  `UPDATE subscriptions s
+                   JOIN licenses l ON l.tenant_id = s.tenant_id
+                   SET s.status = 'active', s.updated_at = NOW()
+                   WHERE l.stripe_subscription_id = ?`,
+                  [subscription.id],
+                );
               } else if (subscription.status === "past_due") {
                 await db.query(
                   "UPDATE licenses SET status = 'suspended' WHERE stripe_subscription_id = ?",
+                  [subscription.id],
+                );
+                await db.query(
+                  `UPDATE subscriptions s
+                   JOIN licenses l ON l.tenant_id = s.tenant_id
+                   SET s.status = 'past_due', s.updated_at = NOW()
+                   WHERE l.stripe_subscription_id = ?`,
                   [subscription.id],
                 );
               }

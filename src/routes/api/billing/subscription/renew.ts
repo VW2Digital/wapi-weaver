@@ -126,9 +126,17 @@ export const Route = createFileRoute("/api/billing/subscription/renew")({
               // Update subscription
               await conn.execute(
                 `UPDATE subscriptions
-                 SET status = 'active', expires_at = ?, grace_period_ends_at = ?, last_payment_at = ?
+                 SET status = 'active', expires_at = ?, current_period_end = ?,
+                     grace_period_ends_at = ?, last_payment_at = ?
                  WHERE id = ?`,
-                [newExpiresAt, newGraceEnds, now, sub.id],
+                [newExpiresAt, newExpiresAt, newGraceEnds, now, sub.id],
+              );
+
+              await conn.execute(
+                `UPDATE licenses
+                 SET plan = ?, status = 'active', expires_at = ?
+                 WHERE tenant_id = ?`,
+                [targetPlanId, newExpiresAt, tenantId],
               );
 
               // Log subscription event
