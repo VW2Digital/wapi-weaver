@@ -528,6 +528,62 @@ function extractPhoneNumberIds(payload: WebhookPayload | null): string[] {
   return Array.from(ids);
 }
 
+/**
+ * Identifica o proprietário pelo Phone Number ID somente para telemetria.
+ *
+ * O resultado desta função nunca autoriza o processamento do webhook: a
+ * assinatura X-Hub-Signature-256 continua sendo obrigatória em
+ * resolveWebhookUser. Isso permite mostrar ao dono do número uma rejeição de
+ * assinatura/configuração, sem aceitar payloads forjados.
+ */
+async function findWebhookOwnerForDiagnostics(payload: WebhookPayload | null) {
+  const phoneIds = extractPhoneNumberIds(payload);
+  if (phoneIds.length === 0) return null;
+
+  const { data: profiles } = await dbAdmin
+    .from("profiles")
+    .select("id")
+    .in("whatsapp_phone_number_id", phoneIds)
+    .limit(2);
+  const matches = (profiles ?? []) as ProfileIdRow[];
+
+  return matches.length === 1 ? matches[0].id : null;
+}
+
+async function resolveUserForVerifiedSharedAppSecret(
+  payload: WebhookPayload | null,
+  reasonPrefix: "env_secret" | "platform_secret",
+) {
+  const phoneIds = extractPhoneNumberIds(payload);
+  if (phoneIds.length > 0) {
+    const { data: byPhone } = await dbAdmin
+      .from("profiles")
+      .select("id")
+      .in("whatsapp_phone_number_id", phoneIds)
+      .limit(2);
+    const typedByPhone = (byPhone ?? []) as ProfileIdRow[];
+    if (typedByPhone.length === 1) {
+      return { userId: typedByPhone[0].id, reason: `${reasonPrefix}_phone_number_id` };
+    }
+    if (typedByPhone.length > 1) {
+      return { userId: null, reason: "ambiguous_phone_number_id" as const };
+    }
+  }
+
+  // O fallback de instância única só é permitido depois da autenticação HMAC.
+  const { data: onlyOne } = await dbAdmin
+    .from("profiles")
+    .select("id")
+    .not("whatsapp_phone_number_id", "is", null)
+    .limit(2);
+  const typedOnlyOne = (onlyOne ?? []) as ProfileIdRow[];
+  if (typedOnlyOne.length === 1) {
+    return { userId: typedOnlyOne[0].id, reason: `${reasonPrefix}_single_profile` };
+  }
+
+  return { userId: null, reason: "signature_ok_but_user_unknown" as const };
+}
+
 async function resolveWebhookUser(
   rawBody: string,
   signatureHeader: string | null,
@@ -535,34 +591,26 @@ async function resolveWebhookUser(
 ) {
   const envSecret = process.env.META_APP_SECRET;
   if (envSecret && (await verifySignature(rawBody, signatureHeader, envSecret))) {
-    const phoneIds = extractPhoneNumberIds(payload);
-    if (phoneIds.length > 0) {
-      const { data: byPhone } = await dbAdmin
-        .from("profiles")
-        .select("id")
-        .in("whatsapp_phone_number_id", phoneIds)
-        .limit(2);
-      const typedByPhone = (byPhone ?? []) as ProfileIdRow[];
-      if (typedByPhone.length === 1) {
-        return { userId: typedByPhone[0].id, reason: "env_secret_phone_number_id" as const };
-      }
-      if (typedByPhone.length > 1) {
-        return { userId: null, reason: "ambiguous_phone_number_id" as const };
-      }
-    }
-    // Fallback para ambientes single-tenant: se existir apenas 1 perfil com phone_number_id configurado,
-    // assume ele como dono do webhook.
-    const { data: onlyOne } = await dbAdmin
-      .from("profiles")
-      .select("id")
-      .not("whatsapp_phone_number_id", "is", null)
-      .limit(2);
-    const typedOnlyOne = (onlyOne ?? []) as ProfileIdRow[];
-    if (typedOnlyOne.length === 1) {
-      return { userId: typedOnlyOne[0].id, reason: "env_secret_single_profile" as const };
-    }
+    return resolveUserForVerifiedSharedAppSecret(payload, "env_secret");
+  }
 
-    return { userId: null, reason: "signature_ok_but_user_unknown" as const };
+  // Instalações centralizadas salvam a App Secret em platform_settings. Essa
+  // é a mesma chave usada para assinar webhooks de todos os números daquele
+  // App Meta; depois da assinatura validada, o Phone Number ID define o
+  // tenant correto. Antes este local não era consultado, fazendo a entrada
+  // falhar quando a secret não era duplicada em cada perfil.
+  const { data: platformSettings } = await dbAdmin
+    .from("platform_settings")
+    .select("meta_app_secret")
+    .eq("id", 1)
+    .maybeSingle();
+  const platformSecret = String(platformSettings?.meta_app_secret ?? "").trim();
+  if (
+    platformSecret &&
+    platformSecret !== envSecret &&
+    (await verifySignature(rawBody, signatureHeader, platformSecret))
+  ) {
+    return resolveUserForVerifiedSharedAppSecret(payload, "platform_secret");
   }
 
   const { data: profiles } = await dbAdmin
@@ -1535,9 +1583,20 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const matchedUserId = resolved.userId;
 
         if (!matchedUserId) {
+          // Não usamos o Phone Number ID para aceitar o POST — ele não prova
+          // que a chamada veio da Meta. Usamo-lo apenas para anexar a falha ao
+          // proprietário correto e tornar erros de segredo/assinatura visíveis
+          // na tela "Eventos do Webhook".
+          const diagnosticOwnerId = await findWebhookOwnerForDiagnostics(payload);
           const { error: rejectedEventError } = await dbAdmin.from("webhook_events").insert({
             id: crypto.randomUUID(),
+            tenant_id: diagnosticOwnerId,
+            user_id: diagnosticOwnerId,
             source: "whatsapp",
+            event_type: "webhook_rejected",
+            status: "rejected",
+            processed: true,
+            error_message: `Webhook recusado: ${resolved.reason}`,
             raw: {
               rejected: true,
               reason: resolved.reason,
