@@ -112,6 +112,12 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             body = rawBody as Record<string, any>;
           }
 
+          // Normalizar todas as chaves do body para lowercase
+          // Webflow, Wix e outros enviam campos capitalizados ("Nome", "WhatsApp", "Empresa")
+          body = Object.fromEntries(
+            Object.entries(body).map(([k, v]) => [k.toLowerCase().trim(), v]),
+          );
+
           // 3. Checar chave de Idempotência
           const idempotencyKey = request.headers.get("x-idempotency-key") ?? body.idempotency_key ?? null;
           if (idempotencyKey) {
@@ -168,44 +174,45 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
           allPayloadKeys.forEach((k) => unmappedFields.push(k));
 
           // 6. Extrair campos com fallback automático (nome, email, telefone)
-          const name =
-            (mappedStandardFields.name as string) ??
-            body.nome ??
-            body.name ??
-            body.full_name ??
-            body.nome_completo ??
+          // Usa || undefined para ignorar strings vazias (campos não preenchidos)
+          const name: string | undefined =
+            (mappedStandardFields.name as string) ||
+            body.nome ||
+            body.name ||
+            body.full_name ||
+            body.nome_completo ||
             undefined;
 
-          const email =
-            (mappedStandardFields.email as string) ??
-            body.email ??
-            body.mail ??
-            body.email_contato ??
+          const email: string | undefined =
+            (mappedStandardFields.email as string) ||
+            body.email ||
+            body.mail ||
+            body.email_contato ||
             undefined;
 
-          const phone =
-            (mappedStandardFields.phone as string) ??
-            body.telefone ??
-            body.phone ??
-            body.whatsapp ??
-            body.celular ??
+          const phone: string | undefined =
+            (mappedStandardFields.phone as string) ||
+            body.telefone ||
+            body.phone ||
+            body.whatsapp ||
+            body.celular ||
             undefined;
 
-          const company =
-            (mappedStandardFields.company as string) ??
-            body.empresa ??
-            body.company ??
+          const company: string | undefined =
+            (mappedStandardFields.company as string) ||
+            body.empresa ||
+            body.company ||
             undefined;
 
-          const position =
-            (mappedStandardFields.position as string) ??
-            body.cargo ??
-            body.position ??
+          const position: string | undefined =
+            (mappedStandardFields.position as string) ||
+            body.cargo ||
+            body.position ||
             undefined;
 
-          const external_id =
-            (mappedStandardFields.external_id as string) ??
-            body.external_id ??
+          const external_id: string | undefined =
+            (mappedStandardFields.external_id as string) ||
+            body.external_id ||
             undefined;
 
           if (!phone && !email && !external_id && !name) {

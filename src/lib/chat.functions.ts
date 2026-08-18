@@ -383,23 +383,25 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    // O chat não precisa trazer anos de payloads brutos para abrir uma única
-    // conversa. Limitar e executar as três leituras em paralelo evita que uma
-    // tabela grande deixe a interface em carregamento indefinido.
-    const [messages, assignments, campaignMessages] = await Promise.all([
-      db.query(
-        `SELECT * FROM (
-           SELECT id, wa_message_id, provider_message_id, direction, created_at,
-                  type, body, status, sender_name, sender_wa_id,
-                  reply_to_message_id, metadata
-           FROM direct_messages
-           WHERE user_id = ? AND contact_phone = ?
-           ORDER BY created_at DESC
-           LIMIT 500
-         ) AS recent_messages
-         ORDER BY created_at ASC`,
-        [effectiveUserId, phone],
-      ),
+    // O chat não precisa trazer anos de mensagens para abrir uma única
+    // conversa. O limite evita que uma tabela grande deixe a interface em
+    // carregamento indefinido.
+    const messages = await db.query(
+      `SELECT * FROM (
+         SELECT *
+         FROM direct_messages
+         WHERE user_id = ? AND contact_phone = ?
+         ORDER BY created_at DESC
+         LIMIT 500
+       ) AS recent_messages
+       ORDER BY created_at ASC`,
+      [effectiveUserId, phone],
+    );
+
+    // Históricos auxiliares não podem impedir a abertura das mensagens.
+    // Instalações ainda em migração podem não ter todas as colunas
+    // dessas tabelas, enquanto direct_messages continua plenamente utilizável.
+    const [assignmentsResult, campaignMessagesResult] = await Promise.allSettled([
       db.query(
         `SELECT 
         ca.id,
@@ -428,6 +430,16 @@ export const getChatMessages = createServerFn({ method: "POST" })
         [effectiveUserId, phone],
       ),
     ]);
+    if (assignmentsResult.status === "rejected") {
+      console.error("Erro ao carregar atribuições da conversa:", assignmentsResult.reason);
+    }
+    if (campaignMessagesResult.status === "rejected") {
+      console.error("Erro ao carregar campanhas da conversa:", campaignMessagesResult.reason);
+    }
+
+    const assignments = assignmentsResult.status === "fulfilled" ? assignmentsResult.value : [];
+    const campaignMessages =
+      campaignMessagesResult.status === "fulfilled" ? campaignMessagesResult.value : [];
     const typedMessages = (messages ?? []) as DirectMessageRow[];
     const typedAssignments = (assignments ?? []) as AssignmentRow[];
     const typedCampaignMessages = (campaignMessages ?? []) as CampaignMessageRow[];
