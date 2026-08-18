@@ -465,10 +465,8 @@ export const toggleBotActive = createServerFn({ method: "POST" })
       const existingRows = (await db.query(
         `SELECT id
          FROM bot_conversation_state
-         WHERE user_id = ? AND contact_number = ? AND channel = ?
-           AND ((instance_id IS NULL AND ? IS NULL) OR instance_id = ?)
-         LIMIT 1`,
-        [effectiveUserId, digits, data.channel, instanceId ?? null, instanceId ?? null],
+         WHERE user_id = ? AND contact_number = ? AND channel = ?`,
+        [effectiveUserId, digits, data.channel],
       )) as Array<{ id: string }>;
       const existing = existingRows?.[0];
 
@@ -476,13 +474,14 @@ export const toggleBotActive = createServerFn({ method: "POST" })
         await db.query(
           `UPDATE bot_conversation_state
            SET bot_active = ?, is_paused = ?, tenant_id = COALESCE(tenant_id, ?)
-           WHERE id = ? AND user_id = ?`,
+           WHERE user_id = ? AND contact_number = ? AND channel = ?`,
           [
             data.botActive ? 1 : 0,
             data.botActive ? 0 : 1,
             effectiveUserId,
-            existing.id,
             effectiveUserId,
+            digits,
+            data.channel,
           ],
         );
       } else {

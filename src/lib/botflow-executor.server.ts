@@ -335,13 +335,28 @@ export async function processBotFlow(
           .maybeSingle();
     const state = stateForCurrentInstance ?? legacyState;
 
-    if (state && !state.bot_active) {
+    // A ativação/pausa feita no chat vale para o contato, independentemente
+    // da instância usada para guardar o progresso do fluxo. Durante migrações
+    // podem coexistir uma linha legada e outra ligada ao phone_number_id; nesse
+    // caso, a alteração manual mais recente é a fonte de verdade.
+    const { data: controlState } = await dbAdmin
+      .from("bot_conversation_state")
+      .select("id, bot_active, is_paused, paused_until")
+      .eq("user_id", userId)
+      .eq("contact_number", phoneDigits)
+      .eq("channel", channel)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const effectiveControlState = controlState ?? state;
+
+    if (effectiveControlState && !effectiveControlState.bot_active) {
       logInfo("Bot desativado manualmente para este contato", { phoneDigits });
       return;
     }
 
-    if (state && state.is_paused) {
-      const rawPaused = state.paused_until;
+    if (effectiveControlState && effectiveControlState.is_paused) {
+      const rawPaused = effectiveControlState.paused_until;
       let pausedUntil = new Date(0);
       if (rawPaused) {
         const str = typeof rawPaused === "string" ? rawPaused : new Date(rawPaused).toISOString();
@@ -356,7 +371,7 @@ export async function processBotFlow(
         await dbAdmin
           .from("bot_conversation_state")
           .update({ is_paused: false, paused_until: null })
-          .eq("id", state.id);
+          .eq("id", effectiveControlState.id);
       }
     }
 

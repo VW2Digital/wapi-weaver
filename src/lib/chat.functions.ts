@@ -366,7 +366,9 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
 
     if (contact) {
       const botStates = (await db.query(
-        `SELECT bot_active FROM bot_conversation_state WHERE user_id = ? AND contact_number = ? AND channel = ? LIMIT 1`,
+        `SELECT bot_active FROM bot_conversation_state
+         WHERE user_id = ? AND contact_number = ? AND channel = ?
+         ORDER BY updated_at DESC LIMIT 1`,
         [effectiveUserId, phone ?? normalizeChatContactId(contact.phone_e164 ?? ""), contact.channel],
       )) as BotStateFlagRow[];
       contact.bot_active = botStates?.[0] ? !!botStates[0].bot_active : true;
