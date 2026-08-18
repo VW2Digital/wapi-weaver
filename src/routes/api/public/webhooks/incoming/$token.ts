@@ -39,6 +39,10 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             applyTransform,
           } = await import("@/lib/webhooks.server");
 
+          // Garante que as colunas mais recentes existem (last_contact_id, contact_id)
+          const { ensureWebhookTables } = await import("@/lib/webhooks.functions");
+          await ensureWebhookTables().catch(() => {});
+
           // 1. Encontrar o webhook no MySQL
           const webhook = await findIncomingWebhookByToken(token);
           if (!webhook) {

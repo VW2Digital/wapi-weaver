@@ -78,7 +78,7 @@ export async function logIncomingWebhookEvent(
     idempotencyKey?: string;
   },
 ) {
-  await db.query(
+  const insertWithContactId = async () => db.query(
     `INSERT INTO incoming_webhook_events
      (incoming_webhook_id, contact_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -98,6 +98,33 @@ export async function logIncomingWebhookEvent(
       extra?.idempotencyKey ?? null,
     ],
   );
+
+  const insertWithoutContactId = async () => db.query(
+    `INSERT INTO incoming_webhook_events
+     (incoming_webhook_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      webhookId,
+      JSON.stringify(rawPayload),
+      status,
+      errorMessage ?? null,
+      extra?.mappedStandardFields ? JSON.stringify(extra.mappedStandardFields) : null,
+      extra?.mappedCustomFields ? JSON.stringify(extra.mappedCustomFields) : null,
+      extra?.unmappedFields ? JSON.stringify(extra.unmappedFields) : null,
+      extra?.headers ? JSON.stringify(extra.headers) : null,
+      extra?.ipAddress ?? null,
+      extra?.userAgent ?? null,
+      extra?.processingDurationMs ?? null,
+      extra?.idempotencyKey ?? null,
+    ],
+  );
+
+  try {
+    await insertWithContactId();
+  } catch {
+    // Fallback para bancos que ainda não têm a coluna contact_id
+    await insertWithoutContactId();
+  }
 }
 
 export async function incrementIncomingWebhookStats(
