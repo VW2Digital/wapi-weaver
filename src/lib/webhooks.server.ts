@@ -247,6 +247,30 @@ export async function upsertContactFromWebhook(
       );
     }
 
+    if (payload.custom_fields && Object.keys(payload.custom_fields).length > 0) {
+      const [customFieldRows] = (await conn.execute(
+        "SELECT custom_fields FROM contacts WHERE id = ? AND tenant_id = ? LIMIT 1",
+        [contactId, tenantId],
+      )) as [Array<{ custom_fields?: string | Record<string, unknown> | null }>, unknown];
+      const storedValue = customFieldRows?.[0]?.custom_fields;
+      let storedCustomFields: Record<string, unknown> = {};
+      if (typeof storedValue === "string") {
+        try {
+          const parsed = JSON.parse(storedValue);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            storedCustomFields = parsed as Record<string, unknown>;
+          }
+        } catch {}
+      } else if (storedValue && typeof storedValue === "object") {
+        storedCustomFields = storedValue;
+      }
+
+      await conn.execute(
+        "UPDATE contacts SET custom_fields = ? WHERE id = ? AND tenant_id = ?",
+        [JSON.stringify({ ...storedCustomFields, ...payload.custom_fields }), contactId, tenantId],
+      );
+    }
+
     // Log activity
     try {
       await conn.execute(

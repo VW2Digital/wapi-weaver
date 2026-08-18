@@ -113,19 +113,29 @@ function EmbedSnippetBox({ token }: { token: string }) {
 (function(){
   var WAPI_URL="${webhookUrl}";
   function getData(form){
-    var d={},els=form.elements;
-    for(var i=0;i<els.length;i++){
-      var e=els[i];if(!e.name)continue;
-      if(e.type==="checkbox")d[e.name]=e.checked;
-      else if(e.type==="radio"){if(e.checked)d[e.name]=e.value;}
-      else if(e.tagName==="SELECT")d[e.name]=e.options[e.selectedIndex]?.text||e.value;
-      else d[e.name]=e.value;
+    var d={},fd=new FormData(form);
+    fd.forEach(function(value,key){
+      if(value instanceof File)value=value.name;
+      if(Object.prototype.hasOwnProperty.call(d,key)){
+        if(!Array.isArray(d[key]))d[key]=[d[key]];
+        d[key].push(value);
+      }else d[key]=value;
+    });
+    var boxes=form.querySelectorAll('input[type="checkbox"][name]');
+    for(var i=0;i<boxes.length;i++){
+      if(!Object.prototype.hasOwnProperty.call(d,boxes[i].name))d[boxes[i].name]=false;
     }
     return d;
   }
   document.addEventListener("submit",function(ev){
     var form=ev.target;
-    fetch(WAPI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(getData(form)),keepalive:true}).catch(function(){});
+    if(!form||form.tagName!=="FORM")return;
+    var body=JSON.stringify(getData(form));
+    var sent=false;
+    if(navigator.sendBeacon){
+      sent=navigator.sendBeacon(WAPI_URL,new Blob([body],{type:"text/plain;charset=UTF-8"}));
+    }
+    if(!sent)fetch(WAPI_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:body,keepalive:true}).catch(function(){});
   },true);
 })();
 <\/script>`;

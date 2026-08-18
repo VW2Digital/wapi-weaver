@@ -215,6 +215,20 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
             body.external_id ||
             undefined;
 
+          // O payload bruto também precisa acompanhar o contato. Sem isso,
+          // campos capturados pelo snippet mas ainda não mapeados apareciam no
+          // log do webhook e eram descartados ao criar/atualizar o lead.
+          const capturedCustomFields: Record<string, unknown> = {
+            ...(body.custom_fields && typeof body.custom_fields === "object" && !Array.isArray(body.custom_fields)
+              ? body.custom_fields
+              : {}),
+          };
+          for (const [key, value] of Object.entries(body)) {
+            if (key !== "custom_fields" && key !== "idempotency_key") {
+              capturedCustomFields[key] = value;
+            }
+          }
+
           if (!phone && !email && !external_id && !name) {
             const errMsg = "É necessário fornecer pelo menos 'nome', 'email', 'telefone' ou 'external_id'";
             await logIncomingWebhookEvent(webhook.id, body, "error", errMsg, {
@@ -241,7 +255,7 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
               company,
               position,
               external_id: external_id ?? undefined,
-              custom_fields: body.custom_fields as Record<string, unknown> ?? undefined,
+              custom_fields: capturedCustomFields,
             },
             { id: webhook.id, name: webhook.name },
           );
