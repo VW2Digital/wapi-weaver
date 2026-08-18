@@ -228,6 +228,18 @@ export default {
 
       // --- CORS Preflight ---
       if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+        // Rotas públicas (webhooks de entrada, contatos, etc.) devem aceitar qualquer origin
+        if (url.pathname.startsWith("/api/public/")) {
+          return new Response(null, {
+            status: 204,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+              "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, X-Idempotency-Key",
+              "Access-Control-Max-Age": "86400",
+            },
+          });
+        }
         return new Response(null, { status: 204, headers: getCorsHeaders(request) });
       }
 

@@ -254,7 +254,7 @@ export const saveWebhookFieldMappings = createServerFn({ method: "POST" })
           custom_field_id: z.string().uuid().nullable().optional(),
           transformation: z.string().max(50).nullable().optional(),
           default_value: z.string().nullable().optional(),
-          is_required: z.boolean().optional().default(false),
+          is_required: z.coerce.boolean().optional().default(false),
         }),
       ),
     }).parse(d),
