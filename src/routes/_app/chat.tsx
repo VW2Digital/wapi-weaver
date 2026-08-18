@@ -4,7 +4,6 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   listChatContacts,
   getChatContactDetails,
-  getChatMessages,
   sendDirectMessage,
   markMessagesAsRead,
 } from "@/lib/chat.functions";
@@ -576,6 +575,55 @@ function getMessageInteractivePayload(metadata: Record<string, unknown> | null |
   return { payload, interactive };
 }
 
+function normalizeStoredMessageMetadata(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function normalizeStoredChatMessage(value: unknown): ChatMessageRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== "string" || typeof row.created_at !== "string") return null;
+  if (row.direction !== "incoming" && row.direction !== "outgoing") return null;
+
+  const metadata = normalizeStoredMessageMetadata(row.metadata);
+  const metadataMessage = normalizeStoredMessageMetadata(metadata?.message);
+  const location = normalizeStoredMessageMetadata(metadata?.location ?? metadataMessage?.location);
+  const contactsValue = metadata?.contacts ?? metadataMessage?.contacts;
+
+  return {
+    id: row.id,
+    wa_message_id: normalizeOptionalString(row.wa_message_id),
+    direction: row.direction,
+    timestamp: row.created_at,
+    type: (normalizeOptionalString(row.type) ?? "text") as ChatMessageType,
+    body: normalizeOptionalString(row.body),
+    status: normalizeOptionalString(row.status),
+    sender_name: normalizeOptionalString(row.sender_name),
+    sender_wa_id: normalizeOptionalString(row.sender_wa_id),
+    context: row.reply_to_message_id
+      ? { message_id: normalizeOptionalString(row.reply_to_message_id) }
+      : null,
+    metadata,
+    location: location as ChatMessageRecord["location"],
+    contacts: Array.isArray(contactsValue)
+      ? (contactsValue as ChatMessageRecord["contacts"])
+      : null,
+  };
+}
+
 function getCustomFieldText(
   customFields: ContactCustomFields | null | undefined,
   key: string,
@@ -762,7 +810,6 @@ function TagBadge({
 function ChatPage() {
   const fetchContacts = useServerFn(listChatContacts);
   const fetchContactDetails = useServerFn(getChatContactDetails);
-  const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
   const sendGroupMsg = useServerFn(sendGroupMessage);
   const saveContactProfilePhoto = useServerFn(updateContactProfilePhoto);
@@ -2074,9 +2121,30 @@ function ChatPage() {
   }, [selectedPhone, selectedContact?.id]);
 
   const messagesQuery = useQuery({
-    queryKey: ["chat-messages", selectedPhone],
-    queryFn: () => fetchMessages({ data: { phone: selectedPhone } }),
-    enabled: !!selectedPhone,
+    queryKey: ["chat-messages", selectedPhone, selectedContact?.user_id],
+    queryFn: async () => {
+      if (!selectedPhone || !selectedContact?.user_id) return [];
+
+      const { data, error } = await db
+        .from("direct_messages")
+        .select(
+          "id, wa_message_id, direction, created_at, type, body, status, reply_to_message_id, metadata",
+        )
+        .eq("tenant_id", selectedContact.user_id)
+        .eq("user_id", selectedContact.user_id)
+        .eq("contact_phone", selectedPhone)
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (error) throw new Error(error.message);
+      if (!Array.isArray(data)) return [];
+
+      return data
+        .map(normalizeStoredChatMessage)
+        .filter((message): message is ChatMessageRecord => message !== null)
+        .reverse();
+    },
+    enabled: !!selectedPhone && !!selectedContact?.user_id,
     staleTime: 1000,
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
