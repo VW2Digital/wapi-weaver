@@ -1396,6 +1396,8 @@ export async function executeInactivityStep(
           channel,
           current_step_id: stepToExecute.next_step_id || null,
           last_interaction: new Date().toISOString(),
+          is_paused: false,
+          paused_until: null,
         },
         { onConflict: "user_id,contact_number,instance_id,channel" },
       );
@@ -1439,6 +1441,21 @@ export async function executeInactivityStep(
           .eq("id", stepToExecute.flow_id)
           .eq("tenant_id", userId);
       }
+    } else {
+      // Envio falhou: limpa o paused_until para não ficar em loop eterno de
+      // retentativas. O fluxo fica com is_paused = false e current_step_id
+      // apontando para o step que falhou para diagnóstico.
+      logError("Falha ao enviar mensagem de delay/inatividade; limpando pausa para evitar loop", {
+        stepId: stepToExecute?.id,
+        phoneDigits,
+      });
+      await dbAdmin
+        .from("bot_conversation_state")
+        .update({ is_paused: false, paused_until: null })
+        .eq("user_id", userId)
+        .eq("contact_number", phoneDigits)
+        .eq("instance_id", phoneNumberId)
+        .eq("channel", channel);
     }
   } catch (err: any) {
     logError("Exceção fatal no executeInactivityStep", { error: err.message });
