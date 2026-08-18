@@ -224,10 +224,11 @@ export async function upsertContactFromWebhook(
     if (!contactId) {
       created = true;
       contactId = crypto.randomUUID();
+      const hasStatus = payload.status !== undefined && payload.status !== null && payload.status !== "";
       await conn.execute(
         `INSERT INTO contacts
-         (id, user_id, tenant_id, phone_e164, name, email, company, position, notes, status, external_id, responsible_user_id, source, source_type, source_name, source_id, last_interaction_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'webhook', 'incoming_webhook', ?, ?, NOW())`,
+         (id, user_id, tenant_id, phone_e164, name, email, company, position, notes${hasStatus ? ", status" : ""}, external_id, responsible_user_id, source, source_type, source_name, source_id, last_interaction_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?${hasStatus ? ", ?" : ""}, ?, ?, 'webhook', 'incoming_webhook', ?, ?, NOW())`,
         [
           contactId,
           tenantId,
@@ -238,7 +239,7 @@ export async function upsertContactFromWebhook(
           payload.company ?? null,
           payload.position ?? null,
           payload.notes ?? null,
-          payload.status ?? null,
+          ...(hasStatus ? [payload.status as string] : []),
           payload.external_id ?? null,
           payload.responsible_user_id ?? null,
           webhook?.name ?? null,
