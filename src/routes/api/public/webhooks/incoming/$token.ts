@@ -278,6 +278,7 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
 
           // Logar evento com sucesso
           await logIncomingWebhookEvent(webhook.id, body, "success", undefined, {
+            contactId: contact.id,
             mappedStandardFields,
             mappedCustomFields,
             unmappedFields,

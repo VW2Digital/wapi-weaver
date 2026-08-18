@@ -23,10 +23,17 @@ export async function ensureWebhookTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Garante que last_contact_id existe mesmo em tabelas criadas antes da coluna ser adicionada
+    await db.query(`
+      ALTER TABLE incoming_webhooks
+      ADD COLUMN IF NOT EXISTS last_contact_id VARCHAR(36) NULL
+    `).catch(() => {});
+
     await db.query(`
       CREATE TABLE IF NOT EXISTS incoming_webhook_events (
         id VARCHAR(36) PRIMARY KEY,
         incoming_webhook_id VARCHAR(36) NOT NULL,
+        contact_id VARCHAR(36) NULL,
         raw_payload JSON NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'success',
         error_message TEXT NULL,
@@ -42,6 +49,12 @@ export async function ensureWebhookTables() {
         INDEX idx_webhook_id (incoming_webhook_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Garante que contact_id existe mesmo em tabelas criadas antes dessa coluna ser adicionada
+    await db.query(`
+      ALTER TABLE incoming_webhook_events
+      ADD COLUMN IF NOT EXISTS contact_id VARCHAR(36) NULL
+    `).catch(() => {});
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS outgoing_webhooks (
@@ -434,18 +447,13 @@ export const listWebhookLeads = createServerFn({ method: "GET" })
          c.phone_e164 AS contact_phone,
          c.email AS contact_email
        FROM incoming_webhook_events e
-       LEFT JOIN contacts c ON c.id = (
-         SELECT id FROM contacts
-         WHERE user_id = ? AND JSON_UNQUOTE(JSON_EXTRACT(e.raw_payload, '$.phone')) IS NOT NULL
-           AND phone_e164 LIKE CONCAT('%', JSON_UNQUOTE(JSON_EXTRACT(e.raw_payload, '$.telefone')), '%')
-         LIMIT 1
-       )
+       LEFT JOIN contacts c ON c.id = e.contact_id AND c.user_id = ?
        WHERE e.incoming_webhook_id = ?${statusFilter}
        ORDER BY e.created_at DESC
        LIMIT ? OFFSET ?`,
       [effectiveUserId, data.webhook_id, ...statusArgs, data.limit || 50, offset],
     ).catch(async () => {
-      // Fallback sem JOIN complexo caso a coluna não exista ainda
+      // Fallback sem JOIN caso haja incompatibilidade de schema (contact_id ainda não existe)
       return db.query(
         `SELECT e.id, e.status, e.error_message, e.raw_payload, e.mapped_standard_fields,
                 e.mapped_custom_fields, e.unmapped_fields, e.ip_address, e.user_agent,

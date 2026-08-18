@@ -67,6 +67,7 @@ export async function logIncomingWebhookEvent(
   status: "success" | "error",
   errorMessage?: string,
   extra?: {
+    contactId?: string;
     mappedStandardFields?: Record<string, unknown>;
     mappedCustomFields?: Record<string, unknown>;
     unmappedFields?: string[];
@@ -79,10 +80,11 @@ export async function logIncomingWebhookEvent(
 ) {
   await db.query(
     `INSERT INTO incoming_webhook_events
-     (incoming_webhook_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (incoming_webhook_id, contact_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       webhookId,
+      extra?.contactId ?? null,
       JSON.stringify(rawPayload),
       status,
       errorMessage ?? null,
