@@ -390,9 +390,8 @@ export const getChatMessages = createServerFn({ method: "POST" })
     // carregamento indefinido.
     const messages = await db.query(
       `SELECT * FROM (
-         SELECT id, wa_message_id, provider_message_id, direction, created_at,
-                type, body, status, sender_name, sender_wa_id,
-                reply_to_message_id, metadata, raw_payload
+         SELECT id, wa_message_id, direction, created_at, type, body, status,
+                reply_to_message_id, metadata
          FROM direct_messages
          WHERE user_id = ? AND contact_phone = ?
          ORDER BY created_at DESC
