@@ -388,18 +388,34 @@ export const getChatMessages = createServerFn({ method: "POST" })
     // O chat não precisa trazer anos de mensagens para abrir uma única
     // conversa. O limite evita que uma tabela grande deixe a interface em
     // carregamento indefinido.
-    const messages = await db.query(
-      `SELECT * FROM (
-         SELECT id, wa_message_id, direction, created_at, type, body, status,
-                reply_to_message_id, metadata
-         FROM direct_messages
-         WHERE user_id = ? AND contact_phone = ?
-         ORDER BY created_at DESC
-         LIMIT 500
-       ) AS recent_messages
-       ORDER BY created_at ASC`,
-      [effectiveUserId, phone],
-    );
+    const baseMessagesQuery = `SELECT * FROM (
+       SELECT id, direction, created_at, body, status
+       FROM direct_messages
+       WHERE user_id = ? AND contact_phone = ?
+       ORDER BY created_at DESC
+       LIMIT 500
+     ) AS recent_messages
+     ORDER BY created_at ASC`;
+    const richMessagesQuery = `SELECT * FROM (
+       SELECT id, wa_message_id, direction, created_at, type, body, status,
+              reply_to_message_id, metadata
+       FROM direct_messages
+       WHERE user_id = ? AND contact_phone = ?
+       ORDER BY created_at DESC
+       LIMIT 500
+     ) AS recent_messages
+     ORDER BY created_at ASC`;
+
+    let messages: unknown[];
+    try {
+      messages = (await db.query(richMessagesQuery, [effectiveUserId, phone])) as unknown[];
+    } catch (error) {
+      console.warn(
+        "Schema legado em direct_messages; carregando a conversa com as colunas-base.",
+        error,
+      );
+      messages = (await db.query(baseMessagesQuery, [effectiveUserId, phone])) as unknown[];
+    }
 
     // Históricos auxiliares não podem impedir a abertura das mensagens.
     // Instalações ainda em migração podem não ter todas as colunas
