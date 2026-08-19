@@ -4,6 +4,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
+import { buildWhatsAppBotMessage, type WhatsAppBotStep } from "@/lib/meta-whatsapp-message";
 import { sendInstagramMessage } from "@/lib/instagram-messenger";
 import db from "./db";
 
@@ -463,8 +464,49 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const typedAssignments = (assignments ?? []) as AssignmentRow[];
     const typedCampaignMessages = (campaignMessages ?? []) as CampaignMessageRow[];
 
+    const botStepsById = new Map<string, WhatsAppBotStep>();
+    const botStepIds = Array.from(
+      new Set(
+        typedMessages
+          .map((row) => getStringValue(asJsonRecord(row.metadata)?.step_id))
+          .filter((stepId): stepId is string => Boolean(stepId)),
+      ),
+    );
+    if (botStepIds.length > 0) {
+      try {
+        const botSteps = (await db.query(
+          `SELECT id, message_type, message_content, media_url, media_caption,
+                  footer_text, buttons_config
+           FROM bot_steps
+           WHERE (user_id = ? OR tenant_id = ?)
+             AND id IN (${botStepIds.map(() => "?").join(", ")})`,
+          [effectiveUserId, effectiveUserId, ...botStepIds],
+        )) as Array<WhatsAppBotStep & { id: string }>;
+        botSteps.forEach((step) => botStepsById.set(step.id, step));
+      } catch (error) {
+        console.warn("Não foi possível reconstruir os cartões antigos do bot.", error);
+      }
+    }
+
     const formattedMessages = typedMessages.map((row) => {
-      const meta = asJsonRecord(row.metadata);
+      const storedMeta = asJsonRecord(row.metadata);
+      const stepId = getStringValue(storedMeta?.step_id);
+      const botStep = stepId ? botStepsById.get(stepId) : null;
+      const rebuiltMessage = botStep ? buildWhatsAppBotMessage(phone, botStep) : null;
+      const rebuiltPayload = rebuiltMessage?.ok
+        ? asJsonRecord(JSON.stringify(rebuiltMessage.payload))
+        : null;
+      const rebuiltBuildMeta = rebuiltMessage?.ok
+        ? asJsonRecord(JSON.stringify(rebuiltMessage.meta))
+        : null;
+      const meta: JsonRecord | null =
+        rebuiltPayload && !asJsonRecord(storedMeta?.payload)
+          ? {
+              ...(storedMeta ?? {}),
+              payload: rebuiltPayload,
+              message_build: rebuiltBuildMeta,
+            }
+          : storedMeta;
       const rawPayload = asJsonRecord(row.raw_payload);
       const metaMessage = asJsonRecord(meta?.message);
       const rawMessages = asJsonRecordArray(rawPayload?.messages);

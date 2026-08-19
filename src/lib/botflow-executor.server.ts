@@ -941,6 +941,8 @@ export async function processBotFlow(
     // 4. Disparar o envio da mensagem para o canal correto
     let isSuccess = false;
     let providerMsgId: string | null = null;
+    let sentPayload: Record<string, unknown> | null = null;
+    let messageBuildMeta: Record<string, unknown> | null = null;
 
     if (channel === "whatsapp" || channel === "whatsapp_group") {
       const { data: p } = await dbAdmin
@@ -977,6 +979,8 @@ export async function processBotFlow(
         return;
       }
       const { payload } = build;
+      sentPayload = payload;
+      messageBuildMeta = build.meta;
       if (channel === "whatsapp_group") payload.recipient_type = "group";
       logInfo("Enviando mensagem WhatsApp do fluxo", { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, botflowType: build.meta.botflowType, metaType: build.meta.metaType, interactiveType: build.meta.interactiveType, recipient: `${phoneDigits.slice(0, 4)}***${phoneDigits.slice(-2)}` });
 
@@ -1105,6 +1109,8 @@ export async function processBotFlow(
         metadata: {
           step_id: stepToExecute.id,
           bot_triggered: true,
+          payload: sentPayload,
+          message_build: messageBuildMeta,
           media_url: stepToExecute.media_url,
           filename: stepToExecute.media_caption || "document.pdf",
           caption: stepToExecute.media_caption || stepToExecute.message_content,
