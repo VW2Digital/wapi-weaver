@@ -1435,6 +1435,10 @@ export async function ensureDatabaseSchema() {
       "channel",
       "VARCHAR(50) NOT NULL DEFAULT 'whatsapp'",
     );
+    await ensureColumnExists(connection, "direct_messages", "type", "VARCHAR(50) NOT NULL DEFAULT 'text'");
+    await ensureColumnExists(connection, "direct_messages", "wa_message_id", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "direct_messages", "reply_to_message_id", "VARCHAR(255) NULL");
+    await ensureColumnExists(connection, "direct_messages", "metadata", "JSON NULL");
     await ensureColumnExists(
       connection,
       "direct_messages",
