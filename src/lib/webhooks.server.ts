@@ -117,8 +117,8 @@ export async function processWebhookPayloadAsync(
   rawPayload: Record<string, unknown>,
 ): Promise<void> {
   const mappings = await db.query<any[]>(
-    "SELECT * FROM webhook_field_mappings WHERE webhook_id = ? ORDER BY created_at ASC",
-    [webhook.id],
+    "SELECT * FROM webhook_field_mappings WHERE webhook_id = ? AND user_id = ? ORDER BY created_at ASC",
+    [webhook.id, webhook.tenant_id],
   ).catch(() => []);
 
   // Sem de-para configurado, o evento permanece aguardando em `received`.
@@ -154,32 +154,64 @@ export async function processWebhookPayloadAsync(
         phone: standard.phone == null ? undefined : String(standard.phone),
         company: standard.company == null ? undefined : String(standard.company),
         position: standard.position == null ? undefined : String(standard.position),
+        notes: standard.notes == null ? undefined : String(standard.notes),
+        status: standard.status == null ? undefined : String(standard.status),
         external_id: standard.external_id == null ? undefined : String(standard.external_id),
+        responsible_user_id:
+          standard.responsible_user_id == null ? undefined : String(standard.responsible_user_id),
         custom_fields: rawPayload,
       },
       webhook,
     );
 
     if (Object.keys(custom).length) {
-      const { saveContactCustomFieldValues } = await import("@/lib/custom-fields.functions");
-      await saveContactCustomFieldValues({
-        data: {
-          contact_id: contact.id,
-          values: Object.entries(custom).map(([custom_field_id, value]) => ({ custom_field_id, value })),
-        },
-      });
+      for (const [customFieldId, value] of Object.entries(custom)) {
+        const allowedFields = await db.query<Array<{ id: string }>>(
+          `SELECT id FROM contact_custom_fields
+           WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1`,
+          [customFieldId, webhook.tenant_id, webhook.tenant_id],
+        );
+        if (!allowedFields[0]) {
+          throw new Error(`Campo personalizado ${customFieldId} não pertence ao tenant do webhook`);
+        }
+        const valueText = value == null ? null : String(value);
+        const valueJson = Array.isArray(value) || (value !== null && typeof value === "object")
+          ? JSON.stringify(value)
+          : null;
+        await db.query(
+          `INSERT INTO contact_custom_field_values
+           (user_id, contact_id, custom_field_id, value, value_json)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE value = VALUES(value), value_json = VALUES(value_json)`,
+          [
+            webhook.tenant_id,
+            contact.id,
+            customFieldId,
+            valueText,
+            valueJson,
+          ],
+        );
+      }
     }
 
     await db.query(
       `UPDATE incoming_webhook_events SET status = 'processed', contact_id = ?,
        mapped_standard_fields = ?, mapped_custom_fields = ?, unmapped_fields = ?,
        processed_at = NOW(), processing_duration_ms = TIMESTAMPDIFF(MICROSECOND, received_at, NOW()) / 1000
-       WHERE id = ?`,
-      [contact.id, JSON.stringify(standard), JSON.stringify(custom), JSON.stringify(unmapped), eventId],
+       WHERE id = ? AND user_id = ?`,
+      [
+        contact.id,
+        JSON.stringify(standard),
+        JSON.stringify(custom),
+        JSON.stringify(unmapped),
+        eventId,
+        webhook.tenant_id,
+      ],
     );
     await db.query(
-      `UPDATE incoming_webhooks SET leads_count = leads_count + ?, last_contact_id = ? WHERE id = ?`,
-      [contact.created ? 1 : 0, contact.id, webhook.id],
+      `UPDATE incoming_webhooks SET leads_count = leads_count + ?, last_contact_id = ?
+       WHERE id = ? AND tenant_id = ?`,
+      [contact.created ? 1 : 0, contact.id, webhook.id, webhook.tenant_id],
     );
 
     const { triggerWebhookBotFlow } = await import("@/lib/botflow-executor.server");
@@ -189,8 +221,8 @@ export async function processWebhookPayloadAsync(
     await db.query(
       `UPDATE incoming_webhook_events SET status = 'error', error_message = ?,
        processed_at = NOW(), processing_duration_ms = TIMESTAMPDIFF(MICROSECOND, received_at, NOW()) / 1000
-       WHERE id = ?`,
-      [message, eventId],
+       WHERE id = ? AND user_id = ?`,
+      [message, eventId, webhook.tenant_id],
     ).catch(() => {});
     console.error("[Webhook Process] Falha ao processar evento:", error);
   }
