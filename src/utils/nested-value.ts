@@ -19,8 +19,20 @@ export function getNestedValue<T = unknown>(
 ): T | undefined {
   if (!obj || !path) return defaultValue;
 
-  // Normaliza bracket notation para dot notation: "data[0].email" → "data.0.email"
-  const normalizedPath = path.replace(/\[(\d+)\]/g, ".$1");
+  // Formulários HTML costumam enviar nomes como `form_fields[produto]`
+  // literalmente. Preserve esse caso antes de interpretar os colchetes como
+  // navegação em um objeto aninhado.
+  if (Object.prototype.hasOwnProperty.call(obj, path)) {
+    const directValue = obj[path];
+    return directValue !== undefined ? (directValue as T) : defaultValue;
+  }
+
+  // Normaliza bracket notation numérica ou textual:
+  // "data[0].email" → "data.0.email"
+  // "form_fields[produto]" → "form_fields.produto"
+  const normalizedPath = path
+    .replace(/\[(["'])(.*?)\1\]/g, ".$2")
+    .replace(/\[([^\]]+)\]/g, ".$1");
   const keys = normalizedPath.split(".").filter(Boolean);
 
   let current: unknown = obj;
