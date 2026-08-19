@@ -310,11 +310,16 @@ interface InteractiveButtonRecord {
   };
 }
 
+interface InteractiveListSectionRecord {
+  title?: string;
+  rows?: Array<{ title?: string; description?: string }>;
+}
+
 interface InteractiveHeaderRecord {
   type?: string;
-  image?: { link?: string };
-  video?: { link?: string };
-  document?: { link?: string; filename?: string };
+  image?: { id?: string; link?: string };
+  video?: { id?: string; link?: string };
+  document?: { id?: string; link?: string; filename?: string };
   text?: string;
 }
 
@@ -326,7 +331,8 @@ interface InteractivePayloadRecord {
   action?: {
     button?: string;
     buttons?: InteractiveButtonRecord[];
-    parameters?: { flow_cta?: string };
+    sections?: InteractiveListSectionRecord[];
+    parameters?: { display_text?: string; flow_cta?: string; url?: string };
   };
 }
 
@@ -563,15 +569,82 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
 }
 
 function getMessageInteractivePayload(metadata: Record<string, unknown> | null | undefined) {
-  const payload =
-    metadata && typeof metadata.payload === "object" && metadata.payload !== null
-      ? (metadata.payload as Record<string, unknown>)
-      : null;
+  const asRecord = (value: unknown): Record<string, unknown> | null => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
 
-  const interactive =
-    payload && typeof payload.interactive === "object" && payload.interactive !== null
-      ? (payload.interactive as InteractivePayloadRecord)
-      : null;
+  const payload =
+    asRecord(metadata?.payload) || asRecord(metadata?.request_payload) || metadata || null;
+
+  let interactive =
+    (asRecord(payload?.interactive) as InteractivePayloadRecord | null) ||
+    (asRecord(metadata?.interactive) as InteractivePayloadRecord | null);
+
+  if (!interactive) {
+    const buttonsConfig = asRecord(metadata?.buttons_config) || asRecord(payload?.buttons_config);
+    const action =
+      asRecord(buttonsConfig?.action) ||
+      asRecord(metadata?.action) ||
+      asRecord(payload?.action) ||
+      buttonsConfig;
+    const rawButtons = Array.isArray(action?.buttons)
+      ? action.buttons
+      : Array.isArray(metadata?.buttons)
+        ? metadata.buttons
+        : Array.isArray(payload?.buttons)
+          ? payload.buttons
+          : [];
+    const buttons = rawButtons.reduce<InteractiveButtonRecord[]>((result, button) => {
+        const buttonRecord = asRecord(button);
+        const reply = asRecord(buttonRecord?.reply) || buttonRecord;
+        const title = reply?.title;
+        if (typeof title === "string") result.push({ reply: { title } });
+        return result;
+      }, []);
+
+    if (buttons.length > 0) {
+      interactive = { type: "button", action: { buttons } };
+    } else if (Array.isArray(action?.sections)) {
+      interactive = {
+        type: "list",
+        action: {
+          button: typeof action.button === "string" ? action.button : undefined,
+          sections: action.sections as InteractiveListSectionRecord[],
+        },
+      };
+    } else {
+      const parameters = asRecord(action?.parameters) || action;
+      if (typeof parameters?.url === "string") {
+        interactive = {
+          type: "cta_url",
+          action: {
+            parameters: {
+              url: parameters.url,
+              display_text:
+                typeof parameters.display_text === "string"
+                  ? parameters.display_text
+                  : typeof parameters.title === "string"
+                    ? parameters.title
+                    : undefined,
+            },
+          },
+        };
+      }
+    }
+  }
 
   return { payload, interactive };
 }
@@ -4641,6 +4714,12 @@ function ChatPage() {
                                       const { interactive } = getMessageInteractivePayload(
                                         msg.metadata,
                                       );
+                                      const metadataMediaUrl =
+                                        typeof msg.metadata?.media_url === "string"
+                                          ? msg.metadata.media_url
+                                          : typeof msg.metadata?.mediaUrl === "string"
+                                            ? msg.metadata.mediaUrl
+                                          : "";
 
                                       // Extract interactive header media
                                       const header = interactive?.header;
@@ -4664,6 +4743,11 @@ function ChatPage() {
                                         } else if (header.type === "text" && header.text) {
                                           headerText = header.text;
                                         }
+                                      }
+
+                                      if (!headerMediaUrl && metadataMediaUrl) {
+                                        headerMediaUrl = metadataMediaUrl;
+                                        headerMediaType = "image";
                                       }
 
                                       // Extract standard message body and type
@@ -4754,7 +4838,8 @@ function ChatPage() {
                                         (interactive?.type === "button" &&
                                           interactive.action?.buttons) ||
                                         interactive?.type === "list" ||
-                                        interactive?.type === "flow";
+                                        interactive?.type === "flow" ||
+                                        interactive?.type === "cta_url";
                                       const isRichCard = hasTopMedia || hasBottomActions;
 
                                       return (
@@ -4865,7 +4950,7 @@ function ChatPage() {
                                                 )}
                                               >
                                                 <img
-                                                  src={headerMediaUrl}
+                                                  src={getMediaUrl(headerMediaUrl)}
                                                   alt="Header"
                                                   className="w-full max-h-60 object-cover"
                                                 />
@@ -4881,7 +4966,7 @@ function ChatPage() {
                                                 )}
                                               >
                                                 <video
-                                                  src={headerMediaUrl}
+                                                  src={getMediaUrl(headerMediaUrl)}
                                                   controls
                                                   className="w-full max-h-60 object-cover"
                                                 />
@@ -4901,7 +4986,7 @@ function ChatPage() {
                                                   asChild
                                                 >
                                                   <a
-                                                    href={headerMediaUrl}
+                                                    href={getMediaUrl(headerMediaUrl)}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                   >
@@ -5105,7 +5190,12 @@ function ChatPage() {
                                               bodyText) ||
                                               headerText ||
                                               interactive?.footer?.text) && (
-                                              <div className="py-1.5 space-y-1">
+                                              <div
+                                                className={cn(
+                                                  "py-2 space-y-1",
+                                                  isRichCard && "px-3",
+                                                )}
+                                              >
                                                 {headerText && (
                                                   <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
                                                     {headerText}
@@ -5136,7 +5226,7 @@ function ChatPage() {
                                             {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
                                             {interactive?.type === "button" &&
                                               interactive.action?.buttons && (
-                                                <div className="flex flex-col w-full mt-1.5">
+                                                <div className="flex flex-col gap-1.5 w-full px-2.5 pb-2.5 pt-2 border-t border-border/40">
                                                   {interactive.action.buttons.map(
                                                     (
                                                       btn: InteractiveButtonRecord,
@@ -5150,14 +5240,8 @@ function ChatPage() {
                                                         <div
                                                           key={btnIdx}
                                                           className={cn(
-                                                            "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
-                                                            isOutgoing
-                                                              ? "wa-card-button-outgoing wa-button-separator-outgoing"
-                                                              : "wa-card-button-incoming wa-button-separator-incoming",
-                                                            isLast &&
-                                                              (isOutgoing
-                                                                ? "rounded-b-lg rounded-br-none"
-                                                                : "rounded-b-lg rounded-bl-none"),
+                                                            "w-full rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary text-center flex items-center justify-center gap-1.5 select-none",
+                                                            isLast && "mb-0",
                                                           )}
                                                         >
                                                           <MessageSquare className="h-3.5 w-3.5 opacity-60" />
@@ -5171,22 +5255,59 @@ function ChatPage() {
 
                                             {/* F. Render List selection action */}
                                             {interactive?.type === "list" && (
-                                              <div className="flex flex-col w-full mt-1.5">
-                                                <div
-                                                  className={cn(
-                                                    "w-full py-2.5 text-xs text-center flex items-center justify-center gap-1.5 select-none",
-                                                    isOutgoing
-                                                      ? "wa-card-button-outgoing wa-button-separator-outgoing rounded-b-lg rounded-br-none"
-                                                      : "wa-card-button-incoming wa-button-separator-incoming rounded-b-lg rounded-bl-none",
-                                                  )}
-                                                >
-                                                  <Menu className="h-3.5 w-3.5 opacity-60" />
-                                                  {interactive.action?.button || "Ver Recursos"}
-                                                </div>
+                                              <div className="space-y-2 px-2.5 pb-2.5 pt-2 border-t border-border/40">
+                                                {(interactive.action?.sections ?? []).map(
+                                                  (section, sectionIndex) => (
+                                                    <div key={sectionIndex} className="space-y-1">
+                                                      {section.title && (
+                                                        <p className="px-1 text-[10px] font-semibold text-muted-foreground">
+                                                          {section.title}
+                                                        </p>
+                                                      )}
+                                                      {(section.rows ?? []).map((row, rowIndex) => (
+                                                        <div
+                                                          key={rowIndex}
+                                                          className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2 text-left"
+                                                        >
+                                                          <p className="text-xs font-bold leading-tight">
+                                                            {row.title || `Opção ${rowIndex + 1}`}
+                                                          </p>
+                                                          {row.description && (
+                                                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                                              {row.description}
+                                                            </p>
+                                                          )}
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  ),
+                                                )}
+                                                {!interactive.action?.sections?.length && (
+                                                  <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 py-2 text-center text-xs font-semibold text-emerald-500">
+                                                    <Menu className="mr-1.5 inline h-3.5 w-3.5" />
+                                                    {interactive.action?.button || "Ver Recursos"}
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
 
-                                            {/* G. Render Flow CTA action */}
+                                            {/* G. Render URL CTA */}
+                                            {interactive?.type === "cta_url" && (
+                                              <div className="px-2.5 pb-2.5 pt-2 border-t border-border/40">
+                                                <a
+                                                  href={interactive.action?.parameters?.url || "#"}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-500 hover:bg-blue-500/20"
+                                                >
+                                                  <LinkIcon className="h-3.5 w-3.5" />
+                                                  {interactive.action?.parameters?.display_text ||
+                                                    "Acessar Link"}
+                                                </a>
+                                              </div>
+                                            )}
+
+                                            {/* H. Render Flow CTA action */}
                                             {interactive?.type === "flow" && (
                                               <div className="flex flex-col w-full mt-1.5">
                                                 <div
