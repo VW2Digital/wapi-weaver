@@ -940,7 +940,7 @@ CREATE TABLE IF NOT EXISTS `incoming_webhook_events` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `incoming_webhook_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `payload` json NOT NULL,
-  `status` enum('success','error') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('received','processed','parse_error','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'received',
   `error_message` text COLLATE utf8mb4_unicode_ci,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,

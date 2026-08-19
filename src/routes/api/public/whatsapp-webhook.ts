@@ -1442,13 +1442,13 @@ async function handleWhatsAppGroupMessage(
 
   // 4. Salvar a mensagem na tabela direct_messages
   const waMessageId = normalizeWaMessageId(m.id);
-  const type = m.type ?? "text";
-  let body = "";
-  if (m.type === "text") {
-    body = m.text?.body ?? "";
-  } else {
-    body = `[Mensagem de tipo ${m.type} recebida]`;
-  }
+  // Usa resolveDirectMessageContent para garantir que `type` seja um valor
+  // aceito pelo ENUM da coluna direct_messages.type. Tipos desconhecidos
+  // (interactive, button, order, unsupported…) são mapeados para "text"
+  // com body descritivo, evitando "Data truncated for column 'type'".
+  const resolvedGroup = resolveDirectMessageContent(m);
+  const type = resolvedGroup.type;
+  const body = resolvedGroup.body;
 
   const reply_to_message_id = m.context?.message_id ?? null;
 

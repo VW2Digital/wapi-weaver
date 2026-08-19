@@ -1,5 +1,7 @@
 import db from "./db";
 import crypto from "crypto";
+import type { ResultSetHeader } from "mysql2";
+import { getNestedValue } from "@/utils/nested-value";
 
 export interface IncomingWebhookRow {
   id: string;
@@ -14,10 +16,7 @@ export interface IncomingWebhookRow {
 }
 
 export function resolveDotPath(obj: Record<string, any>, path: string): unknown {
-  return path.split(".").reduce((acc, key) => {
-    if (acc && typeof acc === "object" && key in acc) return (acc as Record<string, any>)[key];
-    return undefined;
-  }, obj);
+  return getNestedValue(obj, path);
 }
 
 export function applyTransform(value: unknown, transform: string): unknown {
@@ -64,7 +63,7 @@ export async function findIncomingWebhookByToken(token: string): Promise<Incomin
 export async function logIncomingWebhookEvent(
   webhookId: string,
   rawPayload: unknown,
-  status: "success" | "error",
+  status: "received" | "processed" | "parse_error" | "error",
   errorMessage?: string,
   extra?: {
     contactId?: string;
@@ -77,7 +76,7 @@ export async function logIncomingWebhookEvent(
     processingDurationMs?: number;
     idempotencyKey?: string;
   },
-) {
+): Promise<string> {
   const insertWithContactId = async () => db.query(
     `INSERT INTO incoming_webhook_events
      (incoming_webhook_id, contact_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
@@ -99,31 +98,96 @@ export async function logIncomingWebhookEvent(
     ],
   );
 
-  const insertWithoutContactId = async () => db.query(
-    `INSERT INTO incoming_webhook_events
-     (incoming_webhook_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      webhookId,
-      JSON.stringify(rawPayload),
-      status,
-      errorMessage ?? null,
-      extra?.mappedStandardFields ? JSON.stringify(extra.mappedStandardFields) : null,
-      extra?.mappedCustomFields ? JSON.stringify(extra.mappedCustomFields) : null,
-      extra?.unmappedFields ? JSON.stringify(extra.unmappedFields) : null,
-      extra?.headers ? JSON.stringify(extra.headers) : null,
-      extra?.ipAddress ?? null,
-      extra?.userAgent ?? null,
-      extra?.processingDurationMs ?? null,
-      extra?.idempotencyKey ?? null,
-    ],
+  const result = await insertWithContactId() as ResultSetHeader;
+  await db.query(
+    "UPDATE incoming_webhooks SET events_count = events_count + 1, last_event_at = NOW() WHERE id = ?",
+    [webhookId],
   );
+  return String(result.insertId);
+}
 
+export async function processWebhookPayloadAsync(
+  webhook: Pick<IncomingWebhookRow, "id" | "tenant_id" | "name">,
+  eventId: string,
+  rawPayload: Record<string, unknown>,
+): Promise<void> {
+  const mappings = await db.query<any[]>(
+    "SELECT * FROM webhook_field_mappings WHERE webhook_id = ? ORDER BY created_at ASC",
+    [webhook.id],
+  ).catch(() => []);
+
+  // Sem de-para configurado, o evento permanece aguardando em `received`.
+  if (!mappings.length) return;
+
+  const standard: Record<string, unknown> = {};
+  const custom: Record<string, unknown> = {};
+  const mappedRoots = new Set<string>();
+
+  for (const mapping of mappings) {
+    const sourcePath = String(mapping.external_field ?? "");
+    const value = getNestedValue(rawPayload, sourcePath);
+    if (value === undefined || mapping.target_type === "ignore") continue;
+
+    mappedRoots.add(sourcePath.replace(/\[(\d+)\]/g, ".$1").split(".")[0]);
+    const transformed = mapping.transformation
+      ? applyTransform(value, mapping.transformation)
+      : value;
+    if (mapping.target_type === "standard" && mapping.target_key) {
+      standard[mapping.target_key] = transformed;
+    } else if (mapping.target_type === "custom" && mapping.custom_field_id) {
+      custom[mapping.custom_field_id] = transformed;
+    }
+  }
+
+  const unmapped = Object.keys(rawPayload).filter((key) => !mappedRoots.has(key));
   try {
-    await insertWithContactId();
-  } catch {
-    // Fallback para bancos que ainda não têm a coluna contact_id
-    await insertWithoutContactId();
+    const contact = await upsertContactFromWebhook(
+      webhook.tenant_id,
+      {
+        name: standard.name == null ? undefined : String(standard.name),
+        email: standard.email == null ? undefined : String(standard.email),
+        phone: standard.phone == null ? undefined : String(standard.phone),
+        company: standard.company == null ? undefined : String(standard.company),
+        position: standard.position == null ? undefined : String(standard.position),
+        external_id: standard.external_id == null ? undefined : String(standard.external_id),
+        custom_fields: rawPayload,
+      },
+      webhook,
+    );
+
+    if (Object.keys(custom).length) {
+      const { saveContactCustomFieldValues } = await import("@/lib/custom-fields.functions");
+      await saveContactCustomFieldValues({
+        data: {
+          contact_id: contact.id,
+          values: Object.entries(custom).map(([custom_field_id, value]) => ({ custom_field_id, value })),
+        },
+      });
+    }
+
+    await db.query(
+      `UPDATE incoming_webhook_events SET status = 'processed', contact_id = ?,
+       mapped_standard_fields = ?, mapped_custom_fields = ?, unmapped_fields = ?,
+       processed_at = NOW(), processing_duration_ms = TIMESTAMPDIFF(MICROSECOND, received_at, NOW()) / 1000
+       WHERE id = ?`,
+      [contact.id, JSON.stringify(standard), JSON.stringify(custom), JSON.stringify(unmapped), eventId],
+    );
+    await db.query(
+      `UPDATE incoming_webhooks SET leads_count = leads_count + ?, last_contact_id = ? WHERE id = ?`,
+      [contact.created ? 1 : 0, contact.id, webhook.id],
+    );
+
+    const { triggerWebhookBotFlow } = await import("@/lib/botflow-executor.server");
+    void triggerWebhookBotFlow(webhook.tenant_id, contact.id, rawPayload).catch(console.error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await db.query(
+      `UPDATE incoming_webhook_events SET status = 'error', error_message = ?,
+       processed_at = NOW(), processing_duration_ms = TIMESTAMPDIFF(MICROSECOND, received_at, NOW()) / 1000
+       WHERE id = ?`,
+      [message, eventId],
+    ).catch(() => {});
+    console.error("[Webhook Process] Falha ao processar evento:", error);
   }
 }
 

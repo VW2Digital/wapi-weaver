@@ -35,7 +35,7 @@ export async function ensureWebhookTables() {
         incoming_webhook_id VARCHAR(36) NOT NULL,
         contact_id VARCHAR(36) NULL,
         raw_payload JSON NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'success',
+        status ENUM('received','processed','parse_error','error') NOT NULL DEFAULT 'received',
         error_message TEXT NULL,
         mapped_standard_fields JSON NULL,
         mapped_custom_fields JSON NULL,

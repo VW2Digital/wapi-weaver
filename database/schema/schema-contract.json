@@ -7466,9 +7466,9 @@
       "status": {
         "ordinal_position": 4,
         "data_type": "enum",
-        "column_type": "enum('success','error')",
+        "column_type": "enum('received','processed','parse_error','error')",
         "nullable": false,
-        "default": null,
+        "default": "received",
         "key": "MUL",
         "extra": "",
         "charset": "utf8mb4",
