@@ -52,6 +52,17 @@ jobs:
           DB_NAME: wapi_weaver
         run: node scripts/migrate.js
 
+      - name: Provision CI Admin
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+          ADMIN_EMAIL: adm@vw2digital.com.br
+          ADMIN_PASSWORD: ci-only-admin-password
+        run: node scripts/provision-admin.js
+
       - name: Validate Database Integrity
         env:
           DB_HOST: 127.0.0.1
@@ -149,6 +160,17 @@ jobs:
           DB_NAME: wapi_weaver
         run: node scripts/migrate.js
 
+      - name: Provision CI Admin Post-Update
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+          ADMIN_EMAIL: adm@vw2digital.com.br
+          ADMIN_PASSWORD: ci-only-admin-password
+        run: node scripts/provision-admin.js
+
       - name: Validate Database Integrity Post-Update
         env:
           DB_HOST: 127.0.0.1
@@ -184,4 +206,3 @@ jobs:
           DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
           DB_NAME: wapi_weaver
         run: node scripts/test-payment-gateway-settings.js
-

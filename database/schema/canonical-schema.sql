@@ -1,5 +1,11 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
 
+-- O dump é ordenado alfabeticamente, portanto algumas tabelas referenciadas
+-- por FKs aparecem depois das tabelas filhas. Desabilitar a validação durante
+-- o bootstrap permite criar o schema vazio; as constraints continuam sendo
+-- criadas e voltam a ser verificadas ao final.
+SET FOREIGN_KEY_CHECKS = 0;
+
 CREATE TABLE IF NOT EXISTS `ai_agent_settings` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1809,6 +1815,8 @@ CREATE TABLE IF NOT EXISTS `webhook_events` (
   KEY `idx_webhook_events_processed` (`processed`,`received_at`),
   CONSTRAINT `webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `webhook_field_mappings` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
