@@ -312,9 +312,9 @@ interface InteractiveButtonRecord {
 
 interface InteractiveHeaderRecord {
   type?: string;
-  image?: { link?: string };
-  video?: { link?: string };
-  document?: { link?: string; filename?: string };
+  image?: { id?: string; link?: string };
+  video?: { id?: string; link?: string };
+  document?: { id?: string; link?: string; filename?: string };
   text?: string;
 }
 
@@ -563,10 +563,14 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
 }
 
 function getMessageInteractivePayload(metadata: Record<string, unknown> | null | undefined) {
+  const nestedPayload = metadata?.payload;
+  const requestPayload = metadata?.request_payload;
   const payload =
-    metadata && typeof metadata.payload === "object" && metadata.payload !== null
-      ? (metadata.payload as Record<string, unknown>)
-      : null;
+    nestedPayload && typeof nestedPayload === "object" && !Array.isArray(nestedPayload)
+      ? (nestedPayload as Record<string, unknown>)
+      : requestPayload && typeof requestPayload === "object" && !Array.isArray(requestPayload)
+        ? (requestPayload as Record<string, unknown>)
+        : metadata ?? null;
 
   const interactive =
     payload && typeof payload.interactive === "object" && payload.interactive !== null
@@ -4649,17 +4653,26 @@ function ChatPage() {
                                       let headerText = "";
 
                                       if (header) {
-                                        if (header.type === "image" && header.image?.link) {
-                                          headerMediaUrl = header.image.link;
+                                        if (
+                                          header.type === "image" &&
+                                          (header.image?.link || header.image?.id)
+                                        ) {
+                                          headerMediaUrl =
+                                            header.image.link || header.image.id || "";
                                           headerMediaType = "image";
-                                        } else if (header.type === "video" && header.video?.link) {
-                                          headerMediaUrl = header.video.link;
+                                        } else if (
+                                          header.type === "video" &&
+                                          (header.video?.link || header.video?.id)
+                                        ) {
+                                          headerMediaUrl =
+                                            header.video.link || header.video.id || "";
                                           headerMediaType = "video";
                                         } else if (
                                           header.type === "document" &&
-                                          header.document?.link
+                                          (header.document?.link || header.document?.id)
                                         ) {
-                                          headerMediaUrl = header.document.link;
+                                          headerMediaUrl =
+                                            header.document.link || header.document.id || "";
                                           headerMediaType = "document";
                                         } else if (header.type === "text" && header.text) {
                                           headerText = header.text;
@@ -4865,7 +4878,7 @@ function ChatPage() {
                                                 )}
                                               >
                                                 <img
-                                                  src={headerMediaUrl}
+                                                  src={getMediaUrl(headerMediaUrl)}
                                                   alt="Header"
                                                   className="w-full max-h-60 object-cover"
                                                 />
@@ -4881,7 +4894,7 @@ function ChatPage() {
                                                 )}
                                               >
                                                 <video
-                                                  src={headerMediaUrl}
+                                                  src={getMediaUrl(headerMediaUrl)}
                                                   controls
                                                   className="w-full max-h-60 object-cover"
                                                 />
@@ -4901,7 +4914,7 @@ function ChatPage() {
                                                   asChild
                                                 >
                                                   <a
-                                                    href={headerMediaUrl}
+                                                    href={getMediaUrl(headerMediaUrl)}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                   >
@@ -5105,7 +5118,12 @@ function ChatPage() {
                                               bodyText) ||
                                               headerText ||
                                               interactive?.footer?.text) && (
-                                              <div className="py-1.5 space-y-1">
+                                              <div
+                                                className={cn(
+                                                  "py-1.5 space-y-1",
+                                                  isRichCard && "px-3",
+                                                )}
+                                              >
                                                 {headerText && (
                                                   <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
                                                     {headerText}
@@ -5122,7 +5140,9 @@ function ChatPage() {
                                                 ].includes(type) &&
                                                   bodyText && (
                                                     <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
-                                                      {formatMessageText(bodyText)}
+                                                      {formatMessageText(
+                                                        interactive?.body?.text || bodyText,
+                                                      )}
                                                     </p>
                                                   )}
                                                 {interactive?.footer?.text && (
