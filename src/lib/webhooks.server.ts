@@ -77,14 +77,18 @@ export async function logIncomingWebhookEvent(
     idempotencyKey?: string;
   },
 ): Promise<string> {
+  const serializedPayload = JSON.stringify(rawPayload);
   const insertWithContactId = async () => db.query(
     `INSERT INTO incoming_webhook_events
-     (incoming_webhook_id, contact_id, raw_payload, status, error_message, mapped_standard_fields, mapped_custom_fields, unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (incoming_webhook_id, user_id, webhook_id, payload, contact_id, raw_payload,
+      status, error_message, mapped_standard_fields, mapped_custom_fields,
+      unmapped_fields, headers, ip_address, user_agent, processing_duration_ms, idempotency_key)
+     SELECT id, tenant_id, id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     FROM incoming_webhooks WHERE id = ?`,
     [
-      webhookId,
+      serializedPayload,
       extra?.contactId ?? null,
-      JSON.stringify(rawPayload),
+      serializedPayload,
       status,
       errorMessage ?? null,
       extra?.mappedStandardFields ? JSON.stringify(extra.mappedStandardFields) : null,
@@ -95,6 +99,7 @@ export async function logIncomingWebhookEvent(
       extra?.userAgent ?? null,
       extra?.processingDurationMs ?? null,
       extra?.idempotencyKey ?? null,
+      webhookId,
     ],
   );
 

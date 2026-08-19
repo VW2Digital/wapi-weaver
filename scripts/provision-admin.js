@@ -17,7 +17,11 @@ if (fs.existsSync(dotenvPath)) {
     if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
       const parts = trimmed.split("=");
       const key = parts[0].trim();
-      const val = parts.slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+      const val = parts
+        .slice(1)
+        .join("=")
+        .trim()
+        .replace(/^["']|["']$/g, "");
       if (!process.env[key]) {
         process.env[key] = val;
       }
@@ -28,9 +32,12 @@ if (fs.existsSync(dotenvPath)) {
 async function main() {
   const adminEmail = (process.env.ADMIN_EMAIL || "adm@vw2digital.com.br").trim().toLowerCase();
   const adminPassword = (process.env.ADMIN_PASSWORD || "").trim();
+  const skipLicense = process.env.PROVISION_ADMIN_SKIP_LICENSE === "true";
 
   if (!adminPassword) {
-    console.error("[Provision Admin] ❌ CRITICAL: ADMIN_PASSWORD environment variable is missing or empty!");
+    console.error(
+      "[Provision Admin] ❌ CRITICAL: ADMIN_PASSWORD environment variable is missing or empty!",
+    );
     process.exit(1);
   }
 
@@ -73,7 +80,7 @@ async function main() {
 
     const [users] = await connection.execute(
       "SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1",
-      [adminEmail]
+      [adminEmail],
     );
 
     let userId;
@@ -81,8 +88,13 @@ async function main() {
 
     if (users.length > 0) {
       userId = users[0].id;
-      console.log(`[Provision Admin] Existing user found (ID: ${userId}). Updating password & ensuring admin_master role...`);
-      await connection.execute("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, userId]);
+      console.log(
+        `[Provision Admin] Existing user found (ID: ${userId}). Updating password & ensuring admin_master role...`,
+      );
+      await connection.execute("UPDATE users SET password_hash = ? WHERE id = ?", [
+        passwordHash,
+        userId,
+      ]);
     } else {
       userId = randomUUID();
       console.log(`[Provision Admin] Creating new user (ID: ${userId})...`);
@@ -94,37 +106,44 @@ async function main() {
     }
 
     // Ensure profile exists
-    const [profiles] = await connection.execute("SELECT id FROM profiles WHERE id = ? LIMIT 1", [userId]);
+    const [profiles] = await connection.execute("SELECT id FROM profiles WHERE id = ? LIMIT 1", [
+      userId,
+    ]);
     if (profiles.length === 0) {
-      await connection.execute(
-        "INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)",
-        [userId, adminEmail, "Master Admin"]
-      );
+      await connection.execute("INSERT INTO profiles (id, email, display_name) VALUES (?, ?, ?)", [
+        userId,
+        adminEmail,
+        "Master Admin",
+      ]);
     } else {
-      await connection.execute("UPDATE profiles SET display_name = 'Master Admin' WHERE id = ?", [userId]);
+      await connection.execute("UPDATE profiles SET display_name = 'Master Admin' WHERE id = ?", [
+        userId,
+      ]);
     }
 
     // Ensure role is admin_master idempotently
     const [roles] = await connection.execute(
       "SELECT id FROM user_roles WHERE user_id = ? AND role = 'admin_master' LIMIT 1",
-      [userId]
+      [userId],
     );
     if (roles.length === 0) {
       await connection.execute("DELETE FROM user_roles WHERE user_id = ?", [userId]);
       await connection.execute(
         "INSERT INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin_master')",
-        [randomUUID(), userId]
+        [randomUUID(), userId],
       );
     }
 
     // Ensure initial active license exists for this tenant (id is AUTO_INCREMENT)
-    const [licenses] = await connection.execute("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [userId]);
-    if (licenses.length === 0) {
+    const [licenses] = skipLicense
+      ? [[]]
+      : await connection.execute("SELECT id FROM licenses WHERE tenant_id = ? LIMIT 1", [userId]);
+    if (!skipLicense && licenses.length === 0) {
       const keyHash = createHash("sha256").update(adminEmail).digest("hex");
       await connection.execute(
         `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, tenant_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [keyHash, adminEmail, "Master Admin", adminEmail, "pro", "active", userId]
+        [keyHash, adminEmail, "Master Admin", adminEmail, "pro", "active", userId],
       );
     }
 

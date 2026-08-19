@@ -2,9 +2,9 @@ name: CI Pipeline & Schema Integrity Audit
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   validate-schema-and-build:
@@ -29,7 +29,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -61,6 +61,7 @@ jobs:
           DB_NAME: wapi_weaver
           ADMIN_EMAIL: adm@vw2digital.com.br
           ADMIN_PASSWORD: ci-only-admin-password
+          PROVISION_ADMIN_SKIP_LICENSE: "true"
         run: node scripts/provision-admin.js
 
       - name: Validate Database Integrity
@@ -126,7 +127,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -169,6 +170,7 @@ jobs:
           DB_NAME: wapi_weaver
           ADMIN_EMAIL: adm@vw2digital.com.br
           ADMIN_PASSWORD: ci-only-admin-password
+          PROVISION_ADMIN_SKIP_LICENSE: "true"
         run: node scripts/provision-admin.js
 
       - name: Validate Database Integrity Post-Update
