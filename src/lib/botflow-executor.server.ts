@@ -1273,6 +1273,8 @@ export async function executeInactivityStep(
 
     let isSuccess = false;
     let providerMsgId: string | null = null;
+    let inactivitySentPayload: Record<string, unknown> | null = null;
+    let inactivityBuildMeta: Record<string, unknown> | null = null;
 
     if (channel === "whatsapp") {
       const { data: p } = await dbAdmin
@@ -1301,6 +1303,8 @@ export async function executeInactivityStep(
         return;
       }
       const { payload } = build;
+      inactivitySentPayload = payload;
+      inactivityBuildMeta = build.meta;
 
       const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
         method: "POST",
@@ -1433,6 +1437,8 @@ export async function executeInactivityStep(
           step_id: stepToExecute.id,
           bot_triggered: true,
           is_inactivity_trigger: true,
+          payload: inactivitySentPayload,
+          message_build: inactivityBuildMeta,
           media_url: stepToExecute.media_url,
           filename: stepToExecute.media_caption || "document.pdf",
           caption: stepToExecute.media_caption || stepToExecute.message_content,

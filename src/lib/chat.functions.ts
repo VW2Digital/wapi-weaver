@@ -465,6 +465,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const typedCampaignMessages = (campaignMessages ?? []) as CampaignMessageRow[];
 
     const botStepsById = new Map<string, WhatsAppBotStep>();
+    const botStepsByContent = new Map<string, WhatsAppBotStep>();
     const botStepIds = Array.from(
       new Set(
         typedMessages
@@ -472,17 +473,41 @@ export const getChatMessages = createServerFn({ method: "POST" })
           .filter((stepId): stepId is string => Boolean(stepId)),
       ),
     );
-    if (botStepIds.length > 0) {
+    const outgoingBotBodies = Array.from(
+      new Set(
+        typedMessages
+          .filter((row) => row.direction === "outgoing")
+          .map((row) => row.body?.trim())
+          .filter((body): body is string => Boolean(body)),
+      ),
+    );
+    if (botStepIds.length > 0 || outgoingBotBodies.length > 0) {
       try {
+        const stepConditions: string[] = [];
+        const stepParams: unknown[] = [effectiveUserId, effectiveUserId];
+        if (botStepIds.length > 0) {
+          stepConditions.push(`id IN (${botStepIds.map(() => "?").join(", ")})`);
+          stepParams.push(...botStepIds);
+        }
+        if (outgoingBotBodies.length > 0) {
+          stepConditions.push(
+            `message_content IN (${outgoingBotBodies.map(() => "?").join(", ")})`,
+          );
+          stepParams.push(...outgoingBotBodies);
+        }
         const botSteps = (await db.query(
           `SELECT id, message_type, message_content, media_url, media_caption,
                   footer_text, buttons_config
            FROM bot_steps
            WHERE (user_id = ? OR tenant_id = ?)
-             AND id IN (${botStepIds.map(() => "?").join(", ")})`,
-          [effectiveUserId, effectiveUserId, ...botStepIds],
+             AND (${stepConditions.join(" OR ")})`,
+          stepParams,
         )) as Array<WhatsAppBotStep & { id: string }>;
-        botSteps.forEach((step) => botStepsById.set(step.id, step));
+        botSteps.forEach((step) => {
+          botStepsById.set(step.id, step);
+          const content = step.message_content?.trim();
+          if (content) botStepsByContent.set(content, step);
+        });
       } catch (error) {
         console.warn("Não foi possível reconstruir os cartões antigos do bot.", error);
       }
@@ -491,13 +516,17 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const formattedMessages = typedMessages.map((row) => {
       const storedMeta = asJsonRecord(row.metadata);
       const stepId = getStringValue(storedMeta?.step_id);
-      const botStep = stepId ? botStepsById.get(stepId) : null;
+      const botStep =
+        (stepId ? botStepsById.get(stepId) : null) ||
+        (row.direction === "outgoing" && row.body
+          ? botStepsByContent.get(row.body.trim())
+          : null);
       const rebuiltMessage = botStep ? buildWhatsAppBotMessage(phone, botStep) : null;
       const rebuiltPayload = rebuiltMessage?.ok
-        ? asJsonRecord(JSON.stringify(rebuiltMessage.payload))
+        ? asJsonRecord(parseJsonField(JSON.stringify(rebuiltMessage.payload)))
         : null;
       const rebuiltBuildMeta = rebuiltMessage?.ok
-        ? asJsonRecord(JSON.stringify(rebuiltMessage.meta))
+        ? asJsonRecord(parseJsonField(JSON.stringify(rebuiltMessage.meta)))
         : null;
       const meta: JsonRecord | null =
         rebuiltPayload && !asJsonRecord(storedMeta?.payload)
