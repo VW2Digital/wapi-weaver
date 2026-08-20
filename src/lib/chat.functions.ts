@@ -865,7 +865,10 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         payload.contacts = data.contacts;
       }
 
-      const apiVersion = profile.meta_graph_version || "v20.0";
+      let apiVersion = profile.meta_graph_version || "v26.0";
+      if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
+        apiVersion = "v26.0";
+      }
       const r = await fetch(
         `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_phone_number_id}/messages`,
         {

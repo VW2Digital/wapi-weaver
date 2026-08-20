@@ -1,17 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "@/lib/jwt-secret";
 
 function getAuthUserId(request: Request): string {
+  let token = "";
   const authHeader = request.headers.get("authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
+  if (authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  }
+  if (!token) {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const match = cookieHeader.match(/(?:wapi_token|app-token)=([^;]+)/);
+    if (match) {
+      token = decodeURIComponent(match[1].trim());
+    }
+  }
+  if (!token) {
     throw new Error("Unauthorized");
   }
-  const token = authHeader.slice(7).trim();
   const decoded = jwt.verify(token, JWT_SECRET) as any;
   if (!decoded?.sub) throw new Error("Unauthorized");
   return decoded.sub;
@@ -55,7 +62,10 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             return json({ ok: false, error: "Access Token não configurado." }, 400);
           }
 
-          const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+          let apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+          if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
+            apiVersion = "v26.0";
+          }
           const metaForm = new FormData();
           metaForm.append("file", file, file.name);
           metaForm.append("messaging_product", "whatsapp");
