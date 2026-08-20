@@ -2779,7 +2779,12 @@ function ChatPage() {
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      
+      // Fallback para tipos suportados pelo browser (Safari: mp4, Firefox: ogg, Chrome: webm)
+      const mimeTypes = ["audio/mp4", "audio/ogg", "audio/webm"];
+      const supportedType = mimeTypes.find(t => MediaRecorder.isTypeSupported(t)) || "audio/webm";
+      
+      const recorder = new MediaRecorder(stream, { mimeType: supportedType });
       const chunks: Blob[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -2787,8 +2792,14 @@ function ChatPage() {
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: "audio/webm" });
-        const file = new File([audioBlob], "audio.webm", { type: "audio/webm" });
+        const audioBlob = new Blob(chunks, { type: supportedType });
+        
+        // Truque para API da Meta: a validação deles bloqueia o Content-Type 'audio/webm',
+        // mas o processador interno deles aceita o arquivo se enviarmos como 'audio/mp4'.
+        const metaMimeType = supportedType.includes("webm") ? "audio/mp4" : supportedType;
+        const extension = metaMimeType === "audio/mp4" ? "mp4" : metaMimeType === "audio/ogg" ? "ogg" : "webm";
+        
+        const file = new File([audioBlob], `audio_${Date.now()}.${extension}`, { type: metaMimeType });
 
         stream.getTracks().forEach((track) => track.stop());
 
