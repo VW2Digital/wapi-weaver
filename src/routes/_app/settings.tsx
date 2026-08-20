@@ -3286,12 +3286,12 @@ function ReadOnly({ label, value, onCopy }: { label: string; value: string; onCo
 
 const MENU_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/chat", label: "Chat Direto", icon: MessageCircle },
+  { to: "/chat", label: "Mensagens", icon: MessageCircle },
   { to: "/contacts", label: "Contatos", icon: Users },
   { to: "/lists", label: "Listas & Tags", icon: ListChecks },
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/campaigns", label: "Campanhas", icon: Send },
-  { to: "/crm", label: "Funil de Vendas", icon: Kanban },
+  { to: "/crm", label: "Kanban", icon: Kanban },
   { to: "/bot", label: "Bot de Fluxo", icon: Bot },
   { to: "/ai-agent", label: "Agente de IA", icon: BrainCircuit },
   { to: "/billing", label: "Faturamento", icon: Receipt },

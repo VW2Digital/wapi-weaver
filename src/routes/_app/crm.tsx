@@ -64,6 +64,7 @@ import {
   MoreVertical,
   Check,
   CheckCircle2,
+  XCircle,
   Loader2,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -372,6 +373,17 @@ function CRMPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<FunnelTemplate | null>(null);
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
 
+  const handleOpenNewOppModal = (stageId?: string) => {
+    setNewOppTitle("");
+    setNewOppValue(0);
+    setNewOppStageId(stageId || stages[0]?.id || "");
+    setNewOppContactId("");
+    setNewOppOwnerId("");
+    setNewOppPriority("medium");
+    setNewOppTemp("cold");
+    setNewOppOpen(true);
+  };
+
   // Mutations
   const funnelMutation = useMutation({
     mutationFn: () =>
@@ -477,8 +489,28 @@ function CRMPage() {
     return sum;
   }, [filteredOpps]);
 
+  const totalWonValue = useMemo(() => {
+    const won = stats?.status_summary?.find((s: any) => s.status === "won");
+    if (won?.total_value != null) {
+      return Number(won.total_value) || 0;
+    }
+    return opps
+      .filter((o: any) => o.status === "won")
+      .reduce((acc: number, o: any) => acc + (Number(o.value) || 0), 0);
+  }, [stats, opps]);
+
+  const totalLostValue = useMemo(() => {
+    const lost = stats?.status_summary?.find((s: any) => s.status === "lost");
+    if (lost?.total_value != null) {
+      return Number(lost.total_value) || 0;
+    }
+    return opps
+      .filter((o: any) => o.status === "lost")
+      .reduce((acc: number, o: any) => acc + (Number(o.value) || 0), 0);
+  }, [stats, opps]);
+
   usePageHeader({
-    title: "Funis de Venda",
+    title: "Kanban",
     action: (
       <div className="flex items-center gap-2">
         {/* Desktop Actions */}
@@ -517,7 +549,7 @@ function CRMPage() {
             Novo Funil
           </Button>
 
-          <Button size="sm" onClick={() => setNewOppOpen(true)}>
+          <Button size="sm" onClick={() => handleOpenNewOppModal()}>
             <Plus className="mr-2 h-4 w-4" /> Nova Oportunidade
           </Button>
         </div>
@@ -560,7 +592,7 @@ function CRMPage() {
                 </>
               )}
               <DropdownMenuItem
-                onClick={() => setNewOppOpen(true)}
+                onClick={() => handleOpenNewOppModal()}
                 className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
               >
                 <Plus className="h-4 w-4" />
@@ -902,9 +934,9 @@ function CRMPage() {
 
       {/* Top metrics bar */}
       <div className="flex gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-muted-foreground/10 bg-muted/10 shrink-0 overflow-x-auto no-scrollbar">
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[200px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
-            <DollarSign className="w-8 h-8 text-green-500 bg-green-500/10 p-1.5 rounded-full" />
+            <DollarSign className="w-8 h-8 text-blue-500 bg-blue-500/10 p-1.5 rounded-full" />
             <div>
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Valor total em aberto
@@ -915,7 +947,7 @@ function CRMPage() {
             </div>
           </div>
         </Card>
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[180px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
             <Sparkles className="w-8 h-8 text-primary bg-primary/10 p-1.5 rounded-full" />
             <div>
@@ -926,7 +958,7 @@ function CRMPage() {
             </div>
           </div>
         </Card>
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[180px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
             <TrendingUp className="w-8 h-8 text-indigo-500 bg-indigo-500/10 p-1.5 rounded-full" />
             <div>
@@ -939,24 +971,28 @@ function CRMPage() {
             </div>
           </div>
         </Card>
-        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[240px] sm:flex-1 shrink-0">
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[200px] sm:flex-1 shrink-0">
           <div className="flex items-center gap-3">
-            <Award className="w-8 h-8 text-amber-500 bg-amber-500/10 p-1.5 rounded-full" />
+            <Award className="w-8 h-8 text-emerald-500 bg-emerald-500/10 p-1.5 rounded-full" />
             <div>
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Faturamento previsto
+                Ganho
               </span>
               <p className="text-lg font-bold text-foreground mt-0.5">
-                {formatCurrency(
-                  stages.reduce((acc: number, s: any) => {
-                    const stageOpps = filteredOpps.filter((o: any) => o.stage_id === s.id);
-                    const stageVal = stageOpps.reduce(
-                      (accVal: number, o: any) => accVal + (Number(o.value) || 0),
-                      0,
-                    );
-                    return acc + stageVal * (Number(s.probability_percent || 0) / 100);
-                  }, 0),
-                )}
+                {formatCurrency(totalWonValue)}
+              </p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4 shadow-sm bg-card border border-muted-foreground/10 min-w-[200px] sm:flex-1 shrink-0">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-8 h-8 text-rose-500 bg-rose-500/10 p-1.5 rounded-full" />
+            <div>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Perdido
+              </span>
+              <p className="text-lg font-bold text-foreground mt-0.5">
+                {formatCurrency(totalLostValue)}
               </p>
             </div>
           </div>
@@ -1064,7 +1100,13 @@ function CRMPage() {
             onMoveOpportunity={handleMoveCard}
             onCardClick={(id) => setSelectedOppId(id)}
             onEditStage={handleOpenStageForm}
+            onDeleteStage={handleDeleteStageClick}
+            onManageStages={() => {
+              setStageManagerOpen(true);
+              setStageView("list");
+            }}
             onAddStage={() => handleOpenStageForm(null)}
+            onAddOpportunity={(stageId) => handleOpenNewOppModal(stageId)}
           />
         ) : (
           <div className="p-6 overflow-y-auto h-full">
@@ -1367,20 +1409,39 @@ function CRMPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStageView("list")}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleSaveStage}
-                  disabled={
-                    !stageName.trim() ||
-                    createStageMutation.isPending ||
-                    updateStageMutation.isPending
-                  }
-                >
-                  {editingStage ? "Salvar Alterações" : "Criar Etapa"}
-                </Button>
+              <div className="flex items-center justify-between gap-2 pt-4 border-t border-muted-foreground/10">
+                {editingStage ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      const st = editingStage;
+                      setStageManagerOpen(false);
+                      handleDeleteStageClick(st);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1.5" /> Excluir Etapa
+                  </Button>
+                ) : (
+                  <div />
+                )}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setStageView("list")}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSaveStage}
+                    disabled={
+                      !stageName.trim() ||
+                      createStageMutation.isPending ||
+                      updateStageMutation.isPending
+                    }
+                  >
+                    {editingStage ? "Salvar Alterações" : "Criar Etapa"}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

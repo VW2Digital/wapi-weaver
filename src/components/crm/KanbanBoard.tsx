@@ -1,7 +1,28 @@
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "@tanstack/react-router";
-import { User, Calendar, Sparkles, Settings, Plus, MessageCircle, MoreHorizontal, Mail, Phone, Clock, CheckSquare } from "lucide-react";
+import {
+  User,
+  Calendar,
+  Sparkles,
+  Settings,
+  Plus,
+  MessageCircle,
+  MoreHorizontal,
+  Mail,
+  Phone,
+  Clock,
+  CheckSquare,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 interface Owner {
   id: string;
@@ -65,7 +86,10 @@ interface KanbanBoardProps {
   ) => void;
   onCardClick: (oppId: string) => void;
   onEditStage?: (stage: Stage) => void;
+  onDeleteStage?: (stage: Stage) => void;
+  onManageStages?: () => void;
   onAddStage?: () => void;
+  onAddOpportunity?: (stageId: string) => void;
 }
 
 export function KanbanBoard({
@@ -75,7 +99,10 @@ export function KanbanBoard({
   onMoveOpportunity,
   onCardClick,
   onEditStage,
+  onDeleteStage,
+  onManageStages,
   onAddStage,
+  onAddOpportunity,
 }: KanbanBoardProps) {
   const navigate = useNavigate();
   const [dropIndicator, setDropIndicator] = useState<{
@@ -247,26 +274,68 @@ export function KanbanBoard({
                   {stage.name}
                 </h3>
                 <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/header:opacity-100 transition-opacity">
-                  {onAddStage && (
+                  {onAddOpportunity && (
                     <button
                       type="button"
-                      onClick={onAddStage}
+                      onClick={() => onAddOpportunity(stage.id)}
                       className="p-1 rounded hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
                       title="Adicionar Oportunidade"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
                   )}
-                  {onEditStage && (
-                    <button
-                      type="button"
-                      onClick={() => onEditStage(stage)}
-                      className="p-1 rounded hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
-                      title="Opções da Etapa"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="p-1 rounded hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Opções da Etapa"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {onEditStage && (
+                        <DropdownMenuItem
+                          onClick={() => onEditStage(stage)}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Pencil className="w-4 h-4 text-muted-foreground" />
+                          <span>Editar Etapa</span>
+                        </DropdownMenuItem>
+                      )}
+                      {onAddOpportunity && (
+                        <DropdownMenuItem
+                          onClick={() => onAddOpportunity(stage.id)}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-muted-foreground" />
+                          <span>Nova Oportunidade</span>
+                        </DropdownMenuItem>
+                      )}
+                      {onManageStages && (
+                        <DropdownMenuItem
+                          onClick={onManageStages}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Settings className="w-4 h-4 text-muted-foreground" />
+                          <span>Gerenciar Etapas</span>
+                        </DropdownMenuItem>
+                      )}
+                      {onDeleteStage && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onDeleteStage(stage)}
+                            className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Excluir Etapa</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               <div className="text-xs text-muted-foreground font-medium mt-1">

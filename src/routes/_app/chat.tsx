@@ -615,11 +615,22 @@ function getMessageInteractivePayload(metadata: Record<string, unknown> | null |
         return result;
       }, []);
 
+    const fallbackHeader =
+      (asRecord(action?.header) as InteractiveHeaderRecord | null) ||
+      (asRecord(buttonsConfig?.header) as InteractiveHeaderRecord | null) ||
+      (asRecord(metadata?.header) as InteractiveHeaderRecord | null) ||
+      (asRecord(payload?.header) as InteractiveHeaderRecord | null);
+
     if (buttons.length > 0) {
-      interactive = { type: "button", action: { buttons } };
+      interactive = {
+        type: "button",
+        ...(fallbackHeader ? { header: fallbackHeader } : {}),
+        action: { buttons },
+      };
     } else if (Array.isArray(action?.sections)) {
       interactive = {
         type: "list",
+        ...(fallbackHeader ? { header: fallbackHeader } : {}),
         action: {
           button: typeof action.button === "string" ? action.button : undefined,
           sections: action.sections as InteractiveListSectionRecord[],
@@ -4719,26 +4730,60 @@ function ChatPage() {
                                           ? msg.metadata.media_url
                                           : typeof msg.metadata?.mediaUrl === "string"
                                             ? msg.metadata.mediaUrl
-                                          : "";
+                                            : typeof msg.metadata?.image_url === "string"
+                                              ? msg.metadata.image_url
+                                              : typeof msg.metadata?.imageUrl === "string"
+                                                ? msg.metadata.imageUrl
+                                                : typeof msg.metadata?.media_id === "string"
+                                                  ? msg.metadata.media_id
+                                                  : typeof msg.metadata?.mediaId === "string"
+                                                    ? msg.metadata.mediaId
+                                                    : "";
 
                                       // Extract interactive header media
-                                      const header = interactive?.header;
+                                      const header =
+                                        interactive?.header ||
+                                        (typeof msg.metadata?.header === "object"
+                                          ? (msg.metadata.header as any)
+                                          : null);
                                       let headerMediaUrl = "";
                                       let headerMediaType = "";
                                       let headerText = "";
 
                                       if (header) {
-                                        if (header.type === "image" && header.image?.link) {
-                                          headerMediaUrl = header.image.link;
+                                        const hImg =
+                                          header.image && typeof header.image === "object"
+                                            ? header.image
+                                            : null;
+                                        const hVid =
+                                          header.video && typeof header.video === "object"
+                                            ? header.video
+                                            : null;
+                                        const hDoc =
+                                          header.document && typeof header.document === "object"
+                                            ? header.document
+                                            : null;
+
+                                        if (header.type === "image" || hImg || typeof header.image === "string") {
+                                          headerMediaUrl =
+                                            hImg?.link ||
+                                            hImg?.id ||
+                                            hImg?.url ||
+                                            (typeof header.image === "string" ? header.image : "");
                                           headerMediaType = "image";
-                                        } else if (header.type === "video" && header.video?.link) {
-                                          headerMediaUrl = header.video.link;
+                                        } else if (header.type === "video" || hVid || typeof header.video === "string") {
+                                          headerMediaUrl =
+                                            hVid?.link ||
+                                            hVid?.id ||
+                                            hVid?.url ||
+                                            (typeof header.video === "string" ? header.video : "");
                                           headerMediaType = "video";
-                                        } else if (
-                                          header.type === "document" &&
-                                          header.document?.link
-                                        ) {
-                                          headerMediaUrl = header.document.link;
+                                        } else if (header.type === "document" || hDoc || typeof header.document === "string") {
+                                          headerMediaUrl =
+                                            hDoc?.link ||
+                                            hDoc?.id ||
+                                            hDoc?.url ||
+                                            (typeof header.document === "string" ? header.document : "");
                                           headerMediaType = "document";
                                         } else if (header.type === "text" && header.text) {
                                           headerText = header.text;
@@ -4747,7 +4792,14 @@ function ChatPage() {
 
                                       if (!headerMediaUrl && metadataMediaUrl) {
                                         headerMediaUrl = metadataMediaUrl;
-                                        headerMediaType = "image";
+                                        const lower = metadataMediaUrl.toLowerCase().split(/[?#]/)[0];
+                                        if (lower.endsWith(".mp4") || lower.endsWith(".3gp") || lower.endsWith(".mov") || lower.endsWith(".webm")) {
+                                          headerMediaType = "video";
+                                        } else if (lower.endsWith(".pdf") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".xls") || lower.endsWith(".xlsx") || lower.endsWith(".ppt") || lower.endsWith(".txt")) {
+                                          headerMediaType = "document";
+                                        } else {
+                                          headerMediaType = "image";
+                                        }
                                       }
 
                                       // Extract standard message body and type
@@ -4758,7 +4810,11 @@ function ChatPage() {
                                       const isUrl = (str: string) => {
                                         if (!str) return false;
                                         return (
-                                          str.startsWith("http://") || str.startsWith("https://")
+                                          str.startsWith("http://") ||
+                                          str.startsWith("https://") ||
+                                          str.startsWith("/") ||
+                                          str.startsWith("blob:") ||
+                                          str.startsWith("data:")
                                         );
                                       };
 
@@ -4941,34 +4997,20 @@ function ChatPage() {
                                           <div className="space-y-0.5">
                                             {/* A. Render Interactive Header Media if present */}
                                             {headerMediaType === "image" && headerMediaUrl && (
-                                              <div
-                                                className={cn(
-                                                  "w-full overflow-hidden bg-black/10",
-                                                  isOutgoing
-                                                    ? "rounded-tl-lg rounded-tr-none"
-                                                    : "rounded-tl-none rounded-tr-lg",
-                                                )}
-                                              >
+                                              <div className="w-full overflow-hidden bg-black/10 rounded-t-xl">
                                                 <img
                                                   src={getMediaUrl(headerMediaUrl)}
                                                   alt="Header"
-                                                  className="w-full max-h-60 object-cover"
+                                                  className="w-full max-h-64 object-cover"
                                                 />
                                               </div>
                                             )}
                                             {headerMediaType === "video" && headerMediaUrl && (
-                                              <div
-                                                className={cn(
-                                                  "w-full overflow-hidden bg-black/10",
-                                                  isOutgoing
-                                                    ? "rounded-tl-lg rounded-tr-none"
-                                                    : "rounded-tl-none rounded-tr-lg",
-                                                )}
-                                              >
+                                              <div className="w-full overflow-hidden bg-black/10 rounded-t-xl">
                                                 <video
                                                   src={getMediaUrl(headerMediaUrl)}
                                                   controls
-                                                  className="w-full max-h-60 object-cover"
+                                                  className="w-full max-h-64 object-cover"
                                                 />
                                               </div>
                                             )}
