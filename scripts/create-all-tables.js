@@ -6,6 +6,26 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function extractFinalTableDefinitions(sql) {
+  const definitions = new Map();
+  const tableRegex =
+    /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`([a-zA-Z0-9_]+)`\s*\([\s\S]*?\)\s*ENGINE\s*=\s*[^;]+;/gi;
+
+  for (const match of sql.matchAll(tableRegex)) {
+    // Algumas tabelas possuem uma definição histórica seguida da definição
+    // consolidada. A última ocorrência é o estado final usado pelo contrato.
+    definitions.set(match[1], match[0]);
+  }
+
+  return definitions;
+}
+
+function extractIdempotentSeedStatements(sql) {
+  return [...sql.matchAll(/INSERT\s+(?:IGNORE\s+)?INTO\s+[\s\S]*?;/gi)]
+    .map((match) => match[0])
+    .filter((statement) => /INSERT\s+IGNORE/i.test(statement) || /ON\s+DUPLICATE\s+KEY/i.test(statement));
+}
+
 // Load .env if present
 const dotenvPath = path.resolve(__dirname, "../.env");
 if (fs.existsSync(dotenvPath)) {
@@ -63,17 +83,47 @@ async function main() {
   }
 
   try {
-    // 1. Read Canonical Schema
-    const schemaPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
+    // 1. Read the DDL-only snapshot captured from the local MySQL head.
+    // Unlike canonical-schema.sql, this file contains exactly one definition per table.
+    const schemaPath = path.resolve(__dirname, "../database/schema/reference-schema.sql");
     if (!fs.existsSync(schemaPath)) {
-      console.error(`[Create Tables] ❌ CRITICAL: Canonical schema file not found at ${schemaPath}`);
+      console.error(`[Create Tables] ❌ CRITICAL: Reference schema file not found at ${schemaPath}`);
       process.exit(1);
     }
 
     const sqlContent = fs.readFileSync(schemaPath, "utf8");
-    console.log("[Create Tables] Applying canonical database schema...");
-    await connection.query(sqlContent);
-    console.log("[Create Tables] ✅ Canonical schema SQL executed successfully.");
+    const tableDefinitions = extractFinalTableDefinitions(sqlContent);
+    if (tableDefinitions.size === 0) {
+      throw new Error("Reference schema does not contain any CREATE TABLE definitions.");
+    }
+
+    console.log(
+      `[Create Tables] Applying ${tableDefinitions.size} final canonical table definitions...`,
+    );
+    await connection.query("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const [tableName, createSql] of tableDefinitions) {
+        const idempotentCreateSql = createSql.replace(
+          /CREATE\s+TABLE(?!\s+IF\s+NOT\s+EXISTS)/i,
+          "CREATE TABLE IF NOT EXISTS",
+        );
+        await connection.query(idempotentCreateSql);
+        console.log(`[Create Tables] Table '${tableName}' checked.`);
+      }
+    } finally {
+      await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    }
+    console.log("[Create Tables] ✅ Final canonical table definitions applied successfully.");
+
+    const canonicalSeedPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
+    const canonicalSeedSql = fs.existsSync(canonicalSeedPath)
+      ? fs.readFileSync(canonicalSeedPath, "utf8")
+      : "";
+    const seedStatements = extractIdempotentSeedStatements(canonicalSeedSql);
+    for (const seedSql of seedStatements) {
+      await connection.query(seedSql);
+    }
+    console.log(`[Create Tables] ✅ ${seedStatements.length} idempotent seed statement(s) applied.`);
 
     // 2. Validate Required Tables
     const requiredTablesPath = path.resolve(__dirname, "../database/schema/required-tables.json");
@@ -127,5 +177,3 @@ async function main() {
 }
 
 main();
-
-

@@ -254,11 +254,14 @@ export function buildWhatsAppPayload(
   if (messageType === "media") {
     const mt = payload.media_type ?? "image";
     const rawUrl = String(payload.media_url ?? "").trim();
+    if (mt === "document" && !hasValue(payload.filename)) {
+      throw new Error("Documento exige nome do arquivo.");
+    }
     // Usa { id } para media_ids numéricos/alfanuméricos (não-URL); { link } para URLs públicas
     const isUrl = /^https?:\/\//i.test(rawUrl);
     const mediaObj: Record<string, unknown> = isUrl ? { link: rawUrl } : { id: rawUrl };
     if (payload.caption) mediaObj.caption = interpolate(payload.caption);
-    if (payload.filename && mt === "document") mediaObj.filename = payload.filename;
+    if (mt === "document") mediaObj.filename = String(payload.filename).trim();
     return { ...base, type: mt, [mt]: mediaObj };
   }
 

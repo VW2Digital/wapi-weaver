@@ -1,4 +1,5 @@
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
+import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 import { describe, expect, test } from "@jest/globals";
 
 const to = "5511999999999";
@@ -21,6 +22,12 @@ describe("buildWhatsAppBotMessage", () => {
   test("mantém áudio voz e nome real do documento", () => {
     expect(buildWhatsAppBotMessage(to, { message_type: "audio", media_url: "https://cdn.example.com/a.ogg", buttons_config: { voice: true } })).toMatchObject({ ok: true, payload: { audio: { voice: true } } });
     expect(buildWhatsAppBotMessage(to, { message_type: "document", media_url: "123456789012", original_filename: "proposta.pdf", media_caption: "Proposta" })).toMatchObject({ ok: true, payload: { document: { id: "123456789012", filename: "proposta.pdf", caption: "Proposta" } } });
+    expect(buildWhatsAppBotMessage(to, { message_type: "document", media_url: "123456789012" }).ok).toBe(false);
+  });
+
+  test("campanha exige nome e o inclui no documento", () => {
+    expect(() => buildWhatsAppPayload("media", to, { media_type: "document", media_url: "123456789012" })).toThrow("Documento exige nome do arquivo.");
+    expect(buildWhatsAppPayload("media", to, { media_type: "document", media_url: "123456789012", filename: "proposta.pdf" })).toMatchObject({ type: "document", document: { id: "123456789012", filename: "proposta.pdf" } });
   });
 
   test("inclui PDF anexado como cabeçalho de botões de resposta", () => {
@@ -63,6 +70,8 @@ describe("buildWhatsAppBotMessage", () => {
   test("rejeita lista acima do máximo, CTA inseguro e ações internas", () => {
     const rows = Array.from({ length: 11 }, (_, i) => ({ id: String(i), title: `Opção ${i}` }));
     expect(buildWhatsAppBotMessage(to, { message_type: "list", message_content: "Menu", buttons_config: { action: { sections: [{ rows }] } } }).ok).toBe(false);
+    const sections = Array.from({ length: 11 }, (_, i) => ({ rows: i === 0 ? [{ id: "a", title: "A" }] : [] }));
+    expect(buildWhatsAppBotMessage(to, { message_type: "list", message_content: "Menu", buttons_config: { action: { sections } } }).ok).toBe(false);
     expect(buildWhatsAppBotMessage(to, { message_type: "cta_url", message_content: "Abrir", buttons_config: { action: { parameters: { display_text: "Abrir", url: "http://inseguro.example" } } } }).ok).toBe(false);
     expect(buildWhatsAppBotMessage(to, { message_type: "transfer_chat" }).ok).toBe(false);
   });

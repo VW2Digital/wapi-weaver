@@ -22,5 +22,6 @@ ENV APP_GIT_BRANCH=$APP_GIT_BRANCH
 # Expose the port (TanStack Start/Vite defaults to 3000 or 8080 in preview/production)
 EXPOSE 3000
 
-# Start production server
-CMD ["npm", "run", "start"]
+# Reconcile and validate the persisted MySQL volume before serving traffic.
+# The startup fails closed if the VPS schema cannot reach the canonical contract.
+CMD ["npm", "run", "start:production"]

@@ -33,7 +33,7 @@ export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, conte
     const media: JsonObject = { ...ref }; const caption = text(step.media_caption || body);
     if (caption && ["image", "video", "document"].includes(type)) { if (caption.length > 1024) return invalid("Legenda excede 1024 caracteres."); media.caption = caption; }
     if (type === "audio" && Boolean(action.voice ?? cfg.voice)) media.voice = true;
-    if (type === "document") { const filename = text(step.filename || step.original_filename || action.filename); if (filename) media.filename = filename; }
+    if (type === "document") { const filename = text(step.filename || step.original_filename || action.filename); if (!filename) return invalid("Documento exige nome do arquivo."); media.filename = filename; }
     return success({ ...payloadBase, type, [type]: media }, type, type);
   }
   if (type === "buttons") {
@@ -68,6 +68,7 @@ export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, conte
   }
   if (type === "list" || type === "poll") {
     const source = type === "poll" ? (Array.isArray(action.options) ? action.options : []) : (Array.isArray(action.sections) ? action.sections : []);
+    if (type === "list" && source.length > 10) return invalid("A lista aceita no máximo 10 seções.");
     const sections = type === "poll" ? [{ rows: source.map((entry) => { const o = object(entry); return { id: text(o?.id), title: text(o?.title || o?.label), ...(text(o?.description) ? { description: text(o?.description) } : {}) }; }) }] : source.map((entry) => { const s = object(entry) || {}; return { ...(text(s.title) ? { title: text(s.title) } : {}), rows: (Array.isArray(s.rows) ? s.rows : []).map((row) => { const r = object(row); return { id: text(r?.id), title: text(r?.title), ...(text(r?.description) ? { description: text(r?.description) } : {}) }; }) }; });
     const rows = sections.flatMap((s) => s.rows); if (!rows.length || rows.length > 10) return invalid("A lista exige entre 1 e 10 opções no total."); const ids = new Set<string>();
     for (const row of rows) { if (!row.id || !row.title || row.id.length > 200 || row.title.length > 24 || (row.description && row.description.length > 72) || ids.has(row.id)) return invalid("Cada opção da lista exige id/título válidos e únicos."); ids.add(row.id); }

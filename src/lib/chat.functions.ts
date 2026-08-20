@@ -179,7 +179,7 @@ const sendMessageInput = z.object({
     .object({
       id: z.string().optional(),
       link: z.string().optional(),
-      filename: z.string().optional(),
+      filename: z.string().trim().min(1),
     })
     .optional(),
   sticker: z
@@ -214,6 +214,14 @@ const sendMessageInput = z.object({
     )
     .optional(),
   reply_to_message_id: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (value.type === "document" && !value.document) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["document"],
+      message: "Documento e nome do arquivo são obrigatórios.",
+    });
+  }
 });
 
 export const listChatContacts = createServerFn({ method: "GET" })
@@ -580,11 +588,11 @@ export const getChatMessages = createServerFn({ method: "POST" })
         sender_name: row.sender_name || null,
         sender_wa_id: row.sender_wa_id || null,
         reaction: row.type === "reaction" ? reactionData : null,
-        image: row.type === "image" ? imageData || { id: row.body } : null,
-        audio: row.type === "audio" ? audioData || { id: row.body } : null,
-        video: row.type === "video" ? videoData || { id: row.body } : null,
-        document: row.type === "document" ? documentData || { id: row.body } : null,
-        sticker: row.type === "sticker" ? stickerData || { id: row.body } : null,
+        image: row.type === "image" ? (imageData ? { id: imageData.id, link: imageData.link || meta?.media_url, caption: imageData.caption, mime_type: imageData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
+        audio: row.type === "audio" ? (audioData ? { id: audioData.id, link: audioData.link || meta?.media_url, mime_type: audioData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
+        video: row.type === "video" ? (videoData ? { id: videoData.id, link: videoData.link || meta?.media_url, caption: videoData.caption, mime_type: videoData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
+        document: row.type === "document" ? (documentData ? { id: documentData.id, link: documentData.link || meta?.media_url, filename: documentData.filename, caption: documentData.caption, mime_type: documentData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
+        sticker: row.type === "sticker" ? (stickerData ? { id: stickerData.id, link: stickerData.link || meta?.media_url, mime_type: stickerData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
         location: row.type === "location" ? locationData : null,
         contacts: row.type === "contacts" ? contactsData : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,

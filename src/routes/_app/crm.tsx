@@ -821,12 +821,15 @@ function CRMPage() {
         </Dialog>
 
         <Dialog open={newOppOpen} onOpenChange={setNewOppOpen}>
-          <DialogContent className="max-w-lg bg-card border border-muted-foreground/15 rounded-xl p-6">
+          <DialogContent
+            className="sm:max-w-2xl bg-card border border-muted-foreground/15 rounded-xl p-6"
+            onInteractOutside={(event) => event.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>Nova Oportunidade Comercial</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 my-4">
-              <div className="col-span-2 space-y-1.5">
+            <div className="grid grid-cols-1 gap-4 my-4 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2 min-w-0">
                 <Label>Título / Nome do Deal</Label>
                 <Input
                   value={newOppTitle}
@@ -834,7 +837,7 @@ function CRMPage() {
                   placeholder="Ex: Licença Premium - Empresa X"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label>Valor estimado (BRL)</Label>
                 <Input
                   type="number"
@@ -842,10 +845,10 @@ function CRMPage() {
                   onChange={(e) => setNewOppValue(Number(e.target.value))}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label>Etapa Inicial</Label>
                 <Select value={newOppStageId} onValueChange={setNewOppStageId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue placeholder="Selecione uma etapa" />
                   </SelectTrigger>
                   <SelectContent>
@@ -857,10 +860,10 @@ function CRMPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label>Contato Principal</Label>
                 <Select value={newOppContactId} onValueChange={setNewOppContactId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue placeholder="Selecione um contato" />
                   </SelectTrigger>
                   <SelectContent>
@@ -872,10 +875,10 @@ function CRMPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label>Responsável (Dono)</Label>
                 <Select value={newOppOwnerId} onValueChange={setNewOppOwnerId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue placeholder="Escolha um responsável" />
                   </SelectTrigger>
                   <SelectContent>
@@ -887,10 +890,10 @@ function CRMPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label>Prioridade</Label>
                 <Select value={newOppPriority} onValueChange={(v: any) => setNewOppPriority(v)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -901,10 +904,10 @@ function CRMPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <Label>Temperatura</Label>
                 <Select value={newOppTemp} onValueChange={(v: any) => setNewOppTemp(v)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

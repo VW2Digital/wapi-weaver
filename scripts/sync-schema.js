@@ -1,7 +1,7 @@
 /**
  * sync-schema.js — Safe, additive schema reconciliation
  *
- * Compares canonical-schema.sql (desired state) against the live database
+ * Compares reference-schema.sql (DDL snapshot from local MySQL) against the live database
  * (INFORMATION_SCHEMA) and automatically applies SAFE, NON-DESTRUCTIVE changes:
  *
  *   AUTO-APPLY:
@@ -32,6 +32,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DRY_RUN = process.argv.includes("--dry-run");
+const ALLOW_MANUAL = process.argv.includes("--allow-manual");
 
 // ---------------------------------------------------------------------------
 // Env loading
@@ -196,16 +197,16 @@ async function countOrphans(conn, childTable, childCol, refTable, refCol) {
 // Main reconciliation
 // ---------------------------------------------------------------------------
 async function syncSchema() {
-  const canonicalPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
+  const canonicalPath = path.resolve(__dirname, "../database/schema/reference-schema.sql");
   if (!fs.existsSync(canonicalPath)) {
-    console.error("[Schema-Sync] ❌ canonical-schema.sql not found");
+    console.error("[Schema-Sync] ❌ reference-schema.sql not found");
     process.exit(1);
   }
 
   const canonicalSql = fs.readFileSync(canonicalPath, "utf8");
   const canonicalTables = parseCanonicalTables(canonicalSql);
 
-  log(`Canonical source: database/schema/canonical-schema.sql (${canonicalTables.size} tables)`);
+  log(`Local reference source: database/schema/reference-schema.sql (${canonicalTables.size} tables)`);
   if (DRY_RUN) log("DRY-RUN mode — no changes will be applied");
 
   const dbPassword = process.env.DB_PASSWORD;
@@ -396,13 +397,16 @@ async function syncSchema() {
   if (manualRequired.length > 0) {
     console.log(`  Manual migration required (${manualRequired.length}):`);
     manualRequired.forEach(m => console.log(`    - ${m}`));
+    if (ALLOW_MANUAL) {
+      console.log("  Startup mode: preserving affected rows and continuing with warnings.");
+    }
   } else {
     console.log("  Manual migration required: 0");
   }
   console.log("=========================================================");
   console.log("");
 
-  if (manualRequired.length > 0) {
+  if (manualRequired.length > 0 && !ALLOW_MANUAL) {
     process.exit(2); // exit code 2 = completed but manual action needed
   }
   process.exit(0);

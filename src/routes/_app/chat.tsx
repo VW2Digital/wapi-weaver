@@ -350,6 +350,17 @@ interface ChatMessageRecord {
   sender_wa_id?: string | null;
   context?: { message_id?: string | null } | null;
   metadata?: Record<string, unknown> | null;
+  image?: { id?: string; link?: string; caption?: string; mime_type?: string } | null;
+  audio?: { id?: string; link?: string; mime_type?: string } | null;
+  video?: { id?: string; link?: string; caption?: string; mime_type?: string } | null;
+  document?: {
+    id?: string;
+    link?: string;
+    filename?: string;
+    caption?: string;
+    mime_type?: string;
+  } | null;
+  sticker?: { id?: string; link?: string; mime_type?: string } | null;
   location?: {
     latitude?: number;
     longitude?: number;
@@ -1244,6 +1255,7 @@ function ChatPage() {
     }) => quickSaveContactFn({ data: payload }),
     onSuccess: (result: QuickSaveResult, variables) => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
       if (result?.previousPhone) {
         qc.invalidateQueries({ queryKey: ["chat-messages", result.previousPhone] });
         qc.invalidateQueries({ queryKey: ["chat-contact-details", result.previousPhone] });
@@ -5120,7 +5132,7 @@ function ChatPage() {
                                             )}
 
                                             {/* B. Render Standard Media Types */}
-                                            {type === "image" && bodyText && (
+                                            {type === "image" && (
                                               <div
                                                 className={cn(
                                                   "w-full overflow-hidden bg-black/10",
@@ -5129,9 +5141,9 @@ function ChatPage() {
                                                     : "rounded-lg rounded-tl-none",
                                                 )}
                                               >
-                                                {getMediaUrl(bodyText) ? (
+                                                {getMediaUrl(msg.image?.link || msg.image?.id || (isUrl(bodyText) ? bodyText : "")) ? (
                                                   <img
-                                                    src={getMediaUrl(bodyText)}
+                                                    src={getMediaUrl(msg.image?.link || msg.image?.id || (isUrl(bodyText) ? bodyText : ""))}
                                                     alt="Imagem"
                                                     className="w-full max-h-64 object-cover"
                                                   />
@@ -5143,10 +5155,10 @@ function ChatPage() {
                                               </div>
                                             )}
 
-                                            {type === "audio" && (msg.audio?.link || msg.audio?.id || bodyText) && (
+                                            {type === "audio" && (
                                               <div className="px-1 py-1.5">
                                                 <audio
-                                                  src={getMediaUrl(msg.audio?.link || msg.audio?.id || bodyText)}
+                                                  src={getMediaUrl(msg.audio?.link || msg.audio?.id || (isUrl(bodyText) ? bodyText : ""))}
                                                   controls
                                                   preload="metadata"
                                                   className="w-[240px] max-w-full h-10"
@@ -5154,7 +5166,7 @@ function ChatPage() {
                                               </div>
                                             )}
 
-                                            {type === "video" && bodyText && (
+                                            {type === "video" && (
                                               <div
                                                 className={cn(
                                                   "w-full overflow-hidden bg-black/10",
@@ -5163,9 +5175,9 @@ function ChatPage() {
                                                     : "rounded-lg rounded-tl-none",
                                                 )}
                                               >
-                                                {getMediaUrl(bodyText) ? (
+                                                {getMediaUrl(msg.video?.link || msg.video?.id || (isUrl(bodyText) ? bodyText : "")) ? (
                                                   <video
-                                                    src={getMediaUrl(bodyText)}
+                                                    src={getMediaUrl(msg.video?.link || msg.video?.id || (isUrl(bodyText) ? bodyText : ""))}
                                                     controls
                                                     className="w-full max-h-64 object-cover"
                                                   />
@@ -5177,22 +5189,21 @@ function ChatPage() {
                                               </div>
                                             )}
 
-                                            {type === "document" && bodyText && (
+                                            {type === "document" && (
                                               <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 flex items-center gap-3">
                                                 <FileText className="h-8 w-8 text-primary shrink-0" />
                                                 <div className="min-w-0 flex-1">
                                                   <p className="text-xs font-medium truncate text-foreground">
-                                                    {isUrl(bodyText)
-                                                      ? bodyText.substring(
-                                                          bodyText.lastIndexOf("/") + 1,
-                                                        )
-                                                      : bodyText}
+                                                    {msg.document?.filename ||
+                                                      (isUrl(bodyText)
+                                                        ? bodyText.substring(bodyText.lastIndexOf("/") + 1)
+                                                        : (bodyText && !["[Documento]"].includes(bodyText) ? bodyText : "Documento"))}
                                                   </p>
                                                   <p className="text-[10px] opacity-75">
                                                     Documento PDF/Office
                                                   </p>
                                                 </div>
-                                                {getMediaUrl(bodyText) && (
+                                                {getMediaUrl(msg.document?.link || msg.document?.id || (isUrl(bodyText) ? bodyText : "")) && (
                                                   <Button
                                                     size="icon"
                                                     variant="ghost"
@@ -5200,7 +5211,7 @@ function ChatPage() {
                                                     className="h-8 w-8 shrink-0 rounded-full"
                                                   >
                                                     <a
-                                                      href={getMediaUrl(bodyText)}
+                                                      href={getMediaUrl(msg.document?.link || msg.document?.id || (isUrl(bodyText) ? bodyText : ""))}
                                                       target="_blank"
                                                       rel="noreferrer"
                                                     >
@@ -5211,17 +5222,17 @@ function ChatPage() {
                                               </div>
                                             )}
 
-                                            {type === "sticker" && bodyText && (
+                                            {type === "sticker" && (
                                               <div className="p-1">
-                                                {getMediaUrl(bodyText) ? (
+                                                {getMediaUrl(msg.sticker?.link || msg.sticker?.id || (isUrl(bodyText) ? bodyText : "")) ? (
                                                   <img
-                                                    src={getMediaUrl(bodyText)}
+                                                    src={getMediaUrl(msg.sticker?.link || msg.sticker?.id || (isUrl(bodyText) ? bodyText : ""))}
                                                     alt="Sticker"
                                                     className="h-24 w-24 object-contain"
                                                   />
                                                 ) : (
                                                   <span className="text-xs text-muted-foreground font-mono">
-                                                    Sticker (ID: {bodyText})
+                                                    Sticker
                                                   </span>
                                                 )}
                                               </div>
@@ -5294,17 +5305,10 @@ function ChatPage() {
                                               </div>
                                             )}
 
-                                            {/* Text block for header text, body, and footer */}
-                                            {((![
-                                              "image",
-                                              "audio",
-                                              "video",
-                                              "document",
-                                              "sticker",
-                                              "location",
-                                              "contacts",
-                                            ].includes(type) &&
-                                              bodyText) ||
+                                            {/* Text block for header text, body/captions, and footer */}
+                                            {(((bodyText &&
+                                              !["[Imagem]", "[Vídeo]", "[Documento]", "[Áudio]", "[Figurinha]"].includes(bodyText) &&
+                                              !["audio", "sticker", "location", "contacts"].includes(type)) ||
                                               headerText ||
                                               interactive?.footer?.text) && (
                                               <div
@@ -5318,16 +5322,9 @@ function ChatPage() {
                                                     {headerText}
                                                   </p>
                                                 )}
-                                                {![
-                                                  "image",
-                                                  "audio",
-                                                  "video",
-                                                  "document",
-                                                  "sticker",
-                                                  "location",
-                                                  "contacts",
-                                                ].includes(type) &&
-                                                  bodyText && (
+                                                {bodyText &&
+                                                  !["[Imagem]", "[Vídeo]", "[Documento]", "[Áudio]", "[Figurinha]"].includes(bodyText) &&
+                                                  !["audio", "sticker", "location", "contacts"].includes(type) && (
                                                     <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
                                                       {formatMessageText(bodyText)}
                                                     </p>
@@ -5338,7 +5335,7 @@ function ChatPage() {
                                                   </p>
                                                 )}
                                               </div>
-                                            )}
+                                            ))}
 
                                             {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
                                             {interactive?.type === "button" &&

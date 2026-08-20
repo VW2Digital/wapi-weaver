@@ -5,6 +5,7 @@ import db from "@/lib/db";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 import { webhookQueue } from "@/lib/queue/webhook-queue";
+import { downloadAndPersistInboundMedia } from "@/lib/whatsapp-media-downloader";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -364,15 +365,15 @@ function resolveDirectMessageContent(message: WebhookInboundMessage): ResolvedDi
   } else if (message.type === "reaction") {
     body = message.reaction?.emoji ?? "";
   } else if (message.type === "image") {
-    body = message.image?.caption || message.image?.id || "[Imagem]";
+    body = message.image?.caption || "[Imagem]";
   } else if (message.type === "audio") {
-    body = message.audio?.id || "[Áudio]";
+    body = "[Áudio]";
   } else if (message.type === "video") {
-    body = message.video?.caption || message.video?.id || "[Vídeo]";
+    body = message.video?.caption || "[Vídeo]";
   } else if (message.type === "document") {
-    body = message.document?.caption || message.document?.filename || message.document?.id || "[Documento]";
+    body = message.document?.filename || message.document?.caption || "[Documento]";
   } else if (message.type === "sticker") {
-    body = message.sticker?.id || "[Figurinha]";
+    body = "[Figurinha]";
   } else if (message.type === "location") {
     body =
       message.location?.name || `${message.location?.latitude}, ${message.location?.longitude}`;
@@ -433,12 +434,17 @@ async function ensureWhatsAppContact(
     extraCustomFields,
   } = options;
 
-  const { data } = await dbAdmin
+  const { data, error: lookupError } = await dbAdmin
     .from("contacts")
     .select("id, name, custom_fields, chat_status")
+    .eq("tenant_id", userId)
     .eq("user_id", userId)
     .eq("phone_e164", phoneDigits)
     .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(`Falha ao localizar contato do WhatsApp: ${lookupError.message}`);
+  }
 
   const existingContact = (data ?? null) as ContactLookupRow | null;
   const parsedCustomFields = parseJsonObject(existingContact?.custom_fields);
@@ -468,23 +474,40 @@ async function ensureWhatsAppContact(
   };
 
   if (existingContact?.id) {
-    await dbAdmin.from("contacts").update(contactPayload).eq("id", existingContact.id);
+    const { error: updateError } = await dbAdmin
+      .from("contacts")
+      .update(contactPayload)
+      .eq("tenant_id", userId)
+      .eq("user_id", userId)
+      .eq("id", existingContact.id);
+    if (updateError) {
+      throw new Error(`Falha ao atualizar contato do WhatsApp: ${updateError.message}`);
+    }
   } else {
-    await dbAdmin.from("contacts").insert({
+    const { error: insertError } = await dbAdmin.from("contacts").insert({
       id: randomUUID(),
+      tenant_id: userId,
       user_id: userId,
       phone_e164: phoneDigits,
       channel: "whatsapp",
       ...contactPayload,
     });
+    if (insertError) {
+      throw new Error(`Falha ao salvar contato do WhatsApp: ${insertError.message}`);
+    }
   }
 
-  const { data: refreshedContact } = await dbAdmin
+  const { data: refreshedContact, error: refreshError } = await dbAdmin
     .from("contacts")
     .select("id")
+    .eq("tenant_id", userId)
     .eq("user_id", userId)
     .eq("phone_e164", phoneDigits)
     .maybeSingle();
+
+  if (refreshError) {
+    throw new Error(`Falha ao confirmar contato do WhatsApp: ${refreshError.message}`);
+  }
 
   if (markUnread && nextChatStatus && refreshedContact?.id) {
     const { startChatSession } = await import("@/lib/chat-sessions.functions");
@@ -822,6 +845,7 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
     }
 
     const waMessageId = normalizeWaMessageId(m.id);
+    if (!waMessageId) continue;
     const phoneDigits = normalizePhoneDigits(from);
 
 
@@ -935,9 +959,10 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
       continue;
     }
 
+    const newDbMessageId = randomUUID();
     try {
       await dbAdmin.from("direct_messages").insert({
-        id: randomUUID(),
+        id: newDbMessageId,
         tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
@@ -956,6 +981,21 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         },
         raw_payload: value ?? null,
       });
+
+      // 📥 Se for mídia (image, audio, video, document, sticker), inicia o download assíncrono em background
+      if (["image", "audio", "video", "document", "sticker"].includes(type)) {
+        const mediaMeta = (m as any)[type] || {};
+        downloadAndPersistInboundMedia(
+          userId,
+          newDbMessageId,
+          waMessageId,
+          type as any,
+          mediaMeta,
+          phoneNumberId,
+        ).catch((err) => {
+          console.error("[Webhook Media Downloader Background Error]:", err);
+        });
+      }
     } catch (error: unknown) {
       throw error;
     }
@@ -1442,6 +1482,7 @@ async function handleWhatsAppGroupMessage(
 
   // 4. Salvar a mensagem na tabela direct_messages
   const waMessageId = normalizeWaMessageId(m.id);
+  if (!waMessageId) return;
   // Usa resolveDirectMessageContent para garantir que `type` seja um valor
   // aceito pelo ENUM da coluna direct_messages.type. Tipos desconhecidos
   // (interactive, button, order, unsupported…) são mapeados para "text"
@@ -1463,9 +1504,10 @@ async function handleWhatsAppGroupMessage(
     return;
   }
 
+  const newGroupDbMsgId = randomUUID();
   await dbAdmin.from("direct_messages").upsert(
     {
-      id: randomUUID(),
+      id: newGroupDbMsgId,
       tenant_id: userId,
       user_id: userId,
       contact_phone: groupId, // A conversa é vinculada ao ID do grupo
@@ -1481,10 +1523,29 @@ async function handleWhatsAppGroupMessage(
       sender_name: senderName,
       recipient_type: "group",
       external_group_id: groupId,
+      metadata: {
+        message: m,
+        metadata: rawPayload?.metadata ?? null,
+      },
       raw_payload: rawPayload ?? null,
     },
     { onConflict: "wa_message_id" },
   );
+
+  // 📥 Se for mídia no grupo, inicia download assíncrono em background
+  if (["image", "audio", "video", "document", "sticker"].includes(type)) {
+    const mediaMeta = (m as any)[type] || {};
+    downloadAndPersistInboundMedia(
+      userId,
+      newGroupDbMsgId,
+      waMessageId,
+      type as any,
+      mediaMeta,
+      phoneNumberId,
+    ).catch((err) => {
+      console.error("[Webhook Media Downloader Group Error]:", err);
+    });
+  }
 
   // 🚀 Chama o motor do BotFlow para processar essa mensagem do grupo (se habilitado)
   if (process.env.WHATSAPP_GROUPS_ENABLED === "true" && phoneNumberId && body) {

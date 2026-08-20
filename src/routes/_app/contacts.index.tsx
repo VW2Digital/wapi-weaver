@@ -391,7 +391,12 @@ function ContactsPage() {
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
     return (contacts ?? []).filter((c: any) => {
-      if (sourceFilter && c.source !== sourceFilter) return false;
+      if (sourceFilter === "whatsapp") {
+        const source = String(c.source ?? "").toLowerCase();
+        if (source !== "whatsapp" && !source.startsWith("whatsapp_")) return false;
+      } else if (sourceFilter && c.source !== sourceFilter) {
+        return false;
+      }
       if (!s) return true;
       return (
         c.phone_e164.includes(search) ||
