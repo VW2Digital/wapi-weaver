@@ -2812,9 +2812,35 @@ function ChatPage() {
 
       recorder.onstop = async () => {
         const rawAudioBlob = new Blob(chunks, { type: supportedType });
-        const oggOpusBlob = await convertWebMToOggOpus(rawAudioBlob);
-        
-        const file = new File([oggOpusBlob], `audio_${Date.now()}.ogg`, { type: "audio/ogg" });
+        let uploadBlob = rawAudioBlob;
+        let uploadMime = supportedType.split(";")[0].trim().toLowerCase();
+        let uploadExtension = uploadMime === "audio/mp4" ? "m4a" : "ogg";
+
+        // MP4/AAC já é aceito pela Meta e não pode ser renomeado para Ogg.
+        // Apenas WebM/Opus precisa ser colocado em um contêiner Ogg.
+        if (uploadMime.includes("webm")) {
+          uploadBlob = await convertWebMToOggOpus(rawAudioBlob);
+          const convertedHeader = new Uint8Array(await uploadBlob.slice(0, 4).arrayBuffer());
+          const isValidOgg =
+            convertedHeader[0] === 0x4f &&
+            convertedHeader[1] === 0x67 &&
+            convertedHeader[2] === 0x67 &&
+            convertedHeader[3] === 0x53;
+          if (!isValidOgg) {
+            stream.getTracks().forEach((track) => track.stop());
+            toast.error("O navegador gerou um áudio incompatível. Grave novamente ou anexe um arquivo MP3/M4A.");
+            return;
+          }
+          uploadMime = "audio/ogg";
+          uploadExtension = "ogg";
+        } else if (uploadMime.includes("ogg")) {
+          uploadMime = "audio/ogg";
+          uploadExtension = "ogg";
+        }
+
+        const file = new File([uploadBlob], `audio_${Date.now()}.${uploadExtension}`, {
+          type: uploadMime,
+        });
 
         stream.getTracks().forEach((track) => track.stop());
 

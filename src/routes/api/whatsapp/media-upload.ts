@@ -31,6 +31,41 @@ function json(data: any, status = 200) {
   });
 }
 
+function detectMediaFile(buffer: ArrayBuffer, declaredType: string, originalName: string) {
+  const bytes = new Uint8Array(buffer);
+  const startsWith = (...signature: number[]) =>
+    signature.every((value, index) => bytes[index] === value);
+
+  if (startsWith(0x4f, 0x67, 0x67, 0x53)) {
+    return { mimeType: "audio/ogg", fileName: originalName.replace(/\.[^.]+$/, "") + ".ogg" };
+  }
+  if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+    return { mimeType: "audio/mp4", fileName: originalName.replace(/\.[^.]+$/, "") + ".m4a" };
+  }
+  if (startsWith(0x49, 0x44, 0x33) || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)) {
+    const isAac = bytes[0] === 0xff && (bytes[1] === 0xf1 || bytes[1] === 0xf9);
+    return {
+      mimeType: isAac ? "audio/aac" : "audio/mpeg",
+      fileName: originalName.replace(/\.[^.]+$/, "") + (isAac ? ".aac" : ".mp3"),
+    };
+  }
+  if (startsWith(0x23, 0x21, 0x41, 0x4d, 0x52)) {
+    return { mimeType: "audio/amr", fileName: originalName.replace(/\.[^.]+$/, "") + ".amr" };
+  }
+  if (startsWith(0x1a, 0x45, 0xdf, 0xa3)) {
+    throw new Error("Áudio WebM não é aceito pela Meta. Converta-o para Ogg/Opus, MP3 ou M4A.");
+  }
+
+  if (declaredType.toLowerCase().startsWith("audio/")) {
+    throw new Error("Não foi possível validar o formato real do áudio. Use Ogg/Opus, MP3, M4A, AAC ou AMR.");
+  }
+
+  return {
+    mimeType: declaredType || "application/octet-stream",
+    fileName: originalName || "media.bin",
+  };
+}
+
 export const Route = createFileRoute("/api/whatsapp/media-upload")({
   server: {
     handlers: {
@@ -68,8 +103,13 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           }
 
           const fileBuffer = await file.arrayBuffer();
-          const mimeType = file.type || "audio/ogg";
-          const fileName = file.name || (mimeType.includes("ogg") ? "audio.ogg" : "audio.mp4");
+          const detectedFile = detectMediaFile(
+            fileBuffer,
+            file.type || "application/octet-stream",
+            file.name || "audio",
+          );
+          const mimeType = detectedFile.mimeType;
+          const fileName = detectedFile.fileName;
           const fileBlob = new Blob([fileBuffer], { type: mimeType });
 
           const metaForm = new FormData();
