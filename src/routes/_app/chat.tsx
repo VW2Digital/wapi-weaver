@@ -2832,6 +2832,7 @@ function ChatPage() {
 
           sendMutation.mutate(payload, {
             onSuccess: () => {
+              setReplyingTo(null);
               toast.success("Áudio enviado com sucesso!", { id: toastId });
             },
             onError: (err: any) => {
