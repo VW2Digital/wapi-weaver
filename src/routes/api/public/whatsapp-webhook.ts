@@ -1733,33 +1733,46 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           logError("Falha ao registrar evento do webhook", eventInsertError);
         }
 
-        // O callback apenas valida, persiste e enfileira. Todo processamento
-        // de mensagens fica no worker para devolver 200 rapidamente à Meta.
+        // Processamos imediatamente para que a persistência no chat e o bot não
+        // dependam da disponibilidade do worker/Redis na VPS. A fila fica como
+        // contingência e repete apenas o que ainda não foi concluído, graças à
+        // idempotência por wa_message_id e ao marcador bot_processed_at.
         try {
-          await webhookQueue.add(
-            "meta-event",
-            {
-              entry: payload.entry,
-              matchedUserId,
-              evRowId: evRow?.id ?? null,
-            },
-            {
-              attempts: 5,
-              backoff: { type: "exponential", delay: 1000 },
-              removeOnComplete: 1000,
-              removeOnFail: 5000,
-            },
+          await processMetaWebhookEvent(payload.entry ?? [], matchedUserId);
+          if (evRow?.id) {
+            const { error: processedUpdateError } = await dbAdmin
+              .from("webhook_events")
+              .update({ processed: true })
+              .eq("id", evRow.id);
+            if (processedUpdateError) {
+              logError("Falha ao marcar evento do webhook como processado", processedUpdateError);
+            }
+          }
+        } catch (processingError) {
+          logError(
+            "Processamento imediato do webhook falhou; enfileirando contingência",
+            processingError,
           );
-        } catch (queueError) {
-          // Redis não pode impedir recebimento. Processamos de forma síncrona
-          // e a idempotência por wa_message_id protege contra uma eventual
-          // entrega duplicada que a Meta faça depois.
-          logError("Fila de webhooks indisponível; usando processamento de contingência", queueError);
           try {
-            await processMetaWebhookEvent(payload.entry ?? [], matchedUserId);
-            if (evRow?.id) await dbAdmin.from("webhook_events").update({ processed: true }).eq("id", evRow.id);
-          } catch (processingError) {
-            logError("Falha no processamento de contingência do webhook", processingError);
+            await webhookQueue.add(
+              "meta-event",
+              {
+                entry: payload.entry,
+                matchedUserId,
+                evRowId: evRow?.id ?? null,
+              },
+              {
+                attempts: 5,
+                backoff: { type: "exponential", delay: 1000 },
+                removeOnComplete: 1000,
+                removeOnFail: 5000,
+              },
+            );
+          } catch (queueError) {
+            logError("Falha no processamento imediato e na fila do webhook", {
+              processingError: getErrorMessage(processingError),
+              queueError: getErrorMessage(queueError),
+            });
             return new Response("Webhook processing failed", { status: 500 });
           }
         }
