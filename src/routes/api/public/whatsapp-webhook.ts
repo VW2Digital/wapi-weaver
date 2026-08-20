@@ -510,8 +510,18 @@ async function ensureWhatsAppContact(
   }
 
   if (markUnread && nextChatStatus && refreshedContact?.id) {
-    const { startChatSession } = await import("@/lib/chat-sessions.functions");
-    await startChatSession(userId, refreshedContact.id, "aguardando");
+    try {
+      const { startChatSession } = await import("@/lib/chat-sessions.functions");
+      await startChatSession(userId, refreshedContact.id, "aguardando");
+    } catch (sessionError: unknown) {
+      // A sessão organiza a fila de atendimento, mas não pode impedir a
+      // persistência da mensagem nem a execução do bot.
+      logError("Falha ao abrir sessão do chat; continuando o webhook", {
+        userId,
+        contactId: refreshedContact.id,
+        error: getErrorMessage(sessionError),
+      });
+    }
   }
 
   return {
@@ -950,18 +960,17 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
     const { data: existingMessage } = await dbAdmin
       .from("direct_messages")
-      .select("id")
+      .select("id, metadata")
       .eq("user_id", userId)
       .eq("wa_message_id", waMessageId)
       .maybeSingle();
 
-    if (existingMessage?.id) {
-      continue;
-    }
+    const existingMessageMetadata = parseJsonObject(existingMessage?.metadata);
+    if (existingMessage?.id && existingMessageMetadata?.bot_processed_at) continue;
 
-    const newDbMessageId = randomUUID();
-    try {
-      await dbAdmin.from("direct_messages").insert({
+    const newDbMessageId = existingMessage?.id ?? randomUUID();
+    if (!existingMessage?.id) try {
+      const { error: messageInsertError } = await dbAdmin.from("direct_messages").insert({
         id: newDbMessageId,
         tenant_id: userId,
         user_id: userId,
@@ -981,6 +990,10 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         },
         raw_payload: value ?? null,
       });
+
+      if (messageInsertError) {
+        throw new Error(`Falha ao persistir mensagem recebida: ${messageInsertError.message}`);
+      }
 
       // 📥 Se for mídia (image, audio, video, document, sticker), inicia o download assíncrono em background
       if (["image", "audio", "video", "document", "sticker"].includes(type)) {
@@ -1003,15 +1016,36 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
     if (phoneNumberId && (body || buttonPayload)) {
-      await processBotFlow(
-        body || buttonPayload || "Mensagem",
-        phoneDigits,
-        phoneNumberId,
-        userId,
-        buttonPayload,
-        "whatsapp",
-        waMessageId,
-      );
+      try {
+        await processBotFlow(
+          body || buttonPayload || "Mensagem",
+          phoneDigits,
+          phoneNumberId,
+          userId,
+          buttonPayload,
+          "whatsapp",
+          waMessageId,
+        );
+
+        await db.query(
+          `UPDATE direct_messages
+           SET metadata = JSON_SET(
+             COALESCE(metadata, JSON_OBJECT()),
+             '$.bot_processed_at',
+             ?
+           )
+           WHERE id = ? AND user_id = ?`,
+          [new Date().toISOString(), newDbMessageId, userId],
+        );
+      } catch (botError: unknown) {
+        logError("Falha ao executar o bot para mensagem recebida", {
+          userId,
+          phoneNumberId,
+          waMessageId,
+          error: getErrorMessage(botError),
+        });
+        throw botError;
+      }
     }
   }
 }
@@ -1702,11 +1736,20 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         // O callback apenas valida, persiste e enfileira. Todo processamento
         // de mensagens fica no worker para devolver 200 rapidamente à Meta.
         try {
-          await webhookQueue.add("meta-event", {
-            entry: payload.entry,
-            matchedUserId,
-            evRowId: evRow?.id ?? null,
-          });
+          await webhookQueue.add(
+            "meta-event",
+            {
+              entry: payload.entry,
+              matchedUserId,
+              evRowId: evRow?.id ?? null,
+            },
+            {
+              attempts: 5,
+              backoff: { type: "exponential", delay: 1000 },
+              removeOnComplete: 1000,
+              removeOnFail: 5000,
+            },
+          );
         } catch (queueError) {
           // Redis não pode impedir recebimento. Processamos de forma síncrona
           // e a idempotência por wa_message_id protege contra uma eventual

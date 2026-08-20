@@ -337,8 +337,33 @@ export const quickSaveContact = createServerFn({ method: "POST" })
         const previousPhone = contact.phone_e164;
 
         await conn.execute(
-          "UPDATE contacts SET name = ?, email = ?, phone_e164 = ? WHERE id = ? AND (user_id = ? OR tenant_id = ?)",
-          [data.name, data.email || null, phoneDigits, data.contactId, effectiveUserId, effectiveUserId],
+          `UPDATE contacts
+           SET user_id = ?,
+               tenant_id = ?,
+               name = ?,
+               email = ?,
+               phone_e164 = ?,
+               source = CASE
+                 WHEN source IS NULL OR TRIM(source) = ''
+                   THEN CONCAT(COALESCE(NULLIF(channel, ''), 'whatsapp'), '_chat')
+                 ELSE source
+               END,
+               source_type = CASE
+                 WHEN source_type IS NULL OR TRIM(source_type) = ''
+                   THEN COALESCE(NULLIF(channel, ''), 'whatsapp')
+                 ELSE source_type
+               END
+           WHERE id = ? AND (user_id = ? OR tenant_id = ?)`,
+          [
+            effectiveUserId,
+            effectiveUserId,
+            data.name,
+            data.email || null,
+            phoneDigits,
+            data.contactId,
+            effectiveUserId,
+            effectiveUserId,
+          ],
         );
 
         if (previousPhone && previousPhone !== phoneDigits) {

@@ -69,7 +69,12 @@ export async function listContactsForUser(userId: string) {
   if (!userId) {
     throw new Error("listContactsForUser: userId is required");
   }
-  const { sqlWhere, params: filterParams } = await getTenantFilter(userId);
+  const { isMaster, effectiveTenantId } = await getTenantFilter(userId);
+  // Registros antigos vindos do chat podem ter user_id correto e tenant_id
+  // ausente ou divergente. O fallback por user_id permanece restrito ao dono
+  // efetivo do tenant e permite que sejam exibidos e reparados no próximo save.
+  const sqlWhere = isMaster ? "1=1" : "(tenant_id = ? OR user_id = ?)";
+  const filterParams = isMaster ? [] : [effectiveTenantId, effectiveTenantId];
   const PAGE = 1000;
   const all: any[] = [];
   for (let from = 0; ; from += PAGE) {
