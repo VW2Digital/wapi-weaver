@@ -89,6 +89,23 @@ function sqlDefaultExpression(value) {
   return `'${normalized.replace(/'/g, "''")}'`;
 }
 
+function contractColumnDefinition(column) {
+  let definition = column.column_type;
+  if (column.collation) definition += ` COLLATE ${column.collation}`;
+  definition += column.nullable ? " NULL" : " NOT NULL";
+
+  const defaultExpression = sqlDefaultExpression(column.default);
+  if (defaultExpression) {
+    definition += ` DEFAULT ${defaultExpression}`;
+  } else if (column.nullable) {
+    definition += " DEFAULT NULL";
+  }
+
+  const extra = String(column.extra || "").replace(/\bDEFAULT_GENERATED\b/gi, "").trim();
+  if (extra) definition += ` ${extra}`;
+  return definition;
+}
+
 // ---------------------------------------------------------------------------
 // Canonical SQL parser — minimal, focused on extracting CREATE TABLE blocks
 // ---------------------------------------------------------------------------
@@ -312,6 +329,7 @@ async function syncSchema() {
 
       // ─── COLUMNS ─────────────────────────────────────────────────────────
       const liveColumns = await getLiveColumns(conn, tableName);
+      const referenceColumnNames = new Set(def.columns.map((column) => column.name));
       for (const col of def.columns) {
         if (!liveColumns.has(col.name)) {
           info(`Missing column: \`${tableName}\`.\`${col.name}\` → ADD COLUMN`);
@@ -411,6 +429,81 @@ async function syncSchema() {
             );
             applied++;
           }
+        }
+      }
+
+      // The contract can contain active runtime columns not present in an older
+      // DDL snapshot. Reconcile those as well so validation and installation use
+      // the same complete source of truth.
+      const contractColumns = schemaContract?.[tableName]?.columns ?? {};
+      for (const [columnName, contractColumn] of Object.entries(contractColumns)) {
+        if (referenceColumnNames.has(columnName)) continue;
+
+        const desiredDefinition = contractColumnDefinition(contractColumn);
+        if (!liveColumns.has(columnName)) {
+          info(`Contract-only missing column: \`${tableName}\`.\`${columnName}\` → ADD COLUMN`);
+          if (!DRY_RUN) {
+            try {
+              await conn.query(
+                `ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${desiredDefinition}`,
+              );
+              ok(`Contract column \`${tableName}\`.\`${columnName}\` added.`);
+              applied++;
+            } catch (err) {
+              warn(`Failed to add contract column \`${tableName}\`.\`${columnName}\`: ${err.message}`);
+              manualRequired.push(
+                `ADD CONTRACT COLUMN \`${tableName}\`.\`${columnName}\`: ${err.message}`,
+              );
+            }
+          } else {
+            info(`[DRY-RUN] Would add contract column \`${tableName}\`.\`${columnName}\``);
+            applied++;
+          }
+          continue;
+        }
+
+        const currentNullable = liveColumns.get(columnName).nullable;
+        if (currentNullable === contractColumn.nullable) continue;
+
+        let nullRows = 0;
+        if (!contractColumn.nullable) {
+          nullRows = await countNullValues(conn, tableName, columnName);
+          const defaultExpression = sqlDefaultExpression(contractColumn.default);
+          if (nullRows > 0 && defaultExpression && !DRY_RUN) {
+            await conn.query(
+              `UPDATE \`${tableName}\` SET \`${columnName}\` = ${defaultExpression} WHERE \`${columnName}\` IS NULL`,
+            );
+            nullRows = await countNullValues(conn, tableName, columnName);
+          }
+        }
+
+        if (!contractColumn.nullable && nullRows > 0) {
+          warn(`Cannot reconcile contract column \`${tableName}\`.\`${columnName}\` — ${nullRows} null row(s).`);
+          manualRequired.push(
+            `CONTRACT NULLABILITY \`${tableName}\`.\`${columnName}\` blocked by ${nullRows} null row(s)`,
+          );
+          continue;
+        }
+
+        info(
+          `Contract nullability mismatch: \`${tableName}\`.\`${columnName}\` → ${contractColumn.nullable ? "NULL" : "NOT NULL"}`,
+        );
+        if (!DRY_RUN) {
+          try {
+            await conn.query(
+              `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\` ${desiredDefinition}`,
+            );
+            ok(`Contract nullability of \`${tableName}\`.\`${columnName}\` reconciled.`);
+            applied++;
+          } catch (err) {
+            warn(`Failed to reconcile contract column \`${tableName}\`.\`${columnName}\`: ${err.message}`);
+            manualRequired.push(
+              `CONTRACT NULLABILITY \`${tableName}\`.\`${columnName}\`: ${err.message}`,
+            );
+          }
+        } else {
+          info(`[DRY-RUN] Would reconcile contract column \`${tableName}\`.\`${columnName}\``);
+          applied++;
         }
       }
 
@@ -532,7 +625,7 @@ async function syncSchema() {
   process.exit(0);
 }
 
-export { applyDesiredNullability, sqlDefaultExpression };
+export { applyDesiredNullability, contractColumnDefinition, sqlDefaultExpression };
 
 const isDirectRun =
   process.argv[1] &&
