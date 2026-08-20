@@ -297,9 +297,15 @@ export const quickSaveContact = createServerFn({ method: "POST" })
     z
       .object({
         contactId: z.string().min(1),
-        name: z.string().trim().min(1),
-        email: z.string().trim().email().nullable().or(z.literal("")),
-        phone: z.string().trim().min(5),
+        name: z.string().trim().min(1, "Nome é obrigatório"),
+        email: z
+          .string()
+          .trim()
+          .optional()
+          .nullable()
+          .refine((val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), "E-mail inválido")
+          .transform((val) => val || null),
+        phone: z.string().trim().min(5, "Telefone é obrigatório"),
       })
       .parse(d),
   )
@@ -311,8 +317,8 @@ export const quickSaveContact = createServerFn({ method: "POST" })
 
       return await db.transaction(async (conn) => {
         const [contactRows] = (await conn.execute(
-          "SELECT id, phone_e164 FROM contacts WHERE id = ? AND user_id = ? LIMIT 1 FOR UPDATE",
-          [data.contactId, effectiveUserId],
+          "SELECT id, phone_e164 FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1 FOR UPDATE",
+          [data.contactId, effectiveUserId, effectiveUserId],
         )) as [ContactPhoneRow[], unknown];
         const contact = contactRows?.[0];
 
@@ -321,8 +327,8 @@ export const quickSaveContact = createServerFn({ method: "POST" })
         }
 
         const [existingRows] = (await conn.execute(
-          "SELECT id FROM contacts WHERE user_id = ? AND phone_e164 = ? AND id != ? LIMIT 1",
-          [effectiveUserId, phoneDigits, data.contactId],
+          "SELECT id FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ? AND id != ? LIMIT 1",
+          [effectiveUserId, effectiveUserId, phoneDigits, data.contactId],
         )) as [OpportunityIdRow[], unknown];
         if (existingRows && existingRows.length > 0) {
           throw new Error("Já existe outro contato cadastrado com este número de telefone.");
@@ -331,8 +337,8 @@ export const quickSaveContact = createServerFn({ method: "POST" })
         const previousPhone = contact.phone_e164;
 
         await conn.execute(
-          "UPDATE contacts SET name = ?, email = ?, phone_e164 = ? WHERE id = ? AND user_id = ?",
-          [data.name, data.email || null, phoneDigits, data.contactId, effectiveUserId],
+          "UPDATE contacts SET name = ?, email = ?, phone_e164 = ? WHERE id = ? AND (user_id = ? OR tenant_id = ?)",
+          [data.name, data.email || null, phoneDigits, data.contactId, effectiveUserId, effectiveUserId],
         );
 
         if (previousPhone && previousPhone !== phoneDigits) {
