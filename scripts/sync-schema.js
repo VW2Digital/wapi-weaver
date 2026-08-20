@@ -57,6 +57,38 @@ function warn(msg) { console.warn(`[Schema-Sync] ⚠  ${msg}`); }
 function ok(msg) { console.log(`[Schema-Sync] ✅ ${msg}`); }
 function info(msg) { console.log(`[Schema-Sync]    ${msg}`); }
 
+function applyDesiredNullability(definition, nullable, contractDefault) {
+  let result = definition;
+  const defaultExpression = sqlDefaultExpression(contractDefault);
+  if (defaultExpression) {
+    if (/\s+DEFAULT\s+(?:NULL|'[^']*'|"[^"]*"|-?\d+(?:\.\d+)?|CURRENT_TIMESTAMP(?:\(\))?)/i.test(result)) {
+      result = result.replace(
+        /\s+DEFAULT\s+(?:NULL|'[^']*'|"[^"]*"|-?\d+(?:\.\d+)?|CURRENT_TIMESTAMP(?:\(\))?)/i,
+        ` DEFAULT ${defaultExpression}`,
+      );
+    } else {
+      result += ` DEFAULT ${defaultExpression}`;
+    }
+  }
+
+  if (nullable) {
+    return result.replace(/\s+NOT\s+NULL\b/i, "");
+  }
+  if (/\bNOT\s+NULL\b/i.test(result)) return result;
+  if (/\s+DEFAULT\s+/i.test(result)) {
+    return result.replace(/\s+DEFAULT\s+/i, " NOT NULL DEFAULT ");
+  }
+  return `${result} NOT NULL`;
+}
+
+function sqlDefaultExpression(value) {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  if (/^CURRENT_TIMESTAMP(?:\(\))?$/i.test(normalized)) return "CURRENT_TIMESTAMP";
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) return normalized;
+  return `'${normalized.replace(/'/g, "''")}'`;
+}
+
 // ---------------------------------------------------------------------------
 // Canonical SQL parser — minimal, focused on extracting CREATE TABLE blocks
 // ---------------------------------------------------------------------------
@@ -212,6 +244,10 @@ async function syncSchema() {
 
   const canonicalSql = fs.readFileSync(canonicalPath, "utf8");
   const canonicalTables = parseCanonicalTables(canonicalSql);
+  const contractPath = path.resolve(__dirname, "../database/schema/schema-contract.json");
+  const schemaContract = fs.existsSync(contractPath)
+    ? JSON.parse(fs.readFileSync(contractPath, "utf8"))
+    : {};
 
   log(`Local reference source: database/schema/reference-schema.sql (${canonicalTables.size} tables)`);
   if (DRY_RUN) log("DRY-RUN mode — no changes will be applied");
@@ -299,13 +335,43 @@ async function syncSchema() {
         } else {
           skipped++;
 
-          const desiredNullable = !/\bNOT\s+NULL\b/i.test(col.definition);
+          const contractColumn = schemaContract?.[tableName]?.columns?.[col.name];
+          const desiredNullable =
+            typeof contractColumn?.nullable === "boolean"
+              ? contractColumn.nullable
+              : !/\bNOT\s+NULL\b/i.test(col.definition);
           const currentNullable = liveColumns.get(col.name).nullable;
           if (desiredNullable === currentNullable) continue;
 
           let nullRows = 0;
           if (!desiredNullable) {
             nullRows = await countNullValues(conn, tableName, col.name);
+            if (nullRows > 0 && col.name === "tenant_id" && liveColumns.has("user_id")) {
+              info(`Backfilling \`${tableName}\`.\`tenant_id\` from \`user_id\`...`);
+              if (!DRY_RUN) {
+                await conn.query(
+                  `UPDATE \`${tableName}\` SET \`tenant_id\` = \`user_id\` WHERE \`tenant_id\` IS NULL AND \`user_id\` IS NOT NULL`,
+                );
+                nullRows = await countNullValues(conn, tableName, col.name);
+              } else {
+                info(`[DRY-RUN] Would backfill \`${tableName}\`.\`tenant_id\` from \`user_id\``);
+              }
+            }
+
+            const defaultExpression = sqlDefaultExpression(contractColumn?.default);
+            if (nullRows > 0 && defaultExpression) {
+              info(
+                `Backfilling ${nullRows} null value(s) in \`${tableName}\`.\`${col.name}\` with contract default...`,
+              );
+              if (!DRY_RUN) {
+                await conn.query(
+                  `UPDATE \`${tableName}\` SET \`${col.name}\` = ${defaultExpression} WHERE \`${col.name}\` IS NULL`,
+                );
+                nullRows = await countNullValues(conn, tableName, col.name);
+              } else {
+                info(`[DRY-RUN] Would apply the contract default before setting NOT NULL`);
+              }
+            }
           }
 
           if (!desiredNullable && nullRows > 0) {
@@ -321,10 +387,15 @@ async function syncSchema() {
           info(
             `Nullability mismatch: \`${tableName}\`.\`${col.name}\` → ${desiredNullable ? "NULL" : "NOT NULL"}`,
           );
+          const reconciledDefinition = applyDesiredNullability(
+            col.definition,
+            desiredNullable,
+            contractColumn?.default,
+          );
           if (!DRY_RUN) {
             try {
               await conn.query(
-                `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${col.name}\` ${col.definition}`,
+                `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${col.name}\` ${reconciledDefinition}`,
               );
               ok(`Nullability of \`${tableName}\`.\`${col.name}\` reconciled.`);
               applied++;
@@ -461,7 +532,15 @@ async function syncSchema() {
   process.exit(0);
 }
 
-syncSchema().catch(err => {
-  console.error("[Schema-Sync] ❌ Unexpected error:", err.message);
-  process.exit(1);
-});
+export { applyDesiredNullability, sqlDefaultExpression };
+
+const isDirectRun =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  syncSchema().catch(err => {
+    console.error("[Schema-Sync] ❌ Unexpected error:", err.message);
+    process.exit(1);
+  });
+}
