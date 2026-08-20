@@ -388,24 +388,25 @@ export const getChatMessages = createServerFn({ method: "POST" })
 
     // O chat não precisa trazer anos de mensagens para abrir uma única
     // conversa. O limite evita que uma tabela grande deixe a interface em
-    // carregamento indefinido.
+    // carregamento indefinido
     const baseMessagesQuery = `SELECT * FROM (
-       SELECT id, direction, created_at, body, status
-       FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ?
-       ORDER BY created_at DESC
-       LIMIT 500
-     ) AS recent_messages
-     ORDER BY created_at ASC`;
+        SELECT id, wa_message_id, direction, created_at, type, body, status,
+               reply_to_message_id, metadata
+        FROM direct_messages
+        WHERE user_id = ? AND contact_phone = ?
+        ORDER BY created_at DESC
+        LIMIT 500
+      ) AS recent_messages
+      ORDER BY created_at ASC`;
     const richMessagesQuery = `SELECT * FROM (
-       SELECT id, wa_message_id, direction, created_at, type, body, status,
-              reply_to_message_id, metadata
-       FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ?
-       ORDER BY created_at DESC
-       LIMIT 500
-     ) AS recent_messages
-     ORDER BY created_at ASC`;
+        SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
+               sender_name, sender_wa_id, reply_to_message_id, metadata, raw_payload
+        FROM direct_messages
+        WHERE user_id = ? AND contact_phone = ?
+        ORDER BY created_at DESC
+        LIMIT 500
+      ) AS recent_messages
+      ORDER BY created_at ASC`;
 
     let messages: unknown[];
     try {
@@ -566,7 +567,52 @@ export const getChatMessages = createServerFn({ method: "POST" })
         asJsonRecord(meta?.reaction) ||
         asJsonRecord(rawMessage?.reaction) ||
         (row.type === "reaction" ? { emoji: row.body, message_id: row.reply_to_message_id } : null);
-      const messageType = (row.type || "text") as ChatMessageType;
+      let messageType = (row.type || "text") as ChatMessageType;
+      if (messageType === "text") {
+        if (
+          audioData ||
+          asJsonRecord(storedMeta?.audio) ||
+          (storedMeta as any)?.type === "audio" ||
+          (storedMeta as any)?.message?.type === "audio" ||
+          (storedMeta as any)?.message?.audio ||
+          (row.body && /^\d{15,18}$/.test(row.body.trim()))
+        ) {
+          messageType = "audio";
+        } else if (
+          imageData ||
+          asJsonRecord(storedMeta?.image) ||
+          (storedMeta as any)?.type === "image" ||
+          (storedMeta as any)?.message?.type === "image" ||
+          (storedMeta as any)?.message?.image
+        ) {
+          messageType = "image";
+        } else if (
+          videoData ||
+          asJsonRecord(storedMeta?.video) ||
+          (storedMeta as any)?.type === "video" ||
+          (storedMeta as any)?.message?.type === "video" ||
+          (storedMeta as any)?.message?.video
+        ) {
+          messageType = "video";
+        } else if (
+          documentData ||
+          asJsonRecord(storedMeta?.document) ||
+          (storedMeta as any)?.type === "document" ||
+          (storedMeta as any)?.message?.type === "document" ||
+          (storedMeta as any)?.message?.document
+        ) {
+          messageType = "document";
+        } else if (
+          stickerData ||
+          asJsonRecord(storedMeta?.sticker) ||
+          (storedMeta as any)?.type === "sticker" ||
+          (storedMeta as any)?.message?.type === "sticker" ||
+          (storedMeta as any)?.message?.sticker
+        ) {
+          messageType = "sticker";
+        }
+      }
+
       return {
         id: row.id,
         wa_message_id: row.wa_message_id,
@@ -578,14 +624,14 @@ export const getChatMessages = createServerFn({ method: "POST" })
         status: row.status,
         sender_name: row.sender_name || null,
         sender_wa_id: row.sender_wa_id || null,
-        reaction: row.type === "reaction" ? reactionData : null,
-        image: row.type === "image" ? imageData || { id: row.body } : null,
-        audio: row.type === "audio" ? audioData || { id: row.body } : null,
-        video: row.type === "video" ? videoData || { id: row.body } : null,
-        document: row.type === "document" ? documentData || { id: row.body } : null,
-        sticker: row.type === "sticker" ? stickerData || { id: row.body } : null,
-        location: row.type === "location" ? locationData : null,
-        contacts: row.type === "contacts" ? contactsData : null,
+        reaction: messageType === "reaction" ? reactionData : null,
+        image: messageType === "image" ? imageData || { id: row.body } : null,
+        audio: messageType === "audio" ? audioData || { id: row.body } : null,
+        video: messageType === "video" ? videoData || { id: row.body } : null,
+        document: messageType === "document" ? documentData || { id: row.body } : null,
+        sticker: messageType === "sticker" ? stickerData || { id: row.body } : null,
+        location: messageType === "location" ? locationData : null,
+        contacts: messageType === "contacts" ? contactsData : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
         metadata: meta || rawPayload || null,
       };

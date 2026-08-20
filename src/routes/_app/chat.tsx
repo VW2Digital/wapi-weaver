@@ -4829,8 +4829,53 @@ function ChatPage() {
                                       }
 
                                       // Extract standard message body and type
-                                      const type = msg.type || "text";
+                                      let type = msg.type || "text";
                                       const bodyText = msg.body || "";
+
+                                      if (type === "text") {
+                                        if (
+                                          msg.audio ||
+                                          (msg.metadata as any)?.audio ||
+                                          (msg.metadata as any)?.type === "audio" ||
+                                          (msg.metadata as any)?.message?.type === "audio" ||
+                                          (msg.metadata as any)?.message?.audio ||
+                                          (bodyText && /^\d{15,18}$/.test(bodyText.trim()))
+                                        ) {
+                                          type = "audio";
+                                        } else if (
+                                          msg.image ||
+                                          (msg.metadata as any)?.image ||
+                                          (msg.metadata as any)?.type === "image" ||
+                                          (msg.metadata as any)?.message?.type === "image" ||
+                                          (msg.metadata as any)?.message?.image
+                                        ) {
+                                          type = "image";
+                                        } else if (
+                                          msg.video ||
+                                          (msg.metadata as any)?.video ||
+                                          (msg.metadata as any)?.type === "video" ||
+                                          (msg.metadata as any)?.message?.type === "video" ||
+                                          (msg.metadata as any)?.message?.video
+                                        ) {
+                                          type = "video";
+                                        } else if (
+                                          msg.document ||
+                                          (msg.metadata as any)?.document ||
+                                          (msg.metadata as any)?.type === "document" ||
+                                          (msg.metadata as any)?.message?.type === "document" ||
+                                          (msg.metadata as any)?.message?.document
+                                        ) {
+                                          type = "document";
+                                        } else if (
+                                          msg.sticker ||
+                                          (msg.metadata as any)?.sticker ||
+                                          (msg.metadata as any)?.type === "sticker" ||
+                                          (msg.metadata as any)?.message?.type === "sticker" ||
+                                          (msg.metadata as any)?.message?.sticker
+                                        ) {
+                                          type = "sticker";
+                                        }
+                                      }
 
                                       // Helper to check if string is a URL
                                       const isUrl = (str: string) => {
