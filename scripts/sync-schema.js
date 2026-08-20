@@ -125,7 +125,7 @@ function parseCanonicalTables(sql) {
             column: m[2].replace(/`/g, "").trim(),
             refTable: m[3],
             refColumn: m[4].replace(/`/g, "").trim(),
-            actions: (m[5] || "").trim(),
+            actions: (m[5] || "").trim().replace(/,\s*$/, ""),
           });
         }
       }
@@ -156,10 +156,17 @@ async function getLiveTables(conn) {
 
 async function getLiveColumns(conn, tableName) {
   const [rows] = await conn.query(
-    "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
+    "SELECT COLUMN_NAME, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
     [tableName]
   );
-  return new Set(rows.map(r => r.COLUMN_NAME));
+  return new Map(rows.map(r => [r.COLUMN_NAME, { nullable: r.IS_NULLABLE === "YES" }]));
+}
+
+async function countNullValues(conn, tableName, columnName) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS total FROM \`${tableName}\` WHERE \`${columnName}\` IS NULL`,
+  );
+  return Number(rows[0]?.total ?? 0);
 }
 
 async function getLiveIndexes(conn, tableName) {
@@ -291,6 +298,48 @@ async function syncSchema() {
           }
         } else {
           skipped++;
+
+          const desiredNullable = !/\bNOT\s+NULL\b/i.test(col.definition);
+          const currentNullable = liveColumns.get(col.name).nullable;
+          if (desiredNullable === currentNullable) continue;
+
+          let nullRows = 0;
+          if (!desiredNullable) {
+            nullRows = await countNullValues(conn, tableName, col.name);
+          }
+
+          if (!desiredNullable && nullRows > 0) {
+            warn(
+              `Cannot make \`${tableName}\`.\`${col.name}\` NOT NULL — ${nullRows} null row(s) exist.`,
+            );
+            manualRequired.push(
+              `NULLABILITY \`${tableName}\`.\`${col.name}\` blocked by ${nullRows} null row(s)`,
+            );
+            continue;
+          }
+
+          info(
+            `Nullability mismatch: \`${tableName}\`.\`${col.name}\` → ${desiredNullable ? "NULL" : "NOT NULL"}`,
+          );
+          if (!DRY_RUN) {
+            try {
+              await conn.query(
+                `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${col.name}\` ${col.definition}`,
+              );
+              ok(`Nullability of \`${tableName}\`.\`${col.name}\` reconciled.`);
+              applied++;
+            } catch (err) {
+              warn(`Failed to reconcile \`${tableName}\`.\`${col.name}\`: ${err.message}`);
+              manualRequired.push(
+                `NULLABILITY \`${tableName}\`.\`${col.name}\`: ${err.message}`,
+              );
+            }
+          } else {
+            info(
+              `[DRY-RUN] Would modify \`${tableName}\`.\`${col.name}\` to ${desiredNullable ? "NULL" : "NOT NULL"}`,
+            );
+            applied++;
+          }
         }
       }
 
