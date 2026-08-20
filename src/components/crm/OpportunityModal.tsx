@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   getOpportunity,
   updateOpportunity,
@@ -552,16 +553,23 @@ export function OpportunityModal({
             {/* Avatar */}
             {(() => {
               const name = opportunity?.primary_contact_name || "S";
+              const contact = (allContacts ?? []).find((c: any) => c.id === opportunity?.primary_contact_id);
+              const cf = contact?.custom_fields;
+              const avatarUrl = (cf && typeof cf === "object") ? (cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "") : "";
+              
               const hash = name.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
               const hue = hash % 360;
               const avatarBg = `hsl(${hue}, 60%, 45%)`;
               return (
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-lg text-white font-semibold shrink-0"
-                  style={{ backgroundColor: avatarBg }}
-                >
-                  {name.slice(0, 1).toUpperCase()}
-                </div>
+                <Avatar className="w-12 h-12 shrink-0 border border-muted-foreground/10 ring-2 ring-background">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt={name} className="object-cover" />}
+                  <AvatarFallback 
+                    className="text-lg text-white font-semibold"
+                    style={{ backgroundColor: avatarBg }}
+                  >
+                    {name.slice(0, 1).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
               );
             })()}
             

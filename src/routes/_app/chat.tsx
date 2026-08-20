@@ -33,7 +33,7 @@ import {
   quickSaveContact,
   toggleBotActive,
 } from "@/lib/chat-actions.functions";
-import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban } from "@/lib/crm.functions";
+import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -1012,6 +1012,7 @@ function ChatPage() {
   const [oppSource, setOppSource] = useState("whatsapp");
   const [oppFunnelId, setOppFunnelId] = useState("");
   const [oppStageId, setOppStageId] = useState("");
+  const [oppNote, setOppNote] = useState("");
 
   // States for Follow Up Form
   const [followUpTitle, setFollowUpTitle] = useState("");
@@ -1302,6 +1303,7 @@ function ChatPage() {
   // Novas Server Functions para CRM
   const createOpportunityFn = useServerFn(createOpportunity);
   const createActivityFn = useServerFn(createActivity);
+  const createNoteFn = useServerFn(createNote);
   const bulkAssignToKanbanFn = useServerFn(bulkAssignToKanban);
 
   // Query para buscar as oportunidades ativas do contato
@@ -1333,7 +1335,16 @@ function ChatPage() {
       source?: string;
       temperature?: "cold" | "warm" | "hot";
     }) => {
-      return createOpportunityFn({ data: payload });
+      const newOpp = await createOpportunityFn({ data: payload });
+      if (oppNote.trim()) {
+        await createNoteFn({
+          data: {
+            opportunity_id: newOpp.id,
+            body: oppNote.trim(),
+          },
+        });
+      }
+      return newOpp;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contact-opportunities", selectedContact?.id] });
@@ -6256,21 +6267,21 @@ function ChatPage() {
           {/* Diálogo de Oportunidade Rápida */}
           {/* Drawer de Oportunidade Rápida */}
           <Sheet open={isQuickOpportunityOpen} onOpenChange={setIsQuickOpportunityOpen}>
-            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
+            <SheetContent className="w-full sm:max-w-2xl bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
               <SheetHeader className="mb-4">
                 <SheetTitle>Criar Oportunidade Rápida</SheetTitle>
               </SheetHeader>
               <div className="space-y-4 py-2 flex-1">
-                <div className="space-y-1">
-                  <Label>Título da Oportunidade</Label>
-                  <Input
-                    placeholder="Ex: Contrato de Licença"
-                    value={oppTitle}
-                    onChange={(e) => setOppTitle(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-10 gap-4">
+                  <div className="space-y-1 col-span-7">
+                    <Label>Título da Oportunidade</Label>
+                    <Input
+                      placeholder="Ex: Contrato de Licença"
+                      value={oppTitle}
+                      onChange={(e) => setOppTitle(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-3">
                     <Label>Valor (R$)</Label>
                     <Input
                       type="number"
@@ -6279,10 +6290,13 @@ function ChatPage() {
                       onChange={(e) => setOppValue(parseFloat(e.target.value) || 0)}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label>Origem</Label>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1 min-w-0">
+                    <Label className="truncate block">Origem</Label>
                     <Select value={oppSource} onValueChange={setOppSource}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Origem" />
                       </SelectTrigger>
                       <SelectContent>
@@ -6293,49 +6307,59 @@ function ChatPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <Label>Funil de Vendas</Label>
-                  <Select
-                    value={oppFunnelId}
-                    onValueChange={(val) => {
-                      setOppFunnelId(val);
-                      const stages = salesStages.filter((stage) => stage.funnel_id === val);
-                      if (stages && stages.length > 0) {
-                        setOppStageId(stages[0].id);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o Funil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {salesFunnels.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Etapa do Funil</Label>
-                  <Select value={oppStageId} onValueChange={setOppStageId} disabled={!oppFunnelId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a Etapa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {salesStages
-                        .filter((s) => s.funnel_id === oppFunnelId)
-                        .map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
+                  <div className="space-y-1 min-w-0">
+                    <Label className="truncate block">Funil de Vendas</Label>
+                    <Select
+                      value={oppFunnelId}
+                      onValueChange={(val) => {
+                        setOppFunnelId(val);
+                        const stages = salesStages.filter((stage) => stage.funnel_id === val);
+                        if (stages && stages.length > 0) {
+                          setOppStageId(stages[0].id);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Funil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {salesFunnels.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>
+                            {f.name}
                           </SelectItem>
                         ))}
-                    </SelectContent>
-                  </Select>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 min-w-0">
+                    <Label className="truncate block">Etapa do Funil</Label>
+                    <Select value={oppStageId} onValueChange={setOppStageId} disabled={!oppFunnelId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Etapa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {salesStages
+                          .filter((s) => s.funnel_id === oppFunnelId)
+                          .map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Adicionar Nova Nota</Label>
+                  <Textarea
+                    placeholder="Adicione observações importantes sobre esta oportunidade..."
+                    value={oppNote}
+                    onChange={(e) => setOppNote(e.target.value)}
+                    className="min-h-[80px]"
+                  />
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
