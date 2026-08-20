@@ -437,7 +437,6 @@ async function ensureWhatsAppContact(
   const { data, error: lookupError } = await dbAdmin
     .from("contacts")
     .select("id, name, custom_fields, chat_status")
-    .eq("tenant_id", userId)
     .eq("user_id", userId)
     .eq("phone_e164", phoneDigits)
     .maybeSingle();
@@ -474,33 +473,48 @@ async function ensureWhatsAppContact(
   };
 
   if (existingContact?.id) {
-    const { error: updateError } = await dbAdmin
+    const { error: tenantRepairError } = await dbAdmin
       .from("contacts")
-      .update(contactPayload)
-      .eq("tenant_id", userId)
+      // Instalações antigas podem ter tenant_id nulo ou divergente. O user_id
+      // e o telefone identificam o contato; ao recebê-lo, reparamos o tenant.
+      .update({ ...contactPayload, tenant_id: userId })
       .eq("user_id", userId)
       .eq("id", existingContact.id);
-    if (updateError) {
-      throw new Error(`Falha ao atualizar contato do WhatsApp: ${updateError.message}`);
+    if (tenantRepairError) {
+      // Compatibilidade com uma VPS cujo schema legado ainda não possua
+      // tenant_id: preservar o funcionamento do chat enquanto a migração é
+      // aplicada, em vez de interromper a mensagem antes de direct_messages.
+      const { error: legacyUpdateError } = await dbAdmin
+        .from("contacts")
+        .update(contactPayload)
+        .eq("user_id", userId)
+        .eq("id", existingContact.id);
+      if (legacyUpdateError) {
+        throw new Error(`Falha ao atualizar contato do WhatsApp: ${legacyUpdateError.message}`);
+      }
     }
   } else {
-    const { error: insertError } = await dbAdmin.from("contacts").insert({
+    const newContact = {
       id: randomUUID(),
       tenant_id: userId,
       user_id: userId,
       phone_e164: phoneDigits,
       channel: "whatsapp",
       ...contactPayload,
-    });
+    };
+    const { error: insertError } = await dbAdmin.from("contacts").insert(newContact);
     if (insertError) {
-      throw new Error(`Falha ao salvar contato do WhatsApp: ${insertError.message}`);
+      const { tenant_id: _tenantId, ...legacyContact } = newContact;
+      const { error: legacyInsertError } = await dbAdmin.from("contacts").insert(legacyContact);
+      if (legacyInsertError) {
+        throw new Error(`Falha ao salvar contato do WhatsApp: ${legacyInsertError.message}`);
+      }
     }
   }
 
   const { data: refreshedContact, error: refreshError } = await dbAdmin
     .from("contacts")
     .select("id")
-    .eq("tenant_id", userId)
     .eq("user_id", userId)
     .eq("phone_e164", phoneDigits)
     .maybeSingle();
