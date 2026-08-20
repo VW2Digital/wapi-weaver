@@ -1200,9 +1200,9 @@ export const deleteOpportunity = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     await db.transaction(async (conn) => {
-      // Fetch title before delete/update
+      // Fetch title and contact before delete/update
       const [opps] = (await conn.execute(
-        "SELECT title FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
+        "SELECT title, primary_contact_id FROM opportunities WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1",
         [data.id, effectiveUserId],
       )) as any[];
       const opp = opps?.[0];
@@ -1224,6 +1224,10 @@ export const deleteOpportunity = createServerFn({ method: "POST" })
         { title: opp?.title ?? "", deleted: true },
         context.userId,
       );
+
+      if (opp.primary_contact_id) {
+        await syncContactKanbanStage(conn, effectiveUserId, opp.primary_contact_id, null);
+      }
     });
 
     return { ok: true };
