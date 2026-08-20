@@ -35,7 +35,6 @@ import {
 } from "@/lib/chat-actions.functions";
 import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
-import { convertWebMToOggOpus } from "@/lib/webm-to-ogg";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -408,7 +407,7 @@ type SendMessagePayload =
   | {
       to: string;
       type: "audio";
-      audio: { id?: string; link?: string };
+      audio: { id?: string; link?: string; voice?: boolean };
       reply_to_message_id?: string;
     }
   | {
@@ -2629,7 +2628,7 @@ function ChatPage() {
       text?: { body: string; preview_url: boolean };
       reaction?: { message_id: string; emoji: string };
       image?: { id?: string; link?: string };
-      audio?: { id?: string; link?: string };
+      audio?: { id?: string; link?: string; voice?: boolean };
       video?: { id?: string; link?: string };
       document?: { id?: string; link?: string; filename?: string };
       sticker?: { id?: string; link?: string };
@@ -2652,7 +2651,7 @@ function ChatPage() {
       text?: { body: string; preview_url: boolean };
       reaction?: { message_id: string; emoji: string };
       image?: { id?: string; link?: string };
-      audio?: { id?: string; link?: string };
+      audio?: { id?: string; link?: string; voice?: boolean };
       video?: { id?: string; link?: string };
       document?: { id?: string; link?: string; filename?: string };
       sticker?: { id?: string; link?: string };
@@ -2817,22 +2816,11 @@ function ChatPage() {
         let uploadExtension = uploadMime === "audio/mp4" ? "m4a" : "ogg";
 
         // MP4/AAC já é aceito pela Meta e não pode ser renomeado para Ogg.
-        // Apenas WebM/Opus precisa ser colocado em um contêiner Ogg.
+        // WebM segue com o tipo real; o servidor fará a transcodificação com
+        // FFmpeg antes do upload, evitando contêiner Ogg inválido no browser.
         if (uploadMime.includes("webm")) {
-          uploadBlob = await convertWebMToOggOpus(rawAudioBlob);
-          const convertedHeader = new Uint8Array(await uploadBlob.slice(0, 4).arrayBuffer());
-          const isValidOgg =
-            convertedHeader[0] === 0x4f &&
-            convertedHeader[1] === 0x67 &&
-            convertedHeader[2] === 0x67 &&
-            convertedHeader[3] === 0x53;
-          if (!isValidOgg) {
-            stream.getTracks().forEach((track) => track.stop());
-            toast.error("O navegador gerou um áudio incompatível. Grave novamente ou anexe um arquivo MP3/M4A.");
-            return;
-          }
-          uploadMime = "audio/ogg";
-          uploadExtension = "ogg";
+          uploadMime = "audio/webm";
+          uploadExtension = "webm";
         } else if (uploadMime.includes("ogg")) {
           uploadMime = "audio/ogg";
           uploadExtension = "ogg";
@@ -2860,14 +2848,16 @@ function ChatPage() {
 
         try {
           const res = await uploadMetaMediaViaApi(phoneId, file);
-          if (!res.ok || !res.data?.id) {
-            throw new Error(res.error || "Falha no upload de mídia na Meta.");
+          if (!res.ok || (!res.data?.id && !res.data?.link)) {
+            throw new Error(res.error || "Falha ao preparar o áudio.");
           }
 
           const mediaId = res.data.id;
           const payload: any = {
             type: "audio",
-            audio: { id: mediaId },
+            audio: mediaId
+              ? { id: mediaId, voice: true }
+              : { link: res.data.link, voice: true },
             reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
           };
 
@@ -2950,8 +2940,8 @@ function ChatPage() {
     try {
       const res = await uploadMetaMediaViaApi(phoneId, file);
 
-      if (!res.ok || !res.data?.id) {
-        throw new Error(res.error || "Falha no upload de mídia na Meta.");
+      if (!res.ok || (!res.data?.id && !res.data?.link)) {
+        throw new Error(res.error || "Falha ao preparar a mídia.");
       }
 
       const mediaId = res.data.id;
@@ -2975,7 +2965,9 @@ function ChatPage() {
               ? {
                   to: selectedPhone,
                   type: "audio",
-                  audio: { id: mediaId },
+                  audio: mediaId
+                    ? { id: mediaId, voice: true }
+                    : { link: res.data.link, voice: true },
                   reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
                 }
               : pendingMediaType === "video"

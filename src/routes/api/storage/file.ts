@@ -75,6 +75,9 @@ export const Route = createFileRoute("/api/storage/file")({
             ".mp3": "audio/mpeg",
             ".ogg": "audio/ogg",
             ".opus": "audio/ogg",
+            ".m4a": "audio/mp4",
+            ".aac": "audio/aac",
+            ".amr": "audio/amr",
             ".wav": "audio/wav",
             ".mp4": "video/mp4",
           };
