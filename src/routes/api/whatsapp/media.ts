@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/whatsapp/media")({
 
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
-            .select("whatsapp_access_token, meta_graph_version")
+            .select("whatsapp_access_token, whatsapp_phone_number_id, meta_graph_version")
             .eq("id", effectiveUserId)
             .maybeSingle();
 
@@ -54,13 +54,18 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           }
 
           const accessToken = p.whatsapp_access_token.trim();
+          const phoneNumberId = p.whatsapp_phone_number_id?.trim() || "";
           let apiVersion = p.meta_graph_version || "v26.0";
           if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
             apiVersion = "v26.0";
           }
 
           // 2. Query Meta to get download URL and mime type
-          const metaUrl = `https://graph.facebook.com/${apiVersion}/${mediaId}`;
+          // Retrieve Media URL: https://graph.facebook.com/{{Version}}/{{Media-ID}}?phone_number_id=<PHONE_NUMBER_ID>
+          const metaUrl = phoneNumberId
+            ? `https://graph.facebook.com/${apiVersion}/${mediaId}?phone_number_id=${encodeURIComponent(phoneNumberId)}`
+            : `https://graph.facebook.com/${apiVersion}/${mediaId}`;
+
           const metadataResponse = await fetch(metaUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
@@ -74,10 +79,14 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             );
           }
 
-          const mediaDownloadUrl = metaBody.url;
+          let mediaDownloadUrl = metaBody.url;
+          if (!mediaDownloadUrl.startsWith("http://") && !mediaDownloadUrl.startsWith("https://")) {
+            mediaDownloadUrl = `https://graph.facebook.com/${apiVersion}/${mediaDownloadUrl.replace(/^\/+/, "")}`;
+          }
           const mimeType = metaBody.mime_type || "application/octet-stream";
 
           // 3. Download binary data from Meta
+          // Download Media: https://graph.facebook.com/{{Version}}/{{Media-URL}}
           const downloadResponse = await fetch(mediaDownloadUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });

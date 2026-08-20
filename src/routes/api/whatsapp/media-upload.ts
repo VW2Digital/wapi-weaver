@@ -67,7 +67,10 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             apiVersion = "v26.0";
           }
           const metaForm = new FormData();
-          metaForm.append("file", file, file.name);
+          metaForm.append("file", file, file.name || "file.ogg");
+          if (file.type) {
+            metaForm.append("type", file.type);
+          }
           metaForm.append("messaging_product", "whatsapp");
 
           const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneId}/media`, {

@@ -35,6 +35,7 @@ import {
 } from "@/lib/chat-actions.functions";
 import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
+import { convertWebMToOggOpus } from "@/lib/webm-to-ogg";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -2780,11 +2781,17 @@ function ChatPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Fallback para tipos suportados pelo browser (Safari: mp4, Firefox: ogg, Chrome: webm)
-      const mimeTypes = ["audio/mp4", "audio/ogg", "audio/webm"];
-      const supportedType = mimeTypes.find(t => MediaRecorder.isTypeSupported(t)) || "audio/webm";
+      // Fallback de formatos suportados pelo browser para Meta Cloud API (WhatsApp)
+      const mimeTypes = [
+        "audio/ogg; codecs=opus",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/webm; codecs=opus",
+        "audio/webm",
+      ];
+      const supportedType = mimeTypes.find(t => MediaRecorder.isTypeSupported(t)) || "audio/ogg";
       
-      const recorder = new MediaRecorder(stream, { mimeType: supportedType });
+      const recorder = new MediaRecorder(stream, supportedType ? { mimeType: supportedType } : undefined);
       const chunks: Blob[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -2792,14 +2799,10 @@ function ChatPage() {
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: supportedType });
+        const rawAudioBlob = new Blob(chunks, { type: supportedType });
+        const oggOpusBlob = await convertWebMToOggOpus(rawAudioBlob);
         
-        // Truque para API da Meta: a validação deles bloqueia o Content-Type 'audio/webm',
-        // mas o processador interno deles aceita o arquivo se enviarmos como 'audio/mp4'.
-        const metaMimeType = supportedType.includes("webm") ? "audio/mp4" : supportedType;
-        const extension = metaMimeType === "audio/mp4" ? "mp4" : metaMimeType === "audio/ogg" ? "ogg" : "webm";
-        
-        const file = new File([audioBlob], `audio_${Date.now()}.${extension}`, { type: metaMimeType });
+        const file = new File([oggOpusBlob], `audio_${Date.now()}.ogg`, { type: "audio/ogg" });
 
         stream.getTracks().forEach((track) => track.stop());
 
