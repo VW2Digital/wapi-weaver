@@ -4905,9 +4905,16 @@ function ChatPage() {
                                       const getMediaUrl = (urlOrId: string) => {
                                         if (!urlOrId) return "";
                                         if (isUrl(urlOrId)) return urlOrId;
-                                        return sessionToken
-                                          ? `/api/whatsapp/media?id=${urlOrId}&token=${encodeURIComponent(sessionToken)}`
-                                          : "";
+                                        const token =
+                                          sessionToken ||
+                                          (typeof window !== "undefined"
+                                            ? localStorage.getItem("app-token") ||
+                                              localStorage.getItem("sb-token") ||
+                                              ""
+                                            : "");
+                                        return token
+                                          ? `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}&token=${encodeURIComponent(token)}`
+                                          : `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
                                       };
 
                                       const hasTopMedia =
@@ -5087,20 +5094,14 @@ function ChatPage() {
                                               </div>
                                             )}
 
-                                            {type === "audio" && bodyText && (
+                                            {type === "audio" && (msg.audio?.link || msg.audio?.id || bodyText) && (
                                               <div className="px-1 py-1.5">
-                                                {getMediaUrl(bodyText) ? (
-                                                  <audio
-                                                    src={getMediaUrl(bodyText)}
-                                                    controls
-                                                    className="w-[240px] max-w-full h-10"
-                                                  />
-                                                ) : (
-                                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                    <Volume2 className="h-4 w-4" /> Áudio (ID:{" "}
-                                                    {bodyText})
-                                                  </div>
-                                                )}
+                                                <audio
+                                                  src={getMediaUrl(msg.audio?.link || msg.audio?.id || bodyText)}
+                                                  controls
+                                                  preload="metadata"
+                                                  className="w-[240px] max-w-full h-10"
+                                                />
                                               </div>
                                             )}
 

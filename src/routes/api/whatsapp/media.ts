@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+import { JWT_SECRET } from "@/lib/jwt-secret";
 
 function getAuthUserId(request: Request): string {
   const url = new URL(request.url);
@@ -13,6 +10,13 @@ function getAuthUserId(request: Request): string {
     const authHeader = request.headers.get("authorization") ?? "";
     if (authHeader.startsWith("Bearer ")) {
       token = authHeader.slice(7).trim();
+    }
+  }
+  if (!token) {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const match = cookieHeader.match(/(?:wapi_token|app-token)=([^;]+)/);
+    if (match) {
+      token = decodeURIComponent(match[1].trim());
     }
   }
   if (!token) throw new Error("Unauthorized");
@@ -50,7 +54,10 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           }
 
           const accessToken = p.whatsapp_access_token.trim();
-          const apiVersion = p.meta_graph_version || "v20.0";
+          let apiVersion = p.meta_graph_version || "v26.0";
+          if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
+            apiVersion = "v26.0";
+          }
 
           // 2. Query Meta to get download URL and mime type
           const metaUrl = `https://graph.facebook.com/${apiVersion}/${mediaId}`;
@@ -60,9 +67,10 @@ export const Route = createFileRoute("/api/whatsapp/media")({
 
           const metaBody = await metadataResponse.json();
           if (!metadataResponse.ok || !metaBody?.url) {
+            console.error("[Media Proxy API Error] Meta metadata fetch failed:", metaBody);
             return new Response(
               metaBody?.error?.message || "Failed to retrieve media information from Meta",
-              { status: metadataResponse.status },
+              { status: metadataResponse.status || 400 },
             );
           }
 
@@ -75,8 +83,9 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           });
 
           if (!downloadResponse.ok) {
+            console.error("[Media Proxy API Error] Meta media download failed:", downloadResponse.status);
             return new Response("Failed to download media bytes from Meta", {
-              status: downloadResponse.status,
+              status: downloadResponse.status || 500,
             });
           }
 
@@ -86,6 +95,8 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           const headers = new Headers();
           headers.set("Content-Type", mimeType);
           headers.set("Content-Length", String(blob.size));
+          headers.set("Accept-Ranges", "bytes");
+          headers.set("Cache-Control", "public, max-age=86400, immutable");
 
           if (download) {
             const filename = metaBody.filename || `file-${mediaId}`;
