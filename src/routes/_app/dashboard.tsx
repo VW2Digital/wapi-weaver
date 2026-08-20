@@ -5,11 +5,14 @@ import { listCampaigns } from "@/lib/campaigns.functions";
 import { listTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { getLicenseStatus, getMyPlan } from "@/lib/admin.functions";
+import { listContacts } from "@/lib/contacts.functions";
 import { GlobalPromoBanner } from "@/components/global-promo-banner";
 import { cn } from "@/lib/utils";
 import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +56,13 @@ import {
   Timer,
   Crown,
   CalendarDays,
+  Webhook,
+  User,
+  ChevronRight,
+  MoreHorizontal,
+  CalendarClock,
+  Search,
+  Filter,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import {
@@ -108,6 +118,7 @@ function Dashboard() {
   const fetchStats = useServerFn(getDashboardStats);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
   const fetchMyPlan = useServerFn(getMyPlan);
+  const fetchContacts = useServerFn(listContacts);
 
   const c = useQuery({ 
     queryKey: ["campaigns"], 
@@ -134,9 +145,42 @@ function Dashboard() {
     queryFn: () => fetchMyPlan(),
     staleTime: 300000,
   });
+  const contactsQuery = useQuery({
+    queryKey: ["contacts"],
+    queryFn: () => fetchContacts(),
+    staleTime: 15000,
+  });
   const isLicenseValid = true;
 
-  const totals = (c.data ?? []).reduce(
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredCampaigns = useMemo(() => {
+    if (!c.data) return [];
+    if (!searchQuery.trim()) return c.data;
+    const q = searchQuery.toLowerCase();
+    return c.data.filter((camp: any) => camp.name?.toLowerCase().includes(q));
+  }, [c.data, searchQuery]);
+
+  const filteredContacts = useMemo(() => {
+    if (!contactsQuery.data) return [];
+    if (!searchQuery.trim()) return contactsQuery.data;
+    const q = searchQuery.toLowerCase();
+    return contactsQuery.data.filter((contact: any) => 
+      contact.name?.toLowerCase().includes(q) || 
+      contact.email?.toLowerCase().includes(q) ||
+      contact.phone?.includes(q) ||
+      contact.phone_e164?.includes(q) ||
+      contact.company?.toLowerCase().includes(q)
+    );
+  }, [contactsQuery.data, searchQuery]);
+
+  const latestUpdatedTimestamp = Math.max(c.dataUpdatedAt || 0, contactsQuery.dataUpdatedAt || 0, s.dataUpdatedAt || 0);
+  const latestUpdatedDate = latestUpdatedTimestamp > 0 
+    ? new Date(latestUpdatedTimestamp)
+    : new Date();
+  
+  const formattedLatestUpdated = latestUpdatedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const totals = filteredCampaigns.reduce(
     (
       acc: { sent: number; delivered: number; read: number; failed: number; completed: number },
       x: any,
@@ -167,7 +211,7 @@ function Dashboard() {
     }[] = [];
 
     // 1. Campaign dispatch completions
-    const completedCampaigns = (c.data ?? []).filter((x: any) => x.status === "done");
+    const completedCampaigns = filteredCampaigns.filter((x: any) => x.status === "done");
     completedCampaigns.forEach((x: any) => {
       const t = normalizeCampaignTotals(x.totals);
       list.push({
@@ -180,7 +224,7 @@ function Dashboard() {
     });
 
     // 2. Failed messages alerts
-    const failedCampaigns = (c.data ?? []).filter((x: any) => {
+    const failedCampaigns = filteredCampaigns.filter((x: any) => {
       const t = normalizeCampaignTotals(x.totals);
       return t.failed > 0;
     });
@@ -361,7 +405,7 @@ function Dashboard() {
     { key: "failed", name: "Falhou", value: totals.failed },
   ].filter((d) => d.value > 0);
 
-  const barData = (c.data ?? []).slice(0, 8).map((x: any) => {
+  const barData = filteredCampaigns.slice(0, 8).map((x: any) => {
     const t = normalizeCampaignTotals(x.totals);
     const name = String(x.name ?? "—");
     const sentOnly = t.sent - t.delivered;
@@ -433,10 +477,44 @@ function Dashboard() {
           </div>
         )}
 
+        {/* Filter Bar */}
+        <div className="px-4 pt-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Left side: Latest updated */}
+            <div className="flex items-center gap-2 px-3 py-1.5 border rounded-md bg-card text-[13px] text-muted-foreground shadow-sm">
+              <CalendarClock className="h-4 w-4 text-muted-foreground/70" />
+              <span>Última atualização: <span className="text-primary font-medium">{formattedLatestUpdated}</span></span>
+            </div>
+
+            {/* Right side: Search and Filter */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Pesquisar..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 bg-card shadow-sm text-[13px]"
+                />
+              </div>
+              <Button variant="outline" size="sm" className="h-9 gap-2 bg-card shadow-sm text-[13px]">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                Filtrar
+              </Button>
+            </div>
+          </div>
+        </div>
+
         <GlobalPromoBanner />
 
-        <section aria-labelledby="chat-metrics" className="p-4 sm:p-6 pb-0">
-          <h2 id="chat-metrics" className="sr-only">
+        <div className="p-4 sm:p-6 pb-12">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            {/* LEFT COLUMN: Takes up 2/3 of the space on large screens */}
+            <div className="xl:col-span-2 flex flex-col gap-6">
+              
+              <section aria-labelledby="chat-metrics">
+                <h2 id="chat-metrics" className="sr-only">
             Métricas de Atendimento
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -463,7 +541,7 @@ function Dashboard() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 px-4 pb-6 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
           {/* Performance de Entrega */}
           <Card className="lg:col-span-2 p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
             <div>
@@ -625,163 +703,296 @@ function Dashboard() {
           </Card>
         </div>
 
-        <div className="px-4 pb-12 sm:px-6">
-          <h2 className="mb-3 font-display text-base font-semibold sm:text-lg">
-            Mensagens por status — por campanha
-          </h2>
-
-          <Card className="overflow-hidden">
-            <div className="hidden grid-cols-12 gap-3 border-b bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
-              <div className="col-span-3">Campanha</div>
-              <div className="col-span-4">Distribuição</div>
-              {STATUS_KEYS.map((k) => (
-                <div key={k} className="text-right">
-                  {STATUS_LABEL[k]}
+            {/* Coluna 1: Mensagens por status — por campanha */}
+            <div className="space-y-3">
+              <Card className="overflow-hidden shadow-xs p-0 py-0 gap-0">
+                <div className="flex items-center justify-between border-b bg-transparent px-5 py-4">
+                  <h2 className="font-heading text-base font-semibold text-foreground">
+                    Mensagens por status — por campanha
+                  </h2>
+                  <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                    <Link to="/campaigns">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Link>
+                  </Button>
                 </div>
-              ))}
-            </div>
-            <div className="divide-y">
-              {c.isPending ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-3 px-4 py-4 md:items-center">
-                    <div className="col-span-3 space-y-2">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
-                    </div>
-                    <div className="col-span-4">
-                      <Skeleton className="h-2 w-full" />
-                    </div>
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <div key={j} className="text-right md:col-span-1">
-                        <Skeleton className="h-4 w-8 ml-auto" />
+                <div className="hidden grid-cols-12 gap-2 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+                  <div className="col-span-4">Campanha</div>
+                  <div className="col-span-3">Distribuição</div>
+                  <div className="col-span-1 text-right">Pend.</div>
+                  <div className="col-span-1 text-right">Env.</div>
+                  <div className="col-span-1 text-right">Entr.</div>
+                  <div className="col-span-1 text-right">Lida</div>
+                  <div className="col-span-1 text-right">Falha</div>
+                </div>
+                <div className="divide-y max-h-[460px] overflow-y-auto">
+                  {c.isPending ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 md:items-center">
+                        <div className="col-span-4 space-y-1.5">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
+                        </div>
+                        <div className="col-span-3">
+                          <Skeleton className="h-2 w-full" />
+                        </div>
+                        {Array.from({ length: 5 }).map((_, j) => (
+                          <div key={j} className="text-right md:col-span-1">
+                            <Skeleton className="h-4 w-6 ml-auto" />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ))
-              ) : (c.data ?? []).map((x: any) => {
-                const n = normalizeCampaignTotals(x.totals);
-                const total = n.total;
-                const distBar: Record<string, number> = {
-                  pending: n.pending,
-                  sending: n.sending,
-                  sentOnly: n.sent - n.delivered,
-                  deliveredOnly: n.delivered - n.read,
-                  read: n.read,
-                  failed: n.failed,
-                };
-                const distKeys = [
-                  "pending",
-                  "sending",
-                  "sentOnly",
-                  "deliveredOnly",
-                  "read",
-                  "failed",
-                ];
-                return (
-                  <Link
-                    key={x.id}
-                    to="/campaigns/$id"
-                    params={{ id: x.id }}
-                    className="grid grid-cols-2 gap-3 px-4 py-3 text-sm hover:bg-muted/30 md:grid-cols-12 md:items-center"
-                  >
-                    <div className="col-span-2 md:col-span-3">
-                      <p className="truncate font-medium">{x.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {x.status} · {total} total
-                      </p>
-                    </div>
-                    <div className="col-span-2 md:col-span-4">
-                      <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
-                        {distKeys.map((k) => {
-                          const v = distBar[k] ?? 0;
-                          const pct = total > 0 ? (v / total) * 100 : 0;
-                          if (pct === 0) return null;
-                          return (
-                            <div
-                              key={k}
-                              className={STATUS_COLOR[k] || "bg-muted-foreground"}
-                              style={{ width: `${pct}%` }}
-                              title={`${STATUS_LABEL[k] || k}: ${v}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">
-                        Pendente:
-                      </span>
-                      {n.pending}
-                    </div>
-                    <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">Enviada:</span>
-                      {n.sent}
-                    </div>
-                    <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">
-                        Entregue:
-                      </span>
-                      {n.delivered}
-                    </div>
-                    <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">Lida:</span>
-                      {n.read}
-                    </div>
-                    <div className="text-right text-sm tabular-nums md:col-span-1">
-                      <span className="md:hidden text-xs text-muted-foreground mr-1">Falhou:</span>
-                      <span className={n.failed > 0 ? "text-[#F23869] font-medium" : ""}>
-                        {n.failed}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-              {(c.data ?? []).length === 0 && (
-                <Empty className="border-0 py-12">
-                  <EmptyMedia variant="icon">
-                    <Send className="h-6 w-6" />
-                  </EmptyMedia>
-                  <EmptyHeader>
-                    <EmptyTitle>Nenhuma campanha ainda</EmptyTitle>
-                    <EmptyDescription>
-                      Crie sua primeira campanha para começar a disparar mensagens via WhatsApp
-                      Cloud API.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                  <EmptyContent>
-                    <Button asChild>
-                      <Link to="/campaigns">
-                        <Plus className="h-4 w-4" />
-                        Criar primeira campanha
+                    ))
+                  ) : filteredCampaigns.slice(0, 10).map((camp: any) => {
+                    const n = normalizeCampaignTotals(camp.totals);
+                    const total = n.total;
+                    const distBar: Record<string, number> = {
+                      pending: n.pending,
+                      sending: n.sending,
+                      sentOnly: n.sent - n.delivered,
+                      deliveredOnly: n.delivered - n.read,
+                      read: n.read,
+                      failed: n.failed,
+                    };
+                    const distKeys = [
+                      "pending",
+                      "sending",
+                      "sentOnly",
+                      "deliveredOnly",
+                      "read",
+                      "failed",
+                    ];
+                    return (
+                      <Link
+                        key={camp.id}
+                        to="/campaigns/$id"
+                        params={{ id: camp.id }}
+                        className="grid grid-cols-2 gap-2 px-4 py-3 text-sm hover:bg-muted/30 md:grid-cols-12 md:items-center transition-colors"
+                      >
+                        <div className="col-span-2 md:col-span-4">
+                          <p className="truncate font-medium text-xs sm:text-sm">{camp.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {camp.status} · {total} total
+                          </p>
+                        </div>
+                        <div className="col-span-2 md:col-span-3">
+                          <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
+                            {distKeys.map((k) => {
+                              const v = distBar[k] ?? 0;
+                              const pct = total > 0 ? (v / total) * 100 : 0;
+                              if (pct === 0) return null;
+                              return (
+                                <div
+                                  key={k}
+                                  className={STATUS_COLOR[k] || "bg-muted-foreground"}
+                                  style={{ width: `${pct}%` }}
+                                  title={`${STATUS_LABEL[k] || k}: ${v}`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="text-right text-xs tabular-nums md:col-span-1">
+                          <span className="md:hidden text-muted-foreground mr-1">Pendente:</span>
+                          {n.pending}
+                        </div>
+                        <div className="text-right text-xs tabular-nums md:col-span-1">
+                          <span className="md:hidden text-muted-foreground mr-1">Enviada:</span>
+                          {n.sent}
+                        </div>
+                        <div className="text-right text-xs tabular-nums md:col-span-1">
+                          <span className="md:hidden text-muted-foreground mr-1">Entregue:</span>
+                          {n.delivered}
+                        </div>
+                        <div className="text-right text-xs tabular-nums md:col-span-1">
+                          <span className="md:hidden text-muted-foreground mr-1">Lida:</span>
+                          {n.read}
+                        </div>
+                        <div className="text-right text-xs tabular-nums md:col-span-1">
+                          <span className="md:hidden text-muted-foreground mr-1">Falhou:</span>
+                          <span className={n.failed > 0 ? "text-[#F23869] font-medium" : ""}>
+                            {n.failed}
+                          </span>
+                        </div>
                       </Link>
-                    </Button>
-                  </EmptyContent>
-                </Empty>
-              )}
+                    );
+                  })}
+                  {filteredCampaigns.length === 0 && (
+                    <Empty className="border-0 py-10">
+                      <EmptyMedia variant="icon">
+                        <Send className="h-5 w-5" />
+                      </EmptyMedia>
+                      <EmptyHeader>
+                        <EmptyTitle className="text-sm">Nenhuma campanha ainda</EmptyTitle>
+                        <EmptyDescription className="text-xs">
+                          Crie sua primeira campanha para começar a disparar mensagens via WhatsApp
+                          Cloud API.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button size="sm" asChild>
+                          <Link to="/campaigns">
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Criar primeira campanha
+                          </Link>
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  )}
+                </div>
+                {filteredCampaigns.length > 0 && (
+                  <div className="flex flex-wrap gap-2.5 border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-2.5 rounded bg-amber-500" /> Pendente
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-2.5 rounded bg-sky-400" /> Enviando
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-2.5 rounded bg-blue-500" /> Enviada
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-2.5 rounded bg-emerald-500" /> Entregue
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-2.5 rounded bg-indigo-600" /> Lida
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-2.5 rounded bg-red-500" /> Falhou
+                    </span>
+                  </div>
+                )}
+              </Card>
             </div>
-            {(c.data ?? []).length > 0 && (
-              <div className="flex flex-wrap gap-3 border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-3 rounded bg-amber-500" /> Pendente
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-3 rounded bg-sky-400" /> Enviando
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-3 rounded bg-blue-500" /> Enviada
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-3 rounded bg-emerald-500" /> Entregue
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-3 rounded bg-indigo-600" /> Lida
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-3 rounded bg-red-500" /> Falhou
-                </span>
-              </div>
-            )}
-          </Card>
+            
+            </div> {/* END LEFT COLUMN */}
+
+            {/* RIGHT COLUMN: Takes up 1/3 of the space on large screens */}
+            <div className="xl:col-span-1 flex flex-col gap-6">
+
+            {/* Coluna 2: Leads Recentes */}
+            <div className="space-y-3 h-full">
+              <Card className="flex flex-col h-full overflow-hidden shadow-xs p-0 py-0 gap-0">
+                <div className="flex items-center justify-between border-b bg-transparent px-5 py-4">
+                  <h2 className="font-heading text-base font-semibold text-foreground">
+                    Leads Recentes
+                  </h2>
+                  <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                    <Link to="/contacts">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+
+                <div className="divide-y divide-border/40 max-h-[460px] overflow-y-auto">
+                  {contactsQuery.isPending ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+                          <div className="space-y-1.5">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-3 w-24" />
+                          </div>
+                        </div>
+                        <Skeleton className="h-4 w-4 rounded" />
+                      </div>
+                    ))
+                  ) : filteredContacts.slice(0, 10).map((contact: any) => {
+                    const src = (contact.source_type || contact.source || "").toLowerCase();
+                    const isWebhook = src.includes("webhook") || src.includes("api");
+                    const isManual =
+                      src.includes("manual") ||
+                      src.includes("cadastro") ||
+                      src.includes("import") ||
+                      src.includes("painel");
+                    const originLabel = isWebhook ? "Webhook" : isManual ? "Manual" : "WhatsApp";
+
+                    const contactName = contact.name || "Sem nome";
+                    const contactPhone = contact.phone_e164 || "Sem telefone";
+                    const contactEmail = contact.email;
+                    
+                    const firstPart = contactEmail || contactPhone;
+                    const secondPart = contact.company || originLabel;
+
+                    const initials = (contact.name || contact.phone_e164 || "C")
+                      .slice(0, 2)
+                      .toUpperCase();
+
+                    const customFields = contact.custom_fields && typeof contact.custom_fields === 'object' ? contact.custom_fields as any : {};
+                    const contactAvatar = customFields.avatar_url || contact.avatar_url;
+                    const emailAvatarUrl = contactEmail ? `https://unavatar.io/${contactEmail}?fallback=false` : null;
+                    const finalAvatar = contactAvatar || emailAvatarUrl;
+
+                    return (
+                      <Link
+                        key={contact.id}
+                        to="/contacts/$id"
+                        params={{ id: contact.id }}
+                        className="group flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <Avatar className="h-12 w-12 shrink-0 bg-primary/10 text-primary border border-primary/20">
+                            {finalAvatar && <AvatarImage src={finalAvatar} alt={contactName} />}
+                            <AvatarFallback className="text-sm font-semibold">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-sm text-foreground">
+                              {contactName}
+                            </p>
+                            <p className="truncate text-[13px] text-muted-foreground mt-0.5">
+                              <span className="text-primary/80">{firstPart}</span>
+                              <span className="mx-1.5 opacity-50">·</span>
+                              <span>{secondPart}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                      </Link>
+                    );
+                  })}
+
+                  {filteredContacts.length === 0 && (
+                    <Empty className="border-0 py-10">
+                      <EmptyMedia variant="icon">
+                        <Users className="h-5 w-5" />
+                      </EmptyMedia>
+                      <EmptyHeader>
+                        <EmptyTitle className="text-sm">Nenhum lead cadastrado</EmptyTitle>
+                        <EmptyDescription className="text-xs">
+                          Seus contatos do WhatsApp, Webhook ou manuais aparecerão aqui.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button size="sm" asChild>
+                          <Link to="/contacts">
+                            <UserPlus className="h-3.5 w-3.5 mr-1" />
+                            Gerenciar leads
+                          </Link>
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  )}
+                </div>
+
+                {filteredContacts.length > 0 && (
+                  <div className="flex items-center justify-center border-t bg-transparent px-4 py-3 text-xs text-muted-foreground">
+                    <Link
+                      to="/contacts"
+                      className="font-medium hover:text-foreground transition-colors"
+                    >
+                      Ver lista completa
+                    </Link>
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            </div> {/* END RIGHT COLUMN */}
+          </div>
         </div>
       </div>
     </div>

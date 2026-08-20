@@ -1009,6 +1009,7 @@ function ChatPage() {
   // States for Quick Opportunity Form
   const [oppTitle, setOppTitle] = useState("");
   const [oppValue, setOppValue] = useState(0);
+  const [oppSource, setOppSource] = useState("whatsapp");
   const [oppFunnelId, setOppFunnelId] = useState("");
   const [oppStageId, setOppStageId] = useState("");
 
@@ -1329,6 +1330,8 @@ function ChatPage() {
       stage_id: string;
       primary_contact_id: string;
       description?: string;
+      source?: string;
+      temperature?: "cold" | "warm" | "hot";
     }) => {
       return createOpportunityFn({ data: payload });
     },
@@ -6278,7 +6281,7 @@ function ChatPage() {
                   </div>
                   <div className="space-y-1">
                     <Label>Origem</Label>
-                    <Select defaultValue="whatsapp">
+                    <Select value={oppSource} onValueChange={setOppSource}>
                       <SelectTrigger>
                         <SelectValue placeholder="Origem" />
                       </SelectTrigger>
@@ -6359,6 +6362,8 @@ function ChatPage() {
                       funnel_id: oppFunnelId,
                       stage_id: oppStageId,
                       primary_contact_id: selectedContact.id,
+                      source: oppSource,
+                      temperature: "warm",
                     });
                   }}
                   disabled={createOpportunityMutation.isPending}
