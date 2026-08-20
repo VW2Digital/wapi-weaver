@@ -66,11 +66,15 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
             apiVersion = "v26.0";
           }
+
+          const fileBuffer = await file.arrayBuffer();
+          const mimeType = file.type || "audio/ogg";
+          const fileName = file.name || (mimeType.includes("ogg") ? "audio.ogg" : "audio.mp4");
+          const fileBlob = new Blob([fileBuffer], { type: mimeType });
+
           const metaForm = new FormData();
-          metaForm.append("file", file, file.name || "file.ogg");
-          if (file.type) {
-            metaForm.append("type", file.type);
-          }
+          metaForm.append("file", fileBlob, fileName);
+          metaForm.append("type", mimeType);
           metaForm.append("messaging_product", "whatsapp");
 
           const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneId}/media`, {

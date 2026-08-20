@@ -1,7 +1,7 @@
 /**
  * webm-to-ogg.ts
  * Pure TypeScript transmuxer from WebM (Opus) to standard Ogg Opus (RFC 7845 / RFC 3533).
- * WhatsApp / Meta Cloud API requires audio voice notes to be in standard Ogg Opus container.
+ * WhatsApp / Meta Cloud API requires audio voice notes to be in a valid Ogg Opus container.
  */
 
 // Ogg CRC32 Lookup Table (Polynomial 0x04C11DB7)
@@ -55,17 +55,17 @@ function createOggPage(
   // Version: 0
   page[4] = 0;
 
-  // Header type: 0x02 = BOS, 0x04 = EOS, 0x00 = standard
+  // Header type: 0x02 = BOS (beginning of stream), 0x04 = EOS (end of stream), 0x00 = standard
   page[5] = headerType;
 
   // Granule position (64-bit little endian)
-  view.setBigUint64(6, BigInt(Math.max(0, granulePos)), true);
+  view.setBigUint64(6, BigInt(Math.max(0, Math.floor(granulePos))), true);
 
   // Serial number (32-bit little endian)
-  view.setUint32(14, serialNo, true);
+  view.setUint32(14, serialNo >>> 0, true);
 
   // Page sequence number (32-bit little endian)
-  view.setUint32(18, pageSeq, true);
+  view.setUint32(18, pageSeq >>> 0, true);
 
   // CRC32 checksum at offset 22 (initialized to 0)
   view.setUint32(22, 0, true);
@@ -91,7 +91,7 @@ function createOggPage(
 }
 
 /**
- * Creates standard 19-byte OpusHead packet
+ * Creates standard 19-byte OpusHead packet (RFC 7845 Section 5.1)
  */
 function createOpusHead(channels = 1, sampleRate = 48000): Uint8Array {
   const head = new Uint8Array(19);
@@ -112,7 +112,7 @@ function createOpusHead(channels = 1, sampleRate = 48000): Uint8Array {
 }
 
 /**
- * Creates standard OpusTags packet
+ * Creates standard OpusTags packet (RFC 7845 Section 5.2)
  */
 function createOpusTags(): Uint8Array {
   const vendor = "WapiWeaver";
@@ -157,7 +157,7 @@ function readVint(buf: Uint8Array, offset: number): { value: number; length: num
 }
 
 /**
- * Extracts raw Opus frames from a WebM ArrayBuffer
+ * Extracts raw Opus audio frames from a WebM ArrayBuffer
  */
 function extractOpusFramesFromWebM(buffer: ArrayBuffer): { frames: Uint8Array[]; channels: number } {
   const bytes = new Uint8Array(buffer);
@@ -166,21 +166,58 @@ function extractOpusFramesFromWebM(buffer: ArrayBuffer): { frames: Uint8Array[];
 
   let pos = 0;
   while (pos < bytes.length - 4) {
-    // Check for SimpleBlock element ID (0xA3)
-    if (bytes[pos] === 0xa3) {
+    // Check for SimpleBlock (0xA3) or Block (0xA1)
+    if (bytes[pos] === 0xa3 || bytes[pos] === 0xa1) {
       const vint = readVint(bytes, pos + 1);
-      if (vint && vint.value > 4 && pos + 1 + vint.length + vint.value <= bytes.length) {
+      if (vint && vint.value > 3 && pos + 1 + vint.length + vint.value <= bytes.length) {
         const blockStart = pos + 1 + vint.length;
         const blockEnd = blockStart + vint.value;
 
-        // In SimpleBlock:
+        // In SimpleBlock / Block:
         // Track number (VINT) + Timecode (2 bytes) + Flags (1 byte)
         const trackVint = readVint(bytes, blockStart);
         if (trackVint) {
           const headerSize = trackVint.length + 2 + 1; // track + timecode + flags
+          const flags = bytes[blockStart + trackVint.length + 2];
           const payloadStart = blockStart + headerSize;
+
           if (payloadStart < blockEnd) {
-            frames.push(bytes.subarray(payloadStart, blockEnd));
+            const lacing = (flags & 0x06) >> 1;
+            if (lacing === 0) {
+              // No lacing: single Opus frame
+              frames.push(bytes.subarray(payloadStart, blockEnd));
+            } else if (lacing === 1) {
+              // Xiph lacing
+              let ptr = payloadStart;
+              if (ptr < blockEnd) {
+                const numFrames = bytes[ptr++] + 1;
+                const frameSizes: number[] = [];
+                for (let f = 0; f < numFrames - 1; f++) {
+                  let size = 0;
+                  while (ptr < blockEnd && bytes[ptr] === 255) {
+                    size += 255;
+                    ptr++;
+                  }
+                  if (ptr < blockEnd) {
+                    size += bytes[ptr++];
+                  }
+                  frameSizes.push(size);
+                }
+                for (let f = 0; f < frameSizes.length; f++) {
+                  const sz = frameSizes[f];
+                  if (ptr + sz <= blockEnd) {
+                    frames.push(bytes.subarray(ptr, ptr + sz));
+                    ptr += sz;
+                  }
+                }
+                if (ptr < blockEnd) {
+                  frames.push(bytes.subarray(ptr, blockEnd));
+                }
+              }
+            } else {
+              // Fixed / EBML lacing fallback
+              frames.push(bytes.subarray(payloadStart, blockEnd));
+            }
           }
         }
         pos = blockEnd;
@@ -232,19 +269,36 @@ export async function convertWebMToOggOpus(audioBlob: Blob): Promise<Blob> {
   const opusTags = createOpusTags();
   oggPages.push(createOggPage(0x00, 0, serialNo, 1, [opusTags]));
 
-  // Consecutive Audio Pages: ~50 Opus frames per Ogg page (~1 second of audio per page)
+  // Consecutive Audio Pages: Group frames into pages with max 50 frames and max 200 segments
   let pageSeq = 2;
   let granulePos = 0;
   const SAMPLES_PER_FRAME = 960; // 20ms @ 48kHz is standard Opus default
 
-  const FRAMES_PER_PAGE = 50;
-  for (let i = 0; i < frames.length; i += FRAMES_PER_PAGE) {
-    const pageFrames = frames.slice(i, i + FRAMES_PER_PAGE);
-    const isLast = (i + FRAMES_PER_PAGE) >= frames.length;
-    granulePos += pageFrames.length * SAMPLES_PER_FRAME;
+  let currentBatch: Uint8Array[] = [];
+  let currentBatchSegments = 0;
 
-    const headerType = isLast ? 0x04 : 0x00; // 0x04 = EOS
-    oggPages.push(createOggPage(headerType, granulePos, serialNo, pageSeq++, pageFrames));
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    const frameSegments = Math.ceil(frame.length / 255) || 1;
+
+    // Check if adding this frame would exceed page limit (200 segments or 40 frames)
+    if (currentBatch.length >= 40 || (currentBatchSegments + frameSegments) > 200) {
+      if (currentBatch.length > 0) {
+        granulePos += currentBatch.length * SAMPLES_PER_FRAME;
+        oggPages.push(createOggPage(0x00, granulePos, serialNo, pageSeq++, currentBatch));
+        currentBatch = [];
+        currentBatchSegments = 0;
+      }
+    }
+
+    currentBatch.push(frame);
+    currentBatchSegments += frameSegments;
+  }
+
+  // Final Page (EOS)
+  if (currentBatch.length > 0) {
+    granulePos += currentBatch.length * SAMPLES_PER_FRAME;
+    oggPages.push(createOggPage(0x04, granulePos, serialNo, pageSeq++, currentBatch));
   }
 
   return new Blob(oggPages as BlobPart[], { type: "audio/ogg; codecs=opus" });
