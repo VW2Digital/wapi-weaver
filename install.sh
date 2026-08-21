@@ -69,6 +69,12 @@ dump_diagnostics_and_exit() {
   echo "--- DOCKER COMPOSE LOGS (APP) ---"
   docker compose -f "${COMPOSE_FILE}" logs --tail=150 app 2>/dev/null || true
   echo ""
+  echo "--- ESPAÇO EM DISCO ---"
+  df -h / /var/lib/docker 2>/dev/null || df -h / 2>/dev/null || true
+  echo ""
+  echo "--- USO DE DISCO DO DOCKER ---"
+  docker system df 2>/dev/null || true
+  echo ""
   echo "=========================================================="
   exit 1
 }
@@ -187,6 +193,34 @@ wait_for_app_healthy() {
   done
 
   dump_diagnostics_and_exit "Healthcheck Docker do container app não transitou para 'healthy' no tempo limite."
+}
+
+ensure_docker_build_space() {
+  local disk_path="/"
+  local minimum_free_mb=4096
+  local available_mb
+
+  [ -d /var/lib/docker ] && disk_path="/var/lib/docker"
+  available_mb=$(df -Pm "${disk_path}" | awk 'NR==2 {print $4}')
+  available_mb="${available_mb:-0}"
+
+  echo "  Espaço disponível para o build: ${available_mb}MB em ${disk_path}."
+  if [ "${available_mb}" -ge "${minimum_free_mb}" ]; then
+    return 0
+  fi
+
+  print_warn "Espaço abaixo de ${minimum_free_mb}MB. Limpando somente cache de build e imagens Docker pendentes (volumes serão preservados)..."
+  docker builder prune -af || true
+  docker image prune -f || true
+  apt-get clean || true
+
+  available_mb=$(df -Pm "${disk_path}" | awk 'NR==2 {print $4}')
+  available_mb="${available_mb:-0}"
+  echo "  Espaço disponível apó limpeza segura: ${available_mb}MB."
+
+  if [ "${available_mb}" -lt "${minimum_free_mb}" ]; then
+    dump_diagnostics_and_exit "Espaço insuficiente para compilar a aplicação. Libere ao menos ${minimum_free_mb}MB em ${disk_path}; volumes do MySQL e uploads não foram removidos."
+  fi
 }
 
 test_auth_login() {
@@ -634,8 +668,9 @@ if [[ "${ENABLE_PHPMYADMIN}" == "s" ]]; then
 fi
 
 # 6.3 Build da imagem da aplicação e subir infraestrutura
-echo "  Executando build da aplicação (sem cache antigo)..."
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull --no-cache app
+ensure_docker_build_space
+echo "  Executando build da aplicação com cache seguro e imagem-base atualizada..."
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull app
 
 echo "  Subindo serviços de infraestrutura (MySQL e Redis)..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d mysql redis
