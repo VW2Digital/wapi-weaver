@@ -5159,7 +5159,20 @@ function ChatPage() {
                                         }
                                       }
 
-                                      if (!headerMediaUrl && metadataMediaUrl) {
+                                      const isStandardMediaMessage = [
+                                        "image",
+                                        "video",
+                                        "audio",
+                                        "document",
+                                        "sticker",
+                                      ].includes(msg.type || "");
+
+                                      if (
+                                        !headerMediaUrl &&
+                                        metadataMediaUrl &&
+                                        !isStandardMediaMessage &&
+                                        (interactive || header)
+                                      ) {
                                         headerMediaUrl = metadataMediaUrl;
                                         const lower = metadataMediaUrl.toLowerCase().split(/[?#]/)[0];
                                         if (lower.endsWith(".mp4") || lower.endsWith(".3gp") || lower.endsWith(".mov") || lower.endsWith(".webm")) {
@@ -5356,38 +5369,6 @@ function ChatPage() {
                                               : "px-3.5 py-2.5 flex flex-col gap-1",
                                           )}
                                         >
-                                          {/* Direct Message Origin Badge (WhatsApp/Instagram/Messenger) */}
-                                          {(() => {
-                                            const channelLabel =
-                                              msg.channel === "instagram"
-                                                ? "Instagram"
-                                                : msg.channel === "messenger"
-                                                  ? "Messenger"
-                                                  : msg.channel === "whatsapp_group"
-                                                    ? "Grupo WhatsApp"
-                                                    : msg.channel === "whatsapp"
-                                                      ? "WhatsApp"
-                                                      : null;
-                                            if (!channelLabel) return null;
-                                            return (
-                                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mb-0.5 px-0.5">
-                                                <span className="font-semibold uppercase tracking-wider text-[9px]">
-                                                  {channelLabel}
-                                                </span>
-                                              </div>
-                                            );
-                                          })()}
-
-                                          {/* Nome do Remetente */}
-                                          <div
-                                            className={cn(
-                                              "text-[10px] font-semibold text-muted-foreground select-none",
-                                              isRichCard ? "px-3 pt-2" : "",
-                                            )}
-                                          >
-                                            {isOutgoing ? agentLabel : senderName}
-                                          </div>
-
                                           {/* Display applied tags in message body */}
                                           {(() => {
                                             const msgTags = (
@@ -5510,7 +5491,7 @@ function ChatPage() {
                                             {type === "image" && (
                                               <div
                                                 className={cn(
-                                                  "w-full overflow-hidden bg-black/10 rounded-2xl",
+                                                  "relative w-full overflow-hidden bg-black/10 rounded-2xl",
                                                 )}
                                               >
                                                 {(() => {
@@ -5538,6 +5519,18 @@ function ChatPage() {
                                                     </div>
                                                   );
                                                 })()}
+                                                <div className="absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/45 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">
+                                                  <span>
+                                                    {new Date(
+                                                      msg.timestamp,
+                                                    ).toLocaleTimeString([], {
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                    })}
+                                                  </span>
+                                                  {isOutgoing &&
+                                                    renderStatus(msg.status ?? "")}
+                                                </div>
                                               </div>
                                             )}
 
@@ -5571,7 +5564,7 @@ function ChatPage() {
                                             {type === "video" && (
                                               <div
                                                 className={cn(
-                                                  "w-full overflow-hidden bg-black/10 rounded-2xl",
+                                                  "relative w-full overflow-hidden bg-black/10 rounded-2xl",
                                                 )}
                                               >
                                                 {(() => {
@@ -5597,6 +5590,18 @@ function ChatPage() {
                                                     </div>
                                                   );
                                                 })()}
+                                                <div className="pointer-events-none absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/45 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">
+                                                  <span>
+                                                    {new Date(
+                                                      msg.timestamp,
+                                                    ).toLocaleTimeString([], {
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                    })}
+                                                  </span>
+                                                  {isOutgoing &&
+                                                    renderStatus(msg.status ?? "")}
+                                                </div>
                                               </div>
                                             )}
 
@@ -5848,21 +5853,23 @@ function ChatPage() {
                                             )}
                                           </div>
 
-                                          {/* Horário + Status */}
-                                          <div
-                                            className={cn(
-                                              "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-0.5 pt-0.5 self-end",
-                                              isRichCard && "pb-1.5 pr-2.5",
-                                            )}
-                                          >
-                                            <span>
-                                              {new Date(msg.timestamp).toLocaleTimeString([], {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                              })}
-                                            </span>
-                                            {isOutgoing && renderStatus(msg.status ?? "")}
-                                          </div>
+                                          {/* Horário + Status (imagens e vídeos exibem sobre a própria mídia) */}
+                                          {type !== "image" && type !== "video" && (
+                                            <div
+                                              className={cn(
+                                                "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-0.5 pt-0.5 self-end",
+                                                isRichCard && "pb-1.5 pr-2.5",
+                                              )}
+                                            >
+                                              <span>
+                                                {new Date(msg.timestamp).toLocaleTimeString([], {
+                                                  hour: "2-digit",
+                                                  minute: "2-digit",
+                                                })}
+                                              </span>
+                                              {isOutgoing && renderStatus(msg.status ?? "")}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })()}

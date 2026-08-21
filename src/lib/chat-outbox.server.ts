@@ -73,6 +73,8 @@ interface MetaResponseBody {
   raw?: string;
 }
 
+type NetworkCause = NodeJS.ErrnoException & { hostname?: string };
+
 class DispatchError extends Error {
   retryable: boolean;
   responsePayload: unknown;
@@ -179,6 +181,32 @@ async function parseResponse(response: Response): Promise<MetaResponseBody> {
   }
 }
 
+function networkDispatchError(error: unknown): DispatchError {
+  const cause = error instanceof Error ? (error.cause as NetworkCause | undefined) : null;
+  const networkMessage = error instanceof Error ? error.message : "Falha de rede";
+  const causeDetails = [cause?.code, cause?.syscall, cause?.hostname].filter(Boolean).join(" · ");
+  const responsePayload = cause
+    ? {
+        code: cause.code ?? null,
+        errno: cause.errno ?? null,
+        syscall: cause.syscall ?? null,
+        hostname: cause.hostname ?? null,
+      }
+    : null;
+
+  console.error("[Chat Outbox] Falha de rede no provedor:", {
+    message: networkMessage,
+    ...responsePayload,
+  });
+  return new DispatchError(
+    causeDetails
+      ? `Falha de rede: ${networkMessage} (${causeDetails})`
+      : `Falha de rede: ${networkMessage}.`,
+    true,
+    responsePayload,
+  );
+}
+
 async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
   const profiles = (await db.query(
     `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
@@ -194,17 +222,22 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
     throw new DispatchError("Credenciais do WhatsApp não configuradas.", false);
   }
 
-  const response = await fetch(
-    `https://graph.facebook.com/${recentMetaVersion(profile.meta_graph_version)}/${profile.whatsapp_phone_number_id}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${profile.whatsapp_access_token}`,
-        "Content-Type": "application/json",
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://graph.facebook.com/${recentMetaVersion(profile.meta_graph_version)}/${profile.whatsapp_phone_number_id}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${profile.whatsapp_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildWhatsAppPayload(job.recipient, parsePayload(job.payload))),
       },
-      body: JSON.stringify(buildWhatsAppPayload(job.recipient, parsePayload(job.payload))),
-    },
-  );
+    );
+  } catch (error) {
+    throw networkDispatchError(error);
+  }
   const body = await parseResponse(response);
   if (!response.ok) {
     throw new DispatchError(
@@ -296,10 +329,7 @@ async function dispatch(job: ChatOutboxRow): Promise<DispatchResult> {
     return await dispatchWhatsApp(job);
   } catch (error) {
     if (error instanceof DispatchError) throw error;
-    throw new DispatchError(
-      error instanceof Error ? error.message : "Falha de rede ao enviar mensagem.",
-      true,
-    );
+    throw networkDispatchError(error);
   }
 }
 
@@ -416,7 +446,7 @@ async function claimBatch(workerId: string): Promise<ChatOutboxRow[]> {
 }
 
 function retryDelaySeconds(attempt: number): number {
-  return [5, 30, 120, 600, 1800][Math.max(0, Math.min(attempt - 1, 4))];
+  return [5, 15, 30, 60, 120][Math.max(0, Math.min(attempt - 1, 4))];
 }
 
 async function completeJob(job: ChatOutboxRow, result: DispatchResult) {
