@@ -6,6 +6,7 @@ import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 import { webhookQueue } from "@/lib/queue/webhook-queue";
 import { downloadAndPersistInboundMedia } from "@/lib/whatsapp-media-downloader";
+import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -773,17 +774,48 @@ export async function processStatusUpdate(value: WebhookValue | undefined, userI
     // Update status in direct_messages table too
     const allowedDirectStatuses = ["sent", "delivered", "read", "failed"];
     if (typeof status === "string" && allowedDirectStatuses.includes(status)) {
-      await dbAdmin
-        .from("direct_messages")
-        .update({ status })
-        .eq("wa_message_id", waId)
-        .eq("user_id", userId);
+      const statusRank = { sent: 1, delivered: 2, read: 3, failed: 4 } as const;
+      const nextRank = statusRank[status as keyof typeof statusRank];
+      const transitionGuard =
+        status === "failed"
+          ? "(status IS NULL OR status NOT IN ('delivered', 'read'))"
+          : `(status IS NULL OR (status != 'failed' AND FIELD(status, 'sent', 'delivered', 'read') < ?))`;
+      const transitionParams = status === "failed" ? [] : [nextRank];
 
-      await dbAdmin
-        .from("direct_messages")
-        .update({ status })
-        .eq("provider_message_id", waId)
-        .eq("user_id", userId);
+      await db.query(
+        `UPDATE direct_messages
+         SET status = ?
+         WHERE user_id = ?
+           AND wa_message_id = ?
+           AND ${transitionGuard}`,
+        [status, userId, waId, ...transitionParams],
+      );
+      await db.query(
+        `UPDATE direct_messages
+         SET status = ?
+         WHERE user_id = ?
+           AND provider_message_id = ?
+           AND ${transitionGuard}`,
+        [status, userId, waId, ...transitionParams],
+      );
+
+      const directMessages = (await db.query(
+        `SELECT id, contact_phone
+         FROM direct_messages
+         WHERE user_id = ? AND (wa_message_id = ? OR provider_message_id = ?)
+         LIMIT 1`,
+        [userId, waId, waId],
+      )) as Array<{ id: string; contact_phone: string }>;
+      if (directMessages[0]) {
+        await publishChatRealtimeEvent({
+          type: "message.status",
+          tenant_id: userId,
+          contact_phone: directMessages[0].contact_phone,
+          message_id: directMessages[0].id,
+          provider_message_id: waId,
+          status,
+        });
+      }
     }
 
     const campaignIds = Array.from(new Set((rows ?? []).map((row) => row.campaign_id))).filter(
@@ -1021,6 +1053,15 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
           phoneNumberId,
         );
       }
+
+      await publishChatRealtimeEvent({
+        type: "message.received",
+        tenant_id: userId,
+        contact_phone: phoneDigits,
+        message_id: newDbMessageId,
+        provider_message_id: waMessageId,
+        status: "delivered",
+      });
     } catch (error: unknown) {
       throw error;
     }
@@ -1590,6 +1631,15 @@ async function handleWhatsAppGroupMessage(
       phoneNumberId,
     );
   }
+
+  await publishChatRealtimeEvent({
+    type: "message.received",
+    tenant_id: userId,
+    contact_phone: groupId,
+    message_id: newGroupDbMsgId,
+    provider_message_id: waMessageId,
+    status: "delivered",
+  });
 
   // 🚀 Chama o motor do BotFlow para processar essa mensagem do grupo (se habilitado)
   if (process.env.WHATSAPP_GROUPS_ENABLED === "true" && phoneNumberId && body) {

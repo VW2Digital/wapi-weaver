@@ -24,7 +24,12 @@ interface InstagramSendResult {
 export async function sendInstagramMessage(
   params: InstagramSendParams,
 ): Promise<InstagramSendResult> {
-  const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
+  const configuredVersion = process.env.META_GRAPH_VERSION || "v26.0";
+  const parsedVersion = Number(configuredVersion.replace(/^v/, ""));
+  const apiVersion =
+    Number.isFinite(parsedVersion) && parsedVersion >= 24 && parsedVersion <= 26
+      ? configuredVersion
+      : "v26.0";
 
   const payload: any = {
     recipient: { id: params.recipientId },
@@ -43,12 +48,11 @@ export async function sendInstagramMessage(
       reaction: params.data.reaction?.emoji || "",
     };
   } else if (["image", "audio", "video", "document"].includes(params.data.type)) {
-    let attachmentType = params.data.type;
-    if (attachmentType === "document") attachmentType = "file";
-
-    const media = params.data[attachmentType as keyof typeof params.data] as
+    const media = params.data[params.data.type as keyof typeof params.data] as
       | { id?: string; link?: string }
       | undefined;
+    let attachmentType = params.data.type;
+    if (attachmentType === "document") attachmentType = "file";
     const attachmentId = media?.id || "";
     const mediaUrl = media?.link || "";
 

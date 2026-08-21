@@ -622,6 +622,7 @@ CREATE TABLE IF NOT EXISTS `custom_fields` (
 
 CREATE TABLE IF NOT EXISTS `direct_messages` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `client_message_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -629,7 +630,7 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   `type` enum('text','reaction','image','audio','video','document','sticker','location','contacts') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `body` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `wa_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('sent','delivered','read','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'sent',
+  `status` enum('queued','sent','delivered','read','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'sent',
   `reply_to_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `metadata` json DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -642,6 +643,7 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   `external_group_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `raw_payload` json DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_dm_user_client_message` (`user_id`,`client_message_id`),
   UNIQUE KEY `uq_direct_messages_user_wa_id` (`user_id`,`wa_message_id`),
   UNIQUE KEY `uq_dm_channel_msg` (`user_id`,`channel`,`provider_message_id`),
   KEY `idx_direct_messages_user_phone` (`user_id`,`contact_phone`),
@@ -650,6 +652,37 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   KEY `idx_dm_tenant` (`tenant_id`),
   CONSTRAINT `direct_messages_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_dm_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_message_outbox` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `recipient` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider_recipient_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider_account_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payload` json NOT NULL,
+  `status` enum('pending','processing','retry','sent','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `attempts` int NOT NULL DEFAULT '0',
+  `max_attempts` int NOT NULL DEFAULT '5',
+  `next_attempt_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `locked_at` datetime DEFAULT NULL,
+  `locked_by` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `last_error` text COLLATE utf8mb4_unicode_ci,
+  `response_payload` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `sent_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_chat_outbox_message` (`message_id`),
+  KEY `idx_chat_outbox_schedule` (`status`,`next_attempt_at`,`locked_at`),
+  KEY `idx_chat_outbox_tenant` (`tenant_id`,`created_at`),
+  CONSTRAINT `fk_chat_outbox_message` FOREIGN KEY (`message_id`) REFERENCES `direct_messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_outbox_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_outbox_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `ds_agent_assignments` (

@@ -105,12 +105,11 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             bytes: mediaBytes,
           });
 
-          // 4. Return to client with correct mime type and headers
+          // 4. Return to client with correct mime type and byte-range support
           const headers = new Headers();
           headers.set("Content-Type", mimeType);
-          headers.set("Content-Length", String(mediaBytes.byteLength));
           headers.set("Accept-Ranges", "bytes");
-          headers.set("Cache-Control", "public, max-age=86400, immutable");
+          headers.set("Cache-Control", "private, max-age=3600");
           headers.set("X-Content-Type-Options", "nosniff");
 
           if (download) {
@@ -119,6 +118,43 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           } else {
             headers.set("Content-Disposition", "inline");
           }
+
+          const range = request.headers.get("range");
+          if (range) {
+            const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+            if (!match) {
+              headers.set("Content-Range", `bytes */${mediaBytes.byteLength}`);
+              return new Response(null, { status: 416, headers });
+            }
+
+            const requestedStart = match[1] ? Number(match[1]) : undefined;
+            const requestedEnd = match[2] ? Number(match[2]) : undefined;
+            const start =
+              requestedStart ??
+              Math.max(mediaBytes.byteLength - (requestedEnd ?? 0), 0);
+            const end =
+              requestedStart === undefined
+                ? mediaBytes.byteLength - 1
+                : Math.min(requestedEnd ?? mediaBytes.byteLength - 1, mediaBytes.byteLength - 1);
+
+            if (
+              !Number.isSafeInteger(start) ||
+              !Number.isSafeInteger(end) ||
+              start < 0 ||
+              start > end ||
+              start >= mediaBytes.byteLength
+            ) {
+              headers.set("Content-Range", `bytes */${mediaBytes.byteLength}`);
+              return new Response(null, { status: 416, headers });
+            }
+
+            const chunk = mediaBytes.slice(start, end + 1);
+            headers.set("Content-Length", String(chunk.byteLength));
+            headers.set("Content-Range", `bytes ${start}-${end}/${mediaBytes.byteLength}`);
+            return new Response(chunk, { status: 206, headers });
+          }
+
+          headers.set("Content-Length", String(mediaBytes.byteLength));
 
           return new Response(mediaBytes, {
             status: 200,

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { processBotFlow } from "@/lib/botflow-executor.server";
+import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 
 function logInfo(message: string, data?: any) {
   console.log(`[facebook-webhook] ${message}`, data ? JSON.stringify(data) : "");
@@ -147,7 +148,7 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
                       .single();
 
                     // 2. Salvar mensagem recebida (com dedup via unique key)
-                    await dbAdmin.from("direct_messages").upsert(
+                    const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
                       {
                         tenant_id: page.user_id,
                         user_id: page.user_id,
@@ -162,7 +163,16 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
                         metadata: { raw: item },
                       },
                       { onConflict: "user_id,channel,provider_message_id" },
-                    );
+                    ).select("id").single();
+
+                    await publishChatRealtimeEvent({
+                      type: "message.received",
+                      tenant_id: page.user_id,
+                      contact_phone: phonePlaceholder,
+                      message_id: storedMessage?.id || null,
+                      provider_message_id: message.mid || null,
+                      status: "delivered",
+                    });
 
                     // 3. Chamar executor do Bot
                     await processBotFlow(

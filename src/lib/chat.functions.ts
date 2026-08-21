@@ -3,16 +3,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import crypto from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
-import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage, type WhatsAppBotStep } from "@/lib/meta-whatsapp-message";
-import { sendInstagramMessage } from "@/lib/instagram-messenger";
+import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
+import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import db from "./db";
 
 type JsonValue = string | number | boolean | null | undefined | JsonRecord | JsonValue[];
 interface JsonRecord {
   [key: string]: JsonValue;
 }
-type ChatMessageType = z.infer<typeof sendMessageInput>["type"] | "system";
+type ChatMessageType = z.infer<typeof sendMessageInput>["type"] | "system" | "media";
 
 interface ChatContactRow extends JsonRecord {
   id: string;
@@ -55,6 +55,7 @@ interface DirectMessageRow {
   reply_to_message_id?: string | null;
   metadata?: JsonValue;
   raw_payload?: JsonValue;
+  channel?: string | null;
 }
 
 interface AssignmentRow {
@@ -133,6 +134,7 @@ const normalizeChatContactId = (value: string) => {
 };
 
 const sendMessageInput = z.object({
+  client_message_id: z.string().uuid().optional(),
   to: z.string().trim().min(8).max(40),
   type: z.enum([
     "text",
@@ -214,14 +216,64 @@ const sendMessageInput = z.object({
       }),
     )
     .optional(),
+  local_media: z
+    .object({
+      path: z.string().trim().min(1).max(1024),
+      mime_type: z.string().trim().min(1).max(255),
+      filename: z.string().trim().min(1).max(512),
+      size: z.number().int().nonnegative(),
+    })
+    .optional(),
   reply_to_message_id: z.string().optional(),
 }).superRefine((value, ctx) => {
+  const requireMediaReference = (
+    media: { id?: string; link?: string } | undefined,
+    path: "image" | "audio" | "video" | "document" | "sticker",
+  ) => {
+    if (!media?.id?.trim() && !media?.link?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: [path],
+        message: `Informe o ID ou link da mídia para ${path}.`,
+      });
+    }
+  };
+
+  if (value.type === "text" && !value.text?.body.trim()) {
+    ctx.addIssue({ code: "custom", path: ["text", "body"], message: "A mensagem está vazia." });
+  }
+  if (value.type === "reaction" && (!value.reaction?.message_id || !value.reaction.emoji)) {
+    ctx.addIssue({ code: "custom", path: ["reaction"], message: "Reação inválida." });
+  }
+  if (value.type === "image") requireMediaReference(value.image, "image");
+  if (value.type === "audio") requireMediaReference(value.audio, "audio");
+  if (value.type === "video") requireMediaReference(value.video, "video");
   if (value.type === "document" && !value.document) {
     ctx.addIssue({
       code: "custom",
       path: ["document"],
       message: "Documento e nome do arquivo são obrigatórios.",
     });
+  } else if (value.type === "document") {
+    requireMediaReference(value.document, "document");
+  }
+  if (value.type === "sticker") requireMediaReference(value.sticker, "sticker");
+  if (value.type === "location") {
+    const latitude = value.location?.latitude;
+    const longitude = value.location?.longitude;
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      ctx.addIssue({ code: "custom", path: ["location"], message: "Localização inválida." });
+    }
+  }
+  if (value.type === "contacts" && !value.contacts?.length) {
+    ctx.addIssue({ code: "custom", path: ["contacts"], message: "Informe ao menos um contato." });
   }
 });
 
@@ -328,6 +380,20 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
+    const latestIncoming = (await db.query(
+      `SELECT wa_message_id, provider_account_id, channel
+       FROM direct_messages
+       WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming'
+         AND wa_message_id IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [effectiveUserId, phone],
+    )) as Array<{
+      wa_message_id?: string | null;
+      provider_account_id?: string | null;
+      channel?: string | null;
+    }>;
+
     await db.query(
       `UPDATE direct_messages SET status = 'read'
        WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming' AND (status IS NULL OR status != 'read')`,
@@ -338,6 +404,58 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
       effectiveUserId,
       phone,
     ]);
+
+    const incomingMessage = latestIncoming[0];
+    await publishChatRealtimeEvent({
+      type: "message.status",
+      tenant_id: effectiveUserId,
+      contact_phone: phone,
+      message_id: incomingMessage?.wa_message_id || null,
+      provider_message_id: incomingMessage?.wa_message_id || null,
+      status: "read",
+    });
+
+    if (incomingMessage?.channel === "whatsapp" && incomingMessage.wa_message_id) {
+      try {
+        const profiles = (await db.query(
+          `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
+           FROM profiles WHERE id = ? LIMIT 1`,
+          [effectiveUserId],
+        )) as ProfileMessageRow[];
+        const profile = profiles[0];
+        const phoneNumberId =
+          incomingMessage.provider_account_id || profile?.whatsapp_phone_number_id;
+        if (phoneNumberId && profile?.whatsapp_access_token) {
+          let apiVersion = profile.meta_graph_version || "v26.0";
+          if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
+            apiVersion = "v26.0";
+          }
+          const response = await fetch(
+            `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${profile.whatsapp_access_token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                status: "read",
+                message_id: incomingMessage.wa_message_id,
+              }),
+            },
+          );
+          if (!response.ok) {
+            console.warn("Não foi possível confirmar leitura da mensagem na Meta.", {
+              status: response.status,
+              messageId: incomingMessage.wa_message_id,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn("Falha não bloqueante ao confirmar leitura na Meta.", error);
+      }
+    }
 
     return { ok: true };
   });
@@ -407,8 +525,8 @@ export const getChatMessages = createServerFn({ method: "POST" })
      ) AS recent_messages
      ORDER BY created_at ASC`;
     const richMessagesQuery = `SELECT * FROM (
-       SELECT id, wa_message_id, direction, created_at, type, body, status,
-              reply_to_message_id, metadata
+       SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
+              reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
        FROM direct_messages
        WHERE user_id = ? AND contact_phone = ?
        ORDER BY created_at DESC
@@ -622,6 +740,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
         contacts: messageType === "contacts" ? contactsData : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
         metadata: meta || rawPayload || null,
+        channel: row.channel || null,
       };
     });
 
@@ -711,8 +830,42 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    let wamid: string | null = null;
-    let body: JsonRecord | null = null;
+    let localMediaUrl: string | null = null;
+    if (data.local_media) {
+      const normalizedPath = data.local_media.path
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "");
+      if (
+        normalizedPath.includes("..") ||
+        !normalizedPath.startsWith(`${effectiveUserId}/`)
+      ) {
+        return { ok: false, error: "Referência de mídia local inválida." };
+      }
+      localMediaUrl = `/api/storage/file?path=${encodeURIComponent(normalizedPath)}`;
+    }
+
+    const referencedMessageId =
+      data.type === "reaction" ? data.reaction?.message_id : data.reply_to_message_id;
+    if (referencedMessageId) {
+      const referencedMessages = (await db.query(
+        `SELECT id
+         FROM direct_messages
+         WHERE user_id = ?
+           AND contact_phone = ?
+           AND (wa_message_id = ? OR provider_message_id = ?)
+         LIMIT 1`,
+        [effectiveUserId, digits, referencedMessageId, referencedMessageId],
+      )) as Array<{ id: string }>;
+      if (!referencedMessages[0]) {
+        return {
+          ok: false,
+          error: "A mensagem respondida não pertence a esta conversa ou não está mais disponível.",
+        };
+      }
+    }
+
+    const messageChannel = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
+    let providerRecipientId: string | null = null;
     let providerAccountId: string | null = null;
 
     if (isInstagram) {
@@ -735,20 +888,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         return { ok: false, error: "Contato do Instagram sem external_contact_id." };
       }
 
-      const result = await sendInstagramMessage({
-        igUserId: account.ig_user_id,
-        accessToken: account.access_token,
-        recipientId: externalId,
-        data,
-        replyToMessageId: data.reply_to_message_id,
-      });
-
-      if (!result.ok) {
-        return { ok: false, error: result.error };
-      }
-
-      wamid = result.wamid;
-      body = asJsonRecord(result.body);
+      providerRecipientId = externalId;
+      providerAccountId = account.ig_user_id;
     } else if (isMessenger) {
       // 1. Busca página do Facebook conectada
       const fbPages = (await db.query(
@@ -771,69 +912,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         return { ok: false, error: "Contato do Messenger sem external_contact_id." };
       }
 
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
-      const payload: JsonRecord = {
-        recipient: { id: externalId },
-      };
-
-      if (data.type === "text") {
-        payload.message = { text: data.text?.body || "" };
-      } else if (data.type === "reaction") {
-        payload.sender_action = "react";
-        payload.payload = {
-          message_id: data.reaction?.message_id || "",
-          reaction: data.reaction?.emoji || "",
-        };
-      } else if (["image", "audio", "video", "document"].includes(data.type)) {
-        const attachmentType =
-          data.type === "document" ? "file" : (data.type as "image" | "audio" | "video");
-
-        let mediaUrl = "";
-        let attachmentId = "";
-
-        if (data.type === "image") {
-          mediaUrl = data.image?.link || "";
-          attachmentId = data.image?.id || "";
-        } else if (data.type === "audio") {
-          mediaUrl = data.audio?.link || "";
-          attachmentId = data.audio?.id || "";
-        } else if (data.type === "video") {
-          mediaUrl = data.video?.link || "";
-          attachmentId = data.video?.id || "";
-        } else if (data.type === "document") {
-          mediaUrl = data.document?.link || "";
-          attachmentId = data.document?.id || "";
-        }
-
-        payload.message = {
-          attachment: {
-            type: attachmentType,
-            payload: attachmentId ? { attachment_id: attachmentId } : { url: mediaUrl },
-          },
-        };
-      }
-
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${page.page_id}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${page.page_access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      body = asJsonRecord(await r.json());
-      if (!r.ok) {
-        return {
-          ok: false,
-          error:
-            getStringValue(asJsonRecord(body?.error)?.message) ??
-            "Falha ao enviar mensagem no Messenger.",
-        };
-      }
-
-      providerAccountId = digits.startsWith("fb_") ? digits.slice(3) : digits;
-      wamid = getStringValue(body?.message_id);
+      providerRecipientId = externalId;
+      providerAccountId = page.page_id;
     } else {
       // Envio via WhatsApp
       const profiles = (await db.query(
@@ -847,113 +927,15 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         return { ok: false, error: "Credenciais de API não configuradas em Configurações." };
       }
 
-      const payload: JsonRecord = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: digits,
-      };
-
-      if (data.reply_to_message_id) {
-        payload.context = { message_id: data.reply_to_message_id };
-      }
-
-      if (data.type === "text") {
-        payload.type = "text";
-        payload.text = {
-          body: data.text?.body || "",
-          preview_url: data.text?.preview_url ?? false,
-        };
-      } else if (data.type === "reaction") {
+      if (data.type === "reaction") {
         if (!data.reaction?.message_id?.startsWith("wamid.")) {
           return {
             ok: false,
             error: "A reação exige o wamid original da mensagem do WhatsApp.",
           };
         }
-        payload.type = "reaction";
-        payload.reaction = {
-          message_id: data.reaction?.message_id || "",
-          emoji: data.reaction?.emoji || "",
-        };
-      } else if (data.type === "image") {
-        payload.type = "image";
-        payload.image = data.image?.id ? { id: data.image.id } : { link: data.image?.link };
-      } else if (data.type === "audio") {
-        payload.type = "audio";
-        payload.audio = data.audio?.id ? { id: data.audio.id } : { link: data.audio?.link };
-      } else if (data.type === "video") {
-        payload.type = "video";
-        payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };
-      } else if (data.type === "document") {
-        payload.type = "document";
-        payload.document = data.document?.id
-          ? { id: data.document.id, filename: data.document.filename }
-          : { link: data.document?.link, filename: data.document?.filename };
-      } else if (data.type === "sticker") {
-        payload.type = "sticker";
-        payload.sticker = data.sticker?.id ? { id: data.sticker.id } : { link: data.sticker?.link };
-      } else if (data.type === "location") {
-        payload.type = "location";
-        payload.location = {
-          latitude: data.location?.latitude,
-          longitude: data.location?.longitude,
-          name: data.location?.name,
-          address: data.location?.address,
-        };
-      } else if (data.type === "contacts") {
-        payload.type = "contacts";
-        payload.contacts = data.contacts;
       }
-
-      let apiVersion = profile.meta_graph_version || "v26.0";
-      if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
-        apiVersion = "v26.0";
-      }
-      const r = await fetch(
-        `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_phone_number_id}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${profile.whatsapp_access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      body = asJsonRecord(await r.json());
-      if (!r.ok) {
-        const metaError = asJsonRecord(body?.error);
-        const identifiers = [
-          metaError?.code != null ? `code ${String(metaError.code)}` : "",
-          metaError?.error_subcode != null ? `subcode ${String(metaError.error_subcode)}` : "",
-          getStringValue(metaError?.fbtrace_id)
-            ? `fbtrace_id ${getStringValue(metaError?.fbtrace_id)}`
-            : "",
-        ].filter(Boolean);
-        const details = getStringValue(asJsonRecord(metaError?.error_data)?.details);
-        console.error("[WhatsApp Messages] Meta recusou a mensagem", {
-          status: r.status,
-          type: data.type,
-          code: metaError?.code,
-          error_subcode: metaError?.error_subcode,
-          details,
-          fbtrace_id: metaError?.fbtrace_id,
-        });
-        return {
-          ok: false,
-          error: [
-            getStringValue(metaError?.message) ?? "Falha ao enviar mensagem na Meta.",
-            details,
-            identifiers.length ? `(${identifiers.join(", ")})` : "",
-          ]
-            .filter(Boolean)
-            .join(" "),
-        };
-      }
-
       providerAccountId = profile.whatsapp_phone_number_id || null;
-      wamid = normalizeWaMessageId(getStringValue(asJsonRecordArray(body?.messages)[0]?.id));
     }
 
     let bodyText = "";
@@ -978,55 +960,72 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     }
 
     // 4. Registra a mensagem enviada na tabela direct_messages (bypass auto-scope)
+    const localMediaFields = data.local_media
+      ? {
+          link: localMediaUrl,
+          mime_type: data.local_media.mime_type,
+          filename: data.local_media.filename,
+          file_size: data.local_media.size,
+        }
+      : {};
     const metadata = {
       text: data.text,
       reaction: data.reaction,
-      image: data.image,
-      audio: data.audio,
-      video: data.video,
-      document: data.document,
-      sticker: data.sticker,
+      image: data.image ? { ...data.image, ...localMediaFields } : undefined,
+      audio: data.audio ? { ...data.audio, ...localMediaFields } : undefined,
+      video: data.video ? { ...data.video, ...localMediaFields } : undefined,
+      document: data.document ? { ...data.document, ...localMediaFields } : undefined,
+      sticker: data.sticker ? { ...data.sticker, ...localMediaFields } : undefined,
       location: data.location,
       contacts: data.contacts,
+      media_url: localMediaUrl,
+      local_file_path: data.local_media?.path,
+      mime_type: data.local_media?.mime_type,
+      file_size: data.local_media?.size,
+      original_filename: data.local_media?.filename,
     };
-    const msgId = crypto.randomUUID();
-    await db.query(
-      `INSERT INTO direct_messages (id, tenant_id, user_id, contact_phone, direction, type, body, wa_message_id, status, reply_to_message_id, metadata, channel, provider_account_id)
-       VALUES (?, ?, ?, ?, 'outgoing', ?, ?, ?, 'sent', ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         status = VALUES(status),
-         body = VALUES(body),
-         metadata = VALUES(metadata)`,
-      [
-        msgId,
-        effectiveUserId,
-        effectiveUserId,
-        digits,
-        data.type,
-        bodyText,
-        wamid,
-        data.reply_to_message_id || null,
-        JSON.stringify(metadata),
-        isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp",
-        providerAccountId,
-      ],
-    );
+    const queuedMessage = await enqueueChatOutboxMessage({
+      tenantId: effectiveUserId,
+      userId: effectiveUserId,
+      clientMessageId: data.client_message_id || crypto.randomUUID(),
+      contactPhone: digits,
+      channel: messageChannel,
+      providerRecipientId,
+      providerAccountId,
+      type: data.type,
+      body: bodyText,
+      replyToMessageId: data.reply_to_message_id,
+      metadata,
+      payload: {
+        type: data.type,
+        text: data.text,
+        reaction: data.reaction,
+        image: data.image,
+        audio: data.audio,
+        video: data.video,
+        document: data.document,
+        sticker: data.sticker,
+        location: data.location,
+        contacts: data.contacts,
+        reply_to_message_id: data.reply_to_message_id,
+      },
+    });
 
     // 5. Intervenção humana: pausa o bot e renova o prazo a cada mensagem do atendente.
-    const messageChannel = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
-    const botSettings = (await db.query(
+    try {
+      const botSettings = (await db.query(
       `SELECT instance_id, pause_timeout_minutes
        FROM bot_settings
        WHERE user_id = ? AND channel = ?
        LIMIT 1`,
       [effectiveUserId, messageChannel],
     )) as Array<{ instance_id?: string | null; pause_timeout_minutes?: number | null }>;
-    const configuredMinutes = Number(botSettings[0]?.pause_timeout_minutes ?? 60);
-    const pauseMinutes = Number.isFinite(configuredMinutes)
-      ? Math.min(Math.max(Math.trunc(configuredMinutes), 1), 7 * 24 * 60)
-      : 60;
-    const pausedUntil = new Date(Date.now() + pauseMinutes * 60 * 1000);
-    const stateRows = (await db.query(
+      const configuredMinutes = Number(botSettings[0]?.pause_timeout_minutes ?? 60);
+      const pauseMinutes = Number.isFinite(configuredMinutes)
+        ? Math.min(Math.max(Math.trunc(configuredMinutes), 1), 7 * 24 * 60)
+        : 60;
+      const pausedUntil = new Date(Date.now() + pauseMinutes * 60 * 1000);
+      const stateRows = (await db.query(
       `SELECT id
        FROM bot_conversation_state
        WHERE user_id = ? AND contact_number = ? AND channel = ?
@@ -1034,15 +1033,15 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       [effectiveUserId, digits, messageChannel],
     )) as Array<{ id: string }>;
 
-    if (stateRows[0]) {
-      await db.query(
+      if (stateRows[0]) {
+        await db.query(
         `UPDATE bot_conversation_state
          SET tenant_id = COALESCE(tenant_id, ?), is_paused = true, paused_until = ?
          WHERE id = ? AND user_id = ?`,
         [effectiveUserId, pausedUntil, stateRows[0].id, effectiveUserId],
       );
-    } else {
-      await db.query(
+      } else {
+        await db.query(
         `INSERT INTO bot_conversation_state
          (id, tenant_id, user_id, contact_number, instance_id, channel, bot_active, is_paused, paused_until)
          VALUES (?, ?, ?, ?, ?, ?, true, true, ?)`,
@@ -1055,8 +1054,18 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
           messageChannel,
           pausedUntil,
         ],
-      );
+        );
+      }
+    } catch (error) {
+      console.warn("Não foi possível pausar o bot após enfileirar a mensagem.", error);
     }
 
-    return { ok: true, wamid, body };
+    return {
+      ok: true,
+      queued: queuedMessage.status === "queued",
+      duplicate: queuedMessage.duplicate,
+      message_id: queuedMessage.messageId,
+      wamid: queuedMessage.providerMessageId,
+      status: queuedMessage.status,
+    };
   });

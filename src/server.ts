@@ -1,6 +1,7 @@
 import "./lib/error-capture";
 import "./lib/queue/webhook-queue";
 import "./lib/queue/campaign-queue";
+import { startChatOutboxWorker } from "./lib/chat-outbox.server";
 import { startDbHealthMonitor } from "./lib/db-health-monitor";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -86,6 +87,7 @@ import bcrypt from "bcryptjs";
 
 // Inicia o monitor de saúde do pool imediatamente
 startDbHealthMonitor(db.pool);
+startChatOutboxWorker();
 
 // Background workers flag container
 const _g = globalThis as any;

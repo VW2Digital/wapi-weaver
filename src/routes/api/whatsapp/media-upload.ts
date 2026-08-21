@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
@@ -135,6 +138,56 @@ function detectAudioFile(bytes: Uint8Array, declaredType: string, originalName: 
   };
 }
 
+const MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/amr": "amr",
+  "audio/ogg": "ogg",
+  "video/mp4": "mp4",
+  "video/3gpp": "3gp",
+  "application/pdf": "pdf",
+  "text/plain": "txt",
+};
+
+async function persistOutgoingMedia({
+  tenantId,
+  bytes,
+  mimeType,
+  originalFileName,
+}: {
+  tenantId: string;
+  bytes: Uint8Array;
+  mimeType: string;
+  originalFileName: string;
+}) {
+  const originalExtension = path.extname(originalFileName).slice(1).toLowerCase();
+  const safeOriginalExtension = /^[a-z0-9]{1,10}$/.test(originalExtension)
+    ? originalExtension
+    : "";
+  const extension = MIME_EXTENSIONS[mimeType] || safeOriginalExtension || "bin";
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const fileName = `${randomUUID()}.${extension}`;
+  const relativePath = `${tenantId}/${year}/${month}/${fileName}`;
+  const directory = path.resolve(process.cwd(), "public", "uploads", tenantId, year, month);
+
+  await fs.promises.mkdir(directory, { recursive: true });
+  await fs.promises.writeFile(path.join(directory, fileName), Buffer.from(bytes));
+
+  return {
+    path: relativePath,
+    url: `/api/storage/file?path=${encodeURIComponent(relativePath)}`,
+    mime_type: mimeType,
+    filename: path.basename(originalFileName || fileName),
+    size: bytes.byteLength,
+  };
+}
+
 export const Route = createFileRoute("/api/whatsapp/media-upload")({
   server: {
     handlers: {
@@ -220,7 +273,7 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             apiVersion = "v26.0";
           }
 
-          let uploadBuffer = fileBuffer;
+          let uploadBuffer: Uint8Array<ArrayBufferLike> = fileBuffer;
           let mimeType = declaredMime;
           let fileName = file.name || "media";
 
@@ -289,7 +342,14 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             );
           }
 
-          return json({ ok: true, data: body }, 200);
+          const localMedia = await persistOutgoingMedia({
+            tenantId: effectiveUserId,
+            bytes: uploadBuffer,
+            mimeType,
+            originalFileName: fileName,
+          });
+
+          return json({ ok: true, data: { ...body, local_media: localMedia } }, 200);
         } catch (e: any) {
           return json(
             { ok: false, error: e?.message || "Falha no upload da mídia." },

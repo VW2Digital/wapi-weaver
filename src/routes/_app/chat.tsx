@@ -523,7 +523,8 @@ type ChatMessageType =
   | "sticker"
   | "location"
   | "contacts"
-  | "system";
+  | "system"
+  | "media";
 
 interface InteractiveButtonRecord {
   reply?: {
@@ -592,6 +593,7 @@ interface ChatMessageRecord {
     phones?: Array<{ phone?: string }>;
   }> | null;
   reactions?: ChatMessageReactionRecord[];
+  channel?: string | null;
 }
 
 interface SendContactPayload {
@@ -606,7 +608,14 @@ interface SendContactPayload {
   }>;
 }
 
-type SendMessagePayload =
+interface LocalMediaReference {
+  path: string;
+  mime_type: string;
+  filename: string;
+  size: number;
+}
+
+type SendMessagePayloadData =
   | {
       to: string;
       type: "text";
@@ -661,6 +670,11 @@ type SendMessagePayload =
       contacts: SendContactPayload[];
       reply_to_message_id?: string;
     };
+
+type SendMessagePayload = SendMessagePayloadData & {
+  client_message_id?: string;
+  local_media?: LocalMediaReference;
+};
 
 function getErrorMessage(error: unknown): string {
   if (!error) return "Erro inesperado";
@@ -1085,6 +1099,67 @@ function ChatPage() {
   const fetchContactPhoto = useServerFn(autoFetchContactPhoto);
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const [chatRealtimeConnected, setChatRealtimeConnected] = useState(false);
+
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let stopped = false;
+    let reconnectAttempt = 0;
+
+    const connect = () => {
+      if (stopped || typeof window === "undefined") return;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws`);
+
+      socket.onopen = () => {
+        reconnectAttempt = 0;
+        setChatRealtimeConnected(true);
+        heartbeatTimer = setInterval(() => {
+          if (socket?.readyState === WebSocket.OPEN) socket.send("ping");
+        }, 20_000);
+      };
+      socket.onmessage = (message) => {
+        if (message.data === "pong") return;
+        try {
+          const event = JSON.parse(String(message.data)) as {
+            type?: string;
+            contact_phone?: string | null;
+          };
+          if (!event.type?.startsWith("message.")) return;
+          void qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+          if (event.contact_phone) {
+            void qc.invalidateQueries({
+              queryKey: ["chat-messages", event.contact_phone],
+            });
+          } else {
+            void qc.invalidateQueries({ queryKey: ["chat-messages"] });
+          }
+        } catch {
+          // Mensagens de controle que não sejam JSON não alteram o chat.
+        }
+      };
+      socket.onclose = () => {
+        setChatRealtimeConnected(false);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (stopped) return;
+        const delay = Math.min(1_000 * 2 ** reconnectAttempt, 30_000);
+        reconnectAttempt += 1;
+        reconnectTimer = setTimeout(connect, delay);
+      };
+      socket.onerror = () => socket?.close();
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      setChatRealtimeConnected(false);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      socket?.close();
+    };
+  }, [qc]);
 
   const [selectedContact, setSelectedContact] = useState<ChatContactRecord | null>(null);
 
@@ -2280,7 +2355,7 @@ function ChatPage() {
         .filter((contact): contact is ChatContactRecord => contact !== null);
     },
     staleTime: 1000,
-    refetchInterval: 2000,
+    refetchInterval: chatRealtimeConnected ? 15_000 : 2_000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
@@ -2339,7 +2414,7 @@ function ChatPage() {
               setSelectedContact(directContact);
             })
             .catch(() => {
-              toast.error("NÃ£o foi possÃ­vel abrir a conversa deste contato.");
+              toast.error("Não foi possível abrir a conversa deste contato.");
             });
         }
       }
@@ -2409,7 +2484,7 @@ function ChatPage() {
     queryFn: () => fetchMessages({ data: { phone: selectedPhone } }),
     enabled: !!selectedPhone,
     staleTime: 1000,
-    refetchInterval: 2000,
+    refetchInterval: chatRealtimeConnected ? 15_000 : 2_000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
@@ -2855,6 +2930,8 @@ function ChatPage() {
       sticker?: { id?: string; link?: string };
       location?: { latitude: number; longitude: number; name?: string; address?: string };
       contacts?: SendContactPayload[];
+      client_message_id?: string;
+      local_media?: LocalMediaReference;
       reply_to_message_id?: string;
     }
   >({
@@ -2878,6 +2955,8 @@ function ChatPage() {
       sticker?: { id?: string; link?: string };
       location?: { latitude: number; longitude: number; name?: string; address?: string };
       contacts?: SendContactPayload[];
+      client_message_id?: string;
+      local_media?: LocalMediaReference;
       reply_to_message_id?: string;
     }) => {
       if (!selectedPhone) throw new Error("Nenhum contato selecionado");
@@ -2902,6 +2981,7 @@ function ChatPage() {
       const res = await sendMessage({
         data: {
           to: selectedPhone,
+          client_message_id: payload.client_message_id || crypto.randomUUID(),
           type: payload.type,
           text: payload.text,
           reaction: payload.reaction,
@@ -2912,6 +2992,7 @@ function ChatPage() {
           sticker: payload.sticker,
           location: payload.location,
           contacts: payload.contacts,
+          local_media: payload.local_media,
           reply_to_message_id: payload.reply_to_message_id,
         },
       });
@@ -3081,6 +3162,7 @@ function ChatPage() {
           const payload: any = {
             type: "audio",
             audio: mediaId ? { id: mediaId } : { link: res.data.link },
+            local_media: res.data.local_media,
             reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
           };
 
@@ -3175,6 +3257,7 @@ function ChatPage() {
               to: selectedPhone,
               type: "document",
               document: { id: mediaId, filename: file.name },
+              local_media: res.data.local_media,
               reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
             }
           : pendingMediaType === "image"
@@ -3182,6 +3265,7 @@ function ChatPage() {
                 to: selectedPhone,
                 type: "image",
                 image: { id: mediaId },
+                local_media: res.data.local_media,
                 reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
               }
             : pendingMediaType === "audio"
@@ -3189,6 +3273,7 @@ function ChatPage() {
                   to: selectedPhone,
                   type: "audio",
                   audio: mediaId ? { id: mediaId } : { link: res.data.link },
+                  local_media: res.data.local_media,
                   reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
                 }
               : pendingMediaType === "video"
@@ -3196,16 +3281,20 @@ function ChatPage() {
                     to: selectedPhone,
                     type: "video",
                     video: { id: mediaId },
+                    local_media: res.data.local_media,
                     reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
                   }
                 : {
                     to: selectedPhone,
                     type: "sticker",
                     sticker: { id: mediaId },
+                    local_media: res.data.local_media,
                     reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
                   };
 
-      const sendRes = await sendMessage({ data: payload });
+      const sendRes = await sendMessage({
+        data: { ...payload, client_message_id: crypto.randomUUID() },
+      });
 
       if (!sendRes.ok) {
         throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
@@ -5223,20 +5312,7 @@ function ChatPage() {
                                       const getMediaUrl = (urlOrId: string) => {
                                         if (!urlOrId) return "";
                                         if (isUrl(urlOrId)) return urlOrId;
-                                        const token =
-                                          typeof window !== "undefined"
-                                            ? localStorage.getItem("app-token") ||
-                                              localStorage.getItem("sb-token") ||
-                                              localStorage.getItem("wapi_token") ||
-                                              localStorage.getItem("sb-access-token") ||
-                                              (document.cookie.match(/(?:wapi_token|app-token|sb-access-token|token|sb-token)=([^;]+)/)?.[1]
-                                                ? decodeURIComponent(document.cookie.match(/(?:wapi_token|app-token|sb-access-token|token|sb-token)=([^;]+)/)![1])
-                                                : "") ||
-                                              ""
-                                            : "";
-                                        return token
-                                          ? `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}&token=${encodeURIComponent(token)}`
-                                          : `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
+                                        return `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
                                       };
 
                                       const renderStatus = (status: string) => {
@@ -5282,12 +5358,21 @@ function ChatPage() {
                                         >
                                           {/* Direct Message Origin Badge (WhatsApp/Instagram/Messenger) */}
                                           {(() => {
-                                            const badgeInfo = getChannelBadge(msg.channel);
-                                            if (!badgeInfo) return null;
+                                            const channelLabel =
+                                              msg.channel === "instagram"
+                                                ? "Instagram"
+                                                : msg.channel === "messenger"
+                                                  ? "Messenger"
+                                                  : msg.channel === "whatsapp_group"
+                                                    ? "Grupo WhatsApp"
+                                                    : msg.channel === "whatsapp"
+                                                      ? "WhatsApp"
+                                                      : null;
+                                            if (!channelLabel) return null;
                                             return (
                                               <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mb-0.5 px-0.5">
                                                 <span className="font-semibold uppercase tracking-wider text-[9px]">
-                                                  {badgeInfo.label}
+                                                  {channelLabel}
                                                 </span>
                                               </div>
                                             );
@@ -5358,19 +5443,19 @@ function ChatPage() {
                                                 </div>
                                                 <div className="truncate opacity-80 text-[11px]">
                                                   {replyMessage.type === "image"
-                                                    ? "📷 Imagem"
+                                                    ? "Imagem"
                                                     : replyMessage.type === "audio"
-                                                      ? "🎙️ Áudio"
+                                                      ? "Áudio"
                                                       : replyMessage.type === "video"
-                                                        ? "🎥 Vídeo"
+                                                        ? "Vídeo"
                                                         : replyMessage.type === "document"
-                                                          ? "📄 Documento"
+                                                          ? "Documento"
                                                           : replyMessage.type === "sticker"
-                                                            ? "😊 Sticker"
+                                                            ? "Sticker"
                                                             : replyMessage.type === "location"
-                                                              ? "📍 Localização"
+                                                              ? "Localização"
                                                               : replyMessage.type === "contacts"
-                                                                ? "👤 Contato"
+                                                                ? "Contato"
                                                                 : replyMessage.body}
                                                 </div>
                                               </button>

@@ -23,24 +23,21 @@ export const Route = createFileRoute("/api/storage/file")({
             return new Response("Missing path parameter", { status: 400 });
           }
 
-          let user: any = null;
+          let user: any;
           try {
             user = await verifyStorageUser(request);
-          } catch (authErr) {
-            // Ignore auth error for GET requests to public profile/avatars if path is safe
+          } catch {
+            return new Response("Unauthorized", { status: 401 });
           }
 
           // Safety normalization to prevent directory traversal
           let safePath: string;
-          if (user) {
-            try {
-              safePath = await assertTenantStoragePath(filePath, user);
-            } catch {
-              safePath = filePath.trim().replace(/\\/g, "/").replace(/^\/?uploads\//, "").replace(/^\/+/, "");
-            }
-          } else {
-            // Basic path sanitization for unauthenticated or expired token requests
-            safePath = filePath.trim().replace(/\\/g, "/").replace(/^\/?uploads\//, "").replace(/^\/+/, "");
+          try {
+            safePath = await assertTenantStoragePath(filePath, user);
+          } catch (error: any) {
+            return new Response("File not found or access denied", {
+              status: error?.statusCode || 403,
+            });
           }
           if (safePath.includes("..") || path.posix.isAbsolute(safePath)) {
             return new Response("Invalid path", { status: 403 });
