@@ -12813,7 +12813,7 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "current_period_start": {
+      "starts_at": {
         "ordinal_position": 6,
         "data_type": "datetime",
         "column_type": "datetime",
@@ -12824,7 +12824,7 @@
         "charset": null,
         "collation": null
       },
-      "current_period_end": {
+      "expires_at": {
         "ordinal_position": 7,
         "data_type": "datetime",
         "column_type": "datetime",
@@ -12835,7 +12835,7 @@
         "charset": null,
         "collation": null
       },
-      "trial_started_at": {
+      "grace_period_ends_at": {
         "ordinal_position": 8,
         "data_type": "datetime",
         "column_type": "datetime",
@@ -12846,7 +12846,7 @@
         "charset": null,
         "collation": null
       },
-      "trial_ends_at": {
+      "last_payment_at": {
         "ordinal_position": 9,
         "data_type": "datetime",
         "column_type": "datetime",
@@ -12857,7 +12857,7 @@
         "charset": null,
         "collation": null
       },
-      "trial_consumed_at": {
+      "next_billing_at": {
         "ordinal_position": 10,
         "data_type": "datetime",
         "column_type": "datetime",
@@ -12868,18 +12868,18 @@
         "charset": null,
         "collation": null
       },
-      "activated_at": {
+      "auto_renew": {
         "ordinal_position": 11,
-        "data_type": "datetime",
-        "column_type": "datetime",
-        "nullable": true,
-        "default": null,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
         "key": "",
         "extra": "",
         "charset": null,
         "collation": null
       },
-      "cancelled_at": {
+      "current_period_start": {
         "ordinal_position": 12,
         "data_type": "datetime",
         "column_type": "datetime",
@@ -12890,8 +12890,74 @@
         "charset": null,
         "collation": null
       },
-      "created_at": {
+      "current_period_end": {
         "ordinal_position": 13,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "trial_started_at": {
+        "ordinal_position": 14,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "trial_ends_at": {
+        "ordinal_position": 15,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "trial_consumed_at": {
+        "ordinal_position": 16,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "activated_at": {
+        "ordinal_position": 17,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "cancelled_at": {
+        "ordinal_position": 18,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "created_at": {
+        "ordinal_position": 19,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -12902,7 +12968,7 @@
         "collation": null
       },
       "updated_at": {
-        "ordinal_position": 14,
+        "ordinal_position": 20,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,

@@ -83,9 +83,10 @@ async function main() {
   }
 
   try {
-    // 1. Read the DDL-only snapshot captured from the local MySQL head.
-    // Unlike canonical-schema.sql, this file contains exactly one definition per table.
-    const schemaPath = path.resolve(__dirname, "../database/schema/reference-schema.sql");
+    // 1. Read the repository's canonical schema (the single source of truth).
+    // When historical definitions exist, extractFinalTableDefinitions selects
+    // the last definition for each table, which is the consolidated final state.
+    const schemaPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
     if (!fs.existsSync(schemaPath)) {
       console.error(`[Create Tables] ❌ CRITICAL: Reference schema file not found at ${schemaPath}`);
       process.exit(1);
@@ -115,9 +116,8 @@ async function main() {
     }
     console.log("[Create Tables] ✅ Final canonical table definitions applied successfully.");
 
-    // reference-schema.sql intentionally excludes the migration bookkeeping
-    // table because it is operational metadata, not part of the application
-    // schema contract. Create it explicitly before registering the baseline.
+    // Keep this explicit and idempotent guard so partially initialized or legacy
+    // databases always have migration bookkeeping available.
     await connection.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version VARCHAR(255) PRIMARY KEY,

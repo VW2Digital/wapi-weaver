@@ -1,6 +1,35 @@
 -- Reconcile the two historical entitlement mirrors without shortening valid access.
 -- Explicit administrative blocks in licenses remain authoritative.
 
+-- Older and partially bootstrapped databases may have migration 001/006 marked
+-- as baseline even though their subscriptions table came from a legacy schema.
+-- Recreate every entitlement column needed below before reconciling the data.
+SET @db_name = DATABASE();
+
+SET @column_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'current_period_start');
+SET @ddl = IF(@column_exists = 0, 'ALTER TABLE subscriptions ADD COLUMN current_period_start DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'current_period_end');
+SET @ddl = IF(@column_exists = 0, 'ALTER TABLE subscriptions ADD COLUMN current_period_end DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'trial_started_at');
+SET @ddl = IF(@column_exists = 0, 'ALTER TABLE subscriptions ADD COLUMN trial_started_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'trial_ends_at');
+SET @ddl = IF(@column_exists = 0, 'ALTER TABLE subscriptions ADD COLUMN trial_ends_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'trial_consumed_at');
+SET @ddl = IF(@column_exists = 0, 'ALTER TABLE subscriptions ADD COLUMN trial_consumed_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'activated_at');
+SET @ddl = IF(@column_exists = 0, 'ALTER TABLE subscriptions ADD COLUMN activated_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 UPDATE subscriptions s
 JOIN licenses l ON l.tenant_id = s.tenant_id
 SET

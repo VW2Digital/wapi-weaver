@@ -34,7 +34,7 @@ const canonicalSql = fs.readFileSync(canonicalPath, "utf8");
 
 function parseCanonical(sql) {
   const schemaContract = {};
-  const functionalTables = [];
+  const functionalTables = new Set();
 
   // Split by CREATE TABLE block boundaries
   const tableMatches = [...sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`([a-zA-Z0-9_]+)`\s*\(([\s\S]*?)\)\s*ENGINE=/gi)];
@@ -45,7 +45,7 @@ function parseCanonical(sql) {
 
     if (tableName === "schema_migrations") continue;
 
-    functionalTables.push(tableName);
+    functionalTables.add(tableName);
     schemaContract[tableName] = {
       columns: {},
       primary_key: [],
@@ -166,8 +166,7 @@ function parseCanonical(sql) {
     }
   }
 
-  functionalTables.sort();
-  return { schemaContract, functionalTables };
+  return { schemaContract, functionalTables: [...functionalTables].sort() };
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────

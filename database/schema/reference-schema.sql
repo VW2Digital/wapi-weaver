@@ -1687,6 +1687,12 @@ CREATE TABLE `subscriptions` (
   `last_payment_at` datetime DEFAULT NULL,
   `next_billing_at` datetime DEFAULT NULL,
   `auto_renew` tinyint(1) NOT NULL DEFAULT '0',
+  `current_period_start` datetime DEFAULT NULL,
+  `current_period_end` datetime DEFAULT NULL,
+  `trial_started_at` datetime DEFAULT NULL,
+  `trial_ends_at` datetime DEFAULT NULL,
+  `trial_consumed_at` datetime DEFAULT NULL,
+  `activated_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1694,8 +1700,7 @@ CREATE TABLE `subscriptions` (
   KEY `customer_id` (`customer_id`),
   KEY `plan_id` (`plan_id`),
   CONSTRAINT `subscriptions_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `subscriptions_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `subscriptions_ibfk_3` FOREIGN KEY (`plan_id`) REFERENCES `billing_plans` (`id`) ON DELETE RESTRICT
+  CONSTRAINT `subscriptions_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `tags` (

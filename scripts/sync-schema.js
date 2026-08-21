@@ -1,7 +1,7 @@
 /**
  * sync-schema.js — Safe, additive schema reconciliation
  *
- * Compares reference-schema.sql (DDL snapshot from local MySQL) against the live database
+ * Compares canonical-schema.sql (repository source of truth) against the live database
  * (INFORMATION_SCHEMA) and automatically applies SAFE, NON-DESTRUCTIVE changes:
  *
  *   AUTO-APPLY:
@@ -253,9 +253,9 @@ async function countOrphans(conn, childTable, childCol, refTable, refCol) {
 // Main reconciliation
 // ---------------------------------------------------------------------------
 async function syncSchema() {
-  const canonicalPath = path.resolve(__dirname, "../database/schema/reference-schema.sql");
+  const canonicalPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
   if (!fs.existsSync(canonicalPath)) {
-    console.error("[Schema-Sync] ❌ reference-schema.sql not found");
+    console.error("[Schema-Sync] ❌ canonical-schema.sql not found");
     process.exit(1);
   }
 
@@ -266,7 +266,7 @@ async function syncSchema() {
     ? JSON.parse(fs.readFileSync(contractPath, "utf8"))
     : {};
 
-  log(`Local reference source: database/schema/reference-schema.sql (${canonicalTables.size} tables)`);
+  log(`Canonical source: database/schema/canonical-schema.sql (${canonicalTables.size} tables)`);
   if (DRY_RUN) log("DRY-RUN mode — no changes will be applied");
 
   const dbPassword = process.env.DB_PASSWORD;
