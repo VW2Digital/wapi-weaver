@@ -74,9 +74,9 @@ async function main() {
 
     // B. Create contact (INSERT)
     await connection.query(
-      `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, contact_number, name, email, company, position, status, source, channel)
-       VALUES (?, ?, ?, ?, ?, ?, 'smoke@test.com', 'Test Co', 'Tester', 'lead', 'smoke_test', 'whatsapp')`,
-      [testContactId, adminUserId, adminUserId, testPhone, testPhone, testNameInitial],
+      `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, name)
+       VALUES (?, ?, ?, ?, ?)`,
+      [testContactId, adminUserId, adminUserId, testPhone, testNameInitial],
     );
     console.log(`[Smoke Test] ✅ B. Contact created (ID: ${testContactId}).`);
 

@@ -182,6 +182,16 @@ jobs:
           DB_NAME: wapi_weaver
         run: node scripts/validate-database.js
 
+      - name: Run Database CRUD Smoke Test Post-Update
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: wapi_user
+          DB_PASSWORD: S0xbxPfKazBVT8JFy1UEOjIsrjox
+          DB_NAME: wapi_weaver
+          ADMIN_EMAIL: adm@vw2digital.com.br
+        run: node scripts/smoke-test-database.js
+
       - name: Validate Schema Parity Contract Post-Update
         env:
           DB_HOST: 127.0.0.1
