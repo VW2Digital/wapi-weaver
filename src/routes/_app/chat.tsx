@@ -2859,9 +2859,7 @@ function ChatPage() {
           const mediaId = res.data.id;
           const payload: any = {
             type: "audio",
-            audio: mediaId
-              ? { id: mediaId, voice: true }
-              : { link: res.data.link, voice: true },
+            audio: mediaId ? { id: mediaId } : { link: res.data.link },
             reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
           };
 
@@ -2969,9 +2967,7 @@ function ChatPage() {
               ? {
                   to: selectedPhone,
                   type: "audio",
-                  audio: mediaId
-                    ? { id: mediaId, voice: true }
-                    : { link: res.data.link, voice: true },
+                  audio: mediaId ? { id: mediaId } : { link: res.data.link },
                   reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
                 }
               : pendingMediaType === "video"

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-import { transcodeAudioToOggOpus } from "@/lib/audio-transcode.server";
+import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
 
 function getAuthUserId(request: Request): string {
@@ -211,17 +211,17 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
                 file.type || "application/octet-stream",
                 file.name || "media",
               );
-          // voice=true exige Ogg/Opus. Normalizamos também MP3/M4A/AAC/AMR
-          // para que anexos de áudio sigam a mesma regra da gravação.
+          // Normaliza toda origem de áudio para um MP3 real. Isso evita enviar
+          // WebM/Ogg apenas renomeado, que a Meta classifica como octet-stream.
           const uploadBuffer = initialFile.mimeType.startsWith("audio/")
-            ? await transcodeAudioToOggOpus(fileBuffer)
+            ? await transcodeAudioToMp3(fileBuffer)
             : fileBuffer;
           const detectedFile = detectMediaFile(
             uploadBuffer,
             initialFile.mimeType.startsWith("audio/")
-              ? "audio/ogg"
+              ? "audio/mpeg"
               : file.type || "application/octet-stream",
-            initialFile.mimeType.startsWith("audio/") ? "audio.ogg" : file.name || "media",
+            initialFile.mimeType.startsWith("audio/") ? "audio.mp3" : file.name || "media",
           );
           const mimeType = detectedFile.mimeType;
           const fileName = detectedFile.fileName;

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-import { transcodeAudioToOggOpus } from "@/lib/audio-transcode.server";
+import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
 
@@ -139,10 +139,10 @@ async function prepareStepMediaForMeta(
       let uploadFilename = `document.${ext}`;
       let binaryBuffer = Buffer.from(base64Data, "base64");
       if (isAudioStep) {
-        binaryBuffer = Buffer.from(await transcodeAudioToOggOpus(binaryBuffer));
-        mimeType = "audio/ogg";
-        ext = "ogg";
-        uploadFilename = "audio.ogg";
+        binaryBuffer = Buffer.from(await transcodeAudioToMp3(binaryBuffer));
+        mimeType = "audio/mpeg";
+        ext = "mp3";
+        uploadFilename = "audio.mp3";
       }
 
       const mediaId = await uploadBufferToMeta(
@@ -216,10 +216,10 @@ async function prepareStepMediaForMeta(
         let mimeType = EXT_MIME[ext] || "application/octet-stream";
         let uploadFilename = path.basename(foundPath) || `document.${ext}`;
         if (isAudioStep) {
-          binaryBuffer = Buffer.from(await transcodeAudioToOggOpus(binaryBuffer));
-          ext = "ogg";
-          mimeType = "audio/ogg";
-          uploadFilename = `${path.parse(uploadFilename).name || "audio"}.ogg`;
+          binaryBuffer = Buffer.from(await transcodeAudioToMp3(binaryBuffer));
+          ext = "mp3";
+          mimeType = "audio/mpeg";
+          uploadFilename = `${path.parse(uploadFilename).name || "audio"}.mp3`;
         }
 
         const mediaId = await uploadBufferToMeta(

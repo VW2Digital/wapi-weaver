@@ -856,9 +856,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         payload.image = data.image?.id ? { id: data.image.id } : { link: data.image?.link };
       } else if (data.type === "audio") {
         payload.type = "audio";
-        payload.audio = data.audio?.id
-          ? { id: data.audio.id, voice: data.audio.voice ?? false }
-          : { link: data.audio?.link, voice: data.audio?.voice ?? false };
+        payload.audio = data.audio?.id ? { id: data.audio.id } : { link: data.audio?.link };
       } else if (data.type === "video") {
         payload.type = "video";
         payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };

@@ -1,8 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import {
-  isOggOpus,
-  transcodeAudioToOggOpus,
-} from "../../src/lib/audio-transcode.server";
+import { isMp3, transcodeAudioToMp3 } from "../../src/lib/audio-transcode.server";
 
 function createPcmWav() {
   const sampleRate = 8000;
@@ -28,16 +25,14 @@ function createPcmWav() {
   return new Uint8Array(wav);
 }
 
-describe("transcodeAudioToOggOpus", () => {
-  test("não aceita um arquivo apenas com assinatura OggS", () => {
-    expect(isOggOpus(new Uint8Array([0x4f, 0x67, 0x67, 0x53, ...new Array(40).fill(0)]))).toBe(
-      false,
-    );
+describe("transcodeAudioToMp3", () => {
+  test("não aceita um arquivo apenas renomeado como MP3", () => {
+    expect(isMp3(new Uint8Array([0x4f, 0x67, 0x67, 0x53, ...new Array(40).fill(0)]))).toBe(false);
   });
 
-  test("gera contêiner Ogg com stream Opus verificável", async () => {
-    const converted = await transcodeAudioToOggOpus(createPcmWav());
-    expect(isOggOpus(converted)).toBe(true);
-    expect(Buffer.from(converted).includes(Buffer.from("OpusHead", "ascii"))).toBe(true);
+  test("gera um arquivo MP3 real e verificável", async () => {
+    const converted = await transcodeAudioToMp3(createPcmWav());
+    expect(isMp3(converted)).toBe(true);
+    expect(Buffer.from(converted).subarray(0, 3).toString("ascii")).toBe("ID3");
   });
 });

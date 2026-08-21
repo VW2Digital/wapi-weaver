@@ -1,20 +1,14 @@
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
 
-export function isOggOpus(bytes: Uint8Array) {
-  if (
-    bytes.length < 32 ||
-    bytes[0] !== 0x4f ||
-    bytes[1] !== 0x67 ||
-    bytes[2] !== 0x67 ||
-    bytes[3] !== 0x53
-  ) {
-    return false;
-  }
-  return Buffer.from(bytes).includes(Buffer.from("OpusHead", "ascii"));
+export function isMp3(bytes: Uint8Array) {
+  if (bytes.length < 4) return false;
+  const hasId3Header = bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33;
+  const hasMpegFrameSync = bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
+  return hasId3Header || hasMpegFrameSync;
 }
 
-export async function transcodeAudioToOggOpus(bytes: Uint8Array): Promise<Uint8Array> {
+export async function transcodeAudioToMp3(bytes: Uint8Array): Promise<Uint8Array> {
   const executable = ffmpegPath;
   if (!executable) throw new Error("FFmpeg não está disponível para converter o áudio.");
 
@@ -29,17 +23,15 @@ export async function transcodeAudioToOggOpus(bytes: Uint8Array): Promise<Uint8A
       "0:a:0",
       "-vn",
       "-acodec",
-      "libopus",
+      "libmp3lame",
       "-ar",
-      "48000",
+      "44100",
       "-ac",
       "1",
       "-b:a",
-      "32k",
-      "-application",
-      "voip",
+      "64k",
       "-f",
-      "ogg",
+      "mp3",
       "pipe:1",
     ]);
     const output: Buffer[] = [];
@@ -57,8 +49,8 @@ export async function transcodeAudioToOggOpus(bytes: Uint8Array): Promise<Uint8A
         return;
       }
       const converted = new Uint8Array(Buffer.concat(output));
-      if (!isOggOpus(converted)) {
-        reject(new Error("A conversão não produziu um arquivo Ogg/Opus válido."));
+      if (!isMp3(converted)) {
+        reject(new Error("A conversão não produziu um arquivo MP3 válido."));
         return;
       }
       resolve(converted);
