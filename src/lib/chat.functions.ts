@@ -575,7 +575,16 @@ export const getChatMessages = createServerFn({ method: "POST" })
         asJsonRecord(meta?.reaction) ||
         asJsonRecord(rawMessage?.reaction) ||
         (row.type === "reaction" ? { emoji: row.body, message_id: row.reply_to_message_id } : null);
-      const messageType = (row.type || "text") as ChatMessageType;
+      let messageType = (row.type || "text") as ChatMessageType;
+      if (messageType === "text" || messageType === "media" || !messageType) {
+        if (imageData || meta?.image || rawMessage?.type === "image") messageType = "image";
+        else if (videoData || meta?.video || rawMessage?.type === "video") messageType = "video";
+        else if (audioData || meta?.audio || rawMessage?.type === "audio") messageType = "audio";
+        else if (documentData || meta?.document || rawMessage?.type === "document") messageType = "document";
+        else if (stickerData || meta?.sticker || rawMessage?.type === "sticker") messageType = "sticker";
+        else if (locationData || meta?.location || rawMessage?.type === "location") messageType = "location";
+        else if (contactsData || meta?.contacts || rawMessage?.type === "contacts") messageType = "contacts";
+      }
 
       return {
         id: row.id,
@@ -588,14 +597,29 @@ export const getChatMessages = createServerFn({ method: "POST" })
         status: row.status || null,
         sender_name: row.sender_name || null,
         sender_wa_id: row.sender_wa_id || null,
-        reaction: row.type === "reaction" ? reactionData : null,
-        image: row.type === "image" ? (imageData ? { id: imageData.id, link: imageData.link || meta?.media_url, caption: imageData.caption, mime_type: imageData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
-        audio: row.type === "audio" ? (audioData ? { id: audioData.id, link: audioData.link || meta?.media_url, mime_type: audioData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
-        video: row.type === "video" ? (videoData ? { id: videoData.id, link: videoData.link || meta?.media_url, caption: videoData.caption, mime_type: videoData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
-        document: row.type === "document" ? (documentData ? { id: documentData.id, link: documentData.link || meta?.media_url, filename: documentData.filename, caption: documentData.caption, mime_type: documentData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
-        sticker: row.type === "sticker" ? (stickerData ? { id: stickerData.id, link: stickerData.link || meta?.media_url, mime_type: stickerData.mime_type } : (meta?.media_url ? { link: meta.media_url } : null)) : null,
-        location: row.type === "location" ? locationData : null,
-        contacts: row.type === "contacts" ? contactsData : null,
+        reaction: messageType === "reaction" ? reactionData : null,
+        image:
+          messageType === "image" || imageData
+            ? (imageData ? { id: imageData.id, link: imageData.link || meta?.media_url, caption: imageData.caption, mime_type: imageData.mime_type } : (meta?.media_url ? { link: meta.media_url } : (row.body ? { id: row.body } : null)))
+            : null,
+        audio:
+          messageType === "audio" || audioData
+            ? (audioData ? { id: audioData.id, link: audioData.link || meta?.media_url, mime_type: audioData.mime_type } : (meta?.media_url ? { link: meta.media_url } : (row.body ? { id: row.body } : null)))
+            : null,
+        video:
+          messageType === "video" || videoData
+            ? (videoData ? { id: videoData.id, link: videoData.link || meta?.media_url, caption: videoData.caption, mime_type: videoData.mime_type } : (meta?.media_url ? { link: meta.media_url } : (row.body ? { id: row.body } : null)))
+            : null,
+        document:
+          messageType === "document" || documentData
+            ? (documentData ? { id: documentData.id, link: documentData.link || meta?.media_url, filename: documentData.filename, caption: documentData.caption, mime_type: documentData.mime_type } : (meta?.media_url ? { link: meta.media_url } : (row.body ? { id: row.body } : null)))
+            : null,
+        sticker:
+          messageType === "sticker" || stickerData
+            ? (stickerData ? { id: stickerData.id, link: stickerData.link || meta?.media_url, mime_type: stickerData.mime_type } : (meta?.media_url ? { link: meta.media_url } : (row.body ? { id: row.body } : null)))
+            : null,
+        location: messageType === "location" ? locationData : null,
+        contacts: messageType === "contacts" ? contactsData : null,
         context: row.reply_to_message_id ? { message_id: row.reply_to_message_id } : null,
         metadata: meta || rawPayload || null,
       };

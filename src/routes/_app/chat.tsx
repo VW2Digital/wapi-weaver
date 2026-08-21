@@ -4903,8 +4903,7 @@ function ChatPage() {
                                           (msg.metadata as any)?.audio ||
                                           (msg.metadata as any)?.type === "audio" ||
                                           (msg.metadata as any)?.message?.type === "audio" ||
-                                          (msg.metadata as any)?.message?.audio ||
-                                          (bodyText && /^\d{15,18}$/.test(bodyText.trim()))
+                                          (msg.metadata as any)?.message?.audio
                                         ) {
                                           type = "audio";
                                         }
