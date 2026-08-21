@@ -1031,7 +1031,9 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         provider_account_id: phoneNumberId,
         metadata: {
           message: m,
-          contacts: waContacts,
+          // `value.contacts` identifica o remetente do webhook; não é o
+          // conteúdo de uma mensagem `contacts` compartilhada pelo cliente.
+          sender_contacts: waContacts,
           metadata: value?.metadata ?? null,
         },
         raw_payload: value ?? null,

@@ -6,6 +6,7 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { buildWhatsAppBotMessage, type WhatsAppBotStep } from "@/lib/meta-whatsapp-message";
 import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
+import { resolveSharedContactsData } from "@/lib/chat-message-content";
 import db from "./db";
 
 type JsonValue = string | number | boolean | null | undefined | JsonRecord | JsonValue[];
@@ -682,13 +683,16 @@ export const getChatMessages = createServerFn({ method: "POST" })
         asJsonRecord(metaMessage?.location) ||
         asJsonRecord(rawMessage?.location) ||
         null;
-      const contactsData = Array.isArray(meta?.contacts)
-        ? meta.contacts
-        : Array.isArray(metaMessage?.contacts)
-          ? metaMessage.contacts
-          : Array.isArray(rawMessage?.contacts)
-            ? rawMessage.contacts
-            : null;
+      // Em webhooks da Meta, `value.contacts` descreve o remetente e existe
+      // também em mensagens de texto/mídia. Versões anteriores salvaram esse
+      // array em `metadata.contacts`; ele só pode ser tratado como conteúdo
+      // quando a própria linha foi persistida com type="contacts".
+      const contactsData = resolveSharedContactsData<JsonValue>(
+        row.type,
+        meta,
+        metaMessage,
+        rawMessage,
+      );
       const reactionData =
         asJsonRecord(meta?.reaction) ||
         asJsonRecord(rawMessage?.reaction) ||
@@ -701,7 +705,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
         else if (documentData || meta?.document || rawMessage?.type === "document") messageType = "document";
         else if (stickerData || meta?.sticker || rawMessage?.type === "sticker") messageType = "sticker";
         else if (locationData || meta?.location || rawMessage?.type === "location") messageType = "location";
-        else if (contactsData || meta?.contacts || rawMessage?.type === "contacts") messageType = "contacts";
+        else if (contactsData || rawMessage?.type === "contacts") messageType = "contacts";
       }
 
       return {
