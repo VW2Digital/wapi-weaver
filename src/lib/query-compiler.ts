@@ -260,8 +260,11 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
     whereClauses.push(`\`${table}\`.\`user_id\` = ?`);
     params.push(userId);
   } else if (table === "profiles" && !isSenderAdmin) {
-    whereClauses.push(`\`${table}\`.\`id\` = ?`);
-    params.push(userId);
+    const hasExplicitIdFilter = Array.isArray(filters) && filters.some((f: any) => f?.column === "id");
+    if (!hasExplicitIdFilter) {
+      whereClauses.push(`\`${table}\`.\`id\` = ?`);
+      params.push(userId);
+    }
   }
 
   for (const filter of filters) {

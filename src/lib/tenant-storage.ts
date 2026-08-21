@@ -66,7 +66,9 @@ export async function assertTenantStoragePath(requestedPath: unknown, user: Auth
   if (
     !access.isMaster &&
     normalized !== user.tenantId &&
-    !normalized.startsWith(`${user.tenantId}/`)
+    !normalized.startsWith(`${user.tenantId}/`) &&
+    normalized !== user.userId &&
+    !normalized.startsWith(`${user.userId}/`)
   ) {
     throw Object.assign(new Error("File not found or access denied"), { statusCode: 403 });
   }

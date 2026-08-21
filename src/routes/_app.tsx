@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getSidebarOrder, getLicenseStatus } from "@/lib/admin.functions";
 import { getLicenseRole } from "@/lib/license-admin.functions";
+import { getProfile } from "@/lib/profile.functions";
 import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -358,17 +359,12 @@ function AppLayout() {
     [router, isSubscriptionBlocked],
   );
 
+  const fetchProfile = useServerFn(getProfile);
+
   const profileSidebarQuery = useQuery({
     queryKey: ["profile-sidebar"],
-    queryFn: async () => {
-      const { data } = await (db as any)
-        .from("profiles")
-        .select("avatar_url, display_name, full_name")
-        .eq("id", user!.id)
-        .maybeSingle();
-      return data as { avatar_url?: string | null; display_name?: string | null; full_name?: string | null } | null;
-    },
-    enabled: !!user,
+    queryFn: () => fetchProfile(),
+    enabled: !loading && !!user,
     staleTime: 60_000,
   });
 
