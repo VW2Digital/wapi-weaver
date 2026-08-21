@@ -635,7 +635,7 @@ fi
 
 # 6.3 Build da imagem da aplicação e subir infraestrutura
 echo "  Executando build da aplicação (sem cache antigo)..."
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull app
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull --no-cache app
 
 echo "  Subindo serviços de infraestrutura (MySQL e Redis)..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d mysql redis
@@ -877,7 +877,7 @@ docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/test-pay
 
 # Subir serviço da aplicação após banco criado, migrado e validado
 echo "  Iniciando serviço da aplicação (app)..."
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d app
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d --force-recreate app
 
 # Aguardar disponibilidade HTTP e Healthcheck Docker do App
 echo "  Aguardando disponibilidade HTTP da aplicação (porta 3003)..."
@@ -885,6 +885,14 @@ wait_for_app_http
 
 echo "  Aguardando transição do status do container para 'healthy'..."
 wait_for_app_healthy
+
+# Confirmar que o container em execução pertence exatamente ao commit obtido
+# de origin/main. Isso impede que um update termine com uma imagem antiga ativa.
+RUNNING_APP_SHA=$(docker compose -f "${COMPOSE_FILE}" exec -T app printenv APP_GIT_SHA 2>/dev/null | tr -d '\r\n' || true)
+if [ "${RUNNING_APP_SHA}" != "${LOCAL_SHA}" ]; then
+  dump_diagnostics_and_exit "FALHA: container da aplicação executa o SHA '${RUNNING_APP_SHA:-desconhecido}', mas o instalador esperava '${LOCAL_SHA}'."
+fi
+print_ok "Container validado no commit correto: ${RUNNING_APP_SHA}"
 
 # Validar Instalação completa (HTTP/Auth/Cache)
 echo "  Executando validador automatizado pós-instalação..."
