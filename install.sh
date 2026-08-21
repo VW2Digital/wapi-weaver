@@ -29,6 +29,7 @@ FORCE_CLONE=0
 CONFIGURE_SSL_ONLY=0
 ENABLE_PHPMYADMIN="n"
 DATABASE_DUMP=""
+DOMAIN_OVERRIDE=""
 
 print_header() {
   echo -e "${GREEN}"
@@ -105,6 +106,7 @@ Opções:
   --database-dump=ARQUIVO Restaura um arquivo de dump (.sql ou .sql.gz) no banco.
   --force-clone           Força o download limpo do código do GitHub.
   --configure-ssl         Executa apenas a emissão/configuração do certificado SSL Let's Encrypt.
+  --domain=DOMINIO        Define ou corrige o domínio público da aplicação.
   -h, --help              Exibe esta ajuda.
 EOF
 }
@@ -124,6 +126,9 @@ for arg in "$@"; do
     --configure-ssl)
       CONFIGURE_SSL_ONLY=1
       ;;
+    --domain=*)
+      DOMAIN_OVERRIDE="${arg#*=}"
+      ;;
     --database-dump=*)
       DATABASE_DUMP="${arg#*=}"
       FRESH_DATABASE=1
@@ -141,6 +146,45 @@ for arg in "$@"; do
 done
 
 EXPLICIT_UPDATE_REQUESTED=${UPDATE_MODE}
+
+normalize_domain() {
+  local value="${1:-}"
+  value="${value%%,*}"
+  value="${value//\"/}"
+  value="${value//\'/}"
+  value=$(echo "${value}" | tr '[:upper:]' '[:lower:]' | xargs)
+  value="${value#http://}"
+  value="${value#https://}"
+  value="${value%%/*}"
+  echo "${value}"
+}
+
+is_valid_public_domain() {
+  local value
+  value=$(normalize_domain "${1:-}")
+  [[ "${value}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]]
+}
+
+domain_from_env_file() {
+  local env_file="$1"
+  local value=""
+  if [ -f "${env_file}" ]; then
+    value=$(grep '^APP_URL=' "${env_file}" 2>/dev/null | cut -d '=' -f2- || true)
+    [ -n "${value}" ] || value=$(grep '^CORS_ALLOWED_ORIGINS=' "${env_file}" 2>/dev/null | cut -d '=' -f2- || true)
+  fi
+  normalize_domain "${value}"
+}
+
+set_env_value() {
+  local env_file="$1"
+  local key="$2"
+  local value="$3"
+  if grep -q "^${key}=" "${env_file}" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=\"${value}\"|" "${env_file}"
+  else
+    printf '\n%s="%s"\n' "${key}" "${value}" >> "${env_file}"
+  fi
+}
 
 wait_for_app_http() {
   local max_attempts=60
@@ -315,11 +359,35 @@ if [ "$CONFIGURE_SSL_ONLY" -eq 1 ]; then
     print_error "Arquivo .env não encontrado em ${APP_DIR}."
     exit 1
   fi
-  DOMAIN=$(grep '^CORS_ALLOWED_ORIGINS=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
-  if [ -z "$DOMAIN" ]; then
-    read -p "Digite o domínio para emissão do SSL: " DOMAIN
-  fi
+  DOMAIN=$(normalize_domain "${DOMAIN_OVERRIDE}")
+  [ -n "${DOMAIN}" ] || DOMAIN=$(domain_from_env_file "${APP_DIR}/.env")
+  while ! is_valid_public_domain "${DOMAIN}"; do
+    [ -z "${DOMAIN}" ] || print_warn "Domínio salvo inválido para produção: '${DOMAIN}'."
+    read -p "Digite o domínio público para emissão do SSL (ex: app.seudominio.com): " DOMAIN
+    DOMAIN=$(normalize_domain "${DOMAIN}")
+  done
   read -p "Digite o e-mail para avisos do SSL: " SSL_EMAIL
+  SSL_EMAIL=$(echo "${SSL_EMAIL}" | tr '[:upper:]' '[:lower:]' | xargs)
+  if [[ ! "${SSL_EMAIL}" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+    print_error "E-mail de SSL inválido."
+    exit 1
+  fi
+  set_env_value "${APP_DIR}/.env" "APP_URL" "https://${DOMAIN}"
+  set_env_value "${APP_DIR}/.env" "CORS_ALLOWED_ORIGINS" "https://${DOMAIN}"
+  set_env_value "${APP_DIR}/.env" "SSL_EMAIL" "${SSL_EMAIL}"
+  cp "${APP_DIR}/.env" "${PERSISTENT_ENV_FILE}"
+  chmod 600 "${APP_DIR}/.env" "${PERSISTENT_ENV_FILE}"
+
+  cd "${APP_DIR}"
+  docker compose -f "${COMPOSE_FILE}" up -d --force-recreate app
+  wait_for_app_http
+
+  NGINX_CONF="/etc/nginx/sites-available/wapi-weaver"
+  if [ -f "${NGINX_CONF}" ]; then
+    sed -i -E "s|^[[:space:]]*server_name[[:space:]]+[^;]+;|    server_name ${DOMAIN};|" "${NGINX_CONF}"
+    nginx -t
+    systemctl reload nginx
+  fi
   certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect
   systemctl reload nginx
   print_ok "SSL configurado e testado com sucesso."
@@ -331,32 +399,29 @@ fi
 # ---------------------------------------------------------------------------
 print_step "[1/8] Coletando parâmetros de configuração..."
 
-DOMAIN=""
+DOMAIN=$(normalize_domain "${DOMAIN_OVERRIDE}")
 ADMIN_EMAIL=""
 ADMIN_PASSWORD=""
 SSL_EMAIL=""
 
-if [ "$UPDATE_MODE" -eq 0 ]; then
-  # 1.1 Domínio
-  while true; do
-    if [ -f "${APP_DIR}/.env" ]; then
-      DOMAIN_ENV=$(grep '^CORS_ALLOWED_ORIGINS=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
-      if [ -n "$DOMAIN_ENV" ]; then
-        DOMAIN="$DOMAIN_ENV"
-      fi
-    fi
-    if [ -z "$DOMAIN" ]; then
-      read -p "Digite o domínio da aplicação (ex: app.seudominio.com): " DOMAIN
-    fi
-    DOMAIN=$(echo "$DOMAIN" | tr '[:upper:]' '[:lower:]' | sed 's|https://||g' | sed 's|http://||g' | tr -d '/' | xargs)
-    if [ -n "$DOMAIN" ]; then
-      break
-    else
-      print_error "Domínio inválido. Tente novamente."
-      DOMAIN=""
-    fi
-  done
+if [ -z "${DOMAIN}" ] && [ -f "${APP_DIR}/.env" ]; then
+  DOMAIN=$(domain_from_env_file "${APP_DIR}/.env")
+fi
 
+while ! is_valid_public_domain "${DOMAIN}"; do
+  [ -z "${DOMAIN}" ] || print_warn "Ignorando domínio local ou inválido salvo anteriormente: '${DOMAIN}'."
+  DOMAIN=""
+  if [ ! -t 0 ]; then
+    print_error "Domínio público ausente. Informe --domain=app.seudominio.com."
+    exit 1
+  fi
+  read -p "Digite o domínio público da aplicação (ex: app.seudominio.com): " DOMAIN
+  DOMAIN=$(normalize_domain "${DOMAIN}")
+done
+
+print_ok "Domínio público validado: ${DOMAIN}"
+
+if [ "$UPDATE_MODE" -eq 0 ]; then
   # 1.2 E-mail do Admin Master
   while true; do
     if [ -f "${APP_DIR}/.env" ]; then
@@ -570,8 +635,7 @@ fi
 
 # Preservar DOMAIN, ADMIN_EMAIL e ADMIN_PASSWORD no modo UPDATE (ou se não informados interativamente)
 if [ -z "${DOMAIN}" ]; then
-  DOMAIN=$(grep '^CORS_ALLOWED_ORIGINS=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
-  [ -n "${DOMAIN}" ] || DOMAIN=$(grep '^APP_URL=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | sed 's|https://||g' | tr -d '"' | tr -d "'" || true)
+  DOMAIN=$(domain_from_env_file "${ENV_FILE}")
 fi
 
 if [ -z "${ADMIN_EMAIL}" ]; then
@@ -582,9 +646,20 @@ if [ -z "${ADMIN_PASSWORD}" ]; then
   ADMIN_PASSWORD=$(grep '^ADMIN_PASSWORD=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 fi
 
+if [ -z "${SSL_EMAIL}" ]; then
+  SSL_EMAIL=$(grep '^SSL_EMAIL=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+  [ -n "${SSL_EMAIL}" ] || SSL_EMAIL="${ADMIN_EMAIL}"
+fi
+
+if [[ ! "${SSL_EMAIL}" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+  print_error "FALHA CRÍTICA: O e-mail para emissão do SSL é inválido."
+  exit 1
+fi
+
 # Validação estrita dos parâmetros obrigatórios antes de sobrescrever o .env
-if [ -z "${DOMAIN}" ]; then
-  print_error "FALHA CRÍTICA: O domínio (DOMAIN) está vazio e não pôde ser restaurado do .env existente."
+DOMAIN=$(normalize_domain "${DOMAIN}")
+if ! is_valid_public_domain "${DOMAIN}"; then
+  print_error "FALHA CRÍTICA: O domínio público é inválido. Use --domain=app.seudominio.com."
   exit 1
 fi
 
@@ -622,6 +697,7 @@ MERCADOPAGO_ENCRYPTION_KEY="${MP_ENC_KEY_VAL}"
 # Domínio e CORS
 APP_URL="https://${DOMAIN}"
 CORS_ALLOWED_ORIGINS="https://${DOMAIN}"
+SSL_EMAIL="${SSL_EMAIL}"
 
 # Administrador Master
 ADMIN_EMAIL="${ADMIN_EMAIL}"
@@ -1000,21 +1076,26 @@ fi
 # Checar apontamento DNS antes de emitir SSL
 print_step "Verificando resolução de DNS para ${DOMAIN}..."
 VPS_IP=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com || echo "")
-RESOLVED_IP=$(dig +short "${DOMAIN}" | tail -n1 || echo "")
+RESOLVED_IPS=$(dig +short A "${DOMAIN}" 2>/dev/null | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' | sort -u | paste -sd ',' - || true)
 
 SSL_ACTIVE=0
 
-if [ -n "$VPS_IP" ] && [ -n "$RESOLVED_IP" ] && [ "$VPS_IP" == "$RESOLVED_IP" ]; then
-  echo "  DNS resolvido corretamente para o IP da VPS (${VPS_IP}). Emitindo certificado SSL..."
+if [ -n "${RESOLVED_IPS}" ]; then
+  if echo ",${RESOLVED_IPS}," | grep -Fq ",${VPS_IP},"; then
+    echo "  DNS resolvido diretamente para o IP da VPS (${VPS_IP})."
+  else
+    print_warn "DNS resolvido para ${RESOLVED_IPS}, diferente do IP de origem ${VPS_IP}. O domínio pode estar protegido por proxy/CDN."
+  fi
+  echo "  Resolução DNS confirmada. Emitindo certificado SSL..."
   if certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${SSL_EMAIL}" --redirect; then
     systemctl reload nginx || true
     SSL_ACTIVE=1
     print_ok "Certificado SSL configurado com sucesso."
   else
-    dump_diagnostics_and_exit "DNS aponta para a VPS, mas a emissão do certificado SSL via Certbot falhou."
+    dump_diagnostics_and_exit "O domínio resolve no DNS, mas a emissão do certificado SSL via Certbot falhou. Verifique se o proxy encaminha as portas 80/443 para esta VPS."
   fi
 else
-  print_warn "O domínio '${DOMAIN}' (IP resolvido: ${RESOLVED_IP:-nenhum}) ainda não aponta para o IP desta VPS (${VPS_IP})."
+  print_warn "O domínio '${DOMAIN}' ainda não possui registro IPv4 (A) público resolvível. IP desta VPS: ${VPS_IP:-desconhecido}."
   print_warn "A instalação prosseguirá via HTTP. Após atualizar o DNS no seu provedor, execute: sudo bash install.sh --configure-ssl"
 fi
 
