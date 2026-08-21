@@ -57,7 +57,7 @@ import {
   disconnectFacebookPage,
   PROFILE_MASKED_SECRET,
 } from "@/lib/profile.functions";
-import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
+import { inferMetaMediaType, uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { onboardWhatsApp } from "@/lib/whatsapp-business-profile.functions";
 import {
   getCurrentUserRoles,
@@ -7675,7 +7675,11 @@ function AdvancedToolsSection() {
   const uploadMediaMut = useMutation({
     mutationFn: async () => {
       if (!selectedFile) throw new Error("Selecione um arquivo primeiro.");
-      return uploadMetaMediaViaApi(activePhoneId, selectedFile);
+      return uploadMetaMediaViaApi(
+        activePhoneId,
+        selectedFile,
+        inferMetaMediaType(selectedFile),
+      );
     },
     onSuccess: (res: any) => {
       if (res.ok) {

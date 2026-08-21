@@ -1,14 +1,24 @@
-const MAX_MEDIA_UPLOAD_BYTES = 20 * 1024 * 1024;
+export type MetaMediaType = "image" | "audio" | "video" | "document" | "sticker";
 
-export async function uploadMetaMediaViaApi(phoneId: string, file: File) {
+export function inferMetaMediaType(file: File): MetaMediaType {
+  const mimeType = file.type.toLowerCase();
+  if (mimeType === "image/webp") return "sticker";
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType.startsWith("video/")) return "video";
+  return "document";
+}
+
+export async function uploadMetaMediaViaApi(
+  phoneId: string,
+  file: File,
+  mediaType: MetaMediaType,
+) {
   if (!phoneId) {
     throw new Error("ID do número de telefone não configurado.");
   }
   if (!file) {
     throw new Error("Arquivo não informado.");
-  }
-  if (file.size > MAX_MEDIA_UPLOAD_BYTES) {
-    throw new Error("Arquivo muito grande. Máximo permitido: 20MB.");
   }
 
   const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
@@ -19,6 +29,7 @@ export async function uploadMetaMediaViaApi(phoneId: string, file: File) {
   const form = new FormData();
   form.append("phoneId", phoneId);
   form.append("file", file);
+  form.append("mediaType", mediaType);
 
   const r = await fetch("/api/whatsapp/media-upload", {
     method: "POST",

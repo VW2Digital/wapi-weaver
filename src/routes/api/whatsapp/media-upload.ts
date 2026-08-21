@@ -1,9 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
-import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
@@ -38,6 +35,75 @@ function json(data: any, status = 200) {
 
 function isWebM(bytes: Uint8Array) {
   return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+}
+
+function isAnimatedWebP(bytes: Uint8Array) {
+  for (let index = 12; index <= bytes.length - 4; index += 1) {
+    if (
+      bytes[index] === 0x41 &&
+      bytes[index + 1] === 0x4e &&
+      bytes[index + 2] === 0x49 &&
+      bytes[index + 3] === 0x4d
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type MediaType = "image" | "audio" | "video" | "document" | "sticker";
+
+const MEDIA_RULES: Record<MediaType, { maxBytes: number; mimeTypes: Set<string> }> = {
+  image: {
+    maxBytes: 5 * 1024 * 1024,
+    mimeTypes: new Set(["image/jpeg", "image/png"]),
+  },
+  audio: {
+    maxBytes: 16 * 1024 * 1024,
+    mimeTypes: new Set([
+      "audio/aac",
+      "audio/mp4",
+      "audio/mpeg",
+      "audio/amr",
+      "audio/ogg",
+      "audio/webm",
+    ]),
+  },
+  video: {
+    maxBytes: 16 * 1024 * 1024,
+    mimeTypes: new Set(["video/mp4", "video/3gpp"]),
+  },
+  document: {
+    maxBytes: 100 * 1024 * 1024,
+    mimeTypes: new Set([
+      "text/plain",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.ms-excel",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ]),
+  },
+  sticker: {
+    maxBytes: 500 * 1024,
+    mimeTypes: new Set(["image/webp"]),
+  },
+};
+
+function formatMetaError(body: any, fallback: string) {
+  const error = body?.error;
+  if (!error) return fallback;
+  const identifiers = [
+    error.code != null ? `code ${error.code}` : "",
+    error.error_subcode != null ? `subcode ${error.error_subcode}` : "",
+    error.fbtrace_id ? `fbtrace_id ${error.fbtrace_id}` : "",
+  ].filter(Boolean);
+  const details = error.error_data?.details;
+  return [error.message || fallback, details, identifiers.length ? `(${identifiers.join(", ")})` : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 async function transcodeAudioToOgg(bytes: Uint8Array): Promise<Uint8Array> {
@@ -112,16 +178,17 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           const effectiveUserId = await resolveEffectiveUserId(userId);
 
           const form = await request.formData();
-          const phoneId = String(form.get("phoneId") || "").trim();
+          const requestedPhoneId = String(form.get("phoneId") || "").trim();
+          const mediaType = String(form.get("mediaType") || "") as MediaType;
           const file = form.get("file");
 
-          if (!phoneId || !(file instanceof File)) {
-            return json({ ok: false, error: "Envie phoneId e file no multipart/form-data." }, 400);
+          if (!requestedPhoneId || !(file instanceof File) || !MEDIA_RULES[mediaType]) {
+            return json({ ok: false, error: "Envie phoneId, mediaType e file válidos no multipart/form-data." }, 400);
           }
 
           const { data: p, error: profErr } = await dbAdmin
             .from("profiles")
-            .select("whatsapp_access_token, meta_graph_version")
+            .select("whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version")
             .eq("id", effectiveUserId)
             .maybeSingle();
 
@@ -129,8 +196,40 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             return json({ ok: false, error: profErr.message }, 400);
           }
 
-          if (!p?.whatsapp_access_token) {
-            return json({ ok: false, error: "Access Token não configurado." }, 400);
+          if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
+            return json(
+              { ok: false, error: "Phone Number ID ou Access Token não configurado." },
+              400,
+            );
+          }
+          const rule = MEDIA_RULES[mediaType];
+          const declaredMime = (file.type || "application/octet-stream").toLowerCase();
+          if (!rule.mimeTypes.has(declaredMime)) {
+            return json(
+              {
+                ok: false,
+                error: `Formato ${declaredMime} não suportado pela Cloud API para ${mediaType}.`,
+              },
+              415,
+            );
+          }
+          const fileBuffer = new Uint8Array(await file.arrayBuffer());
+          const maxBytes =
+            mediaType === "sticker" && !isAnimatedWebP(fileBuffer)
+              ? 100 * 1024
+              : rule.maxBytes;
+          const maxSizeLabel =
+            maxBytes >= 1024 * 1024
+              ? `${Math.floor(maxBytes / 1024 / 1024)} MB`
+              : `${maxBytes / 1024} KB`;
+          if (file.size > maxBytes) {
+            return json(
+              {
+                ok: false,
+                error: `Arquivo excede o limite de ${maxSizeLabel} para ${mediaType}.`,
+              },
+              413,
+            );
           }
 
           let apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
@@ -138,7 +237,6 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             apiVersion = "v26.0";
           }
 
-          const fileBuffer = new Uint8Array(await file.arrayBuffer());
           const initialFile = isWebM(fileBuffer)
             ? { mimeType: "audio/webm" }
             : detectMediaFile(
@@ -163,45 +261,40 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           const blobBuffer = uploadBuffer.slice().buffer as ArrayBuffer;
           const fileBlob = new Blob([blobBuffer], { type: mimeType });
 
-          // Áudios são enviados pelo fluxo de URL pública da Cloud API.
-          if (mimeType.startsWith("audio/")) {
-            const extension = path.extname(fileName) || ".ogg";
-            const relativePath = `${effectiveUserId}/outbound-audio/${randomUUID()}${extension}`;
-            const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
-            const absolutePath = path.resolve(uploadsRoot, relativePath);
-            if (!absolutePath.startsWith(`${uploadsRoot}${path.sep}`)) {
-              throw new Error("Caminho inválido para armazenamento do áudio.");
-            }
-            await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-            await fs.writeFile(absolutePath, uploadBuffer);
-
-            const configuredBase =
-              process.env.PUBLIC_APP_URL || process.env.APP_URL || new URL(request.url).origin;
-            const publicBase = configuredBase.replace(/\/$/, "");
-            if (process.env.NODE_ENV === "production" && !publicBase.startsWith("https://")) {
-              throw new Error("PUBLIC_APP_URL ou APP_URL precisa usar HTTPS para a Meta acessar o áudio.");
-            }
-            const publicPath = `/api/storage/file?path=${encodeURIComponent(relativePath)}`;
-            return json({ ok: true, data: { link: `${publicBase}${publicPath}`, voice: true } }, 200);
-          }
-
           const metaForm = new FormData();
           metaForm.append("file", fileBlob, fileName);
           metaForm.append("type", mimeType);
           metaForm.append("messaging_product", "whatsapp");
 
-          const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneId}/media`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${p.whatsapp_access_token}`,
+          const r = await fetch(
+            `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/media`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${p.whatsapp_access_token}`,
+              },
+              body: metaForm,
             },
-            body: metaForm,
-          });
+          );
 
           const body = await r.json().catch(() => ({}));
           if (!r.ok) {
+            console.error("[WhatsApp Media Upload] Meta recusou a mídia", {
+              status: r.status,
+              code: body?.error?.code,
+              error_subcode: body?.error?.error_subcode,
+              details: body?.error?.error_data?.details,
+              fbtrace_id: body?.error?.fbtrace_id,
+              mediaType,
+              mimeType,
+              size: file.size,
+            });
             return json(
-              { ok: false, error: body?.error?.message ?? "Falha ao enviar mídia" },
+              {
+                ok: false,
+                error: formatMetaError(body, "Falha ao enviar mídia para a Meta."),
+                metaError: body?.error ?? null,
+              },
               r.status || 400,
             );
           }

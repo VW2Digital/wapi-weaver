@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
+import { resolveMediaContentType } from "@/lib/media-content-type";
 
 function getAuthUserId(request: Request): string {
   const url = new URL(request.url);
@@ -83,8 +84,6 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           if (!mediaDownloadUrl.startsWith("http://") && !mediaDownloadUrl.startsWith("https://")) {
             mediaDownloadUrl = `https://graph.facebook.com/${apiVersion}/${mediaDownloadUrl.replace(/^\/+/, "")}`;
           }
-          const mimeType = metaBody.mime_type || "application/octet-stream";
-
           // 3. Download binary data from Meta
           // Download Media: https://graph.facebook.com/{{Version}}/{{Media-URL}}
           const downloadResponse = await fetch(mediaDownloadUrl, {
@@ -98,14 +97,21 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             });
           }
 
-          const blob = await downloadResponse.blob();
+          const mediaBytes = new Uint8Array(await downloadResponse.arrayBuffer());
+          const mimeType = resolveMediaContentType({
+            fileName: metaBody.filename,
+            declaredMimeType: metaBody.mime_type,
+            upstreamContentType: downloadResponse.headers.get("content-type"),
+            bytes: mediaBytes,
+          });
 
           // 4. Return to client with correct mime type and headers
           const headers = new Headers();
           headers.set("Content-Type", mimeType);
-          headers.set("Content-Length", String(blob.size));
+          headers.set("Content-Length", String(mediaBytes.byteLength));
           headers.set("Accept-Ranges", "bytes");
           headers.set("Cache-Control", "public, max-age=86400, immutable");
+          headers.set("X-Content-Type-Options", "nosniff");
 
           if (download) {
             const filename = metaBody.filename || `file-${mediaId}`;
@@ -114,7 +120,7 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             headers.set("Content-Disposition", "inline");
           }
 
-          return new Response(blob, {
+          return new Response(mediaBytes, {
             status: 200,
             headers,
           });

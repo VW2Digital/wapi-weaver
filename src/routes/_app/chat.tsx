@@ -2746,14 +2746,18 @@ function ChatPage() {
       toast.error("Não foi possível reagir: identificador da mensagem ausente.");
       return;
     }
-    sendMutation.mutate({
-      type: "reaction",
-      reaction: {
-        message_id: messageId,
-        emoji,
+    sendMutation.mutate(
+      {
+        type: "reaction",
+        reaction: {
+          message_id: messageId,
+          emoji,
+        },
       },
-    });
-    toast.success(`Reação ${emoji} enviada`);
+      {
+        onSuccess: () => toast.success(`Reação ${emoji} enviada`),
+      },
+    );
   };
 
   const handleSendImage = () => {
@@ -2847,7 +2851,7 @@ function ChatPage() {
         const toastId = toast.loading("Enviando áudio gravado...");
 
         try {
-          const res = await uploadMetaMediaViaApi(phoneId, file);
+          const res = await uploadMetaMediaViaApi(phoneId, file, "audio");
           if (!res.ok || (!res.data?.id && !res.data?.link)) {
             throw new Error(res.error || "Falha ao preparar o áudio.");
           }
@@ -2914,7 +2918,7 @@ function ChatPage() {
       else if (type === "audio") mediaInputRef.current.accept = "audio/*";
       else if (type === "video") mediaInputRef.current.accept = "video/*";
       else if (type === "document") mediaInputRef.current.accept = "*/*";
-      else if (type === "sticker") mediaInputRef.current.accept = "image/webp,image/png";
+      else if (type === "sticker") mediaInputRef.current.accept = "image/webp";
 
       mediaInputRef.current.click();
     }
@@ -2938,7 +2942,7 @@ function ChatPage() {
     const toastId = toast.loading(`Enviando ${pendingMediaType} para a Meta...`);
 
     try {
-      const res = await uploadMetaMediaViaApi(phoneId, file);
+      const res = await uploadMetaMediaViaApi(phoneId, file, pendingMediaType);
 
       if (!res.ok || (!res.data?.id && !res.data?.link)) {
         throw new Error(res.error || "Falha ao preparar a mídia.");

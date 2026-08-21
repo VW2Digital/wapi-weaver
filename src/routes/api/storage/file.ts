@@ -6,6 +6,7 @@ import {
   resolveUploadFilePath,
   verifyStorageUser,
 } from "@/lib/tenant-storage";
+import { resolveMediaContentType } from "@/lib/media-content-type";
 
 // Get current directory path in ESM
 const __dirname = path.resolve();
@@ -53,40 +54,16 @@ export const Route = createFileRoute("/api/storage/file")({
 
           const fileData = fs.readFileSync(fullPath);
 
-          // Determine mime type
-          const ext = path.extname(fullPath).toLowerCase();
-          const MIME_TYPES: Record<string, string> = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".webp": "image/webp",
-            ".gif": "image/gif",
-            ".svg": "image/svg+xml",
-            ".pdf": "application/pdf",
-            ".doc": "application/msword",
-            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xls": "application/vnd.ms-excel",
-            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".ppt": "application/vnd.ms-powerpoint",
-            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            ".txt": "text/plain",
-            ".csv": "text/csv",
-            ".zip": "application/zip",
-            ".mp3": "audio/mpeg",
-            ".ogg": "audio/ogg",
-            ".opus": "audio/ogg",
-            ".m4a": "audio/mp4",
-            ".aac": "audio/aac",
-            ".amr": "audio/amr",
-            ".wav": "audio/wav",
-            ".mp4": "video/mp4",
-          };
-          const contentType = MIME_TYPES[ext] || "application/octet-stream";
+          const contentType = resolveMediaContentType({
+            fileName: fullPath,
+            bytes: fileData,
+          });
 
           return new Response(fileData, {
             status: 200,
             headers: {
               "Content-Type": contentType,
+              "X-Content-Type-Options": "nosniff",
               "Cache-Control": "private, no-store",
               "Referrer-Policy": "no-referrer",
             },

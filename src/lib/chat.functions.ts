@@ -840,6 +840,12 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
           preview_url: data.text?.preview_url ?? false,
         };
       } else if (data.type === "reaction") {
+        if (!data.reaction?.message_id?.startsWith("wamid.")) {
+          return {
+            ok: false,
+            error: "A reação exige o wamid original da mensagem do WhatsApp.",
+          };
+        }
         payload.type = "reaction";
         payload.reaction = {
           message_id: data.reaction?.message_id || "",
@@ -895,11 +901,32 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
       body = asJsonRecord(await r.json());
       if (!r.ok) {
+        const metaError = asJsonRecord(body?.error);
+        const identifiers = [
+          metaError?.code != null ? `code ${String(metaError.code)}` : "",
+          metaError?.error_subcode != null ? `subcode ${String(metaError.error_subcode)}` : "",
+          getStringValue(metaError?.fbtrace_id)
+            ? `fbtrace_id ${getStringValue(metaError?.fbtrace_id)}`
+            : "",
+        ].filter(Boolean);
+        const details = getStringValue(asJsonRecord(metaError?.error_data)?.details);
+        console.error("[WhatsApp Messages] Meta recusou a mensagem", {
+          status: r.status,
+          type: data.type,
+          code: metaError?.code,
+          error_subcode: metaError?.error_subcode,
+          details,
+          fbtrace_id: metaError?.fbtrace_id,
+        });
         return {
           ok: false,
-          error:
-            getStringValue(asJsonRecord(body?.error)?.message) ??
-            "Falha ao enviar mensagem na Meta.",
+          error: [
+            getStringValue(metaError?.message) ?? "Falha ao enviar mensagem na Meta.",
+            details,
+            identifiers.length ? `(${identifiers.join(", ")})` : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
         };
       }
 

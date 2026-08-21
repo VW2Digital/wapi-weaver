@@ -142,7 +142,11 @@ export function CampaignWizard({
     const toastId = toast.loading(`Enviando ${headerMediaFormat.toLowerCase()} para a Meta...`);
 
     try {
-      const res = await uploadMetaMediaViaApi(phoneId, file);
+      const res = await uploadMetaMediaViaApi(
+        phoneId,
+        file,
+        headerMediaFormat.toLowerCase() as "image" | "video" | "document",
+      );
 
       if (!res.ok || !res.data?.id) {
         throw new Error(res.error || "Falha no upload de mídia na Meta.");
