@@ -432,11 +432,18 @@ export async function processBotFlow(
     const matchesConfiguredTrigger = (configured: unknown, received: unknown) => {
       const normalizedReceived = normalizeTriggerValue(received);
       if (!normalizedReceived) return false;
-      return String(configured ?? "")
+      const configuredTriggers = String(configured ?? "")
         .split(/[,;\n]/)
         .map(normalizeTriggerValue)
-        .filter(Boolean)
-        .includes(normalizedReceived);
+        .filter(Boolean);
+      return configuredTriggers.some(
+        (trigger) =>
+          normalizedReceived === trigger ||
+          normalizedReceived.startsWith(`${trigger} `) ||
+          normalizedReceived.endsWith(` ${trigger}`) ||
+          normalizedReceived.includes(` ${trigger} `) ||
+          (trigger.length >= 3 && normalizedReceived.includes(trigger)),
+      );
     };
     const findFlowForStep = (step: any) =>
       (step?.flow_id && (builderFlows || []).find((f: any) => f.id === step.flow_id)) ||
@@ -544,7 +551,7 @@ export async function processBotFlow(
             ...updateData,
           });
         }
-        logInfo("Handoff manual acionado por botão interativo.");
+        logInfo("[BOT] Handoff manual acionado por botão interativo.");
         return;
       } else if (nextStepId === "-997") {
         stepToExecute = null;
@@ -586,7 +593,7 @@ export async function processBotFlow(
           stepToExecute = targetStep;
           activeFlow = findFlowForStep(targetStep);
           isButtonRedirect = true;
-          logInfo("Roteamento por UUID puro (sem prefixo step:)", { buttonPayload, stepId: targetStep.id });
+          logInfo("[BOTFLOW] Roteamento por UUID puro (sem prefixo step:)", { buttonPayload, stepId: targetStep.id });
         }
       }
     }
@@ -598,13 +605,14 @@ export async function processBotFlow(
         if (queuedStep) {
           stepToExecute = queuedStep;
           activeFlow = findFlowForStep(queuedStep);
+          logInfo("[BOTFLOW] Continuando fluxo na etapa seguinte", { stepId: queuedStep.id });
         }
       }
 
       // Regra 2: Processar interrupção global
       if (!stepToExecute) {
         if (isInterruption) {
-          logInfo("Interrupção global do bot solicitada pelo usuário", { messageBody });
+          logInfo("[BOT] Interrupção global do bot solicitada pelo usuário", { messageBody });
 
           // Se for comando de handoff/atendente humano, pausamos o bot
           if (["atendente", "humano"].includes(messageBody.trim().toLowerCase())) {
@@ -626,7 +634,7 @@ export async function processBotFlow(
                 ...updateData,
               });
             }
-            logInfo("Handoff manual acionado por palavra-chave global.");
+            logInfo("[BOT] Handoff manual acionado por palavra-chave global.");
             return;
           }
         }
@@ -641,23 +649,80 @@ export async function processBotFlow(
         if (keywordStep) {
           stepToExecute = keywordStep;
           activeFlow = findFlowForStep(keywordStep);
+          logInfo("[BOTFLOW] Gatilho de palavra-chave correspondido", { stepId: keywordStep.id, triggerValue: keywordStep.trigger_value });
         }
 
-        // Regra 6: Usar fluxo padrão (is_default = true) se nenhum for compatível
+        // Regra 6: Usar gatilho de primeira mensagem, início (start) ou primeiro passo do fluxo ativo
         if (!stepToExecute) {
           const defaultFlow = sortedFlows.find((f: any) => f.is_default);
-          const startStep = allSteps.find(
-            (s: any) => s.flow_id && activeBuilderFlowIds.has(s.flow_id) && s.trigger_type === "start",
-          ) || allSteps.find(
-            (s: any) =>
-              s.trigger_type === "start" &&
-              (!defaultFlow || s.bot_settings_id === defaultFlow.id),
-          ) || allSteps.find((s: any) => s.trigger_type === "start");
-          if (startStep) {
-            stepToExecute = startStep;
-            activeFlow = findFlowForStep(startStep);
+
+          // 6.1: Gatilho explícito de primeira mensagem
+          const firstMessageStep =
+            allSteps.find(
+              (s: any) =>
+                s.flow_id &&
+                activeBuilderFlowIds.has(s.flow_id) &&
+                s.trigger_type === "first_message",
+            ) || allSteps.find((s: any) => s.trigger_type === "first_message");
+
+          // 6.2: Gatilho de início (start)
+          const startStep =
+            allSteps.find(
+              (s: any) =>
+                s.flow_id &&
+                activeBuilderFlowIds.has(s.flow_id) &&
+                s.trigger_type === "start",
+            ) ||
+            allSteps.find(
+              (s: any) =>
+                s.trigger_type === "start" &&
+                (!defaultFlow || s.bot_settings_id === defaultFlow.id),
+            ) ||
+            allSteps.find((s: any) => s.trigger_type === "start");
+
+          // 6.3: Fallback para o primeiro passo ordenado do fluxo ativo
+          const rootStep =
+            (activeBuilderFlowIds.size > 0
+              ? allSteps.find(
+                  (s: any) =>
+                    s.flow_id &&
+                    activeBuilderFlowIds.has(s.flow_id) &&
+                    Number(s.step_order) === 1,
+                )
+              : null) ||
+            allSteps.find((s: any) => Number(s.step_order) === 1) ||
+            allSteps[0];
+
+          const resolvedStartStep = firstMessageStep || startStep || rootStep;
+          if (resolvedStartStep) {
+            stepToExecute = resolvedStartStep;
+            activeFlow = findFlowForStep(resolvedStartStep);
+            logInfo("[BOTFLOW] Etapa inicial selecionada para conversa", {
+              stepId: resolvedStartStep.id,
+              triggerType: resolvedStartStep.trigger_type,
+              flowId: activeFlow?.id,
+            });
           }
         }
+      }
+    }
+
+    // Se o passo inicial for um nó puramente de gatilho/roteamento sem conteúdo real de envio, avança para o próximo passo do fluxo
+    if (
+      stepToExecute &&
+      stepToExecute.next_step_id &&
+      (!stepToExecute.message_content ||
+        stepToExecute.message_content.startsWith("Gatilho:") ||
+        ["start", "first_message", "trigger"].includes(stepToExecute.message_type))
+    ) {
+      const nextTarget = allSteps.find((s: any) => s.id === stepToExecute.next_step_id);
+      if (nextTarget) {
+        logInfo("[BOTFLOW] Avançando de nó gatilho para nó de conteúdo", {
+          triggerStepId: stepToExecute.id,
+          targetStepId: nextTarget.id,
+        });
+        stepToExecute = nextTarget;
+        activeFlow = findFlowForStep(nextTarget);
       }
     }
 
@@ -771,12 +836,125 @@ export async function processBotFlow(
             {
               user_id: userId,
               tenant_id: userId,
+    }
+
+    // 3.5. LOOP DE EXECUÇÃO DE NÓS DE CONTROLE (Control Nodes)
+    // Delay, Condition, Randomizer, Save Variable, HTTP Request
+    // Control nodes NÃO são enviados como mensagens para o provedor (Meta/WhatsApp).
+    // Eles executam internamente e roteiam o fluxo até o próximo nó de mensagem ou fim do fluxo.
+    const {
+      resolveTemplate,
+      evaluateCondition,
+      evaluateRandomizer,
+      executeHttpRequest,
+      executeSaveVariable,
+    } = await import("./botflow-control");
+
+    // Carrega dados do contato para contexto de resolução de variáveis
+    let contactRecord: any = null;
+    try {
+      const { default: db } = await import("./db");
+      const cRows = (await db.query(
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 LIKE ? OR phone_e164 LIKE ?) LIMIT 1",
+        [userId, userId, `%${phoneDigits}%`, `%${phoneDigits.slice(-8)}%`],
+      )) as any[];
+      contactRecord = cRows?.[0] || null;
+    } catch {
+      contactRecord = null;
+    }
+
+    let parsedCustomFields: Record<string, any> = {};
+    try {
+      if (contactRecord?.custom_fields) {
+        parsedCustomFields =
+          typeof contactRecord.custom_fields === "string"
+            ? JSON.parse(contactRecord.custom_fields)
+            : contactRecord.custom_fields || {};
+      }
+    } catch {
+      parsedCustomFields = {};
+    }
+
+    const executionContext: any = {
+      tenantId: userId,
+      userId,
+      contact: {
+        id: contactRecord?.id,
+        phone: phoneDigits,
+        name: contactRecord?.name || "",
+        email: contactRecord?.email || "",
+        company: contactRecord?.company || "",
+        notes: contactRecord?.notes || "",
+        customFields: parsedCustomFields,
+      },
+      message: {
+        text: messageBody,
+        buttonPayload,
+        type: "text",
+      },
+      channel,
+      flowId: stepToExecute?.flow_id || activeFlow?.id,
+      stepId: stepToExecute?.id,
+      variables: {},
+      httpResponse: null,
+    };
+
+    const CONTROL_TYPES = new Set(["delay", "condition", "randomizer", "save_variable", "http_request"]);
+    const MAX_CONTROL_HOPS = 50;
+    let hops = 0;
+
+    while (stepToExecute && CONTROL_TYPES.has(stepToExecute.message_type)) {
+      hops++;
+      if (hops > MAX_CONTROL_HOPS) {
+        logError("Limite máximo de 50 hops de controle atingido. Possível loop infinito.", {
+          stepId: stepToExecute.id,
+          flowId: activeFlow?.id,
+        });
+        break;
+      }
+
+      logInfo(`Executando nó de controle (#${hops}): ${stepToExecute.message_type}`, {
+        stepId: stepToExecute.id,
+      });
+
+      let stepConfig: any = {};
+      try {
+        stepConfig =
+          typeof stepToExecute.buttons_config === "string"
+            ? JSON.parse(stepToExecute.buttons_config || "{}")
+            : stepToExecute.buttons_config || {};
+      } catch {
+        stepConfig = {};
+      }
+      const ctrl = stepConfig.control || stepConfig;
+
+      if (stepToExecute.message_type === "delay") {
+        // Bloco Delay: aguarda N segundos/minutos/horas de forma durável
+        const duration = Number(ctrl.duration) || Number(stepToExecute.delay_seconds) || 5;
+        const unit = ctrl.unit || "seconds";
+        const delaySec = unit === "hours" ? duration * 3600 : unit === "minutes" ? duration * 60 : duration;
+        const nextStepId = stepToExecute.next_step_id || ctrl.nextStepId || null;
+
+        logInfo(`[BOTFLOW] Nó Delay pausando fluxo por ${delaySec}s`, { stepId: stepToExecute.id, nextStepId });
+
+        if (delaySec <= 10 && nextStepId) {
+          // Delay curto (<= 10s): aguarda localmente no servidor
+          await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+          stepToExecute = allSteps.find((s: any) => s.id === nextStepId) || null;
+          continue;
+        } else {
+          // Delay longo: agenda estado para retomada
+          await dbAdmin.from("bot_conversation_state").upsert(
+            {
+              user_id: userId,
+              tenant_id: userId,
               contact_number: phoneDigits,
               instance_id: phoneNumberId,
               channel,
+              bot_active: 1,
+              is_paused: 1,
               current_step_id: stepToExecute.id,
               last_interaction: new Date().toISOString(),
-              is_paused: true,
               paused_until: new Date(Date.now() + delaySec * 1000).toISOString(),
             },
             { onConflict: "user_id,contact_number,instance_id,channel" },
@@ -786,40 +964,28 @@ export async function processBotFlow(
       } else if (stepToExecute.message_type === "condition") {
         const isTrue = evaluateCondition(ctrl, executionContext);
         const targetStepId = isTrue ? ctrl.trueStepId : ctrl.falseStepId;
-        logInfo(`Nó Condition avaliado como ${isTrue ? "VERDADEIRO" : "FALSO"} -> destino: ${targetStepId}`);
+        logInfo(`[BOTFLOW] Nó Condition avaliado como ${isTrue ? "VERDADEIRO" : "FALSO"} -> destino: ${targetStepId}`);
         stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
       } else if (stepToExecute.message_type === "randomizer") {
         executionContext.stepId = stepToExecute.id;
         const result = evaluateRandomizer(ctrl, executionContext);
-        logInfo(`Nó Randomizer selecionou branch ${result.branchId} -> destino: ${result.nextStepId}`);
+        logInfo(`[BOTFLOW] Nó Randomizer selecionou branch ${result.branchId} -> destino: ${result.nextStepId}`);
         stepToExecute = result.nextStepId ? allSteps.find((s: any) => s.id === result.nextStepId) || null : null;
       } else if (stepToExecute.message_type === "save_variable") {
         const { default: db } = await import("./db");
         const result = await executeSaveVariable(ctrl, executionContext, db);
         const targetStepId = result.nextStepId || stepToExecute.next_step_id;
-        logInfo(`Nó Save Variable persistiu ${ctrl.key} -> destino: ${targetStepId}`);
+        logInfo(`[BOTFLOW] Nó Save Variable persistiu ${ctrl.key} -> destino: ${targetStepId}`);
         stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
       } else if (stepToExecute.message_type === "http_request") {
         const httpRes = await executeHttpRequest(ctrl, executionContext);
-        logInfo(`Nó HTTP Request ${httpRes.success ? "SUCESSO" : "ERRO"} (status ${httpRes.status}) -> destino: ${httpRes.nextStepId}`);
+        logInfo(`[BOTFLOW] Nó HTTP Request ${httpRes.success ? "SUCESSO" : "ERRO"} (status ${httpRes.status}) -> destino: ${httpRes.nextStepId}`);
         stepToExecute = httpRes.nextStepId ? allSteps.find((s: any) => s.id === httpRes.nextStepId) || null : null;
       }
     }
 
     if (!stepToExecute) {
-      logInfo("Fluxo finalizado após processamento dos nós de controle.", { channel });
-      await dbAdmin.from("bot_conversation_state").upsert(
-        {
-          user_id: userId,
-          tenant_id: userId,
-          contact_number: phoneDigits,
-          instance_id: phoneNumberId,
-          channel,
-          current_step_id: null,
-          last_interaction: new Date().toISOString(),
-        },
-        { onConflict: "user_id,contact_number,instance_id,channel" },
-      );
+      logInfo("[BOTFLOW] Fluxo finalizado ou nenhuma etapa aplicável.", { channel });
       return;
     }
 
@@ -831,13 +997,6 @@ export async function processBotFlow(
       stepToExecute.media_caption = resolveTemplate(stepToExecute.media_caption, executionContext);
     }
 
-    // IA só pode ser acionada por uma etapa explícita `link_ai_agent`.
-    // Nunca envie "digitando" como mensagem quando o fluxo não tiver etapa.
-    if (!stepToExecute) {
-      logInfo("Nenhuma etapa aplicável; nenhuma resposta automática enviada.", { messageBody, channel });
-      return;
-    }
-
     if (stepToExecute.flow_id) {
       await dbAdmin
         .from("bot_flows")
@@ -846,9 +1005,10 @@ export async function processBotFlow(
         .eq("tenant_id", userId);
     }
 
-    logInfo("Executando step do bot", {
+    logInfo("[BOTFLOW] Executando step do bot", {
       stepId: stepToExecute.id,
-      flowId: activeFlow.id,
+      flowId: activeFlow?.id,
+      messageType: stepToExecute.message_type,
       messageBody,
     });
 
@@ -884,6 +1044,8 @@ export async function processBotFlow(
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
+          bot_active: 1,
+          is_paused: isHandoff ? 1 : 0,
           ...updateData,
         },
         { onConflict: "user_id,contact_number,instance_id,channel" },
@@ -918,7 +1080,7 @@ export async function processBotFlow(
       const confirmation = String(stepToExecute.handoff_message || stepToExecute.message_content || "").trim();
       if (!confirmation) {
         await commitState();
-        logInfo("Handoff executado sem mensagem de confirmação", { stepId: stepToExecute.id });
+        logInfo("[BOT] Handoff executado sem mensagem de confirmação", { stepId: stepToExecute.id });
         return;
       }
       stepToExecute = { ...stepToExecute, message_type: "text", message_content: confirmation };
@@ -931,7 +1093,7 @@ export async function processBotFlow(
       const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
       if (handledByAi) {
         await commitState();
-        logInfo("Resposta gerada pelo agente IA", { stepId: stepToExecute.id });
+        logInfo("[BOT] Resposta gerada pelo agente IA", { stepId: stepToExecute.id });
         return;
       }
       let fallbackText = "";
@@ -944,13 +1106,13 @@ export async function processBotFlow(
         fallbackText = "";
       }
       if (!fallbackText) {
-        logError("Agente IA não respondeu e não há mensagem de contingência", { stepId: stepToExecute.id });
+        logError("[BOT] Agente IA não respondeu e não há mensagem de contingência", { stepId: stepToExecute.id });
         return;
       }
       // Contingência é uma mensagem de texto válida; a ação interna nunca é
       // enviada como type=link_ai_agent para a Meta.
       stepToExecute = { ...stepToExecute, message_type: "text", message_content: fallbackText };
-      logError("Agente IA não respondeu; enviando contingência configurada", { stepId: stepToExecute.id });
+      logError("[BOT] Agente IA não respondeu; enviando contingência configurada", { stepId: stepToExecute.id });
     }
 
     // 4. Disparar o envio da mensagem para o canal correto

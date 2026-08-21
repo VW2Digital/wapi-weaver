@@ -524,10 +524,29 @@ async function ensureWhatsAppContact(
     throw new Error(`Falha ao confirmar contato do WhatsApp: ${refreshError.message}`);
   }
 
+  if (existingContact?.id) {
+    logInfo("[CONTACT] Contato existente localizado e atualizado", {
+      contactId: existingContact.id,
+      phoneDigits,
+      chatStatus: nextChatStatus,
+    });
+  } else {
+    logInfo("[CONTACT] Novo contato criado no banco de dados", {
+      contactId: refreshedContact?.id,
+      phoneDigits,
+      chatStatus: nextChatStatus,
+    });
+  }
+
   if (markUnread && nextChatStatus && refreshedContact?.id) {
     try {
       const { startChatSession } = await import("@/lib/chat-sessions.functions");
-      await startChatSession(userId, refreshedContact.id, "aguardando");
+      const sessId = await startChatSession(userId, refreshedContact.id, "aguardando");
+      logInfo("[CONVERSATION] Sessão de atendimento iniciada", {
+        sessionId: sessId,
+        contactId: refreshedContact.id,
+        status: "aguardando",
+      });
     } catch (sessionError: unknown) {
       // A sessão organiza a fila de atendimento, mas não pode impedir a
       // persistência da mensagem nem a execução do bot.
@@ -1072,6 +1091,13 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
     // 🚀 Chama o motor do BotFlow para processar essa mensagem
     if (phoneNumberId && (body || buttonPayload)) {
       try {
+        logInfo("[BOT] Disparando processBotFlow para mensagem recebida", {
+          phoneDigits,
+          phoneNumberId,
+          waMessageId,
+          hasPayload: Boolean(buttonPayload),
+        });
+
         await processBotFlow(
           body || buttonPayload || "Mensagem",
           phoneDigits,
