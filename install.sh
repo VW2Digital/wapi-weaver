@@ -1055,9 +1055,10 @@ if [ "$SSL_ACTIVE" -eq 1 ]; then
     dump_diagnostics_and_exit "Falha na autenticação via HTTPS em https://${DOMAIN}/api/auth/login"
   fi
 else
-  # Se SSL pendente, validar Login via HTTP local 3003
-  if ! test_auth_login "http://127.0.0.1:3003/api/auth/login" "HTTP interno 3003"; then
-    dump_diagnostics_and_exit "Falha na autenticação interna via HTTP em http://127.0.0.1:3003/api/auth/login"
+  # test_auth_login executa dentro do container app. Nesse namespace, a
+  # aplicação escuta na porta 3000; 3003 existe somente no host da VPS.
+  if ! test_auth_login "http://127.0.0.1:3000/api/auth/login" "HTTP interno do container"; then
+    dump_diagnostics_and_exit "Falha na autenticação interna do container via HTTP em http://127.0.0.1:3000/api/auth/login"
   fi
 fi
 
