@@ -11,6 +11,73 @@ import {
   listTenantUserIds,
 } from "./tenant-authorization";
 
+function isDuplicateEmailError(error: unknown) {
+  const candidate = error as { code?: string; errno?: number; message?: string } | null;
+  return (
+    candidate?.code === "ER_DUP_ENTRY" ||
+    candidate?.errno === 1062 ||
+    /duplicate entry|already exists/i.test(candidate?.message ?? "")
+  );
+}
+
+async function findUserByEmail(email: string) {
+  const users = (await db.query(
+    "SELECT id, email FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1",
+    [email],
+  )) as Array<{ id: string; email: string }>;
+  return users[0] ?? null;
+}
+
+async function assertExistingUserCanBeRecovered(userId: string, email: string, tenantId: string) {
+  const memberships = (await db.query(
+    `SELECT DISTINCT t.tenant_id
+     FROM team_members tm
+     JOIN teams t ON t.id = tm.team_id
+     WHERE tm.user_id = ?`,
+    [userId],
+  )) as Array<{ tenant_id: string }>;
+  if (memberships.some(({ tenant_id: currentTenantId }) => currentTenantId !== tenantId)) {
+    throw new Error("Este e-mail já pertence a outra empresa.");
+  }
+
+  const protectedAccount = (await db.query(
+    `SELECT 1
+     FROM user_roles ur
+     LEFT JOIN licenses l ON l.tenant_id = ur.user_id OR LOWER(l.client_email) = LOWER(?)
+     WHERE ur.user_id = ?
+       AND (ur.role = 'admin_master' OR l.id IS NOT NULL)
+     LIMIT 1`,
+    [email, userId],
+  )) as unknown[];
+  if (memberships.length === 0 && protectedAccount.length > 0) {
+    throw new Error("Este e-mail pertence a uma conta administradora e não pode ser vinculado.");
+  }
+}
+
+async function ensureTenantMembership(tenantId: string, userId: string) {
+  const teams = (await db.query(
+    "SELECT id FROM teams WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1",
+    [tenantId],
+  )) as Array<{ id: string }>;
+  let teamId = teams[0]?.id;
+
+  if (!teamId) {
+    teamId = crypto.randomUUID();
+    await db.query("INSERT INTO teams (id, tenant_id, name, user_id) VALUES (?, ?, 'Geral', ?)", [
+      teamId,
+      tenantId,
+      tenantId,
+    ]);
+  }
+
+  await db.query(
+    `INSERT INTO team_members (id, team_id, user_id, role)
+     VALUES (?, ?, ?, 'agent')
+     ON DUPLICATE KEY UPDATE role = role`,
+    [crypto.randomUUID(), teamId, userId],
+  );
+}
+
 async function assertAdmin(ctx: { userId: string; tenantId: string }) {
   const access = await getActorTenantAccess(ctx.userId, ctx.tenantId);
   if (!access.isMaster && !access.isCompanyAdmin) {
@@ -34,7 +101,12 @@ export const listUsers = createServerFn({ method: "GET" })
       perPage: 200,
     });
     if (uErr) throw uErr;
-    const allowedUserIds = await listTenantUserIds(context.tenantId);
+    const platformMembers = access.isMaster
+      ? ((await db.query("SELECT user_id FROM user_roles")) as Array<{ user_id: string }>).map(
+          ({ user_id }) => user_id,
+        )
+      : null;
+    const allowedUserIds = platformMembers ?? (await listTenantUserIds(access.tenantId));
     const visibleUsers = usersData.users.filter((user: any) => allowedUserIds.includes(user.id));
     let rolesQuery = dbAdmin.from("user_roles").select("user_id, role").in("user_id", allowedUserIds);
     const { data: roles, error: rErr } = await rolesQuery;
@@ -100,38 +172,54 @@ export const createUser = createServerFn({ method: "POST" })
       email_confirm: true,
       user_metadata: data.display_name ? { display_name: data.display_name } : undefined,
     });
-    if (error) throw error;
-    const uid = created.user!.id;
-    await dbAdmin.from("user_roles").insert({ user_id: uid, role: data.role } as never);
-    // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
-    await db.query(
-      `INSERT IGNORE INTO profiles (id, email, display_name, full_name)
-       VALUES (?, ?, ?, ?)`,
-      [uid, data.email, data.display_name ?? null, data.display_name ?? null],
-    );
+    let uid: string | undefined = created.user?.id;
+    let recovered = false;
 
-    // Se o criador é admin de empresa (não-master), adiciona o colaborador ao time da empresa
-    if (!access.isMaster) {
-      const teams = (await db.query(
-        "SELECT id FROM teams WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1",
-        [context.tenantId],
-      )) as any[];
-      let teamId = teams?.[0]?.id;
-      if (!teamId) {
-        teamId = crypto.randomUUID();
-        await db.query("INSERT INTO teams (id, tenant_id, name, user_id) VALUES (?, ?, 'Geral', ?)", [
-          teamId,
-          context.tenantId,
-          context.userId,
-        ]);
-      }
-      await db.query("INSERT IGNORE INTO team_members (team_id, user_id) VALUES (?, ?)", [
-        teamId,
-        uid,
-      ]);
+    // Versões anteriores criavam o login, mas podiam falhar silenciosamente ao
+    // associá-lo ao tenant. Reenviar o mesmo e-mail recupera apenas contas órfãs,
+    // sem permitir tomar um usuário que já pertença a outra empresa.
+    if (error) {
+      if (!isDuplicateEmailError(error)) throw error;
+      const existingUser = await findUserByEmail(data.email);
+      if (!existingUser) throw error;
+      await assertExistingUserCanBeRecovered(existingUser.id, existingUser.email, access.tenantId);
+      uid = existingUser.id;
+      recovered = true;
     }
 
-    return { ok: true, id: uid };
+    if (!uid) throw new Error("Não foi possível identificar o usuário criado.");
+
+    try {
+      await db.query(
+        `INSERT INTO user_roles (id, user_id, role)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+        [crypto.randomUUID(), uid, data.role],
+      );
+      // Garante que o usuário tenha um perfil (necessário para chats, categorias, etc.)
+      await db.query(
+        `INSERT INTO profiles (id, email, display_name, full_name)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           email = VALUES(email),
+           display_name = COALESCE(VALUES(display_name), display_name),
+           full_name = COALESCE(VALUES(full_name), full_name)`,
+        [uid, data.email, data.display_name ?? null, data.display_name ?? null],
+      );
+
+      // Todo membro criado pelo painel entra no workspace atual, inclusive quando
+      // o administrador master também está administrando a própria empresa.
+      await ensureTenantMembership(access.tenantId, uid);
+    } catch (associationError) {
+      // Evita repetir o estado legado de login criado sem vínculo com a empresa.
+      if (!recovered) {
+        const { error: cleanupError } = await dbAdmin.auth.admin.deleteUser(uid);
+        if (cleanupError) console.error("Falha ao desfazer usuário sem vínculo:", cleanupError);
+      }
+      throw associationError;
+    }
+
+    return { ok: true, id: uid, recovered };
   });
 
 const roleSchema = z.object({
@@ -199,7 +287,7 @@ export const deleteUser = createServerFn({ method: "POST" })
     if (hasOwnTenant) {
       // Se possui empresa/licença própria, apenas desvincula das equipes e cargos da empresa atual
       await db.query(
-        "DELETE tm FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.user_id = ? AND t.user_id = ?",
+        "DELETE tm FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.user_id = ? AND t.tenant_id = ?",
         [data.user_id, access.tenantId],
       );
       // Remove cargos associados à empresa do solicitante

@@ -5,6 +5,7 @@ import db from "./db";
 import { resolveEffectiveUserId } from "./chat-helpers";
 import crypto from "crypto";
 import { assertUserCanJoinTenant } from "./tenant-authorization";
+import { hasMasterRole } from "./roles";
 
 const normalizeContactPhone = (value: string) => {
   if (
@@ -20,7 +21,7 @@ const normalizeContactPhone = (value: string) => {
 };
 
 async function ensureTeamBelongsToWorkspace(teamId: string, effectiveUserId: string) {
-  const rows = await db.query("SELECT id FROM teams WHERE id = ? AND user_id = ? LIMIT 1", [
+  const rows = await db.query("SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1", [
     teamId,
     effectiveUserId,
   ]);
@@ -30,21 +31,44 @@ async function ensureTeamBelongsToWorkspace(teamId: string, effectiveUserId: str
   }
 }
 
-async function ensureAgentBelongsToWorkspace(agentId: string, effectiveUserId: string) {
+async function isPlatformMaster(userId: string) {
+  const roleRows = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [
+    userId,
+  ])) as Array<{ role: string }>;
+  return hasMasterRole(roleRows.map(({ role }) => role));
+}
+
+async function ensureAgentBelongsToWorkspace(
+  agentId: string,
+  effectiveUserId: string,
+  actorIsMaster: boolean,
+) {
   if (agentId === effectiveUserId) return;
 
   const rows = await db.query(
     `SELECT 1
      FROM team_members tm
      JOIN teams t ON t.id = tm.team_id
-     WHERE t.user_id = ? AND tm.user_id = ?
+     WHERE t.tenant_id = ? AND tm.user_id = ?
      LIMIT 1`,
     [effectiveUserId, agentId],
   );
 
-  if (!rows || rows.length === 0) {
-    throw new Error("O agente informado não pertence a este workspace.");
+  if (rows && rows.length > 0) return;
+
+  if (actorIsMaster) {
+    const platformUser = await db.query(
+      `SELECT 1
+       FROM users u
+       JOIN user_roles ur ON ur.user_id = u.id
+       WHERE u.id = ?
+       LIMIT 1`,
+      [agentId],
+    );
+    if (platformUser && platformUser.length > 0) return;
   }
+
+  throw new Error("O agente informado não pertence a este workspace.");
 }
 
 export const listTeams = createServerFn({ method: "GET" })
@@ -55,7 +79,7 @@ export const listTeams = createServerFn({ method: "GET" })
       const teams = await db.query(
         `SELECT t.*, (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count
          FROM teams t 
-         WHERE t.user_id = ? 
+         WHERE t.tenant_id = ?
          ORDER BY t.name ASC`,
         [effectiveUserId],
       );
@@ -93,15 +117,17 @@ export const listAllAgents = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     try {
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
+      const isMaster = await isPlatformMaster(context.userId);
       const agents = await db.query(
         `SELECT DISTINCT u.id, p.full_name, p.display_name, u.email
          FROM users u
          LEFT JOIN profiles p ON p.id = u.id
+         LEFT JOIN user_roles ur ON ur.user_id = u.id
          LEFT JOIN team_members tm ON tm.user_id = u.id
          LEFT JOIN teams t ON t.id = tm.team_id
-         WHERE u.id = ? OR t.user_id = ?
+         WHERE (? = TRUE AND ur.user_id IS NOT NULL) OR u.id = ? OR t.tenant_id = ?
          ORDER BY COALESCE(p.full_name, p.display_name, u.email) ASC`,
-        [effectiveUserId, effectiveUserId],
+        [isMaster, effectiveUserId, effectiveUserId],
       );
       return agents;
     } catch (e: any) {
@@ -123,13 +149,14 @@ export const assignConversation = createServerFn({ method: "POST" })
     try {
       const phone = normalizeContactPhone(data.contactPhone);
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
+      const actorIsMaster = await isPlatformMaster(context.userId);
 
       if (data.teamId) {
         await ensureTeamBelongsToWorkspace(data.teamId, effectiveUserId);
       }
 
       if (data.agentId) {
-        await ensureAgentBelongsToWorkspace(data.agentId, effectiveUserId);
+        await ensureAgentBelongsToWorkspace(data.agentId, effectiveUserId, actorIsMaster);
       }
 
       // 1. Validar associação do agente com a equipe se ambos forem informados
@@ -138,12 +165,20 @@ export const assignConversation = createServerFn({ method: "POST" })
           `SELECT 1
            FROM team_members tm
            JOIN teams t ON t.id = tm.team_id
-           WHERE tm.team_id = ? AND tm.user_id = ? AND t.user_id = ?
+           WHERE tm.team_id = ? AND tm.user_id = ? AND t.tenant_id = ?
            LIMIT 1`,
           [data.teamId, data.agentId, effectiveUserId],
         );
         if (!members || members.length === 0) {
-          throw new Error("O agente informado não pertence a esta equipe.");
+          if (!actorIsMaster) {
+            throw new Error("O agente informado não pertence a esta equipe.");
+          }
+          await db.query(
+            `INSERT INTO team_members (id, team_id, user_id, role)
+             VALUES (?, ?, ?, 'agent')
+             ON DUPLICATE KEY UPDATE role = role`,
+            [crypto.randomUUID(), data.teamId, data.agentId],
+          );
         }
       }
 
@@ -151,7 +186,7 @@ export const assignConversation = createServerFn({ method: "POST" })
       await db.query(
         `UPDATE conversation_assignments 
          SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
-         WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
+         WHERE tenant_id = ? AND contact_phone = ? AND is_active = true`,
         [effectiveUserId, phone],
       );
 
@@ -160,9 +195,17 @@ export const assignConversation = createServerFn({ method: "POST" })
         const assignmentId = crypto.randomUUID();
         await db.query(
           `INSERT INTO conversation_assignments 
-            (id, user_id, contact_phone, team_id, agent_id, assigned_by)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [assignmentId, effectiveUserId, phone, data.teamId, data.agentId, context.userId],
+            (id, tenant_id, user_id, contact_phone, team_id, agent_id, assigned_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            assignmentId,
+            effectiveUserId,
+            effectiveUserId,
+            phone,
+            data.teamId,
+            data.agentId,
+            context.userId,
+          ],
         );
       }
 
@@ -192,7 +235,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
           `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
            FROM team_members tm
            LEFT JOIN conversation_assignments ca 
-             ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
+             ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.tenant_id = ?
            WHERE tm.team_id = ?
            GROUP BY tm.user_id
            ORDER BY active_chats ASC, RAND()
@@ -205,7 +248,7 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
         await conn.execute(
           `UPDATE conversation_assignments 
            SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
-           WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
+           WHERE tenant_id = ? AND contact_phone = ? AND is_active = true`,
           [effectiveUserId, phone],
         );
 
@@ -216,9 +259,17 @@ export const autoAssignConversation = createServerFn({ method: "POST" })
         // 3. Create the new assignment atomically
         await conn.execute(
           `INSERT INTO conversation_assignments 
-            (id, user_id, contact_phone, team_id, agent_id, assigned_by)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [assignmentId, effectiveUserId, phone, data.teamId, targetAgentId, context.userId],
+            (id, tenant_id, user_id, contact_phone, team_id, agent_id, assigned_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            assignmentId,
+            effectiveUserId,
+            effectiveUserId,
+            phone,
+            data.teamId,
+            targetAgentId,
+            context.userId,
+          ],
         );
 
         return { ok: true, agentId: targetAgentId };
@@ -247,7 +298,7 @@ export const selfAssignConversation = createServerFn({ method: "POST" })
         `SELECT 1
          FROM team_members tm
          JOIN teams t ON t.id = tm.team_id
-         WHERE tm.team_id = ? AND tm.user_id = ? AND t.user_id = ?
+         WHERE tm.team_id = ? AND tm.user_id = ? AND t.tenant_id = ?
          LIMIT 1`,
         [data.teamId, context.userId, effectiveUserId],
       );
@@ -260,7 +311,7 @@ export const selfAssignConversation = createServerFn({ method: "POST" })
       await db.query(
         `UPDATE conversation_assignments 
          SET is_active = false, unassigned_at = CURRENT_TIMESTAMP()
-         WHERE user_id = ? AND contact_phone = ? AND is_active = true`,
+         WHERE tenant_id = ? AND contact_phone = ? AND is_active = true`,
         [effectiveUserId, phone],
       );
 
@@ -268,9 +319,17 @@ export const selfAssignConversation = createServerFn({ method: "POST" })
       const assignmentId = crypto.randomUUID();
       await db.query(
         `INSERT INTO conversation_assignments 
-          (id, user_id, contact_phone, team_id, agent_id, assigned_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [assignmentId, effectiveUserId, phone, data.teamId, context.userId, context.userId],
+          (id, tenant_id, user_id, contact_phone, team_id, agent_id, assigned_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          assignmentId,
+          effectiveUserId,
+          effectiveUserId,
+          phone,
+          data.teamId,
+          context.userId,
+          context.userId,
+        ],
       );
 
       return { ok: true };
@@ -332,7 +391,7 @@ export const updateTeam = createServerFn({ method: "POST" })
       await db.query(
         `UPDATE teams 
          SET name = ?, description = ?, auto_assign_mode = ?
-         WHERE id = ? AND user_id = ?`,
+         WHERE id = ? AND tenant_id = ?`,
         [data.name, data.description, data.autoAssignMode, data.id, effectiveUserId],
       );
       return { ok: true };
@@ -348,7 +407,10 @@ export const deleteTeam = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
-      await db.query("DELETE FROM teams WHERE id = ? AND user_id = ?", [data.id, effectiveUserId]);
+      await db.query("DELETE FROM teams WHERE id = ? AND tenant_id = ?", [
+        data.id,
+        effectiveUserId,
+      ]);
       return { ok: true };
     } catch (e: any) {
       console.error("Erro ao deletar equipe:", e);
@@ -371,7 +433,7 @@ export const addTeamMember = createServerFn({ method: "POST" })
     try {
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
       // Validar se o time pertence ao tenant do usuário logado
-      const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND user_id = ?", [
+      const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND tenant_id = ?", [
         data.teamId,
         effectiveUserId,
       ]);
@@ -408,7 +470,7 @@ export const removeTeamMember = createServerFn({ method: "POST" })
     try {
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
       // Validar se o time pertence ao tenant do usuário logado
-      const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND user_id = ?", [
+      const team = await db.query("SELECT 1 FROM teams WHERE id = ? AND tenant_id = ?", [
         data.teamId,
         effectiveUserId,
       ]);

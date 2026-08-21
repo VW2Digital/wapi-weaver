@@ -191,8 +191,8 @@ function AdminUsers() {
       display_name?: string;
       role: "admin" | "user";
     }) => create({ data: input }),
-    onSuccess: () => {
-      toast.success("Usuário criado");
+    onSuccess: (result) => {
+      toast.success(result.recovered ? "Usuário existente vinculado à empresa" : "Usuário criado");
       invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao criar"),
