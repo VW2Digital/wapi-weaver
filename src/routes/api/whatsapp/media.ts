@@ -15,7 +15,7 @@ function getAuthUserId(request: Request): string {
   }
   if (!token) {
     const cookieHeader = request.headers.get("cookie") || "";
-    const match = cookieHeader.match(/(?:wapi_token|app-token)=([^;]+)/);
+    const match = cookieHeader.match(/(?:wapi_token|app-token|sb-access-token|token|sb-token)=([^;]+)/);
     if (match) {
       token = decodeURIComponent(match[1].trim());
     }

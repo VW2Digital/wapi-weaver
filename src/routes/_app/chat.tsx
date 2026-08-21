@@ -130,12 +130,233 @@ import {
   CornerUpRight,
   UserPen,
   Forward,
+  Download,
+  Play,
+  Pause,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { db } from "@/integrations/mysql/client";
 import { useConfirm } from "@/components/confirm-dialog";
+
+function ChatVoiceMessage({
+  src,
+  senderName,
+  isOutgoing,
+}: {
+  src: string;
+  senderName?: string | null;
+  isOutgoing: boolean;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Generate deterministic bar heights based on src string
+  const bars = useMemo(() => {
+    const defaultHeights = [
+      6, 12, 18, 10, 14, 22, 16, 8, 18, 24, 14, 20, 26, 12, 16, 22, 18, 10, 14, 8, 16, 12, 6,
+    ];
+    if (!src) return defaultHeights;
+    let hash = 0;
+    for (let i = 0; i < src.length; i++) {
+      hash = (hash << 5) - hash + src.charCodeAt(i);
+      hash |= 0;
+    }
+    return defaultHeights.map((h, i) => {
+      const v = Math.abs((hash >> (i % 16)) % 20);
+      return Math.max(6, Math.min(26, h + (v % 10) - 5));
+    });
+  }, [src]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onLoadedMetadata = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+    const onEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("ended", onEnded);
+
+    return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, []);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  const handleSpeedToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextSpeed = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
+    setSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTime = pct * duration;
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const formatTime = (secs: number) => {
+    if (!secs || isNaN(secs) || !isFinite(secs)) return "0:00";
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  // Extract initials
+  const initials = useMemo(() => {
+    if (!senderName) return isOutgoing ? "EU" : "CT";
+    const parts = senderName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return senderName.slice(0, 2).toUpperCase();
+  }, [senderName, isOutgoing]);
+
+  return (
+    <div className="flex items-center gap-3 px-2 py-1.5 min-w-[260px] max-w-[340px] select-none">
+      <audio ref={audioRef} src={src} preload="metadata" />
+
+      {/* Play / Pause button */}
+      <button
+        type="button"
+        onClick={togglePlay}
+        className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 transition-all flex items-center justify-center text-white shrink-0 shadow-sm"
+        aria-label={isPlaying ? "Pausar áudio" : "Tocar áudio"}
+      >
+        {isPlaying ? (
+          <Pause className="h-4.5 w-4.5 fill-white stroke-none" />
+        ) : (
+          <Play className="h-4.5 w-4.5 fill-white stroke-none ml-0.5" />
+        )}
+      </button>
+
+      {/* Waveform and Timers */}
+      <div className="flex-1 flex flex-col gap-1 min-w-0">
+        {/* Waveform track */}
+        <div
+          className="relative flex items-center gap-[2.5px] h-7 cursor-pointer group"
+          onClick={handleSeek}
+        >
+          {bars.map((height, idx) => {
+            const barPct = idx / bars.length;
+            const isActive = barPct <= progress;
+            return (
+              <div
+                key={idx}
+                className={cn(
+                  "flex-1 rounded-full transition-colors",
+                  isActive ? "bg-white" : "bg-white/40 group-hover:bg-white/50",
+                )}
+                style={{ height: `${height}px` }}
+              />
+            );
+          })}
+
+          {/* Scrubber thumb circle */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 rounded-full bg-white shadow-md pointer-events-none transition-transform group-hover:scale-110"
+            style={{ left: `${Math.max(2, Math.min(98, progress * 100))}%` }}
+          />
+        </div>
+
+        {/* Time and Speed */}
+        <div className="flex items-center justify-between text-[11px] text-white/80 font-medium px-0.5">
+          <span>{formatTime(isPlaying ? currentTime : duration || currentTime)}</span>
+          <button
+            type="button"
+            onClick={handleSpeedToggle}
+            className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/15 hover:bg-white/25 transition-colors text-white tracking-wider"
+          >
+            {speed}x
+          </button>
+        </div>
+      </div>
+
+      {/* Sender Avatar Circle */}
+      <div className="h-9 w-9 rounded-full bg-white/20 border border-white/20 flex items-center justify-center font-bold text-xs text-white uppercase shrink-0 shadow-inner">
+        {initials}
+      </div>
+    </div>
+  );
+}
+
+function ChatDocumentCard({
+  filename,
+  url,
+}: {
+  filename: string;
+  url?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2 min-w-[220px] max-w-[320px] p-2.5 select-none">
+      {/* Top row: Outline File icon, solid document icon + label, Download button */}
+      <div className="flex items-center justify-between gap-3 text-white/95">
+        <div className="flex items-center gap-2">
+          <FileText className="h-6 w-6 stroke-[1.75] text-white" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide">
+            <FileText className="h-3.5 w-3.5 fill-white stroke-none opacity-90" />
+            <span>Documento</span>
+          </div>
+        </div>
+        {url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            download={filename}
+            className="p-1 rounded-md hover:bg-white/15 transition-colors text-white"
+            title="Baixar Documento"
+          >
+            <Download className="h-4.5 w-4.5 stroke-[2.2]" />
+          </a>
+        ) : (
+          <Download className="h-4.5 w-4.5 stroke-[2.2] opacity-60" />
+        )}
+      </div>
+
+      {/* Bottom row: Clean Filename */}
+      <div className="text-[13px] font-semibold text-white truncate select-text">
+        {filename}
+      </div>
+    </div>
+  );
+}
 
 interface ContactCustomFields {
   avatar_url?: string;
@@ -4854,7 +5075,7 @@ function ChatPage() {
                                         const lower = metadataMediaUrl.toLowerCase().split(/[?#]/)[0];
                                         if (lower.endsWith(".mp4") || lower.endsWith(".3gp") || lower.endsWith(".mov") || lower.endsWith(".webm")) {
                                           headerMediaType = "video";
-                                        } else if (lower.endsWith(".pdf") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".xls") || lower.endsWith(".xlsx") || lower.endsWith(".ppt") || lower.endsWith(".txt")) {
+                                        } else if (lower.endsWith(".pdf") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".xls") || lower.endsWith(".xlsx") || lower.endsWith(".ppt") || lower.endsWith(".pptx") || lower.endsWith(".txt")) {
                                           headerMediaType = "document";
                                         } else {
                                           headerMediaType = "image";
@@ -4863,9 +5084,9 @@ function ChatPage() {
 
                                       // Extract standard message body and type
                                       let type = msg.type || "text";
-                                      const bodyText = msg.body || "";
+                                      const bodyText = (msg.body || "").trim();
 
-                                      if (type === "text") {
+                                      if (type === "text" || type === "media") {
                                         if (
                                           msg.image ||
                                           (msg.metadata as any)?.image ||
@@ -4906,6 +5127,40 @@ function ChatPage() {
                                           (msg.metadata as any)?.message?.audio
                                         ) {
                                           type = "audio";
+                                        } else if (
+                                          bodyText.toLowerCase().endsWith(".pdf") ||
+                                          bodyText.toLowerCase().endsWith(".doc") ||
+                                          bodyText.toLowerCase().endsWith(".docx") ||
+                                          bodyText.toLowerCase().endsWith(".xls") ||
+                                          bodyText.toLowerCase().endsWith(".xlsx") ||
+                                          bodyText.toLowerCase().endsWith(".ppt") ||
+                                          bodyText.toLowerCase().endsWith(".pptx") ||
+                                          bodyText.toLowerCase().endsWith(".txt")
+                                        ) {
+                                          type = "document";
+                                        } else if (
+                                          bodyText.toLowerCase().endsWith(".mp4") ||
+                                          bodyText.toLowerCase().endsWith(".3gp") ||
+                                          bodyText.toLowerCase().endsWith(".mov") ||
+                                          bodyText.toLowerCase().endsWith(".webm")
+                                        ) {
+                                          type = "video";
+                                        } else if (
+                                          bodyText.toLowerCase().endsWith(".jpg") ||
+                                          bodyText.toLowerCase().endsWith(".jpeg") ||
+                                          bodyText.toLowerCase().endsWith(".png") ||
+                                          bodyText.toLowerCase().endsWith(".gif")
+                                        ) {
+                                          type = "image";
+                                        } else if (bodyText.toLowerCase().endsWith(".webp")) {
+                                          type = "sticker";
+                                        } else if (
+                                          bodyText.toLowerCase().endsWith(".mp3") ||
+                                          bodyText.toLowerCase().endsWith(".ogg") ||
+                                          bodyText.toLowerCase().endsWith(".m4a") ||
+                                          bodyText.toLowerCase().endsWith(".aac")
+                                        ) {
+                                          type = "audio";
                                         }
                                       }
 
@@ -4941,35 +5196,20 @@ function ChatPage() {
                                           const regex = new RegExp(`(${escapedQuery})`, "gi");
                                           formatted = formatted.replace(
                                             regex,
-                                            "<mark class='bg-yellow-500/40 text-yellow-100 px-0.5 rounded'>$1</mark>",
+                                            "<mark class='bg-amber-400/40 text-inherit rounded px-0.5'>$1</mark>",
                                           );
                                         }
 
-                                        // Bold
-                                        formatted = formatted.replace(
-                                          /\*\*([^*]+)\*\*/g,
-                                          "<strong>$1</strong>",
-                                        );
+                                        // Format WhatsApp markdown syntax: *bold*, _italic_, ~strikethrough~, `code`
                                         formatted = formatted.replace(
                                           /\*([^*]+)\*/g,
                                           "<strong>$1</strong>",
                                         );
-                                        // Italic
-                                        formatted = formatted.replace(
-                                          /__([^_]+)__/g,
-                                          "<em>$1</em>",
-                                        );
                                         formatted = formatted.replace(/_([^_]+)_/g, "<em>$1</em>");
-                                        // Strikethrough
-                                        formatted = formatted.replace(
-                                          /~~([^~]+)~~/g,
-                                          "<del>$1</del>",
-                                        );
                                         formatted = formatted.replace(
                                           /~([^~]+)~/g,
-                                          "<del>$1</del>",
+                                          "<del class='opacity-80'>$1</del>",
                                         );
-                                        // Code
                                         formatted = formatted.replace(
                                           /`([^`]+)`/g,
                                           "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>",
@@ -4984,15 +5224,35 @@ function ChatPage() {
                                         if (!urlOrId) return "";
                                         if (isUrl(urlOrId)) return urlOrId;
                                         const token =
-                                          sessionToken ||
-                                          (typeof window !== "undefined"
+                                          typeof window !== "undefined"
                                             ? localStorage.getItem("app-token") ||
                                               localStorage.getItem("sb-token") ||
+                                              localStorage.getItem("wapi_token") ||
+                                              localStorage.getItem("sb-access-token") ||
+                                              (document.cookie.match(/(?:wapi_token|app-token|sb-access-token|token|sb-token)=([^;]+)/)?.[1]
+                                                ? decodeURIComponent(document.cookie.match(/(?:wapi_token|app-token|sb-access-token|token|sb-token)=([^;]+)/)![1])
+                                                : "") ||
                                               ""
-                                            : "");
+                                            : "";
                                         return token
                                           ? `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}&token=${encodeURIComponent(token)}`
                                           : `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
+                                      };
+
+                                      const renderStatus = (status: string) => {
+                                        if (status === "read") {
+                                          return <CheckCheck className="h-3.5 w-3.5 text-sky-400 stroke-[2.5]" />;
+                                        }
+                                        if (status === "delivered") {
+                                          return <CheckCheck className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
+                                        }
+                                        if (status === "sent") {
+                                          return <Check className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
+                                        }
+                                        if (status === "failed") {
+                                          return <AlertCircle className="h-3.5 w-3.5 text-destructive" />;
+                                        }
+                                        return <Clock className="h-3 w-3 opacity-60" />;
                                       };
 
                                       const hasTopMedia =
@@ -5020,6 +5280,19 @@ function ChatPage() {
                                               : "px-3.5 py-2.5 flex flex-col gap-1",
                                           )}
                                         >
+                                          {/* Direct Message Origin Badge (WhatsApp/Instagram/Messenger) */}
+                                          {(() => {
+                                            const badgeInfo = getChannelBadge(msg.channel);
+                                            if (!badgeInfo) return null;
+                                            return (
+                                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mb-0.5 px-0.5">
+                                                <span className="font-semibold uppercase tracking-wider text-[9px]">
+                                                  {badgeInfo.label}
+                                                </span>
+                                              </div>
+                                            );
+                                          })()}
+
                                           {/* Nome do Remetente */}
                                           <div
                                             className={cn(
@@ -5152,98 +5425,124 @@ function ChatPage() {
                                             {type === "image" && (
                                               <div
                                                 className={cn(
-                                                  "w-full overflow-hidden bg-black/10",
-                                                  isOutgoing
-                                                    ? "rounded-lg rounded-tr-none"
-                                                    : "rounded-lg rounded-tl-none",
+                                                  "w-full overflow-hidden bg-black/10 rounded-2xl",
                                                 )}
                                               >
-                                                {getMediaUrl(msg.image?.link || msg.image?.id || (isUrl(bodyText) ? bodyText : "")) ? (
-                                                  <img
-                                                    src={getMediaUrl(msg.image?.link || msg.image?.id || (isUrl(bodyText) ? bodyText : ""))}
-                                                    alt="Imagem"
-                                                    className="w-full max-h-64 object-cover"
-                                                  />
-                                                ) : (
-                                                  <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                                                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                                  </div>
-                                                )}
+                                                {(() => {
+                                                  const imageSrc = getMediaUrl(
+                                                    msg.image?.link ||
+                                                      msg.image?.id ||
+                                                      (msg.metadata as any)?.image?.link ||
+                                                      (msg.metadata as any)?.image?.id ||
+                                                      (msg.metadata as any)?.media_url ||
+                                                      (msg.metadata as any)?.mediaUrl ||
+                                                      (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                  );
+                                                  return imageSrc ? (
+                                                    <img
+                                                      src={imageSrc}
+                                                      alt="Imagem"
+                                                      className="w-full max-h-72 object-cover cursor-pointer rounded-2xl"
+                                                      onClick={() => {
+                                                        if (imageSrc) window.open(imageSrc, "_blank");
+                                                      }}
+                                                    />
+                                                  ) : (
+                                                    <div className="aspect-video w-full bg-muted flex items-center justify-center rounded-2xl">
+                                                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                  );
+                                                })()}
                                               </div>
                                             )}
 
                                             {type === "audio" && (
-                                              <div className="px-1 py-1.5">
-                                                <audio
-                                                  src={getMediaUrl(msg.audio?.link || msg.audio?.id || (isUrl(bodyText) ? bodyText : ""))}
-                                                  controls
-                                                  preload="metadata"
-                                                  className="w-[240px] max-w-full h-10"
-                                                />
+                                              <div className="px-1 py-1">
+                                                {(() => {
+                                                  const audioSrc = getMediaUrl(
+                                                    msg.audio?.link ||
+                                                      msg.audio?.id ||
+                                                      (msg.metadata as any)?.audio?.link ||
+                                                      (msg.metadata as any)?.audio?.id ||
+                                                      (msg.metadata as any)?.media_url ||
+                                                      (msg.metadata as any)?.mediaUrl ||
+                                                      (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                  );
+                                                  return audioSrc ? (
+                                                    <ChatVoiceMessage
+                                                      src={audioSrc}
+                                                      senderName={isOutgoing ? agentLabel : senderName}
+                                                      isOutgoing={isOutgoing}
+                                                    />
+                                                  ) : (
+                                                    <div className="px-3 py-2 text-xs text-white/70">
+                                                      Áudio indisponível
+                                                    </div>
+                                                  );
+                                                })()}
                                               </div>
                                             )}
 
                                             {type === "video" && (
                                               <div
                                                 className={cn(
-                                                  "w-full overflow-hidden bg-black/10",
-                                                  isOutgoing
-                                                    ? "rounded-lg rounded-tr-none"
-                                                    : "rounded-lg rounded-tl-none",
+                                                  "w-full overflow-hidden bg-black/10 rounded-2xl",
                                                 )}
                                               >
-                                                {getMediaUrl(msg.video?.link || msg.video?.id || (isUrl(bodyText) ? bodyText : "")) ? (
-                                                  <video
-                                                    src={getMediaUrl(msg.video?.link || msg.video?.id || (isUrl(bodyText) ? bodyText : ""))}
-                                                    controls
-                                                    className="w-full max-h-64 object-cover"
-                                                  />
-                                                ) : (
-                                                  <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                                                    <Video className="h-6 w-6 text-muted-foreground" />
-                                                  </div>
-                                                )}
+                                                {(() => {
+                                                  const videoSrc = getMediaUrl(
+                                                    msg.video?.link ||
+                                                      msg.video?.id ||
+                                                      (msg.metadata as any)?.video?.link ||
+                                                      (msg.metadata as any)?.video?.id ||
+                                                      (msg.metadata as any)?.media_url ||
+                                                      (msg.metadata as any)?.mediaUrl ||
+                                                      (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                  );
+                                                  return videoSrc ? (
+                                                    <video
+                                                      src={videoSrc}
+                                                      controls
+                                                      preload="metadata"
+                                                      className="w-full max-h-72 object-cover rounded-2xl"
+                                                    />
+                                                  ) : (
+                                                    <div className="aspect-video w-full bg-muted flex items-center justify-center rounded-2xl">
+                                                      <Video className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                  );
+                                                })()}
                                               </div>
                                             )}
 
                                             {type === "document" && (
-                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 flex items-center gap-3">
-                                                <FileText className="h-8 w-8 text-primary shrink-0" />
-                                                <div className="min-w-0 flex-1">
-                                                  <p className="text-xs font-medium truncate text-foreground">
-                                                    {msg.document?.filename ||
-                                                      (isUrl(bodyText)
-                                                        ? bodyText.substring(bodyText.lastIndexOf("/") + 1)
-                                                        : (bodyText && !["[Documento]"].includes(bodyText) ? bodyText : "Documento"))}
-                                                  </p>
-                                                  <p className="text-[10px] opacity-75">
-                                                    Documento PDF/Office
-                                                  </p>
-                                                </div>
-                                                {getMediaUrl(msg.document?.link || msg.document?.id || (isUrl(bodyText) ? bodyText : "")) && (
-                                                  <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    asChild
-                                                    className="h-8 w-8 shrink-0 rounded-full"
-                                                  >
-                                                    <a
-                                                      href={getMediaUrl(msg.document?.link || msg.document?.id || (isUrl(bodyText) ? bodyText : ""))}
-                                                      target="_blank"
-                                                      rel="noreferrer"
-                                                    >
-                                                      <ExternalLink className="h-4 w-4" />
-                                                    </a>
-                                                  </Button>
+                                              <ChatDocumentCard
+                                                filename={
+                                                  msg.document?.filename ||
+                                                  (msg.metadata as any)?.document?.filename ||
+                                                  (isUrl(bodyText)
+                                                    ? bodyText.substring(bodyText.lastIndexOf("/") + 1)
+                                                    : (bodyText && !/^\d{15,18}$/.test(bodyText) && !["[Documento]"].includes(bodyText)
+                                                        ? bodyText
+                                                        : "Documento"))
+                                                }
+                                                url={getMediaUrl(
+                                                  msg.document?.link ||
+                                                    msg.document?.id ||
+                                                    (msg.metadata as any)?.document?.link ||
+                                                    (msg.metadata as any)?.document?.id ||
+                                                    (msg.metadata as any)?.media_url ||
+                                                    (msg.metadata as any)?.mediaUrl ||
+                                                    (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
                                                 )}
-                                              </div>
+                                              />
                                             )}
 
                                             {type === "sticker" && (
                                               <div className="p-1">
-                                                {getMediaUrl(msg.sticker?.link || msg.sticker?.id || (isUrl(bodyText) ? bodyText : "")) ? (
+                                                {getMediaUrl(msg.sticker?.link || msg.sticker?.id || (msg.metadata as any)?.sticker?.link || (msg.metadata as any)?.sticker?.id || (msg.metadata as any)?.media_url || (msg.metadata as any)?.mediaUrl || (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : "")) ? (
                                                   <img
-                                                    src={getMediaUrl(msg.sticker?.link || msg.sticker?.id || (isUrl(bodyText) ? bodyText : ""))}
+                                                    src={getMediaUrl(msg.sticker?.link || msg.sticker?.id || (msg.metadata as any)?.sticker?.link || (msg.metadata as any)?.sticker?.id || (msg.metadata as any)?.media_url || (msg.metadata as any)?.mediaUrl || (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""))}
                                                     alt="Sticker"
                                                     className="h-24 w-24 object-contain"
                                                   />
@@ -5323,36 +5622,45 @@ function ChatPage() {
                                             )}
 
                                             {/* Text block for header text, body/captions, and footer */}
-                                            {(((bodyText &&
-                                              !["[Imagem]", "[Vídeo]", "[Documento]", "[Áudio]", "[Figurinha]"].includes(bodyText) &&
-                                              !["audio", "sticker", "location", "contacts"].includes(type)) ||
-                                              headerText ||
-                                              interactive?.footer?.text) && (
-                                              <div
-                                                className={cn(
-                                                  "py-2 space-y-1",
-                                                  isRichCard && "px-3",
-                                                )}
-                                              >
-                                                {headerText && (
-                                                  <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
-                                                    {headerText}
-                                                  </p>
-                                                )}
-                                                {bodyText &&
-                                                  !["[Imagem]", "[Vídeo]", "[Documento]", "[Áudio]", "[Figurinha]"].includes(bodyText) &&
-                                                  !["audio", "sticker", "location", "contacts"].includes(type) && (
+                                            {(() => {
+                                              const isMediaRawIdentifier =
+                                                ["[Imagem]", "[Vídeo]", "[Documento]", "[Áudio]", "[Figurinha]"].includes(bodyText) ||
+                                                /^\d{15,18}$/.test(bodyText) ||
+                                                (type === "document" && (bodyText === msg.document?.filename || (msg.metadata as any)?.document?.filename === bodyText || bodyText.toLowerCase().endsWith(".pdf") || bodyText.toLowerCase().endsWith(".doc") || bodyText.toLowerCase().endsWith(".docx") || bodyText.toLowerCase().endsWith(".xls") || bodyText.toLowerCase().endsWith(".xlsx"))) ||
+                                                ((type === "image" || type === "video" || type === "audio" || type === "sticker") && isUrl(bodyText)) ||
+                                                ["audio", "sticker", "location", "contacts", "document"].includes(type);
+
+                                              const shouldRenderBodyText = Boolean(bodyText && !isMediaRawIdentifier);
+
+                                              if (!shouldRenderBodyText && !headerText && !interactive?.footer?.text) {
+                                                return null;
+                                              }
+
+                                              return (
+                                                <div
+                                                  className={cn(
+                                                    "py-2 space-y-1",
+                                                    isRichCard && "px-3",
+                                                  )}
+                                                >
+                                                  {headerText && (
+                                                    <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
+                                                      {headerText}
+                                                    </p>
+                                                  )}
+                                                  {shouldRenderBodyText && (
                                                     <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
                                                       {formatMessageText(bodyText)}
                                                     </p>
                                                   )}
-                                                {interactive?.footer?.text && (
-                                                  <p className="text-[10px] opacity-60">
-                                                    {interactive.footer.text}
-                                                  </p>
-                                                )}
-                                              </div>
-                                            ))}
+                                                  {interactive?.footer?.text && (
+                                                    <p className="text-[10px] opacity-60">
+                                                      {interactive.footer.text}
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
 
                                             {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
                                             {interactive?.type === "button" &&
@@ -5421,8 +5729,6 @@ function ChatPage() {
                                                 )}
                                               </div>
                                             )}
-
-                                            {/* G. Render URL CTA */}
                                             {interactive?.type === "cta_url" && (
                                               <div className="px-2.5 pb-2.5 pt-2 border-t border-border/40">
                                                 <a
