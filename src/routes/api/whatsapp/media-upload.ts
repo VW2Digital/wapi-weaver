@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
-import { spawn } from "node:child_process";
-import ffmpegPath from "ffmpeg-static";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import { transcodeAudioToOggOpus } from "@/lib/audio-transcode.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
 
 function getAuthUserId(request: Request): string {
@@ -104,38 +103,6 @@ function formatMetaError(body: any, fallback: string) {
   return [error.message || fallback, details, identifiers.length ? `(${identifiers.join(", ")})` : ""]
     .filter(Boolean)
     .join(" ");
-}
-
-async function transcodeAudioToOgg(bytes: Uint8Array): Promise<Uint8Array> {
-  if (!ffmpegPath) throw new Error("FFmpeg não está disponível para converter o áudio.");
-  const executable: string = ffmpegPath;
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, [
-      "-hide_banner", "-loglevel", "error",
-      "-i", "pipe:0",
-      "-vn", "-c:a", "libopus", "-b:a", "32k", "-application", "voip",
-      "-f", "ogg", "pipe:1",
-    ]);
-    const output: Buffer[] = [];
-    const errors: Buffer[] = [];
-    child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
-    child.on("error", reject);
-    child.on("close", (code: number | null) => {
-      if (code !== 0) {
-        reject(new Error(`Falha ao converter áudio: ${Buffer.concat(errors).toString("utf8").trim()}`));
-        return;
-      }
-      const converted = Buffer.concat(output);
-      if (converted.length < 4 || converted.subarray(0, 4).toString("ascii") !== "OggS") {
-        reject(new Error("A conversão não produziu um arquivo Ogg válido."));
-        return;
-      }
-      resolve(new Uint8Array(converted));
-    });
-    child.stdin.end(Buffer.from(bytes));
-  });
 }
 
 function detectMediaFile(bytes: Uint8Array, declaredType: string, originalName: string) {
@@ -247,7 +214,7 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           // voice=true exige Ogg/Opus. Normalizamos também MP3/M4A/AAC/AMR
           // para que anexos de áudio sigam a mesma regra da gravação.
           const uploadBuffer = initialFile.mimeType.startsWith("audio/")
-            ? await transcodeAudioToOgg(fileBuffer)
+            ? await transcodeAudioToOggOpus(fileBuffer)
             : fileBuffer;
           const detectedFile = detectMediaFile(
             uploadBuffer,

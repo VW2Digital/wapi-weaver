@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import { transcodeAudioToOggOpus } from "@/lib/audio-transcode.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
 
@@ -83,6 +84,7 @@ async function uploadBufferToMeta(
 ): Promise<string | null> {
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
+  form.append("type", mimeType);
   form.append("file", new Blob([new Uint8Array(binaryBuffer)], { type: mimeType }), uploadFilename);
 
   const uploadRes = await fetch(
@@ -116,6 +118,7 @@ async function prepareStepMediaForMeta(
   apiVersion: string,
 ): Promise<{ ok: true; step: any } | { ok: false; code: string; message: string }> {
   const rawMediaUrl = String(stepToExecute.media_url || "").trim();
+  const isAudioStep = String(stepToExecute.message_type || "").toLowerCase() === "audio";
   if (!rawMediaUrl) return { ok: true, step: stepToExecute };
 
   // Se já for um ID numérico da Meta (ex: "1234567890"), mantém diretamente
@@ -131,10 +134,16 @@ async function prepareStepMediaForMeta(
 
       const header = rawMediaUrl.slice(0, commaIdx);
       const base64Data = rawMediaUrl.slice(commaIdx + 1);
-      const mimeType = header.replace(/^data:/, "").replace(/;base64$/i, "").trim();
-      const ext = MIME_EXT[mimeType] || mimeType.split("/").pop()?.split(";")[0] || "bin";
-      const uploadFilename = `document.${ext}`;
-      const binaryBuffer = Buffer.from(base64Data, "base64");
+      let mimeType = header.replace(/^data:/, "").replace(/;base64$/i, "").trim();
+      let ext = MIME_EXT[mimeType] || mimeType.split("/").pop()?.split(";")[0] || "bin";
+      let uploadFilename = `document.${ext}`;
+      let binaryBuffer = Buffer.from(base64Data, "base64");
+      if (isAudioStep) {
+        binaryBuffer = Buffer.from(await transcodeAudioToOggOpus(binaryBuffer));
+        mimeType = "audio/ogg";
+        ext = "ogg";
+        uploadFilename = "audio.ogg";
+      }
 
       const mediaId = await uploadBufferToMeta(
         binaryBuffer,
@@ -202,10 +211,16 @@ async function prepareStepMediaForMeta(
       }
 
       if (foundPath) {
-        const binaryBuffer = fs.readFileSync(foundPath);
-        const ext = path.extname(foundPath).toLowerCase().replace(/^\./, "") || "pdf";
-        const mimeType = EXT_MIME[ext] || "application/octet-stream";
-        const uploadFilename = path.basename(foundPath) || `document.${ext}`;
+        let binaryBuffer = fs.readFileSync(foundPath);
+        let ext = path.extname(foundPath).toLowerCase().replace(/^\./, "") || "pdf";
+        let mimeType = EXT_MIME[ext] || "application/octet-stream";
+        let uploadFilename = path.basename(foundPath) || `document.${ext}`;
+        if (isAudioStep) {
+          binaryBuffer = Buffer.from(await transcodeAudioToOggOpus(binaryBuffer));
+          ext = "ogg";
+          mimeType = "audio/ogg";
+          uploadFilename = `${path.parse(uploadFilename).name || "audio"}.ogg`;
+        }
 
         const mediaId = await uploadBufferToMeta(
           binaryBuffer,
