@@ -115,6 +115,17 @@ async function main() {
     }
     console.log("[Create Tables] ✅ Final canonical table definitions applied successfully.");
 
+    // reference-schema.sql intentionally excludes the migration bookkeeping
+    // table because it is operational metadata, not part of the application
+    // schema contract. Create it explicitly before registering the baseline.
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version VARCHAR(255) PRIMARY KEY,
+        applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    console.log("[Create Tables] ✅ Migration tracking table 'schema_migrations' checked.");
+
     const canonicalSeedPath = path.resolve(__dirname, "../database/schema/canonical-schema.sql");
     const canonicalSeedSql = fs.existsSync(canonicalSeedPath)
       ? fs.readFileSync(canonicalSeedPath, "utf8")
@@ -144,7 +155,6 @@ async function main() {
     console.log(`[Create Tables] ✅ SUCCESS: Verified all ${requiredTables.length} essential tables exist in database.`);
 
     // 3. Register ALL baseline migrations in schema_migrations
-    // schema_migrations is already created by canonical-schema.sql itself
     // Read canonical-baseline.json to get the full list of migrations already incorporated
     const baselinePath = path.resolve(__dirname, "../database/schema/canonical-baseline.json");
     if (!fs.existsSync(baselinePath)) {

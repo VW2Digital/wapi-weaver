@@ -707,6 +707,7 @@ fi
 
 # 6.4 Auto-detecção de Banco de Dados Existente
 EXISTING_INSTALLATION=0
+UNTRACKED_SCHEMA=0
 MIGRATION_COUNT=0
 
 CHECK_MIGRATION_SQL="SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='wapi_weaver' AND TABLE_NAME='schema_migrations';"
@@ -731,6 +732,8 @@ if [ "${EXISTING_INSTALLATION}" -eq 0 ]; then
   [ -n "${HAS_USERS_TABLE}" ] || HAS_USERS_TABLE=0
   if [ "${HAS_USERS_TABLE}" -gt 0 ]; then
     EXISTING_INSTALLATION=1
+    UNTRACKED_SCHEMA=1
+    print_warn "Schema existente sem histórico de migrações detectado. O instalador executará uma reconciliação aditiva antes das migrações."
   fi
 fi
 
@@ -849,6 +852,9 @@ run_schema_sync() {
 case "$DB_MODE" in
   UPDATE_EXISTING)
     echo "  Executando fluxo de atualização (UPDATE)..."
+    if [ "${UNTRACKED_SCHEMA}" -eq 1 ]; then
+      create_database_schema
+    fi
     run_database_migrations
     run_schema_sync
     ;;
