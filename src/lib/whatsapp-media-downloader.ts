@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -112,22 +113,25 @@ export async function downloadAndPersistInboundMedia(
     }
 
     const arrayBuffer = await binaryRes.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    let buffer = Buffer.from(arrayBuffer);
 
     // 4. Determina extensão e caminho local isolado por tenant
-    const mimeType = metaBody.mime_type || mediaMeta.mime_type || "application/octet-stream";
-    const cleanMime = mimeType.split(";")[0].trim().toLowerCase();
+    let mimeType = metaBody.mime_type || mediaMeta.mime_type || "application/octet-stream";
+    let cleanMime = mimeType.split(";")[0].trim().toLowerCase();
     let ext = MIME_EXTENSION_MAP[cleanMime] || "bin";
 
-    if (mediaType === "document" && mediaMeta.filename) {
+    if (mediaType === "audio") {
+      buffer = Buffer.from(await transcodeAudioToMp3(buffer));
+      mimeType = "audio/mpeg";
+      cleanMime = mimeType;
+      ext = "mp3";
+    } else if (mediaType === "document" && mediaMeta.filename) {
       const parts = mediaMeta.filename.split(".");
       if (parts.length > 1) {
         ext = parts.pop()!.toLowerCase();
       }
     } else if (mediaType === "sticker") {
       ext = "webp";
-    } else if (mediaType === "audio" && (cleanMime.includes("ogg") || cleanMime.includes("opus"))) {
-      ext = "ogg";
     }
 
     const now = new Date();

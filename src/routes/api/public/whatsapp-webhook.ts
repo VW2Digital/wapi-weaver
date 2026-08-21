@@ -1009,19 +1009,17 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         throw new Error(`Falha ao persistir mensagem recebida: ${messageInsertError.message}`);
       }
 
-      // 📥 Se for mídia (image, audio, video, document, sticker), inicia o download assíncrono em background
+      // Persiste a mídia antes de liberar a mensagem para o restante do processamento.
       if (["image", "audio", "video", "document", "sticker"].includes(type)) {
         const mediaMeta = (m as any)[type] || {};
-        downloadAndPersistInboundMedia(
+        await downloadAndPersistInboundMedia(
           userId,
           newDbMessageId,
           waMessageId,
           type as any,
           mediaMeta,
           phoneNumberId,
-        ).catch((err) => {
-          console.error("[Webhook Media Downloader Background Error]:", err);
-        });
+        );
       }
     } catch (error: unknown) {
       throw error;
@@ -1580,19 +1578,17 @@ async function handleWhatsAppGroupMessage(
     { onConflict: "wa_message_id" },
   );
 
-  // 📥 Se for mídia no grupo, inicia download assíncrono em background
+  // Persiste a mídia antes de liberar a mensagem para o restante do processamento.
   if (["image", "audio", "video", "document", "sticker"].includes(type)) {
     const mediaMeta = (m as any)[type] || {};
-    downloadAndPersistInboundMedia(
+    await downloadAndPersistInboundMedia(
       userId,
       newGroupDbMsgId,
       waMessageId,
       type as any,
       mediaMeta,
       phoneNumberId,
-    ).catch((err) => {
-      console.error("[Webhook Media Downloader Group Error]:", err);
-    });
+    );
   }
 
   // 🚀 Chama o motor do BotFlow para processar essa mensagem do grupo (se habilitado)

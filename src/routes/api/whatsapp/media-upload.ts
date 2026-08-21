@@ -105,7 +105,7 @@ function formatMetaError(body: any, fallback: string) {
     .join(" ");
 }
 
-function detectMediaFile(bytes: Uint8Array, declaredType: string, originalName: string) {
+function detectAudioFile(bytes: Uint8Array, declaredType: string, originalName: string) {
   const startsWith = (...signature: number[]) =>
     signature.every((value, index) => bytes[index] === value);
 
@@ -126,12 +126,12 @@ function detectMediaFile(bytes: Uint8Array, declaredType: string, originalName: 
     return { mimeType: "audio/amr", fileName: originalName.replace(/\.[^.]+$/, "") + ".amr" };
   }
   if (declaredType.toLowerCase().startsWith("audio/")) {
-    throw new Error("Não foi possível validar o formato real do áudio. Use Ogg/Opus, MP3, M4A, AAC ou AMR.");
+    return { mimeType: declaredType, fileName: originalName || "audio.mp3" };
   }
 
   return {
     mimeType: declaredType || "application/octet-stream",
-    fileName: originalName || "media.bin",
+    fileName: originalName || "audio.mp3",
   };
 }
 
@@ -170,7 +170,23 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             );
           }
           const rule = MEDIA_RULES[mediaType];
-          const declaredMime = (file.type || "application/octet-stream").toLowerCase();
+          let declaredMime = (file.type || "").toLowerCase().split(";")[0].trim();
+          if (!declaredMime || declaredMime === "application/octet-stream") {
+            const ext = (file.name || "").toLowerCase().split(".").pop();
+            if (ext === "mp4") declaredMime = "video/mp4";
+            else if (ext === "3gp" || ext === "3gpp") declaredMime = "video/3gpp";
+            else if (ext === "jpg" || ext === "jpeg") declaredMime = "image/jpeg";
+            else if (ext === "png") declaredMime = "image/png";
+            else if (ext === "webp") declaredMime = "image/webp";
+            else if (ext === "mp3") declaredMime = "audio/mpeg";
+            else if (ext === "m4a") declaredMime = "audio/mp4";
+            else if (ext === "ogg") declaredMime = "audio/ogg";
+            else if (ext === "aac") declaredMime = "audio/aac";
+            else if (ext === "amr") declaredMime = "audio/amr";
+            else if (ext === "pdf") declaredMime = "application/pdf";
+            else if (ext === "txt") declaredMime = "text/plain";
+            else declaredMime = file.type || "application/octet-stream";
+          }
           if (!rule.mimeTypes.has(declaredMime)) {
             return json(
               {
@@ -204,27 +220,34 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             apiVersion = "v26.0";
           }
 
-          const initialFile = isWebM(fileBuffer)
-            ? { mimeType: "audio/webm" }
-            : detectMediaFile(
-                fileBuffer,
-                file.type || "application/octet-stream",
-                file.name || "media",
-              );
-          // Normaliza toda origem de áudio para um MP3 real. Isso evita enviar
-          // WebM/Ogg apenas renomeado, que a Meta classifica como octet-stream.
-          const uploadBuffer = initialFile.mimeType.startsWith("audio/")
-            ? await transcodeAudioToMp3(fileBuffer)
-            : fileBuffer;
-          const detectedFile = detectMediaFile(
-            uploadBuffer,
-            initialFile.mimeType.startsWith("audio/")
-              ? "audio/mpeg"
-              : file.type || "application/octet-stream",
-            initialFile.mimeType.startsWith("audio/") ? "audio.mp3" : file.name || "media",
-          );
-          const mimeType = detectedFile.mimeType;
-          const fileName = detectedFile.fileName;
+          let uploadBuffer = fileBuffer;
+          let mimeType = declaredMime;
+          let fileName = file.name || "media";
+
+          if (mediaType === "audio") {
+            const initialFile = isWebM(fileBuffer)
+              ? { mimeType: "audio/webm", fileName: file.name || "audio.webm" }
+              : detectAudioFile(
+                  fileBuffer,
+                  declaredMime,
+                  file.name || "audio",
+                );
+            // Normaliza toda origem de áudio para um MP3 real. Isso evita enviar
+            // WebM/Ogg apenas renomeado, que a Meta classifica como octet-stream.
+            uploadBuffer = initialFile.mimeType.startsWith("audio/")
+              ? await transcodeAudioToMp3(fileBuffer)
+              : fileBuffer;
+            const detectedFile = detectAudioFile(
+              uploadBuffer,
+              initialFile.mimeType.startsWith("audio/")
+                ? "audio/mpeg"
+                : declaredMime,
+              initialFile.mimeType.startsWith("audio/") ? "audio.mp3" : file.name || "audio.mp3",
+            );
+            mimeType = detectedFile.mimeType;
+            fileName = detectedFile.fileName;
+          }
+          
           const blobBuffer = uploadBuffer.slice().buffer as ArrayBuffer;
           const fileBlob = new Blob([blobBuffer], { type: mimeType });
 

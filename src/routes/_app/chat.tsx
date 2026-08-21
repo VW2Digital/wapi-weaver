@@ -4867,15 +4867,6 @@ function ChatPage() {
 
                                       if (type === "text") {
                                         if (
-                                          msg.audio ||
-                                          (msg.metadata as any)?.audio ||
-                                          (msg.metadata as any)?.type === "audio" ||
-                                          (msg.metadata as any)?.message?.type === "audio" ||
-                                          (msg.metadata as any)?.message?.audio ||
-                                          (bodyText && /^\d{15,18}$/.test(bodyText.trim()))
-                                        ) {
-                                          type = "audio";
-                                        } else if (
                                           msg.image ||
                                           (msg.metadata as any)?.image ||
                                           (msg.metadata as any)?.type === "image" ||
@@ -4907,6 +4898,15 @@ function ChatPage() {
                                           (msg.metadata as any)?.message?.sticker
                                         ) {
                                           type = "sticker";
+                                        } else if (
+                                          msg.audio ||
+                                          (msg.metadata as any)?.audio ||
+                                          (msg.metadata as any)?.type === "audio" ||
+                                          (msg.metadata as any)?.message?.type === "audio" ||
+                                          (msg.metadata as any)?.message?.audio ||
+                                          (bodyText && /^\d{15,18}$/.test(bodyText.trim()))
+                                        ) {
+                                          type = "audio";
                                         }
                                       }
 
