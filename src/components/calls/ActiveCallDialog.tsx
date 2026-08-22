@@ -33,6 +33,7 @@ export function ActiveCallDialog({
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isEnding, setIsEnding] = useState(false);
+  const [isAudioConnected, setIsAudioConnected] = useState(false);
   const [duration, setDuration] = useState(0);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,15 +66,100 @@ export function ActiveCallDialog({
   useEffect(() => {
     if (!peerConnection) return;
 
-    peerConnection.ontrack = (event) => {
+    const handleTrack = (event: RTCTrackEvent) => {
+      console.log("[CALL WebRTC] Faixa de áudio recebida:", event);
       if (event.streams && event.streams[0] && audioElementRef.current) {
         audioElementRef.current.srcObject = event.streams[0];
-        audioElementRef.current.play().catch((err) => {
-          console.warn("[CALL] Erro ao iniciar reprodução de áudio:", err);
-        });
+        audioElementRef.current
+          .play()
+          .then(() => {
+            setIsAudioConnected(true);
+            console.log("[CALL WebRTC] Reprodução de áudio iniciada!");
+          })
+          .catch((err) => {
+            console.warn("[CALL] Erro ao iniciar reprodução de áudio:", err);
+          });
       }
     };
+
+    peerConnection.ontrack = handleTrack;
+
+    // Monitora mudança no estado da conexão de gelo (ICE Connection State)
+    const handleIceState = () => {
+      console.log("[CALL WebRTC] ICE Connection State:", peerConnection.iceConnectionState);
+      if (
+        peerConnection.iceConnectionState === "connected" ||
+        peerConnection.iceConnectionState === "completed"
+      ) {
+        setIsAudioConnected(true);
+      } else if (
+        peerConnection.iceConnectionState === "disconnected" ||
+        peerConnection.iceConnectionState === "failed"
+      ) {
+        console.warn("[CALL WebRTC] Conexão de mídia WebRTC desconectada.");
+      }
+    };
+
+    peerConnection.addEventListener("iceconnectionstatechange", handleIceState);
+
+    return () => {
+      peerConnection.removeEventListener("iceconnectionstatechange", handleIceState);
+    };
   }, [peerConnection]);
+
+  // Escuta o fluxo de eventos SSE (/api/chat/events) para receber a resposta SDP (Answer) da Meta em tempo real
+  useEffect(() => {
+    if (!open || !peerConnection) return;
+
+    const es = new EventSource("/api/chat/events");
+
+    es.onmessage = async (evt) => {
+      try {
+        if (!evt.data || evt.data === "connected" || evt.data === "ping") return;
+        const payload = JSON.parse(evt.data);
+
+        if (payload.type === "call.signal") {
+          console.log("[CALL SSE] Sinalização recebida da Meta:", payload);
+
+          // Se a chamada foi terminada ou rejeitada
+          if (
+            payload.call_event === "terminate" ||
+            payload.call_event === "reject" ||
+            payload.status === "ended" ||
+            payload.status === "rejected"
+          ) {
+            toast.info("A chamada foi finalizada.");
+            cleanup();
+            onOpenChange(false);
+            onCallEnded?.();
+            return;
+          }
+
+          // Se a Meta enviou o SDP Answer
+          if (payload.sdp && peerConnection.signalingState === "have-local-offer") {
+            try {
+              const answerDesc = new RTCSessionDescription({
+                type: (payload.sdp_type || "answer") as RTCSdpType,
+                sdp: payload.sdp,
+              });
+              await peerConnection.setRemoteDescription(answerDesc);
+              setIsAudioConnected(true);
+              console.log("[CALL WebRTC] SDP Answer da Meta aplicado com sucesso via SSE!");
+              toast.success("Áudio conectado!");
+            } catch (sdpErr) {
+              console.error("[CALL WebRTC] Erro ao aplicar SDP Answer da Meta:", sdpErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[CALL SSE] Erro ao interpretar evento:", err);
+      }
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [open, peerConnection, onOpenChange, onCallEnded]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -164,11 +250,14 @@ export function ActiveCallDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(isOpen) => {
-        if (!isOpen && !isEnding) {
-          handleEndCall();
-        }
-      }}>
+      <Dialog
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !isEnding) {
+            handleEndCall();
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md bg-card border-border rounded-2xl p-6 shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Chamada em Andamento</DialogTitle>
@@ -188,12 +277,17 @@ export function ActiveCallDialog({
 
               <div>
                 <div className="flex items-center justify-center gap-2 mb-1">
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5 font-medium flex items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5 font-medium flex items-center gap-1.5"
+                  >
                     <Radio className="h-3 w-3 animate-pulse text-emerald-500" />
-                    Em chamada ativa
+                    {isAudioConnected ? "Voz conectada" : "Conectando áudio..."}
                   </Badge>
                 </div>
-                <h3 className="font-bold text-xl text-foreground font-display">{contactName || contactPhone}</h3>
+                <h3 className="font-bold text-xl text-foreground font-display">
+                  {contactName || contactPhone}
+                </h3>
                 <p className="text-xs text-muted-foreground font-mono mt-0.5">{contactPhone}</p>
               </div>
 
@@ -242,7 +336,9 @@ export function ActiveCallDialog({
                 ) : (
                   <VolumeX className="h-5 w-5 mb-1 text-muted-foreground" />
                 )}
-                <span className="text-[11px] font-medium">{isSpeakerOn ? "Viva-Voz On" : "Viva-Voz Off"}</span>
+                <span className="text-[11px] font-medium">
+                  {isSpeakerOn ? "Viva-Voz On" : "Viva-Voz Off"}
+                </span>
               </Button>
 
               {/* Botão Desligar */}

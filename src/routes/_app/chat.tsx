@@ -36,6 +36,7 @@ import {
 import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,7 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  CheckCircle2,
   Loader2,
   RefreshCw,
   X,
@@ -136,6 +138,8 @@ import {
   Download,
   Play,
   Pause,
+  TrendingUp,
+  Plus,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
@@ -496,12 +500,15 @@ interface OpportunityAuditLogRecord {
 interface LeadTimelineItem {
   id: string;
   type: "activity" | "audit";
+  actionType?: string;
   title?: string | null;
   description?: string | null;
   activityType?: string | null;
   status?: string | null;
   date: Date;
   due_at?: string | null;
+  stageName?: string | null;
+  stageColor?: string | null;
   old_values?: unknown;
   new_values?: unknown;
 }
@@ -1904,7 +1911,16 @@ function ChatPage() {
 
       if (oppError) throw oppError;
 
-      // 3. Histórico de auditoria do CRM
+      // 3. Buscar nomes das etapas de vendas (sales_stages)
+      const { data: allStages } = await db
+        .from("sales_stages")
+        .select("id, name, color");
+      const stageMap = new Map<string, { name: string; color?: string }>();
+      (allStages || []).forEach((st: any) => {
+        stageMap.set(st.id, { name: st.name, color: st.color });
+      });
+
+      // 4. Histórico de auditoria do CRM
       let auditLogs: OpportunityAuditLogRecord[] = [];
       if (opps && opps.length > 0) {
         const oppIds = (opps as ChatOpportunityRecord[]).map((opportunity) => opportunity.id);
@@ -1917,29 +1933,118 @@ function ChatPage() {
         auditLogs = audits || [];
       }
 
-      // Combinar em uma única timeline ordenada
+      // Função auxiliar para formatar moeda
+      const formatCurrency = (val: any) => {
+        const num = typeof val === "number" ? val : parseFloat(String(val).replace(/\D/g, "")) || 0;
+        return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num);
+      };
+
+      // Função auxiliar para fazer parse seguro de JSON
+      const parseJsonObj = (val: unknown): Record<string, any> => {
+        if (!val) return {};
+        if (typeof val === "object") return val as Record<string, any>;
+        try {
+          return JSON.parse(String(val));
+        } catch {
+          return {};
+        }
+      };
+
+      // Combinar em uma única timeline ordenada e humanizada
       const timeline: LeadTimelineItem[] = [];
 
       (activities as LeadActivityRecord[] | null)?.forEach((activity) => {
+        let humanTitle = activity.title || "Atividade registrada";
+        let humanTypeLabel = "Atividade";
+        if (activity.type === "follow_up") {
+          humanTitle = activity.title || "Follow-up Agendado";
+          humanTypeLabel = "Follow-up";
+        } else if (activity.type === "call") {
+          humanTitle = activity.title || "Ligação Registrada";
+          humanTypeLabel = "Ligação";
+        } else if (activity.type === "meeting") {
+          humanTitle = activity.title || "Reunião Agendada";
+          humanTypeLabel = "Reunião";
+        } else if (activity.type === "note") {
+          humanTitle = activity.title || "Anotação Interna";
+          humanTypeLabel = "Anotação";
+        }
+
         timeline.push({
           id: activity.id,
           type: "activity",
-          title: activity.title,
-          description: activity.description,
-          activityType: activity.type,
-          status: activity.status,
+          actionType: activity.type || "activity",
+          title: humanTitle,
+          description: activity.description || "Acompanhamento registrado para o contato.",
+          activityType: humanTypeLabel,
+          status: activity.status === "done" ? "Concluído" : "Pendente",
           date: new Date(activity.created_at || activity.due_at || Date.now()),
           due_at: activity.due_at,
         });
       });
 
       auditLogs.forEach((log) => {
+        const action = String(log.action || "").toLowerCase();
+        const newVal = parseJsonObj(log.new_values);
+        const oldVal = parseJsonObj(log.old_values);
+
+        let humanTitle = "Atualização no CRM";
+        let humanDesc = "";
+        let stageName: string | undefined;
+        let stageColor: string | undefined;
+
+        if (action === "move_stage") {
+          const stInfo = newVal.stage_id ? stageMap.get(newVal.stage_id) : undefined;
+          stageName = stInfo?.name;
+          stageColor = stInfo?.color;
+
+          if (newVal.status === "won") {
+            humanTitle = "Oportunidade Ganha";
+            humanDesc = "A oportunidade foi finalizada com sucesso (Venda Concluída).";
+          } else if (newVal.status === "lost") {
+            humanTitle = "Oportunidade Perdida";
+            humanDesc = "A oportunidade foi marcada como Perdida.";
+          } else if (stageName) {
+            humanTitle = "Mudança de Etapa";
+            humanDesc = `Avançou para a etapa "${stageName}".`;
+          } else {
+            humanTitle = "Mudança de Etapa";
+            humanDesc = "A oportunidade avançou no funil de vendas.";
+          }
+        } else if (action === "create") {
+          humanTitle = "Oportunidade Criada";
+          const oppTitle = newVal.title || "Nova oportunidade";
+          const valStr = newVal.value ? ` no valor de ${formatCurrency(newVal.value)}` : "";
+          humanDesc = `Criou a oportunidade "${oppTitle}"${valStr}.`;
+        } else if (action === "delete") {
+          humanTitle = "Oportunidade Removida";
+          const oppTitle = newVal.title || oldVal.title || "Oportunidade";
+          humanDesc = `A oportunidade "${oppTitle}" foi excluída do CRM.`;
+        } else if (action === "update") {
+          humanTitle = "Oportunidade Atualizada";
+          if (newVal.value !== undefined && oldVal.value !== undefined && newVal.value !== oldVal.value) {
+            humanDesc = `Valor da oportunidade alterado para ${formatCurrency(newVal.value)}.`;
+          } else if (newVal.title && oldVal.title && newVal.title !== oldVal.title) {
+            humanDesc = `Título alterado para "${newVal.title}".`;
+          } else if (newVal.status && oldVal.status && newVal.status !== oldVal.status) {
+            const statusMap: Record<string, string> = { open: "Em Aberto", won: "Ganha", lost: "Perdida" };
+            humanDesc = `Status alterado para ${statusMap[newVal.status] || newVal.status}.`;
+          } else {
+            humanDesc = "Os dados da oportunidade foram atualizados.";
+          }
+        } else {
+          humanTitle = "Registro no CRM";
+          humanDesc = "Histórico de alterações na oportunidade.";
+        }
+
         timeline.push({
           id: log.id,
           type: "audit",
-          title: log.action,
-          old_values: log.old_values,
-          new_values: log.new_values,
+          actionType: action,
+          title: humanTitle,
+          description: humanDesc,
+          stageName,
+          stageColor,
           date: new Date(log.created_at ?? Date.now()),
         });
       });
@@ -5002,14 +5107,6 @@ function ChatPage() {
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
-                          onClick={() => setIsInventoryOpen(true)}
-                          className="cursor-pointer"
-                        >
-                          <Package className="mr-2.5 h-4 w-4 text-zinc-400" />
-                          <span>Gerenciar Estoque</span>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
                           onClick={() => setIsMessageSearchOpen(true)}
                           className="cursor-pointer"
                         >
@@ -7260,80 +7357,109 @@ function ChatPage() {
                     Nenhuma atividade registrada para este contato no CRM.
                   </div>
                 ) : (
-                  <div className="relative border-l border-border ml-3 pl-5 space-y-5">
+                  <div className="space-y-3">
                     {(leadHistoryQuery.data ?? []).map((item: LeadTimelineItem) => {
                       const itemDate = new Date(item.date);
-                      return (
-                        <div key={item.id} className="relative group">
-                          {/* Dot indicator */}
-                          <span
-                            className={cn(
-                              "absolute -left-[27px] top-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center text-[8px] font-bold text-white shadow-sm select-none",
-                              item.type === "activity"
-                                ? item.status === "done"
-                                  ? "bg-emerald-500"
-                                  : "bg-amber-500"
-                                : "bg-indigo-500",
-                            )}
-                          >
-                            {item.type === "activity" ? "A" : "U"}
-                          </span>
 
-                          <div>
-                            <div className="flex items-center justify-between gap-2">
-                              <h4 className="font-semibold text-sm text-foreground">
-                                {item.title}
-                              </h4>
-                              <span className="text-[10px] text-muted-foreground select-none">
-                                {itemDate.toLocaleDateString([], {
-                                  day: "numeric",
-                                  month: "short",
-                                })}{" "}
-                                -{" "}
-                                {itemDate.toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
+                      // Ícones e cores para cada tipo de ação
+                      let iconNode = <Activity className="h-4 w-4" />;
+                      let badgeStyle = "bg-primary/10 text-primary border-primary/20";
+                      let typeLabel = "CRM";
+
+                      if (item.actionType === "won" || item.title?.includes("Ganha")) {
+                        iconNode = <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+                        badgeStyle = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+                        typeLabel = "Venda Concluída";
+                      } else if (
+                        item.actionType === "lost" ||
+                        item.actionType === "delete" ||
+                        item.title?.includes("Perdida") ||
+                        item.title?.includes("Removida")
+                      ) {
+                        iconNode = <XCircle className="h-4 w-4 text-destructive" />;
+                        badgeStyle = "bg-destructive/10 text-destructive border-destructive/20";
+                        typeLabel = item.actionType === "delete" ? "Remoção" : "Perdida";
+                      } else if (
+                        item.actionType === "move_stage" ||
+                        item.title?.includes("Etapa") ||
+                        item.title?.includes("Avanço")
+                      ) {
+                        iconNode = <TrendingUp className="h-4 w-4 text-blue-500" />;
+                        badgeStyle = "bg-blue-500/10 text-blue-600 border-blue-500/20";
+                        typeLabel = "Funil de Vendas";
+                      } else if (item.actionType === "create") {
+                        iconNode = <Plus className="h-4 w-4 text-indigo-500" />;
+                        badgeStyle = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20";
+                        typeLabel = "Novo Negócio";
+                      } else if (item.actionType === "follow_up" || item.type === "activity") {
+                        iconNode = <Clock className="h-4 w-4 text-amber-500" />;
+                        badgeStyle = "bg-amber-500/10 text-amber-600 border-amber-500/20";
+                        typeLabel = item.activityType || "Acompanhamento";
+                      }
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="bg-card border border-border/80 rounded-xl p-3.5 shadow-xs transition-all hover:border-primary/30 space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-8 w-8 rounded-lg bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                                {iconNode}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-semibold text-xs text-foreground truncate font-display">
+                                  {item.title}
+                                </h4>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {itemDate.toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "short",
+                                  })}{" "}
+                                  às{" "}
+                                  {itemDate.toLocaleTimeString("pt-BR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
                             </div>
-                            {item.description && (
-                              <p className="text-xs text-muted-foreground mt-1 bg-muted/50 p-2 rounded border border-border">
-                                {item.description}
-                              </p>
-                            )}
-                            {item.type === "audit" && Boolean(item.new_values) && (
-                              <div className="text-[10px] text-muted-foreground font-mono mt-1 bg-muted p-1.5 rounded truncate max-w-full">
-                                Modificado:{" "}
-                                {typeof item.new_values === "object"
-                                  ? String(JSON.stringify(item.new_values) ?? "")
-                                  : String(item.new_values)}
-                              </div>
-                            )}
-                            {item.type === "activity" && (
-                              <div className="flex gap-2 items-center mt-1.5">
-                                <span
-                                  className={cn(
-                                    "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
-                                    item.activityType === "follow_up"
-                                      ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                                      : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20",
-                                  )}
-                                >
-                                  {item.activityType}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
-                                    item.status === "done"
-                                      ? "bg-emerald-500/10 text-emerald-500 border border-emerald-550/20"
-                                      : "bg-neutral-800 text-zinc-400",
-                                  )}
-                                >
-                                  {item.status === "done" ? "Concluído" : "Pendente"}
-                                </span>
-                              </div>
-                            )}
+
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] py-0 px-2 font-medium shrink-0 ${badgeStyle}`}
+                            >
+                              {typeLabel}
+                            </Badge>
                           </div>
+
+                          {/* Descrição em Linguagem Humana */}
+                          {item.description && (
+                            <p className="text-xs text-muted-foreground bg-muted/30 border border-border/50 rounded-lg p-2.5 leading-relaxed">
+                              {item.description}
+                            </p>
+                          )}
+
+                          {/* Badges de Atividade */}
+                          {item.type === "activity" && (
+                            <div className="flex flex-wrap gap-2 items-center text-[11px] text-muted-foreground pt-0.5">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] py-0 px-1.5 font-medium ${
+                                  item.status === "Concluído"
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                    : "bg-muted text-muted-foreground border-border"
+                                }`}
+                              >
+                                {item.status || "Pendente"}
+                              </Badge>
+                              {item.due_at && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Prazo: {new Date(item.due_at).toLocaleDateString("pt-BR")}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

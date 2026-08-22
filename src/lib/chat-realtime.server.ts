@@ -15,12 +15,17 @@ export interface ChatRealtimeEvent {
     | "message.failed"
     | "message.retry"
     | "message.received"
-    | "message.status";
+    | "message.status"
+    | "call.signal";
   tenant_id: string;
   contact_phone?: string | null;
   message_id?: string | null;
   provider_message_id?: string | null;
   status?: string | null;
+  call_id?: string | null;
+  call_event?: string | null;
+  sdp?: string | null;
+  sdp_type?: string | null;
   occurred_at?: string;
 }
 

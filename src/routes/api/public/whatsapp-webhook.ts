@@ -1792,6 +1792,22 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
       messageBody = "[Chamada de voz falhou]";
     }
 
+    // Transmite o sinal da chamada e o SDP Answer/Offer em tempo real para a interface
+    try {
+      await publishChatRealtimeEvent({
+        type: "call.signal",
+        tenant_id: userId,
+        contact_phone: phoneDigits,
+        call_id: callId,
+        call_event: event,
+        sdp: call.session?.sdp,
+        sdp_type: call.session?.sdp_type || (event === "connect" && direction === "inbound" ? "offer" : "answer"),
+        status,
+      });
+    } catch (realtimeErr) {
+      logError("[CALL] Erro ao publicar evento realtime da chamada", realtimeErr);
+    }
+
     // 1. Garante que o contato existe na tabela contacts
     let contactId: string | null = null;
     if (phoneDigits) {

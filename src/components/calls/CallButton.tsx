@@ -29,14 +29,27 @@ async function generateSdpOffer(): Promise<WebRtcCallSession> {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
     ],
   });
 
   let localStream: MediaStream | null = null;
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    localStream.getAudioTracks().forEach((track) => pc.addTrack(track, localStream!));
-  } catch {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    localStream.getAudioTracks().forEach((track) => {
+      track.enabled = true;
+      pc.addTrack(track, localStream!);
+    });
+  } catch (micErr) {
+    console.warn("[CALL] Não foi possível acessar microfone:", micErr);
     pc.addTransceiver("audio", { direction: "sendrecv" });
   }
 
@@ -59,7 +72,7 @@ async function generateSdpOffer(): Promise<WebRtcCallSession> {
       setTimeout(() => {
         pc.removeEventListener("icegatheringstatechange", onStateChange);
         resolve();
-      }, 1200);
+      }, 1500);
     }
   });
 
@@ -145,6 +158,26 @@ export function CallButton({
           callResult.data?.call_id ||
           `call_${Date.now()}`;
 
+        // Se a Meta retornou o SDP Answer imediatamente na resposta
+        const immediateAnswer =
+          callResult.data?.session?.sdp ||
+          callResult.data?.sdp ||
+          callResult.data?.calls?.[0]?.session?.sdp;
+
+        if (immediateAnswer && session?.peerConnection) {
+          try {
+            await session.peerConnection.setRemoteDescription(
+              new RTCSessionDescription({
+                type: "answer",
+                sdp: immediateAnswer,
+              }),
+            );
+            console.log("[CALL] SDP Answer imediato da Meta aplicado com sucesso!");
+          } catch (sdpErr) {
+            console.warn("[CALL] Erro ao aplicar SDP Answer imediato:", sdpErr);
+          }
+        }
+
         // Abre o diálogo da chamada ativa com controles de Viva-voz, Mudo e Desligar
         setActiveCallSession({
           callId,
@@ -180,7 +213,6 @@ export function CallButton({
             onClick: () => handleSendPermissionRequest(targetPhone),
           },
         });
-        // Limpa sessão local
         session?.localStream?.getTracks().forEach((t) => t.stop());
         session?.peerConnection.close();
         return false;
@@ -213,7 +245,6 @@ export function CallButton({
 
       if (!res.ok) {
         const errMsg = res.error || "";
-        // Se a Meta informar que a conta comercial JÁ PODE ligar para o cliente (código 138017)
         if (errMsg.includes("138017") || errMsg.toLowerCase().includes("can already call")) {
           toast.success("Permissão confirmada na Meta! Iniciando chamada...");
           await executeCall(targetPhone);
