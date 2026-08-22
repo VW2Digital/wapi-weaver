@@ -252,7 +252,7 @@ function WebhookLeadsPanel({
             size="sm"
             variant="outline"
             onClick={() => leadsQ.refetch()}
-            className="h-9 text-xs rounded-xl border-border px-3.5 font-semibold"
+            className="h-8 text-xs rounded-full border-border px-3.5 font-medium"
           >
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${leadsQ.isFetching ? "animate-spin" : ""}`} />
             Atualizar
@@ -262,7 +262,7 @@ function WebhookLeadsPanel({
             variant="outline"
             size="sm"
             onClick={onClose}
-            className="h-9 px-3.5 text-xs font-bold rounded-xl border-border hover:bg-muted shrink-0"
+            className="h-8 px-3.5 text-xs font-medium rounded-full border-border hover:bg-muted shrink-0"
           >
             <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
           </Button>
@@ -295,7 +295,7 @@ function WebhookLeadsPanel({
           <button
             key={f}
             onClick={() => onStatusChange(f)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+            className={`h-8 px-4 rounded-full text-xs font-medium transition-all border flex items-center gap-1.5 ${
               statusFilter === f
                 ? "bg-primary text-white border-primary shadow-xs"
                 : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
@@ -324,6 +324,17 @@ function WebhookLeadsPanel({
           <div className="flex flex-col items-center justify-center py-16 gap-3 bg-card border border-border rounded-2xl">
             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-muted-foreground">Carregando eventos...</p>
+          </div>
+        ) : leadsQ.isError ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 border border-destructive/30 rounded-2xl bg-destructive/5 text-center">
+            <AlertCircle className="h-8 w-8 text-destructive" />
+            <p className="text-sm font-bold text-foreground">Erro ao carregar eventos</p>
+            <p className="text-xs text-muted-foreground max-w-md">
+              {leadsQ.error?.message || "Ocorreu um erro ao buscar os eventos deste webhook."}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => leadsQ.refetch()} className="mt-2 h-8 px-3 rounded-full text-xs">
+              Tentar novamente
+            </Button>
           </div>
         ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 border border-dashed border-border rounded-2xl bg-card/40">
@@ -1580,7 +1591,7 @@ function WebhooksPage() {
               </div>
               <div>
                 <SheetTitle className="text-base font-bold font-display text-foreground">
-                  Conexão de Campos (Payload → Banco MySQL)
+                  Conexão de Campos
                 </SheetTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {selectedWebhook?.name}
@@ -1627,7 +1638,7 @@ function WebhooksPage() {
                     <Database className="h-3.5 w-3.5 text-primary" /> Conexão Direta de Campos
                   </h4>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Associe cada chave do JSON que chega ao campo correspondente que vai salvá-la no banco.
+                    Associe cada chave do JSON ao campo correspondente do contato no CRM.
                   </p>
                 </div>
 
@@ -1635,9 +1646,9 @@ function WebhooksPage() {
                   size="sm"
                   onClick={() => saveMappingsMut.mutate()}
                   disabled={saveMappingsMut.isPending}
-                  className="bg-brand-gradient text-white text-xs font-bold h-8 px-3.5 rounded-xl shadow-md hover:opacity-95"
+                  className="bg-brand-gradient text-white text-xs font-medium h-8 px-3.5 rounded-full shadow-sm hover:opacity-95"
                 >
-                  <Save className="h-3.5 w-3.5 mr-1.5" /> Salvar no Banco
+                  <Save className="h-3.5 w-3.5 mr-1.5" /> Salvar Mapeamento
                 </Button>
               </div>
 
@@ -1667,10 +1678,10 @@ function WebhooksPage() {
                       <ArrowRight className="h-4 w-4" />
                     </div>
 
-                    {/* Campo de Destino no Banco de Dados */}
+                    {/* Campo de Destino no CRM */}
                     <div className="flex-1 space-y-1">
                       <span className="text-[10px] font-bold text-muted-foreground block">
-                        Campo no Banco (MySQL)
+                        Campo no CRM
                       </span>
                       <Select
                         value={mapItem.target_type === "custom" ? `custom:${mapItem.custom_field_id}` : `standard:${mapItem.target_key || "name"}`}
@@ -1701,7 +1712,7 @@ function WebhooksPage() {
                         </SelectTrigger>
                         <SelectContent className="bg-popover border-border text-xs">
                           <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
-                            Campos Padrão do Banco
+                            Campos Padrão do Contato
                           </div>
                           {(standardFieldsQ.data || []).map((sf: any) => (
                             <SelectItem key={`std_${sf.key}`} value={`standard:${sf.key}`}>

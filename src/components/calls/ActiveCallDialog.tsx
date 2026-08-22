@@ -35,10 +35,15 @@ export function ActiveCallDialog({
   const [isEnding, setIsEnding] = useState(false);
   const [isAudioConnected, setIsAudioConnected] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [currentCallId, setCurrentCallId] = useState(callId);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const manageCallFn = useServerFn(manageCall);
+
+  useEffect(() => {
+    if (callId) setCurrentCallId(callId);
+  }, [callId]);
 
   // Timer de duração da chamada em segundos
   useEffect(() => {
@@ -120,6 +125,9 @@ export function ActiveCallDialog({
 
         if (payload.type === "call.signal") {
           console.log("[CALL SSE] Sinalização recebida da Meta:", payload);
+          if (payload.call_id) {
+            setCurrentCallId(payload.call_id);
+          }
 
           // Se a chamada foi terminada ou rejeitada
           if (
@@ -207,13 +215,16 @@ export function ActiveCallDialog({
   // Desligar / Encerrar chamada
   const handleEndCall = async () => {
     setIsEnding(true);
+    const targetCallId = currentCallId || callId;
     try {
-      if (callId && phoneId) {
+      if (phoneId) {
+        console.log("[CALL] Solicitando terminate na Meta:", { phoneId, callId: targetCallId, contactPhone });
         await manageCallFn({
           data: {
             phoneId,
             action: "terminate",
-            callId,
+            callId: targetCallId,
+            to: contactPhone,
           },
         });
       }

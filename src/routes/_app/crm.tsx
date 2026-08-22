@@ -518,7 +518,7 @@ function CRMPage() {
           {/* Funnel Selector */}
           {funnels.length > 0 && (
             <Select value={activeId} onValueChange={handleFunnelChange}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[180px] h-8 px-3 rounded-full text-xs font-medium border-border bg-background">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -536,21 +536,33 @@ function CRMPage() {
             <Button
               variant="outline"
               size="sm"
+              className="h-8 px-3 rounded-full text-xs font-medium border-border gap-1.5 inline-flex items-center"
               onClick={() => {
                 setStageManagerOpen(true);
                 setStageView("list");
               }}
             >
-              <Settings className="w-4 h-4 mr-2" /> Gerenciar Etapas
+              <Settings className="w-3.5 h-3.5" />
+              <span>Gerenciar Etapas</span>
             </Button>
           )}
 
-          <Button variant="default" size="sm" onClick={() => setNewFunnelOpen(true)} className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setNewFunnelOpen(true)}
+            className="h-8 px-3 rounded-full text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center"
+          >
             Novo Funil
           </Button>
 
-          <Button size="sm" onClick={() => handleOpenNewOppModal()}>
-            <Plus className="mr-2 h-4 w-4" /> Nova Oportunidade
+          <Button
+            size="sm"
+            onClick={() => handleOpenNewOppModal()}
+            className="h-8 px-3 rounded-full text-xs font-medium gap-1.5 inline-flex items-center"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Nova Oportunidade</span>
           </Button>
         </div>
 

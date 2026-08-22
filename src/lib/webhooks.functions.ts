@@ -409,9 +409,9 @@ export const listWebhookLeads = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d) =>
     z.object({
-      webhook_id: z.string().uuid(),
-      page: z.number().int().min(1).optional().default(1),
-      limit: z.number().int().min(1).max(100).optional().default(50),
+      webhook_id: z.string(),
+      page: z.coerce.number().int().min(1).optional().default(1),
+      limit: z.coerce.number().int().min(1).max(100).optional().default(50),
       status: z.enum(["all", "success", "error"]).optional().default("all"),
     }).parse(d),
   )
@@ -425,50 +425,64 @@ export const listWebhookLeads = createServerFn({ method: "GET" })
     )) as any[];
     if (!webhook) throw new Error("Webhook não encontrado");
 
-    const offset = ((data.page || 1) - 1) * (data.limit || 50);
-    const statusFilter = data.status === "all" ? "" : " AND e.status = ?";
-    const statusArgs = data.status === "all" ? [] : [data.status];
+    const offset = (Number(data.page || 1) - 1) * Number(data.limit || 50);
+    const limit = Number(data.limit || 50);
 
-    const events = (await db.query(
-      `SELECT
-         e.id,
-         e.status,
-         e.error_message,
-         e.raw_payload,
-         e.mapped_standard_fields,
-         e.mapped_custom_fields,
-         e.unmapped_fields,
-         e.ip_address,
-         e.user_agent,
-         e.processing_duration_ms,
-         e.created_at,
-         c.id AS contact_id,
-         c.name AS contact_name,
-         c.phone_e164 AS contact_phone,
-         c.email AS contact_email
-       FROM incoming_webhook_events e
-       LEFT JOIN contacts c ON c.id = e.contact_id AND c.user_id = ?
-       WHERE e.incoming_webhook_id = ?${statusFilter}
-       ORDER BY e.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [effectiveUserId, data.webhook_id, ...statusArgs, data.limit || 50, offset],
-    ).catch(async () => {
-      // Fallback sem JOIN caso haja incompatibilidade de schema (contact_id ainda não existe)
-      return db.query(
+    let statusCondition = "";
+    if (data.status === "success") {
+      statusCondition = " AND e.status IN ('processed', 'success', 'received')";
+    } else if (data.status === "error") {
+      statusCondition = " AND e.status IN ('failed', 'error')";
+    }
+
+    let events: any[] = [];
+    try {
+      events = (await db.query(
+        `SELECT
+           e.id,
+           e.status,
+           e.error_message,
+           e.raw_payload,
+           e.mapped_standard_fields,
+           e.mapped_custom_fields,
+           e.unmapped_fields,
+           e.ip_address,
+           e.user_agent,
+           e.processing_duration_ms,
+           e.created_at,
+           c.id AS contact_id,
+           c.name AS contact_name,
+           c.phone_e164 AS contact_phone,
+           c.email AS contact_email
+         FROM incoming_webhook_events e
+         LEFT JOIN contacts c ON c.id = e.contact_id AND c.user_id = ?
+         WHERE (e.incoming_webhook_id = ? OR e.webhook_id = ?)${statusCondition}
+         ORDER BY e.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [effectiveUserId, data.webhook_id, data.webhook_id, limit, offset],
+      )) as any[];
+    } catch {
+      events = (await db.query(
         `SELECT e.id, e.status, e.error_message, e.raw_payload, e.mapped_standard_fields,
                 e.mapped_custom_fields, e.unmapped_fields, e.ip_address, e.user_agent,
                 e.processing_duration_ms, e.created_at
          FROM incoming_webhook_events e
-         WHERE e.incoming_webhook_id = ?${statusFilter}
+         WHERE (e.incoming_webhook_id = ? OR e.webhook_id = ?)${statusCondition}
          ORDER BY e.created_at DESC LIMIT ? OFFSET ?`,
-        [data.webhook_id, ...statusArgs, data.limit || 50, offset],
-      );
-    })) as any[];
+        [data.webhook_id, data.webhook_id, limit, offset],
+      ).catch(() => [])) as any[];
+    }
 
-    const [[{ total }]] = (await db.query(
-      `SELECT COUNT(*) as total FROM incoming_webhook_events WHERE incoming_webhook_id = ?${statusFilter}`,
-      [data.webhook_id, ...statusArgs],
-    ).catch(() => [[{ total: 0 }]])) as any[][];
+    let total = 0;
+    try {
+      const countRes = (await db.query(
+        `SELECT COUNT(*) as total FROM incoming_webhook_events e WHERE (e.incoming_webhook_id = ? OR e.webhook_id = ?)${statusCondition}`,
+        [data.webhook_id, data.webhook_id],
+      )) as any[];
+      total = Number(countRes?.[0]?.total ?? 0);
+    } catch {
+      total = 0;
+    }
 
     const parsed = (events || []).map((e: any) => {
       let payload: Record<string, any> = {};
@@ -486,9 +500,13 @@ export const listWebhookLeads = createServerFn({ method: "GET" })
       const displayPhone = mappedStd?.phone ?? payload?.telefone ?? payload?.phone ?? payload?.whatsapp ?? "—";
       const displayEmail = mappedStd?.email ?? payload?.email ?? "—";
 
+      const normalizedStatus =
+        e.status === "failed" || e.status === "error" ? "error" : "success";
+
       return {
         id: e.id,
-        status: e.status ?? "success",
+        status: normalizedStatus,
+        raw_status: e.status,
         error_message: e.error_message ?? null,
         ip_address: e.ip_address ?? null,
         user_agent: e.user_agent ?? null,
@@ -512,7 +530,7 @@ export const listWebhookLeads = createServerFn({ method: "GET" })
       webhook,
       events: parsed,
       total: Number(total ?? 0),
-      page: data.page || 1,
-      limit: data.limit || 50,
+      page: Number(data.page || 1),
+      limit,
     };
   });

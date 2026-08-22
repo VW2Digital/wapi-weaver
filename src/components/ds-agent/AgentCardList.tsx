@@ -51,44 +51,17 @@ export function AgentCardList({
 
   return (
     <div className="space-y-6">
-      {/* Top Header Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <button
-            onClick={onBackToFolders}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-2 font-medium"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar para pastas
-          </button>
-          <h1 className="text-2xl font-display font-bold tracking-tight text-foreground flex items-center gap-3">
-            {folderName}
-            <Badge className="bg-primary/10 text-primary border-primary/20 font-medium">
-              {agents.length} {agents.length === 1 ? "Agente" : "Agentes"}
-            </Badge>
-          </h1>
+      {/* Drop Zone Visual Indicator */}
+      {folderId !== null && folderId !== "unassigned" && (
+        <div
+          onDragOver={handleDragOver}
+          onDrop={handleDropRemove}
+          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card/50 px-4 py-2.5 text-xs text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Move className="h-3.5 w-3.5 text-primary" />
+          <span>Arraste e solte um agente aqui para removê-lo desta pasta</span>
         </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Drop Zone Visual Indicator */}
-          {folderId !== null && folderId !== "unassigned" && (
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDropRemove}
-              className="hidden md:flex items-center gap-2 rounded-xl border border-dashed border-border bg-card/50 px-4 py-2 text-xs text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Move className="h-3.5 w-3.5 text-primary" />
-              <span>Solte um item aqui para removê-lo da pasta</span>
-            </div>
-          )}
-
-          <Button
-            onClick={onOpenCreateAgentModal}
-            className="bg-brand-gradient text-white font-semibold shadow-md hover:opacity-95"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Adicionar Agente
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Agents Grid */}
       {agents.length === 0 ? (

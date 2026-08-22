@@ -13,6 +13,7 @@ interface FolderItem {
 interface FolderGridProps {
   folders: FolderItem[];
   unassignedCount: number;
+  searchTerm?: string;
   onSelectFolder: (folderId: string | null, folderName: string) => void;
   onCreateFolder: (name: string) => void;
   onOpenCreateAgentModal: () => void;
@@ -24,6 +25,7 @@ interface FolderGridProps {
 export function FolderGrid({
   folders,
   unassignedCount,
+  searchTerm = "",
   onSelectFolder,
   onCreateFolder,
   onOpenCreateAgentModal,
@@ -32,21 +34,10 @@ export function FolderGrid({
   onDropAgentToFolder,
 }: FolderGridProps) {
   const [showBanner, setShowBanner] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
 
   const filteredFolders = folders.filter((f) =>
-    f.name.toLowerCase().includes(searchTerm.toLowerCase())
+    f.name.toLowerCase().includes((searchTerm || "").toLowerCase())
   );
-
-  const handleCreateFolder = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFolderName.trim()) return;
-    onCreateFolder(newFolderName.trim());
-    setNewFolderName("");
-    setIsCreatingFolder(false);
-  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -62,72 +53,6 @@ export function FolderGrid({
 
   return (
     <div className="space-y-6">
-      {/* Top Header Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-bold tracking-tight text-foreground flex items-center gap-2">
-            DS Agente
-            <Badge className="bg-primary/10 text-primary border-primary/20 font-medium">
-              Multi-Agent Engine
-            </Badge>
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Gerencie e treine seus agentes virtuais alimentados por inteligência artificial.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar item..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
-            />
-          </div>
-
-          {!isCreatingFolder ? (
-            <Button
-              variant="outline"
-              onClick={() => setIsCreatingFolder(true)}
-              className="border-border bg-card text-foreground hover:bg-muted"
-            >
-              <Plus className="mr-2 h-4 w-4" /> Nova Pasta
-            </Button>
-          ) : (
-            <form onSubmit={handleCreateFolder} className="flex items-center gap-2">
-              <Input
-                placeholder="Nome da pasta..."
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                autoFocus
-                className="w-40 bg-card border-primary text-foreground"
-              />
-              <Button type="submit" size="sm" className="bg-primary text-primary-foreground font-semibold hover:opacity-90">
-                Criar
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsCreatingFolder(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </form>
-          )}
-
-          <Button
-            onClick={onOpenCreateAgentModal}
-            className="bg-brand-gradient text-white font-semibold shadow-md hover:opacity-95"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Adicionar Agente
-          </Button>
-        </div>
-      </div>
-
       {/* Dismissible Information Banner */}
       {showBanner && (
         <div className="relative flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-foreground">
@@ -142,7 +67,7 @@ export function FolderGrid({
           </div>
           <button
             onClick={() => setShowBanner(false)}
-            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
           >
             <X className="h-4 w-4" />
           </button>

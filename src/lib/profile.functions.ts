@@ -1406,7 +1406,88 @@ export const manageCall = createServerFn({ method: "POST" })
 
     const apiVersion = p.meta_graph_version || "v26.0";
     
-    // Candidatos para o número de destino (incluindo variações de 9º dígito BR)
+    // Ações de gerenciamento de chamada ativa/recebida (terminate, accept, reject, pre_accept)
+    if (data.action !== "connect") {
+      let effectiveCallId = data.callId;
+
+      // Se o callId informado for local/temporário ou ausente, busca a chamada mais recente no banco
+      if (!effectiveCallId || effectiveCallId.startsWith("call_")) {
+        try {
+          const [recentCall] = await context.db.query(
+            `SELECT whatsapp_call_id FROM whatsapp_calls WHERE tenant_id = ? AND status IN ('incoming', 'ringing', 'active', 'connecting') ORDER BY created_at DESC LIMIT 1`,
+            [context.userId],
+          );
+          if (recentCall?.whatsapp_call_id) {
+            effectiveCallId = recentCall.whatsapp_call_id;
+          }
+        } catch (dbFindErr) {
+          console.warn("[CALL DB] Erro ao buscar whatsapp_call_id recente:", dbFindErr);
+        }
+      }
+
+      const payload: any = {
+        messaging_product: "whatsapp",
+        action: data.action,
+      };
+      if (effectiveCallId) {
+        payload.call_id = effectiveCallId;
+      }
+      if (data.sdp) {
+        payload.session = {
+          sdp_type: data.sdpType || (data.action === "accept" ? "answer" : "offer"),
+          sdp: data.sdp,
+        };
+      }
+
+      console.log(`[CALL API] Disparando ${data.action} para a Meta:`, { phoneId: data.phoneId, payload });
+
+      try {
+        const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/calls`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${p.whatsapp_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const body = await r.json();
+        console.log(`[CALL API] Resposta Meta para ${data.action}:`, { status: r.status, ok: r.ok, body });
+
+        if (r.ok) {
+          // Atualiza status no banco local se possível
+          if (effectiveCallId) {
+            try {
+              const finalStatus =
+                data.action === "terminate"
+                  ? "ended"
+                  : data.action === "reject"
+                    ? "rejected"
+                    : "active";
+              await context.db.query(
+                `UPDATE whatsapp_calls SET status = ?, ended_at = ${finalStatus === "ended" || finalStatus === "rejected" ? "NOW()" : "ended_at"}, updated_at = NOW() WHERE whatsapp_call_id = ?`,
+                [finalStatus, effectiveCallId],
+              );
+            } catch (dbUpErr) {
+              console.warn("[CALL DB] Erro ao atualizar status pós manageCall:", dbUpErr);
+            }
+          }
+
+          return { ok: true, data: body, callId: effectiveCallId };
+        }
+
+        return {
+          ok: false,
+          error: body?.error?.message || `Falha ao executar ${data.action} na chamada.`,
+          data: body,
+        };
+      } catch (fetchErr: any) {
+        console.error(`[CALL API] Erro de rede ao executar ${data.action}:`, fetchErr);
+        return { ok: false, error: fetchErr?.message || "Erro de conexão com a Meta." };
+      }
+    }
+
+    // Ação: connect (Iniciando chamada de saída para cliente)
     const cleanTo = data.to ? data.to.replace(/\D/g, "") : "";
     const phoneCandidates: Array<string | undefined> = cleanTo ? [cleanTo] : [undefined];
     if (cleanTo && cleanTo.startsWith("55")) {
@@ -1417,16 +1498,15 @@ export const manageCall = createServerFn({ method: "POST" })
       }
     }
 
-    let lastError = "Falha ao gerenciar chamada";
+    let lastError = "Falha ao iniciar chamada";
     let lastBody: any = null;
 
     for (const targetPhone of phoneCandidates) {
       const payload: any = {
         messaging_product: "whatsapp",
-        action: data.action,
+        action: "connect",
       };
       if (targetPhone) payload.to = targetPhone;
-      if (data.callId) payload.call_id = data.callId;
       if (data.sdp) {
         payload.session = {
           sdp_type: data.sdpType || "offer",
@@ -1448,7 +1528,25 @@ export const manageCall = createServerFn({ method: "POST" })
         lastBody = body;
 
         if (r.ok) {
-          return { ok: true, data: body, targetPhone };
+          const realCallId =
+            body?.calls?.[0]?.id ||
+            body?.id ||
+            body?.call_id ||
+            `call_${Date.now()}`;
+
+          // Salva no banco de dados
+          if (realCallId) {
+            try {
+              await context.db.query(
+                `INSERT INTO whatsapp_calls (id, tenant_id, phone_number_id, whatsapp_call_id, direction, status, started_at, created_at, updated_at) VALUES (UUID(), ?, ?, ?, 'outbound', 'connecting', NOW(), NOW(), NOW()) ON DUPLICATE KEY UPDATE status = 'connecting', updated_at = NOW()`,
+                [context.userId, data.phoneId, realCallId],
+              );
+            } catch (dbErr) {
+              console.warn("[CALL DB] Erro ao salvar chamada criada:", dbErr);
+            }
+          }
+
+          return { ok: true, data: body, callId: realCallId, targetPhone };
         }
 
         lastError = body?.error?.message ?? lastError;

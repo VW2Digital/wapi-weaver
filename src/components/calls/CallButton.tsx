@@ -154,6 +154,8 @@ export function CallButton({
 
       if (callResult.ok) {
         const callId =
+          callResult.callId ||
+          callResult.data?.calls?.[0]?.id ||
           callResult.data?.id ||
           callResult.data?.call_id ||
           `call_${Date.now()}`;

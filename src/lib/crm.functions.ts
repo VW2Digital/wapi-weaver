@@ -2262,13 +2262,15 @@ export const getCRMStats = createServerFn({ method: "GET" })
       [userId, data.funnel_id],
     );
 
-    // 5. Conversion rates
+    // 5. Conversion rates: (Ganhos / Total Geral de Oportunidades no Funil) * 100
     const wonCountRow = statusSummary.find((s) => s.status === "won");
     const lostCountRow = statusSummary.find((s) => s.status === "lost");
+    const openCountRow = statusSummary.find((s) => s.status === "open");
     const wonCount = wonCountRow ? Number(wonCountRow.count) : 0;
     const lostCount = lostCountRow ? Number(lostCountRow.count) : 0;
-    const closedCount = wonCount + lostCount;
-    const conversionRate = closedCount > 0 ? (wonCount / closedCount) * 100 : 0;
+    const openCount = openCountRow ? Number(openCountRow.count) : 0;
+    const totalOpportunities = wonCount + lostCount + openCount;
+    const conversionRate = totalOpportunities > 0 ? (wonCount / totalOpportunities) * 100 : 0;
 
     return {
       status_summary: statusSummary,
