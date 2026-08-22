@@ -1089,6 +1089,83 @@ function TagBadge({
   );
 }
 
+function TeamAssignSubmenuItem({
+  team,
+  contactPhone,
+  isCurrentTeam,
+  currentAgentId,
+  onAssign,
+}: {
+  team: TeamOption;
+  contactPhone?: string;
+  isCurrentTeam: boolean;
+  currentAgentId?: string | null;
+  onAssign: (teamId: string, agentId: string | null) => void;
+}) {
+  const fetchTeamMembers = useServerFn(listTeamMembers);
+  const teamMembersQuery = useQuery({
+    queryKey: ["team-members", team.id],
+    queryFn: () => fetchTeamMembers({ data: { teamId: team.id } }),
+    staleTime: 30000,
+  });
+
+  const members = (teamMembersQuery.data ?? []) as TeamMemberOption[];
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="cursor-pointer justify-between">
+        <span className="truncate">{team.name}</span>
+        {isCurrentTeam && <Check className="ml-1 h-3 w-3 text-primary shrink-0" />}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent className="w-[200px] max-h-[300px] overflow-y-auto">
+          <DropdownMenuItem
+            onClick={() => onAssign(team.id, null)}
+            className="cursor-pointer text-xs justify-between"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="truncate">Fila da equipe</span>
+            </div>
+            {isCurrentTeam && !currentAgentId && (
+              <Check className="ml-auto h-3.5 w-3.5 text-primary shrink-0" />
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {teamMembersQuery.isLoading ? (
+            <div className="flex items-center justify-center p-2 text-xs text-muted-foreground gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Carregando...</span>
+            </div>
+          ) : members.length === 0 ? (
+            <div className="p-2 text-center text-xs text-muted-foreground">
+              Sem membros
+            </div>
+          ) : (
+            members.map((m) => {
+              const isCurrentAgent = isCurrentTeam && currentAgentId === m.user_id;
+              const name = m.full_name || m.display_name || m.email || m.user_id;
+              return (
+                <DropdownMenuItem
+                  key={m.user_id}
+                  onClick={() => onAssign(team.id, m.user_id)}
+                  className="cursor-pointer text-xs justify-between"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">{name}</span>
+                  </div>
+                  {isCurrentAgent && <Check className="ml-auto h-3.5 w-3.5 text-primary shrink-0" />}
+                </DropdownMenuItem>
+              );
+            })
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
+  );
+}
+
 function ChatPage() {
   const fetchContacts = useServerFn(listChatContacts);
   const fetchContactDetails = useServerFn(getChatContactDetails);
@@ -1397,6 +1474,7 @@ function ChatPage() {
   // Estados para Atribuição Rápida de Conversa
   const [assignDialogTeamId, setAssignDialogTeamId] = useState<string>("");
   const [assignDialogAgentId, setAssignDialogAgentId] = useState<string>("");
+  const [assignStep, setAssignStep] = useState<"sector" | "member">("sector");
 
   const assignDialogTeamMembersQuery = useQuery({
     queryKey: ["team-members", assignDialogTeamId],
@@ -1408,6 +1486,7 @@ function ChatPage() {
     if (assigningContactData) {
       setAssignDialogTeamId(assigningContactData.active_team_id || "");
       setAssignDialogAgentId(assigningContactData.active_agent_id || "");
+      setAssignStep("sector");
     }
   }, [assigningContactData]);
 
@@ -4444,11 +4523,54 @@ function ChatPage() {
                               <span>Salvar contato</span>
                             </DropdownMenuItem>
 
-                            {/* Atribuir */}
-                            <DropdownMenuItem onClick={() => setAssigningContactData(c)}>
-                              <UserCheck className="mr-2 h-4 w-4" />
-                              <span>Atribuir conversa</span>
-                            </DropdownMenuItem>
+                            {/* Atribuir Submenu (estilo Kanban / Status) */}
+                            {teams.length > 0 ? (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="cursor-pointer">
+                                  <UserCheck className="mr-2 h-4 w-4" />
+                                  <span>Atribuir</span>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuPortal>
+                                  <DropdownMenuSubContent className="w-[200px] max-h-[350px] overflow-y-auto">
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        assignMutation.mutate({
+                                          teamId: null,
+                                          agentId: null,
+                                          contactPhone: c.phone_e164 ?? undefined,
+                                        })
+                                      }
+                                      className="cursor-pointer text-muted-foreground text-xs"
+                                    >
+                                      <X className="mr-2 h-3.5 w-3.5" />
+                                      <span>Sem equipe</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    {teams.map((t) => (
+                                      <TeamAssignSubmenuItem
+                                        key={t.id}
+                                        team={t}
+                                        contactPhone={c.phone_e164 ?? undefined}
+                                        isCurrentTeam={c.active_team_id === t.id}
+                                        currentAgentId={c.active_agent_id}
+                                        onAssign={(teamId, agentId) =>
+                                          assignMutation.mutate({
+                                            teamId,
+                                            agentId,
+                                            contactPhone: c.phone_e164 ?? undefined,
+                                          })
+                                        }
+                                      />
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuPortal>
+                              </DropdownMenuSub>
+                            ) : (
+                              <DropdownMenuItem onClick={() => setAssigningContactData(c)}>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                <span>Atribuir conversa</span>
+                              </DropdownMenuItem>
+                            )}
 
                             {/* Não Lida */}
                             <DropdownMenuItem
@@ -4794,13 +4916,57 @@ function ChatPage() {
                           <span>Oportunidade Rápida</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem
-                          onClick={() => setAssigningContactData(selectedContact)}
-                          className="cursor-pointer"
-                        >
-                          <Forward className="mr-2.5 h-4 w-4 text-zinc-400" />
-                          <span>Atribuir Conversa</span>
-                        </DropdownMenuItem>
+                        {/* Atribuir Submenu (estilo Kanban / Status) */}
+                        {teams.length > 0 ? (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="cursor-pointer">
+                              <Forward className="mr-2.5 h-4 w-4 text-zinc-400" />
+                              <span>Atribuir Conversa</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent className="w-[200px] max-h-[350px] overflow-y-auto">
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    assignMutation.mutate({
+                                      teamId: null,
+                                      agentId: null,
+                                      contactPhone: selectedContact.phone_e164 ?? undefined,
+                                    })
+                                  }
+                                  className="cursor-pointer text-muted-foreground text-xs"
+                                >
+                                  <X className="mr-2 h-3.5 w-3.5" />
+                                  <span>Sem equipe</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {teams.map((t) => (
+                                  <TeamAssignSubmenuItem
+                                    key={t.id}
+                                    team={t}
+                                    contactPhone={selectedContact.phone_e164 ?? undefined}
+                                    isCurrentTeam={selectedContact.active_team_id === t.id}
+                                    currentAgentId={selectedContact.active_agent_id}
+                                    onAssign={(teamId, agentId) =>
+                                      assignMutation.mutate({
+                                        teamId,
+                                        agentId,
+                                        contactPhone: selectedContact.phone_e164 ?? undefined,
+                                      })
+                                    }
+                                  />
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                        ) : (
+                          <DropdownMenuItem
+                            onClick={() => setAssigningContactData(selectedContact)}
+                            className="cursor-pointer"
+                          >
+                            <Forward className="mr-2.5 h-4 w-4 text-zinc-400" />
+                            <span>Atribuir Conversa</span>
+                          </DropdownMenuItem>
+                        )}
 
                         <DropdownMenuItem
                           onClick={() => setQuickSaveContactData(selectedContact)}
@@ -6172,23 +6338,78 @@ function ChatPage() {
                     )}
                     {/* Avatar grande + nome */}
                     <div className="flex flex-col items-center gap-3 py-2">
+                      <input
+                        ref={contactPhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadContactPhoto(file);
+                          e.target.value = "";
+                        }}
+                      />
+
                       {(() => {
                         const avatarUrl = getContactAvatarUrl(selectedContact);
                         const avatarBg = getAvatarColor(selectedContact.name ?? "");
                         return (
                           <div
-                            className="h-20 w-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-lg"
-                            style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                            className="relative group cursor-pointer rounded-full overflow-hidden shrink-0 border-2 border-border hover:border-primary transition-colors"
+                            onClick={() => contactPhotoInputRef.current?.click()}
+                            title="Foto do contato"
                           >
-                            {avatarUrl ? (
-                              <img
-                                src={avatarUrl}
-                                alt={selectedContact.name ?? ""}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
-                            )}
+                            <div
+                              className="h-20 w-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-lg"
+                              style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
+                            >
+                              {avatarUrl ? (
+                                <img
+                                  src={avatarUrl}
+                                  alt={selectedContact.name ?? ""}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
+                              )}
+                            </div>
+
+                            {/* Hover Overlay com botões de ação centralizados e organizados */}
+                            <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-2 text-white p-1.5 rounded-full">
+                              {uploadingContactPhoto ? (
+                                <Loader2 className="h-5 w-5 animate-spin text-white" />
+                              ) : (
+                                <>
+                                  {/* Botão Alterar Foto */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      contactPhotoInputRef.current?.click();
+                                    }}
+                                    className="p-2 rounded-full bg-white/20 hover:bg-white/35 text-white transition-all transform hover:scale-110 shadow-sm"
+                                    title="Alterar foto"
+                                  >
+                                    <Camera className="h-4 w-4" />
+                                  </button>
+
+                                  {/* Botão Remover Foto */}
+                                  {avatarUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveContactPhoto();
+                                      }}
+                                      className="p-2 rounded-full bg-red-500/40 hover:bg-red-600 text-red-200 hover:text-white transition-all transform hover:scale-110 shadow-sm"
+                                      title="Remover foto"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         );
                       })()}
@@ -6200,49 +6421,6 @@ function ChatPage() {
                           <span className="mt-1 inline-flex items-center gap-1 text-[10px] bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full font-medium">
                             Opt-out
                           </span>
-                        )}
-                      </div>
-
-                      <input
-                        ref={contactPhotoInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleUploadContactPhoto(file);
-                        }}
-                      />
-
-                      <div className="flex w-full flex-col gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => contactPhotoInputRef.current?.click()}
-                          disabled={uploadingContactPhoto}
-                        >
-                          {uploadingContactPhoto ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Camera className="mr-2 h-4 w-4" />
-                          )}
-                          {uploadingContactPhoto ? "Enviando…" : "Trocar foto"}
-                        </Button>
-
-                        {getContactAvatarUrl(selectedContact) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-destructive hover:text-destructive"
-                            onClick={handleRemoveContactPhoto}
-                            disabled={uploadingContactPhoto}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Remover foto
-                          </Button>
                         )}
                       </div>
                     </div>
@@ -6613,166 +6791,235 @@ function ChatPage() {
             </SheetContent>
           </Sheet>
 
-          <Sheet
+          {/* Diálogo Sequencial de Atribuição de Conversa */}
+          <Dialog
             open={!!assigningContactData}
-            onOpenChange={(open) => !open && setAssigningContactData(null)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setAssigningContactData(null);
+                setAssignStep("sector");
+              }
+            }}
           >
-            <SheetContent className="w-full sm:max-w-md bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
-              <SheetHeader className="mb-4">
-                <SheetTitle>Atribuir Conversa</SheetTitle>
-              </SheetHeader>
-              <div className="space-y-4 py-2 flex-1">
-                <div className="space-y-1">
-                  <Label>Equipe / Setor</Label>
-                  <Select
-                    value={assignDialogTeamId || "none"}
-                    onValueChange={(val) => {
-                      setAssignDialogTeamId(val);
-                      setAssignDialogAgentId("");
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sem equipe (Não atribuído)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem equipe (Não atribuído)</SelectItem>
-                      {(teamsQuery.data ?? []).map((t: TeamOption) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <DialogContent className="w-full sm:max-w-[400px] p-0 gap-0 overflow-hidden bg-card border-border shadow-xl">
+              {assignStep === "sector" ? (
+                <div className="flex flex-col">
+                  <DialogHeader className="p-5 pb-3 border-b border-border/60">
+                    <DialogTitle className="text-base font-semibold text-foreground">
+                      Atribuir conversa
+                    </DialogTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Escolha o setor
+                    </p>
+                  </DialogHeader>
 
-                <div className="space-y-1">
-                  <Label>Agente / Atendente</Label>
-                  <Select
-                    value={assignDialogAgentId || "none"}
-                    onValueChange={setAssignDialogAgentId}
-                    disabled={!assignDialogTeamId || assignDialogTeamId === "none"}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sem agente (Fila da equipe)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem agente (Fila da equipe)</SelectItem>
-                      {(assignDialogTeamMembersQuery.data ?? []).map((m: TeamMemberOption) => (
-                        <SelectItem key={m.user_id} value={m.user_id}>
-                          {m.full_name || m.display_name || m.email || m.user_id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Ações Rápidas de Atribuição */}
-                {assignDialogTeamId && assignDialogTeamId !== "none" && (
-                  <div className="flex gap-2 pt-2">
-                    {(assignDialogTeamMembersQuery.data ?? []).some(
-                      (m: TeamMemberOption) => m.user_id === profile?.id,
-                    ) && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        type="button"
-                        onClick={() => {
-                          const contactPhone = assigningContactData?.phone_e164 ?? undefined;
-                          if (!contactPhone) {
-                            toast.error("Este contato não possui telefone válido para atribuição.");
-                            return;
-                          }
-                          selfAssignMutation.mutate(
-                            {
-                              teamId: assignDialogTeamId,
-                              contactPhone,
-                            },
-                            {
-                              onSuccess: () => setAssigningContactData(null),
-                            },
-                          );
-                        }}
-                        disabled={selfAssignMutation.isPending}
-                        className="flex-1 text-xs"
-                      >
-                        {selfAssignMutation.isPending ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                        ) : (
-                          <UserCheck className="h-3.5 w-3.5 mr-1.5" />
-                        )}
-                        Atribuir a mim
-                      </Button>
+                  <div className="p-3 max-h-[360px] overflow-y-auto space-y-1.5">
+                    {teamsQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Carregando setores...</span>
+                      </div>
+                    ) : (teamsQuery.data ?? []).length === 0 ? (
+                      <div className="py-8 text-center text-xs text-muted-foreground">
+                        Nenhum setor cadastrado.
+                      </div>
+                    ) : (
+                      (teamsQuery.data ?? []).map((t: TeamOption) => {
+                        const isCurrent = assigningContactData?.active_team_id === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setAssignDialogTeamId(t.id);
+                              setAssignStep("member");
+                            }}
+                            className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                              isCurrent
+                                ? "border-primary/40 bg-primary/5 text-foreground"
+                                : "border-transparent hover:border-border hover:bg-muted/50 text-foreground"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-sm font-medium uppercase tracking-wide truncate">
+                                {t.name}
+                              </span>
+                              {isCurrent && (
+                                <span className="inline-flex items-center text-[10px] font-semibold text-primary px-1.5 py-0.5 rounded bg-primary/10">
+                                  Atual
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              {isCurrent && <Check className="h-4 w-4 text-primary" />}
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                            </div>
+                          </button>
+                        );
+                      })
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <DialogHeader className="p-5 pb-3 border-b border-border/60">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        onClick={() => setAssignStep("sector")}
+                        className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground -ml-1.5"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="min-w-0">
+                        <DialogTitle className="text-base font-semibold text-foreground truncate">
+                          Atribuir conversa
+                        </DialogTitle>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          <span className="font-medium text-foreground uppercase">
+                            {teams.find((t) => t.id === assignDialogTeamId)?.name || "Setor"}
+                          </span>{" "}
+                          • Escolha o membro
+                        </p>
+                      </div>
+                    </div>
+                  </DialogHeader>
+
+                  <div className="p-3 max-h-[360px] overflow-y-auto space-y-1.5">
+                    {/* Opção Fila da Equipe (Sem atendente específico) */}
+                    <button
                       type="button"
+                      disabled={assignMutation.isPending}
                       onClick={() => {
                         const contactPhone = assigningContactData?.phone_e164 ?? undefined;
                         if (!contactPhone) {
                           toast.error("Este contato não possui telefone válido para atribuição.");
                           return;
                         }
-                        autoAssignMutation.mutate(
+                        assignMutation.mutate(
                           {
                             teamId: assignDialogTeamId,
+                            agentId: null,
                             contactPhone,
                           },
                           {
-                            onSuccess: () => setAssigningContactData(null),
+                            onSuccess: () => {
+                              setAssigningContactData(null);
+                              setAssignStep("sector");
+                            },
                           },
                         );
                       }}
-                      disabled={autoAssignMutation.isPending}
-                      className="flex-1 text-xs"
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                        assigningContactData?.active_team_id === assignDialogTeamId &&
+                        !assigningContactData?.active_agent_id
+                          ? "border-primary/40 bg-primary/5 text-foreground"
+                          : "border-transparent hover:border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                      }`}
                     >
-                      {autoAssignMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      ) : (
-                        <UserCheck className="h-3.5 w-3.5 mr-1.5" />
-                      )}
-                      Auto-atribuir
-                    </Button>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">
+                          Fila da equipe (Sem atendente)
+                        </span>
+                        {assigningContactData?.active_team_id === assignDialogTeamId &&
+                          !assigningContactData?.active_agent_id && (
+                            <span className="inline-flex items-center text-[10px] font-semibold text-primary px-1.5 py-0.5 rounded bg-primary/10">
+                              Atual
+                            </span>
+                          )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        {assigningContactData?.active_team_id === assignDialogTeamId &&
+                          !assigningContactData?.active_agent_id && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                      </div>
+                    </button>
+
+                    {assignDialogTeamMembersQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Carregando membros...</span>
+                      </div>
+                    ) : (assignDialogTeamMembersQuery.data ?? []).length === 0 ? (
+                      <div className="py-6 text-center text-xs text-muted-foreground">
+                        Nenhum membro encontrado neste setor.
+                      </div>
+                    ) : (
+                      (assignDialogTeamMembersQuery.data ?? []).map((m: TeamMemberOption) => {
+                        const isCurrent = assigningContactData?.active_agent_id === m.user_id;
+                        const memberName = m.full_name || m.display_name || m.email || m.user_id;
+                        const isPending =
+                          assignMutation.isPending &&
+                          assignMutation.variables?.agentId === m.user_id;
+
+                        return (
+                          <button
+                            key={m.user_id}
+                            type="button"
+                            disabled={assignMutation.isPending}
+                            onClick={() => {
+                              const contactPhone = assigningContactData?.phone_e164 ?? undefined;
+                              if (!contactPhone) {
+                                toast.error(
+                                  "Este contato não possui telefone válido para atribuição.",
+                                );
+                                return;
+                              }
+                              assignMutation.mutate(
+                                {
+                                  teamId: assignDialogTeamId,
+                                  agentId: m.user_id,
+                                  contactPhone,
+                                },
+                                {
+                                  onSuccess: () => {
+                                    setAssigningContactData(null);
+                                    setAssignStep("sector");
+                                  },
+                                },
+                              );
+                            }}
+                            className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                              isCurrent
+                                ? "border-primary/40 bg-primary/5 text-foreground"
+                                : "border-transparent hover:border-border hover:bg-muted/50 text-foreground"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Avatar className="h-7 w-7 text-xs shrink-0">
+                                <AvatarFallback className="text-[11px] bg-muted font-medium">
+                                  {memberName.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm font-medium truncate">{memberName}</span>
+                              {isCurrent && (
+                                <span className="inline-flex items-center text-[10px] font-semibold text-primary px-1.5 py-0.5 rounded bg-primary/10">
+                                  Atual
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              {isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              ) : isCurrent ? (
+                                <Check className="h-4 w-4 text-primary" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
-                <Button variant="outline" onClick={() => setAssigningContactData(null)}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={() => {
-                    const targetTeamId =
-                      assignDialogTeamId === "none" || !assignDialogTeamId
-                        ? null
-                        : assignDialogTeamId;
-                    const targetAgentId =
-                      assignDialogAgentId === "none" || !assignDialogAgentId
-                        ? null
-                        : assignDialogAgentId;
-                    const contactPhone = assigningContactData?.phone_e164 ?? undefined;
-                    if (!contactPhone) {
-                      toast.error("Este contato não possui telefone válido para atribuição.");
-                      return;
-                    }
-                    assignMutation.mutate(
-                      {
-                        teamId: targetTeamId,
-                        agentId: targetAgentId,
-                        contactPhone,
-                      },
-                      {
-                        onSuccess: () => setAssigningContactData(null),
-                      },
-                    );
-                  }}
-                  disabled={assignMutation.isPending}
-                >
-                  {assignMutation.isPending ? "Salvando..." : "Salvar"}
-                </Button>
-              </div>
-            </SheetContent>
-          </Sheet>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Diálogo de Oportunidade Rápida */}
           {/* Drawer de Oportunidade Rápida */}
