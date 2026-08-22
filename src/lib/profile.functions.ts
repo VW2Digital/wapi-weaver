@@ -1109,6 +1109,7 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
       .object({
         phoneId: z.string().trim().min(5),
         recipientPhone: z.string().trim().min(5),
+        waId: z.string().trim().optional(),
       })
       .parse(d),
   )
@@ -1124,21 +1125,146 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v26.0";
-    const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${data.phoneId}/call_permissions?user_wa_id=${encodeURIComponent(
-        data.recipientPhone,
-      )}`,
-      {
-        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+    const cleanDigits = data.recipientPhone.replace(/\D/g, "");
+    
+    // Lista de candidatos de identificação do WhatsApp (inclui waId e variações do 9º dígito BR)
+    const phoneCandidates = new Set<string>();
+    if (data.waId) phoneCandidates.add(data.waId.replace(/\D/g, ""));
+    if (cleanDigits) phoneCandidates.add(cleanDigits);
+
+    // Variações para números do Brasil (DDI 55)
+    if (cleanDigits.startsWith("55")) {
+      if (cleanDigits.length === 13) {
+        // Remove o 9 após o DDD (55 + 2 dígitos DDD + 9 + 8 dígitos) -> (55 + DDD + 8 dígitos)
+        const withoutNine = cleanDigits.slice(0, 4) + cleanDigits.slice(5);
+        phoneCandidates.add(withoutNine);
+      } else if (cleanDigits.length === 12) {
+        // Insere o 9 após o DDD (55 + 2 dígitos DDD + 8 dígitos) -> (55 + DDD + 9 + 8 dígitos)
+        const withNine = cleanDigits.slice(0, 4) + "9" + cleanDigits.slice(4);
+        phoneCandidates.add(withNine);
+      }
+    }
+
+    let lastError = "Falha ao verificar permissões de chamada";
+    let lastBody: any = null;
+
+    for (const phoneCandidate of phoneCandidates) {
+      try {
+        const r = await fetch(
+          `https://graph.facebook.com/${apiVersion}/${data.phoneId}/call_permissions?user_wa_id=${encodeURIComponent(
+            phoneCandidate,
+          )}`,
+          {
+            headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+          },
+        );
+
+        const body = await r.json();
+        lastBody = body;
+
+        if (!r.ok) {
+          lastError = body?.error?.message ?? lastError;
+          continue;
+        }
+
+        const permData = body?.data?.[0];
+        const status = String(permData?.status || body?.status || "").toLowerCase();
+        const availableActions = permData?.available_actions || body?.available_actions || [];
+        const hasStartCallAction = availableActions.some(
+          (a: any) =>
+            a.action === "start_call" && (a.can_perform_action === undefined || a.can_perform_action === true),
+        );
+
+        const isGranted =
+          status === "granted" ||
+          status === "temporary" ||
+          status === "active" ||
+          status === "approved" ||
+          hasStartCallAction;
+
+        if (isGranted) {
+          return {
+            ok: true,
+            data: {
+              is_granted: true,
+              status,
+              target_phone: phoneCandidate,
+              available_actions: availableActions,
+              raw: body,
+            },
+          };
+        }
+      } catch (err: any) {
+        lastError = err?.message || lastError;
+      }
+    }
+
+    // Se nenhuma variação retornou status de permissão ativa, retorna o último resultado com is_granted: false
+    return {
+      ok: true,
+      data: {
+        is_granted: false,
+        status: lastBody?.data?.[0]?.status || lastBody?.status || "no_permission",
+        target_phone: cleanDigits,
+        available_actions: lastBody?.data?.[0]?.available_actions || lastBody?.available_actions || [],
+        raw: lastBody,
+        error_message: lastError,
       },
-    );
+    };
+  });
+
+export const sendCallPermissionRequest = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z
+      .object({
+        phoneId: z.string().trim().min(5),
+        to: z.string().trim().min(5),
+        message: z.string().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v26.0";
+    const payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: data.to.replace(/\D/g, ""),
+      type: "interactive",
+      interactive: {
+        type: "call_permission_request",
+        body: {
+          text:
+            data.message ||
+            "Gostaríamos de ligar para você para dar continuidade ao seu atendimento. Podemos ligar?",
+        },
+        action: {
+          name: "call_permission_request",
+        },
+      },
+    };
+
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${p.whatsapp_access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
     const body = await r.json();
-    if (!r.ok)
-      return {
-        ok: false,
-        error: body?.error?.message ?? "Falha ao verificar permissões de chamada",
-      };
+    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao enviar solicitação de permissão" };
     return { ok: true, data: body };
   });
 
@@ -1279,31 +1405,59 @@ export const manageCall = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v26.0";
-    const payload: any = {
-      messaging_product: "whatsapp",
-      action: data.action,
-    };
-    if (data.to) payload.to = data.to;
-    if (data.callId) payload.call_id = data.callId;
-    if (data.sdp) {
-      payload.session = {
-        sdp_type: data.sdpType || "offer",
-        sdp: data.sdp,
-      };
+    
+    // Candidatos para o número de destino (incluindo variações de 9º dígito BR)
+    const cleanTo = data.to ? data.to.replace(/\D/g, "") : "";
+    const phoneCandidates: Array<string | undefined> = cleanTo ? [cleanTo] : [undefined];
+    if (cleanTo && cleanTo.startsWith("55")) {
+      if (cleanTo.length === 13) {
+        phoneCandidates.push(cleanTo.slice(0, 4) + cleanTo.slice(5));
+      } else if (cleanTo.length === 12) {
+        phoneCandidates.push(cleanTo.slice(0, 4) + "9" + cleanTo.slice(4));
+      }
     }
 
-    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/calls`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${p.whatsapp_access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    let lastError = "Falha ao gerenciar chamada";
+    let lastBody: any = null;
 
-    const body = await r.json();
-    if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao gerenciar chamada" };
-    return { ok: true, data: body };
+    for (const targetPhone of phoneCandidates) {
+      const payload: any = {
+        messaging_product: "whatsapp",
+        action: data.action,
+      };
+      if (targetPhone) payload.to = targetPhone;
+      if (data.callId) payload.call_id = data.callId;
+      if (data.sdp) {
+        payload.session = {
+          sdp_type: data.sdpType || "offer",
+          sdp: data.sdp,
+        };
+      }
+
+      try {
+        const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/calls`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${p.whatsapp_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const body = await r.json();
+        lastBody = body;
+
+        if (r.ok) {
+          return { ok: true, data: body, targetPhone };
+        }
+
+        lastError = body?.error?.message ?? lastError;
+      } catch (fetchErr: any) {
+        lastError = fetchErr?.message || lastError;
+      }
+    }
+
+    return { ok: false, error: lastError, data: lastBody };
   });
 
 export const sendAdvancedSandboxMessage = createServerFn({ method: "POST" })

@@ -8,6 +8,7 @@ import { webhookQueue } from "@/lib/queue/webhook-queue";
 import { downloadAndPersistInboundMedia } from "@/lib/whatsapp-media-downloader";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { insertWebhookEvent } from "@/lib/webhook-event-store.server";
+import { saveCall, type CallDirection, type CallStatus } from "@/lib/whatsapp-calls.functions";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -31,6 +32,8 @@ interface WebhookContactProfile {
 
 interface WebhookContact {
   wa_id?: string;
+  user_id?: string;
+  parent_user_id?: string;
   profile?: WebhookContactProfile;
 }
 
@@ -75,6 +78,7 @@ interface WebhookCallEvent {
   from?: string;
   to?: string;
   timestamp?: string;
+  from_user_id?: string;
   session?: {
     sdp?: string;
     sdp_type?: string;
@@ -165,6 +169,7 @@ interface WebhookValue {
   messages?: WebhookInboundMessage[];
   message_echoes?: WebhookInboundMessage[];
   contacts?: WebhookContact[];
+  calls?: WebhookCallEvent[];
   state_sync?: WebhookStateSyncItem[];
   history?: WebhookHistorySyncItem[];
   message_template_id?: string;
@@ -1732,30 +1737,174 @@ export async function processAccountUpdate(value: WebhookValue | undefined, user
   }
 }
 
-export async function processCallEvents(calls: WebhookCallEvent[] | undefined, userId: string) {
+export async function processCallEvents(value: WebhookValue | undefined, userId: string) {
+  const calls = value?.calls;
   if (!calls || calls.length === 0) return;
 
-  for (const call of calls) {
-    const callId = call.id;
-    const direction = call.direction;
-    const event = call.event;
-    const from = call.from;
-    const to = call.to;
-    const session = call.session;
+  const metadata = value?.metadata;
+  const waContacts = value?.contacts ?? [];
+  const primaryContact = waContacts[0];
 
-    logInfo("[CALL] Webhook de chamada recebido", { 
-      userId, 
-      callId, 
-      direction, 
+  for (const call of calls) {
+    const callId = call.id || "";
+    const rawDirection = String(call.direction || "").toUpperCase();
+    const direction: CallDirection =
+      rawDirection === "USER_INITIATED" || rawDirection === "INBOUND" ? "inbound" : "outbound";
+    const event = String(call.event || "").toLowerCase();
+    const rawFrom = call.from || primaryContact?.wa_id || "";
+    const rawTo = call.to || metadata?.display_phone_number || "";
+    const phoneDigits = normalizePhoneDigits(direction === "inbound" ? rawFrom : rawTo);
+    const phoneNumberId = metadata?.phone_number_id || (direction === "outbound" ? rawFrom : rawTo);
+    const contactName = primaryContact?.profile?.name || null;
+
+    logInfo("[CALL] Webhook de chamada recebido", {
+      userId,
+      callId,
+      direction,
       event,
-      from,
-      to 
+      from: rawFrom,
+      to: rawTo,
+      phoneNumberId,
     });
 
-    // TODO: Implementar processamento completo de chamadas
-    // - Persistir chamada no banco
-    // - Enviar evento realtime para o frontend
-    // - Processar SDP quando disponível
+    if (!callId) continue;
+
+    // Mapeia o evento da Meta para o status do sistema
+    let status: CallStatus = "incoming";
+    let messageBody = "[Chamada de voz]";
+    if (event === "connect") {
+      status = "incoming";
+      messageBody = direction === "inbound" ? "[Chamada de voz recebida]" : "[Chamada de voz iniciada]";
+    } else if (event === "pre_accept" || event === "ringing") {
+      status = "ringing";
+      messageBody = "[Chamada de voz tocando]";
+    } else if (event === "accept" || event === "active") {
+      status = "active";
+      messageBody = "[Chamada de voz atendida]";
+    } else if (event === "reject" || event === "rejected") {
+      status = "rejected";
+      messageBody = "[Chamada de voz recusada]";
+    } else if (event === "terminate" || event === "ended") {
+      status = "ended";
+      messageBody = "[Chamada de voz encerrada]";
+    } else if (event === "failed") {
+      status = "failed";
+      messageBody = "[Chamada de voz falhou]";
+    }
+
+    // 1. Garante que o contato existe na tabela contacts
+    let contactId: string | null = null;
+    if (phoneDigits) {
+      try {
+        const contactResult = await ensureWhatsAppContact({
+          userId,
+          phoneDigits,
+          contactName,
+          source: "whatsapp_call",
+          markUnread: event === "connect",
+          phoneNumberId: metadata?.phone_number_id,
+          displayPhoneNumber: metadata?.display_phone_number,
+          waId: primaryContact?.wa_id || (direction === "inbound" ? rawFrom : rawTo),
+        });
+        contactId = contactResult.contactId;
+      } catch (err: unknown) {
+        logError("[CALL] Falha ao garantir contato para chamada", err);
+      }
+    }
+
+    // 2. Localiza ou cria a sessão no chat_sessions
+    let chatSessionId: string | null = null;
+    if (contactId) {
+      try {
+        const sessionRows = (await db.query(
+          `SELECT id FROM chat_sessions WHERE (tenant_id = ? OR user_id = ?) AND contact_id = ? ORDER BY started_at DESC LIMIT 1`,
+          [userId, userId, contactId],
+        )) as Array<{ id: string }>;
+        if (sessionRows?.[0]?.id) {
+          chatSessionId = sessionRows[0].id;
+        } else {
+          chatSessionId = randomUUID();
+          await dbAdmin.from("chat_sessions").insert({
+            id: chatSessionId,
+            tenant_id: userId,
+            user_id: userId,
+            contact_id: contactId,
+            status: "aguardando",
+            started_at: new Date(),
+          });
+        }
+      } catch (sessionErr: unknown) {
+        logError("[CALL] Falha ao vincular chat_session para chamada", sessionErr);
+      }
+    }
+
+    // 3. Salva ou atualiza a chamada na tabela whatsapp_calls
+    try {
+      await saveCall({
+        tenantId: userId,
+        chatSessionId,
+        contactId,
+        phoneNumberId: phoneNumberId || "",
+        whatsappCallId: callId,
+        direction,
+        status,
+      });
+    } catch (saveCallErr: unknown) {
+      logError("[CALL] Falha ao salvar chamada na tabela whatsapp_calls", saveCallErr);
+    }
+
+    // 4. Insere o registro em direct_messages para visualização no Chat
+    if (phoneDigits) {
+      try {
+        const callMessageWaId = `${callId}_${event}`;
+        const { data: existingMsg } = await dbAdmin
+          .from("direct_messages")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("wa_message_id", callMessageWaId)
+          .maybeSingle();
+
+        if (!existingMsg?.id) {
+          const newDbMessageId = randomUUID();
+          await dbAdmin.from("direct_messages").insert({
+            id: newDbMessageId,
+            tenant_id: userId,
+            user_id: userId,
+            contact_phone: phoneDigits,
+            direction: direction === "inbound" ? "incoming" : "outgoing",
+            type: "text",
+            body: messageBody,
+            wa_message_id: callMessageWaId,
+            status: "delivered",
+            channel: "whatsapp",
+            provider_account_id: phoneNumberId || null,
+            sender_name: contactName,
+            sender_wa_id: primaryContact?.wa_id || null,
+            metadata: {
+              call_id: callId,
+              direction,
+              event,
+              timestamp: call.timestamp || null,
+              session: call.session || null,
+              from_user_id: call.from_user_id || null,
+            },
+            raw_payload: call as any,
+          });
+
+          // Notifica a interface em tempo real
+          await publishChatRealtimeEvent({
+            type: "message.received",
+            tenant_id: userId,
+            contact_phone: phoneDigits,
+            message_id: newDbMessageId,
+            provider_message_id: callId,
+            status: "delivered",
+          });
+        }
+      } catch (msgErr: unknown) {
+        logError("[CALL] Falha ao registrar mensagem de chamada no direct_messages", msgErr);
+      }
+    }
   }
 }
 
@@ -1785,7 +1934,7 @@ export async function processMetaWebhookEvent(entry: any[], userId: string) {
       } else if (change.field === "account_update") {
         await processAccountUpdate(change.value, userId);
       } else if (change.field === "calls") {
-        await processCallEvents(change.value?.calls, userId);
+        await processCallEvents(change.value, userId);
       }
     }
   }

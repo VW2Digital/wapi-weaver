@@ -1182,62 +1182,65 @@ function ChatPage() {
   const [chatRealtimeConnected, setChatRealtimeConnected] = useState(false);
 
   useEffect(() => {
-    let socket: WebSocket | null = null;
+    if (typeof window === "undefined") return;
+
+    let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     let stopped = false;
     let reconnectAttempt = 0;
 
     const connect = () => {
-      if (stopped || typeof window === "undefined") return;
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      socket = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws`);
+      if (stopped) return;
 
-      socket.onopen = () => {
-        reconnectAttempt = 0;
-        setChatRealtimeConnected(true);
-        heartbeatTimer = setInterval(() => {
-          if (socket?.readyState === WebSocket.OPEN) socket.send("ping");
-        }, 20_000);
-      };
-      socket.onmessage = (message) => {
-        if (message.data === "pong") return;
-        try {
-          const event = JSON.parse(String(message.data)) as {
-            type?: string;
-            contact_phone?: string | null;
-          };
-          if (!event.type?.startsWith("message.")) return;
-          void qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-          if (event.contact_phone) {
-            void qc.invalidateQueries({
-              queryKey: ["chat-messages", event.contact_phone],
-            });
-          } else {
-            void qc.invalidateQueries({ queryKey: ["chat-messages"] });
+      try {
+        eventSource = new EventSource("/api/chat/events");
+
+        eventSource.onopen = () => {
+          reconnectAttempt = 0;
+          setChatRealtimeConnected(true);
+        };
+
+        eventSource.onmessage = (message) => {
+          if (!message.data || message.data === "ping" || message.data === "connected") return;
+          try {
+            const event = JSON.parse(String(message.data)) as {
+              type?: string;
+              contact_phone?: string | null;
+            };
+            if (!event.type?.startsWith("message.")) return;
+            void qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+            if (event.contact_phone) {
+              void qc.invalidateQueries({
+                queryKey: ["chat-messages", event.contact_phone],
+              });
+            } else {
+              void qc.invalidateQueries({ queryKey: ["chat-messages"] });
+            }
+          } catch {
+            // Ignora eventos de texto que não sejam JSON
           }
-        } catch {
-          // Mensagens de controle que não sejam JSON não alteram o chat.
-        }
-      };
-      socket.onclose = () => {
-        setChatRealtimeConnected(false);
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-        if (stopped) return;
-        const delay = Math.min(1_000 * 2 ** reconnectAttempt, 30_000);
-        reconnectAttempt += 1;
-        reconnectTimer = setTimeout(connect, delay);
-      };
-      socket.onerror = () => socket?.close();
+        };
+
+        eventSource.onerror = () => {
+          setChatRealtimeConnected(false);
+          eventSource?.close();
+          if (stopped) return;
+          const delay = Math.min(1_000 * 2 ** reconnectAttempt, 30_000);
+          reconnectAttempt += 1;
+          reconnectTimer = setTimeout(connect, delay);
+        };
+      } catch (err) {
+        console.warn("[Chat Realtime] Falha ao conectar EventSource:", err);
+      }
     };
 
     connect();
+
     return () => {
       stopped = true;
       setChatRealtimeConnected(false);
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (heartbeatTimer) clearInterval(heartbeatTimer);
-      socket?.close();
+      eventSource?.close();
     };
   }, [qc]);
 
@@ -4914,6 +4917,7 @@ function ChatPage() {
                         phoneId={profileQuery.data.whatsapp_phone_number_id}
                         recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
                         contactName={selectedContact.name ?? undefined}
+                        waId={(selectedContact.custom_fields as any)?.wa_id || selectedContact.external_contact_id || undefined}
                       />
                     )}
 

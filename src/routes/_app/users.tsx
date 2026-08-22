@@ -83,7 +83,7 @@ import {
   removeTeamMember,
 } from "@/lib/assignment.functions";
 
-export const roleLabels: Record<string, string> = {
+const roleLabels: Record<string, string> = {
   admin_master: "Administrador da plataforma",
   admin: "Administrador da empresa",
   user: "Colaborador",

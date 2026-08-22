@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-export function DocsPage() {
+function DocsPage() {
   const [search, setSearch] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 

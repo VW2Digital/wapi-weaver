@@ -507,8 +507,7 @@ function WebhookLeadsPanel({
 
 export const Route = createFileRoute("/_app/webhooks")({ component: WebhooksPage });
 
-
-export function WebhooksPage() {
+function WebhooksPage() {
   const qc = useQueryClient();
   const fetchIncoming = useServerFn(listIncomingWebhooks);
   const createIncoming = useServerFn(createIncomingWebhook);

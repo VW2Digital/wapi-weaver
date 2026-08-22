@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "@/lib/db";
 
 // Tipos para chamadas WhatsApp
@@ -26,11 +27,12 @@ export interface WhatsAppCall {
 
 export interface CallWebhookEvent {
   id: string;
-  direction: string;
+  direction?: string;
   event: string;
-  from: string;
-  to: string;
-  timestamp: string;
+  from?: string;
+  to?: string;
+  timestamp?: string;
+  from_user_id?: string;
   session?: {
     sdp?: string;
     sdp_type?: string;
@@ -42,8 +44,8 @@ export interface CallWebhookEvent {
  */
 export async function saveCall(params: {
   tenantId: string;
-  chatSessionId?: string;
-  contactId?: string;
+  chatSessionId?: string | null;
+  contactId?: string | null;
   phoneNumberId: string;
   whatsappCallId: string;
   direction: CallDirection;
@@ -62,31 +64,47 @@ export async function saveCall(params: {
   const id = randomUUID();
   const now = new Date();
 
-  const { data: existingCall } = await db
+  const { data: existingCall } = await dbAdmin
     .from("whatsapp_calls")
     .select("*")
     .eq("whatsapp_call_id", whatsappCallId)
     .maybeSingle();
 
   if (existingCall) {
-    // Atualizar chamada existente
-    const { data: updatedCall } = await db
+    const updateData: Record<string, any> = {
+      status,
+      updated_at: now,
+    };
+    if (chatSessionId && !existingCall.chat_session_id) {
+      updateData.chat_session_id = chatSessionId;
+    }
+    if (contactId && !existingCall.contact_id) {
+      updateData.contact_id = contactId;
+    }
+    if (status === "active") {
+      updateData.answered_at = now;
+    }
+    if (status === "ended" || status === "rejected" || status === "failed") {
+      updateData.ended_at = now;
+      if (existingCall.started_at) {
+        const start = new Date(existingCall.started_at).getTime();
+        const duration = Math.max(0, Math.floor((now.getTime() - start) / 1000));
+        updateData.duration_seconds = duration;
+      }
+    }
+
+    const { data: updatedCall } = await dbAdmin
       .from("whatsapp_calls")
-      .update({
-        status,
-        updated_at: now,
-        ...(status === "active" && { answered_at: now }),
-        ...(status === "ended" || status === "rejected" || status === "failed" ? { ended_at: now } : {}),
-      })
+      .update(updateData)
       .eq("whatsapp_call_id", whatsappCallId)
       .select()
       .single();
 
-    return updatedCall as WhatsAppCall;
+    return (updatedCall || existingCall) as WhatsAppCall;
   }
 
   // Criar nova chamada
-  const { data: newCall } = await db
+  const { data: newCall } = await dbAdmin
     .from("whatsapp_calls")
     .insert({
       id,
@@ -97,7 +115,7 @@ export async function saveCall(params: {
       whatsapp_call_id: whatsappCallId,
       direction,
       status,
-      started_at: status === "active" ? now : null,
+      started_at: now,
       answered_at: status === "active" ? now : null,
       created_at: now,
       updated_at: now,
@@ -105,27 +123,42 @@ export async function saveCall(params: {
     .select()
     .single();
 
-  return newCall as WhatsAppCall;
+  return (newCall || {
+    id,
+    tenant_id: tenantId,
+    chat_session_id: chatSessionId,
+    contact_id: contactId,
+    phone_number_id: phoneNumberId,
+    whatsapp_call_id: whatsappCallId,
+    direction,
+    status,
+    started_at: now,
+    answered_at: status === "active" ? now : null,
+    ended_at: null,
+    duration_seconds: null,
+    created_at: now,
+    updated_at: now,
+  }) as WhatsAppCall;
 }
 
 /**
  * Obtém uma chamada pelo WhatsApp Call ID
  */
 export async function getCallByWhatsAppId(whatsappCallId: string): Promise<WhatsAppCall | null> {
-  const { data } = await db
+  const { data } = await dbAdmin
     .from("whatsapp_calls")
     .select("*")
     .eq("whatsapp_call_id", whatsappCallId)
     .maybeSingle();
 
-  return data as WhatsAppCall | null;
+  return (data || null) as WhatsAppCall | null;
 }
 
 /**
  * Lista chamadas de um tenant
  */
 export async function listCallsByTenant(tenantId: string, limit = 50): Promise<WhatsAppCall[]> {
-  const { data } = await db
+  const { data } = await dbAdmin
     .from("whatsapp_calls")
     .select("*")
     .eq("tenant_id", tenantId)
@@ -140,7 +173,7 @@ export async function listCallsByTenant(tenantId: string, limit = 50): Promise<W
  */
 export async function updateCallStatus(whatsappCallId: string, status: CallStatus): Promise<void> {
   const now = new Date();
-  const updateData: any = {
+  const updateData: Record<string, any> = {
     status,
     updated_at: now,
   };
@@ -151,7 +184,7 @@ export async function updateCallStatus(whatsappCallId: string, status: CallStatu
     updateData.ended_at = now;
   }
 
-  await db
+  await dbAdmin
     .from("whatsapp_calls")
     .update(updateData)
     .eq("whatsapp_call_id", whatsappCallId);
@@ -161,7 +194,7 @@ export async function updateCallStatus(whatsappCallId: string, status: CallStatu
  * Verifica se existe uma chamada ativa para um tenant
  */
 export async function hasActiveCall(tenantId: string): Promise<boolean> {
-  const { data } = await db
+  const { data } = await dbAdmin
     .from("whatsapp_calls")
     .select("id")
     .eq("tenant_id", tenantId)

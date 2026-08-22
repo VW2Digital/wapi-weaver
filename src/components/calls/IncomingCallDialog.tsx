@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Phone, PhoneOff, Loader2 } from "lucide-react";
@@ -28,13 +29,17 @@ export function IncomingCallDialog({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
 
+  const manageCallFn = useServerFn(manageCall);
+
   const handleReject = async () => {
     setIsRejecting(true);
     try {
-      await manageCall({
-        phoneId,
-        action: "reject",
-        callId,
+      await manageCallFn({
+        data: {
+          phoneId,
+          action: "reject",
+          callId,
+        },
       });
       onOpenChange(false);
     } catch (error) {
@@ -106,20 +111,24 @@ export function IncomingCallDialog({
         // Enviar pre_accept com SDP answer
         const localDesc = peerConnection.localDescription;
         if (localDesc) {
-          await manageCall({
-            phoneId,
-            action: "pre_accept",
-            callId,
-            sdp: localDesc.sdp,
-            sdpType: "answer",
+          await manageCallFn({
+            data: {
+              phoneId,
+              action: "pre_accept",
+              callId,
+              sdp: localDesc.sdp,
+              sdpType: "answer",
+            },
           });
         }
 
         // Aceitar a chamada
-        await manageCall({
-          phoneId,
-          action: "accept",
-          callId,
+        await manageCallFn({
+          data: {
+            phoneId,
+            action: "accept",
+            callId,
+          },
         });
       }
     } catch (error) {
