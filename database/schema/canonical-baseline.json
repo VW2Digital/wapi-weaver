@@ -1,6 +1,6 @@
 {
   "description": "Migrations already incorporated into canonical-schema.sql final state. On fresh install, these are registered in schema_migrations without being re-executed.",
-  "canonicalVersion": "018_fix_payment_gateway_global_tenant.sql",
+  "canonicalVersion": "019_add_whatsapp_calls_table.sql",
   "includedMigrations": [
     "001_canonical_schema.sql",
     "002_fix_indexes_and_constraints.sql",
@@ -20,6 +20,8 @@
     "015_reconcile_nullability_parity.sql",
     "016_reconcile_opportunity_contacts_pk.sql",
     "017_fix_subscriptions_plan_id_fk.sql",
-    "018_fix_payment_gateway_global_tenant.sql"
+    "018_fix_payment_gateway_global_tenant.sql",
+    "019_add_whatsapp_calls_table.sql",
+    "019_align_bot_flows_user_id.sql"
   ]
 }

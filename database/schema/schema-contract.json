@@ -14763,5 +14763,207 @@
         "constraint_name": "whatsapp_groups_ibfk_1"
       }
     ]
+  },
+  "whatsapp_calls": {
+    "columns": {
+      "id": {
+        "ordinal_position": 1,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "tenant_id": {
+        "ordinal_position": 2,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "chat_session_id": {
+        "ordinal_position": 3,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": true,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "contact_id": {
+        "ordinal_position": 4,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": true,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "phone_number_id": {
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "column_type": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "whatsapp_call_id": {
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "direction": {
+        "ordinal_position": 7,
+        "data_type": "enum",
+        "column_type": "enum('inbound','outbound')",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "status": {
+        "ordinal_position": 8,
+        "data_type": "enum",
+        "column_type": "enum('incoming','connecting','ringing','active','rejected','ended','failed')",
+        "nullable": false,
+        "default": "incoming",
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "started_at": {
+        "ordinal_position": 9,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "answered_at": {
+        "ordinal_position": 10,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "ended_at": {
+        "ordinal_position": 11,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "duration_seconds": {
+        "ordinal_position": 12,
+        "data_type": "int",
+        "column_type": "int",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "created_at": {
+        "ordinal_position": 13,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "key": "MUL",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "updated_at": {
+        "ordinal_position": 14,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "key": "",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+        "charset": null,
+        "collation": null
+      }
+    },
+    "primary_key": [
+      "id"
+    ],
+    "unique_indexes": {},
+    "indexes": {
+      "idx_whatsapp_calls_tenant": [
+        "tenant_id"
+      ],
+      "idx_whatsapp_calls_chat_session": [
+        "chat_session_id"
+      ],
+      "idx_whatsapp_calls_contact": [
+        "contact_id"
+      ],
+      "idx_whatsapp_calls_whatsapp_id": [
+        "whatsapp_call_id"
+      ],
+      "idx_whatsapp_calls_status": [
+        "status"
+      ],
+      "idx_whatsapp_calls_created": [
+        "created_at"
+      ]
+    },
+    "foreign_keys": [
+      {
+        "column": "tenant_id",
+        "ref_table": "users",
+        "ref_column": "id",
+        "constraint_name": "whatsapp_calls_ibfk_1"
+      },
+      {
+        "column": "chat_session_id",
+        "ref_table": "chat_sessions",
+        "ref_column": "id",
+        "constraint_name": "whatsapp_calls_ibfk_2"
+      },
+      {
+        "column": "contact_id",
+        "ref_table": "contacts",
+        "ref_column": "id",
+        "constraint_name": "whatsapp_calls_ibfk_3"
+      }
+    ]
   }
 }

@@ -2375,6 +2375,37 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
 
+    logSchema("Criando/Validando tabela whatsapp_calls...");
+    await ensureTableExists(
+      connection,
+      "whatsapp_calls",
+      `CREATE TABLE IF NOT EXISTS whatsapp_calls (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        chat_session_id VARCHAR(36) NULL,
+        contact_id VARCHAR(36) NULL,
+        phone_number_id VARCHAR(50) NOT NULL,
+        whatsapp_call_id VARCHAR(100) NOT NULL,
+        direction ENUM('inbound','outbound') NOT NULL,
+        status ENUM('incoming','connecting','ringing','active','rejected','ended','failed') NOT NULL DEFAULT 'incoming',
+        started_at DATETIME NULL,
+        answered_at DATETIME NULL,
+        ended_at DATETIME NULL,
+        duration_seconds INT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_whatsapp_calls_tenant (tenant_id),
+        INDEX idx_whatsapp_calls_chat_session (chat_session_id),
+        INDEX idx_whatsapp_calls_contact (contact_id),
+        INDEX idx_whatsapp_calls_whatsapp_id (whatsapp_call_id),
+        INDEX idx_whatsapp_calls_status (status),
+        INDEX idx_whatsapp_calls_created (created_at),
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id) ON DELETE SET NULL,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
     // O compilador aplica isolamento por tenant nestas tabelas. Versões antigas
     // possuíam apenas user_id; adicionamos e preenchemos tenant_id de forma
     // idempotente para que bancos locais e instalações novas tenham o mesmo contrato.

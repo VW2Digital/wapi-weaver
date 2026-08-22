@@ -1211,6 +1211,22 @@
     "created_at",
     "updated_at"
   ],
+  "whatsapp_calls": [
+    "id",
+    "tenant_id",
+    "chat_session_id",
+    "contact_id",
+    "phone_number_id",
+    "whatsapp_call_id",
+    "direction",
+    "status",
+    "started_at",
+    "answered_at",
+    "ended_at",
+    "duration_seconds",
+    "created_at",
+    "updated_at"
+  ],
   "whatsapp_flow_submissions": [
     "id",
     "user_id",

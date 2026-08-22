@@ -89,6 +89,7 @@
   "webhook_events",
   "webhook_field_mappings",
   "whatsapp_business_profile_logs",
+  "whatsapp_calls",
   "whatsapp_flow_submissions",
   "whatsapp_flows",
   "whatsapp_group_participants",
