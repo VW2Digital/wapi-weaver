@@ -134,7 +134,9 @@ function buildWhatsAppPayload(recipient: string, data: ChatProviderPayload) {
   } else if (data.type === "image") {
     payload.image = data.image?.id ? { id: data.image.id } : { link: data.image?.link };
   } else if (data.type === "audio") {
-    payload.audio = data.audio?.id ? { id: data.audio.id } : { link: data.audio?.link };
+    payload.audio = data.audio?.id
+      ? { id: data.audio.id, ...(data.audio.voice ? { voice: true } : {}) }
+      : { link: data.audio?.link, ...(data.audio?.voice ? { voice: true } : {}) };
   } else if (data.type === "video") {
     payload.video = data.video?.id ? { id: data.video.id } : { link: data.video?.link };
   } else if (data.type === "document") {
@@ -222,6 +224,14 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
     throw new DispatchError("Credenciais do WhatsApp não configuradas.", false);
   }
 
+  const payloadData = parsePayload(job.payload);
+  const isVoiceMessage = payloadData.type === "audio" && Boolean(payloadData.audio?.voice);
+
+  if (isVoiceMessage) {
+    console.log("[VOICE] 13 iniciando envio /messages");
+    console.log("[VOICE] 14 usando voice:true");
+  }
+
   let response: Response;
   try {
     response = await fetch(
@@ -232,14 +242,33 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
           Authorization: `Bearer ${profile.whatsapp_access_token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(buildWhatsAppPayload(job.recipient, parsePayload(job.payload))),
+        body: JSON.stringify(buildWhatsAppPayload(job.recipient, payloadData)),
       },
     );
   } catch (error) {
+    if (isVoiceMessage) {
+      console.error("[VOICE ERROR] etapa: POST /messages network");
+      console.error(`[VOICE ERROR] mensagem: ${(error as any)?.message || error}`);
+    }
     throw networkDispatchError(error);
   }
   const body = await parseResponse(response);
+
+  if (isVoiceMessage) {
+    console.log(`[VOICE] 15 resposta HTTP da Meta: ${response.status}`);
+  }
+
   if (!response.ok) {
+    if (isVoiceMessage) {
+      console.error("[VOICE ERROR] etapa: POST /messages");
+      console.error(`[VOICE ERROR] HTTP status: ${response.status}`);
+      console.error(`[VOICE ERROR] error.message: ${body?.error?.message}`);
+      console.error(`[VOICE ERROR] error.type: ${body?.error?.type}`);
+      console.error(`[VOICE ERROR] error.code: ${body?.error?.code}`);
+      console.error(`[VOICE ERROR] error.error_subcode: ${body?.error?.error_subcode}`);
+      console.error(`[VOICE ERROR] error.error_data: ${JSON.stringify(body?.error?.error_data)}`);
+      console.error(`[VOICE ERROR] fbtrace_id: ${body?.error?.fbtrace_id}`);
+    }
     throw new DispatchError(
       errorMessage(body, "Falha ao enviar mensagem na Meta."),
       isRetryableMetaError(response.status, body),
@@ -247,8 +276,14 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
     );
   }
 
+  const messageId = normalizeWaMessageId(body?.messages?.[0]?.id);
+  if (isVoiceMessage) {
+    console.log(`[VOICE] 16 message_id retornado pela Meta: ${messageId}`);
+    console.log("[VOICE] 17 envio concluído");
+  }
+
   return {
-    providerMessageId: normalizeWaMessageId(body?.messages?.[0]?.id),
+    providerMessageId: messageId,
     providerAccountId: profile.whatsapp_phone_number_id,
     responsePayload: body,
   };

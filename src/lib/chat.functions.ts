@@ -992,10 +992,32 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       file_size: data.local_media?.size,
       original_filename: data.local_media?.filename,
     };
-    const targetReplyToId =
+    // 4. Se houver resposta (reply_to_message_id) para mensagem direta, valida e resolve o wamid original
+    let targetReplyToId =
       data.type === "reaction"
         ? (data.reaction?.message_id || data.reply_to_message_id)
         : data.reply_to_message_id;
+
+    if (targetReplyToId && data.type !== "reaction") {
+      try {
+        const rows = (await db.query(
+          `SELECT id, wa_message_id FROM direct_messages WHERE user_id = ? AND contact_phone = ? AND (id = ? OR wa_message_id = ?) LIMIT 1`,
+          [effectiveUserId, digits, targetReplyToId, targetReplyToId],
+        )) as Array<{ id: string; wa_message_id?: string | null }>;
+        const originalMsg = rows?.[0];
+        if (originalMsg) {
+          // Utiliza o wamid oficial para a Meta Cloud API (se disponível) ou mantém a referência encontrada
+          targetReplyToId = originalMsg.wa_message_id || originalMsg.id || targetReplyToId;
+        } else {
+          console.warn(
+            `[REPLY] Mensagem respondida "${targetReplyToId}" não encontrada para o contato ${digits}. Enviando sem contexto.`,
+          );
+          targetReplyToId = undefined;
+        }
+      } catch (err) {
+        console.warn("[REPLY] Erro ao buscar mensagem original:", err);
+      }
+    }
 
     if (data.type === "reaction") {
       console.log(

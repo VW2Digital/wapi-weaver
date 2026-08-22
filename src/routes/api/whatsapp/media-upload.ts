@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { dbAdmin } from "@/integrations/mysql/client.server";
-import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
+import { transcodeAudioToMp3, transcodeAudioToOggOpus, isOggOpus } from "@/lib/audio-transcode.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
 
 function getAuthUserId(request: Request): string {
@@ -273,6 +273,15 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             apiVersion = "v26.0";
           }
 
+          const isVoice = form.get("isVoice") === "true" || form.get("isVoiceMessage") === "true" || form.get("voice") === "true";
+
+          if (isVoice) {
+            console.log("[VOICE] 01 gravação recebida no backend");
+            console.log("[VOICE] 02 arquivo original existe");
+            console.log(`[VOICE] 04 tamanho original: ${file.size} bytes`);
+            console.log(`[VOICE] 05 MIME original: ${declaredMime || file.type}`);
+          }
+
           let uploadBuffer: Uint8Array<ArrayBufferLike> = fileBuffer;
           let mimeType = declaredMime;
           let fileName = file.name || "media";
@@ -285,20 +294,58 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
                   declaredMime,
                   file.name || "audio",
                 );
-            // Normaliza toda origem de áudio para um MP3 real. Isso evita enviar
-            // WebM/Ogg apenas renomeado, que a Meta classifica como octet-stream.
-            uploadBuffer = initialFile.mimeType.startsWith("audio/")
-              ? await transcodeAudioToMp3(fileBuffer)
-              : fileBuffer;
-            const detectedFile = detectAudioFile(
-              uploadBuffer,
-              initialFile.mimeType.startsWith("audio/")
-                ? "audio/mpeg"
-                : declaredMime,
-              initialFile.mimeType.startsWith("audio/") ? "audio.mp3" : file.name || "audio.mp3",
-            );
-            mimeType = detectedFile.mimeType;
-            fileName = detectedFile.fileName;
+
+            if (isVoice) {
+              console.log("[VOICE] 06 iniciando FFmpeg");
+              try {
+                uploadBuffer = await transcodeAudioToOggOpus(fileBuffer);
+                mimeType = "audio/ogg";
+                fileName = "audio.ogg";
+                console.log("[VOICE] 07 FFmpeg finalizado");
+                console.log("[VOICE] 08 arquivo convertido existe");
+                console.log(`[VOICE] 09 tamanho convertido: ${uploadBuffer.byteLength} bytes`);
+              } catch (voiceErr: any) {
+                console.error("[VOICE ERROR] etapa: FFmpeg conversão Ogg/Opus");
+                console.error(`[VOICE ERROR] mensagem: ${voiceErr?.message || voiceErr}`);
+                console.error(`[VOICE ERROR] stack: ${voiceErr?.stack || ""}`);
+                console.log("[VOICE FALLBACK] iniciando envio de áudio comum");
+                console.log("[VOICE FALLBACK] arquivo original existe");
+                try {
+                  uploadBuffer = initialFile.mimeType.startsWith("audio/")
+                    ? await transcodeAudioToMp3(fileBuffer)
+                    : fileBuffer;
+                  const detectedFile = detectAudioFile(
+                    uploadBuffer,
+                    initialFile.mimeType.startsWith("audio/")
+                      ? "audio/mpeg"
+                      : declaredMime,
+                    initialFile.mimeType.startsWith("audio/") ? "audio.mp3" : file.name || "audio.mp3",
+                  );
+                  mimeType = detectedFile.mimeType;
+                  fileName = detectedFile.fileName;
+                } catch (fallbackErr: any) {
+                  console.error("[VOICE FALLBACK ERROR] etapa: transcode Mp3 fallback");
+                  console.error(`[VOICE FALLBACK ERROR] mensagem: ${fallbackErr?.message || fallbackErr}`);
+                  uploadBuffer = fileBuffer;
+                  mimeType = initialFile.mimeType.startsWith("audio/") ? initialFile.mimeType : "audio/mpeg";
+                  fileName = initialFile.fileName || "audio.mp3";
+                }
+              }
+            } else {
+              // Áudio normal anexado (não-gravação de microfone)
+              uploadBuffer = initialFile.mimeType.startsWith("audio/")
+                ? await transcodeAudioToMp3(fileBuffer)
+                : fileBuffer;
+              const detectedFile = detectAudioFile(
+                uploadBuffer,
+                initialFile.mimeType.startsWith("audio/")
+                  ? "audio/mpeg"
+                  : declaredMime,
+                initialFile.mimeType.startsWith("audio/") ? "audio.mp3" : file.name || "audio.mp3",
+              );
+              mimeType = detectedFile.mimeType;
+              fileName = detectedFile.fileName;
+            }
           }
           
           const blobBuffer = uploadBuffer.slice().buffer as ArrayBuffer;
@@ -308,6 +355,10 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
           metaForm.append("file", fileBlob, fileName);
           metaForm.append("type", mimeType);
           metaForm.append("messaging_product", "whatsapp");
+
+          if (isVoice) {
+            console.log("[VOICE] 10 iniciando upload /media");
+          }
 
           const r = await fetch(
             `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/media`,
@@ -322,6 +373,16 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
 
           const body = await r.json().catch(() => ({}));
           if (!r.ok) {
+            if (isVoice) {
+              console.error("[VOICE ERROR] etapa: upload /media");
+              console.error(`[VOICE ERROR] HTTP status: ${r.status}`);
+              console.error(`[VOICE ERROR] error.message: ${body?.error?.message}`);
+              console.error(`[VOICE ERROR] error.type: ${body?.error?.type}`);
+              console.error(`[VOICE ERROR] error.code: ${body?.error?.code}`);
+              console.error(`[VOICE ERROR] error.error_subcode: ${body?.error?.error_subcode}`);
+              console.error(`[VOICE ERROR] error.error_data: ${JSON.stringify(body?.error?.error_data)}`);
+              console.error(`[VOICE ERROR] fbtrace_id: ${body?.error?.fbtrace_id}`);
+            }
             console.error("[WhatsApp Media Upload] Meta recusou a mídia", {
               status: r.status,
               code: body?.error?.code,
@@ -342,6 +403,11 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             );
           }
 
+          if (isVoice && mimeType === "audio/ogg") {
+            console.log("[VOICE] 11 upload /media finalizado");
+            console.log(`[VOICE] 12 media_id recebido: ${body?.id}`);
+          }
+
           const localMedia = await persistOutgoingMedia({
             tenantId: effectiveUserId,
             bytes: uploadBuffer,
@@ -349,7 +415,17 @@ export const Route = createFileRoute("/api/whatsapp/media-upload")({
             originalFileName: fileName,
           });
 
-          return json({ ok: true, data: { ...body, local_media: localMedia } }, 200);
+          return json(
+            {
+              ok: true,
+              data: {
+                ...body,
+                local_media: localMedia,
+                is_voice: isVoice && mimeType === "audio/ogg",
+              },
+            },
+            200,
+          );
         } catch (e: any) {
           return json(
             { ok: false, error: e?.message || "Falha no upload da mídia." },

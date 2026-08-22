@@ -132,6 +132,7 @@ interface WebhookInboundMessage {
   };
   contacts?: WebhookMessageContactCard[];
   context?: {
+    id?: string | null;
     message_id?: string | null;
   };
 }
@@ -1024,8 +1025,8 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
     const reply_to_message_id =
       m.type === "reaction"
-        ? (m.reaction?.message_id || m.context?.message_id || null)
-        : (m.context?.message_id ?? null);
+        ? (m.reaction?.message_id || m.context?.id || m.context?.message_id || null)
+        : (m.context?.id || m.context?.message_id || null);
 
     if (m.type === "reaction") {
       logInfo(
@@ -1618,8 +1619,8 @@ async function handleWhatsAppGroupMessage(
 
   const reply_to_message_id =
     m.type === "reaction"
-      ? (m.reaction?.message_id || m.context?.message_id || null)
-      : (m.context?.message_id ?? null);
+      ? (m.reaction?.message_id || m.context?.id || m.context?.message_id || null)
+      : (m.context?.id || m.context?.message_id || null);
 
   if (m.type === "reaction") {
     logInfo(

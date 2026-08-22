@@ -8,6 +8,90 @@ export function isMp3(bytes: Uint8Array) {
   return hasId3Header || hasMpegFrameSync;
 }
 
+export function isOggOpus(bytes: Uint8Array): boolean {
+  if (bytes.length < 36) return false;
+  const isOgg = bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53;
+  if (!isOgg) return false;
+  // Procura pelo header mágico 'OpusHead' nos primeiros 100 bytes
+  const limit = Math.min(bytes.length - 8, 100);
+  for (let i = 0; i < limit; i++) {
+    if (
+      bytes[i] === 0x4f &&
+      bytes[i + 1] === 0x70 &&
+      bytes[i + 2] === 0x75 &&
+      bytes[i + 3] === 0x73 &&
+      bytes[i + 4] === 0x48 &&
+      bytes[i + 5] === 0x65 &&
+      bytes[i + 6] === 0x61 &&
+      bytes[i + 7] === 0x64
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function transcodeAudioToOggOpus(bytes: Uint8Array): Promise<Uint8Array> {
+  const executable = ffmpegPath;
+  if (!executable) {
+    throw new Error("[VOICE] FFmpeg não está disponível para converter o áudio em Ogg/Opus.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      executable,
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        "pipe:0",
+        "-vn",
+        "-c:a",
+        "libopus",
+        "-application",
+        "voip",
+        "-b:a",
+        "32k",
+        "-f",
+        "ogg",
+        "pipe:1",
+      ],
+      {
+        timeout: 60000,
+      },
+    );
+
+    const output: Buffer[] = [];
+    const errors: Buffer[] = [];
+
+    child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
+
+    child.on("error", (err) => {
+      reject(err);
+    });
+
+    child.on("close", (code: number | null) => {
+      if (code !== 0) {
+        const errorMsg = Buffer.concat(errors).toString("utf8").trim();
+        reject(new Error(`[VOICE] Falha ao converter áudio em Ogg/Opus: ${errorMsg || "código " + code}`));
+        return;
+      }
+
+      const converted = new Uint8Array(Buffer.concat(output));
+      if (!isOggOpus(converted)) {
+        reject(new Error("[VOICE] A conversão não produziu um container OGG/Opus válido."));
+        return;
+      }
+
+      resolve(converted);
+    });
+
+    child.stdin.end(Buffer.from(bytes));
+  });
+}
+
 export async function transcodeAudioToMp3(bytes: Uint8Array): Promise<Uint8Array> {
   const executable = ffmpegPath;
   if (!executable) throw new Error("FFmpeg não está disponível para converter o áudio.");

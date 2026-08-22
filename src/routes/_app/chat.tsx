@@ -2785,6 +2785,17 @@ function ChatPage() {
   const meusContacts = tabScopedContacts.filter((contact) => contact.category === "meus");
   const outrosContacts = tabScopedContacts.filter((contact) => contact.category === "outros");
 
+  // Contadores de conversas não lidas por aba
+  const novosUnreadCount = novosContacts.filter(
+    (c) => isFlagEnabled(c.is_unread) || (c.unread_count ?? 0) > 0,
+  ).length;
+  const meusUnreadCount = meusContacts.filter(
+    (c) => isFlagEnabled(c.is_unread) || (c.unread_count ?? 0) > 0,
+  ).length;
+  const outrosUnreadCount = outrosContacts.filter(
+    (c) => isFlagEnabled(c.is_unread) || (c.unread_count ?? 0) > 0,
+  ).length;
+
   const activeContactsList =
     activeTab === "novos" ? novosContacts : activeTab === "meus" ? meusContacts : outrosContacts;
 
@@ -3039,7 +3050,7 @@ function ChatPage() {
         body: typedMessage,
         preview_url: previewUrl,
       },
-      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+      reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
     });
   };
 
@@ -3069,7 +3080,7 @@ function ChatPage() {
       image: {
         id: metaImageId.trim(),
       },
-      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+      reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
     });
     setMetaImageId("");
     setIsImageModalOpen(false);
@@ -3153,21 +3164,43 @@ function ChatPage() {
         const toastId = toast.loading("Enviando áudio gravado...");
 
         try {
-          const res = await uploadMetaMediaViaApi(phoneId, file, "audio");
+          let res: any;
+          let isVoiceNote = false;
+
+          try {
+            res = await uploadMetaMediaViaApi(phoneId, file, "audio", { isVoice: true });
+            isVoiceNote = Boolean(res?.data?.is_voice);
+          } catch (voiceUploadErr) {
+            console.error("[VOICE ERROR] Falha no upload com isVoice, tentando fallback comum:", voiceUploadErr);
+            console.log("[VOICE FALLBACK] iniciando envio de áudio comum");
+            res = await uploadMetaMediaViaApi(phoneId, file, "audio");
+            isVoiceNote = false;
+          }
+
           if (!res.ok || (!res.data?.id && !res.data?.link)) {
             throw new Error(res.error || "Falha ao preparar o áudio.");
+          }
+
+          if (isVoiceNote) {
+            console.log("[VOICE] Enviando como voice note");
           }
 
           const mediaId = res.data.id;
           const payload: any = {
             type: "audio",
-            audio: mediaId ? { id: mediaId } : { link: res.data.link },
+            audio: {
+              ...(mediaId ? { id: mediaId } : { link: res.data.link }),
+              ...(isVoiceNote ? { voice: true } : {}),
+            },
             local_media: res.data.local_media,
-            reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+            reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
           };
 
           sendMutation.mutate(payload, {
             onSuccess: () => {
+              if (isVoiceNote) {
+                console.log("[VOICE] Voice note enviada");
+              }
               setReplyingTo(null);
               toast.success("Áudio enviado com sucesso!", { id: toastId });
             },
@@ -3258,7 +3291,7 @@ function ChatPage() {
               type: "document",
               document: { id: mediaId, filename: file.name },
               local_media: res.data.local_media,
-              reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+              reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
             }
           : pendingMediaType === "image"
             ? {
@@ -3266,7 +3299,7 @@ function ChatPage() {
                 type: "image",
                 image: { id: mediaId },
                 local_media: res.data.local_media,
-                reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
               }
             : pendingMediaType === "audio"
               ? {
@@ -3274,7 +3307,7 @@ function ChatPage() {
                   type: "audio",
                   audio: mediaId ? { id: mediaId } : { link: res.data.link },
                   local_media: res.data.local_media,
-                  reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                  reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
                 }
               : pendingMediaType === "video"
                 ? {
@@ -3282,14 +3315,14 @@ function ChatPage() {
                     type: "video",
                     video: { id: mediaId },
                     local_media: res.data.local_media,
-                    reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                    reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
                   }
                 : {
                     to: selectedPhone,
                     type: "sticker",
                     sticker: { id: mediaId },
                     local_media: res.data.local_media,
-                    reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+                    reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
                   };
 
       const sendRes = await sendMessage({
@@ -3339,7 +3372,7 @@ function ChatPage() {
         name: locName.trim() || undefined,
         address: locAddress.trim() || undefined,
       },
-      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+      reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
     });
 
     setIsLocationModalOpen(false);
@@ -3373,7 +3406,7 @@ function ChatPage() {
           ],
         },
       ],
-      reply_to_message_id: replyingTo?.wa_message_id ?? undefined,
+      reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
     });
 
     setIsContactModalOpen(false);
@@ -3688,7 +3721,7 @@ function ChatPage() {
               >
                 Novos
                 <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                  {novosContacts.length}
+                  {novosUnreadCount}
                 </span>
               </button>
 
@@ -3704,7 +3737,7 @@ function ChatPage() {
               >
                 Meus
                 <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                  {meusContacts.length}
+                  {meusUnreadCount}
                 </span>
               </button>
 
@@ -3720,7 +3753,7 @@ function ChatPage() {
               >
                 Outros
                 <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                  {outrosContacts.length}
+                  {outrosUnreadCount}
                 </span>
               </button>
             </div>
@@ -4942,7 +4975,11 @@ function ChatPage() {
                         const replyMsgId = msg.context?.message_id;
                         const replyMessage =
                           replyMsgId &&
-                          displayMessages.find((message) => message.id === replyMsgId);
+                          displayMessages.find(
+                            (message) =>
+                              message.id === replyMsgId ||
+                              (message.wa_message_id && message.wa_message_id === replyMsgId),
+                          );
 
                         const msgDateStr = new Date(msg.timestamp).toDateString();
                         const showDateSeparator = msgDateStr !== lastDateStr;

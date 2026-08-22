@@ -13,6 +13,7 @@ export async function uploadMetaMediaViaApi(
   phoneId: string,
   file: File,
   mediaType: MetaMediaType,
+  options?: { isVoice?: boolean },
 ) {
   if (!phoneId) {
     throw new Error("ID do número de telefone não configurado.");
@@ -30,6 +31,9 @@ export async function uploadMetaMediaViaApi(
   form.append("phoneId", phoneId);
   form.append("file", file);
   form.append("mediaType", mediaType);
+  if (options?.isVoice) {
+    form.append("isVoice", "true");
+  }
 
   const r = await fetch("/api/whatsapp/media-upload", {
     method: "POST",
