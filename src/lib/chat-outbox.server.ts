@@ -66,7 +66,10 @@ interface MetaResponseBody {
   error?: {
     code?: number | string;
     message?: string;
+    type?: string;
+    error_subcode?: number | string;
     error_data?: { details?: string };
+    fbtrace_id?: string;
   };
   message_id?: string;
   messages?: Array<{ id?: string }>;
