@@ -87,4 +87,31 @@ describe("getTenantSubscriptionAccess", () => {
       [licenseEnd, licenseEnd, "subscription-1"],
     );
   });
+
+  it("não escreve no banco quando a consulta é somente leitura", async () => {
+    resolveEffectiveUserIdMock.mockResolvedValue("tenant-1");
+    const licenseEnd = new Date("2026-12-31T23:59:59.000Z");
+    const subscriptionEnd = new Date("2026-08-19T23:59:59.000Z");
+    queryMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: "license-1",
+        status: "active",
+        expires_at: licenseEnd,
+        plan: "enterprise",
+      }])
+      .mockResolvedValueOnce([{
+        id: "subscription-1",
+        status: "expiring",
+        expires_at: subscriptionEnd,
+        current_period_end: null,
+        plan_id: "enterprise",
+      }]);
+
+    const access = await getTenantSubscriptionAccess("user-1", { reconcile: false });
+
+    expect(access.allowed).toBe(true);
+    expect(access.currentPeriodEnd).toBe(licenseEnd.toISOString());
+    expect(queryMock).toHaveBeenCalledTimes(3);
+  });
 });

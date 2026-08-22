@@ -7,6 +7,7 @@ import { processBotFlow } from "@/lib/botflow-executor.server";
 import { webhookQueue } from "@/lib/queue/webhook-queue";
 import { downloadAndPersistInboundMedia } from "@/lib/whatsapp-media-downloader";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
+import { insertWebhookEvent } from "@/lib/webhook-event-store.server";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -1030,7 +1031,7 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
     if (m.type === "reaction") {
       logInfo(
-        `[REACTION] Mensagem de reação inbound recebida do webhook. Emoji: "${m.reaction?.emoji || ""}", Target Message ID: "${reply_to_message_id}", Sender: "${senderWaId}"`,
+        `[REACTION] Mensagem de reação inbound recebida do webhook. Emoji: "${m.reaction?.emoji || ""}", Target Message ID: "${reply_to_message_id}", Sender: "${m.from || ""}"`,
       );
     }
 
@@ -1797,23 +1798,22 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           // proprietário correto e tornar erros de segredo/assinatura visíveis
           // na tela "Eventos do Webhook".
           const diagnosticOwnerId = await findWebhookOwnerForDiagnostics(payload);
-          const { error: rejectedEventError } = await dbAdmin.from("webhook_events").insert({
-            id: crypto.randomUUID(),
-            tenant_id: diagnosticOwnerId,
-            user_id: diagnosticOwnerId,
-            source: "whatsapp",
-            event_type: "webhook_rejected",
-            status: "rejected",
-            processed: true,
-            error_message: `Webhook recusado: ${resolved.reason}`,
-            raw: {
-              rejected: true,
-              reason: resolved.reason,
-              phone_number_ids: extractPhoneNumberIds(payload),
-              body: rawBody.slice(0, 4000),
-            },
-          });
-          if (rejectedEventError) {
+          try {
+            await insertWebhookEvent({
+              userId: diagnosticOwnerId,
+              source: "whatsapp",
+              eventType: "webhook_rejected",
+              status: "rejected",
+              processed: true,
+              errorMessage: `Webhook recusado: ${resolved.reason}`,
+              raw: {
+                rejected: true,
+                reason: resolved.reason,
+                phone_number_ids: extractPhoneNumberIds(payload),
+                body: rawBody.slice(0, 4000),
+              },
+            });
+          } catch (rejectedEventError) {
             logError("Falha ao registrar webhook rejeitado", rejectedEventError);
           }
           logError("POST recusado (não foi possível resolver user)", {
@@ -1824,20 +1824,14 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         }
 
         // Salva o payload bruto para debug e processa em seguida
-        const { data: evRow, error: eventInsertError } = await dbAdmin
-          .from("webhook_events")
-          .insert({
-            id: crypto.randomUUID(),
-            tenant_id: matchedUserId,
+        let webhookEventId: string | null = null;
+        try {
+          webhookEventId = await insertWebhookEvent({
+            userId: matchedUserId,
             source: "whatsapp",
             raw: payload,
-            payload_json: payload,
-            user_id: matchedUserId,
-          })
-          .select("id")
-          .single();
-
-        if (eventInsertError) {
+          });
+        } catch (eventInsertError) {
           logError("Falha ao registrar evento do webhook", eventInsertError);
         }
 
@@ -1847,11 +1841,11 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         // idempotência por wa_message_id e ao marcador bot_processed_at.
         try {
           await processMetaWebhookEvent(payload.entry ?? [], matchedUserId);
-          if (evRow?.id) {
+          if (webhookEventId) {
             const { error: processedUpdateError } = await dbAdmin
               .from("webhook_events")
               .update({ processed: true })
-              .eq("id", evRow.id);
+              .eq("id", webhookEventId);
             if (processedUpdateError) {
               logError("Falha ao marcar evento do webhook como processado", processedUpdateError);
             }
@@ -1867,7 +1861,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               {
                 entry: payload.entry,
                 matchedUserId,
-                evRowId: evRow?.id ?? null,
+                evRowId: webhookEventId,
               },
               {
                 attempts: 5,

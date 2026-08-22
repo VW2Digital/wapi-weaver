@@ -1,5 +1,10 @@
 import { describe, expect, test } from "@jest/globals";
-import { isMp3, transcodeAudioToMp3 } from "../../src/lib/audio-transcode.server";
+import {
+  isMp3,
+  isOggOpus,
+  transcodeAudioToMp3,
+  transcodeAudioToOggOpus,
+} from "../../src/lib/audio-transcode.server";
 
 function createPcmWav() {
   const sampleRate = 8000;
@@ -34,5 +39,13 @@ describe("transcodeAudioToMp3", () => {
     const converted = await transcodeAudioToMp3(createPcmWav());
     expect(isMp3(converted)).toBe(true);
     expect(Buffer.from(converted).subarray(0, 3).toString("ascii")).toBe("ID3");
+  });
+});
+
+describe("transcodeAudioToOggOpus", () => {
+  test("gera Ogg/Opus válido para envio com audio.voice=true", async () => {
+    const converted = await transcodeAudioToOggOpus(createPcmWav());
+    expect(isOggOpus(converted)).toBe(true);
+    expect(Buffer.from(converted).subarray(0, 4).toString("ascii")).toBe("OggS");
   });
 });

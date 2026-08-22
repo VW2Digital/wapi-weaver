@@ -226,7 +226,7 @@ function WebhookEventsPage() {
   const [selected, setSelected] = useState<EventRow | null>(null);
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["my-webhook-events"],
     queryFn: () => fetchEvents({ data: { limit: 200 } }),
     refetchInterval: 15000,
@@ -382,6 +382,17 @@ function WebhookEventsPage() {
               <div className="h-6 w-6 animate-spin rounded-full border-3 border-primary border-t-transparent" />
               <p className="text-sm">Carregando...</p>
             </div>
+          ) : isError ? (
+            <EmptyState
+              icon={AlertTriangle}
+              title="Falha ao carregar os eventos"
+              description={error instanceof Error ? error.message : "Não foi possível consultar os eventos do webhook."}
+              action={
+                <Button variant="outline" size="sm" onClick={() => refetch()}>
+                  Tentar novamente
+                </Button>
+              }
+            />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Activity}

@@ -219,13 +219,19 @@ function AppLayout() {
   const subscriptionQuery = useQuery({
     queryKey: ["subscription-access"],
     queryFn: async () => {
-      const res = await fetch("/api/billing/subscription");
-      if (!res.ok) return null;
+      const token = localStorage.getItem("app-token") || localStorage.getItem("sb-token");
+      const res = await fetch("/api/billing/subscription", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        throw new Error(`Falha ao consultar assinatura (${res.status})`);
+      }
       return await res.json();
     },
     enabled: !loading && !!user,
     staleTime: 10000,
-    refetchInterval: 30000,
+    retry: false,
+    refetchInterval: (query) => query.state.status === "error" ? false : 30000,
   });
 
   const subAccess = subscriptionQuery.data?.access;

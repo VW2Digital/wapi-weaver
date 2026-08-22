@@ -169,8 +169,12 @@ export async function createTrialSubscriptionForTenant(
 /**
  * Consulta e avalia o status oficial de acesso por assinatura do tenant.
  */
-export async function getTenantSubscriptionAccess(userId: string): Promise<SubscriptionAccessState> {
+export async function getTenantSubscriptionAccess(
+  userId: string,
+  options: { reconcile?: boolean } = {},
+): Promise<SubscriptionAccessState> {
   const tenantId = await resolveEffectiveUserId(userId);
+  const shouldReconcile = options.reconcile !== false;
 
   const now = new Date();
 
@@ -222,7 +226,7 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     // Reconcilia os espelhos somente quando há divergência. A maior vigência
     // válida prevalece; bloqueio administrativo explícito permanece soberano.
-    if (sub) {
+    if (sub && shouldReconcile) {
       if (entitlement.allowed && entitlement.status === "active" && effectiveEnd) {
         const currentSubEnd = subscriptionEnd(sub);
         if (String(sub.status).toLowerCase() !== "active" || currentSubEnd?.getTime() !== effectiveEnd.getTime()) {
@@ -312,13 +316,15 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     if (now.getTime() >= trialEndsAt.getTime()) {
       // Trial Expirou! Persistir alteração de status se ainda estiver como trialing
-      await db.query("UPDATE subscriptions SET status = 'suspended' WHERE id = ?", [sub.id]);
-      const eventId = crypto.randomUUID();
-      await db.query(
-        `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-         VALUES (?, ?, ?, 'trial_expired', ?, 'suspended', 'system', '{}')`,
-        [eventId, tenantId, sub.id, currentStatus]
-      );
+      if (shouldReconcile) {
+        await db.query("UPDATE subscriptions SET status = 'suspended' WHERE id = ?", [sub.id]);
+        const eventId = crypto.randomUUID();
+        await db.query(
+          `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
+           VALUES (?, ?, ?, 'trial_expired', ?, 'suspended', 'system', '{}')`,
+          [eventId, tenantId, sub.id, currentStatus]
+        );
+      }
 
       return {
         allowed: false,
@@ -354,13 +360,15 @@ export async function getTenantSubscriptionAccess(userId: string): Promise<Subsc
 
     if (periodEnd && now.getTime() >= periodEnd.getTime()) {
       // Período pago expirou!
-      await db.query("UPDATE subscriptions SET status = 'suspended' WHERE id = ?", [sub.id]);
-      const eventId = crypto.randomUUID();
-      await db.query(
-        `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
-         VALUES (?, ?, ?, 'subscription_expired', ?, 'suspended', 'system', '{}')`,
-        [eventId, tenantId, sub.id, currentStatus]
-      );
+      if (shouldReconcile) {
+        await db.query("UPDATE subscriptions SET status = 'suspended' WHERE id = ?", [sub.id]);
+        const eventId = crypto.randomUUID();
+        await db.query(
+          `INSERT INTO subscription_events (id, tenant_id, subscription_id, event_type, previous_status, new_status, source, raw_payload)
+           VALUES (?, ?, ?, 'subscription_expired', ?, 'suspended', 'system', '{}')`,
+          [eventId, tenantId, sub.id, currentStatus]
+        );
+      }
 
       return {
         allowed: false,

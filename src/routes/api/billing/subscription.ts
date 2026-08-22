@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createFileRoute } from "@tanstack/react-router";
 import db from "@/lib/db";
-import { verifyApiUser, getOrCreateSubscription } from "@/lib/subscription-helpers";
+import { verifyApiUser } from "@/lib/subscription-helpers";
 
 export const Route = createFileRoute("/api/billing/subscription")({
   server: {
@@ -10,8 +10,14 @@ export const Route = createFileRoute("/api/billing/subscription")({
         try {
           const user = await verifyApiUser(request);
           const { getTenantSubscriptionAccess } = await import("@/lib/services/subscription-access.service");
-          const access = await getTenantSubscriptionAccess(user.userId);
-          const sub = await getOrCreateSubscription(user.tenantId, user.userId);
+          // Esta rota é consultada periodicamente pela interface e precisa ser somente leitura.
+          // Criação e reconciliação de assinaturas pertencem aos fluxos de cadastro/pagamento.
+          const access = await getTenantSubscriptionAccess(user.userId, { reconcile: false });
+          const subscriptions = (await db.query(
+            "SELECT * FROM subscriptions WHERE tenant_id = ? LIMIT 1",
+            [user.tenantId],
+          )) as any[];
+          const sub = subscriptions[0] ?? null;
 
           // Get operational plan details from subscription_plans
           let subscriptionPlan = null;
@@ -42,7 +48,7 @@ export const Route = createFileRoute("/api/billing/subscription")({
 
           // Safe BigInt replacer para prevenir: TypeError: Do not know how to serialize a BigInt
           const safeStringify = (obj: any) =>
-            JSON.stringify(obj, (key, value) => (typeof value === "bigint" ? value.toString() : value));
+            JSON.stringify(obj, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 
           return new Response(
             safeStringify({
@@ -56,13 +62,16 @@ export const Route = createFileRoute("/api/billing/subscription")({
               headers: { "Content-Type": "application/json" },
             }
           );
-        } catch (err: any) {
-          console.error("[BILLING ERROR] etapa: GET /api/billing/subscription", "message:", err.message, "stack:", err.stack);
-          const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
-          
-          // Se for erro interno, retorne a mensagem de erro para visualização, caso contrário, oculte detalhes
-          const errorMsg = isAuthErr ? "Sessão expirada. Faça login novamente." : `Erro interno: ${err.message}`;
-          return new Response(JSON.stringify({ error: errorMsg }), {
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          const stack = err instanceof Error ? err.stack : undefined;
+          console.error("[BILLING ERROR] etapa: GET /api/billing/subscription", "message:", message, "stack:", stack);
+          const isAuthErr = message.toLowerCase().includes("unauthorized");
+          return new Response(JSON.stringify({
+            error: isAuthErr
+              ? "Sessão expirada. Faça login novamente."
+              : "Não foi possível consultar a assinatura.",
+          }), {
             status: isAuthErr ? 401 : 500,
             headers: { "Content-Type": "application/json" },
           });
