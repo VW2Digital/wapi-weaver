@@ -1,0 +1,36 @@
+-- Migration para adicionar tabela de chamadas WhatsApp
+SET @dbname = DATABASE();
+SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'whatsapp_calls' AND COLUMN_NAME = 'id');
+
+SET @sql_stmt = IF(@col_exists = 0, 
+'CREATE TABLE `whatsapp_calls` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `chat_session_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone_number_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `whatsapp_call_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `direction` enum("inbound","outbound") COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum("incoming","connecting","ringing","active","rejected","ended","failed") COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT "incoming",
+  `started_at` datetime DEFAULT NULL,
+  `answered_at` datetime DEFAULT NULL,
+  `ended_at` datetime DEFAULT NULL,
+  `duration_seconds` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_whatsapp_calls_tenant` (`tenant_id`),
+  KEY `idx_whatsapp_calls_chat_session` (`chat_session_id`),
+  KEY `idx_whatsapp_calls_contact` (`contact_id`),
+  KEY `idx_whatsapp_calls_whatsapp_id` (`whatsapp_call_id`),
+  KEY `idx_whatsapp_calls_status` (`status`),
+  KEY `idx_whatsapp_calls_created` (`created_at`),
+  CONSTRAINT `whatsapp_calls_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `whatsapp_calls_ibfk_2` FOREIGN KEY (`chat_session_id`) REFERENCES `chat_sessions` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `whatsapp_calls_ibfk_3` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+'SELECT 1');
+
+PREPARE stmt FROM @sql_stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -1123,7 +1123,7 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.phoneId}/call_permissions?user_wa_id=${encodeURIComponent(
         data.recipientPhone,
@@ -1142,13 +1142,124 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
     return { ok: true, data: body };
   });
 
+export const checkCallingEligibility = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version, whatsapp_phone_number_id")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    if (!p?.whatsapp_phone_number_id) {
+      return { ok: false, error: "Phone Number ID não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v26.0";
+    
+    // Verificar configurações atuais do número
+    const settingsResponse = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.phoneId}/settings`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
+
+    const settingsBody = await settingsResponse.json();
+    if (!settingsResponse.ok) {
+      return {
+        ok: false,
+        error: settingsBody?.error?.message ?? "Falha ao obter configurações do número",
+      };
+    }
+
+    // Verificar se Calling está habilitado
+    const callingSettings = settingsBody?.calling || {};
+    const isCallingEnabled = callingSettings.status === "ENABLED";
+    
+    // Verificar subscrição do webhook calls
+    const subscriptionsResponse = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/subscribed_apps`,
+      {
+        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
+      },
+    );
+
+    const subscriptionsBody = await subscriptionsResponse.json();
+    let isCallsWebhookSubscribed = false;
+    
+    if (subscriptionsResponse.ok && subscriptionsBody?.data) {
+      isCallsWebhookSubscribed = subscriptionsBody.data.some(
+        (app: any) => app.subscribed_fields?.includes("calls")
+      );
+    }
+
+    return {
+      ok: true,
+      data: {
+        phone_number_id: p.whatsapp_phone_number_id,
+        waba_id: p.whatsapp_waba_id,
+        graph_api_version: apiVersion,
+        calling_enabled: isCallingEnabled,
+        calls_webhook_subscribed: isCallsWebhookSubscribed,
+        call_settings: callingSettings,
+      },
+    };
+  });
+
+export const enableCallingAPI = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v26.0";
+    
+    const payload = {
+      calling: {
+        status: "ENABLED",
+        call_icon_visibility: "DEFAULT",
+        callback_permission_status: "ENABLED",
+      },
+    };
+
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/settings`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${p.whatsapp_access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await r.json();
+    if (!r.ok) {
+      return { ok: false, error: body?.error?.message ?? "Falha ao habilitar Calling API" };
+    }
+
+    return { ok: true, data: body };
+  });
+
 export const manageCall = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) =>
     z
       .object({
         phoneId: z.string().trim().min(5),
-        action: z.enum(["connect", "accept", "reject", "terminate"]),
+        action: z.enum(["connect", "accept", "reject", "terminate", "pre_accept"]),
         to: z.string().trim().optional(),
         callId: z.string().trim().optional(),
         sdp: z.string().trim().optional(),
@@ -1167,15 +1278,19 @@ export const manageCall = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const payload: any = {
       messaging_product: "whatsapp",
       action: data.action,
     };
     if (data.to) payload.to = data.to;
     if (data.callId) payload.call_id = data.callId;
-    if (data.sdp) payload.sdp = data.sdp;
-    if (data.sdpType) payload.sdp_type = data.sdpType;
+    if (data.sdp) {
+      payload.session = {
+        sdp_type: data.sdpType || "offer",
+        sdp: data.sdp,
+      };
+    }
 
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/calls`, {
       method: "POST",

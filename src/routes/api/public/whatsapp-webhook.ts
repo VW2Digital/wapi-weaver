@@ -68,6 +68,23 @@ interface WebhookInteractiveMessage {
   };
 }
 
+interface WebhookCallEvent {
+  id?: string;
+  direction?: string;
+  event?: string;
+  from?: string;
+  to?: string;
+  timestamp?: string;
+  session?: {
+    sdp?: string;
+    sdp_type?: string;
+  };
+}
+
+interface WebhookCallValue {
+  calls?: WebhookCallEvent[];
+}
+
 interface WebhookMessageContactCard {
   name?: {
     formatted_name?: string;
@@ -1715,6 +1732,33 @@ export async function processAccountUpdate(value: WebhookValue | undefined, user
   }
 }
 
+export async function processCallEvents(calls: WebhookCallEvent[] | undefined, userId: string) {
+  if (!calls || calls.length === 0) return;
+
+  for (const call of calls) {
+    const callId = call.id;
+    const direction = call.direction;
+    const event = call.event;
+    const from = call.from;
+    const to = call.to;
+    const session = call.session;
+
+    logInfo("[CALL] Webhook de chamada recebido", { 
+      userId, 
+      callId, 
+      direction, 
+      event,
+      from,
+      to 
+    });
+
+    // TODO: Implementar processamento completo de chamadas
+    // - Persistir chamada no banco
+    // - Enviar evento realtime para o frontend
+    // - Processar SDP quando disponível
+  }
+}
+
 /**
  * Processa um evento que já foi autenticado. Normalmente é chamado pelo
  * worker BullMQ; o próprio endpoint também pode usá-lo como contingência se
@@ -1740,6 +1784,8 @@ export async function processMetaWebhookEvent(entry: any[], userId: string) {
         await processTemplateCategoryUpdate(change.value, userId);
       } else if (change.field === "account_update") {
         await processAccountUpdate(change.value, userId);
+      } else if (change.field === "calls") {
+        await processCallEvents(change.value?.calls, userId);
       }
     }
   }

@@ -41,6 +41,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CallButton } from "@/components/calls/CallButton";
+import { IncomingCallDialog } from "@/components/calls/IncomingCallDialog";
+import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
 import {
   Dialog,
   DialogContent,
@@ -1239,6 +1242,15 @@ function ChatPage() {
   }, [qc]);
 
   const [selectedContact, setSelectedContact] = useState<ChatContactRecord | null>(null);
+
+  // Estados para chamadas
+  const [incomingCallOpen, setIncomingCallOpen] = useState(false);
+  const [activeCallOpen, setActiveCallOpen] = useState(false);
+  const [currentCallId, setCurrentCallId] = useState("");
+  const [currentCallContact, setCurrentCallContact] = useState<{ name: string; phone: string }>({
+    name: "",
+    phone: "",
+  });
 
   // Atribuição de Atendimentos e Equipes
   const fetchTeamsFn = useServerFn(listTeams);
@@ -4896,6 +4908,15 @@ function ChatPage() {
                       )}
                     </button>
 
+                    {/* Call Button */}
+                    {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
+                      <CallButton
+                        phoneId={profileQuery.data.whatsapp_phone_number_id}
+                        recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
+                        contactName={selectedContact.name ?? undefined}
+                      />
+                    )}
+
                     {/* Options Dropdown Menu */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -6709,11 +6730,11 @@ function ChatPage() {
                         Ações rápidas
                       </p>
                       <a
-                        href={`/contacts`}
+                        href={`/contacts/${selectedContact.id}`}
                         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg px-3 py-2 transition-colors"
                       >
                         <User className="h-4 w-4" />
-                        <span>Ver na lista de contatos</span>
+                        <span>Visualizar contato</span>
                         <ExternalLink className="h-3 w-3 ml-auto" />
                       </a>
                     </div>
