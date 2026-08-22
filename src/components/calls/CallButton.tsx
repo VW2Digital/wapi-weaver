@@ -280,13 +280,14 @@ export function CallButton({
         disabled={disabled || isCalling || isRequestingPerm}
         size="sm"
         variant="outline"
+        className="h-8 px-3 rounded-full text-xs font-medium border-border gap-1.5 inline-flex items-center"
       >
         {isCalling || isRequestingPerm ? (
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
-          <Phone className="h-4 w-4 mr-2" />
+          <Phone className="h-3.5 w-3.5" />
         )}
-        Ligar
+        <span>Ligar</span>
       </Button>
 
       {/* Interface Completa da Chamada em Execução */}

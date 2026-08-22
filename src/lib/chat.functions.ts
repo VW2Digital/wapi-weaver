@@ -305,6 +305,8 @@ export const listChatContacts = createServerFn({ method: "GET" })
           c.updated_at,
           COALESCE(bcs.bot_active, 1) AS bot_active,
           last_dm.body AS last_message_body,
+          last_dm.type AS last_message_type,
+          last_dm.direction AS last_message_direction,
           COALESCE(last_dm.created_at, last_cm.sent_at) AS last_message_time,
           GREATEST(COALESCE(c.is_unread, 0), COALESCE(unread.cnt, 0)) AS unread_count,
           ca.team_id AS active_team_id,
@@ -317,9 +319,9 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN bot_conversation_state bcs 
           ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164 AND bcs.channel = c.channel
         LEFT JOIN (
-          SELECT user_id, contact_phone, body, created_at
+          SELECT user_id, contact_phone, body, type, direction, created_at
           FROM (
-            SELECT user_id, contact_phone, body, created_at,
+            SELECT user_id, contact_phone, body, type, direction, created_at,
                    ROW_NUMBER() OVER(PARTITION BY user_id, contact_phone ORDER BY created_at DESC) as rn
             FROM direct_messages
           ) tmp WHERE rn = 1

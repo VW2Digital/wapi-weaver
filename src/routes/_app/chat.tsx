@@ -81,6 +81,11 @@ import {
   Smile,
   Search,
   Phone,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
+  PhoneMissed,
+  PhoneOff,
   ArrowLeft,
   Check,
   CheckCheck,
@@ -398,6 +403,8 @@ interface ChatContactRecord {
   opted_out?: boolean;
   bot_active?: ContactFlagValue;
   last_message_body?: string | null;
+  last_message_type?: string | null;
+  last_message_direction?: string | null;
   last_message_time?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -814,6 +821,8 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
         ? record.bot_active
         : null,
     last_message_body: normalizeOptionalString(record.last_message_body),
+    last_message_type: normalizeOptionalString(record.last_message_type),
+    last_message_direction: normalizeOptionalString(record.last_message_direction),
     last_message_time: normalizeOptionalString(record.last_message_time),
     created_at: normalizeOptionalString(record.created_at),
     updated_at: normalizeOptionalString(record.updated_at),
@@ -822,6 +831,201 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
     kanban_stage_color: normalizeOptionalString(record.kanban_stage_color),
     custom_fields: normalizeContactCustomFields(record.custom_fields),
   };
+}
+
+function renderContactLastMessageSnippet(c: ChatContactRecord) {
+  const body = (c.last_message_body || "").trim();
+  const type = (c.last_message_type || "").trim().toLowerCase();
+  const isOutgoing = c.last_message_direction === "outgoing";
+
+  if (!body && !type) {
+    const customText = getCustomFieldText(c.custom_fields, "company");
+    return (
+      <span className="text-xs text-muted-foreground truncate leading-normal">
+        {customText || "Sem mensagens"}
+      </span>
+    );
+  }
+
+  const isNumericMediaId = /^\d{15,18}$/.test(body);
+  const isMediaUrl = body.startsWith("http://") || body.startsWith("https://") || body.startsWith("/api/whatsapp/media");
+
+  // Call events
+  const lowerBody = body.toLowerCase();
+  if (
+    type === "call" ||
+    lowerBody.startsWith("[chamada") ||
+    lowerBody.includes("chamada de voz") ||
+    lowerBody.includes("chamada perdida") ||
+    lowerBody.includes("chamada recusada") ||
+    lowerBody.includes("chamada recebida") ||
+    lowerBody.includes("chamada iniciada") ||
+    lowerBody.includes("chamada encerrada") ||
+    lowerBody.startsWith("[interação")
+  ) {
+    if (lowerBody.includes("perdida") || lowerBody.includes("não atendida")) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-destructive font-medium truncate leading-normal">
+          <PhoneMissed className="h-3.5 w-3.5 shrink-0" />
+          <span>Chamada perdida</span>
+        </span>
+      );
+    }
+    if (lowerBody.includes("recebida") || lowerBody.includes("atendida")) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-emerald-500 font-medium truncate leading-normal">
+          <PhoneIncoming className="h-3.5 w-3.5 shrink-0" />
+          <span>Chamada recebida</span>
+        </span>
+      );
+    }
+    if (lowerBody.includes("iniciada") || lowerBody.includes("efetuada")) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-blue-500 font-medium truncate leading-normal">
+          <PhoneOutgoing className="h-3.5 w-3.5 shrink-0" />
+          <span>Chamada efetuada</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        <PhoneOff className="h-3.5 w-3.5 shrink-0" />
+        <span>Chamada finalizada</span>
+      </span>
+    );
+  }
+
+  // Audio / Voice Message
+  if (
+    type === "audio" ||
+    type === "voice" ||
+    body === "[Áudio]" ||
+    body === "[audio]" ||
+    (isNumericMediaId && type === "audio") ||
+    (isMediaUrl && (body.includes(".ogg") || body.includes(".mp3") || body.includes(".wav") || body.includes(".m4a") || body.includes(".aac") || body.includes(".opus")))
+  ) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <Mic className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+        <span className="font-medium text-foreground/90">Áudio</span>
+      </span>
+    );
+  }
+
+  // Image / Photo
+  if (
+    type === "image" ||
+    body === "[Imagem]" ||
+    body === "[imagem]" ||
+    (isNumericMediaId && (type === "image" || !type)) ||
+    (isMediaUrl && (body.includes(".jpg") || body.includes(".jpeg") || body.includes(".png") || body.includes(".webp") || body.includes(".gif")))
+  ) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <ImageIcon className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+        <span className="font-medium text-foreground/90">
+          {body && !isNumericMediaId && !body.startsWith("[") && !isMediaUrl ? body : "Foto"}
+        </span>
+      </span>
+    );
+  }
+
+  // Video
+  if (
+    type === "video" ||
+    body === "[Vídeo]" ||
+    body === "[video]" ||
+    (isNumericMediaId && type === "video") ||
+    (isMediaUrl && (body.includes(".mp4") || body.includes(".mov") || body.includes(".avi") || body.includes(".webm") || body.includes(".3gp")))
+  ) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <Video className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+        <span className="font-medium text-foreground/90">
+          {body && !isNumericMediaId && !body.startsWith("[") && !isMediaUrl ? body : "Vídeo"}
+        </span>
+      </span>
+    );
+  }
+
+  // Document
+  if (
+    type === "document" ||
+    body === "[Documento]" ||
+    body === "[documento]" ||
+    (isNumericMediaId && type === "document") ||
+    body.toLowerCase().endsWith(".pdf") ||
+    body.toLowerCase().endsWith(".doc") ||
+    body.toLowerCase().endsWith(".docx") ||
+    body.toLowerCase().endsWith(".xls") ||
+    body.toLowerCase().endsWith(".xlsx") ||
+    body.toLowerCase().endsWith(".csv") ||
+    body.toLowerCase().endsWith(".zip")
+  ) {
+    const docName = !isNumericMediaId && !body.startsWith("[") && !isMediaUrl ? body : "Documento";
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+        <span className="font-medium text-foreground/90 truncate">{docName}</span>
+      </span>
+    );
+  }
+
+  // Sticker
+  if (type === "sticker" || body === "[Figurinha]" || body === "[sticker]" || (isNumericMediaId && type === "sticker")) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <Smile className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+        <span className="font-medium text-foreground/90">Figurinha</span>
+      </span>
+    );
+  }
+
+  // Location
+  if (type === "location" || body === "[Localização]" || body === "[localizacao]") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+        <span className="font-medium text-foreground/90">Localização</span>
+      </span>
+    );
+  }
+
+  // Contact card
+  if (type === "contacts" || body === "[Contato]" || body === "[contato]") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+        <span className="font-medium text-foreground/90">Contato</span>
+      </span>
+    );
+  }
+
+  // If raw numeric ID still caught here, render as media
+  if (isNumericMediaId) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate leading-normal">
+        {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+        <ImageIcon className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+        <span className="font-medium text-foreground/90">Mídia recebida</span>
+      </span>
+    );
+  }
+
+  // Default clean text
+  return (
+    <span className="text-xs text-muted-foreground truncate leading-normal flex items-center gap-1">
+      {isOutgoing && <Check className="h-3 w-3 text-muted-foreground shrink-0" />}
+      <span className="truncate">{body}</span>
+    </span>
+  );
 }
 
 function getMessageInteractivePayload(metadata: Record<string, unknown> | null | undefined) {
@@ -2055,6 +2259,68 @@ function ChatPage() {
     enabled: !!selectedContact?.id && isLeadHistoryOpen,
   });
 
+  // Estados para chamadas de voz recebidas e ativas no Chat
+  const [incomingCallData, setIncomingCallData] = useState<{
+    callId: string;
+    phoneId: string;
+    contactName: string;
+    contactPhone: string;
+    sdpOffer?: string;
+  } | null>(null);
+
+  const [activeCallSession, setActiveCallSession] = useState<{
+    callId: string;
+    phoneId: string;
+    contactName: string;
+    contactPhone: string;
+    peerConnection: RTCPeerConnection | null;
+    localStream: MediaStream | null;
+  } | null>(null);
+
+  // Escuta global de eventos em tempo real do Chat e Chamadas via SSE
+  useEffect(() => {
+    const es = new EventSource("/api/chat/events");
+
+    es.onmessage = (evt) => {
+      try {
+        if (!evt.data || evt.data === "connected" || evt.data === "ping") return;
+        const payload = JSON.parse(evt.data);
+
+        // Se for um evento de chamada de voz recebida (inbound)
+        if (payload.type === "call.signal") {
+          console.log("[CHAT SSE] Evento de chamada recebido:", payload);
+
+          if (
+            (payload.call_event === "connect" || payload.status === "incoming") &&
+            (payload.direction === "inbound" || payload.sdp_type === "offer")
+          ) {
+            setIncomingCallData({
+              callId: payload.call_id || `call_${Date.now()}`,
+              phoneId: payload.phone_number_id || selectedContact?.phone_number_id || "",
+              contactName: payload.contact_name || payload.contact_phone || "Cliente WhatsApp",
+              contactPhone: payload.contact_phone || "",
+              sdpOffer: payload.sdp,
+            });
+          } else if (
+            payload.call_event === "terminate" ||
+            payload.call_event === "reject" ||
+            payload.status === "ended" ||
+            payload.status === "rejected"
+          ) {
+            // Se a chamada recebida foi cancelada pelo cliente antes de atender
+            setIncomingCallData((curr) => (curr?.callId === payload.call_id ? null : curr));
+          }
+        }
+      } catch (err) {
+        console.warn("[CHAT SSE] Erro ao processar evento:", err);
+      }
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [selectedContact?.phone_number_id]);
+
   useEffect(() => {
     if (selectedContact) {
       setSelectedTeamId(selectedContact.active_team_id || "");
@@ -3218,18 +3484,26 @@ function ChatPage() {
         if (!prev) return prev;
 
         let preview = prev.last_message_body || "";
+        let previewType = variables.type || "text";
         if (variables.type === "text") preview = variables.text?.body || "";
         else if (variables.type === "reaction")
           preview = `${variables.reaction?.emoji || ""} Reação`;
         else if (variables.type === "location")
-          preview = variables.location?.name || "Localização enviada";
-        else if (variables.type === "contacts") preview = "Contato compartilhado";
+          preview = variables.location?.name || "Localização";
+        else if (variables.type === "contacts") preview = "Contato";
+        else if (variables.type === "audio") preview = "Áudio";
+        else if (variables.type === "image") preview = (variables.image as any)?.caption || "Foto";
+        else if (variables.type === "video") preview = (variables.video as any)?.caption || "Vídeo";
+        else if (variables.type === "document") preview = (variables.document as any)?.filename || "Documento";
+        else if (variables.type === "sticker") preview = "Figurinha";
         else preview = "Mídia enviada";
 
         return {
           ...prev,
           is_unread: false,
           last_message_body: preview,
+          last_message_type: previewType,
+          last_message_direction: "outgoing",
           last_message_time: new Date().toISOString(),
         };
       });
@@ -4376,12 +4650,10 @@ function ChatPage() {
                           </div>
                         </div>
 
-                        {/* Second row: Last message body */}
-                        <p className="text-xs text-muted-foreground truncate leading-normal">
-                          {c.last_message_body ||
-                            getCustomFieldText(c.custom_fields, "company") ||
-                            "Sem mensagens"}
-                        </p>
+                        {/* Second row: Last message snippet */}
+                        <div className="text-xs text-muted-foreground truncate leading-normal flex items-center min-h-[18px]">
+                          {renderContactLastMessageSnippet(c)}
+                        </div>
 
                         {/* Third row: Badges */}
                         <div className="flex flex-wrap gap-1 pt-1">
@@ -4886,157 +5158,157 @@ function ChatPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    {/* Status Badge Dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-border bg-background hover:bg-accent text-foreground select-none cursor-pointer transition-colors"
-                        >
-                          <span
-                            className={cn(
-                              "h-2 w-2 rounded-full",
-                              selectedContact.chat_status === "fechado"
-                                ? "bg-zinc-500"
-                                : selectedContact.chat_status === "aguardando"
-                                  ? "bg-amber-500"
-                                  : "bg-emerald-500",
-                            )}
-                          />
-                          <span>
-                            {selectedContact.chat_status === "fechado"
-                              ? "Resolvida"
-                              : selectedContact.chat_status === "aguardando"
-                                ? "Pendente"
-                                : "Aberta"}
-                          </span>
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-[150px] bg-popover border-border text-popover-foreground"
-                      >
-                        <DropdownMenuItem
-                          onClick={() =>
-                            statusMutation.mutate({
-                              contactId: selectedContact.id,
-                              status: "aberto",
-                            })
-                          }
-                          className="flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                            <span>Aberta</span>
-                          </div>
-                          {selectedContact.chat_status === "aberto" && (
-                            <Check className="h-3.5 w-3.5 text-violet-500" />
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            statusMutation.mutate({
-                              contactId: selectedContact.id,
-                              status: "aguardando",
-                            })
-                          }
-                          className="flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                            <span>Pendente</span>
-                          </div>
-                          {selectedContact.chat_status === "aguardando" && (
-                            <Check className="h-3.5 w-3.5 text-violet-500" />
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            statusMutation.mutate({
-                              contactId: selectedContact.id,
-                              status: "fechado",
-                            })
-                          }
-                          className="flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
-                            <span>Resolvida</span>
-                          </div>
-                          {selectedContact.chat_status === "fechado" && (
-                            <Check className="h-3.5 w-3.5 text-violet-500" />
-                          )}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {/* Bot Toggle Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const contactPhone = selectedContact.phone_e164 ?? "";
-                        const channel = selectedContact.channel ?? "whatsapp";
-                        if (!contactPhone) {
-                          toast.error(
-                            "Este contato não possui telefone válido para alterar o bot.",
-                          );
-                          return;
-                        }
-
-                        botActiveMutation.mutate({
-                          contactPhone,
-                          botActive: !isFlagEnabled(selectedContact.bot_active),
-                          channel,
-                        });
-                      }}
-                      className="h-8 w-8 rounded-full flex items-center justify-center transition-colors cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground relative"
-                      title={
-                        selectedContact.bot_active
-                          ? "Desativar Inteligência / Chatbot"
-                          : "Ativar Inteligência / Chatbot"
-                      }
-                    >
-                      {isFlagEnabled(selectedContact.bot_active) ? (
-                        <Bot className="h-5 w-5 text-emerald-500" />
-                      ) : (
-                        <div className="relative h-5 w-5 flex items-center justify-center">
-                          <Bot className="h-5 w-5 text-zinc-400 opacity-60" />
-                          <svg
-                            className="absolute inset-0 h-5 w-5 text-zinc-400 opacity-60"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
+                    <div className="flex items-center gap-2">
+                      {/* Status Badge Dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium border border-border bg-background hover:bg-accent text-foreground select-none cursor-pointer transition-colors shrink-0"
                           >
-                            <line x1="4" y1="4" x2="20" y2="20" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-
-                    {/* Call Button */}
-                    {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
-                      <CallButton
-                        phoneId={profileQuery.data.whatsapp_phone_number_id}
-                        recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
-                        contactName={selectedContact.name ?? undefined}
-                        waId={(selectedContact.custom_fields as any)?.wa_id || selectedContact.external_contact_id || undefined}
-                      />
-                    )}
-
-                    {/* Options Dropdown Menu */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-full cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground"
+                            <span
+                              className={cn(
+                                "h-2 w-2 rounded-full shrink-0",
+                                selectedContact.chat_status === "fechado"
+                                  ? "bg-zinc-500"
+                                  : selectedContact.chat_status === "aguardando"
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-500",
+                              )}
+                            />
+                            <span>
+                              {selectedContact.chat_status === "fechado"
+                                ? "Resolvida"
+                                : selectedContact.chat_status === "aguardando"
+                                  ? "Pendente"
+                                  : "Aberta"}
+                            </span>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-[150px] bg-popover border-border text-popover-foreground"
                         >
-                          <MoreVertical className="h-5 w-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              statusMutation.mutate({
+                                contactId: selectedContact.id,
+                                status: "aberto",
+                              })
+                            }
+                            className="flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                              <span>Aberta</span>
+                            </div>
+                            {selectedContact.chat_status === "aberto" && (
+                              <Check className="h-3.5 w-3.5 text-violet-500" />
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              statusMutation.mutate({
+                                contactId: selectedContact.id,
+                                status: "aguardando",
+                              })
+                            }
+                            className="flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                              <span>Pendente</span>
+                            </div>
+                            {selectedContact.chat_status === "aguardando" && (
+                              <Check className="h-3.5 w-3.5 text-violet-500" />
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              statusMutation.mutate({
+                                contactId: selectedContact.id,
+                                status: "fechado",
+                              })
+                            }
+                            className="flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
+                              <span>Resolvida</span>
+                            </div>
+                            {selectedContact.chat_status === "fechado" && (
+                              <Check className="h-3.5 w-3.5 text-violet-500" />
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      {/* Bot Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const contactPhone = selectedContact.phone_e164 ?? "";
+                          const channel = selectedContact.channel ?? "whatsapp";
+                          if (!contactPhone) {
+                            toast.error(
+                              "Este contato não possui telefone válido para alterar o bot.",
+                            );
+                            return;
+                          }
+
+                          botActiveMutation.mutate({
+                            contactPhone,
+                            botActive: !isFlagEnabled(selectedContact.bot_active),
+                            channel,
+                          });
+                        }}
+                        className="h-8 w-8 rounded-full border border-border bg-background hover:bg-accent flex items-center justify-center transition-colors cursor-pointer text-muted-foreground hover:text-foreground relative shrink-0"
+                        title={
+                          selectedContact.bot_active
+                            ? "Desativar Inteligência / Chatbot"
+                            : "Ativar Inteligência / Chatbot"
+                        }
+                      >
+                        {isFlagEnabled(selectedContact.bot_active) ? (
+                          <Bot className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <div className="relative h-4 w-4 flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-zinc-400 opacity-60" />
+                            <svg
+                              className="absolute inset-0 h-4 w-4 text-zinc-400 opacity-60"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            >
+                              <line x1="4" y1="4" x2="20" y2="20" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+
+                      {/* Call Button */}
+                      {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
+                        <CallButton
+                          phoneId={profileQuery.data.whatsapp_phone_number_id}
+                          recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
+                          contactName={selectedContact.name ?? undefined}
+                          waId={(selectedContact.custom_fields as any)?.wa_id || selectedContact.external_contact_id || undefined}
+                        />
+                      )}
+
+                      {/* Options Dropdown Menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 rounded-full cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground border-border bg-background shrink-0"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[220px]">
                         <DropdownMenuItem
                           onClick={() => setIsQuickOpportunityOpen(true)}
@@ -5653,6 +5925,103 @@ function ChatPage() {
                                         return `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
                                       };
 
+                                      const isCallEventMessage = (text: string) => {
+                                        if (!text) return false;
+                                        const t = text.trim().toLowerCase();
+                                        return (
+                                          t.startsWith("[chamada de voz") ||
+                                          t.startsWith("[interação") ||
+                                          t.includes("chamada de voz") ||
+                                          t.includes("chamada perdida") ||
+                                          t.includes("chamada recusada") ||
+                                          t.includes("chamada recebida") ||
+                                          t.includes("chamada iniciada") ||
+                                          t.includes("chamada encerrada")
+                                        );
+                                      };
+
+                                      const renderCallEventCard = (text: string, isOut: boolean) => {
+                                        const lower = text.toLowerCase();
+                                        let title = "Chamada de Voz";
+                                        let subtitle = "WhatsApp Voz";
+                                        let iconNode = <Phone className="h-4 w-4" />;
+                                        let badgeColor = "bg-primary/10 text-primary border-primary/20";
+                                        let statusBadge = "";
+
+                                        if (lower.includes("perdida") || lower.includes("não atendida")) {
+                                          title = "Chamada de Voz Perdida";
+                                          subtitle = "Ligação não atendida";
+                                          iconNode = <PhoneMissed className="h-4 w-4 text-destructive" />;
+                                          badgeColor = "bg-destructive/10 text-destructive border-destructive/20";
+                                          statusBadge = "Perdida";
+                                        } else if (lower.includes("recebida")) {
+                                          title = "Chamada Recebida";
+                                          subtitle = isOut ? "Chamada recebida" : "Chamada de voz atendida";
+                                          iconNode = <PhoneIncoming className="h-4 w-4 text-emerald-500" />;
+                                          badgeColor = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+                                          statusBadge = "Recebida";
+                                        } else if (lower.includes("iniciada") || lower.includes("efetuada")) {
+                                          title = "Chamada Efetuada";
+                                          subtitle = "Chamada de voz realizada";
+                                          iconNode = <PhoneOutgoing className="h-4 w-4 text-blue-500" />;
+                                          badgeColor = "bg-blue-500/10 text-blue-600 border-blue-500/20";
+                                          statusBadge = "Efetuada";
+                                        } else if (lower.includes("atendida")) {
+                                          title = "Chamada Atendida";
+                                          subtitle = "Conversa de voz realizada";
+                                          iconNode = <Phone className="h-4 w-4 text-emerald-500" />;
+                                          badgeColor = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+                                          statusBadge = "Atendida";
+                                        } else if (lower.includes("recusada")) {
+                                          title = "Chamada Recusada";
+                                          subtitle = "A ligação foi recusada";
+                                          iconNode = <PhoneOff className="h-4 w-4 text-amber-500" />;
+                                          badgeColor = "bg-amber-500/10 text-amber-600 border-amber-500/20";
+                                          statusBadge = "Recusada";
+                                        } else if (lower.includes("encerrada") || lower.includes("finalizada")) {
+                                          title = "Chamada Encerrada";
+                                          subtitle = "Chamada de voz finalizada";
+                                          iconNode = <PhoneOff className="h-4 w-4 text-muted-foreground" />;
+                                          badgeColor = "bg-muted text-muted-foreground border-border";
+                                          statusBadge = "Encerrada";
+                                        } else if (lower.includes("falhou")) {
+                                          title = "Chamada Não Completada";
+                                          subtitle = "Falha na conexão de voz";
+                                          iconNode = <PhoneOff className="h-4 w-4 text-destructive" />;
+                                          badgeColor = "bg-destructive/10 text-destructive border-destructive/20";
+                                          statusBadge = "Falhou";
+                                        } else if (lower.includes("interação")) {
+                                          title = "Interação Registrada";
+                                          subtitle = "Atividade de chamada";
+                                          iconNode = <Activity className="h-4 w-4 text-indigo-500" />;
+                                          badgeColor = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20";
+                                          statusBadge = "Registro";
+                                        }
+
+                                        return (
+                                          <div className="flex items-center gap-3 py-1 px-0.5 min-w-[210px]">
+                                            <div className={`h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 shadow-xs ${badgeColor}`}>
+                                              {iconNode}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center justify-between gap-1">
+                                                <h4 className="font-semibold text-xs text-foreground font-display leading-tight">
+                                                  {title}
+                                                </h4>
+                                                {statusBadge && (
+                                                  <span className="text-[9px] px-1.5 py-0.2 rounded-full font-medium bg-background/50 border border-border text-muted-foreground">
+                                                    {statusBadge}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <p className="text-[11px] text-muted-foreground leading-normal mt-0.5">
+                                                {subtitle}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        );
+                                      };
+
                                       const renderStatus = (status: string) => {
                                         if (status === "read") {
                                           return <CheckCheck className="h-3.5 w-3.5 text-sky-400 stroke-[2.5]" />;
@@ -6064,9 +6433,13 @@ function ChatPage() {
                                                     </p>
                                                   )}
                                                   {shouldRenderBodyText && (
-                                                    <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
-                                                      {formatMessageText(bodyText)}
-                                                    </p>
+                                                    isCallEventMessage(bodyText) ? (
+                                                      renderCallEventCard(bodyText, isOutgoing)
+                                                    ) : (
+                                                      <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
+                                                        {formatMessageText(bodyText)}
+                                                      </p>
+                                                    )
                                                   )}
                                                   {interactive?.footer?.text && (
                                                     <p className="text-[10px] opacity-60">
@@ -6552,16 +6925,26 @@ function ChatPage() {
                     {/* Campos principais */}
                     <div className="space-y-3">
                       {/* Telefone */}
-                      <div className="flex items-start gap-2.5">
-                        <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-                            Telefone
-                          </p>
-                          <p className="text-sm font-mono break-all">
-                            +{selectedContact.phone_e164}
-                          </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                              Telefone
+                            </p>
+                            <p className="text-sm font-mono break-all">
+                              +{selectedContact.phone_e164}
+                            </p>
+                          </div>
                         </div>
+                        {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
+                          <CallButton
+                            phoneId={profileQuery.data.whatsapp_phone_number_id}
+                            recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
+                            contactName={selectedContact.name ?? undefined}
+                            waId={(selectedContact.custom_fields as any)?.wa_id || selectedContact.external_contact_id || undefined}
+                          />
+                        )}
                       </div>
 
                       {/* E-mail */}
@@ -7298,7 +7681,6 @@ function ChatPage() {
                     type="datetime-local"
                     value={followUpDate}
                     onChange={(e) => setFollowUpDate(e.target.value)}
-                    className="block w-full px-3 py-2 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
@@ -7650,6 +8032,44 @@ function ChatPage() {
               </div>
             </SheetContent>
           </Sheet>
+
+          {/* Diálogo de Chamada Recebida */}
+          {incomingCallData && (
+            <IncomingCallDialog
+              open={!!incomingCallData}
+              onOpenChange={(isOpen) => {
+                if (!isOpen) setIncomingCallData(null);
+              }}
+              contactName={incomingCallData.contactName}
+              contactPhone={incomingCallData.contactPhone}
+              callId={incomingCallData.callId}
+              phoneId={incomingCallData.phoneId}
+              sdpOffer={incomingCallData.sdpOffer}
+              onCallAccepted={(acceptedSession) => {
+                setIncomingCallData(null);
+                setActiveCallSession(acceptedSession);
+              }}
+            />
+          )}
+
+          {/* Diálogo de Chamada Ativa em Execução */}
+          {activeCallSession && (
+            <ActiveCallDialog
+              open={!!activeCallSession}
+              onOpenChange={(isOpen) => {
+                if (!isOpen) setActiveCallSession(null);
+              }}
+              contactName={activeCallSession.contactName}
+              contactPhone={activeCallSession.contactPhone}
+              callId={activeCallSession.callId}
+              phoneId={activeCallSession.phoneId}
+              peerConnection={activeCallSession.peerConnection}
+              localStream={activeCallSession.localStream}
+              onCallEnded={() => {
+                setActiveCallSession(null);
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

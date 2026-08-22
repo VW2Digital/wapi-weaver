@@ -19,6 +19,9 @@ export interface ChatRealtimeEvent {
     | "call.signal";
   tenant_id: string;
   contact_phone?: string | null;
+  contact_name?: string | null;
+  phone_number_id?: string | null;
+  direction?: string | null;
   message_id?: string | null;
   provider_message_id?: string | null;
   status?: string | null;
