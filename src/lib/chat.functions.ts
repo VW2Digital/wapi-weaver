@@ -243,7 +243,7 @@ const sendMessageInput = z.object({
   if (value.type === "text" && !value.text?.body.trim()) {
     ctx.addIssue({ code: "custom", path: ["text", "body"], message: "A mensagem está vazia." });
   }
-  if (value.type === "reaction" && (!value.reaction?.message_id || !value.reaction.emoji)) {
+  if (value.type === "reaction" && (!value.reaction?.message_id || value.reaction.emoji === undefined)) {
     ctx.addIssue({ code: "custom", path: ["reaction"], message: "Reação inválida." });
   }
   if (value.type === "image") requireMediaReference(value.image, "image");
@@ -589,6 +589,10 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const campaignMessages =
       campaignMessagesResult.status === "fulfilled" ? campaignMessagesResult.value : [];
     const typedMessages = (messages ?? []) as DirectMessageRow[];
+    const reactionCount = typedMessages.filter((m) => m.type === "reaction").length;
+    if (reactionCount > 0) {
+      console.log(`[MESSAGES] ${typedMessages.length} mensagens carregadas para ${phone}, sendo ${reactionCount} reações.`);
+    }
     const typedAssignments = (assignments ?? []) as AssignmentRow[];
     const typedCampaignMessages = (campaignMessages ?? []) as CampaignMessageRow[];
 
@@ -988,6 +992,17 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       file_size: data.local_media?.size,
       original_filename: data.local_media?.filename,
     };
+    const targetReplyToId =
+      data.type === "reaction"
+        ? (data.reaction?.message_id || data.reply_to_message_id)
+        : data.reply_to_message_id;
+
+    if (data.type === "reaction") {
+      console.log(
+        `[REACTION] Enviando reação outbound. Emoji: "${data.reaction?.emoji || ""}", Target Message ID: "${targetReplyToId}", Destino: "${digits}"`,
+      );
+    }
+
     const queuedMessage = await enqueueChatOutboxMessage({
       tenantId: effectiveUserId,
       userId: effectiveUserId,
@@ -998,7 +1013,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       providerAccountId,
       type: data.type,
       body: bodyText,
-      replyToMessageId: data.reply_to_message_id,
+      replyToMessageId: targetReplyToId,
       metadata,
       payload: {
         type: data.type,
@@ -1011,7 +1026,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         sticker: data.sticker,
         location: data.location,
         contacts: data.contacts,
-        reply_to_message_id: data.reply_to_message_id,
+        reply_to_message_id: targetReplyToId,
       },
     });
 

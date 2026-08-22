@@ -94,6 +94,7 @@ interface WebhookInboundMessage {
   };
   interactive?: WebhookInteractiveMessage;
   reaction?: {
+    message_id?: string;
     emoji?: string;
   };
   image?: {
@@ -1021,7 +1022,16 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
       }
     }
 
-    const reply_to_message_id = m.context?.message_id ?? null;
+    const reply_to_message_id =
+      m.type === "reaction"
+        ? (m.reaction?.message_id || m.context?.message_id || null)
+        : (m.context?.message_id ?? null);
+
+    if (m.type === "reaction") {
+      logInfo(
+        `[REACTION] Mensagem de reação inbound recebida do webhook. Emoji: "${m.reaction?.emoji || ""}", Target Message ID: "${reply_to_message_id}", Sender: "${senderWaId}"`,
+      );
+    }
 
     const { data: existingMessage } = await dbAdmin
       .from("direct_messages")
@@ -1606,7 +1616,16 @@ async function handleWhatsAppGroupMessage(
   const type = resolvedGroup.type;
   const body = resolvedGroup.body;
 
-  const reply_to_message_id = m.context?.message_id ?? null;
+  const reply_to_message_id =
+    m.type === "reaction"
+      ? (m.reaction?.message_id || m.context?.message_id || null)
+      : (m.context?.message_id ?? null);
+
+  if (m.type === "reaction") {
+    logInfo(
+      `[REACTION] Mensagem de reação em grupo inbound recebida. Emoji: "${m.reaction?.emoji || ""}", Target Message ID: "${reply_to_message_id}", Group: "${groupId}", Sender: "${senderWaId}"`,
+    );
+  }
 
   const { data: existingGroupMessage } = await dbAdmin
     .from("direct_messages")
