@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import db from "./db";
 import crypto from "crypto";
+import { extractLeadInfoFromPayload } from "@/utils/nested-value";
 
 export async function ensureWebhookTables() {
   try {
@@ -496,9 +497,16 @@ export const listWebhookLeads = createServerFn({ method: "GET" })
       try { unmapped = typeof e.unmapped_fields === "string" ? JSON.parse(e.unmapped_fields) : (e.unmapped_fields ?? {}); } catch {}
 
       // Extrai nome/telefone/email do payload para exibição
-      const displayName = mappedStd?.name ?? payload?.nome ?? payload?.name ?? payload?.full_name ?? "—";
-      const displayPhone = mappedStd?.phone ?? payload?.telefone ?? payload?.phone ?? payload?.whatsapp ?? "—";
-      const displayEmail = mappedStd?.email ?? payload?.email ?? "—";
+      const leadInfo = extractLeadInfoFromPayload(payload, mappedStd);
+      const displayName = (e.contact_name && e.contact_name !== "Sem nome" && e.contact_name !== "—")
+        ? e.contact_name
+        : (leadInfo.name !== "—" ? leadInfo.name : "—");
+      const displayPhone = (e.contact_phone && e.contact_phone !== "—")
+        ? e.contact_phone
+        : (leadInfo.phone !== "—" ? leadInfo.phone : "—");
+      const displayEmail = (e.contact_email && e.contact_email !== "—")
+        ? e.contact_email
+        : (leadInfo.email !== "—" ? leadInfo.email : "—");
 
       const normalizedStatus =
         e.status === "failed" || e.status === "error" ? "error" : "success";

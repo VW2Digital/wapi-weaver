@@ -23,6 +23,7 @@ import {
   listWebhookLeads,
 } from "@/lib/webhooks.functions";
 import { listStandardFields, saveWebhookFieldMappings, listCustomFields } from "@/lib/custom-fields.functions";
+import { extractLeadInfoFromPayload } from "@/utils/nested-value";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -353,6 +354,24 @@ function WebhookLeadsPanel({
             const payloadKeys = Object.keys(ev.payload ?? {}).filter(
               (k) => !["headers", "executionMode", "webhookUrl", "query", "params"].includes(k)
             );
+
+            const leadInfo = extractLeadInfoFromPayload(ev.payload, ev.mapped_standard);
+            const leadName = (ev.contact_name && ev.contact_name !== "Sem nome" && ev.contact_name !== "—")
+              ? ev.contact_name
+              : (ev.display_name && ev.display_name !== "—" && ev.display_name !== "Lead sem nome")
+              ? ev.display_name
+              : (leadInfo.name !== "—" ? leadInfo.name : "Lead sem nome");
+            const leadPhone = (ev.contact_phone && ev.contact_phone !== "—")
+              ? ev.contact_phone
+              : (ev.display_phone && ev.display_phone !== "—")
+              ? ev.display_phone
+              : (leadInfo.phone !== "—" ? leadInfo.phone : "");
+            const leadEmail = (ev.contact_email && ev.contact_email !== "—")
+              ? ev.contact_email
+              : (ev.display_email && ev.display_email !== "—")
+              ? ev.display_email
+              : (leadInfo.email !== "—" ? leadInfo.email : "");
+
             return (
               <div
                 key={ev.id}
@@ -375,7 +394,7 @@ function WebhookLeadsPanel({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-foreground truncate">
-                        {ev.display_name && ev.display_name !== "—" ? ev.display_name : "Lead sem nome"}
+                        {leadName}
                       </span>
                       {ev.contact_id && (
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md font-semibold shrink-0">
@@ -384,14 +403,14 @@ function WebhookLeadsPanel({
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      {ev.display_phone && ev.display_phone !== "—" && (
+                      {leadPhone && (
                         <span className="flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground/70" /> {ev.display_phone}
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground/70" /> {leadPhone}
                         </span>
                       )}
-                      {ev.display_email && ev.display_email !== "—" && (
+                      {leadEmail && (
                         <span className="flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground/70" /> {ev.display_email}
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground/70" /> {leadEmail}
                         </span>
                       )}
                     </div>
@@ -1788,12 +1807,26 @@ function WebhooksPage() {
                         onClick={() => {
                           const exists = fieldMappings.some((m) => m.external_field === fKey);
                           if (!exists) {
+                            const lower = fKey.toLowerCase();
+                            let detectedKey = "name";
+                            if (lower.includes("mail") || lower.includes("email")) {
+                              detectedKey = "email";
+                            } else if (lower.includes("phone") || lower.includes("telef") || lower.includes("zap") || lower.includes("celular") || lower.includes("tel") || lower.includes("mobile")) {
+                              detectedKey = "phone";
+                            } else if (lower.includes("empresa") || lower.includes("company")) {
+                              detectedKey = "company";
+                            } else if (lower.includes("cargo") || lower.includes("position")) {
+                              detectedKey = "position";
+                            } else if (lower.includes("name") || lower.includes("nome")) {
+                              detectedKey = "name";
+                            }
+
                             setFieldMappings([
                               ...fieldMappings,
                               {
                                 external_field: fKey,
                                 target_type: "standard",
-                                target_key: fKey === "email" ? "email" : fKey.includes("phone") || fKey.includes("telef") || fKey.includes("zap") ? "phone" : "name",
+                                target_key: detectedKey,
                                 custom_field_id: null,
                               },
                             ]);

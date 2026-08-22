@@ -1,7 +1,7 @@
 import db from "./db";
 import crypto from "crypto";
 import type { ResultSetHeader } from "mysql2";
-import { getNestedValue } from "@/utils/nested-value";
+import { getNestedValue, extractLeadInfoFromPayload } from "@/utils/nested-value";
 
 export interface IncomingWebhookRow {
   id: string;
@@ -121,9 +121,6 @@ export async function processWebhookPayloadAsync(
     [webhook.id, webhook.tenant_id],
   ).catch(() => []);
 
-  // Sem de-para configurado, o evento permanece aguardando em `received`.
-  if (!mappings.length) return;
-
   const standard: Record<string, unknown> = {};
   const custom: Record<string, unknown> = {};
   const mappedRoots = new Set<string>();
@@ -142,6 +139,23 @@ export async function processWebhookPayloadAsync(
     } else if (mapping.target_type === "custom" && mapping.custom_field_id) {
       custom[mapping.custom_field_id] = transformed;
     }
+  }
+
+  // Fallback inteligente para name, phone, email de formulários externos (Elementor, CF7, WPForms, etc.)
+  const autoLeadInfo = extractLeadInfoFromPayload(rawPayload, standard);
+  if (!standard.name && autoLeadInfo.name !== "—") {
+    standard.name = autoLeadInfo.name;
+  }
+  if (!standard.phone && autoLeadInfo.phone !== "—") {
+    standard.phone = autoLeadInfo.phone;
+  }
+  if (!standard.email && autoLeadInfo.email !== "—") {
+    standard.email = autoLeadInfo.email;
+  }
+
+  // Sem de-para configurado e sem dados mínimos de contato identificados, o evento permanece em `received`.
+  if (!mappings.length && !standard.phone && !standard.email && !standard.name && !standard.external_id) {
+    return;
   }
 
   const unmapped = Object.keys(rawPayload).filter((key) => !mappedRoots.has(key));

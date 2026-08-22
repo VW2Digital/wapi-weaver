@@ -93,3 +93,123 @@ export function mapPayloadToStandardFields(
 
   return result;
 }
+
+/**
+ * Extrai de forma inteligente o nome, telefone e e-mail de um payload de webhook,
+ * cobrindo estruturas de formulários externos populares (Elementor, CF7, WPForms,
+ * Fluent Forms, Webflow, Typeform, Wix, HTML forms e payloads JSON genéricos).
+ */
+export function extractLeadInfoFromPayload(
+  payload: Record<string, unknown> | null | undefined,
+  mappedStandard?: Record<string, unknown> | null,
+): { name: string; phone: string; email: string } {
+  if (!payload && !mappedStandard) {
+    return { name: "—", phone: "—", email: "—" };
+  }
+
+  const p = payload ?? {};
+  const m = mappedStandard ?? {};
+
+  // 1. Extração do Nome
+  const rawName =
+    m.name ??
+    getNestedValue(p, "form_fields[name]") ??
+    getNestedValue(p, "form_fields[nome]") ??
+    getNestedValue(p, "form_fields[full_name]") ??
+    getNestedValue(p, "form_fields[first_name]") ??
+    getNestedValue(p, "form_fields[nome_completo]") ??
+    getNestedValue(p, "form_fields[your-name]") ??
+    getNestedValue(p, "form_fields[your_name]") ??
+    getNestedValue(p, "form_fields.name") ??
+    getNestedValue(p, "form_fields.nome") ??
+    getNestedValue(p, "form_fields.full_name") ??
+    getNestedValue(p, "form_fields.first_name") ??
+    getNestedValue(p, "fields[name]") ??
+    getNestedValue(p, "fields[nome]") ??
+    getNestedValue(p, "fields.name") ??
+    getNestedValue(p, "fields.nome") ??
+    getNestedValue(p, "data.name") ??
+    getNestedValue(p, "data.nome") ??
+    getNestedValue(p, "data.full_name") ??
+    getNestedValue(p, "your-name") ??
+    getNestedValue(p, "your_name") ??
+    getNestedValue(p, "name") ??
+    getNestedValue(p, "nome") ??
+    getNestedValue(p, "full_name") ??
+    getNestedValue(p, "first_name") ??
+    getNestedValue(p, "nome_completo") ??
+    getNestedValue(p, "lead_name") ??
+    getNestedValue(p, "contact_name") ??
+    getNestedValue(p, "cliente") ??
+    getNestedValue(p, "razao_social");
+
+  // 2. Extração do Telefone / WhatsApp
+  const rawPhone =
+    m.phone ??
+    getNestedValue(p, "form_fields[phone]") ??
+    getNestedValue(p, "form_fields[telefone]") ??
+    getNestedValue(p, "form_fields[whatsapp]") ??
+    getNestedValue(p, "form_fields[celular]") ??
+    getNestedValue(p, "form_fields[tel]") ??
+    getNestedValue(p, "form_fields[mobile]") ??
+    getNestedValue(p, "form_fields[your-tel]") ??
+    getNestedValue(p, "form_fields[your_phone]") ??
+    getNestedValue(p, "form_fields.phone") ??
+    getNestedValue(p, "form_fields.telefone") ??
+    getNestedValue(p, "form_fields.whatsapp") ??
+    getNestedValue(p, "form_fields.celular") ??
+    getNestedValue(p, "fields[phone]") ??
+    getNestedValue(p, "fields[telefone]") ??
+    getNestedValue(p, "fields[whatsapp]") ??
+    getNestedValue(p, "fields.phone") ??
+    getNestedValue(p, "fields.telefone") ??
+    getNestedValue(p, "fields.whatsapp") ??
+    getNestedValue(p, "data.phone") ??
+    getNestedValue(p, "data.telefone") ??
+    getNestedValue(p, "data.whatsapp") ??
+    getNestedValue(p, "your-tel") ??
+    getNestedValue(p, "your_phone") ??
+    getNestedValue(p, "phone") ??
+    getNestedValue(p, "telefone") ??
+    getNestedValue(p, "whatsapp") ??
+    getNestedValue(p, "celular") ??
+    getNestedValue(p, "mobile") ??
+    getNestedValue(p, "tel") ??
+    getNestedValue(p, "phone_number") ??
+    getNestedValue(p, "numero") ??
+    getNestedValue(p, "contact_phone");
+
+  // 3. Extração do E-mail
+  const rawEmail =
+    m.email ??
+    getNestedValue(p, "form_fields[email]") ??
+    getNestedValue(p, "form_fields[e-mail]") ??
+    getNestedValue(p, "form_fields[mail]") ??
+    getNestedValue(p, "form_fields[your-email]") ??
+    getNestedValue(p, "form_fields[your_email]") ??
+    getNestedValue(p, "form_fields.email") ??
+    getNestedValue(p, "form_fields.e-mail") ??
+    getNestedValue(p, "form_fields.mail") ??
+    getNestedValue(p, "fields[email]") ??
+    getNestedValue(p, "fields[mail]") ??
+    getNestedValue(p, "fields.email") ??
+    getNestedValue(p, "fields.mail") ??
+    getNestedValue(p, "data.email") ??
+    getNestedValue(p, "your-email") ??
+    getNestedValue(p, "your_email") ??
+    getNestedValue(p, "email") ??
+    getNestedValue(p, "e-mail") ??
+    getNestedValue(p, "mail") ??
+    getNestedValue(p, "contact_email");
+
+  const nameStr = rawName != null && String(rawName).trim() ? String(rawName).trim() : "—";
+  const phoneStr = rawPhone != null && String(rawPhone).trim() ? String(rawPhone).trim() : "—";
+  const emailStr = rawEmail != null && String(rawEmail).trim() ? String(rawEmail).trim() : "—";
+
+  return {
+    name: nameStr,
+    phone: phoneStr,
+    email: emailStr,
+  };
+}
+
