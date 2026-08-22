@@ -39,6 +39,7 @@ export const Route = createFileRoute("/api/billing/subscription")({
             }
           );
         } catch (err: any) {
+          console.error("[BILLING ERROR] etapa: GET /api/billing/subscription", "message:", err.message, "stack:", err.stack);
           const isAuthErr = err.message?.toLowerCase().includes("unauthorized");
           return new Response(JSON.stringify({ error: isAuthErr ? "Sessão expirada. Faça login novamente." : err.message }), {
             status: isAuthErr ? 401 : 500,
