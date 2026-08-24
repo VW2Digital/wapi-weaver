@@ -3168,12 +3168,11 @@ function ChatPage() {
     contact: ChatContactRecord,
     currentUserId: string,
   ): "novos" | "meus" | "outros" => {
-    const hasUnread = isFlagEnabled(contact.is_unread) || (contact.unread_count ?? 0) > 0;
-    if (!contact.active_agent_id && hasUnread) {
-      return "novos";
-    }
     if (contact.active_agent_id === currentUserId) {
       return "meus";
+    }
+    if (!contact.active_agent_id) {
+      return "novos";
     }
     return "outros";
   };

@@ -30,6 +30,8 @@ export function buildWebhookEventInsert(
     event_type: input.eventType || "generic",
     status: input.status || "pending",
     error_message: input.errorMessage ?? null,
+    received_at: new Date(),
+    created_at: new Date(),
   };
   const columns = Object.keys(valuesByColumn).filter((column) => available.has(column));
 

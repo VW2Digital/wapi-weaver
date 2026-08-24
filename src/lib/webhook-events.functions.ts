@@ -40,10 +40,10 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
               : "JSON_OBJECT()";
       const receivedExpression =
         names.has("received_at") && names.has("created_at")
-          ? "COALESCE(received_at, created_at)"
+          ? "COALESCE(received_at, created_at, NOW())"
           : names.has("received_at")
-            ? "received_at"
-            : "created_at";
+            ? "COALESCE(received_at, NOW())"
+            : "COALESCE(created_at, NOW())";
       const sourceExpression = names.has("source") ? "source" : "'whatsapp'";
       const processedExpression = names.has("processed") ? "processed" : "1";
 
@@ -69,9 +69,14 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
         const colNames = new Set((cols || []).map((c: any) => c.Field));
         const rawCol = colNames.has("payload") ? "payload" : colNames.has("raw") ? "raw" : "JSON_OBJECT()";
         const ownerCol = colNames.has("tenant_id") ? "tenant_id" : "user_id";
+        const recCol = colNames.has("received_at") && colNames.has("created_at")
+          ? "COALESCE(received_at, created_at, NOW())"
+          : colNames.has("received_at")
+            ? "COALESCE(received_at, NOW())"
+            : "COALESCE(created_at, NOW())";
         
         const rows = (await db.query(
-          `SELECT id, ? AS source, processed, received_at, ${rawCol} AS raw
+          `SELECT id, ? AS source, processed, ${recCol} AS received_at, ${rawCol} AS raw
            FROM ${source.table}
            WHERE ${ownerCol} = ? OR ${ownerCol} IN (SELECT tenant_id FROM users WHERE id = ?)
            ORDER BY received_at DESC LIMIT ?`,
@@ -87,6 +92,7 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
     const events = eventSources
       .map((event: any) => ({
         ...event,
+        received_at: event.received_at || new Date().toISOString(),
         raw:
           typeof event.raw === "string"
             ? (() => {
@@ -100,7 +106,7 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
       }))
       .sort(
         (a: any, b: any) =>
-          new Date(b.received_at).getTime() - new Date(a.received_at).getTime(),
+          new Date(b.received_at || 0).getTime() - new Date(a.received_at || 0).getTime(),
       )
       .slice(0, data.limit);
 
