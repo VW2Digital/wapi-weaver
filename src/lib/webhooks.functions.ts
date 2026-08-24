@@ -6,6 +6,21 @@ import db from "./db";
 import crypto from "crypto";
 import { extractLeadInfoFromPayload } from "@/utils/nested-value";
 
+async function ensureColumnExists(tableName: string, columnName: string, columnDefinition: string) {
+  try {
+    const rows = (await db.query(
+      `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [tableName, columnName],
+    )) as any[];
+    if (!rows || rows.length === 0) {
+      await db.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${columnDefinition}`);
+    }
+  } catch (err: any) {
+    if (err.errno === 1060 || err.code === "ER_DUP_FIELDNAME") return;
+    console.error(`[ensureWebhookTables] Erro ao adicionar coluna ${columnName} em ${tableName}:`, err);
+  }
+}
+
 export async function ensureWebhookTables() {
   try {
     await db.query(`
@@ -20,15 +35,16 @@ export async function ensureWebhookTables() {
         leads_count INT NOT NULL DEFAULT 0,
         last_event_at DATETIME NULL,
         last_contact_id VARCHAR(36) NULL,
+        target_funnel_id VARCHAR(36) NULL,
+        target_stage_id VARCHAR(36) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Garante que last_contact_id existe mesmo em tabelas criadas antes da coluna ser adicionada
-    await db.query(`
-      ALTER TABLE incoming_webhooks
-      ADD COLUMN IF NOT EXISTS last_contact_id VARCHAR(36) NULL
-    `).catch(() => {});
+    // Garante que colunas adicionais existam em tabelas criadas previamente
+    await ensureColumnExists("incoming_webhooks", "last_contact_id", "VARCHAR(36) NULL");
+    await ensureColumnExists("incoming_webhooks", "target_funnel_id", "VARCHAR(36) NULL");
+    await ensureColumnExists("incoming_webhooks", "target_stage_id", "VARCHAR(36) NULL");
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS incoming_webhook_events (
@@ -51,11 +67,7 @@ export async function ensureWebhookTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Garante que contact_id existe mesmo em tabelas criadas antes dessa coluna ser adicionada
-    await db.query(`
-      ALTER TABLE incoming_webhook_events
-      ADD COLUMN IF NOT EXISTS contact_id VARCHAR(36) NULL
-    `).catch(() => {});
+    await ensureColumnExists("incoming_webhook_events", "contact_id", "VARCHAR(36) NULL");
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS outgoing_webhooks (
@@ -136,7 +148,23 @@ export const listIncomingWebhooks = createServerFn({ method: "GET" })
 
 export const createIncomingWebhook = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ name: z.string().trim().min(1) }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        name: z.string().trim().min(1),
+        target_funnel_id: z
+          .string()
+          .nullable()
+          .optional()
+          .transform((v) => (!v || v === "none" ? null : v)),
+        target_stage_id: z
+          .string()
+          .nullable()
+          .optional()
+          .transform((v) => (!v || v === "none" || v === "default" ? null : v)),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     await ensureWebhookTables();
     const { resolveEffectiveUserId } = await import("./chat-helpers");
@@ -144,21 +172,41 @@ export const createIncomingWebhook = createServerFn({ method: "POST" })
     const id = crypto.randomUUID();
     const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
     await db.query(
-      "INSERT INTO incoming_webhooks (id, tenant_id, name, token, status, events_count, leads_count) VALUES (?, ?, ?, ?, 'listening', 0, 0)",
-      [id, effectiveUserId, data.name, token],
+      `INSERT INTO incoming_webhooks (id, tenant_id, name, token, status, events_count, leads_count, target_funnel_id, target_stage_id)
+       VALUES (?, ?, ?, ?, 'listening', 0, 0, ?, ?)`,
+      [id, effectiveUserId, data.name, token, data.target_funnel_id ?? null, data.target_stage_id ?? null],
     );
     return { id, token, name: data.name };
   });
 
 export const updateIncomingWebhook = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ id: z.string().uuid(), name: z.string().trim().min(1) }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1),
+        target_funnel_id: z
+          .string()
+          .nullable()
+          .optional()
+          .transform((v) => (!v || v === "none" ? null : v)),
+        target_stage_id: z
+          .string()
+          .nullable()
+          .optional()
+          .transform((v) => (!v || v === "none" || v === "default" ? null : v)),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await db.query(
-      "UPDATE incoming_webhooks SET name = ? WHERE id = ? AND tenant_id = ?",
-      [data.name, data.id, effectiveUserId]
+      `UPDATE incoming_webhooks
+       SET name = ?, target_funnel_id = ?, target_stage_id = ?
+       WHERE id = ? AND tenant_id = ?`,
+      [data.name, data.target_funnel_id ?? null, data.target_stage_id ?? null, data.id, effectiveUserId]
     );
     return { ok: true };
   });
@@ -180,8 +228,9 @@ export const duplicateIncomingWebhook = createServerFn({ method: "POST" })
     const newName = `${wh.name} (Cópia)`;
 
     await db.query(
-      "INSERT INTO incoming_webhooks (id, tenant_id, name, token, status, events_count, leads_count) VALUES (?, ?, ?, ?, ?, 0, 0)",
-      [newId, effectiveUserId, newName, newToken, wh.status]
+      `INSERT INTO incoming_webhooks (id, tenant_id, name, token, status, events_count, leads_count, target_funnel_id, target_stage_id)
+       VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+      [newId, effectiveUserId, newName, newToken, wh.status, wh.target_funnel_id ?? null, wh.target_stage_id ?? null]
     );
     return { ok: true, id: newId };
   });

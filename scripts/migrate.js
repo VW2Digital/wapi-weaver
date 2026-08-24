@@ -63,6 +63,9 @@ async function ensureRuntimeSchemaAlignment(connection) {
   await ensureColumnExists(connection, "tags", "tenant_id", "VARCHAR(36) NULL");
   await ensureColumnExists(connection, "list_contacts", "tenant_id", "VARCHAR(36) NULL");
 
+  await ensureColumnExists(connection, "incoming_webhooks", "target_funnel_id", "VARCHAR(36) NULL");
+  await ensureColumnExists(connection, "incoming_webhooks", "target_stage_id", "VARCHAR(36) NULL");
+
   try {
     await connection.query("UPDATE lists SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
     await connection.query("UPDATE tags SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");

@@ -23,6 +23,7 @@ import {
   listWebhookLeads,
 } from "@/lib/webhooks.functions";
 import { listStandardFields, saveWebhookFieldMappings, listCustomFields } from "@/lib/custom-fields.functions";
+import { listFunnels, listAllUserStages } from "@/lib/crm.functions";
 import { extractLeadInfoFromPayload } from "@/utils/nested-value";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
@@ -94,6 +95,7 @@ import {
   Tag,
   FileCode,
   Code,
+  Kanban,
 } from "lucide-react";
 import {
   Sheet,
@@ -568,6 +570,8 @@ function WebhooksPage() {
   const [incomingDialogOpen, setIncomingDialogOpen] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2>(1);
   const [incomingName, setIncomingName] = useState("");
+  const [incomingTargetFunnelId, setIncomingTargetFunnelId] = useState<string>("none");
+  const [incomingTargetStageId, setIncomingTargetStageId] = useState<string>("default");
   const [createdIncomingUrl, setCreatedIncomingUrl] = useState<string | null>(null);
 
   // Modal 2: Novo Webhook de Saída
@@ -579,9 +583,30 @@ function WebhooksPage() {
   // Modal 3: Editar Webhook
   const [editingWebhook, setEditingWebhook] = useState<any | null>(null);
   const [editName, setEditName] = useState("");
+  const [editTargetFunnelId, setEditTargetFunnelId] = useState<string>("none");
+  const [editTargetStageId, setEditTargetStageId] = useState<string>("default");
   const [editUrl, setEditUrl] = useState("");
   const [editEventType, setEditEventType] = useState("LEAD_CREATED");
   const [editRetryCount, setEditRetryCount] = useState(3);
+
+  // Funis e Etapas para Automação Kanban
+  const fetchFunnels = useServerFn(listFunnels);
+  const fetchAllStages = useServerFn(listAllUserStages);
+
+  const funnelsQ = useQuery({
+    queryKey: ["crm-funnels-webhooks"],
+    queryFn: () => fetchFunnels(),
+    staleTime: 30000,
+  });
+
+  const stagesQ = useQuery({
+    queryKey: ["crm-stages-webhooks"],
+    queryFn: () => fetchAllStages(),
+    staleTime: 30000,
+  });
+
+  const funnelsList: any[] = (funnelsQ.data as any[]) || [];
+  const stagesList: any[] = (stagesQ.data as any[]) || [];
 
   // Modal 4: Confirmação de Exclusão
   const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string; type: "incoming" | "outgoing" } | null>(null);
@@ -698,7 +723,17 @@ function WebhooksPage() {
   }, [selectedWebhookId]);
 
   const createIncomingMut = useMutation({
-    mutationFn: () => createIncoming({ data: { name: incomingName } }),
+    mutationFn: () =>
+      createIncoming({
+        data: {
+          name: incomingName,
+          target_funnel_id: incomingTargetFunnelId !== "none" ? incomingTargetFunnelId : null,
+          target_stage_id:
+            incomingTargetFunnelId !== "none" && incomingTargetStageId !== "default"
+              ? incomingTargetStageId
+              : null,
+        },
+      }),
     onSuccess: (r: any) => {
       const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080";
       const generatedUrl = `${origin}/api/public/webhooks/incoming/${r.token}`;
@@ -711,7 +746,18 @@ function WebhooksPage() {
   });
 
   const updateIncomingMut = useMutation({
-    mutationFn: () => updateIncoming({ data: { id: editingWebhook.id, name: editName } }),
+    mutationFn: () =>
+      updateIncoming({
+        data: {
+          id: editingWebhook.id,
+          name: editName,
+          target_funnel_id: editTargetFunnelId !== "none" ? editTargetFunnelId : null,
+          target_stage_id:
+            editTargetFunnelId !== "none" && editTargetStageId !== "default"
+              ? editTargetStageId
+              : null,
+        },
+      }),
     onSuccess: () => {
       toast.success("Webhook atualizado!");
       setEditingWebhook(null);
@@ -1024,6 +1070,8 @@ function WebhooksPage() {
                               onClick={() => {
                                 setEditingWebhook({ ...wh, type: "incoming" });
                                 setEditName(wh.name);
+                                setEditTargetFunnelId(wh.target_funnel_id || "none");
+                                setEditTargetStageId(wh.target_stage_id || "default");
                               }}
                               className="text-xs cursor-pointer rounded-lg py-2"
                             >
@@ -1106,6 +1154,23 @@ function WebhooksPage() {
                         <span className="text-muted-foreground font-normal">leads</span>
                       </div>
                     </div>
+
+                    {/* Funil Kanban Target Badge */}
+                    {wh.target_funnel_id && (
+                      <div className="pt-1">
+                        <Badge
+                          variant="outline"
+                          className="bg-primary/5 text-primary border-primary/20 text-[10px] font-medium flex items-center gap-1.5 py-0.5 px-2 rounded-md max-w-full truncate"
+                        >
+                          <Kanban className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {funnelsList.find((f) => f.id === wh.target_funnel_id)?.name || "Funil"}
+                            {" → "}
+                            {stagesList.find((s) => s.id === wh.target_stage_id)?.name || "Primeira Etapa"}
+                          </span>
+                        </Badge>
+                      </div>
+                    )}
 
                     {/* Footer Row */}
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
@@ -1334,6 +1399,58 @@ function WebhooksPage() {
                 />
               </div>
 
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Kanban className="h-3.5 w-3.5 text-primary" /> Enviar para o Funil (Kanban)
+                </Label>
+                <Select
+                  value={incomingTargetFunnelId}
+                  onValueChange={(val) => {
+                    setIncomingTargetFunnelId(val);
+                    setIncomingTargetStageId("default");
+                  }}
+                >
+                  <SelectTrigger className="bg-background border-border text-xs rounded-xl">
+                    <SelectValue placeholder="Selecione um funil (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border text-xs">
+                    <SelectItem value="none">Nenhum (Apenas cadastrar contato)</SelectItem>
+                    {funnelsList.map((fn: any) => (
+                      <SelectItem key={fn.id} value={fn.id}>
+                        {fn.name} {fn.is_default ? "(Padrão)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Ao receber leads por este webhook, uma oportunidade será criada automaticamente no funil.
+                </p>
+              </div>
+
+              {incomingTargetFunnelId !== "none" && (
+                <div className="space-y-1.5 pt-1">
+                  <Label className="text-xs font-bold text-foreground">Etapa Inicial</Label>
+                  <Select
+                    value={incomingTargetStageId}
+                    onValueChange={setIncomingTargetStageId}
+                  >
+                    <SelectTrigger className="bg-background border-border text-xs rounded-xl">
+                      <SelectValue placeholder="Primeira etapa ativa (padrão)" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border text-xs">
+                      <SelectItem value="default">Primeira etapa ativa (automático)</SelectItem>
+                      {stagesList
+                        .filter((st: any) => st.funnel_id === incomingTargetFunnelId && !st.is_won_stage && !st.is_lost_stage)
+                        .map((st: any) => (
+                          <SelectItem key={st.id} value={st.id}>
+                            {st.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                 <Button
                   variant="outline"
@@ -1499,6 +1616,55 @@ function WebhooksPage() {
                   className="bg-background border-border text-xs rounded-xl"
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Kanban className="h-3.5 w-3.5 text-primary" /> Enviar para o Funil (Kanban)
+                </Label>
+                <Select
+                  value={editTargetFunnelId}
+                  onValueChange={(val) => {
+                    setEditTargetFunnelId(val);
+                    setEditTargetStageId("default");
+                  }}
+                >
+                  <SelectTrigger className="bg-background border-border text-xs rounded-xl">
+                    <SelectValue placeholder="Selecione um funil (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border text-xs">
+                    <SelectItem value="none">Nenhum (Apenas cadastrar contato)</SelectItem>
+                    {funnelsList.map((fn: any) => (
+                      <SelectItem key={fn.id} value={fn.id}>
+                        {fn.name} {fn.is_default ? "(Padrão)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editTargetFunnelId !== "none" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Etapa Inicial</Label>
+                  <Select
+                    value={editTargetStageId}
+                    onValueChange={setEditTargetStageId}
+                  >
+                    <SelectTrigger className="bg-background border-border text-xs rounded-xl">
+                      <SelectValue placeholder="Primeira etapa ativa (padrão)" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border text-xs">
+                      <SelectItem value="default">Primeira etapa ativa (automático)</SelectItem>
+                      {stagesList
+                        .filter((st: any) => st.funnel_id === editTargetFunnelId && !st.is_won_stage && !st.is_lost_stage)
+                        .map((st: any) => (
+                          <SelectItem key={st.id} value={st.id}>
+                            {st.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3 py-2">

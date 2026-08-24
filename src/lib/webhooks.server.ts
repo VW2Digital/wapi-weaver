@@ -13,6 +13,8 @@ export interface IncomingWebhookRow {
   events_count: number;
   leads_count: number;
   last_event_at: string | null;
+  target_funnel_id?: string | null;
+  target_stage_id?: string | null;
 }
 
 export function resolveDotPath(obj: Record<string, any>, path: string): unknown {
@@ -227,6 +229,111 @@ export async function processWebhookPayloadAsync(
        WHERE id = ? AND tenant_id = ?`,
       [contact.created ? 1 : 0, contact.id, webhook.id, webhook.tenant_id],
     );
+
+    // -------------------------------------------------------------------------
+    // CRIAÇÃO AUTOMÁTICA DE OPORTUNIDADE NO FUNIL KANBAN
+    // -------------------------------------------------------------------------
+    if (webhook.target_funnel_id) {
+      try {
+        const funnels = await db.query<Array<{ id: string; name: string }>>(
+          "SELECT id, name FROM sales_funnels WHERE id = ? AND (tenant_id = ? OR user_id = ?) AND deleted_at IS NULL LIMIT 1",
+          [webhook.target_funnel_id, webhook.tenant_id, webhook.tenant_id],
+        );
+        const funnel = funnels?.[0];
+
+        if (funnel) {
+          let stageId = webhook.target_stage_id;
+
+          if (stageId) {
+            const validStages = await db.query<Array<{ id: string }>>(
+              "SELECT id FROM sales_stages WHERE id = ? AND funnel_id = ? AND (tenant_id = ? OR user_id = ?) AND deleted_at IS NULL AND is_active = 1 LIMIT 1",
+              [stageId, funnel.id, webhook.tenant_id, webhook.tenant_id],
+            );
+            if (!validStages?.[0]) {
+              stageId = null;
+            }
+          }
+
+          if (!stageId) {
+            const firstStages = await db.query<Array<{ id: string }>>(
+              `SELECT id FROM sales_stages
+               WHERE funnel_id = ? AND (tenant_id = ? OR user_id = ?) AND deleted_at IS NULL AND is_active = 1
+                 AND is_won_stage = 0 AND is_lost_stage = 0
+               ORDER BY sort_order ASC, created_at ASC LIMIT 1`,
+              [funnel.id, webhook.tenant_id, webhook.tenant_id],
+            );
+            stageId = firstStages?.[0]?.id ?? null;
+          }
+
+          if (stageId) {
+            const maxOrderRows = await db.query<Array<{ max_order: number | string | null }>>(
+              "SELECT MAX(kanban_order) AS max_order FROM opportunities WHERE stage_id = ? AND deleted_at IS NULL",
+              [stageId],
+            );
+            const rawMaxOrder = maxOrderRows?.[0]?.max_order;
+            const maxOrder = rawMaxOrder != null ? Number(rawMaxOrder) || 0.0 : 0.0;
+            const kanbanOrder = maxOrder + 1000.0;
+
+            const oppId = crypto.randomUUID();
+            const contactName = standard.name ? String(standard.name).trim() : "";
+            const contactPhone = standard.phone ? String(standard.phone).trim() : "";
+            const oppTitle = contactName
+              ? contactName
+              : (contactPhone ? `Lead ${contactPhone}` : `Lead #${contact.id.slice(0, 8)}`);
+
+            await db.transaction(async (conn) => {
+              await conn.execute(
+                `INSERT INTO opportunities (
+                   id, tenant_id, user_id, funnel_id, stage_id, title, description,
+                   primary_contact_id, company_name, owner_user_id, created_by_user_id,
+                   value, currency, probability_percent, status, source, temperature, priority, kanban_order
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 'webhook', 'warm', 'medium', ?)`,
+                [
+                  oppId,
+                  webhook.tenant_id,
+                  webhook.tenant_id,
+                  funnel.id,
+                  stageId,
+                  oppTitle,
+                  standard.notes ? String(standard.notes) : null,
+                  contact.id,
+                  standard.company ? String(standard.company) : null,
+                  webhook.tenant_id,
+                  webhook.tenant_id,
+                  0.0,
+                  "BRL",
+                  0,
+                  kanbanOrder,
+                ],
+              );
+
+              await conn.execute(
+                `INSERT INTO opportunity_contacts (id, tenant_id, user_id, opportunity_id, contact_id, role, is_primary)
+                 VALUES (UUID(), ?, ?, ?, ?, 'Principal', TRUE)
+                 ON DUPLICATE KEY UPDATE is_primary = TRUE`,
+                [webhook.tenant_id, webhook.tenant_id, oppId, contact.id],
+              );
+
+              await conn.execute(
+                "UPDATE contacts SET kanban_stage_id = ? WHERE id = ? AND (tenant_id = ? OR user_id = ?)",
+                [stageId, contact.id, webhook.tenant_id, webhook.tenant_id],
+              );
+            });
+
+            const { emitEvent } = await import("@/lib/webhooks.server");
+            emitEvent(webhook.tenant_id, "DEAL_CREATED", {
+              id: oppId,
+              title: oppTitle,
+              funnel_id: funnel.id,
+              stage_id: stageId,
+              contact_id: contact.id,
+            }).catch(() => {});
+          }
+        }
+      } catch (oppErr) {
+        console.error("[Webhook Process] Erro ao criar oportunidade no funil:", oppErr);
+      }
+    }
 
     const { triggerWebhookBotFlow } = await import("@/lib/botflow-executor.server");
     void triggerWebhookBotFlow(webhook.tenant_id, contact.id, rawPayload).catch(console.error);

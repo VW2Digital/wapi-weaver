@@ -2477,6 +2477,132 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
 
+    logSchema("Criando/Validando tabelas de Webhooks...");
+    await ensureTableExists(
+      connection,
+      "incoming_webhooks",
+      `CREATE TABLE IF NOT EXISTS incoming_webhooks (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        status ENUM('listening','paused') NOT NULL DEFAULT 'listening',
+        events_count INT NOT NULL DEFAULT 0,
+        leads_count INT NOT NULL DEFAULT 0,
+        last_event_at DATETIME NULL,
+        last_contact_id VARCHAR(36) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        field_labels JSON DEFAULT NULL,
+        target_funnel_id VARCHAR(36) NULL,
+        target_stage_id VARCHAR(36) NULL,
+        INDEX idx_incoming_webhooks_token (token),
+        INDEX idx_incoming_webhooks_tenant (tenant_id),
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureColumnExists(connection, "incoming_webhooks", "last_contact_id", "VARCHAR(36) NULL");
+    await ensureColumnExists(connection, "incoming_webhooks", "target_funnel_id", "VARCHAR(36) NULL");
+    await ensureColumnExists(connection, "incoming_webhooks", "target_stage_id", "VARCHAR(36) NULL");
+
+    await ensureTableExists(
+      connection,
+      "incoming_webhook_events",
+      `CREATE TABLE IF NOT EXISTS incoming_webhook_events (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        incoming_webhook_id VARCHAR(36) NOT NULL,
+        payload JSON NOT NULL,
+        status ENUM('received','processed','parse_error','error') NOT NULL DEFAULT 'received',
+        error_message TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        user_id VARCHAR(36) NOT NULL,
+        webhook_id VARCHAR(36) NOT NULL,
+        contact_id VARCHAR(36) NULL,
+        idempotency_key VARCHAR(64) NULL,
+        action VARCHAR(50) NULL,
+        raw_payload JSON NOT NULL,
+        mapped_standard_fields JSON NULL,
+        mapped_custom_fields JSON NULL,
+        unmapped_fields JSON NULL,
+        headers JSON NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent TEXT NULL,
+        error_code VARCHAR(50) NULL,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        processed_at DATETIME NULL,
+        processing_duration_ms INT UNSIGNED DEFAULT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_incoming_webhook_events_webhook (incoming_webhook_id),
+        INDEX idx_iwe_user (user_id),
+        INDEX idx_iwe_webhook (user_id, webhook_id),
+        INDEX idx_iwe_contact (contact_id),
+        INDEX idx_iwe_status (user_id, status),
+        INDEX idx_iwe_received (user_id, received_at),
+        FOREIGN KEY (incoming_webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureColumnExists(connection, "incoming_webhook_events", "contact_id", "VARCHAR(36) NULL");
+
+    await ensureTableExists(
+      connection,
+      "webhook_field_mappings",
+      `CREATE TABLE IF NOT EXISTS webhook_field_mappings (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        webhook_id VARCHAR(36) NOT NULL,
+        external_field VARCHAR(255) NOT NULL,
+        target_type ENUM('standard','custom','ignore') NOT NULL DEFAULT 'standard',
+        target_key VARCHAR(100) NULL,
+        custom_field_id VARCHAR(36) NULL,
+        transformation VARCHAR(50) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_wfm_webhook (webhook_id),
+        INDEX idx_wfm_user (user_id),
+        INDEX idx_wfm_tenant (tenant_id),
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (webhook_id) REFERENCES incoming_webhooks(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "outgoing_webhooks",
+      `CREATE TABLE IF NOT EXISTS outgoing_webhooks (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        url TEXT NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        retry_count INT NOT NULL DEFAULT 3,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_outgoing_webhooks_tenant (tenant_id),
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "outgoing_webhook_logs",
+      `CREATE TABLE IF NOT EXISTS outgoing_webhook_logs (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        outgoing_webhook_id VARCHAR(36) NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        payload JSON NULL,
+        response_status INT NULL,
+        response_body TEXT NULL,
+        error_message TEXT NULL,
+        attempt_number INT NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_owl_webhook (outgoing_webhook_id),
+        FOREIGN KEY (outgoing_webhook_id) REFERENCES outgoing_webhooks(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
     // O compilador aplica isolamento por tenant nestas tabelas. Versões antigas
     // possuíam apenas user_id; adicionamos e preenchemos tenant_id de forma
     // idempotente para que bancos locais e instalações novas tenham o mesmo contrato.

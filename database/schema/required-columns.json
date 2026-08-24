@@ -651,9 +651,12 @@
     "events_count",
     "leads_count",
     "last_event_at",
+    "last_contact_id",
     "created_at",
     "updated_at",
-    "field_labels"
+    "field_labels",
+    "target_funnel_id",
+    "target_stage_id"
   ],
   "instagram_accounts": [
     "id",
