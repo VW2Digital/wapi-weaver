@@ -1,9 +1,7 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
+-- Generated dynamically from local MySQL
+-- Date: 2026-08-24T12:15:15.912Z
 
--- O dump é ordenado alfabeticamente, portanto algumas tabelas referenciadas
--- por FKs aparecem depois das tabelas filhas. Desabilitar a validação durante
--- o bootstrap permite criar o schema vazio; as constraints continuam sendo
--- criadas e voltam a ser verificadas ao final.
 SET FOREIGN_KEY_CHECKS = 0;
 
 CREATE TABLE IF NOT EXISTS `ai_agent_settings` (
@@ -47,10 +45,12 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `user_agent` text COLLATE utf8mb4_unicode_ci,
   `metadata` json DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `details_json` json DEFAULT NULL,
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
   KEY `idx_audit_logs_created` (`created_at` DESC),
   KEY `idx_audit_logs_tenant` (`tenant_id`),
+  KEY `audit_logs_ibfk_1` (`user_id`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS `billing_invoices` (
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `plan_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `plan_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `invoice_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `amount` decimal(10,2) NOT NULL,
@@ -72,13 +72,14 @@ CREATE TABLE IF NOT EXISTS `billing_invoices` (
   `metadata` json DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `due_date` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `invoice_number` (`invoice_number`),
   UNIQUE KEY `external_reference` (`external_reference`),
-  KEY `tenant_id` (`tenant_id`),
   KEY `customer_id` (`customer_id`),
   KEY `subscription_id` (`subscription_id`),
   KEY `plan_id` (`plan_id`),
+  KEY `billing_invoices_ibfk_1` (`tenant_id`),
   CONSTRAINT `billing_invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `billing_invoices_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `billing_invoices_ibfk_3` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE CASCADE,
@@ -95,7 +96,7 @@ CREATE TABLE IF NOT EXISTS `billing_payments` (
   `provider_payment_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `provider_order_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `provider_preference_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `external_reference` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `external_reference` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `payment_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `payment_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -107,19 +108,19 @@ CREATE TABLE IF NOT EXISTS `billing_payments` (
   `approved_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL,
   `raw_response` json DEFAULT NULL,
-  `qr_code` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `qr_code_base64` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ticket_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `payload_json` json DEFAULT NULL,
   `environment` enum('sandbox','production') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sandbox',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `qr_code` text COLLATE utf8mb4_unicode_ci,
+  `qr_code_base64` longtext COLLATE utf8mb4_unicode_ci,
+  `ticket_url` text COLLATE utf8mb4_unicode_ci,
+  `payload_json` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_provider_payment_env` (`provider_payment_id`,`provider`,`environment`),
-  KEY `tenant_id` (`tenant_id`),
   KEY `customer_id` (`customer_id`),
   KEY `subscription_id` (`subscription_id`),
-  KEY `invoice_id` (`invoice_id`),
+  KEY `billing_payments_ibfk_1` (`invoice_id`),
+  KEY `billing_payments_ibfk_2` (`tenant_id`),
   CONSTRAINT `billing_payments_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `billing_payments_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `billing_payments_ibfk_3` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE CASCADE,
@@ -131,20 +132,20 @@ CREATE TABLE IF NOT EXISTS `billing_plans` (
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `price` decimal(10,2) NOT NULL,
-  `price_cents` int NOT NULL DEFAULT '0',
   `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRL',
-  `billing_cycle` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'monthly',
   `billing_interval` enum('day','week','month','year') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'month',
   `billing_interval_count` int NOT NULL DEFAULT '1',
   `duration_days` int NOT NULL,
-  `trial_days` int NOT NULL DEFAULT '0',
   `features` json DEFAULT NULL,
-  `features_json` json DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `sort_order` int NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `subscription_plan_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `billing_cycle` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'monthly',
+  `price_cents` int NOT NULL DEFAULT '0',
+  `trial_days` int NOT NULL DEFAULT '0',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `features_json` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_billing_plans_subscription_plan_id` (`subscription_plan_id`),
   CONSTRAINT `fk_billing_subscription_plan` FOREIGN KEY (`subscription_plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -172,6 +173,7 @@ CREATE TABLE IF NOT EXISTS `billing_webhook_events` (
   `processing_started_at` datetime DEFAULT NULL,
   `processed_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `payload_json` json NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_billing_webhook_event` (`provider`,`environment`,`event_id`),
   KEY `idx_billing_webhook_status` (`status`,`received_at`),
@@ -283,7 +285,7 @@ CREATE TABLE IF NOT EXISTS `bot_steps` (
   `card_color` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `media_url` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `media_url` longtext COLLATE utf8mb4_unicode_ci,
   `position_x` float NOT NULL DEFAULT '0',
   `position_y` float NOT NULL DEFAULT '0',
   `flow_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -414,6 +416,38 @@ CREATE TABLE IF NOT EXISTS `campaigns` (
   CONSTRAINT `campaigns_ibfk_2` FOREIGN KEY (`list_id`) REFERENCES `lists` (`id`) ON DELETE SET NULL,
   CONSTRAINT `campaigns_ibfk_3` FOREIGN KEY (`template_id`) REFERENCES `templates` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_campaigns_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_message_outbox` (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channel` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `recipient` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider_recipient_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider_account_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payload` json NOT NULL,
+  `status` enum('pending','processing','retry','sent','failed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `attempts` int NOT NULL DEFAULT '0',
+  `max_attempts` int NOT NULL DEFAULT '5',
+  `next_attempt_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `locked_at` datetime DEFAULT NULL,
+  `locked_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider_message_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `last_error` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `response_payload` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `sent_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_chat_outbox_message` (`message_id`),
+  KEY `idx_chat_outbox_schedule` (`status`,`next_attempt_at`,`locked_at`),
+  KEY `idx_chat_outbox_tenant` (`tenant_id`,`created_at`),
+  KEY `fk_chat_outbox_user` (`user_id`),
+  CONSTRAINT `fk_chat_outbox_message` FOREIGN KEY (`message_id`) REFERENCES `direct_messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_outbox_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_outbox_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `chat_sessions` (
@@ -622,7 +656,7 @@ CREATE TABLE IF NOT EXISTS `custom_fields` (
 
 CREATE TABLE IF NOT EXISTS `direct_messages` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `client_message_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_message_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -630,7 +664,7 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   `type` enum('text','reaction','image','audio','video','document','sticker','location','contacts') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `body` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `wa_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('queued','sent','delivered','read','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'sent',
+  `status` enum('queued','sent','delivered','read','failed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'sent',
   `reply_to_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `metadata` json DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -643,46 +677,15 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   `external_group_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `raw_payload` json DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_dm_user_client_message` (`user_id`,`client_message_id`),
   UNIQUE KEY `uq_direct_messages_user_wa_id` (`user_id`,`wa_message_id`),
   UNIQUE KEY `uq_dm_channel_msg` (`user_id`,`channel`,`provider_message_id`),
+  UNIQUE KEY `uq_dm_user_client_message` (`user_id`,`client_message_id`),
   KEY `idx_direct_messages_user_phone` (`user_id`,`contact_phone`),
   KEY `idx_direct_messages_wa_id` (`wa_message_id`),
   KEY `idx_dm_channel_provider` (`channel`,`provider_account_id`),
   KEY `idx_dm_tenant` (`tenant_id`),
   CONSTRAINT `direct_messages_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_dm_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `chat_message_outbox` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `message_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `recipient` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider_recipient_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `provider_account_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `payload` json NOT NULL,
-  `status` enum('pending','processing','retry','sent','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `attempts` int NOT NULL DEFAULT '0',
-  `max_attempts` int NOT NULL DEFAULT '5',
-  `next_attempt_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `locked_at` datetime DEFAULT NULL,
-  `locked_by` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `provider_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `last_error` text COLLATE utf8mb4_unicode_ci,
-  `response_payload` json DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `sent_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_chat_outbox_message` (`message_id`),
-  KEY `idx_chat_outbox_schedule` (`status`,`next_attempt_at`,`locked_at`),
-  KEY `idx_chat_outbox_tenant` (`tenant_id`,`created_at`),
-  CONSTRAINT `fk_chat_outbox_message` FOREIGN KEY (`message_id`) REFERENCES `direct_messages` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_outbox_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_outbox_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `ds_agent_assignments` (
@@ -842,16 +845,16 @@ CREATE TABLE IF NOT EXISTS `ds_agent_tools` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tool_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `permissions` json DEFAULT NULL,
   `require_confirmation` tinyint(1) DEFAULT '1',
   `is_active` tinyint(1) DEFAULT '1',
-  `enabled` tinyint(1) NOT NULL DEFAULT '1',
-  `config` json DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `tool_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'tool',
+  `enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `config` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `tenant_id` (`tenant_id`),
   KEY `agent_id` (`agent_id`),
@@ -924,7 +927,7 @@ CREATE TABLE IF NOT EXISTS `ds_agents` (
   `reply_with_assigned_agent` tinyint(1) NOT NULL DEFAULT '0',
   `split_replies_in_blocks` tinyint(1) NOT NULL DEFAULT '0',
   `disabled_outside_platform` tinyint(1) NOT NULL DEFAULT '0',
-  `prompt` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `prompt` text COLLATE utf8mb4_unicode_ci,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   KEY `tenant_id` (`tenant_id`),
@@ -1018,10 +1021,10 @@ CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
   `events_count` int NOT NULL DEFAULT '0',
   `leads_count` int NOT NULL DEFAULT '0',
   `last_event_at` datetime DEFAULT NULL,
-  `last_contact_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `field_labels` json DEFAULT NULL,
+  `last_contact_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `target_funnel_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `target_stage_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -1037,8 +1040,6 @@ CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `username` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `access_token` text COLLATE utf8mb4_unicode_ci NOT NULL,
-  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `app_secret` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `token_expires_at` datetime DEFAULT NULL,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1078,9 +1079,9 @@ CREATE TABLE IF NOT EXISTS `knowledge_base` (
 CREATE TABLE IF NOT EXISTS `license_activations` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `license_id` bigint unsigned NOT NULL,
-  `domain` varchar(190) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `domain` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `app_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `installation_id` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `installation_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ip_address` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `user_agent` text COLLATE utf8mb4_unicode_ci,
   `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
@@ -1091,7 +1092,9 @@ CREATE TABLE IF NOT EXISTS `license_activations` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_license_activation` (`license_id`,`domain`,`installation_id`),
   KEY `idx_license_activations_license_id` (`license_id`),
-  CONSTRAINT `fk_license_activations_license` FOREIGN KEY (`license_id`) REFERENCES `licenses` (`id`) ON DELETE CASCADE
+  KEY `license_activations_ibfk_1` (`license_id`),
+  CONSTRAINT `fk_license_activations_license` FOREIGN KEY (`license_id`) REFERENCES `licenses` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `license_activations_ibfk_1` FOREIGN KEY (`license_id`) REFERENCES `licenses` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `license_settings` (
@@ -1110,6 +1113,9 @@ CREATE TABLE IF NOT EXISTS `license_settings` (
   `last_error` text COLLATE utf8mb4_unicode_ci,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `license_server_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `app_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `app_version` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1121,10 +1127,12 @@ CREATE TABLE IF NOT EXISTS `license_validation_logs` (
   `installation_id` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ip_address` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `result` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `result` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `reason` text COLLATE utf8mb4_unicode_ci,
   `payload_json` json DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
   KEY `idx_license_logs_license_id` (`license_id`),
   KEY `idx_license_logs_created_at` (`created_at`)
@@ -1134,10 +1142,10 @@ CREATE TABLE IF NOT EXISTS `licenses` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `license_key_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `license_key_preview` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `client_name` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `client_email` varchar(190) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `client_email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `product_name` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT 'SaaS',
-  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'meu-saas',
+  `app_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `plan` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'basic',
   `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `expires_at` datetime DEFAULT NULL,
@@ -1486,7 +1494,6 @@ CREATE TABLE IF NOT EXISTS `payment_gateway_settings` (
   PRIMARY KEY (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
 CREATE TABLE IF NOT EXISTS `platform_banners` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1501,7 +1508,7 @@ CREATE TABLE IF NOT EXISTS `platform_banners` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_pb_active_order` (`is_active`,`display_order`),
-  KEY `created_by` (`created_by`),
+  KEY `platform_banners_ibfk_1` (`created_by`),
   CONSTRAINT `platform_banners_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1523,6 +1530,12 @@ CREATE TABLE IF NOT EXISTS `platform_settings` (
   `license_token` text COLLATE utf8mb4_unicode_ci,
   `installation_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `license_grace_period_start` datetime DEFAULT NULL,
+  `app_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `app_secret` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `business_account_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `webhook_verify_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `system_user_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `updated_by` (`updated_by`),
   CONSTRAINT `platform_settings_ibfk_1` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
@@ -1649,24 +1662,23 @@ CREATE TABLE IF NOT EXISTS `schema_backups` (
 
 CREATE TABLE IF NOT EXISTS `subscription_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `previous_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `new_status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `new_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `invoice_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `payment_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `metadata` json DEFAULT NULL,
-  `source` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `gateway_event_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `payload_json` json DEFAULT NULL,
-  `raw_payload` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `source` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'system',
+  `gateway_event_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payload_json` json DEFAULT NULL,
+  `raw_payload` text COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
   KEY `tenant_id` (`tenant_id`),
   KEY `subscription_id` (`subscription_id`),
-  CONSTRAINT `subscription_events_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `subscription_events_ibfk_2` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1678,7 +1690,7 @@ CREATE TABLE IF NOT EXISTS `subscription_plan_changes` (
   `new_plan` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `effective_date` datetime NOT NULL,
   `applied_at` datetime DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_plan_changes_tenant` (`tenant_id`),
   KEY `idx_plan_changes_sub` (`subscription_id`),
@@ -1700,6 +1712,8 @@ CREATE TABLE IF NOT EXISTS `subscription_plans` (
   `stripe_product_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `stripe_price_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `max_ai_tokens` int NOT NULL DEFAULT '500000',
+  `max_contacts` int NOT NULL DEFAULT '1000',
+  `max_campaigns` int NOT NULL DEFAULT '10',
   PRIMARY KEY (`id`),
   UNIQUE KEY `slug` (`slug`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1707,30 +1721,29 @@ CREATE TABLE IF NOT EXISTS `subscription_plans` (
 CREATE TABLE IF NOT EXISTS `subscriptions` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `customer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `customer_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `plan_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` enum('trial','active','expiring','pending_payment','past_due','suspended','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'trial',
-  `starts_at` datetime NOT NULL,
-  `expires_at` datetime NOT NULL,
+  `starts_at` datetime DEFAULT NULL,
+  `expires_at` datetime DEFAULT NULL,
   `grace_period_ends_at` datetime DEFAULT NULL,
   `cancelled_at` datetime DEFAULT NULL,
   `last_payment_at` datetime DEFAULT NULL,
   `next_billing_at` datetime DEFAULT NULL,
   `auto_renew` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `current_period_start` datetime DEFAULT NULL,
   `current_period_end` datetime DEFAULT NULL,
   `trial_started_at` datetime DEFAULT NULL,
   `trial_ends_at` datetime DEFAULT NULL,
   `trial_consumed_at` datetime DEFAULT NULL,
   `activated_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tenant_id` (`tenant_id`),
   KEY `customer_id` (`customer_id`),
-  KEY `plan_id` (`plan_id`),
-  CONSTRAINT `subscriptions_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `subscriptions_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `subscriptions_plan_idx` (`plan_id`),
+  CONSTRAINT `subscriptions_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `tags` (
@@ -1837,24 +1850,22 @@ CREATE TABLE IF NOT EXISTS `webhook_bot_logs` (
 
 CREATE TABLE IF NOT EXISTS `webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `source` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'generic',
   `raw` json NOT NULL,
-  `payload_json` json DEFAULT NULL,
   `processed` tinyint(1) NOT NULL DEFAULT '0',
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `error_message` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `received_at` datetime DEFAULT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `event_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'generic',
+  `payload_json` json NOT NULL,
+  `status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `error_message` text COLLATE utf8mb4_unicode_ci,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `idx_webhook_events_processed` (`processed`,`received_at`),
   CONSTRAINT `webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `webhook_field_mappings` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1901,6 +1912,33 @@ CREATE TABLE IF NOT EXISTS `whatsapp_business_profile_logs` (
   KEY `idx_wab_logs_tenant` (`tenant_id`),
   CONSTRAINT `fk_wab_logs_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `whatsapp_business_profile_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `whatsapp_calls` (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `chat_session_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `contact_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone_number_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `whatsapp_call_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `direction` enum('inbound','outbound') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('incoming','connecting','ringing','active','rejected','ended','failed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'incoming',
+  `started_at` datetime DEFAULT NULL,
+  `answered_at` datetime DEFAULT NULL,
+  `ended_at` datetime DEFAULT NULL,
+  `duration_seconds` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_whatsapp_calls_tenant` (`tenant_id`),
+  KEY `idx_whatsapp_calls_chat_session` (`chat_session_id`),
+  KEY `idx_whatsapp_calls_contact` (`contact_id`),
+  KEY `idx_whatsapp_calls_whatsapp_id` (`whatsapp_call_id`),
+  KEY `idx_whatsapp_calls_status` (`status`),
+  KEY `idx_whatsapp_calls_created` (`created_at`),
+  CONSTRAINT `whatsapp_calls_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `whatsapp_calls_ibfk_2` FOREIGN KEY (`chat_session_id`) REFERENCES `chat_sessions` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `whatsapp_calls_ibfk_3` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `whatsapp_flow_submissions` (
@@ -1968,361 +2006,3 @@ CREATE TABLE IF NOT EXISTS `whatsapp_groups` (
   CONSTRAINT `whatsapp_groups_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `schema_migrations` (
-  `version` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `applied_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`version`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ==============================================================================
--- SAAS / BILLING / SUBSCRIPTION TABLES
--- State: post-migration 018 (final state as of canonical version 018)
--- ==============================================================================
-
-CREATE TABLE IF NOT EXISTS `subscription_plans` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `slug` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb4_unicode_ci,
-  `max_contacts` int NOT NULL DEFAULT '1000',
-  `max_campaigns` int NOT NULL DEFAULT '10',
-  `max_agents` int NULL DEFAULT '1',
-  `max_funnels` int NULL DEFAULT '1',
-  `max_users` int NULL DEFAULT '1',
-  `max_ai_tokens` int NOT NULL DEFAULT '500000',
-  `features_json` json DEFAULT NULL,
-  `stripe_product_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `stripe_price_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `is_active` tinyint(1) NULL DEFAULT '1',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `slug` (`slug`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `subscriptions` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `plan_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
-  `customer_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `starts_at` datetime DEFAULT NULL,
-  `expires_at` datetime DEFAULT NULL,
-  `grace_period_ends_at` datetime DEFAULT NULL,
-  `last_payment_at` datetime DEFAULT NULL,
-  `next_billing_at` datetime DEFAULT NULL,
-  `auto_renew` tinyint(1) NOT NULL DEFAULT '0',
-  `current_period_start` datetime DEFAULT NULL,
-  `current_period_end` datetime DEFAULT NULL,
-  `trial_started_at` datetime DEFAULT NULL,
-  `trial_ends_at` datetime DEFAULT NULL,
-  `trial_consumed_at` datetime DEFAULT NULL,
-  `activated_at` datetime DEFAULT NULL,
-  `cancelled_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `tenant_id` (`tenant_id`),
-  KEY `subscriptions_plan_idx` (`plan_id`),
-  CONSTRAINT `subscriptions_ibfk_plan` FOREIGN KEY (`plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `subscription_events` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `previous_status` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `new_status` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `source` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'system',
-  `gateway_event_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `payload_json` json DEFAULT NULL,
-  `raw_payload` longtext COLLATE utf8mb4_unicode_ci,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `subscription_plan_changes` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `subscription_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `old_plan` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `new_plan` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `effective_date` datetime NOT NULL,
-  `applied_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `billing_plans` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb4_unicode_ci,
-  `price` decimal(10,2) NOT NULL,
-  `price_cents` int NOT NULL DEFAULT '0',
-  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRL',
-  `billing_interval` enum('day','week','month','year') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'month',
-  `billing_interval_count` int NOT NULL DEFAULT '1',
-  `billing_cycle` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'monthly',
-  `duration_days` int NOT NULL DEFAULT '30',
-  `trial_days` int NOT NULL DEFAULT '0',
-  `features` json DEFAULT NULL,
-  `features_json` json DEFAULT NULL,
-  `sort_order` int NOT NULL DEFAULT '0',
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `subscription_plan_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_billing_plans_subscription_plan_id` (`subscription_plan_id`),
-  CONSTRAINT `fk_billing_subscription_plan` FOREIGN KEY (`subscription_plan_id`) REFERENCES `subscription_plans` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `billing_invoices` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `plan_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `amount` decimal(10,2) NOT NULL,
-  `currency` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'BRL',
-  `status` enum('pending','paid','cancelled','refunded','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `due_date` datetime DEFAULT NULL,
-  `paid_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `billing_invoices_ibfk_1` (`tenant_id`),
-  CONSTRAINT `billing_invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `billing_payments` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `invoice_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'mercadopago',
-  `provider_payment_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `external_reference` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `payment_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `amount` decimal(10,2) NOT NULL,
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `status_detail` text COLLATE utf8mb4_unicode_ci,
-  `approved_at` datetime DEFAULT NULL,
-  `expires_at` datetime DEFAULT NULL,
-  `qr_code` text COLLATE utf8mb4_unicode_ci,
-  `qr_code_base64` longtext COLLATE utf8mb4_unicode_ci,
-  `ticket_url` text COLLATE utf8mb4_unicode_ci,
-  `payload_json` json DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `billing_payments_ibfk_1` (`invoice_id`),
-  KEY `billing_payments_ibfk_2` (`tenant_id`),
-  CONSTRAINT `billing_payments_ibfk_1` FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `billing_payments_ibfk_2` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `billing_webhook_events` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `event_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `payload_json` json NOT NULL,
-  `error_message` text COLLATE utf8mb4_unicode_ci,
-  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `processed_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ==============================================================================
--- LICENSES
--- ==============================================================================
-
-CREATE TABLE IF NOT EXISTS `license_settings` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `license_server_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `installation_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `app_version` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `last_validated_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `licenses` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `license_key_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `license_key_preview` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `client_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `client_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `plan` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'basic',
-  `status` enum('active','suspended','cancelled','expired') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `expires_at` datetime DEFAULT NULL,
-  `product_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `max_activations` int NOT NULL DEFAULT '1',
-  `max_users` int DEFAULT NULL,
-  `features_json` json DEFAULT NULL,
-  `notes` text COLLATE utf8mb4_unicode_ci,
-  `stripe_customer_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `stripe_subscription_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ai_tokens_used` int NOT NULL DEFAULT '0',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `tenant_id` (`tenant_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `license_activations` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `license_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `domain` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `installation_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
-  `app_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `user_agent` text COLLATE utf8mb4_unicode_ci,
-  `last_check_at` datetime DEFAULT NULL,
-  `activated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `license_activations_ibfk_1` (`license_id`),
-  CONSTRAINT `license_activations_ibfk_1` FOREIGN KEY (`license_id`) REFERENCES `licenses` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `license_validation_logs` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `license_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `domain` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `message` text COLLATE utf8mb4_unicode_ci,
-  `app_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `installation_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `result` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `reason` text COLLATE utf8mb4_unicode_ci,
-  `payload_json` json DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ==============================================================================
--- PAYMENT GATEWAY SETTINGS
--- State: post-migration 018 (no FK on tenant_id — allows 'global' special value)
--- ==============================================================================
-
-CREATE TABLE IF NOT EXISTS `payment_gateway_settings` (
-  `id` char(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `tenant_id` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'mercadopago',
-  `environment` enum('sandbox','production') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sandbox',
-  `checkout_mode` enum('redirect','transparent') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'redirect',
-  `sandbox_public_key` text COLLATE utf8mb4_unicode_ci,
-  `sandbox_client_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `sandbox_access_token` text COLLATE utf8mb4_unicode_ci,
-  `sandbox_client_secret` text COLLATE utf8mb4_unicode_ci,
-  `production_public_key` text COLLATE utf8mb4_unicode_ci,
-  `production_client_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `production_access_token` text COLLATE utf8mb4_unicode_ci,
-  `production_client_secret` text COLLATE utf8mb4_unicode_ci,
-  `webhook_secret` text COLLATE utf8mb4_unicode_ci,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`tenant_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ==============================================================================
--- PLATFORM SETTINGS / AUDIT / WEBHOOKS / BANNERS
--- ==============================================================================
-
-CREATE TABLE IF NOT EXISTS `platform_settings` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `meta_graph_version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'v26.0',
-  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `app_secret` text COLLATE utf8mb4_unicode_ci,
-  `business_account_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `webhook_verify_token` text COLLATE utf8mb4_unicode_ci,
-  `system_user_token` text COLLATE utf8mb4_unicode_ci,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO `platform_settings` (`id`, `meta_graph_version`)
-VALUES ('1', 'v26.0')
-ON DUPLICATE KEY UPDATE `id` = '1';
-
-CREATE TABLE IF NOT EXISTS `platform_banners` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `subtitle` text COLLATE utf8mb4_unicode_ci,
-  `cta_label` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `cta_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `image_path` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `display_order` int NOT NULL DEFAULT '0',
-  `created_by` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `platform_banners_ibfk_1` (`created_by`),
-  CONSTRAINT `platform_banners_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `audit_logs` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `action` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `entity_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `entity_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `details_json` json DEFAULT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `audit_logs_ibfk_1` (`user_id`),
-  CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `whatsapp_calls` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `chat_session_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `phone_number_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `whatsapp_call_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `direction` enum('inbound','outbound') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` enum('incoming','connecting','ringing','active','rejected','ended','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'incoming',
-  `started_at` datetime DEFAULT NULL,
-  `answered_at` datetime DEFAULT NULL,
-  `ended_at` datetime DEFAULT NULL,
-  `duration_seconds` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_whatsapp_calls_tenant` (`tenant_id`),
-  KEY `idx_whatsapp_calls_chat_session` (`chat_session_id`),
-  KEY `idx_whatsapp_calls_contact` (`contact_id`),
-  KEY `idx_whatsapp_calls_whatsapp_id` (`whatsapp_call_id`),
-  KEY `idx_whatsapp_calls_status` (`status`),
-  KEY `idx_whatsapp_calls_created` (`created_at`),
-  CONSTRAINT `whatsapp_calls_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `whatsapp_calls_ibfk_2` FOREIGN KEY (`chat_session_id`) REFERENCES `chat_sessions` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `whatsapp_calls_ibfk_3` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `webhook_events` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `payload_json` json NOT NULL,
-  `status` enum('pending','processed','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `processed` tinyint(1) NOT NULL DEFAULT '0',
-  `received_at` datetime DEFAULT NULL,
-  `error_message` text COLLATE utf8mb4_unicode_ci,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
