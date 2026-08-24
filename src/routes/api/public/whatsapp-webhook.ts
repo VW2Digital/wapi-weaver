@@ -702,30 +702,15 @@ async function resolveWebhookUser(
         );
       }
     }
+
+    // Uma configuração central é a fonte de verdade para o App Meta.
+    // Não aceite o identificador do telefone como autenticação quando a
+    // assinatura não conferir: ele faz parte do corpo controlado pelo remetente.
+    return { userId: null, reason: "invalid_signature" as const };
   }
 
-  // 1. Verificação por Phone Number ID do payload
-  const payloadPhoneIds = extractPhoneNumberIds(payload);
-  if (payloadPhoneIds.length > 0) {
-    const { data: matchedProfiles } = await dbAdmin
-      .from("profiles")
-      .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
-      .in("whatsapp_phone_number_id", payloadPhoneIds)
-      .limit(2);
-
-    const matches = (matchedProfiles ?? []) as ProfileWebhookRow[];
-    if (matches.length === 1) {
-      const match = matches[0];
-      if (!match.whatsapp_app_secret || !signatureHeader) {
-        return { userId: match.id, reason: "phone_number_id_direct" as const };
-      }
-      if (await verifySignature(rawBody, signatureHeader, match.whatsapp_app_secret)) {
-        return { userId: match.id, reason: "phone_number_id_verified" as const };
-      }
-    }
-  }
-
-  // 2. Compatibilidade e fallback para perfis com assinatura válida:
+  // Compatibilidade para instalações antigas sem segredo central: ainda
+  // assim, somente um segredo de perfil que valide a assinatura pode autorizar.
   const { data: profiles } = await dbAdmin
     .from("profiles")
     .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
@@ -746,11 +731,30 @@ async function resolveWebhookUser(
     }
   }
 
+  if (verifiedProfiles.length === 0) {
+    return { userId: null, reason: "invalid_signature" as const };
+  }
+
+  const payloadPhoneIds = extractPhoneNumberIds(payload);
+  if (payloadPhoneIds.length > 0) {
+    const byPhoneId = verifiedProfiles.filter(
+      (profile) =>
+        profile.whatsapp_phone_number_id &&
+        payloadPhoneIds.includes(String(profile.whatsapp_phone_number_id)),
+    );
+    if (byPhoneId.length === 1) {
+      return { userId: byPhoneId[0].id, reason: "phone_number_id" as const };
+    }
+    if (byPhoneId.length > 1) {
+      return { userId: null, reason: "ambiguous_phone_number_id" as const };
+    }
+  }
+
   if (verifiedProfiles.length === 1) {
     return { userId: verifiedProfiles[0].id, reason: "signature_only" as const };
   }
 
-  return { userId: null, reason: "invalid_signature" as const };
+  return { userId: null, reason: "ambiguous_signature" as const };
 }
 
 const OPT_OUT_KEYWORDS = [
@@ -2084,6 +2088,10 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           });
         } catch (eventInsertError) {
           logError("Falha ao registrar evento do webhook", eventInsertError);
+          // Não processe silenciosamente uma mensagem sem trilha de auditoria.
+          // O 500 faz a Meta reenviar o mesmo callback; a persistência de
+          // mensagens é idempotente pelo wa_message_id.
+          return new Response("Webhook event persistence failed", { status: 500 });
         }
 
         // Processamos imediatamente para que a persistência no chat e o bot não

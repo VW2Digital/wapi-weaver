@@ -16,7 +16,15 @@ describe("buildWebhookEventInsert", () => {
       "row-1",
     );
 
-    expect(result.columns).toEqual(["id", "user_id", "source", "raw", "processed"]);
+    expect(result.columns).toEqual([
+      "id",
+      "user_id",
+      "source",
+      "raw",
+      "processed",
+      "received_at",
+    ]);
+    expect(result.values[result.columns.indexOf("received_at")]).toBeInstanceOf(Date);
     expect(result.values).toContain(JSON.stringify(input.raw));
   });
 
@@ -27,7 +35,15 @@ describe("buildWebhookEventInsert", () => {
       "row-2",
     );
 
-    expect(result.columns).toEqual(["id", "tenant_id", "source", "payload_json", "processed"]);
+    expect(result.columns).toEqual([
+      "id",
+      "tenant_id",
+      "source",
+      "payload_json",
+      "processed",
+      "created_at",
+    ]);
+    expect(result.values[result.columns.indexOf("created_at")]).toBeInstanceOf(Date);
     expect(result.values).toContain("tenant-1");
     expect(result.values).toContain(JSON.stringify(input.raw));
   });
