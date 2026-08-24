@@ -1,6 +1,6 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
 -- Generated dynamically from local MySQL
--- Date: 2026-08-24T17:46:16.129Z
+-- Date: 2026-08-24T20:03:12.250Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -1037,8 +1037,8 @@ CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
 CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `ig_user_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `username` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `access_token` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `app_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `app_secret` text COLLATE utf8mb4_unicode_ci,

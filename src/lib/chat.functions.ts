@@ -516,6 +516,8 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
+    console.log("[MESSAGES] Buscando mensagens para:", { phone, effectiveUserId, userId: context.userId });
+
     // O chat não precisa trazer anos de mensagens para abrir uma única
     // conversa. O limite evita que uma tabela grande deixe a interface em
     // carregamento indefinido
@@ -540,12 +542,14 @@ export const getChatMessages = createServerFn({ method: "POST" })
     let messages: unknown[];
     try {
       messages = (await db.query(richMessagesQuery, [effectiveUserId, phone])) as unknown[];
+      console.log("[MESSAGES] Query rich executada com sucesso:", { messageCount: messages?.length });
     } catch (error) {
       console.warn(
         "Schema legado em direct_messages; carregando a conversa com as colunas-base.",
         error,
       );
       messages = (await db.query(baseMessagesQuery, [effectiveUserId, phone])) as unknown[];
+      console.log("[MESSAGES] Query base executada com sucesso:", { messageCount: messages?.length });
     }
 
     // Históricos auxiliares não podem impedir a abertura das mensagens.
@@ -592,9 +596,17 @@ export const getChatMessages = createServerFn({ method: "POST" })
       campaignMessagesResult.status === "fulfilled" ? campaignMessagesResult.value : [];
     const typedMessages = (messages ?? []) as DirectMessageRow[];
     const reactionCount = typedMessages.filter((m) => m.type === "reaction").length;
-    if (reactionCount > 0) {
-      console.log(`[MESSAGES] ${typedMessages.length} mensagens carregadas para ${phone}, sendo ${reactionCount} reações.`);
-    }
+    const whatsappMessages = typedMessages.filter((m) => m.channel === "whatsapp");
+    const instagramMessages = typedMessages.filter((m) => m.channel === "instagram");
+    
+    console.log(`[MESSAGES] ${typedMessages.length} mensagens carregadas para ${phone}:`, {
+      total: typedMessages.length,
+      whatsapp: whatsappMessages.length,
+      instagram: instagramMessages.length,
+      reactions: reactionCount,
+      canais: [...new Set(typedMessages.map(m => m.channel))]
+    });
+
     const typedAssignments = (assignments ?? []) as AssignmentRow[];
     const typedCampaignMessages = (campaignMessages ?? []) as CampaignMessageRow[];
 

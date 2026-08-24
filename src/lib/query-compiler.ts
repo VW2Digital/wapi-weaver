@@ -713,14 +713,27 @@ export async function executeQuery(reqQuery: any, userId: string, userRole: stri
           insertData[key] = formatToMysqlDateTime(insertData[key]);
         }
 
-        if (
-          !insertData.id &&
-          table !== "platform_settings" &&
-          table !== "list_contacts" &&
-          table !== "contact_tags" &&
-          table !== "conversation_tags" &&
-          table !== "message_tags"
-        ) {
+        const autoIncrementTables = new Set([
+          "platform_settings",
+          "license_settings",
+          "licenses",
+          "license_activations",
+          "license_validation_logs",
+          "incoming_webhook_events",
+          "instagram_webhook_events",
+          "facebook_webhook_events",
+          "outgoing_webhook_logs",
+          "webhook_bot_logs",
+          "ai_usage_logs",
+          "contact_activities",
+          "contact_custom_field_values",
+          "list_contacts",
+          "contact_tags",
+          "conversation_tags",
+          "message_tags",
+        ]);
+
+        if (!insertData.id && !autoIncrementTables.has(table)) {
           insertData.id = generateUUID();
         }
 

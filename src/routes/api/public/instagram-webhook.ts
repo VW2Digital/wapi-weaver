@@ -59,9 +59,12 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
 
+        logInfo("POST recebido", { hasSignature: !!sig, bytes: rawBody.length });
+
         let payload: any = null;
         try {
           payload = JSON.parse(rawBody);
+          logInfo("Payload parsed successfully", { entryCount: payload?.entry?.length });
         } catch (e: any) {
           logError("JSON parsing failed", e.message);
           return new Response("Bad Request", { status: 400 });
@@ -69,9 +72,11 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
         const pageId = payload?.entry?.[0]?.id;
         if (!pageId) {
-          logError("Meta page ID not found in payload");
+          logError("Meta page ID not found in payload", { payload });
           return new Response("Page ID missing", { status: 400 });
         }
+
+        logInfo("Looking for Instagram account", { pageId });
 
         const accounts = (await db.query(
           `SELECT tenant_id, user_id, page_id, instagram_business_account_id, access_token
@@ -88,9 +93,11 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
         }>;
 
         let account = accounts?.[0] ?? null;
+        logInfo("Account lookup result", { found: !!account, accountsCount: accounts?.length });
 
         if (!account) {
           // Fallback if there is an active instagram account
+          logInfo("Trying fallback to active Instagram account");
           const fallback = (await db.query(
             `SELECT tenant_id, user_id, page_id, instagram_business_account_id, access_token
              FROM instagram_accounts
@@ -164,240 +171,251 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           .select("id")
           .single();
           
-        if (eventInsertError && eventInsertError.code !== '23505') { // ignore duplicate mid error (unique constraint)
+        if (eventInsertError && eventInsertError.code !== '23505') {
           logError("Falha ao registrar evento do Instagram", eventInsertError);
         }
 
-        setTimeout(() => {
-          (async () => {
-            try {
-              for (const entry of payload.entry ?? []) {
-                for (const item of entry.messaging ?? []) {
-                  const senderId = item.sender?.id;
-                  const recipientId = item.recipient?.id;
-                  
-                  if (!senderId) continue;
+        try {
+          for (const entry of payload.entry ?? []) {
+            for (const item of entry.messaging ?? []) {
+              const itemSenderId = item.sender?.id;
+              const itemRecipientId = item.recipient?.id;
+              
+              if (!itemSenderId) continue;
 
-                  // Tratar Echo (mensagens enviadas pelo próprio perfil/bot para o cliente)
-                  if (item.message?.is_echo) {
-                    const clientContactId = recipientId;
-                    const phonePlaceholder = `ig_${clientContactId}`;
+              // Tratar Echo (mensagens enviadas pelo próprio perfil/bot para o cliente)
+              if (item.message?.is_echo) {
+                const clientContactId = itemRecipientId;
+                const phonePlaceholder = `ig_${clientContactId}`;
 
-                    await dbAdmin
-                      .from("contacts")
-                      .upsert(
-                        {
-                          tenant_id: account.tenant_id || account.user_id,
-                          user_id: account.user_id,
-                          phone_e164: phonePlaceholder,
-                          name: `Instagram (${clientContactId})`,
-                          channel: "instagram",
-                          external_contact_id: clientContactId,
-                          source: "instagram",
-                        },
-                        { onConflict: "user_id,channel,external_contact_id" },
-                      );
+                await dbAdmin
+                  .from("contacts")
+                  .upsert(
+                    {
+                      tenant_id: account.tenant_id || account.user_id,
+                      user_id: account.user_id,
+                      phone_e164: phonePlaceholder,
+                      name: `Instagram (${clientContactId})`,
+                      channel: "instagram",
+                      external_contact_id: clientContactId,
+                      source: "instagram",
+                    },
+                    { onConflict: "user_id,channel,external_contact_id" },
+                  );
 
-                    const { data: storedEcho } = await dbAdmin.from("direct_messages").upsert(
-                      {
-                        tenant_id: account.tenant_id || account.user_id,
-                        user_id: account.user_id,
-                        contact_phone: phonePlaceholder,
-                        direction: "outgoing",
-                        type: "text",
-                        body: item.message.text || "",
-                        channel: "instagram",
-                        provider_message_id: item.message.mid,
-                        wa_message_id: item.message.mid,
-                        provider_account_id: senderId,
-                        status: "delivered",
-                        metadata: { raw: item },
-                      },
-                      { onConflict: "user_id,channel,provider_message_id" },
-                    ).select("id").single();
+                const { data: storedEcho } = await dbAdmin.from("direct_messages").upsert(
+                  {
+                    tenant_id: account.tenant_id || account.user_id,
+                    user_id: account.user_id,
+                    contact_phone: phonePlaceholder,
+                    direction: "outgoing",
+                    type: "text",
+                    body: item.message.text || "",
+                    channel: "instagram",
+                    provider_message_id: item.message.mid,
+                    wa_message_id: item.message.mid,
+                    provider_account_id: itemSenderId,
+                    status: "delivered",
+                    metadata: { raw: item },
+                  },
+                  { onConflict: "user_id,channel,provider_message_id" },
+                ).select("id").single();
 
-                    await publishChatRealtimeEvent({
-                      type: "message.sent",
-                      tenant_id: account.user_id,
-                      contact_phone: phonePlaceholder,
-                      message_id: storedEcho?.id || null,
-                      provider_message_id: item.message.mid || null,
-                      status: "delivered",
-                    });
-                    continue;
-                  }
-
-                  const phonePlaceholder = `ig_${senderId}`;
-                  const name = `Instagram (${item.sender?.name || senderId})`;
-
-                  // Contato Upsert
-                  const { data: contact } = await dbAdmin
-                    .from("contacts")
-                    .upsert(
-                      {
-                        tenant_id: account.tenant_id || account.user_id,
-                        user_id: account.user_id,
-                        phone_e164: phonePlaceholder,
-                        name: name,
-                        channel: "instagram",
-                        external_contact_id: senderId,
-                        source: "instagram",
-                        is_unread: true,
-                      },
-                      { onConflict: "user_id,channel,external_contact_id" },
-                    )
-                    .select("id")
-                    .single();
-
-                  if (item.message) {
-                    const message = item.message;
-
-                    let messageType = "text";
-                    let messageBody = message.text || "";
-                    let attachmentMetadata: any = null;
-
-                    if (message.attachments && message.attachments.length > 0) {
-                      const attachment = message.attachments[0];
-                      messageType = attachment.type; // image, video, audio, file
-                      attachmentMetadata = {
-                        url: attachment.payload?.url,
-                        id: attachment.payload?.sticker_id || attachment.payload?.attachment_id,
-                      };
-                      if (messageType === 'fallback') messageType = 'document';
-                    }
-
-                    if (message.reply_to?.story) {
-                      messageType = "text";
-                      messageBody = message.text ? `${message.text}\n\n(Respondendo ao Story)` : "(Respondeu ao Story)";
-                    }
-                    
-                    if (message.quick_reply) {
-                      messageBody = message.quick_reply.payload || message.text;
-                    }
-
-                    const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
-                      {
-                        tenant_id: account.user_id,
-                        user_id: account.user_id,
-                        contact_phone: phonePlaceholder,
-                        direction: "incoming",
-                        type: messageType,
-                        body: messageBody,
-                        channel: "instagram",
-                        provider_message_id: message.mid,
-                        wa_message_id: message.mid,
-                        provider_account_id: recipientId,
-                        status: "delivered",
-                        metadata: { 
-                           raw: item, 
-                           [messageType]: attachmentMetadata
-                        },
-                      },
-                      { onConflict: "user_id,channel,provider_message_id" },
-                    ).select("id").single();
-
-                    await publishChatRealtimeEvent({
-                      type: "message.received",
-                      tenant_id: account.user_id,
-                      contact_phone: phonePlaceholder,
-                      message_id: storedMessage?.id || null,
-                      provider_message_id: message.mid || null,
-                      status: "delivered",
-                    });
-                    
-                    // Mark as seen automatically
-                    await markInstagramMessageSeen(pageId, account.access_token, senderId, message.mid);
-
-                    await processBotFlow(
-                      messageBody,
-                      phonePlaceholder,
-                      recipientId,
-                      account.user_id,
-                      undefined,
-                      "instagram",
-                    );
-                  } else if (item.postback) {
-                    // Tratar Postbacks (botões)
-                    const postback = item.postback;
-                    const messageBody = postback.payload || postback.title;
-                    
-                    const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
-                      {
-                        tenant_id: account.user_id,
-                        user_id: account.user_id,
-                        contact_phone: phonePlaceholder,
-                        direction: "incoming",
-                        type: "text",
-                        body: messageBody,
-                        channel: "instagram",
-                        provider_message_id: postback.mid || crypto.randomUUID(),
-                        provider_account_id: recipientId,
-                        status: "delivered",
-                        metadata: { raw: item },
-                      },
-                      { onConflict: "user_id,channel,provider_message_id" },
-                    ).select("id").single();
-
-                    await publishChatRealtimeEvent({
-                      type: "message.received",
-                      tenant_id: account.user_id,
-                      contact_phone: phonePlaceholder,
-                      message_id: storedMessage?.id || null,
-                      provider_message_id: postback.mid || null,
-                      status: "delivered",
-                    });
-
-                    await processBotFlow(
-                      messageBody,
-                      phonePlaceholder,
-                      recipientId,
-                      account.user_id,
-                      undefined,
-                      "instagram",
-                    );
-                  } else if (item.reaction) {
-                    // Tratar Reactions
-                    const reaction = item.reaction;
-                    const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
-                      {
-                        tenant_id: account.user_id,
-                        user_id: account.user_id,
-                        contact_phone: phonePlaceholder,
-                        direction: "incoming",
-                        type: "reaction",
-                        body: reaction.emoji,
-                        channel: "instagram",
-                        provider_message_id: reaction.mid,
-                        provider_account_id: recipientId,
-                        status: "delivered",
-                        metadata: { raw: item, reaction: { action: reaction.action, emoji: reaction.emoji, mid: reaction.mid } },
-                      },
-                      { onConflict: "user_id,channel,provider_message_id" },
-                    ).select("id").single();
-                    
-                    await publishChatRealtimeEvent({
-                      type: "message.received",
-                      tenant_id: account.user_id,
-                      contact_phone: phonePlaceholder,
-                      message_id: storedMessage?.id || null,
-                      provider_message_id: reaction.mid || null,
-                      status: "delivered",
-                    });
-                  }
-                }
+                await publishChatRealtimeEvent({
+                  type: "message.sent",
+                  tenant_id: account.user_id,
+                  contact_phone: phonePlaceholder,
+                  message_id: storedEcho?.id || null,
+                  provider_message_id: item.message.mid || null,
+                  status: "delivered",
+                });
+                continue;
               }
 
-              const { error: updErr } = await dbAdmin
-                .from("instagram_webhook_events")
-                .update({ processed: true, processed_at: new Date().toISOString() })
-                .eq("id", eventRow?.id);
-              
-              logInfo("Webhook processado com sucesso");
-            } catch (err: any) {
-              logError("Falha ao processar webhook", err.message);
+              const phonePlaceholder = `ig_${itemSenderId}`;
+              const name = `Instagram (${item.sender?.name || itemSenderId})`;
+
+              // Contato Upsert
+              await dbAdmin
+                .from("contacts")
+                .upsert(
+                  {
+                    tenant_id: account.tenant_id || account.user_id,
+                    user_id: account.user_id,
+                    phone_e164: phonePlaceholder,
+                    name: name,
+                    channel: "instagram",
+                    external_contact_id: itemSenderId,
+                    source: "instagram",
+                    is_unread: true,
+                  },
+                  { onConflict: "user_id,channel,external_contact_id" },
+                );
+
+              if (item.message) {
+                const message = item.message;
+                logInfo("[INSTAGRAM] Processando mensagem recebida", { 
+                  mid: message.mid, 
+                  senderId: itemSenderId,
+                  type: message.attachments?.[0]?.type || 'text'
+                });
+
+                let messageType = "text";
+                let messageBody = message.text || "";
+                let attachmentMetadata: any = null;
+
+                if (message.attachments && message.attachments.length > 0) {
+                  const attachment = message.attachments[0];
+                  messageType = attachment.type;
+                  attachmentMetadata = {
+                    url: attachment.payload?.url,
+                    id: attachment.payload?.sticker_id || attachment.payload?.attachment_id,
+                  };
+                  if (messageType === 'fallback') messageType = 'document';
+                }
+
+                if (message.reply_to?.story) {
+                  messageType = "text";
+                  messageBody = message.text ? `${message.text}\n\n(Respondendo ao Story)` : "(Respondeu ao Story)";
+                }
+                
+                if (message.quick_reply) {
+                  messageBody = message.quick_reply.payload || message.text;
+                }
+
+                logInfo("[INSTAGRAM] Inserindo mensagem no banco", { 
+                  phonePlaceholder, 
+                  messageType, 
+                  bodyLength: messageBody?.length 
+                });
+
+                const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
+                  {
+                    tenant_id: account.tenant_id || account.user_id,
+                    user_id: account.user_id,
+                    contact_phone: phonePlaceholder,
+                    direction: "incoming",
+                    type: messageType,
+                    body: messageBody,
+                    channel: "instagram",
+                    provider_message_id: message.mid,
+                    wa_message_id: message.mid,
+                    provider_account_id: itemRecipientId,
+                    status: "delivered",
+                    metadata: { 
+                       raw: item, 
+                       [messageType]: attachmentMetadata
+                    },
+                  },
+                  { onConflict: "user_id,channel,provider_message_id" },
+                ).select("id").single();
+
+                logInfo("[INSTAGRAM] Mensagem inserida com sucesso", { 
+                  messageId: storedMessage?.id, 
+                  mid: message.mid 
+                });
+
+                await publishChatRealtimeEvent({
+                  type: "message.received",
+                  tenant_id: account.user_id,
+                  contact_phone: phonePlaceholder,
+                  message_id: storedMessage?.id || null,
+                  provider_message_id: message.mid || null,
+                  status: "delivered",
+                });
+                
+                logInfo("[INSTAGRAM] Evento realtime publicado com sucesso");
+
+                // Mark as seen automatically
+                if (account.access_token) {
+                  markInstagramMessageSeen(pageId, account.access_token, itemSenderId, message.mid).catch(() => {});
+                }
+
+                await processBotFlow(
+                  messageBody,
+                  phonePlaceholder,
+                  itemRecipientId,
+                  account.user_id,
+                  undefined,
+                  "instagram",
+                );
+              } else if (item.postback) {
+                const postback = item.postback;
+                const messageBody = postback.payload || postback.title;
+                
+                logInfo("[INSTAGRAM] Processando postback", { payload: postback.payload });
+                
+                const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
+                  {
+                    tenant_id: account.tenant_id || account.user_id,
+                    user_id: account.user_id,
+                    contact_phone: phonePlaceholder,
+                    direction: "incoming",
+                    type: "text",
+                    body: messageBody,
+                    channel: "instagram",
+                    provider_message_id: postback.mid || `postback_${Date.now()}`,
+                    wa_message_id: postback.mid || `postback_${Date.now()}`,
+                    provider_account_id: itemRecipientId,
+                    status: "delivered",
+                    metadata: { raw: item },
+                  },
+                  { onConflict: "user_id,channel,provider_message_id" },
+                ).select("id").single();
+
+                await publishChatRealtimeEvent({
+                  type: "message.received",
+                  tenant_id: account.user_id,
+                  contact_phone: phonePlaceholder,
+                  message_id: storedMessage?.id || null,
+                  provider_message_id: postback.mid || null,
+                  status: "delivered",
+                });
+              } else if (item.reaction) {
+                const reaction = item.reaction;
+                logInfo("[INSTAGRAM] Processando reação", { emoji: reaction.emoji });
+                
+                const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
+                  {
+                    tenant_id: account.tenant_id || account.user_id,
+                    user_id: account.user_id,
+                    contact_phone: phonePlaceholder,
+                    direction: "incoming",
+                    type: "reaction",
+                    body: reaction.emoji || "❤️",
+                    channel: "instagram",
+                    provider_message_id: reaction.mid || `react_${Date.now()}`,
+                    wa_message_id: reaction.mid || `react_${Date.now()}`,
+                    provider_account_id: itemRecipientId,
+                    status: "delivered",
+                    metadata: { raw: item, reaction: { action: reaction.action, emoji: reaction.emoji, mid: reaction.mid } },
+                  },
+                  { onConflict: "user_id,channel,provider_message_id" },
+                ).select("id").single();
+                
+                await publishChatRealtimeEvent({
+                  type: "message.received",
+                  tenant_id: account.user_id,
+                  contact_phone: phonePlaceholder,
+                  message_id: storedMessage?.id || null,
+                  provider_message_id: reaction.mid || null,
+                  status: "delivered",
+                });
+              }
             }
-          })();
-        }, 0);
+          }
+
+          if (eventRow?.id) {
+            await dbAdmin
+              .from("instagram_webhook_events")
+              .update({ processed: true, processed_at: new Date().toISOString() })
+              .eq("id", eventRow.id);
+          }
+          
+          logInfo("Webhook processado com sucesso");
+        } catch (err: any) {
+          logError("Falha ao processar webhook", err.message);
+        }
 
         return new Response("EVENT_RECEIVED", { status: 200 });
       },

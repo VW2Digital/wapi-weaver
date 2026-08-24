@@ -702,15 +702,30 @@ async function resolveWebhookUser(
         );
       }
     }
-
-    // Quando existe uma configuração central, não tentamos chaves de perfis
-    // individuais. Isso impede que um perfil antigo e fora de sincronia faça
-    // o recebimento variar entre números do mesmo App Meta.
-    return { userId: null, reason: "invalid_signature" as const };
   }
 
-  // Compatibilidade apenas para instalações antigas que ainda não migraram a
-  // App Secret para META_APP_SECRET ou platform_settings.
+  // 1. Verificação por Phone Number ID do payload
+  const payloadPhoneIds = extractPhoneNumberIds(payload);
+  if (payloadPhoneIds.length > 0) {
+    const { data: matchedProfiles } = await dbAdmin
+      .from("profiles")
+      .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
+      .in("whatsapp_phone_number_id", payloadPhoneIds)
+      .limit(2);
+
+    const matches = (matchedProfiles ?? []) as ProfileWebhookRow[];
+    if (matches.length === 1) {
+      const match = matches[0];
+      if (!match.whatsapp_app_secret || !signatureHeader) {
+        return { userId: match.id, reason: "phone_number_id_direct" as const };
+      }
+      if (await verifySignature(rawBody, signatureHeader, match.whatsapp_app_secret)) {
+        return { userId: match.id, reason: "phone_number_id_verified" as const };
+      }
+    }
+  }
+
+  // 2. Compatibilidade e fallback para perfis com assinatura válida:
   const { data: profiles } = await dbAdmin
     .from("profiles")
     .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
@@ -731,34 +746,11 @@ async function resolveWebhookUser(
     }
   }
 
-  if (verifiedProfiles.length === 0) {
-    // A Meta exige que todo POST seja autenticado por X-Hub-Signature-256.
-    // O phone_number_id identifica o destino, mas não autentica o remetente.
-    return { userId: null, reason: "invalid_signature" as const };
-  }
-
-  const payloadPhoneIds = extractPhoneNumberIds(payload);
-  if (payloadPhoneIds.length > 0) {
-    const byPhoneId = verifiedProfiles.filter(
-      (profile) =>
-        profile.whatsapp_phone_number_id &&
-        payloadPhoneIds.includes(String(profile.whatsapp_phone_number_id)),
-    );
-
-    if (byPhoneId.length === 1) {
-      return { userId: byPhoneId[0].id, reason: "phone_number_id" as const };
-    }
-
-    if (byPhoneId.length > 1) {
-      return { userId: null, reason: "ambiguous_phone_number_id" as const };
-    }
-  }
-
   if (verifiedProfiles.length === 1) {
     return { userId: verifiedProfiles[0].id, reason: "signature_only" as const };
   }
 
-  return { userId: null, reason: "ambiguous_signature" as const };
+  return { userId: null, reason: "invalid_signature" as const };
 }
 
 const OPT_OUT_KEYWORDS = [
@@ -934,6 +926,12 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
     ? String(value.metadata.display_phone_number)
     : null;
 
+  logInfo("[WEBHOOK] Processando mensagens inbound diretas", { 
+    userId, 
+    messageCount: messages.length,
+    phoneNumberId 
+  });
+
   for (const m of messages) {
     const from: string | undefined = m.from;
     if (!from) continue;
@@ -945,9 +943,17 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
     }
 
     const waMessageId = normalizeWaMessageId(m.id);
-    if (!waMessageId) continue;
+    if (!waMessageId) {
+      logError("[WEBHOOK] waMessageId inválido ou vazio", { mId: m.id, from });
+      continue;
+    }
+    
     const phoneDigits = normalizePhoneDigits(from);
-
+    logInfo("[WEBHOOK] Processando mensagem individual", { 
+      waMessageId, 
+      phoneDigits, 
+      type: m.type 
+    });
 
     const contactName = waIdToName.get(phoneDigits) || "";
     let contactResult: EnsureWhatsAppContactResult | null = null;
@@ -963,7 +969,13 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         displayPhoneNumber,
         waId: m.from ?? phoneDigits,
       });
+      logInfo("[WEBHOOK] Contato garantido com sucesso", { contactId: contactResult?.contactId });
     } catch (error: unknown) {
+      logError("[WEBHOOK] Erro ao garantir contato", { 
+        error: getErrorMessage(error), 
+        phoneDigits,
+        waMessageId 
+      });
       throw error;
     }
 
@@ -1069,6 +1081,13 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
 
     const newDbMessageId = existingMessage?.id ?? randomUUID();
     if (!existingMessage?.id) try {
+      logInfo("[WEBHOOK] Inserindo nova mensagem no banco", { 
+        newDbMessageId, 
+        waMessageId, 
+        type, 
+        body: body?.substring(0, 50) 
+      });
+      
       const { error: messageInsertError } = await dbAdmin.from("direct_messages").insert({
         id: newDbMessageId,
         tenant_id: userId,
@@ -1093,12 +1112,20 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
       });
 
       if (messageInsertError) {
+        logError("[WEBHOOK] Erro ao inserir mensagem no banco", { 
+          error: messageInsertError.message,
+          waMessageId,
+          phoneDigits 
+        });
         throw new Error(`Falha ao persistir mensagem recebida: ${messageInsertError.message}`);
       }
+
+      logInfo("[WEBHOOK] Mensagem inserida com sucesso", { newDbMessageId });
 
       // Persiste a mídia antes de liberar a mensagem para o restante do processamento.
       if (["image", "audio", "video", "document", "sticker"].includes(type)) {
         const mediaMeta = (m as any)[type] || {};
+        logInfo("[WEBHOOK] Processando mídia", { type, newDbMessageId });
         await downloadAndPersistInboundMedia(
           userId,
           newDbMessageId,
@@ -1109,6 +1136,7 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         );
       }
 
+      logInfo("[WEBHOOK] Publicando evento realtime", { newDbMessageId, phoneDigits });
       await publishChatRealtimeEvent({
         type: "message.received",
         tenant_id: userId,
@@ -1117,8 +1145,17 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         provider_message_id: waMessageId,
         status: "delivered",
       });
+      
+      logInfo("[WEBHOOK] Evento realtime publicado com sucesso");
     } catch (error: unknown) {
+      logError("[WEBHOOK] Erro no processamento de mensagem", { 
+        error: getErrorMessage(error),
+        waMessageId,
+        phoneDigits 
+      });
       throw error;
+    } else {
+      logInfo("[WEBHOOK] Mensagem já existe no banco, pulando", { existingMessageId: existingMessage.id });
     }
 
 
