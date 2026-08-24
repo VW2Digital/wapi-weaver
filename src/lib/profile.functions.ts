@@ -2205,11 +2205,42 @@ export const listInstagramAccounts = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const { default: db } = await import("./db");
-    const rows = await db.query(
-      "SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY created_at DESC",
+    const rows = (await db.query(
+      `SELECT id, tenant_id, user_id, page_id, instagram_business_account_id, ig_user_id,
+              page_name, instagram_username, username, token_expires_at, is_active, status,
+              webhook_subscribed, created_at, updated_at,
+              CASE WHEN access_token IS NOT NULL AND access_token <> '' THEN 1 ELSE 0 END AS hasAccessToken
+       FROM instagram_accounts
+       WHERE user_id = ?
+       ORDER BY created_at DESC`,
       [context.userId],
-    );
-    return rows;
+    )) as any[];
+    return rows.map((r) => ({
+      ...r,
+      instagram_business_account_id: r.instagram_business_account_id || r.ig_user_id || "",
+      ig_user_id: r.instagram_business_account_id || r.ig_user_id || "",
+      page_name: r.page_name || r.username || "",
+      instagram_username: r.instagram_username || r.username || "",
+      hasAccessToken: Boolean(r.hasAccessToken),
+      access_token: r.hasAccessToken ? PROFILE_MASKED_SECRET : "",
+    }));
+  });
+
+export const revealInstagramAccessToken = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .validator((d?: { id?: string }) => d)
+  .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
+    const where = data?.id ? "id = ? AND user_id = ?" : "user_id = ? ORDER BY created_at DESC LIMIT 1";
+    const params = data?.id ? [data.id, context.userId] : [context.userId];
+    const rows = (await db.query(
+      `SELECT access_token FROM instagram_accounts WHERE ${where}`,
+      params,
+    )) as Array<{ access_token?: string | null }>;
+
+    return {
+      token: rows[0]?.access_token || "",
+    };
   });
 
 export const connectInstagramAccount = createServerFn({ method: "POST" })
@@ -2221,7 +2252,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
         instagram_business_account_id: z.string().trim().min(5),
         page_name: z.string().optional(),
         instagram_username: z.string().optional(),
-        access_token: z.string().trim().min(20),
+        access_token: z.string().trim().min(5),
         token_expires_at: z.string().optional(),
       })
       .parse(d),
@@ -2232,6 +2263,17 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
     const finalPageId = data.page_id || data.instagram_business_account_id;
     const finalIgUserId = data.instagram_business_account_id;
     const finalUsername = data.instagram_username || data.page_name || null;
+
+    let finalAccessToken = data.access_token;
+    if (isMaskedProfileSecret(finalAccessToken)) {
+      const existing = (await db.query(
+        "SELECT access_token FROM instagram_accounts WHERE user_id = ? AND (instagram_business_account_id = ? OR ig_user_id = ?) LIMIT 1",
+        [context.userId, finalIgUserId, finalIgUserId],
+      )) as any[];
+      if (existing?.[0]?.access_token) {
+        finalAccessToken = existing[0].access_token;
+      }
+    }
 
     try {
       await db.query(
@@ -2258,7 +2300,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
           data.page_name || null,
           finalUsername,
           finalUsername,
-          data.access_token,
+          finalAccessToken,
           data.token_expires_at || null,
         ],
       );
@@ -2280,7 +2322,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
             context.userId,
             finalIgUserId,
             finalUsername,
-            data.access_token,
+            finalAccessToken,
             data.token_expires_at || null,
           ],
         );

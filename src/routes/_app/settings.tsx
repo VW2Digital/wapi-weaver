@@ -53,6 +53,7 @@ import {
   connectInstagramAccount,
   disconnectInstagramAccount,
   testInstagramConnection,
+  revealInstagramAccessToken,
   listFacebookPages,
   connectFacebookPage,
   disconnectFacebookPage,
@@ -8523,6 +8524,7 @@ function InstagramSettingsTab({
   const connectIg = useServerFn(connectInstagramAccount);
   const disconnectIg = useServerFn(disconnectInstagramAccount);
   const testIg = useServerFn(testInstagramConnection);
+  const revealIgToken = useServerFn(revealInstagramAccessToken);
   const qc = useQueryClient();
 
   const [igUserId, setIgUserId] = useState("");
@@ -8536,8 +8538,33 @@ function InstagramSettingsTab({
     queryFn: () => fetchIg(),
   });
 
+  const primaryAccount = (accounts as any[])?.[0];
+
+  useEffect(() => {
+    if (primaryAccount) {
+      setIgUserId((prev) => (prev ? prev : (primaryAccount.instagram_business_account_id || primaryAccount.ig_user_id || "")));
+      setPageName((prev) => (prev ? prev : (primaryAccount.page_name || primaryAccount.instagram_username || primaryAccount.username || "")));
+      if (primaryAccount.hasAccessToken) {
+        setAccessToken((prev) => (prev ? prev : PROFILE_MASKED_SECRET));
+      }
+    }
+  }, [primaryAccount]);
+
   const handleTest = async () => {
-    if (!igUserId.trim() || !accessToken.trim()) {
+    let tokenToTest = accessToken.trim();
+    if (isPersistedSecretMask(tokenToTest) && primaryAccount?.id) {
+      try {
+        const res = await revealIgToken({ data: { id: primaryAccount.id } });
+        if (res?.token) {
+          tokenToTest = res.token;
+        }
+      } catch (err: any) {
+        toast.error("Erro ao obter token salvo para teste: " + err.message);
+        return;
+      }
+    }
+
+    if (!igUserId.trim() || !tokenToTest) {
       toast.error("Preencha o Instagram Business Account ID e o Page Access Token para testar.");
       return;
     }
@@ -8546,7 +8573,7 @@ function InstagramSettingsTab({
       const res = await testIg({
         data: {
           instagram_business_account_id: igUserId.trim(),
-          access_token: accessToken.trim(),
+          access_token: tokenToTest,
           meta_graph_version: form.meta_graph_version,
         },
       });
@@ -8588,9 +8615,6 @@ function InstagramSettingsTab({
       });
 
       toast.success("Integração do Instagram atualizada com sucesso!");
-      setIgUserId("");
-      setPageName("");
-      setAccessToken("");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
       toast.error(err.message || "Erro ao configurar a integração do Instagram");
@@ -8604,6 +8628,9 @@ function InstagramSettingsTab({
     try {
       await disconnectIg({ data: { id } });
       toast.success("Conta do Instagram desconectada.");
+      setIgUserId("");
+      setPageName("");
+      setAccessToken("");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
       toast.error(err.message || "Erro ao desconectar conta");
@@ -8664,6 +8691,18 @@ function InstagramSettingsTab({
                     value={accessToken}
                     onChange={(e) => setAccessToken(e.target.value)}
                     className="font-mono text-xs"
+                    onVisibleChange={async (visible) => {
+                      if (visible && primaryAccount && isPersistedSecretMask(accessToken)) {
+                        try {
+                          const res = await revealIgToken({ data: { id: primaryAccount.id } });
+                          if (res?.token) {
+                            setAccessToken(res.token);
+                          }
+                        } catch (e: any) {
+                          toast.error("Erro ao carregar token: " + e.message);
+                        }
+                      }
+                    }}
                   />
                 </div>
                 
