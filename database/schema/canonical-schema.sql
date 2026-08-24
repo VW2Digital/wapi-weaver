@@ -1034,6 +1034,8 @@ CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `username` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `access_token` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `app_secret` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `token_expires_at` datetime DEFAULT NULL,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,

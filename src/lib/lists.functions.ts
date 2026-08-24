@@ -33,8 +33,9 @@ export const createTag = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const id = crypto.randomUUID();
-    await db.query("INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, ?)", [
+    await db.query("INSERT INTO tags (id, tenant_id, user_id, name, color) VALUES (?, ?, ?, ?, ?)", [
       id,
+      effectiveUserId,
       effectiveUserId,
       data.name,
       data.color,
@@ -113,8 +114,9 @@ export const createList = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     const id = crypto.randomUUID();
-    await db.query("INSERT INTO lists (id, user_id, name, description) VALUES (?, ?, ?, ?)", [
+    await db.query("INSERT INTO lists (id, tenant_id, user_id, name, description) VALUES (?, ?, ?, ?, ?)", [
       id,
+      effectiveUserId,
       effectiveUserId,
       data.name,
       data.description ?? null,
@@ -192,14 +194,14 @@ export const addContactsToList = createServerFn({ method: "POST" })
       throw new Error("Contatos do Instagram não podem ser adicionados a listas de disparo.");
     }
 
-    const values = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId]);
+    const values = data.contact_ids.map((cid) => [data.list_id, cid, effectiveUserId, effectiveUserId]);
     const chunkSize = 500;
     let added = 0;
     for (let i = 0; i < values.length; i += chunkSize) {
       const chunk = values.slice(i, i + chunkSize);
-      const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
+      const placeholders = chunk.map(() => "(?, ?, ?, ?)").join(",");
       await db.query(
-        `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders}`,
+        `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id, tenant_id) VALUES ${placeholders}`,
         chunk.flat(),
       );
       added += chunk.length;
@@ -371,13 +373,13 @@ export const importCsvToList = createServerFn({ method: "POST" })
 
     // Associar os contatos à lista (list_contacts)
     if (importedIds.length > 0) {
-      const assocValues = importedIds.map((cid) => [data.list_id, cid, effectiveUserId]);
+      const assocValues = importedIds.map((cid) => [data.list_id, cid, effectiveUserId, effectiveUserId]);
       const assocChunkSize = 500;
       for (let i = 0; i < assocValues.length; i += assocChunkSize) {
         const chunk = assocValues.slice(i, i + assocChunkSize);
-        const placeholders = chunk.map(() => "(?, ?, ?)").join(",");
+        const placeholders = chunk.map(() => "(?, ?, ?, ?)").join(",");
         await db.query(
-          `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id) VALUES ${placeholders}`,
+          `INSERT IGNORE INTO list_contacts (list_id, contact_id, user_id, tenant_id) VALUES ${placeholders}`,
           chunk.flat(),
         );
       }

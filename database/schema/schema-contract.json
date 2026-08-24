@@ -7795,8 +7795,30 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "token_expires_at": {
+      "app_id": {
         "ordinal_position": 6,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "app_secret": {
+        "ordinal_position": 7,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "token_expires_at": {
+        "ordinal_position": 8,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": true,

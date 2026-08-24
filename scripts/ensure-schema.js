@@ -2406,6 +2406,77 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     );
 
+    logSchema("Criando/Validando tabelas de Instagram e Facebook...");
+    await ensureTableExists(
+      connection,
+      "instagram_accounts",
+      `CREATE TABLE IF NOT EXISTS instagram_accounts (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        ig_user_id VARCHAR(100) NOT NULL,
+        username VARCHAR(100) NULL,
+        access_token TEXT NOT NULL,
+        app_id VARCHAR(100) NULL,
+        app_secret TEXT NULL,
+        token_expires_at DATETIME NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_ig_user (ig_user_id),
+        INDEX idx_instagram_accounts_user (user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureColumnExists(connection, "instagram_accounts", "app_id", "VARCHAR(100) NULL");
+    await ensureColumnExists(connection, "instagram_accounts", "app_secret", "TEXT NULL");
+
+    await ensureTableExists(
+      connection,
+      "instagram_webhook_events",
+      `CREATE TABLE IF NOT EXISTS instagram_webhook_events (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        raw JSON NOT NULL,
+        processed TINYINT(1) NOT NULL DEFAULT 0,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_iwe_user (user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "facebook_pages",
+      `CREATE TABLE IF NOT EXISTS facebook_pages (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        page_id VARCHAR(100) NOT NULL,
+        page_name VARCHAR(255) NOT NULL,
+        page_access_token TEXT NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_fb_page (page_id),
+        INDEX idx_facebook_pages_user (user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
+      "facebook_webhook_events",
+      `CREATE TABLE IF NOT EXISTS facebook_webhook_events (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        raw JSON NOT NULL,
+        processed TINYINT(1) NOT NULL DEFAULT 0,
+        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_fbwe_user (user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
     // O compilador aplica isolamento por tenant nestas tabelas. Versões antigas
     // possuíam apenas user_id; adicionamos e preenchemos tenant_id de forma
     // idempotente para que bancos locais e instalações novas tenham o mesmo contrato.
@@ -2447,7 +2518,7 @@ export async function ensureDatabaseSchema() {
       await ensureColumnExists(connection, tableName, "tenant_id", "VARCHAR(36) NULL");
       if (await columnExists(connection, tableName, "user_id")) {
         await connection.query(
-          `UPDATE \`${tableName}\` SET tenant_id = user_id WHERE tenant_id IS NULL`,
+          `UPDATE \`${tableName}\` SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL`,
         );
       }
     }

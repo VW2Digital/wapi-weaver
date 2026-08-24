@@ -9,6 +9,7 @@ import {
 } from "@/lib/profile.functions";
 import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface CallButtonProps {
   phoneId: string;
@@ -16,6 +17,7 @@ interface CallButtonProps {
   contactName?: string | null;
   waId?: string | null;
   disabled?: boolean;
+  className?: string;
 }
 
 interface WebRtcCallSession {
@@ -86,6 +88,7 @@ export function CallButton({
   contactName,
   waId,
   disabled = false,
+  className,
 }: CallButtonProps) {
   const [isCalling, setIsCalling] = useState(false);
   const [isRequestingPerm, setIsRequestingPerm] = useState(false);
@@ -281,13 +284,16 @@ export function CallButton({
         onClick={handleCall}
         disabled={disabled || isCalling || isRequestingPerm}
         size="sm"
-        variant="outline"
-        className="h-8 px-3 rounded-full text-xs font-medium border-border gap-1.5 inline-flex items-center"
+        className={cn(
+          "h-8 sm:h-8.5 px-3 sm:px-3.5 rounded-xl text-xs font-semibold bg-[#ff3366] hover:bg-[#e02453] active:scale-95 text-white shadow-sm border-0 gap-1.5 inline-flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+          className,
+        )}
+        title={contactName ? `Ligar para ${contactName}` : "Ligar"}
       >
         {isCalling || isRequestingPerm ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
         ) : (
-          <Phone className="h-3.5 w-3.5" />
+          <Phone className="h-3.5 w-3.5 text-white" />
         )}
         <span>Ligar</span>
       </Button>

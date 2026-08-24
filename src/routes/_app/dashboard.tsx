@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listCampaigns } from "@/lib/campaigns.functions";
-import { listTemplates } from "@/lib/templates.functions";
+import { listAllTemplates } from "@/lib/templates.functions";
 import { getDashboardStats } from "@/lib/dashboard.functions";
 import { getLicenseStatus, getMyPlan } from "@/lib/admin.functions";
 import { listContacts } from "@/lib/contacts.functions";
@@ -13,6 +13,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,14 +89,17 @@ import {
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
 
 const STATUS_HEX: Record<string, string> = {
-  pending: "#F26A4B", // Brand Color 4
-  sent: "#BF39B6", // Brand Color 3
-  delivered: "#D93B92", // Brand Color 2
-  read: "#F23869", // Brand Color 1
-  failed: "#F23869", // Brand Color 1
+  pending: "#f59e0b", // amber-500
+  sending: "#38bdf8", // sky-400
+  sent: "#3b82f6", // blue-500
+  sentOnly: "#3b82f6", // blue-500
+  delivered: "#10b981", // emerald-500
+  deliveredOnly: "#10b981", // emerald-500
+  read: "#4f46e5", // indigo-600
+  failed: "#ef4444", // red-500
 };
 
-const STATUS_KEYS = ["pending", "sent", "delivered", "read", "failed"] as const;
+const STATUS_KEYS = ["pending", "sending", "sent", "delivered", "read", "failed"] as const;
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pendente",
   sending: "Enviando",
@@ -101,20 +111,27 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Falhou",
 };
 const STATUS_COLOR: Record<string, string> = {
-  pending: "bg-[#F26A4B]",
-  sending: "bg-[#BF39B6]",
-  sent: "bg-[#BF39B6]",
-  sentOnly: "bg-[#BF39B6]",
-  delivered: "bg-[#D93B92]",
-  deliveredOnly: "bg-[#D93B92]",
-  read: "bg-[#F23869]",
-  failed: "bg-[#F23869]",
+  pending: "bg-amber-500",
+  sending: "bg-sky-400",
+  sent: "bg-blue-500",
+  sentOnly: "bg-blue-500",
+  delivered: "bg-emerald-500",
+  deliveredOnly: "bg-emerald-500",
+  read: "bg-indigo-600",
+  failed: "bg-red-500",
 };
+
+function getAvatarColor(name: string): string {
+  const hash = (name || "")
+    .split("")
+    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+  return `hsl(${hash % 360}, 65%, 38%)`;
+}
 
 function Dashboard() {
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
   const fetchCampaigns = useServerFn(listCampaigns);
-  const fetchTemplates = useServerFn(listTemplates);
+  const fetchTemplates = useServerFn(listAllTemplates);
   const fetchStats = useServerFn(getDashboardStats);
   const fetchLicenseStatus = useServerFn(getLicenseStatus);
   const fetchMyPlan = useServerFn(getMyPlan);
@@ -130,9 +147,10 @@ function Dashboard() {
     queryFn: () => fetchTemplates(),
     staleTime: 60000 
   });
+  const [selectedPeriod, setSelectedPeriod] = useState<"today" | "7d" | "30d">("7d");
   const s = useQuery({ 
-    queryKey: ["dashboard-stats"], 
-    queryFn: () => fetchStats(),
+    queryKey: ["dashboard-stats", selectedPeriod], 
+    queryFn: () => fetchStats({ data: { period: selectedPeriod } }),
     staleTime: 15000 
   });
   const lic = useQuery({ 
@@ -481,12 +499,12 @@ function Dashboard() {
         <div className="px-4 pt-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Left side: Latest updated */}
-            <div className="flex items-center gap-2 px-3 py-1.5 border rounded-md bg-card text-[13px] text-muted-foreground shadow-sm">
-              <CalendarClock className="h-4 w-4 text-muted-foreground/70" />
-              <span>Última atualização: <span className="text-primary font-medium">{formattedLatestUpdated}</span></span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 border rounded-md bg-card text-xs text-muted-foreground shadow-xs whitespace-nowrap shrink-0">
+              <CalendarClock className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+              <span>Última atualização: <span className="text-foreground font-semibold">{formattedLatestUpdated}</span></span>
             </div>
 
-            {/* Right side: Search and Filter */}
+            {/* Right side: Search and Period Filter */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -495,504 +513,486 @@ function Dashboard() {
                   placeholder="Pesquisar..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 bg-card shadow-sm text-[13px]"
+                  className="pl-9 h-9 bg-card shadow-xs text-xs"
                 />
               </div>
-              <Button variant="outline" size="sm" className="h-9 gap-2 bg-card shadow-sm text-[13px]">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                Filtrar
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <GlobalPromoBanner />
-
-        <div className="p-4 sm:p-6 pb-12">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-            {/* LEFT COLUMN: Takes up 2/3 of the space on large screens */}
-            <div className="xl:col-span-2 flex flex-col gap-6">
-              
-              <section aria-labelledby="chat-metrics">
-                <h2 id="chat-metrics" className="sr-only">
-            Métricas de Atendimento
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {chatStats.map((sItem, i) => (
-              <Card
-                key={i}
-                className="flex flex-col gap-2 p-4 min-h-[96px] justify-between transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-              >
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <sItem.icon className="h-4 w-4" aria-hidden />
-                  <p className="truncate text-[10px] font-semibold uppercase tracking-wider">
-                    {sItem.label}
-                  </p>
-                </div>
-                {s.isPending ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <p className="font-display text-2xl font-bold leading-tight text-foreground">
-                    {sItem.value}
-                  </p>
-                )}
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-          {/* Performance de Entrega */}
-          <Card className="lg:col-span-2 p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
-            <div>
-              <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
-                PERFORMANCE DE ENTREGA
-              </h3>
-              <p className="text-xs text-muted-foreground/60 mt-0.5">Entrega vs. leitura</p>
-            </div>
-
-            <div className="flex items-center justify-around py-4 flex-1">
-              {/* Taxa de entrega */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="relative h-28 w-28 flex items-center justify-center">
-                  {s.isPending || c.isPending ? (
-                    <Skeleton className="h-28 w-28 rounded-full" />
-                  ) : (
-                    <>
-                      <svg
-                        className="absolute transform -rotate-90 w-full h-full"
-                        viewBox="0 0 100 100"
-                      >
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="36"
-                          className="stroke-muted/30"
-                          strokeWidth="8"
-                          fill="transparent"
-                        />
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="36"
-                          stroke="#FF7043"
-                          strokeWidth="8"
-                          strokeDasharray={226.2}
-                          strokeDashoffset={226.2 - (deliverRate / 100) * 226.2}
-                          strokeLinecap="round"
-                          fill="transparent"
-                          className="transition-all duration-500 ease-out"
-                        />
-                      </svg>
-                      <span className="font-display text-2xl font-bold text-foreground">
-                        {deliverRate}%
-                      </span>
-                    </>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground font-medium">Taxa de entrega</span>
-              </div>
-
-              {/* Taxa de leitura */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="relative h-28 w-28 flex items-center justify-center">
-                  {s.isPending || c.isPending ? (
-                    <Skeleton className="h-28 w-28 rounded-full" />
-                  ) : (
-                    <>
-                      <svg
-                        className="absolute transform -rotate-90 w-full h-full"
-                        viewBox="0 0 100 100"
-                      >
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="36"
-                          className="stroke-muted/30"
-                          strokeWidth="8"
-                          fill="transparent"
-                        />
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="36"
-                          stroke="#FBBF24"
-                          strokeWidth="8"
-                          strokeDasharray={226.2}
-                          strokeDashoffset={226.2 - (readRate / 100) * 226.2}
-                          strokeLinecap="round"
-                          fill="transparent"
-                          className="transition-all duration-500 ease-out"
-                        />
-                      </svg>
-                      <span className="font-display text-2xl font-bold text-foreground">
-                        {readRate}%
-                      </span>
-                    </>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground font-medium">Taxa de leitura</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Atividade Geral */}
-          <Card className="lg:col-span-3 p-5 sm:p-6 bg-card border shadow-sm flex flex-col justify-between min-h-[300px]">
-            <div>
-              <h3 className="font-display text-sm font-bold tracking-wider text-muted-foreground/80 uppercase">
-                ATIVIDADE GERAL
-              </h3>
-              <p className="text-xs text-muted-foreground/60 mt-0.5">
-                Contatos · templates · campanhas · entregas · falhas
-              </p>
-            </div>
-
-            <div className="mt-6 space-y-4 w-full">
-              {[
-                { label: "Contatos", value: s.data?.contacts.current ?? 0, pending: s.isPending },
-                { label: "Templates", value: t.data?.length ?? s.data?.templates.current ?? 0, pending: t.isPending || s.isPending },
-                { label: "Campanhas", value: c.data?.length ?? s.data?.campaigns.current ?? 0, pending: c.isPending || s.isPending },
-                { label: "Entregas (7d)", value: s.data?.delivered.current ?? totals.delivered, pending: s.isPending },
-                { label: "Falhas", value: totals.failed, pending: c.isPending },
-              ].map((item, idx) => {
-                const totalContacts = s.data?.contacts.current ?? 0;
-                const totalTemplates = t.data?.length ?? s.data?.templates.current ?? 0;
-                const totalCampaigns = c.data?.length ?? s.data?.campaigns.current ?? 0;
-                const totalDelivered = s.data?.delivered.current ?? totals.delivered;
-                const totalFailed = totals.failed;
-                const maxVal = Math.max(
-                  totalContacts,
-                  totalTemplates,
-                  totalCampaigns,
-                  totalDelivered,
-                  totalFailed,
-                  1,
-                );
-
-                const pct = (item.value / maxVal) * 100;
-                const widthStyle = item.value > 0 ? `${Math.max(pct, 1.5)}%` : "0.5%";
-                return (
-                  <div key={idx} className="flex items-center">
-                    {/* Label */}
-                    <div className="w-20 sm:w-24 text-right text-xs font-medium text-muted-foreground pr-3 shrink-0">
-                      {item.label}
-                    </div>
-                    {/* Bar container */}
-                    <div className="flex-1 h-6 bg-muted/40 rounded-md overflow-hidden relative">
-                      {item.pending ? (
-                        <Skeleton className="h-full w-1/3 rounded-md" />
-                      ) : (
-                        <div
-                          className="h-full bg-primary rounded-md transition-all duration-500 ease-out"
-                          style={{ width: widthStyle }}
-                        />
-                      )}
-                    </div>
-                    {/* Value */}
-                    <div className="w-14 text-left text-xs font-mono text-muted-foreground pl-3 shrink-0 font-medium">
-                      {item.pending ? (
-                        <Skeleton className="h-4 w-8" />
-                      ) : (
-                        item.value.toLocaleString("pt-BR")
-                      )}
-                    </div>
+              <Select value={selectedPeriod} onValueChange={(val: any) => setSelectedPeriod(val)}>
+                <SelectTrigger className="h-9 w-[160px] bg-card text-xs font-medium rounded-md shadow-xs shrink-0 cursor-pointer">
+                  <div className="flex items-center gap-1.5">
+                    <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                    <SelectValue />
                   </div>
-                );
-              })}
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="today" className="text-xs">Hoje</SelectItem>
+                  <SelectItem value="7d" className="text-xs">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30d" className="text-xs">Últimos 30 dias</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </Card>
+          </div>
         </div>
+        <div className="p-4 sm:p-6 pb-12 space-y-4 sm:space-y-6">
+          {/* ========================================================= */}
+          {/* TOP SECTION: 4 Columns (KPIs + Leads Recentes)             */}
+          {/* ========================================================= */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+            {/* Coluna 1: CONTATOS (Hero Card) + AGUARDANDO */}
+            <div className="flex flex-col gap-4">
+              {/* CONTATOS */}
+              <Card className="flex-[2] bg-gradient-to-br from-[#F23869] to-[#D93B92] text-white p-5 rounded-2xl border-0 shadow-md flex flex-col justify-between min-h-[145px]">
+                <span className="text-xs font-bold uppercase tracking-wider text-white/90">
+                  CONTATOS
+                </span>
+                <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight mt-4">
+                  {s.isPending && contactsQuery.isPending ? (
+                    <Skeleton className="h-10 w-24 bg-white/20" />
+                  ) : (
+                    ((contactsQuery.data && contactsQuery.data.length > 0) ? contactsQuery.data.length : (s.data?.contacts.current ?? 0)).toLocaleString("pt-BR")
+                  )}
+                </span>
+              </Card>
 
-            {/* Coluna 1: Mensagens por status — por campanha */}
-            <div className="space-y-3">
-              <Card className="overflow-hidden shadow-xs p-0 py-0 gap-0">
-                <div className="flex items-center justify-between border-b bg-transparent px-5 py-4">
-                  <h2 className="font-heading text-base font-semibold text-foreground">
-                    Mensagens por status — por campanha
-                  </h2>
-                  <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                    <Link to="/campaigns">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-                <div className="hidden grid-cols-12 gap-2 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
-                  <div className="col-span-4">Campanha</div>
-                  <div className="col-span-3">Distribuição</div>
-                  <div className="col-span-1 text-right">Pend.</div>
-                  <div className="col-span-1 text-right">Env.</div>
-                  <div className="col-span-1 text-right">Entr.</div>
-                  <div className="col-span-1 text-right">Lida</div>
-                  <div className="col-span-1 text-right">Falha</div>
-                </div>
-                <div className="divide-y max-h-[460px] overflow-y-auto">
+              {/* AGUARDANDO */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  AGUARDANDO
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
+                  {s.isPending ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    s.data?.chatMetrics?.aguardando ?? 0
+                  )}
+                </span>
+              </Card>
+            </div>
+
+            {/* Coluna 2: TEMPLATES + ENTREGAS (7D) + FINALIZADOS */}
+            <div className="flex flex-col gap-4">
+              {/* TEMPLATES */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  TEMPLATES
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
+                  {t.isPending ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    t.data?.length ?? s.data?.templates.current ?? 0
+                  )}
+                </span>
+              </Card>
+
+              {/* ENTREGAS (7D) */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  ENTREGAS (7D)
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
+                  {s.isPending ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    s.data?.delivered.current ?? totals.delivered
+                  )}
+                </span>
+              </Card>
+
+              {/* FINALIZADOS */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  FINALIZADOS
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
+                  {s.isPending ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    s.data?.chatMetrics?.finalizados ?? 0
+                  )}
+                </span>
+              </Card>
+            </div>
+
+            {/* Coluna 3: CAMPANHAS + EM CONVERSA + NOVOS CONTATOS */}
+            <div className="flex flex-col gap-4">
+              {/* CAMPANHAS */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  CAMPANHAS
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
                   {c.isPending ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 md:items-center">
-                        <div className="col-span-4 space-y-1.5">
-                          <Skeleton className="h-4 w-3/4" />
-                          <Skeleton className="h-3 w-1/2" />
-                        </div>
-                        <div className="col-span-3">
-                          <Skeleton className="h-2 w-full" />
-                        </div>
-                        {Array.from({ length: 5 }).map((_, j) => (
-                          <div key={j} className="text-right md:col-span-1">
-                            <Skeleton className="h-4 w-6 ml-auto" />
-                          </div>
-                        ))}
-                      </div>
-                    ))
-                  ) : filteredCampaigns.slice(0, 10).map((camp: any) => {
-                    const n = normalizeCampaignTotals(camp.totals);
-                    const total = n.total;
-                    const distBar: Record<string, number> = {
-                      pending: n.pending,
-                      sending: n.sending,
-                      sentOnly: n.sent - n.delivered,
-                      deliveredOnly: n.delivered - n.read,
-                      read: n.read,
-                      failed: n.failed,
-                    };
-                    const distKeys = [
-                      "pending",
-                      "sending",
-                      "sentOnly",
-                      "deliveredOnly",
-                      "read",
-                      "failed",
-                    ];
-                    return (
-                      <Link
-                        key={camp.id}
-                        to="/campaigns/$id"
-                        params={{ id: camp.id }}
-                        className="grid grid-cols-2 gap-2 px-4 py-3 text-sm hover:bg-muted/30 md:grid-cols-12 md:items-center transition-colors"
-                      >
-                        <div className="col-span-2 md:col-span-4">
-                          <p className="truncate font-medium text-xs sm:text-sm">{camp.name}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {camp.status} · {total} total
-                          </p>
-                        </div>
-                        <div className="col-span-2 md:col-span-3">
-                          <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
-                            {distKeys.map((k) => {
-                              const v = distBar[k] ?? 0;
-                              const pct = total > 0 ? (v / total) * 100 : 0;
-                              if (pct === 0) return null;
-                              return (
-                                <div
-                                  key={k}
-                                  className={STATUS_COLOR[k] || "bg-muted-foreground"}
-                                  style={{ width: `${pct}%` }}
-                                  title={`${STATUS_LABEL[k] || k}: ${v}`}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="text-right text-xs tabular-nums md:col-span-1">
-                          <span className="md:hidden text-muted-foreground mr-1">Pendente:</span>
-                          {n.pending}
-                        </div>
-                        <div className="text-right text-xs tabular-nums md:col-span-1">
-                          <span className="md:hidden text-muted-foreground mr-1">Enviada:</span>
-                          {n.sent}
-                        </div>
-                        <div className="text-right text-xs tabular-nums md:col-span-1">
-                          <span className="md:hidden text-muted-foreground mr-1">Entregue:</span>
-                          {n.delivered}
-                        </div>
-                        <div className="text-right text-xs tabular-nums md:col-span-1">
-                          <span className="md:hidden text-muted-foreground mr-1">Lida:</span>
-                          {n.read}
-                        </div>
-                        <div className="text-right text-xs tabular-nums md:col-span-1">
-                          <span className="md:hidden text-muted-foreground mr-1">Falhou:</span>
-                          <span className={n.failed > 0 ? "text-[#F23869] font-medium" : ""}>
-                            {n.failed}
-                          </span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                  {filteredCampaigns.length === 0 && (
-                    <Empty className="border-0 py-10">
-                      <EmptyMedia variant="icon">
-                        <Send className="h-5 w-5" />
-                      </EmptyMedia>
-                      <EmptyHeader>
-                        <EmptyTitle className="text-sm">Nenhuma campanha ainda</EmptyTitle>
-                        <EmptyDescription className="text-xs">
-                          Crie sua primeira campanha para começar a disparar mensagens via WhatsApp
-                          Cloud API.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                      <EmptyContent>
-                        <Button size="sm" asChild>
-                          <Link to="/campaigns">
-                            <Plus className="h-3.5 w-3.5 mr-1" />
-                            Criar primeira campanha
-                          </Link>
-                        </Button>
-                      </EmptyContent>
-                    </Empty>
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    c.data?.length ?? s.data?.campaigns.current ?? 0
                   )}
-                </div>
-                {filteredCampaigns.length > 0 && (
-                  <div className="flex flex-wrap gap-2.5 border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-2.5 rounded bg-amber-500" /> Pendente
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-2.5 rounded bg-sky-400" /> Enviando
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-2.5 rounded bg-blue-500" /> Enviada
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-2.5 rounded bg-emerald-500" /> Entregue
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-2.5 rounded bg-indigo-600" /> Lida
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-2.5 rounded bg-red-500" /> Falhou
-                    </span>
-                  </div>
-                )}
+                </span>
+              </Card>
+
+              {/* EM CONVERSA */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  EM CONVERSA
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
+                  {s.isPending ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    s.data?.chatMetrics?.emConversa ?? 0
+                  )}
+                </span>
+              </Card>
+
+              {/* NOVOS CONTATOS */}
+              <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  NOVOS CONTATOS
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground mt-1">
+                  {s.isPending ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    s.data?.chatMetrics?.novosContatos ?? 0
+                  )}
+                </span>
               </Card>
             </div>
-            
-            </div> {/* END LEFT COLUMN */}
 
-            {/* RIGHT COLUMN: Takes up 1/3 of the space on large screens */}
-            <div className="xl:col-span-1 flex flex-col gap-6">
-
-            {/* Coluna 2: Leads Recentes */}
-            <div className="space-y-3 h-full">
-              <Card className="flex flex-col h-full overflow-hidden shadow-xs p-0 py-0 gap-0">
-                <div className="flex items-center justify-between border-b bg-transparent px-5 py-4">
-                  <h2 className="font-heading text-base font-semibold text-foreground">
-                    Leads Recentes
-                  </h2>
-                  <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                    <Link to="/contacts">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Link>
-                  </Button>
+            {/* Coluna 4: LEADS RECENTES */}
+            <Card className="p-5 rounded-2xl border bg-card shadow-xs flex flex-col justify-between h-full min-h-[260px]">
+              <div>
+                <div className="flex items-center justify-between pb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/90">
+                    LEADS RECENTES
+                  </span>
+                  <Link to="/contacts" className="text-muted-foreground hover:text-foreground">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Link>
                 </div>
 
-                <div className="divide-y divide-border/40 max-h-[460px] overflow-y-auto">
+                <div className="space-y-3 pt-1">
                   {contactsQuery.isPending ? (
                     Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="flex items-center justify-between px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Skeleton className="h-10 w-10 rounded-full shrink-0" />
-                          <div className="space-y-1.5">
-                            <Skeleton className="h-4 w-32" />
-                            <Skeleton className="h-3 w-24" />
-                          </div>
-                        </div>
-                        <Skeleton className="h-4 w-4 rounded" />
+                      <div key={i} className="flex items-center gap-3">
+                        <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+                        <Skeleton className="h-4 w-28" />
                       </div>
                     ))
-                  ) : filteredContacts.slice(0, 10).map((contact: any) => {
-                    const src = (contact.source_type || contact.source || "").toLowerCase();
-                    const isWebhook = src.includes("webhook") || src.includes("api");
-                    const isManual =
-                      src.includes("manual") ||
-                      src.includes("cadastro") ||
-                      src.includes("import") ||
-                      src.includes("painel");
-                    const originLabel = isWebhook ? "Webhook" : isManual ? "Manual" : "WhatsApp";
-
+                  ) : filteredContacts.slice(0, 4).map((contact: any) => {
+                    const customFields =
+                      contact.custom_fields && typeof contact.custom_fields === "object"
+                        ? (contact.custom_fields as any)
+                        : {};
+                    const contactAvatar =
+                      contact.avatar_url ||
+                      customFields.avatar_url ||
+                      customFields.photo_url ||
+                      customFields.photo ||
+                      customFields.picture ||
+                      customFields.image_url ||
+                      customFields.image;
+                    const emailAvatarUrl = contact.email
+                      ? `https://unavatar.io/${contact.email}?fallback=false`
+                      : null;
+                    const finalAvatar = contactAvatar || emailAvatarUrl;
                     const contactName = contact.name || "Sem nome";
-                    const contactPhone = contact.phone_e164 || "Sem telefone";
-                    const contactEmail = contact.email;
-                    
-                    const firstPart = contactEmail || contactPhone;
-                    const secondPart = contact.company || originLabel;
-
                     const initials = (contact.name || contact.phone_e164 || "C")
+                      .replace(/^\+/, "")
                       .slice(0, 2)
                       .toUpperCase();
-
-                    const customFields = contact.custom_fields && typeof contact.custom_fields === 'object' ? contact.custom_fields as any : {};
-                    const contactAvatar = customFields.avatar_url || contact.avatar_url;
-                    const emailAvatarUrl = contactEmail ? `https://unavatar.io/${contactEmail}?fallback=false` : null;
-                    const finalAvatar = contactAvatar || emailAvatarUrl;
 
                     return (
                       <Link
                         key={contact.id}
                         to="/contacts/$id"
                         params={{ id: contact.id }}
-                        className="group flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors"
+                        className="flex items-center gap-3 py-1 group hover:opacity-80 transition-opacity"
                       >
-                        <div className="flex items-center gap-4 min-w-0">
-                          <Avatar className="h-12 w-12 shrink-0 bg-primary/10 text-primary border border-primary/20">
-                            {finalAvatar && <AvatarImage src={finalAvatar} alt={contactName} />}
-                            <AvatarFallback className="text-sm font-semibold">
-                              {initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-sm text-foreground">
-                              {contactName}
-                            </p>
-                            <p className="truncate text-[13px] text-muted-foreground mt-0.5">
-                              <span className="text-primary/80">{firstPart}</span>
-                              <span className="mx-1.5 opacity-50">·</span>
-                              <span>{secondPart}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        <Avatar className="h-6 w-6 rounded-full shrink-0 overflow-hidden ring-1 ring-border/40">
+                          {finalAvatar && (
+                            <AvatarImage
+                              src={finalAvatar}
+                              alt={contactName}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                          <AvatarFallback
+                            className="text-[9px] font-bold text-white flex items-center justify-center"
+                            style={{ backgroundColor: getAvatarColor(contactName) }}
+                          >
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {contactName}
+                        </span>
                       </Link>
                     );
                   })}
+                </div>
+              </div>
 
-                  {filteredContacts.length === 0 && (
-                    <Empty className="border-0 py-10">
-                      <EmptyMedia variant="icon">
-                        <Users className="h-5 w-5" />
-                      </EmptyMedia>
-                      <EmptyHeader>
-                        <EmptyTitle className="text-sm">Nenhum lead cadastrado</EmptyTitle>
-                        <EmptyDescription className="text-xs">
-                          Seus contatos do WhatsApp, Webhook ou manuais aparecerão aqui.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                      <EmptyContent>
-                        <Button size="sm" asChild>
-                          <Link to="/contacts">
-                            <UserPlus className="h-3.5 w-3.5 mr-1" />
-                            Gerenciar leads
-                          </Link>
-                        </Button>
-                      </EmptyContent>
-                    </Empty>
-                  )}
+              <div className="pt-3 text-center mt-2">
+                <Link to="/contacts" className="text-xs font-medium text-sky-500 hover:underline">
+                  Ver lista completa
+                </Link>
+              </div>
+            </Card>
+          </div>
+
+          {/* ========================================================= */}
+          {/* MIDDLE SECTION: Performance de Entrega + Atividade Geral  */}
+          {/* ========================================================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Performance de Entrega (Esquerda) */}
+            <Card className="lg:col-span-5 p-5 sm:p-6 bg-card border shadow-xs rounded-2xl flex flex-col justify-between min-h-[220px]">
+              <div>
+                <h3 className="font-display text-xs font-bold tracking-wider text-muted-foreground/90 uppercase">
+                  PERFORMANCE DE ENTREGA
+                </h3>
+              </div>
+
+              <div className="flex items-center justify-around py-2 flex-1">
+                {/* Taxa de entrega */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative h-24 w-24 flex items-center justify-center">
+                    {s.isPending || c.isPending ? (
+                      <Skeleton className="h-24 w-24 rounded-full" />
+                    ) : (
+                      <>
+                        <svg
+                          className="absolute transform -rotate-90 w-full h-full"
+                          viewBox="0 0 100 100"
+                        >
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="36"
+                            className="stroke-muted/30"
+                            strokeWidth="7"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="36"
+                            stroke="#F23869"
+                            strokeWidth="7"
+                            strokeDasharray={226.2}
+                            strokeDashoffset={226.2 - (deliverRate / 100) * 226.2}
+                            strokeLinecap="round"
+                            fill="transparent"
+                            className="transition-all duration-500 ease-out"
+                          />
+                        </svg>
+                        <span className="font-display text-2xl font-bold text-foreground">
+                          {deliverRate}%
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground font-medium">Entrega</span>
                 </div>
 
-                {filteredContacts.length > 0 && (
-                  <div className="flex items-center justify-center border-t bg-transparent px-4 py-3 text-xs text-muted-foreground">
-                    <Link
-                      to="/contacts"
-                      className="font-medium hover:text-foreground transition-colors"
-                    >
-                      Ver lista completa
-                    </Link>
+                {/* Taxa de leitura */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative h-24 w-24 flex items-center justify-center">
+                    {s.isPending || c.isPending ? (
+                      <Skeleton className="h-24 w-24 rounded-full" />
+                    ) : (
+                      <>
+                        <svg
+                          className="absolute transform -rotate-90 w-full h-full"
+                          viewBox="0 0 100 100"
+                        >
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="36"
+                            className="stroke-muted/30"
+                            strokeWidth="7"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="36"
+                            stroke="#FBBF24"
+                            strokeWidth="7"
+                            strokeDasharray={226.2}
+                            strokeDashoffset={226.2 - (readRate / 100) * 226.2}
+                            strokeLinecap="round"
+                            fill="transparent"
+                            className="transition-all duration-500 ease-out"
+                          />
+                        </svg>
+                        <span className="font-display text-2xl font-bold text-foreground">
+                          {readRate}%
+                        </span>
+                      </>
+                    )}
                   </div>
-                )}
-              </Card>
-            </div>
+                  <span className="text-xs text-muted-foreground font-medium">Leitura</span>
+                </div>
+              </div>
+            </Card>
 
-            </div> {/* END RIGHT COLUMN */}
+            {/* Atividade Geral (Direita) */}
+            <Card className="lg:col-span-7 p-5 sm:p-6 bg-card border shadow-xs rounded-2xl flex flex-col justify-between min-h-[220px]">
+              <div>
+                <h3 className="font-display text-xs font-bold tracking-wider text-muted-foreground/90 uppercase">
+                  ATIVIDADE GERAL
+                </h3>
+              </div>
+
+              <div className="mt-4 space-y-4 w-full">
+                {(() => {
+                  const totalContacts = (contactsQuery.data && contactsQuery.data.length > 0) ? contactsQuery.data.length : (s.data?.contacts.current ?? 0);
+                  const totalCampaigns = c.data?.length ?? s.data?.campaigns.current ?? 0;
+                  const totalFailed = totals.failed;
+                  const maxVal = Math.max(totalContacts, 1);
+
+                  const items = [
+                    {
+                      label: "Contatos",
+                      value: totalContacts.toLocaleString("pt-BR"),
+                      pending: s.isPending,
+                      color: "bg-blue-500",
+                      pct: 100,
+                    },
+                    {
+                      label: "Campanhas",
+                      value: totalCampaigns.toLocaleString("pt-BR"),
+                      pending: c.isPending || s.isPending,
+                      color: "bg-amber-500",
+                      pct: totalCampaigns > 0 ? Math.max((totalCampaigns / maxVal) * 100, 4) : 0,
+                    },
+                    {
+                      label: "Falhas",
+                      value: totalFailed.toLocaleString("pt-BR"),
+                      pending: c.isPending,
+                      color: "bg-red-500",
+                      pct: totalFailed > 0 ? Math.max((totalFailed / maxVal) * 100, 4) : 0,
+                    },
+                  ];
+
+                  return items.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <span className="w-20 sm:w-24 text-xs font-medium text-muted-foreground shrink-0">
+                        {item.label}
+                      </span>
+                      <div className="flex-1 h-2.5 bg-muted/40 rounded-full overflow-hidden relative">
+                        {item.pending ? (
+                          <Skeleton className="h-full w-1/3 rounded-full" />
+                        ) : (
+                          <div
+                            className={cn("h-full rounded-full transition-all duration-500 ease-out", item.color)}
+                            style={{ width: `${item.pct}%` }}
+                          />
+                        )}
+                      </div>
+                      <div className="text-xs font-semibold text-foreground shrink-0 min-w-[45px] text-right font-display">
+                        {item.pending ? (
+                          <Skeleton className="h-4 w-8 ml-auto" />
+                        ) : (
+                          item.value
+                        )}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </Card>
           </div>
+
+          {/* ========================================================= */}
+          {/* BOTTOM SECTION: Full-Width Unified Campaign Status Card   */}
+          {/* ========================================================= */}
+          <Card className="p-4 sm:p-5 rounded-2xl border bg-card shadow-xs">
+            {c.isPending ? (
+              <Skeleton className="h-16 w-full rounded-xl" />
+            ) : filteredCampaigns.length > 0 ? (
+              <div className="space-y-4 divide-y divide-border/30">
+                {filteredCampaigns.slice(0, 5).map((camp: any, idx: number) => {
+                  const n = normalizeCampaignTotals(camp.totals);
+                  const total = n.total;
+                  return (
+                    <div
+                      key={camp.id}
+                      className={cn(
+                        "flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 md:gap-4",
+                        idx > 0 && "pt-4"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-bold text-sm sm:text-base text-foreground uppercase tracking-wide shrink-0 md:min-w-[140px]">
+                          {camp.name}
+                        </div>
+                        <div className="md:hidden text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                          {n.failed > 0 ? (
+                            <span className="text-red-500 font-medium">{n.failed} falhas</span>
+                          ) : (
+                            <span>{total} total</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Progress / Status Distribution Bar */}
+                      <div className="flex-1 w-full h-2.5 rounded-full bg-muted overflow-hidden flex">
+                        {n.failed > 0 && (
+                          <div
+                            className="bg-red-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${total > 0 ? (n.failed / total) * 100 : 100}%` }}
+                            title={`Falhou: ${n.failed}`}
+                          />
+                        )}
+                        {n.read > 0 && (
+                          <div
+                            className="bg-indigo-600 h-full transition-all duration-500"
+                            style={{ width: `${total > 0 ? (n.read / total) * 100 : 0}%` }}
+                            title={`Lida: ${n.read}`}
+                          />
+                        )}
+                        {n.delivered - n.read > 0 && (
+                          <div
+                            className="bg-emerald-500 h-full transition-all duration-500"
+                            style={{ width: `${total > 0 ? ((n.delivered - n.read) / total) * 100 : 0}%` }}
+                            title={`Entregue: ${n.delivered - n.read}`}
+                          />
+                        )}
+                        {n.sent - n.delivered > 0 && (
+                          <div
+                            className="bg-blue-500 h-full transition-all duration-500"
+                            style={{ width: `${total > 0 ? ((n.sent - n.delivered) / total) * 100 : 0}%` }}
+                            title={`Enviada: ${n.sent - n.delivered}`}
+                          />
+                        )}
+                        {n.pending > 0 && (
+                          <div
+                            className="bg-amber-500 h-full transition-all duration-500"
+                            style={{ width: `${total > 0 ? (n.pending / total) * 100 : 0}%` }}
+                            title={`Pendente: ${n.pending}`}
+                          />
+                        )}
+                      </div>
+
+                      <div className="hidden md:block text-xs font-semibold text-muted-foreground shrink-0 whitespace-nowrap min-w-[70px] text-right">
+                        {n.failed > 0 ? (
+                          <span className="text-red-500 font-medium">{n.failed} falhas</span>
+                        ) : (
+                          <span>{total} total</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-xs text-muted-foreground py-2">
+                Nenhuma campanha cadastrada
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </div>

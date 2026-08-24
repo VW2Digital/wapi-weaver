@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button";
 export function GlobalPromoBanner() {
   const fetchBanners = useServerFn(listActiveBanners);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem("bliv:dismissed_banners");
+      return stored ? (JSON.parse(stored) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [imageError, setImageError] = useState(false);
 
   const { data: banners = [], isLoading } = useQuery({
@@ -37,7 +45,15 @@ export function GlobalPromoBanner() {
   };
 
   const handleDismiss = (id: string) => {
-    setDismissedIds((prev) => [...prev, id]);
+    setDismissedIds((prev) => {
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem("bliv:dismissed_banners", JSON.stringify(updated));
+      } catch (err) {
+        console.warn("Falha ao salvar dispensa de banner:", err);
+      }
+      return updated;
+    });
     if (currentIndex >= visibleBanners.length - 1) {
       setCurrentIndex(0);
     }

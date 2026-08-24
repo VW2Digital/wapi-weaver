@@ -58,6 +58,18 @@ async function ensureRuntimeSchemaAlignment(connection) {
   await ensureColumnExists(connection, "webhook_events", "received_at", "DATETIME NULL");
 
   await ensureColumnExists(connection, "licenses", "tenant_id", "VARCHAR(36) NULL UNIQUE");
+
+  await ensureColumnExists(connection, "lists", "tenant_id", "VARCHAR(36) NULL");
+  await ensureColumnExists(connection, "tags", "tenant_id", "VARCHAR(36) NULL");
+  await ensureColumnExists(connection, "list_contacts", "tenant_id", "VARCHAR(36) NULL");
+
+  try {
+    await connection.query("UPDATE lists SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
+    await connection.query("UPDATE tags SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
+    await connection.query("UPDATE list_contacts SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
+  } catch (err) {
+    // Ignorar falhas silenciosas de backfill se tabelas não existirem
+  }
 }
 
 async function runMigrations() {

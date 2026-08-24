@@ -151,6 +151,7 @@ import {
   ScrollText,
   Activity,
   Facebook,
+  Instagram,
   Code,
   BrainCircuit,
   Info,
@@ -685,6 +686,18 @@ function SettingsPage() {
   const qc = useQueryClient();
   const fetchDebugToken = useServerFn(debugAccessToken);
   const registerPhone = useServerFn(registerPhoneNumber);
+  const fetchIg = useServerFn(listInstagramAccounts);
+  const fetchFb = useServerFn(listFacebookPages);
+
+  const { data: igAccounts } = useQuery({
+    queryKey: ["instagram-accounts"],
+    queryFn: () => fetchIg(),
+  });
+
+  const { data: fbPages } = useQuery({
+    queryKey: ["facebook-pages"],
+    queryFn: () => fetchFb(),
+  });
 
   const [formPin, setFormPin] = useState("");
   const [showSetupPin, setShowSetupPin] = useState(false);
@@ -1179,7 +1192,7 @@ function SettingsPage() {
                 <KeyRound className="h-3.5 w-3.5" /> Conexões & APIs
               </h4>
               <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
-                {/* Conexão Meta */}
+                {/* Conexão Meta (WhatsApp) */}
                 <button
                   onClick={() => setActiveSection("meta")}
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
@@ -1190,7 +1203,7 @@ function SettingsPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h5 className="font-semibold text-sm text-foreground">Conexão Meta</h5>
+                        <h5 className="font-semibold text-sm text-foreground">Conexão Meta (WhatsApp)</h5>
                         <Badge
                           variant="secondary"
                           className={cn(
@@ -1204,7 +1217,75 @@ function SettingsPage() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Configurações de aplicativo, credenciais e webhook da Meta.
+                        Configurações de aplicativo, credenciais e webhook da Meta Cloud API.
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* Conexão Instagram */}
+                <button
+                  onClick={() => setActiveSection("instagram")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-gradient-to-tr from-[#FD1D1D]/15 via-[#E1306C]/15 to-[#833AB4]/15 text-[#E1306C] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Instagram className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-semibold text-sm text-foreground">Instagram Direct</h5>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] border-none font-semibold",
+                            (igAccounts as any[])?.length
+                              ? "bg-success/15 text-success hover:bg-success/20"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {(igAccounts as any[])?.length
+                            ? `${(igAccounts as any[]).length} ${(igAccounts as any[]).length === 1 ? "Conta" : "Contas"}`
+                            : "Pendente"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Conecte contas profissionais do Instagram para envio e recepção de mensagens no Direct.
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+
+                {/* Conexão Facebook */}
+                <button
+                  onClick={() => setActiveSection("facebook")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Facebook className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-semibold text-sm text-foreground">Facebook Messenger</h5>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] border-none font-semibold",
+                            (fbPages as any[])?.length
+                              ? "bg-success/15 text-success hover:bg-success/20"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {(fbPages as any[])?.length
+                            ? `${(fbPages as any[]).length} ${(fbPages as any[]).length === 1 ? "Página" : "Páginas"}`
+                            : "Pendente"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Conecte páginas do Facebook para atendimento automático ou manual via Messenger.
                       </p>
                     </div>
                   </div>
@@ -2774,6 +2855,14 @@ function SettingsPage() {
                     </div>
                   )}
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="instagram" className="space-y-6 outline-none m-0 border-none p-0">
+                <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
+              </TabsContent>
+
+              <TabsContent value="facebook" className="space-y-6 outline-none m-0 border-none p-0">
+                <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} />
               </TabsContent>
 
               <TabsContent value="crm" className="outline-none">
@@ -8435,6 +8524,7 @@ function InstagramSettingsTab({
   const [igUserId, setIgUserId] = useState("");
   const [username, setUsername] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [showAccessToken, setShowAccessToken] = useState(false);
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [tokenExpiresAt, setTokenExpiresAt] = useState("");
@@ -8447,19 +8537,19 @@ function InstagramSettingsTab({
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!igUserId || !username || !accessToken) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!igUserId.trim() || !username.trim() || !accessToken.trim()) {
+      toast.error("Preencha todos os campos obrigatórios (ID, Usuário e Token).");
       return;
     }
     setIsSubmitting(true);
     try {
       await connectIg({
         data: {
-          ig_user_id: igUserId,
-          username: username,
-          access_token: accessToken,
-          app_id: appId || undefined,
-          app_secret: appSecret || undefined,
+          ig_user_id: igUserId.trim(),
+          username: username.trim().replace(/^@/, ""),
+          access_token: accessToken.trim(),
+          app_id: appId.trim() || undefined,
+          app_secret: appSecret.trim() || undefined,
           token_expires_at: tokenExpiresAt || undefined,
         },
       });
@@ -8472,28 +8562,28 @@ function InstagramSettingsTab({
       setTokenExpiresAt("");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
-      toast.error(err.message || "Erro ao conectar conta");
+      toast.error(err.message || "Erro ao conectar conta do Instagram");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDisconnect = async (id: string) => {
-    if (!confirm("Deseja realmente desconectar esta conta do Instagram?")) return;
+  const handleDisconnect = async (id: string, name: string) => {
+    if (!confirm(`Deseja realmente desconectar a conta @${name} do Instagram?`)) return;
     try {
       await disconnectIg({ data: { id } });
-      toast.success("Conta desconectada.");
+      toast.success("Conta do Instagram desconectada.");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
-      toast.error(err.message || "Erro ao desconectar");
+      toast.error(err.message || "Erro ao desconectar conta");
     }
   };
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const igWebhookUrl = `${origin}/api/public/instagram-webhook`;
 
-  const credentialsComplete = !!(accounts && accounts.length > 0);
-  const webhookComplete = !!(form.whatsapp_verify_token && form.hasAppSecret);
+  const credentialsComplete = !!(accounts && (accounts as any[]).length > 0);
+  const webhookComplete = !!(form.whatsapp_verify_token && (form.hasAppSecret || form.whatsapp_app_secret));
 
   return (
     <div className="space-y-6">
@@ -8507,19 +8597,25 @@ function InstagramSettingsTab({
             {step === 0 && (
               <div className="space-y-6">
                 <Card className="p-6">
-                  <form onSubmit={handleConnect} className="space-y-4">
-                    <h2 className="font-display text-lg font-semibold">
-                      Passo 1: Conectar sua Conta Profissional do Instagram
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Insira as credenciais geradas na sua aplicação Meta Developers para o canal do
-                      Instagram.
-                    </p>
+                  <div className="flex items-start gap-3 mb-5">
+                    <div className="rounded-xl bg-gradient-to-tr from-[#FD1D1D]/15 via-[#E1306C]/15 to-[#833AB4]/15 p-2.5 text-[#E1306C] shrink-0">
+                      <Instagram className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="font-display text-lg font-semibold">
+                        Conectar Conta Profissional do Instagram
+                      </h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Vincule sua conta do Instagram Business / Creator para gerenciar conversas do Direct, automações de bot e atendimento ao cliente.
+                      </p>
+                    </div>
+                  </div>
 
+                  <form onSubmit={handleConnect} className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="ig_user_id">
-                          ID da Conta Profissional do Instagram (Instagram Business Account ID)
+                          ID da Conta Profissional (Instagram Business Account ID) <span className="text-destructive">*</span>
                         </Label>
                         <Input
                           id="ig_user_id"
@@ -8527,48 +8623,77 @@ function InstagramSettingsTab({
                           value={igUserId}
                           onChange={(e) => setIgUserId(e.target.value)}
                         />
+                        <p className="text-[11px] text-muted-foreground">
+                          Obtido no Meta for Developers &gt; App &gt; Instagram &gt; API Setup.
+                        </p>
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label htmlFor="username">Nome de Usuário (@username)</Label>
+                        <Label htmlFor="username">
+                          Nome de Usuário (@handle) <span className="text-destructive">*</span>
+                        </Label>
                         <Input
                           id="username"
-                          placeholder="Ex: minhaloja"
+                          placeholder="Ex: suaempresa"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
                         />
+                        <p className="text-[11px] text-muted-foreground">
+                          O identificador da sua conta no Instagram (sem o @).
+                        </p>
                       </div>
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="access_token">
-                        Token de Acesso do Usuário do Sistema (Page Access Token)
-                      </Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="access_token">
+                          Token de Acesso (User / Page Access Token) <span className="text-destructive">*</span>
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={() => setShowAccessToken(!showAccessToken)}
+                          className="text-xs text-primary hover:underline font-medium flex items-center gap-1"
+                        >
+                          {showAccessToken ? (
+                            <>
+                              <EyeOff className="h-3 w-3" /> Ocultar Token
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-3 w-3" /> Exibir Token
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <Textarea
                         id="access_token"
                         rows={3}
                         placeholder="EAA..."
                         value={accessToken}
                         onChange={(e) => setAccessToken(e.target.value)}
+                        className={cn("font-mono text-xs", !showAccessToken && "password-mask")}
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Token com permissões <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">instagram_basic</code>, <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code> e <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">pages_manage_metadata</code>.
+                      </p>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor="app_id">App ID</Label>
+                        <Label htmlFor="app_id">App ID da Meta</Label>
                         <Input
                           id="app_id"
-                          placeholder="ID do seu aplicativo Meta"
+                          placeholder="Ex: 123456789012345"
                           value={appId}
                           onChange={(e) => setAppId(e.target.value)}
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="app_secret">App Secret</Label>
+                        <Label htmlFor="app_secret">App Secret da Meta</Label>
                         <Input
                           id="app_secret"
                           type="password"
-                          placeholder="Chave secreta do seu aplicativo Meta"
+                          placeholder="Chave secreta do aplicativo Meta"
                           value={appSecret}
                           onChange={(e) => setAppSecret(e.target.value)}
                         />
@@ -8585,42 +8710,78 @@ function InstagramSettingsTab({
                         value={tokenExpiresAt}
                         onChange={(e) => setTokenExpiresAt(e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Os tokens de longa duração do Meta expiram em 60 dias. Informe a data para
-                        acompanhar a validade.
+                      <p className="text-[11px] text-muted-foreground">
+                        Os tokens de longa duração da Meta normalmente expiram em 60 dias.
                       </p>
                     </div>
 
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Conectando..." : "Conectar Canal"}
-                    </Button>
+                    <div className="pt-2 flex justify-end">
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Conectando...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 h-4 w-4" /> Conectar Conta do Instagram
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </form>
                 </Card>
 
                 <Card className="p-6">
-                  <h3 className="font-display text-base font-semibold mb-4">Canais Conectados</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-display text-base font-semibold">Contas Conectadas</h3>
+                    <Badge variant="outline" className="text-xs">
+                      {(accounts as any[])?.length || 0} {(accounts as any[])?.length === 1 ? "Conta" : "Contas"}
+                    </Badge>
+                  </div>
                   {isLoading ? (
-                    <div className="text-sm text-muted-foreground">Carregando canais...</div>
-                  ) : !accounts || accounts.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
-                      Nenhuma conta conectada ainda.
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando contas...
+                    </div>
+                  ) : !accounts || (accounts as any[]).length === 0 ? (
+                    <div className="text-center py-6 border border-dashed rounded-lg text-sm text-muted-foreground">
+                      <Instagram className="h-8 w-8 mx-auto mb-2 opacity-30 text-muted-foreground" />
+                      <p className="font-medium text-foreground">Nenhuma conta conectada ainda</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Preencha o formulário acima para conectar sua conta profissional do Instagram.
+                      </p>
                     </div>
                   ) : (
                     <div className="divide-y divide-border">
-                      {accounts.map((acc: any) => (
-                        <div key={acc.id} className="flex items-center justify-between py-3">
-                          <div>
-                            <p className="font-semibold text-sm">@{acc.username}</p>
-                            <p className="text-xs text-muted-foreground">ID: {acc.ig_user_id}</p>
+                      {(accounts as any[]).map((acc: any) => (
+                        <div key={acc.id} className="flex items-center justify-between py-3.5">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-foreground">
+                                @{acc.username}
+                              </span>
+                              <Badge
+                                variant="secondary"
+                                className="bg-success/15 text-success hover:bg-success/20 text-[10px] border-none font-semibold"
+                              >
+                                Ativo
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              ID: {acc.ig_user_id}
+                            </p>
                             {acc.app_id && (
-                              <p className="text-xs text-muted-foreground">App ID: {acc.app_id}</p>
-                            )}
-                            {acc.app_secret && (
-                              <p className="text-xs text-muted-foreground">App Secret: ••••••••</p>
+                              <p className="text-xs text-muted-foreground">
+                                App ID: {acc.app_id}
+                              </p>
                             )}
                             {acc.token_expires_at && (
                               <p
-                                className={`text-xs ${new Date(acc.token_expires_at) < new Date() ? "text-destructive" : "text-muted-foreground"}`}
+                                className={cn(
+                                  "text-[11px]",
+                                  new Date(acc.token_expires_at) < new Date()
+                                    ? "text-destructive font-semibold"
+                                    : "text-muted-foreground",
+                                )}
                               >
                                 Expira em: {new Date(acc.token_expires_at).toLocaleString("pt-BR")}
                               </p>
@@ -8629,8 +8790,10 @@ function InstagramSettingsTab({
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleDisconnect(acc.id)}
+                            onClick={() => handleDisconnect(acc.id, acc.username)}
+                            className="gap-1.5"
                           >
+                            <Trash2 className="h-3.5 w-3.5" />
                             Remover
                           </Button>
                         </div>
@@ -8645,72 +8808,87 @@ function InstagramSettingsTab({
               <Card className="p-6 space-y-6">
                 <div>
                   <h2 className="font-display text-lg font-semibold">
-                    Passo 2: Configurar Webhook no Facebook Developers
+                    Passo 2: Configurar Webhook no Meta for Developers
                   </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Configure a Meta para enviar mensagens do Instagram em tempo real para a sua
-                    plataforma.
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Configure a Meta para encaminhar as mensagens do Instagram Direct em tempo real para a sua plataforma.
                   </p>
                 </div>
 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label>1. URL de Callback</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      1. URL de Callback do Webhook
+                    </Label>
                     <div className="flex gap-2">
-                      <Input readOnly value={igWebhookUrl} />
+                      <Input readOnly value={igWebhookUrl} className="font-mono text-xs bg-muted/40" />
                       <Button
                         variant="secondary"
                         onClick={() => {
                           navigator.clipboard.writeText(igWebhookUrl);
-                          toast.success("Copiado!");
+                          toast.success("URL de Callback copiada!");
                         }}
                       >
+                        <Copy className="h-4 w-4 mr-1.5" />
                         Copiar
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      No Painel Meta do Aplicativo (Instagram &gt; Webhook), cole esta URL de
-                      Callback e selecione a assinatura dos eventos de <strong>messages</strong>.
+                      No Painel Meta do Aplicativo (Instagram &gt; Webhooks), cole esta URL no campo Callback URL e assine o campo <strong>messages</strong>.
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>2. Verify Token (Token de Verificação do Webhook)</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      2. Verify Token (Token de Verificação)
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         value={form.whatsapp_verify_token ?? ""}
                         onChange={(e) =>
                           setForm({ ...form, whatsapp_verify_token: e.target.value })
                         }
-                        placeholder="Insira o seu Verify Token"
+                        placeholder="Insira ou crie um Verify Token"
+                        className="font-mono text-xs"
                       />
                       <Button
                         onClick={() =>
                           saveMut.mutate({ whatsapp_verify_token: form.whatsapp_verify_token })
                         }
+                        disabled={saveMut.isPending}
                       >
                         Salvar
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      O mesmo token deve ser informado no campo "Verify Token" no painel da Meta.
+                    </p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>3. App Secret (Chave Secreta do Aplicativo)</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      3. App Secret (Chave Secreta do Aplicativo)
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         type="password"
                         value={form.whatsapp_app_secret ?? ""}
                         onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
                         placeholder="Insira o App Secret"
+                        className="font-mono text-xs"
                       />
                       <Button
                         onClick={() =>
                           saveMut.mutate({ whatsapp_app_secret: form.whatsapp_app_secret })
                         }
+                        disabled={saveMut.isPending}
                       >
                         Salvar
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Localizado em Configurações &gt; Básico no painel da Meta para validação de assinatura criptográfica.
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -8721,10 +8899,9 @@ function InstagramSettingsTab({
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
                   <Check className="h-6 w-6" />
                 </div>
-                <h2 className="text-lg font-semibold">Tudo configurado!</h2>
+                <h2 className="text-lg font-semibold text-foreground">Tudo configurado!</h2>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Sua conta do Instagram está configurada e pronta para receber DMs e responder
-                  utilizando a engine de atendimento automático ou chat manual.
+                  Sua conta do Instagram está pronta para receber Direct Messages e responder utilizando a engine de atendimento automático, fluxos de chatbot ou chat manual.
                 </p>
               </Card>
             )}

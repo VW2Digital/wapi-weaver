@@ -4,17 +4,25 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { resolveEffectiveUserId } from "./chat-helpers";
 import db from "./db";
 
+function toMySqlDatetime(d: Date | string): string {
+  if (typeof d === "string") {
+    return d.slice(0, 19).replace("T", " ");
+  }
+  return d.toISOString().slice(0, 19).replace("T", " ");
+}
+
 async function countBefore(
   userId: string,
   table: string,
-  cutoffIso: string,
+  cutoff: Date | string,
   column = "created_at",
 ): Promise<number> {
+  const cutoffSql = toMySqlDatetime(cutoff);
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE user_id = ? AND ${column} <= ?`,
-    [userId, cutoffIso],
+    `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE user_id = ? AND (${column} <= ? OR ${column} IS NULL)`,
+    [userId, cutoffSql],
   )) as any[];
-  return (rows?.[0]?.cnt as number) ?? 0;
+  return Number(rows?.[0]?.cnt || 0);
 }
 
 async function countActiveSessionsByStatus(userId: string, status: string): Promise<number> {
@@ -94,14 +102,33 @@ async function countUnreadContacts(userId: string): Promise<number> {
 
 export const getDashboardStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async ({ context }) => {
+  .validator((data?: { period?: "today" | "7d" | "30d" }) => data)
+  .handler(async ({ context, data }) => {
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const period = data?.period || "7d";
     const now = new Date();
-    const sevenAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const fourteenAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    const startOfToday = new Date();
+    let currentStart: Date;
+    let previousStart: Date;
+    let previousEnd: Date;
+
+    const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
+
+    if (period === "today") {
+      currentStart = startOfToday;
+      previousStart = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+      previousEnd = startOfToday;
+    } else if (period === "30d") {
+      currentStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      previousStart = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      previousEnd = currentStart;
+    } else {
+      // Padrão: 7 dias
+      currentStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      previousStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      previousEnd = currentStart;
+    }
 
     const [
       contactsNow,
@@ -121,13 +148,13 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       unreadChats,
     ] = await Promise.all([
       countBefore(effectiveUserId, "contacts", now.toISOString()),
-      countBefore(effectiveUserId, "contacts", sevenAgo.toISOString()),
-      countBefore(effectiveUserId, "templates", now.toISOString(), "synced_at"),
-      countBefore(effectiveUserId, "templates", sevenAgo.toISOString(), "synced_at"),
+      countBefore(effectiveUserId, "contacts", currentStart.toISOString()),
+      countBefore(effectiveUserId, "templates", now.toISOString()),
+      countBefore(effectiveUserId, "templates", currentStart.toISOString()),
       countBefore(effectiveUserId, "campaigns", now.toISOString()),
-      countBefore(effectiveUserId, "campaigns", sevenAgo.toISOString()),
-      countDeliveredBetween(effectiveUserId, sevenAgo.toISOString(), now.toISOString()),
-      countDeliveredBetween(effectiveUserId, fourteenAgo.toISOString(), sevenAgo.toISOString()),
+      countBefore(effectiveUserId, "campaigns", currentStart.toISOString()),
+      countDeliveredBetween(effectiveUserId, currentStart.toISOString(), now.toISOString()),
+      countDeliveredBetween(effectiveUserId, previousStart.toISOString(), previousEnd.toISOString()),
       countActiveSessionsByStatus(effectiveUserId, "aberto"),
       countActiveSessionsByStatus(effectiveUserId, "aguardando"),
       countClosedSessionsToday(effectiveUserId, startOfToday.toISOString()),
@@ -138,6 +165,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     ]);
 
     return {
+      period,
       contacts: { current: contactsNow, previous: contactsPrev },
       templates: { current: templatesNow, previous: templatesPrev },
       campaigns: { current: campaignsNow, previous: campaignsPrev },

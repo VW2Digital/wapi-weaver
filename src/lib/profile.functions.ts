@@ -1413,10 +1413,15 @@ export const manageCall = createServerFn({ method: "POST" })
       // Se o callId informado for local/temporário ou ausente, busca a chamada mais recente no banco
       if (!effectiveCallId || effectiveCallId.startsWith("call_")) {
         try {
-          const [recentCall] = await context.db.query(
-            `SELECT whatsapp_call_id FROM whatsapp_calls WHERE tenant_id = ? AND status IN ('incoming', 'ringing', 'active', 'connecting') ORDER BY created_at DESC LIMIT 1`,
-            [context.userId],
-          );
+          const { data: recentCall } = await context.db
+            .from("whatsapp_calls")
+            .select("whatsapp_call_id")
+            .eq("tenant_id", context.userId)
+            .in("status", ["incoming", "ringing", "active", "connecting"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
           if (recentCall?.whatsapp_call_id) {
             effectiveCallId = recentCall.whatsapp_call_id;
           }
@@ -1464,10 +1469,20 @@ export const manageCall = createServerFn({ method: "POST" })
                   : data.action === "reject"
                     ? "rejected"
                     : "active";
-              await context.db.query(
-                `UPDATE whatsapp_calls SET status = ?, ended_at = ${finalStatus === "ended" || finalStatus === "rejected" ? "NOW()" : "ended_at"}, updated_at = NOW() WHERE whatsapp_call_id = ?`,
-                [finalStatus, effectiveCallId],
-              );
+              
+              const updateData: any = {
+                status: finalStatus,
+                updated_at: new Date(),
+              };
+              
+              if (finalStatus === "ended" || finalStatus === "rejected") {
+                updateData.ended_at = new Date();
+              }
+              
+              await context.db
+                .from("whatsapp_calls")
+                .update(updateData)
+                .eq("whatsapp_call_id", effectiveCallId);
             } catch (dbUpErr) {
               console.warn("[CALL DB] Erro ao atualizar status pós manageCall:", dbUpErr);
             }
@@ -1537,10 +1552,24 @@ export const manageCall = createServerFn({ method: "POST" })
           // Salva no banco de dados
           if (realCallId) {
             try {
-              await context.db.query(
-                `INSERT INTO whatsapp_calls (id, tenant_id, phone_number_id, whatsapp_call_id, direction, status, started_at, created_at, updated_at) VALUES (UUID(), ?, ?, ?, 'outbound', 'connecting', NOW(), NOW(), NOW()) ON DUPLICATE KEY UPDATE status = 'connecting', updated_at = NOW()`,
-                [context.userId, data.phoneId, realCallId],
-              );
+              const { randomUUID } = await import("crypto");
+              const id = randomUUID();
+              
+              await context.db
+                .from("whatsapp_calls")
+                .upsert({
+                  id,
+                  tenant_id: context.userId,
+                  phone_number_id: data.phoneId,
+                  whatsapp_call_id: realCallId,
+                  direction: "outbound",
+                  status: "connecting",
+                  started_at: new Date(),
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                }, {
+                  onConflict: "whatsapp_call_id"
+                });
             } catch (dbErr) {
               console.warn("[CALL DB] Erro ao salvar chamada criada:", dbErr);
             }

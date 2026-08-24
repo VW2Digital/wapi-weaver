@@ -661,6 +661,8 @@
     "ig_user_id",
     "username",
     "access_token",
+    "app_id",
+    "app_secret",
     "token_expires_at",
     "status",
     "created_at",

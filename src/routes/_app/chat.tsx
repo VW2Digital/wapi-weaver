@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -54,6 +54,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -146,7 +151,7 @@ import {
   TrendingUp,
   Plus,
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { db } from "@/integrations/mysql/client";
@@ -1381,6 +1386,8 @@ function TeamAssignSubmenuItem({
 }
 
 function ChatPage() {
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
   const fetchContacts = useServerFn(listChatContacts);
   const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
@@ -1456,6 +1463,41 @@ function ChatPage() {
   }, [qc]);
 
   const [selectedContact, setSelectedContact] = useState<ChatContactRecord | null>(null);
+
+  const handleSelectContact = useCallback(
+    (c: ChatContactRecord) => {
+      setSelectedContact(c);
+      if (typeof window !== "undefined") {
+        if (c.id) localStorage.setItem("chat:active_contact_id", c.id);
+        if (c.phone_e164) localStorage.setItem("chat:active_contact_phone", c.phone_e164);
+      }
+      void navigate({
+        search: (prev) => ({
+          ...prev,
+          contactId: c.id,
+          phone: c.phone_e164 || undefined,
+        }),
+        replace: true,
+      });
+    },
+    [navigate],
+  );
+
+  const handleCloseChat = useCallback(() => {
+    setSelectedContact(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("chat:active_contact_id");
+      localStorage.removeItem("chat:active_contact_phone");
+    }
+    void navigate({
+      search: (prev) => ({
+        ...prev,
+        contactId: undefined,
+        phone: undefined,
+      }),
+      replace: true,
+    });
+  }, [navigate]);
 
   // Estados para chamadas
   const [incomingCallOpen, setIncomingCallOpen] = useState(false);
@@ -2273,8 +2315,8 @@ function ChatPage() {
     phoneId: string;
     contactName: string;
     contactPhone: string;
-    peerConnection: RTCPeerConnection | null;
-    localStream: MediaStream | null;
+    peerConnection: RTCPeerConnection;
+    localStream: MediaStream;
   } | null>(null);
 
   // Escuta global de eventos em tempo real do Chat e Chamadas via SSE
@@ -2437,7 +2479,7 @@ function ChatPage() {
       setMainTab("conversas");
       setActiveTab("outros");
       setFilterView("all");
-      setSelectedContact(normalizedContact);
+      handleSelectContact(normalizedContact);
       setNewChatPhone("");
       toast.success("Nova conversa iniciada!");
     },
@@ -2491,7 +2533,7 @@ function ChatPage() {
       setMainTab("conversas");
       setActiveTab("outros");
       setFilterView("all");
-      setSelectedContact(normalizedContact);
+      handleSelectContact(normalizedContact);
       setNewChatName("");
       setNewChatPhoneDialog("");
       setIsNewChatDialogOpen(false);
@@ -2825,81 +2867,89 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Auto-select contact based on deep link params.
+  // Auto-seleciona o contato ativo com base nos parâmetros da URL ou no localStorage persistido
+  const hasAttemptedRestoreRef = useRef(false);
   useEffect(() => {
-    if (typeof window !== "undefined" && contactsQuery.data && !selectedContact) {
-      const searchParams = new URLSearchParams(window.location.search);
-      const searchContactId = searchParams.get("contactId");
-      const searchPhone = searchParams.get("phone");
+    if (selectedContact) return;
 
-      if (searchContactId) {
-        const foundById = contactsQuery.data.find((contact) => contact.id === searchContactId);
-        if (foundById) {
-          if (foundById.channel === "whatsapp_group") {
-            setMainTab("grupos");
-          } else {
-            setMainTab("conversas");
-          }
-          setSelectedContact(foundById);
-          return;
-        }
+    const targetContactId =
+      search.contactId ||
+      (typeof window !== "undefined" ? localStorage.getItem("chat:active_contact_id") : null);
+    const targetPhone =
+      search.phone ||
+      (typeof window !== "undefined" ? localStorage.getItem("chat:active_contact_phone") : null);
+
+    if (!targetContactId && !targetPhone) return;
+
+    if (contactsQuery.data && contactsQuery.data.length > 0) {
+      let found: ChatContactRecord | undefined;
+      if (targetContactId) {
+        found = contactsQuery.data.find((c) => c.id === targetContactId);
+      }
+      if (!found && targetPhone) {
+        const cleanedSearchPhone = targetPhone.replace(/\D/g, "");
+        found = contactsQuery.data.find(
+          (c) =>
+            c.phone_e164 === targetPhone ||
+            c.phone_e164?.replace(/\D/g, "") === cleanedSearchPhone,
+        );
       }
 
-      if (searchPhone) {
-        const cleanedSearchPhone = searchPhone.replace(/\D/g, "");
-        const found = contactsQuery.data.find(
-          (contact) =>
-            contact.phone_e164 === searchPhone ||
-            contact.phone_e164?.replace(/\D/g, "") === cleanedSearchPhone,
-        );
-        if (found) {
-          if (found.channel === "whatsapp_group") {
-            setMainTab("grupos");
-          } else {
-            setMainTab("conversas");
-          }
-          setSelectedContact(found);
-          return;
+      if (found) {
+        if (found.channel === "whatsapp_group") {
+          setMainTab("grupos");
+        } else {
+          setMainTab("conversas");
         }
-
-        // Um deep link vindo da ficha do contato deve abrir a conversa mesmo
-        // antes da lista/polling incluir o contato (por exemplo, sem mensagens
-        // anteriores). Busca-o diretamente e o mantém na lista temporária.
-        if (cleanedSearchPhone) {
-          fetchContactDetails({
-            data: { phone: cleanedSearchPhone, contactId: searchContactId || undefined },
-          })
-            .then((details) => {
-              const directContact = normalizeChatContactRecord(details);
-              if (!directContact) return;
-              upsertDraftChatContact(directContact);
-              setMainTab(
-                directContact.channel === "whatsapp_group" ? "grupos" : "conversas",
-              );
-              setSelectedContact(directContact);
-            })
-            .catch(() => {
-              toast.error("Não foi possível abrir a conversa deste contato.");
-            });
-        }
+        setSelectedContact(found);
+        return;
       }
     }
-  }, [contactsQuery.data, selectedContact, fetchContactDetails]);
 
-  // Mantém o contato selecionado sincronizado com a lista em polling.
+    // Se ainda não encontrou na lista e não tentou buscar diretamente, busca os detalhes do contato persistido
+    if (
+      !contactsQuery.isLoading &&
+      !hasAttemptedRestoreRef.current &&
+      (targetPhone || targetContactId)
+    ) {
+      hasAttemptedRestoreRef.current = true;
+      const clean = targetPhone ? targetPhone.replace(/\D/g, "") : "";
+      fetchContactDetails({
+        data: { phone: clean, contactId: targetContactId || undefined },
+      })
+        .then((details) => {
+          const directContact = normalizeChatContactRecord(details);
+          if (!directContact) return;
+          upsertDraftChatContact(directContact);
+          setMainTab(directContact.channel === "whatsapp_group" ? "grupos" : "conversas");
+          setSelectedContact(directContact);
+        })
+        .catch(() => {
+          // Se o contato não puder ser carregado, limpa os dados obsoletos
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("chat:active_contact_id");
+            localStorage.removeItem("chat:active_contact_phone");
+          }
+        });
+    }
+  }, [
+    contactsQuery.data,
+    contactsQuery.isLoading,
+    selectedContact,
+    search.contactId,
+    search.phone,
+    fetchContactDetails,
+  ]);
+
+  // Mantém o contato selecionado sincronizado com a lista em polling sem desmarcar acidentalmente
   useEffect(() => {
     if (!contactsQuery.data || !selectedContact?.id) return;
 
     const freshSelected = contactsQuery.data.find((contact) => contact.id === selectedContact.id);
-
-    if (!freshSelected) {
-      if (draftChatContacts.some((contact) => contact.id === selectedContact.id)) return;
-      setSelectedContact(null);
-      return;
+    if (freshSelected) {
+      setSelectedContact((prev) => (prev ? mergeChatContactRecord(prev, freshSelected) : prev));
     }
-
-    setSelectedContact((prev) => (prev ? mergeChatContactRecord(prev, freshSelected) : prev));
-  }, [contactsQuery.data, draftChatContacts, selectedContact?.id]);
+  }, [contactsQuery.data, selectedContact?.id]);
 
   const selectedPhone = selectedContact?.phone_e164;
 
@@ -4563,7 +4613,7 @@ function ChatPage() {
                               : [...prev, c.id],
                           );
                         } else {
-                          setSelectedContact(c);
+                          handleSelectContact(c);
                           setReplyingTo(null);
                         }
                       }}
@@ -5081,21 +5131,25 @@ function ChatPage() {
           )}
         >
           {/* Coluna central de mensagens */}
-          <div className="flex-1 flex flex-col h-full min-w-0">
+          <div className="flex-1 flex flex-col h-full min-w-0 relative">
             {selectedContact ? (
               <>
                 {/* Header do Chat */}
-                <div className="px-4 py-3 border-b border-border bg-card flex items-center justify-between h-[72px] shrink-0">
-                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+                <div className="px-3 py-2.5 sm:px-4 sm:py-3 bg-card dark:bg-[#18161f] border border-border/80 dark:border-white/10 rounded-2xl mx-2.5 mt-2.5 mb-1 sm:mx-4 sm:mt-3 shadow-lg dark:shadow-2xl dark:shadow-black/60 flex items-center justify-between shrink-0 gap-2">
+                  {/* Informações do Contato à Esquerda */}
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    {/* Botão de Voltar (Mobile) */}
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="md:hidden h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
-                      onClick={() => setSelectedContact(null)}
+                      className="md:hidden h-8 w-8 -ml-1 text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
+                      onClick={() => handleCloseChat()}
+                      title="Voltar para a lista de conversas"
                     >
-                      <ArrowLeft className="h-5 w-5" />
+                      <ArrowLeft className="h-4 w-4" />
                     </Button>
 
+                    {/* Avatar */}
                     {(() => {
                       const avatarUrl = getContactAvatarUrl(selectedContact);
                       const avatarBg = getAvatarColor(selectedContact.name ?? "");
@@ -5104,7 +5158,7 @@ function ChatPage() {
                           type="button"
                           onClick={() => setContactInfoOpen((o) => !o)}
                           title="Ver dados do contato"
-                          className="h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-sm shrink-0 border-2 border-amber-400 hover:border-amber-300 transition-all duration-200 cursor-pointer shadow-sm"
+                          className="h-9 w-9 sm:h-10 sm:w-10 rounded-full overflow-hidden flex items-center justify-center text-white font-semibold text-xs md:text-sm shrink-0 border border-border/40 transition-all duration-200 cursor-pointer shadow-sm"
                           style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                         >
                           {avatarUrl ? (
@@ -5131,185 +5185,246 @@ function ChatPage() {
                       );
                     })()}
 
-                    <div className="flex flex-col min-w-0 flex-1">
+                    {/* Nome, Status e Tags */}
+                    <div className="flex flex-col min-w-0 flex-1 justify-center">
                       <div className="flex items-center gap-2 min-w-0">
-                        <h3 className="font-bold text-[15px] truncate text-foreground leading-tight">
-                          {selectedContact.name || "Sem Nome"}
+                        <h3
+                          onClick={() => setContactInfoOpen((o) => !o)}
+                          title={selectedContact.name || formatPhone(selectedContact.phone_e164 ?? "") || "Sem Nome"}
+                          className="font-bold text-sm sm:text-[15px] truncate text-foreground leading-none cursor-pointer hover:underline"
+                        >
+                          {selectedContact.name || formatPhone(selectedContact.phone_e164 ?? "") || "Sem Nome"}
                         </h3>
-                        {/* Render conversation tag pills/dots in header */}
-                        {(() => {
-                          const contactTags = cachedConvTags.filter(
-                            (conversationTag) =>
-                              conversationTag.contact_number === selectedContact.phone_e164,
-                          );
-                          if (contactTags.length === 0) return null;
-                          return (
-                            <div className="flex gap-1 shrink-0">
-                              {contactTags.map((ct) => (
-                                <TagBadge key={ct.tag_id} tag={ct.tags} />
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <span className="text-xs text-muted-foreground font-medium leading-normal truncate whitespace-nowrap">
-                        {formatPhone(selectedContact.phone_e164 ?? "")}
-                      </span>
-                    </div>
-                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* Status Badge Dropdown */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="h-8 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium border border-border bg-background hover:bg-accent text-foreground select-none cursor-pointer transition-colors shrink-0"
-                          >
-                            <span
+                        {/* Status em texto colorido com dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
                               className={cn(
-                                "h-2 w-2 rounded-full shrink-0",
+                                "text-xs font-semibold select-none cursor-pointer transition-opacity hover:opacity-80 shrink-0",
                                 selectedContact.chat_status === "fechado"
-                                  ? "bg-zinc-500"
+                                  ? "text-zinc-400"
                                   : selectedContact.chat_status === "aguardando"
-                                    ? "bg-amber-500"
-                                    : "bg-emerald-500",
+                                    ? "text-amber-500"
+                                    : "text-emerald-500",
                               )}
-                            />
-                            <span>
+                              title="Alterar status da conversa"
+                            >
                               {selectedContact.chat_status === "fechado"
                                 ? "Resolvida"
                                 : selectedContact.chat_status === "aguardando"
                                   ? "Pendente"
                                   : "Aberta"}
-                            </span>
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-[150px] bg-popover border-border text-popover-foreground"
-                        >
-                          <DropdownMenuItem
-                            onClick={() =>
-                              statusMutation.mutate({
-                                contactId: selectedContact.id,
-                                status: "aberto",
-                              })
-                            }
-                            className="flex items-center justify-between cursor-pointer"
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            className="w-[150px] bg-popover border-border text-popover-foreground"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                              <span>Aberta</span>
-                            </div>
-                            {selectedContact.chat_status === "aberto" && (
-                              <Check className="h-3.5 w-3.5 text-violet-500" />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              statusMutation.mutate({
-                                contactId: selectedContact.id,
-                                status: "aguardando",
-                              })
-                            }
-                            className="flex items-center justify-between cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                              <span>Pendente</span>
-                            </div>
-                            {selectedContact.chat_status === "aguardando" && (
-                              <Check className="h-3.5 w-3.5 text-violet-500" />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              statusMutation.mutate({
-                                contactId: selectedContact.id,
-                                status: "fechado",
-                              })
-                            }
-                            className="flex items-center justify-between cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
-                              <span>Resolvida</span>
-                            </div>
-                            {selectedContact.chat_status === "fechado" && (
-                              <Check className="h-3.5 w-3.5 text-violet-500" />
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-
-                      {/* Bot Toggle Button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const contactPhone = selectedContact.phone_e164 ?? "";
-                          const channel = selectedContact.channel ?? "whatsapp";
-                          if (!contactPhone) {
-                            toast.error(
-                              "Este contato não possui telefone válido para alterar o bot.",
-                            );
-                            return;
-                          }
-
-                          botActiveMutation.mutate({
-                            contactPhone,
-                            botActive: !isFlagEnabled(selectedContact.bot_active),
-                            channel,
-                          });
-                        }}
-                        className="h-8 w-8 rounded-full border border-border bg-background hover:bg-accent flex items-center justify-center transition-colors cursor-pointer text-muted-foreground hover:text-foreground relative shrink-0"
-                        title={
-                          selectedContact.bot_active
-                            ? "Desativar Inteligência / Chatbot"
-                            : "Ativar Inteligência / Chatbot"
-                        }
-                      >
-                        {isFlagEnabled(selectedContact.bot_active) ? (
-                          <Bot className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <div className="relative h-4 w-4 flex items-center justify-center">
-                            <Bot className="h-4 w-4 text-zinc-400 opacity-60" />
-                            <svg
-                              className="absolute inset-0 h-4 w-4 text-zinc-400 opacity-60"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
+                            <DropdownMenuItem
+                              onClick={() =>
+                                statusMutation.mutate({
+                                  contactId: selectedContact.id,
+                                  status: "aberto",
+                                })
+                              }
+                              className="flex items-center justify-between cursor-pointer"
                             >
-                              <line x1="4" y1="4" x2="20" y2="20" />
-                            </svg>
-                          </div>
-                        )}
-                      </button>
+                              <div className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                                <span>Aberta</span>
+                              </div>
+                              {selectedContact.chat_status === "aberto" && (
+                                <Check className="h-3.5 w-3.5 text-violet-500" />
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                statusMutation.mutate({
+                                  contactId: selectedContact.id,
+                                  status: "aguardando",
+                                })
+                              }
+                              className="flex items-center justify-between cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                                <span>Pendente</span>
+                              </div>
+                              {selectedContact.chat_status === "aguardando" && (
+                                <Check className="h-3.5 w-3.5 text-violet-500" />
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                statusMutation.mutate({
+                                  contactId: selectedContact.id,
+                                  status: "fechado",
+                                })
+                              }
+                              className="flex items-center justify-between cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
+                                <span>Resolvida</span>
+                              </div>
+                              {selectedContact.chat_status === "fechado" && (
+                                <Check className="h-3.5 w-3.5 text-violet-500" />
+                              )}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
 
-                      {/* Call Button */}
-                      {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
-                        <CallButton
-                          phoneId={profileQuery.data.whatsapp_phone_number_id}
-                          recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
-                          contactName={selectedContact.name ?? undefined}
-                          waId={(selectedContact.custom_fields as any)?.wa_id || selectedContact.external_contact_id || undefined}
-                        />
-                      )}
+                      {/* Linha 2: Tags ou Telefone */}
+                      <div className="flex items-center gap-1.5 text-xs text-violet-500 dark:text-violet-400 font-medium leading-none mt-1 truncate">
+                        {(() => {
+                          const contactTags = cachedConvTags.filter(
+                            (conversationTag) =>
+                              conversationTag.contact_number === selectedContact.phone_e164,
+                          );
+                          if (contactTags.length > 0) {
+                            return contactTags.map((ct) => (
+                              <span key={ct.tag_id} className="truncate">
+                                {ct.tags?.name}
+                              </span>
+                            ));
+                          }
+                          return (
+                            <span className="text-muted-foreground truncate">
+                              {formatPhone(selectedContact.phone_e164 ?? "")}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
 
-                      {/* Options Dropdown Menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-full cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground border-border bg-background shrink-0"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
+                  {/* Ações à Direita */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {/* Call Button */}
+                    {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
+                      <CallButton
+                        phoneId={profileQuery.data.whatsapp_phone_number_id}
+                        recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
+                        contactName={selectedContact.name ?? undefined}
+                        waId={(selectedContact.custom_fields as any)?.wa_id || selectedContact.external_contact_id || undefined}
+                      />
+                    )}
+
+                    {/* Options Dropdown Menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground shrink-0"
+                          title="Mais opções"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[220px]">
+                        {/* Status Submenu */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="cursor-pointer">
+                            <Activity className="mr-2.5 h-4 w-4 text-zinc-400" />
+                            <span>Status</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent className="w-[160px]">
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  statusMutation.mutate({
+                                    contactId: selectedContact.id,
+                                    status: "aberto",
+                                  })
+                                }
+                                className="cursor-pointer flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Activity className="h-3.5 w-3.5 text-emerald-500" />
+                                  <span>Aberto</span>
+                                </div>
+                                {selectedContact.chat_status === "aberto" && (
+                                  <Check className="h-3.5 w-3.5 text-primary" />
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  statusMutation.mutate({
+                                    contactId: selectedContact.id,
+                                    status: "aguardando",
+                                  })
+                                }
+                                className="cursor-pointer flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                  <span>Aguardando</span>
+                                </div>
+                                {selectedContact.chat_status === "aguardando" && (
+                                  <Check className="h-3.5 w-3.5 text-primary" />
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  statusMutation.mutate({
+                                    contactId: selectedContact.id,
+                                    status: "fechado",
+                                  })
+                                }
+                                className="cursor-pointer flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Check className="h-3.5 w-3.5 text-zinc-400" />
+                                  <span>Fechado</span>
+                                </div>
+                                {selectedContact.chat_status === "fechado" && (
+                                  <Check className="h-3.5 w-3.5 text-primary" />
+                                )}
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        {/* Bot Toggle */}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const contactPhone = selectedContact.phone_e164 ?? "";
+                            const channel = selectedContact.channel ?? "whatsapp";
+                            if (!contactPhone) {
+                              toast.error(
+                                "Este contato não possui telefone válido para alterar o bot.",
+                              );
+                              return;
+                            }
+
+                            botActiveMutation.mutate({
+                              contactPhone,
+                              botActive: !isFlagEnabled(selectedContact.bot_active),
+                              channel,
+                            });
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Bot className="mr-2.5 h-4 w-4 text-emerald-500" />
+                          <span>
+                            {isFlagEnabled(selectedContact.bot_active)
+                              ? "Pausar Robô / IA"
+                              : "Ativar Robô / IA"}
+                          </span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() => setContactInfoOpen((o) => !o)}
+                          className="cursor-pointer"
+                        >
+                          <Info className="mr-2.5 h-4 w-4 text-zinc-400" />
+                          <span>Ver Informações</span>
+                        </DropdownMenuItem>
+
                         <DropdownMenuItem
                           onClick={() => setIsQuickOpportunityOpen(true)}
                           className="cursor-pointer"
@@ -5478,7 +5593,7 @@ function ChatPage() {
                 )}
 
                 {/* Corpo / Lista de Balões */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 relative bg-muted/10">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 relative bg-transparent pb-36 md:pb-40">
                   {(() => {
                     let lastDateStr = "";
                     const formatDateSeparator = (
@@ -6604,16 +6719,16 @@ function ChatPage() {
                 </div>
 
                 {/* Caixa de Texto de Envio */}
-                <div className="bg-transparent flex flex-col px-6 pb-6 pt-2">
-                  <div className="bg-background border border-border/80 rounded-2xl shadow-md overflow-hidden flex flex-col">
+                <div className="absolute bottom-0 inset-x-0 z-10 pointer-events-none flex flex-col px-2.5 pb-2.5 pt-4 sm:px-4 sm:pb-4 md:px-6 md:pb-6 bg-gradient-to-t from-background/90 via-background/40 to-transparent">
+                  <div className="pointer-events-auto bg-card dark:bg-[#18161f] border border-border/80 dark:border-white/10 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 overflow-hidden flex flex-col transition-all duration-200 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
                     {/* Banner de Resposta */}
                     {replyingTo && (
-                      <div className="flex items-center justify-between bg-muted/60 px-4 py-2 border-b text-xs transition-all duration-300">
+                      <div className="flex items-center justify-between bg-muted/60 px-3.5 py-1.5 md:px-4 md:py-2 border-b border-border/40 text-xs transition-all duration-300">
                         <div className="flex-1 min-w-0 border-l-4 border-primary pl-2">
-                          <div className="font-semibold text-primary">
+                          <div className="font-semibold text-primary text-[11px] md:text-xs">
                             Respondendo a {replyingTo.direction === "incoming" ? "Contato" : "Você"}
                           </div>
-                          <div className="text-muted-foreground truncate font-mono">
+                          <div className="text-muted-foreground truncate font-mono text-[11px] md:text-xs">
                             {replyingTo.type === "image" ? "📷 Imagem" : replyingTo.body}
                           </div>
                         </div>
@@ -6623,166 +6738,216 @@ function ChatPage() {
                           className="h-6 w-6 shrink-0 rounded-full"
                           onClick={() => setReplyingTo(null)}
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3.5 w-3.5 md:h-4 md:w-4" />
                         </Button>
                       </div>
                     )}
 
-                    {/* Área do Input */}
-                    <div className="p-2.5">
-                      {isRecording ? (
-                        <div className="flex items-center justify-between p-1.5 pr-2 pl-3">
-                          <div className="flex items-center gap-2 text-destructive font-medium text-sm">
-                            <span className="h-2 w-2 rounded-full bg-destructive animate-ping shrink-0" />
-                            <span>Gravando: {formatTime(recordingSeconds)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
+                    {isRecording ? (
+                      <div className="flex items-center justify-between p-3 gap-2">
+                        <div className="flex items-center gap-2 text-destructive font-medium text-xs md:text-sm min-w-0 truncate">
+                          <span className="h-2 w-2 rounded-full bg-destructive animate-ping shrink-0" />
+                          <span className="hidden sm:inline">Gravando áudio: {formatTime(recordingSeconds)}</span>
+                          <span className="sm:hidden">Gravando: {formatTime(recordingSeconds)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            title="Cancelar gravação"
+                            onClick={handleCancelRecording}
+                            className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={handleStopRecording}
+                            className="h-8 px-3.5 rounded-xl bg-[#ff3366] hover:bg-[#e02453] text-white font-medium flex items-center gap-1.5 shadow-xs shrink-0 text-xs md:text-sm"
+                          >
+                            <span>Enviar Áudio</span>
+                            <Send className="h-3.5 w-3.5 text-white" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Linha Superior: Campo de Texto */}
+                        <div className="px-3.5 pt-3 pb-2 md:px-4 md:pt-3.5 md:pb-2.5">
+                          <Label className="sr-only">Mensagem</Label>
+                          <Textarea
+                            placeholder="Escreva sua mensagem aqui"
+                            className="min-h-[44px] max-h-[140px] w-full p-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm md:text-sm shadow-none font-sans leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                            rows={1}
+                            value={typedMessage}
+                            onChange={(e) => setTypedMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendText();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {/* Input de arquivo oculto para upload de mídia */}
+                        <input
+                          ref={mediaInputRef}
+                          type="file"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        />
+
+                        {/* Linha Divisória */}
+                        <div className="h-px bg-border/40 w-full" />
+
+                        {/* Linha Inferior: Barra de Ações (Ícones à esquerda, Botão Enviar à direita) */}
+                        <div className="flex items-center justify-between px-2.5 py-1.5 md:px-3 md:py-2">
+                          <div className="flex items-center gap-0.5 sm:gap-1">
+                            {/* Anexos */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  title="Anexar mídia"
+                                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                                >
+                                  <Paperclip className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="start"
+                                className="w-48 bg-card border border-border"
+                              >
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer text-xs"
+                                  onClick={() => handleMediaAttachClick("image")}
+                                >
+                                  <ImageIcon className="h-4 w-4 text-blue-500" />
+                                  <span>Imagem</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer text-xs"
+                                  onClick={() => handleMediaAttachClick("video")}
+                                >
+                                  <Video className="h-4 w-4 text-rose-500" />
+                                  <span>Vídeo</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer text-xs"
+                                  onClick={() => handleMediaAttachClick("audio")}
+                                >
+                                  <Volume2 className="h-4 w-4 text-emerald-500" />
+                                  <span>Áudio</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer text-xs"
+                                  onClick={() => handleMediaAttachClick("document")}
+                                >
+                                  <FileText className="h-4 w-4 text-amber-500" />
+                                  <span>Documento</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="gap-2 cursor-pointer text-xs"
+                                  onClick={() => handleMediaAttachClick("sticker")}
+                                >
+                                  <Smile className="h-4 w-4 text-indigo-500" />
+                                  <span>Figurinha</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* Link Preview */}
                             <Button
                               type="button"
                               size="icon"
                               variant="ghost"
-                              title="Cancelar gravação"
-                              onClick={handleCancelRecording}
-                              className="h-9 w-9 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0"
+                              title={
+                                previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"
+                              }
+                              onClick={() => setPreviewUrl(!previewUrl)}
+                              className={cn(
+                                "h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0",
+                                previewUrl && "text-primary bg-primary/10",
+                              )}
                             >
-                              <Trash2 className="h-5 w-5" />
+                              <LinkIcon className="h-4 w-4" />
                             </Button>
+
+                            {/* Emoji Popover */}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  title="Inserir emoji"
+                                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                                >
+                                  <Smile className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="start"
+                                className="w-64 p-2 bg-card border border-border shadow-lg"
+                              >
+                                <div className="text-[11px] font-medium text-muted-foreground px-1 pb-1 mb-1 border-b border-border/50">
+                                  Emojis rápidos
+                                </div>
+                                <div className="grid grid-cols-6 gap-1 text-base">
+                                  {["👍", "❤️", "😂", "👏", "🙏", "😊", "🔥", "🚀", "🎉", "✨", "🤝", "💡", "📞", "⏳", "🎯", "✅", "😍", "🥳"].map(
+                                    (emoji) => (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() => setTypedMessage((prev) => prev + emoji)}
+                                        className="h-8 w-8 flex items-center justify-center rounded hover:bg-muted transition-colors cursor-pointer text-base"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ),
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+
+                            {/* Gravação de Áudio */}
                             <Button
                               type="button"
-                              onClick={handleStopRecording}
-                              className="h-10 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] text-white font-medium flex items-center gap-2 shadow-sm shrink-0"
+                              size="icon"
+                              variant="ghost"
+                              title="Gravar áudio"
+                              onClick={handleStartRecording}
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
                             >
-                              <span>Enviar Áudio</span>
-                              <Send className="h-4 w-4 text-white shrink-0" />
+                              <Mic className="h-4 w-4" />
                             </Button>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 p-1.5 pr-2 pl-3">
-                          {/* Textarea */}
-                          <div className="flex-1">
-                            <Label className="sr-only">Mensagem</Label>
-                            <Textarea
-                              placeholder="Escreva sua mensagem aqui"
-                              className="min-h-[36px] max-h-[120px] py-1 px-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm shadow-none font-sans"
-                              rows={1}
-                              value={typedMessage}
-                              onChange={(e) => setTypedMessage(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handleSendText();
-                                }
-                              }}
-                            />
-                          </div>
 
-                          {/* Input de arquivo oculto para upload de mídia */}
-                          <input
-                            ref={mediaInputRef}
-                            type="file"
-                            className="hidden"
-                            onChange={handleFileChange}
-                          />
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                title="Anexar mídia"
-                                className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
-                              >
-                                <Paperclip className="h-5 w-5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              className="w-48 bg-card border border-border"
-                            >
-                              <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-xs"
-                                onClick={() => handleMediaAttachClick("image")}
-                              >
-                                <ImageIcon className="h-4 w-4 text-blue-500" />
-                                <span>Imagem</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-xs"
-                                onClick={() => handleMediaAttachClick("video")}
-                              >
-                                <Video className="h-4 w-4 text-rose-500" />
-                                <span>Vídeo</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-xs"
-                                onClick={() => handleMediaAttachClick("audio")}
-                              >
-                                <Volume2 className="h-4 w-4 text-emerald-500" />
-                                <span>Áudio</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-xs"
-                                onClick={() => handleMediaAttachClick("document")}
-                              >
-                                <FileText className="h-4 w-4 text-amber-500" />
-                                <span>Documento</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-xs"
-                                onClick={() => handleMediaAttachClick("sticker")}
-                              >
-                                <Smile className="h-4 w-4 text-indigo-500" />
-                                <span>Figurinha</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            title={
-                              previewUrl ? "Preview de link ATIVADO" : "Habilitar preview de link"
-                            }
-                            onClick={() => setPreviewUrl(!previewUrl)}
-                            className={cn(
-                              "h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0",
-                              previewUrl && "text-primary bg-primary/10",
-                            )}
-                          >
-                            <LinkIcon className="h-5 w-5" />
-                          </Button>
-
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            title="Gravar áudio"
-                            onClick={handleStartRecording}
-                            className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted shrink-0"
-                          >
-                            <Mic className="h-5 w-5" />
-                          </Button>
-
+                          {/* Botão Enviar */}
                           <Button
                             disabled={!typedMessage.trim() || sendMutation.isPending}
                             onClick={handleSendText}
-                            className="h-10 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-2 shadow-sm shrink-0"
+                            className="h-8 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-1.5 shadow-sm text-xs md:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {sendMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-white" />
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
+                                <span>Enviando...</span>
+                              </>
                             ) : (
                               <>
                                 <span>Enviar</span>
-                                <Send className="h-4 w-4 text-white shrink-0" />
+                                <Send className="h-3.5 w-3.5 text-white" />
                               </>
                             )}
                           </Button>
                         </div>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </>
@@ -8076,6 +8241,23 @@ function ChatPage() {
   );
 }
 
+interface ChatSearchParams {
+  contactId?: string;
+  phone?: string;
+}
+
 export const Route = createFileRoute("/_app/chat")({
+  validateSearch: (search: Record<string, unknown>): ChatSearchParams => {
+    return {
+      contactId:
+        typeof search.contactId === "string" && search.contactId.trim()
+          ? search.contactId.trim()
+          : undefined,
+      phone:
+        typeof search.phone === "string" && search.phone.trim()
+          ? search.phone.trim()
+          : undefined,
+    };
+  },
   component: ChatPage,
 });
