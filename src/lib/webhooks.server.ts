@@ -114,7 +114,10 @@ export async function logIncomingWebhookEvent(
 }
 
 export async function processWebhookPayloadAsync(
-  webhook: Pick<IncomingWebhookRow, "id" | "tenant_id" | "name">,
+  webhook: Pick<IncomingWebhookRow, "id" | "tenant_id" | "name"> & {
+    target_funnel_id?: string | null;
+    target_stage_id?: string | null;
+  },
   eventId: string,
   rawPayload: Record<string, unknown>,
 ): Promise<void> {

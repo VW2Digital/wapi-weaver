@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
+import db from "@/lib/db";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
@@ -72,11 +73,40 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           return new Response("Page ID missing", { status: 400 });
         }
 
-        const { data: account } = await dbAdmin
-          .from("instagram_accounts")
-          .select("tenant_id, user_id, page_id, instagram_business_account_id, access_token")
-          .or(`page_id.eq.${pageId},instagram_business_account_id.eq.${pageId}`)
-          .maybeSingle();
+        const accounts = (await db.query(
+          `SELECT tenant_id, user_id, page_id, instagram_business_account_id, access_token
+           FROM instagram_accounts
+           WHERE page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?
+           LIMIT 1`,
+          [pageId, pageId, pageId],
+        )) as Array<{
+          tenant_id: string;
+          user_id: string;
+          page_id: string;
+          instagram_business_account_id: string;
+          access_token: string;
+        }>;
+
+        let account = accounts?.[0] ?? null;
+
+        if (!account) {
+          // Fallback if there is an active instagram account
+          const fallback = (await db.query(
+            `SELECT tenant_id, user_id, page_id, instagram_business_account_id, access_token
+             FROM instagram_accounts
+             WHERE is_active = 1
+             LIMIT 1`,
+          )) as Array<{
+            tenant_id: string;
+            user_id: string;
+            page_id: string;
+            instagram_business_account_id: string;
+            access_token: string;
+          }>;
+          if (fallback?.[0]) {
+            account = fallback[0];
+          }
+        }
 
         if (!account) {
           logError(`Nenhuma conta conectada localizada para page_id / ig_account_id: ${pageId}`);
@@ -94,7 +124,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
         // Idempotency: verify by message ID (mid)
         const firstMsg = payload?.entry?.[0]?.messaging?.[0]?.message;
-        const mid = firstMsg?.mid || payload?.entry?.[0]?.messaging?.[0]?.reaction?.mid;
+        const mid = firstMsg?.mid || payload?.entry?.[0]?.messaging?.[0]?.reaction?.mid || payload?.entry?.[0]?.messaging?.[0]?.message_edit?.mid;
         
         if (mid) {
           const { data: existingDm } = await dbAdmin
@@ -104,7 +134,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
             .eq("channel", "instagram")
             .eq("provider_message_id", mid)
             .maybeSingle();
-          if (existingDm) {
+          if (existingDm && !payload?.entry?.[0]?.messaging?.[0]?.message_edit) {
             logInfo("Evento duplicado ignorado (mid já processado)", { mid });
             return new Response("EVENT_RECEIVED", { status: 200 });
           }
@@ -113,6 +143,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
         let eventType = "unknown";
         if (firstMsg) eventType = "message";
         else if (payload?.entry?.[0]?.messaging?.[0]?.reaction) eventType = "reaction";
+        else if (payload?.entry?.[0]?.messaging?.[0]?.message_edit) eventType = "message_edit";
         
         const senderId = payload?.entry?.[0]?.messaging?.[0]?.sender?.id;
         const recipientId = payload?.entry?.[0]?.messaging?.[0]?.recipient?.id;
@@ -147,6 +178,55 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   
                   if (!senderId) continue;
 
+                  // Tratar Echo (mensagens enviadas pelo próprio perfil/bot para o cliente)
+                  if (item.message?.is_echo) {
+                    const clientContactId = recipientId;
+                    const phonePlaceholder = `ig_${clientContactId}`;
+
+                    await dbAdmin
+                      .from("contacts")
+                      .upsert(
+                        {
+                          tenant_id: account.tenant_id || account.user_id,
+                          user_id: account.user_id,
+                          phone_e164: phonePlaceholder,
+                          name: `Instagram (${clientContactId})`,
+                          channel: "instagram",
+                          external_contact_id: clientContactId,
+                          source: "instagram",
+                        },
+                        { onConflict: "user_id,channel,external_contact_id" },
+                      );
+
+                    const { data: storedEcho } = await dbAdmin.from("direct_messages").upsert(
+                      {
+                        tenant_id: account.tenant_id || account.user_id,
+                        user_id: account.user_id,
+                        contact_phone: phonePlaceholder,
+                        direction: "outgoing",
+                        type: "text",
+                        body: item.message.text || "",
+                        channel: "instagram",
+                        provider_message_id: item.message.mid,
+                        wa_message_id: item.message.mid,
+                        provider_account_id: senderId,
+                        status: "delivered",
+                        metadata: { raw: item },
+                      },
+                      { onConflict: "user_id,channel,provider_message_id" },
+                    ).select("id").single();
+
+                    await publishChatRealtimeEvent({
+                      type: "message.sent",
+                      tenant_id: account.user_id,
+                      contact_phone: phonePlaceholder,
+                      message_id: storedEcho?.id || null,
+                      provider_message_id: item.message.mid || null,
+                      status: "delivered",
+                    });
+                    continue;
+                  }
+
                   const phonePlaceholder = `ig_${senderId}`;
                   const name = `Instagram (${item.sender?.name || senderId})`;
 
@@ -155,12 +235,14 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                     .from("contacts")
                     .upsert(
                       {
+                        tenant_id: account.tenant_id || account.user_id,
                         user_id: account.user_id,
                         phone_e164: phonePlaceholder,
                         name: name,
                         channel: "instagram",
                         external_contact_id: senderId,
                         source: "instagram",
+                        is_unread: true,
                       },
                       { onConflict: "user_id,channel,external_contact_id" },
                     )
@@ -169,12 +251,6 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                   if (item.message) {
                     const message = item.message;
-                    
-                    if (message.is_echo) {
-                      // Process Echo (bot/agent sending message)
-                      // Could update outbox, but normally handled differently. Ignore for now.
-                      continue; 
-                    }
 
                     let messageType = "text";
                     let messageBody = message.text || "";
@@ -209,6 +285,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                         body: messageBody,
                         channel: "instagram",
                         provider_message_id: message.mid,
+                        wa_message_id: message.mid,
                         provider_account_id: recipientId,
                         status: "delivered",
                         metadata: { 
@@ -228,7 +305,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                       status: "delivered",
                     });
                     
-                    // Mark as seen automatically (optional based on setting, but good practice for bot)
+                    // Mark as seen automatically
                     await markInstagramMessageSeen(pageId, account.access_token, senderId, message.mid);
 
                     await processBotFlow(

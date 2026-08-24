@@ -1,4 +1,8 @@
-import { logger } from "./utils"; // or a simple console wrapper if logger doesn't exist
+const logger = {
+  info: (msg: string, ...args: any[]) => console.log(`[instagram] ${msg}`, ...args),
+  error: (msg: string, ...args: any[]) => console.error(`[instagram] ${msg}`, ...args),
+  warn: (msg: string, ...args: any[]) => console.warn(`[instagram] ${msg}`, ...args),
+};
 
 export interface InstagramSendParams {
   igUserId: string;

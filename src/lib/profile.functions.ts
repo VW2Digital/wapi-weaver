@@ -2405,11 +2405,23 @@ export const testInstagramConnection = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiVersion = data.meta_graph_version || "v26.0";
     const version = apiVersion.startsWith("v") ? apiVersion : `v${apiVersion}`;
-    const url = `https://graph.facebook.com/${version}/${encodeURIComponent(data.instagram_business_account_id)}?fields=id,username,name&access_token=${encodeURIComponent(data.access_token)}`;
+    const targetId = encodeURIComponent(data.instagram_business_account_id);
+    const url = `https://graph.facebook.com/${version}/${targetId}?fields=id,username,name&access_token=${encodeURIComponent(data.access_token)}`;
 
     try {
-      const res = await fetch(url);
-      const body = await res.json();
+      let res = await fetch(url);
+      let body = await res.json();
+
+      if (!res.ok && body?.error?.message?.includes("username")) {
+        // Fallback for Page/User nodes that only support id,name
+        const fallbackUrl = `https://graph.facebook.com/${version}/${targetId}?fields=id,name&access_token=${encodeURIComponent(data.access_token)}`;
+        const fallbackRes = await fetch(fallbackUrl);
+        if (fallbackRes.ok) {
+          res = fallbackRes;
+          body = await fallbackRes.json();
+        }
+      }
+
       if (!res.ok) {
         return {
           ok: false,

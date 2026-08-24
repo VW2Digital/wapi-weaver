@@ -77,6 +77,11 @@ async function ensureRuntimeSchemaAlignment(connection) {
   await ensureColumnExists(connection, "instagram_webhook_events", "tenant_id", "VARCHAR(36) NULL");
 
   try {
+    await connection.query("ALTER TABLE instagram_accounts MODIFY COLUMN username VARCHAR(255) NULL");
+    await connection.query("ALTER TABLE instagram_accounts MODIFY COLUMN ig_user_id VARCHAR(100) NULL");
+  } catch (_) {}
+
+  try {
     await connection.query("UPDATE lists SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
     await connection.query("UPDATE tags SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
     await connection.query("UPDATE list_contacts SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");

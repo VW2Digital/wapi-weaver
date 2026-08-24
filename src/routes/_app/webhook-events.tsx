@@ -134,6 +134,66 @@ function summarize(raw: any): Summary[] {
       }
     }
   }
+
+  // Suporte a eventos do Instagram / Facebook Messenger (entry[].messaging)
+  if (raw?.object === "instagram" || raw?.object === "page" || entries.some((e: any) => e.messaging)) {
+    for (const entry of entries) {
+      for (const item of entry.messaging ?? []) {
+        const sender = item.sender?.id ?? "—";
+        if (item.message) {
+          const text = item.message.text ?? "(mídia/anexo)";
+          out.push({
+            kind: "inbound",
+            title: `Instagram Direct de ${sender}`,
+            description: text.toString().slice(0, 120),
+            status: "info",
+            icon: Inbox,
+          });
+        } else if (item.message_edit) {
+          out.push({
+            kind: "other",
+            title: `Instagram — Edição de Mensagem (${sender})`,
+            description: `MID: ${item.message_edit.mid ? item.message_edit.mid.slice(0, 32) + "..." : "Atualizado"}`,
+            status: "info",
+            icon: MessageSquare,
+          });
+        } else if (item.reaction) {
+          out.push({
+            kind: "other",
+            title: `Instagram — Reação de ${sender}`,
+            description: item.reaction.emoji ? `Emoji: ${item.reaction.emoji}` : "Reação atualizada",
+            status: "info",
+            icon: Activity,
+          });
+        } else if (item.read) {
+          out.push({
+            kind: "message_status",
+            title: `Instagram — Mensagem Lida`,
+            description: `Leitor: ${sender}`,
+            status: "read",
+            icon: MessageSquare,
+          });
+        } else if (item.delivery) {
+          out.push({
+            kind: "message_status",
+            title: `Instagram — Mensagem Entregue`,
+            description: `Destinatário: ${sender}`,
+            status: "delivered",
+            icon: MessageSquare,
+          });
+        } else {
+          out.push({
+            kind: "other",
+            title: `Instagram — Evento de Mensageria`,
+            description: `Sender: ${sender}`,
+            status: "info",
+            icon: Activity,
+          });
+        }
+      }
+    }
+  }
+
   if (out.length === 0) {
     out.push({
       kind: "other",
