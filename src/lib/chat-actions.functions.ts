@@ -115,9 +115,10 @@ export const updateChatStatus = createServerFn({ method: "POST" })
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
       const normalizedStatus = normalizeChatStatusValue(data.status);
 
-      await db.query("UPDATE contacts SET chat_status = ? WHERE id = ? AND user_id = ?", [
+      await db.query("UPDATE contacts SET chat_status = ? WHERE id = ? AND (user_id = ? OR tenant_id = ?)", [
         normalizedStatus,
         data.contactId,
+        effectiveUserId,
         effectiveUserId,
       ]);
 

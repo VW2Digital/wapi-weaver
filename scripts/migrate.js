@@ -66,10 +66,23 @@ async function ensureRuntimeSchemaAlignment(connection) {
   await ensureColumnExists(connection, "incoming_webhooks", "target_funnel_id", "VARCHAR(36) NULL");
   await ensureColumnExists(connection, "incoming_webhooks", "target_stage_id", "VARCHAR(36) NULL");
 
+  await ensureColumnExists(connection, "instagram_accounts", "tenant_id", "VARCHAR(36) NOT NULL DEFAULT ''");
+  await ensureColumnExists(connection, "instagram_accounts", "page_id", "VARCHAR(100) NULL");
+  await ensureColumnExists(connection, "instagram_accounts", "instagram_business_account_id", "VARCHAR(100) NULL");
+  await ensureColumnExists(connection, "instagram_accounts", "page_name", "VARCHAR(255) NULL");
+  await ensureColumnExists(connection, "instagram_accounts", "instagram_username", "VARCHAR(255) NULL");
+  await ensureColumnExists(connection, "instagram_accounts", "is_active", "TINYINT(1) NOT NULL DEFAULT 1");
+  await ensureColumnExists(connection, "instagram_accounts", "webhook_subscribed", "TINYINT(1) NOT NULL DEFAULT 0");
+
+  await ensureColumnExists(connection, "instagram_webhook_events", "tenant_id", "VARCHAR(36) NULL");
+
   try {
     await connection.query("UPDATE lists SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
     await connection.query("UPDATE tags SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
     await connection.query("UPDATE list_contacts SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
+    await connection.query("UPDATE instagram_accounts SET tenant_id = user_id WHERE (tenant_id IS NULL OR tenant_id = '') AND user_id IS NOT NULL");
+    await connection.query("UPDATE instagram_accounts SET instagram_business_account_id = ig_user_id WHERE (instagram_business_account_id IS NULL OR instagram_business_account_id = '') AND ig_user_id IS NOT NULL");
+    await connection.query("UPDATE instagram_accounts SET instagram_username = username WHERE (instagram_username IS NULL OR instagram_username = '') AND username IS NOT NULL");
   } catch (err) {
     // Ignorar falhas silenciosas de backfill se tabelas não existirem
   }
@@ -131,6 +144,9 @@ async function runMigrations() {
       console.log("[Migrate] No database/migrations directory found. Skipping.");
       process.exit(0);
     }
+
+    // Alinhamento condicional de colunas via information_schema (executado antes das migrations para paridade)
+    await ensureRuntimeSchemaAlignment(connection);
 
     const files = fs
       .readdirSync(migrationsDir)

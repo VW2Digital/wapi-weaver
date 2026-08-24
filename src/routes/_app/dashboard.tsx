@@ -214,10 +214,14 @@ function Dashboard() {
     { sent: 0, delivered: 0, read: 0, failed: 0, completed: 0 },
   );
 
-  const deliverRate = totals.completed
-    ? Math.round((totals.delivered / totals.completed) * 100)
+  const successfulCampaignDeliveries = totals.delivered > 0 ? totals.delivered : (totals.sent > 0 ? totals.sent : 0);
+  const totalCompletedCampaigns = totals.completed > 0 ? totals.completed : (totals.sent + totals.failed);
+  const deliverRate = totalCompletedCampaigns > 0
+    ? Math.round((successfulCampaignDeliveries / totalCompletedCampaigns) * 100)
+    : (s.data?.delivered.current && s.data.delivered.current > 0 ? 100 : 0);
+  const readRate = successfulCampaignDeliveries > 0
+    ? Math.round((totals.read / successfulCampaignDeliveries) * 100)
     : 0;
-  const readRate = totals.delivered ? Math.round((totals.read / totals.delivered) * 100) : 0;
 
   const notifications = useMemo(() => {
     const list: {
@@ -398,20 +402,58 @@ function Dashboard() {
     },
   ];
 
+  const contactStatusCounts = useMemo(() => {
+    const list = searchQuery.trim() ? filteredContacts : contactsQuery.data;
+    if (!list) return null;
+    let aberto = 0;
+    let aguardando = 0;
+    let fechado = 0;
+    for (const contact of list) {
+      const st = String(contact.chat_status || "aberto").toLowerCase();
+      if (st === "aguardando" || st === "pendente") {
+        aguardando++;
+      } else if (st === "fechado") {
+        fechado++;
+      } else {
+        aberto++;
+      }
+    }
+    return { aberto, aguardando, fechado };
+  }, [contactsQuery.data, filteredContacts, searchQuery]);
+
+  const emConversaCount = contactStatusCounts ? contactStatusCounts.aberto : (s.data?.chatMetrics?.emConversa ?? 0);
+  const aguardandoCount = contactStatusCounts ? contactStatusCounts.aguardando : (s.data?.chatMetrics?.aguardando ?? 0);
+  const finalizadosCount = contactStatusCounts ? contactStatusCounts.fechado : (s.data?.chatMetrics?.finalizados ?? 0);
+
+  const novosContatosCount = useMemo(() => {
+    const list = searchQuery.trim() ? filteredContacts : contactsQuery.data;
+    if (list) {
+      const now = Date.now();
+      const ms = selectedPeriod === "today"
+        ? 24 * 60 * 60 * 1000
+        : selectedPeriod === "30d"
+          ? 30 * 24 * 60 * 60 * 1000
+          : 7 * 24 * 60 * 60 * 1000;
+      const cutoff = now - ms;
+      return list.filter((c: any) => c.created_at && new Date(c.created_at).getTime() >= cutoff).length;
+    }
+    return s.data?.chatMetrics?.novosContatos ?? 0;
+  }, [contactsQuery.data, filteredContacts, searchQuery, selectedPeriod, s.data]);
+
   const chatMetrics = s.data?.chatMetrics || {
-    emConversa: 0,
-    aguardando: 0,
-    finalizados: 0,
-    novosContatos: 0,
+    emConversa: emConversaCount,
+    aguardando: aguardandoCount,
+    finalizados: finalizadosCount,
+    novosContatos: novosContatosCount,
     tmConversa: "00h 00m",
     tmEspera: "00h 00m",
   };
 
   const chatStats = [
-    { label: "Em Conversa", value: chatMetrics.emConversa, icon: MessageCircle },
-    { label: "Aguardando", value: chatMetrics.aguardando, icon: Clock },
-    { label: "Finalizados", value: chatMetrics.finalizados, icon: CheckCheck },
-    { label: "Novos Contatos", value: chatMetrics.novosContatos, icon: UserPlus },
+    { label: "Em Conversa", value: emConversaCount, icon: MessageCircle },
+    { label: "Aguardando", value: aguardandoCount, icon: Clock },
+    { label: "Finalizados", value: finalizadosCount, icon: CheckCheck },
+    { label: "Novos Contatos", value: novosContatosCount, icon: UserPlus },
     { label: "T.M. de Conversa", value: chatMetrics.tmConversa, icon: Activity },
     { label: "T.M. de Espera", value: chatMetrics.tmEspera, icon: Timer },
   ];
@@ -548,7 +590,7 @@ function Dashboard() {
                   {s.isPending && contactsQuery.isPending ? (
                     <Skeleton className="h-10 w-24 bg-white/20" />
                   ) : (
-                    ((contactsQuery.data && contactsQuery.data.length > 0) ? contactsQuery.data.length : (s.data?.contacts.current ?? 0)).toLocaleString("pt-BR")
+                    ((contactsQuery.data && contactsQuery.data.length > 0) ? (searchQuery.trim() ? filteredContacts.length : contactsQuery.data.length) : (s.data?.contacts.current ?? 0)).toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>
@@ -559,10 +601,10 @@ function Dashboard() {
                   AGUARDANDO
                 </span>
                 <span className="font-display text-2xl font-bold text-foreground mt-1">
-                  {s.isPending ? (
+                  {s.isPending && contactsQuery.isPending ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
-                    s.data?.chatMetrics?.aguardando ?? 0
+                    aguardandoCount.toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>
@@ -584,16 +626,20 @@ function Dashboard() {
                 </span>
               </Card>
 
-              {/* ENTREGAS (7D) */}
+              {/* ENTREGAS */}
               <Card className="flex-1 p-4 rounded-2xl border bg-card shadow-xs flex flex-col justify-between min-h-[75px]">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  ENTREGAS (7D)
+                  {selectedPeriod === "today" ? "ENTREGAS (HOJE)" : selectedPeriod === "30d" ? "ENTREGAS (30D)" : "ENTREGAS (7D)"}
                 </span>
                 <span className="font-display text-2xl font-bold text-foreground mt-1">
                   {s.isPending ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
-                    s.data?.delivered.current ?? totals.delivered
+                    (s.data?.delivered.current ?? 0) > 0
+                      ? (s.data?.delivered.current ?? 0).toLocaleString("pt-BR")
+                      : totals.delivered > 0
+                        ? totals.delivered.toLocaleString("pt-BR")
+                        : totals.sent.toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>
@@ -604,10 +650,10 @@ function Dashboard() {
                   FINALIZADOS
                 </span>
                 <span className="font-display text-2xl font-bold text-foreground mt-1">
-                  {s.isPending ? (
+                  {s.isPending && contactsQuery.isPending ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
-                    s.data?.chatMetrics?.finalizados ?? 0
+                    finalizadosCount.toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>
@@ -624,7 +670,7 @@ function Dashboard() {
                   {c.isPending ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
-                    c.data?.length ?? s.data?.campaigns.current ?? 0
+                    (searchQuery.trim() ? filteredCampaigns.length : (c.data?.length ?? s.data?.campaigns.current ?? 0)).toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>
@@ -635,10 +681,10 @@ function Dashboard() {
                   EM CONVERSA
                 </span>
                 <span className="font-display text-2xl font-bold text-foreground mt-1">
-                  {s.isPending ? (
+                  {s.isPending && contactsQuery.isPending ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
-                    s.data?.chatMetrics?.emConversa ?? 0
+                    emConversaCount.toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>
@@ -649,10 +695,10 @@ function Dashboard() {
                   NOVOS CONTATOS
                 </span>
                 <span className="font-display text-2xl font-bold text-foreground mt-1">
-                  {s.isPending ? (
+                  {s.isPending && contactsQuery.isPending ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
-                    s.data?.chatMetrics?.novosContatos ?? 0
+                    novosContatosCount.toLocaleString("pt-BR")
                   )}
                 </span>
               </Card>

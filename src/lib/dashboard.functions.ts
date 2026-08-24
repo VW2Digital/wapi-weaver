@@ -1,7 +1,7 @@
 "use server";
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
-import { resolveEffectiveUserId } from "./chat-helpers";
+import { getTenantFilter } from "./chat-helpers";
 import db from "./db";
 
 function toMySqlDatetime(d: Date | string): string {
@@ -12,63 +12,110 @@ function toMySqlDatetime(d: Date | string): string {
 }
 
 async function countBefore(
-  userId: string,
+  filter: { isMaster: boolean; effectiveTenantId: string },
   table: string,
   cutoff: Date | string,
   column = "created_at",
 ): Promise<number> {
   const cutoffSql = toMySqlDatetime(cutoff);
+  const whereTenant = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const params = filter.isMaster ? [cutoffSql] : [filter.effectiveTenantId, filter.effectiveTenantId, cutoffSql];
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE user_id = ? AND (${column} <= ? OR ${column} IS NULL)`,
-    [userId, cutoffSql],
+    `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE ${whereTenant} AND (${column} <= ? OR ${column} IS NULL)`,
+    params,
   )) as any[];
   return Number(rows?.[0]?.cnt || 0);
 }
 
-async function countActiveSessionsByStatus(userId: string, status: string): Promise<number> {
-  const aliases = status === "aguardando" ? ["aguardando", "pendente"] : [status];
-  const placeholders = aliases.map(() => "?").join(", ");
+async function countChatStatus(
+  filter: { isMaster: boolean; effectiveTenantId: string },
+  status: "aguardando" | "aberto" | "fechado",
+): Promise<number> {
+  const whereContacts = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const whereSessions = filter.isMaster ? "1=1" : "(cs.user_id = ? OR cs.tenant_id = ?)";
+  const paramsContacts = filter.isMaster ? [] : [filter.effectiveTenantId, filter.effectiveTenantId];
+  const paramsSessions = filter.isMaster ? [] : [filter.effectiveTenantId, filter.effectiveTenantId];
+
+  if (status === "aguardando") {
+    const rows: any[] = (await db.query(
+      `SELECT (
+         (SELECT COUNT(*) FROM contacts WHERE ${whereContacts} AND chat_status IN ('aguardando', 'pendente'))
+         +
+         (SELECT COUNT(*) FROM chat_sessions cs WHERE ${whereSessions} AND cs.status IN ('aguardando', 'pendente') AND cs.closed_at IS NULL AND NOT EXISTS (SELECT 1 FROM contacts c WHERE c.id = cs.contact_id AND c.chat_status IN ('aguardando', 'pendente')))
+       ) AS cnt`,
+      [...paramsContacts, ...paramsSessions],
+    )) as any[];
+    return Number(rows?.[0]?.cnt || 0);
+  }
+  if (status === "aberto") {
+    const rows: any[] = (await db.query(
+      `SELECT (
+         (SELECT COUNT(*) FROM contacts WHERE ${whereContacts} AND (chat_status = 'aberto' OR chat_status IS NULL OR chat_status = ''))
+         +
+         (SELECT COUNT(*) FROM chat_sessions cs WHERE ${whereSessions} AND cs.status = 'aberto' AND cs.closed_at IS NULL AND NOT EXISTS (SELECT 1 FROM contacts c WHERE c.id = cs.contact_id AND (c.chat_status = 'aberto' OR c.chat_status IS NULL OR c.chat_status = '')))
+       ) AS cnt`,
+      [...paramsContacts, ...paramsSessions],
+    )) as any[];
+    return Number(rows?.[0]?.cnt || 0);
+  }
+  // fechado
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt
-     FROM chat_sessions
-     WHERE user_id = ? AND status IN (${placeholders}) AND closed_at IS NULL`,
-    [userId, ...aliases],
+    `SELECT (
+       (SELECT COUNT(*) FROM contacts WHERE ${whereContacts} AND chat_status = 'fechado')
+       +
+       (SELECT COUNT(*) FROM chat_sessions cs WHERE ${whereSessions} AND cs.status = 'fechado' AND NOT EXISTS (SELECT 1 FROM contacts c WHERE c.id = cs.contact_id AND c.chat_status = 'fechado'))
+     ) AS cnt`,
+    [...paramsContacts, ...paramsSessions],
   )) as any[];
-  return (rows?.[0]?.cnt as number) ?? 0;
+  return Number(rows?.[0]?.cnt || 0);
 }
 
-async function countClosedSessionsToday(userId: string, isoDate: string): Promise<number> {
+async function countContactsCreatedBetween(
+  filter: { isMaster: boolean; effectiveTenantId: string },
+  startIso: string,
+  endIso: string,
+): Promise<number> {
+  const startSql = toMySqlDatetime(startIso);
+  const endSql = toMySqlDatetime(endIso);
+  const whereTenant = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const params = filter.isMaster
+    ? [startSql, endSql]
+    : [filter.effectiveTenantId, filter.effectiveTenantId, startSql, endSql];
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM chat_sessions WHERE user_id = ? AND status = 'fechado' AND closed_at >= ?`,
-    [userId, isoDate],
+    `SELECT COUNT(*) AS cnt FROM contacts WHERE ${whereTenant} AND created_at >= ? AND created_at <= ?`,
+    params,
   )) as any[];
-  return (rows?.[0]?.cnt as number) ?? 0;
+  return Number(rows?.[0]?.cnt || 0);
 }
 
-async function countContactsCreatedSince(userId: string, isoDate: string): Promise<number> {
-  const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM \`contacts\` WHERE user_id = ? AND created_at >= ?`,
-    [userId, isoDate],
-  )) as any[];
-  return (rows?.[0]?.cnt as number) ?? 0;
-}
-
-async function getAverageWaitTime(userId: string, startIso: string): Promise<number> {
+async function getAverageWaitTime(
+  filter: { isMaster: boolean; effectiveTenantId: string },
+  startIso: string,
+): Promise<number> {
+  const startSql = toMySqlDatetime(startIso);
+  const whereTenant = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const params = filter.isMaster ? [startSql] : [filter.effectiveTenantId, filter.effectiveTenantId, startSql];
   const rows: any[] = (await db.query(
     `SELECT AVG(TIMESTAMPDIFF(SECOND, started_at, answered_at)) AS avg_wait 
      FROM chat_sessions 
-     WHERE user_id = ? AND started_at >= ? AND answered_at IS NOT NULL`,
-    [userId, startIso],
+     WHERE ${whereTenant} AND started_at >= ? AND answered_at IS NOT NULL`,
+    params,
   )) as any[];
   return Math.round(Number(rows?.[0]?.avg_wait || 0));
 }
 
-async function getAverageConversationTime(userId: string, startIso: string): Promise<number> {
+async function getAverageConversationTime(
+  filter: { isMaster: boolean; effectiveTenantId: string },
+  startIso: string,
+): Promise<number> {
+  const startSql = toMySqlDatetime(startIso);
+  const whereTenant = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const params = filter.isMaster ? [startSql] : [filter.effectiveTenantId, filter.effectiveTenantId, startSql];
   const rows: any[] = (await db.query(
     `SELECT AVG(TIMESTAMPDIFF(SECOND, answered_at, closed_at)) AS avg_conv 
      FROM chat_sessions 
-     WHERE user_id = ? AND started_at >= ? AND closed_at IS NOT NULL AND answered_at IS NOT NULL`,
-    [userId, startIso],
+     WHERE ${whereTenant} AND started_at >= ? AND closed_at IS NOT NULL AND answered_at IS NOT NULL`,
+    params,
   )) as any[];
   return Math.round(Number(rows?.[0]?.avg_conv || 0));
 }
@@ -81,30 +128,60 @@ function formatDuration(seconds: number): string {
 }
 
 async function countDeliveredBetween(
-  userId: string,
+  filter: { isMaster: boolean; effectiveTenantId: string },
   startIso: string,
   endIso: string,
 ): Promise<number> {
+  const startSql = toMySqlDatetime(startIso);
+  const endSql = toMySqlDatetime(endIso);
+  const whereCamp = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const whereDm = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const paramsCamp = filter.isMaster
+    ? [startSql, endSql, startSql, endSql, startSql, endSql]
+    : [filter.effectiveTenantId, filter.effectiveTenantId, startSql, endSql, startSql, endSql, startSql, endSql];
+  const paramsDm = filter.isMaster
+    ? [startSql, endSql]
+    : [filter.effectiveTenantId, filter.effectiveTenantId, startSql, endSql];
+
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM campaign_messages WHERE user_id = ? AND delivered_at >= ? AND delivered_at < ?`,
-    [userId, startIso, endIso],
+    `SELECT (
+       (SELECT COUNT(*) FROM campaign_messages 
+        WHERE ${whereCamp} 
+          AND status IN ('sent', 'delivered', 'read') 
+          AND (
+            (delivered_at >= ? AND delivered_at <= ?) 
+            OR (delivered_at IS NULL AND sent_at >= ? AND sent_at <= ?)
+            OR (delivered_at IS NULL AND sent_at IS NULL AND created_at >= ? AND created_at <= ?)
+          )
+       )
+       +
+       (SELECT COUNT(*) FROM direct_messages 
+        WHERE ${whereDm} 
+          AND direction = 'outgoing' 
+          AND status IN ('sent', 'delivered', 'read') 
+          AND created_at >= ? AND created_at <= ?
+       )
+     ) AS cnt`,
+    [...paramsCamp, ...paramsDm],
   )) as any[];
-  return (rows?.[0]?.cnt as number) ?? 0;
+  return Number(rows?.[0]?.cnt || 0);
 }
 
-async function countUnreadContacts(userId: string): Promise<number> {
+async function countUnreadContacts(filter: { isMaster: boolean; effectiveTenantId: string }): Promise<number> {
+  const whereTenant = filter.isMaster ? "1=1" : "(user_id = ? OR tenant_id = ?)";
+  const params = filter.isMaster ? [] : [filter.effectiveTenantId, filter.effectiveTenantId];
   const rows: any[] = (await db.query(
-    `SELECT COUNT(*) AS cnt FROM contacts WHERE user_id = ? AND is_unread = true`,
-    [userId],
+    `SELECT COUNT(*) AS cnt FROM contacts WHERE ${whereTenant} AND is_unread = true`,
+    params,
   )) as any[];
-  return (rows?.[0]?.cnt as number) ?? 0;
+  return Number(rows?.[0]?.cnt || 0);
 }
 
 export const getDashboardStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((data?: { period?: "today" | "7d" | "30d" }) => data)
   .handler(async ({ context, data }) => {
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const filter = await getTenantFilter(context.userId);
     const period = data?.period || "7d";
     const now = new Date();
 
@@ -142,26 +219,26 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       chatAberto,
       chatAguardando,
       chatFechado,
-      novosContatosHoje,
+      novosContatos,
       avgWaitSec,
       avgConversationSec,
       unreadChats,
     ] = await Promise.all([
-      countBefore(effectiveUserId, "contacts", now.toISOString()),
-      countBefore(effectiveUserId, "contacts", currentStart.toISOString()),
-      countBefore(effectiveUserId, "templates", now.toISOString()),
-      countBefore(effectiveUserId, "templates", currentStart.toISOString()),
-      countBefore(effectiveUserId, "campaigns", now.toISOString()),
-      countBefore(effectiveUserId, "campaigns", currentStart.toISOString()),
-      countDeliveredBetween(effectiveUserId, currentStart.toISOString(), now.toISOString()),
-      countDeliveredBetween(effectiveUserId, previousStart.toISOString(), previousEnd.toISOString()),
-      countActiveSessionsByStatus(effectiveUserId, "aberto"),
-      countActiveSessionsByStatus(effectiveUserId, "aguardando"),
-      countClosedSessionsToday(effectiveUserId, startOfToday.toISOString()),
-      countContactsCreatedSince(effectiveUserId, startOfToday.toISOString()),
-      getAverageWaitTime(effectiveUserId, startOfToday.toISOString()),
-      getAverageConversationTime(effectiveUserId, startOfToday.toISOString()),
-      countUnreadContacts(effectiveUserId),
+      countBefore(filter, "contacts", now.toISOString()),
+      countBefore(filter, "contacts", currentStart.toISOString()),
+      countBefore(filter, "templates", now.toISOString()),
+      countBefore(filter, "templates", currentStart.toISOString()),
+      countBefore(filter, "campaigns", now.toISOString()),
+      countBefore(filter, "campaigns", currentStart.toISOString()),
+      countDeliveredBetween(filter, currentStart.toISOString(), now.toISOString()),
+      countDeliveredBetween(filter, previousStart.toISOString(), previousEnd.toISOString()),
+      countChatStatus(filter, "aberto"),
+      countChatStatus(filter, "aguardando"),
+      countChatStatus(filter, "fechado"),
+      countContactsCreatedBetween(filter, currentStart.toISOString(), now.toISOString()),
+      getAverageWaitTime(filter, currentStart.toISOString()),
+      getAverageConversationTime(filter, currentStart.toISOString()),
+      countUnreadContacts(filter),
     ]);
 
     return {
@@ -174,10 +251,12 @@ export const getDashboardStats = createServerFn({ method: "GET" })
         emConversa: chatAberto,
         aguardando: chatAguardando,
         finalizados: chatFechado,
-        novosContatos: novosContatosHoje,
+        novosContatos: novosContatos,
         tmConversa: formatDuration(avgConversationSec),
         tmEspera: formatDuration(avgWaitSec),
         unreadChatsCount: unreadChats,
       },
     };
   });
+
+

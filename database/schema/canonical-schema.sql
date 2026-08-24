@@ -1,6 +1,6 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
 -- Generated dynamically from local MySQL
--- Date: 2026-08-24T15:12:17.570Z
+-- Date: 2026-08-24T17:46:16.129Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -1046,6 +1046,13 @@ CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `page_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `instagram_business_account_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `page_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `instagram_username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `webhook_subscribed` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_instagram_accounts_user` (`user_id`),
   UNIQUE KEY `uq_instagram_accounts_ig_user` (`ig_user_id`),

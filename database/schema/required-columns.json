@@ -704,7 +704,14 @@
     "token_expires_at",
     "status",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "tenant_id",
+    "page_id",
+    "instagram_business_account_id",
+    "page_name",
+    "instagram_username",
+    "is_active",
+    "webhook_subscribed"
   ],
   "instagram_webhook_events": [
     "id",

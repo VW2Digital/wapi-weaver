@@ -8360,6 +8360,83 @@
         "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
         "charset": null,
         "collation": null
+      },
+      "tenant_id": {
+        "ordinal_position": 12,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "page_id": {
+        "ordinal_position": 13,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "instagram_business_account_id": {
+        "ordinal_position": 14,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "page_name": {
+        "ordinal_position": 15,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "instagram_username": {
+        "ordinal_position": 16,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "is_active": {
+        "ordinal_position": 17,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "webhook_subscribed": {
+        "ordinal_position": 18,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
       }
     },
     "primary_key": [

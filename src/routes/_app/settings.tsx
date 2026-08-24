@@ -52,6 +52,7 @@ import {
   listInstagramAccounts,
   connectInstagramAccount,
   disconnectInstagramAccount,
+  testInstagramConnection,
   listFacebookPages,
   connectFacebookPage,
   disconnectFacebookPage,
@@ -8521,17 +8522,46 @@ function InstagramSettingsTab({
   const fetchIg = useServerFn(listInstagramAccounts);
   const connectIg = useServerFn(connectInstagramAccount);
   const disconnectIg = useServerFn(disconnectInstagramAccount);
+  const testIg = useServerFn(testInstagramConnection);
   const qc = useQueryClient();
 
   const [igUserId, setIgUserId] = useState("");
   const [pageName, setPageName] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ["instagram-accounts"],
     queryFn: () => fetchIg(),
   });
+
+  const handleTest = async () => {
+    if (!igUserId.trim() || !accessToken.trim()) {
+      toast.error("Preencha o Instagram Business Account ID e o Page Access Token para testar.");
+      return;
+    }
+    setIsTesting(true);
+    try {
+      const res = await testIg({
+        data: {
+          instagram_business_account_id: igUserId.trim(),
+          access_token: accessToken.trim(),
+          meta_graph_version: form.meta_graph_version,
+        },
+      });
+      if (!res.ok) {
+        toast.error(`Falha no teste: ${res.error}`);
+      } else {
+        const username = res.account?.username ? `@${res.account.username}` : (res.account?.name || "Conta válida");
+        toast.success(`Conexão com a Meta bem-sucedida! Conta: ${username}`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao testar credenciais do Instagram");
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -8709,10 +8739,17 @@ function InstagramSettingsTab({
           </div>
 
           <div className="px-6 py-4 bg-muted/20 border-t border-border/40 flex items-center justify-between">
-            <Button type="button" variant="outline" className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTest}
+              disabled={isTesting || isSubmitting}
+              className="gap-2"
+            >
+              {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Testar
             </Button>
-            <Button type="submit" disabled={isSubmitting || saveMut.isPending} className="bg-primary hover:bg-primary/90 min-w-32">
+            <Button type="submit" disabled={isSubmitting || saveMut.isPending || isTesting} className="bg-primary hover:bg-primary/90 min-w-32">
               {isSubmitting || saveMut.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

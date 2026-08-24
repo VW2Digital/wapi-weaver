@@ -223,50 +223,45 @@ export const updateProfile = createServerFn({ method: "POST" })
     )) as any[];
     const profile = profileRows?.[0];
 
-    // Configura o objeto e o campo que efetivamente entregam mensagens ao
-    // callback. Inscrever somente a WABA em /subscribed_apps não cria esta
-    // assinatura no App Dashboard.
+    const hasAppCredsInPayload = data.whatsapp_app_id !== undefined || data.whatsapp_app_secret !== undefined;
     if (
+      hasAppCredsInPayload &&
       profile?.whatsapp_app_id &&
       profile?.whatsapp_app_secret &&
       profile?.whatsapp_verify_token
     ) {
       const publicAppUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
-      if (!publicAppUrl) {
-        return {
-          ok: true,
-          warning: "Credenciais salvas, mas APP_URL não está configurada para registrar o webhook na Meta.",
-        };
-      }
-
-      const apiVersion = profile.meta_graph_version || "v26.0";
-      const callbackUrl = new URL("/api/public/whatsapp-webhook", publicAppUrl).toString();
-      const appSubscriptionResponse = await fetch(
-        `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_app_id}/subscriptions`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            object: "whatsapp_business_account",
-            callback_url: callbackUrl,
-            fields: "messages",
-            verify_token: profile.whatsapp_verify_token,
-            access_token: `${profile.whatsapp_app_id}|${profile.whatsapp_app_secret}`,
-          }),
-        },
-      );
-      const appSubscriptionBody = await appSubscriptionResponse.json().catch(() => ({}));
-      if (!appSubscriptionResponse.ok || appSubscriptionBody?.success !== true) {
-        return {
-          ok: true,
-          warning:
-            appSubscriptionBody?.error?.message ||
-            "Credenciais salvas, mas a Meta recusou a configuração do campo messages.",
-        };
+      if (publicAppUrl) {
+        const apiVersion = profile.meta_graph_version || "v26.0";
+        const callbackUrl = new URL("/api/public/whatsapp-webhook", publicAppUrl).toString();
+        const appSubscriptionResponse = await fetch(
+          `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_app_id}/subscriptions`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              object: "whatsapp_business_account",
+              callback_url: callbackUrl,
+              fields: "messages",
+              verify_token: profile.whatsapp_verify_token,
+              access_token: `${profile.whatsapp_app_id}|${profile.whatsapp_app_secret}`,
+            }),
+          },
+        );
+        const appSubscriptionBody = await appSubscriptionResponse.json().catch(() => ({}));
+        if (!appSubscriptionResponse.ok || appSubscriptionBody?.success !== true) {
+          return {
+            ok: true,
+            warning:
+              appSubscriptionBody?.error?.message ||
+              "Credenciais salvas, mas a Meta recusou a configuração do campo messages.",
+          };
+        }
       }
     }
 
-    if (profile?.whatsapp_waba_id && profile?.whatsapp_access_token) {
+    const hasWabaCredsInPayload = data.whatsapp_waba_id !== undefined || data.whatsapp_access_token !== undefined;
+    if (hasWabaCredsInPayload && profile?.whatsapp_waba_id && profile?.whatsapp_access_token) {
       const apiVersion = profile.meta_graph_version || "v26.0";
       const subscriptionResponse = await fetch(
         `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_waba_id}/subscribed_apps`,
@@ -2235,22 +2230,64 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const id = crypto.randomUUID();
     const finalPageId = data.page_id || data.instagram_business_account_id;
-    await db.query(
-      `INSERT INTO instagram_accounts (id, tenant_id, user_id, page_id, instagram_business_account_id, page_name, instagram_username, access_token, token_expires_at, is_active, webhook_subscribed)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-       ON DUPLICATE KEY UPDATE page_name = VALUES(page_name), instagram_username = VALUES(instagram_username), access_token = VALUES(access_token), token_expires_at = VALUES(token_expires_at), is_active = 1`,
-      [
-        id,
-        context.userId,
-        context.userId,
-        finalPageId,
-        data.instagram_business_account_id,
-        data.page_name || null,
-        data.instagram_username || null,
-        data.access_token,
-        data.token_expires_at || null,
-      ],
-    );
+    const finalIgUserId = data.instagram_business_account_id;
+    const finalUsername = data.instagram_username || data.page_name || null;
+
+    try {
+      await db.query(
+        `INSERT INTO instagram_accounts (
+          id, tenant_id, user_id, page_id, instagram_business_account_id, ig_user_id,
+          page_name, instagram_username, username, access_token, token_expires_at, is_active, status, webhook_subscribed
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', 0)
+        ON DUPLICATE KEY UPDATE 
+          page_name = VALUES(page_name), 
+          instagram_username = VALUES(instagram_username), 
+          username = VALUES(username),
+          access_token = VALUES(access_token), 
+          token_expires_at = VALUES(token_expires_at), 
+          is_active = 1,
+          status = 'active'`,
+        [
+          id,
+          context.userId,
+          context.userId,
+          finalPageId,
+          finalIgUserId,
+          finalIgUserId,
+          data.page_name || null,
+          finalUsername,
+          finalUsername,
+          data.access_token,
+          data.token_expires_at || null,
+        ],
+      );
+    } catch (err: any) {
+      // Fallback for minimal legacy schemas
+      try {
+        await db.query(
+          `INSERT INTO instagram_accounts (
+            id, user_id, ig_user_id, username, access_token, token_expires_at, status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, 'active')
+          ON DUPLICATE KEY UPDATE 
+            username = VALUES(username),
+            access_token = VALUES(access_token), 
+            token_expires_at = VALUES(token_expires_at), 
+            status = 'active'`,
+          [
+            id,
+            context.userId,
+            finalIgUserId,
+            finalUsername,
+            data.access_token,
+            data.token_expires_at || null,
+          ],
+        );
+      } catch (innerErr) {
+        throw err;
+      }
+    }
     return { ok: true };
   });
 
@@ -2311,3 +2348,41 @@ export const disconnectFacebookPage = createServerFn({ method: "POST" })
     ]);
     return { ok: true };
   });
+
+export const testInstagramConnection = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) =>
+    z
+      .object({
+        instagram_business_account_id: z.string().trim().min(5),
+        access_token: z.string().trim().min(20),
+        meta_graph_version: z.string().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const apiVersion = data.meta_graph_version || "v26.0";
+    const version = apiVersion.startsWith("v") ? apiVersion : `v${apiVersion}`;
+    const url = `https://graph.facebook.com/${version}/${encodeURIComponent(data.instagram_business_account_id)}?fields=id,username,name&access_token=${encodeURIComponent(data.access_token)}`;
+
+    try {
+      const res = await fetch(url);
+      const body = await res.json();
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: body?.error?.message || "Token de acesso ou ID do Instagram inválido na Meta API.",
+        };
+      }
+      return {
+        ok: true,
+        account: body,
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        error: e.message || "Erro de conexão com a API da Meta.",
+      };
+    }
+  });
+
