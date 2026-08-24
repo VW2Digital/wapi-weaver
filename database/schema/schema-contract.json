@@ -3495,7 +3495,7 @@
         "data_type": "varchar",
         "column_type": "varchar(50)",
         "nullable": false,
-        "default": null,
+        "default": "whatsapp",
         "key": "",
         "extra": "",
         "charset": "utf8mb4",
@@ -8251,8 +8251,19 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "user_id": {
+      "tenant_id": {
         "ordinal_position": 2,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "user_id": {
+        "ordinal_position": 3,
         "data_type": "varchar",
         "column_type": "varchar(36)",
         "nullable": false,
@@ -8262,8 +8273,8 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "ig_user_id": {
-        "ordinal_position": 3,
+      "page_id": {
+        "ordinal_position": 4,
         "data_type": "varchar",
         "column_type": "varchar(100)",
         "nullable": false,
@@ -8273,10 +8284,32 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "username": {
-        "ordinal_position": 4,
+      "instagram_business_account_id": {
+        "ordinal_position": 5,
         "data_type": "varchar",
         "column_type": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "page_name": {
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "instagram_username": {
+        "ordinal_position": 7,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
         "nullable": true,
         "default": null,
         "key": "",
@@ -8285,7 +8318,7 @@
         "collation": "utf8mb4_unicode_ci"
       },
       "access_token": {
-        "ordinal_position": 5,
+        "ordinal_position": 8,
         "data_type": "text",
         "column_type": "text",
         "nullable": false,
@@ -8296,7 +8329,7 @@
         "collation": "utf8mb4_unicode_ci"
       },
       "token_expires_at": {
-        "ordinal_position": 6,
+        "ordinal_position": 9,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": true,
@@ -8306,19 +8339,30 @@
         "charset": null,
         "collation": null
       },
-      "status": {
-        "ordinal_position": 7,
-        "data_type": "varchar",
-        "column_type": "varchar(50)",
+      "is_active": {
+        "ordinal_position": 10,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
         "nullable": false,
-        "default": "active",
+        "default": "1",
         "key": "",
         "extra": "",
-        "charset": "utf8mb4",
-        "collation": "utf8mb4_unicode_ci"
+        "charset": null,
+        "collation": null
+      },
+      "webhook_subscribed": {
+        "ordinal_position": 11,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
       },
       "created_at": {
-        "ordinal_position": 8,
+        "ordinal_position": 12,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -8329,7 +8373,7 @@
         "collation": null
       },
       "updated_at": {
-        "ordinal_position": 9,
+        "ordinal_position": 13,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -8344,21 +8388,35 @@
       "id"
     ],
     "unique_indexes": {
-      "ig_user_id": [
-        "ig_user_id"
+      "uq_instagram_page": [
+        "tenant_id",
+        "page_id"
+      ],
+      "uq_instagram_ig_account": [
+        "tenant_id",
+        "instagram_business_account_id"
       ]
     },
     "indexes": {
+      "idx_instagram_accounts_tenant": [
+        "tenant_id"
+      ],
       "idx_instagram_accounts_user": [
         "user_id"
       ]
     },
     "foreign_keys": [
       {
+        "column": "tenant_id",
+        "ref_table": "users",
+        "ref_column": "id",
+        "constraint_name": "fk_instagram_accounts_tenant"
+      },
+      {
         "column": "user_id",
         "ref_table": "users",
         "ref_column": "id",
-        "constraint_name": "instagram_accounts_ibfk_1"
+        "constraint_name": "fk_instagram_accounts_user"
       }
     ]
   },
@@ -8366,16 +8424,16 @@
     "columns": {
       "id": {
         "ordinal_position": 1,
-        "data_type": "varchar",
-        "column_type": "varchar(36)",
+        "data_type": "bigint unsigned",
+        "column_type": "bigint unsigned",
         "nullable": false,
         "default": null,
         "key": "PRI",
-        "extra": "",
-        "charset": "utf8mb4",
-        "collation": "utf8mb4_unicode_ci"
+        "extra": "auto_increment",
+        "charset": null,
+        "collation": null
       },
-      "user_id": {
+      "tenant_id": {
         "ordinal_position": 2,
         "data_type": "varchar",
         "column_type": "varchar(36)",
@@ -8386,8 +8444,74 @@
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
       },
-      "raw": {
+      "page_id": {
         "ordinal_position": 3,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "instagram_business_account_id": {
+        "ordinal_position": 4,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "event_type": {
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "message_mid": {
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
+        "nullable": true,
+        "default": null,
+        "key": "UNI",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "sender_id": {
+        "ordinal_position": 7,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "recipient_id": {
+        "ordinal_position": 8,
+        "data_type": "varchar",
+        "column_type": "varchar(100)",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "payload": {
+        "ordinal_position": 9,
         "data_type": "json",
         "column_type": "json",
         "nullable": false,
@@ -8398,18 +8522,51 @@
         "collation": null
       },
       "processed": {
-        "ordinal_position": 4,
+        "ordinal_position": 10,
         "data_type": "tinyint",
         "column_type": "tinyint(1)",
         "nullable": false,
         "default": "0",
+        "key": "MUL",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "processed_at": {
+        "ordinal_position": 11,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": null,
         "key": "",
         "extra": "",
         "charset": null,
         "collation": null
       },
+      "error_message": {
+        "ordinal_position": 12,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
       "received_at": {
-        "ordinal_position": 5,
+        "ordinal_position": 13,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "key": "MUL",
+        "extra": "",
+        "charset": null,
+        "collation": null
+      },
+      "created_at": {
+        "ordinal_position": 14,
         "data_type": "datetime",
         "column_type": "datetime",
         "nullable": false,
@@ -8423,20 +8580,24 @@
     "primary_key": [
       "id"
     ],
-    "unique_indexes": {},
-    "indexes": {
-      "user_id": [
-        "user_id"
+    "unique_indexes": {
+      "uq_instagram_mid": [
+        "message_mid"
       ]
     },
-    "foreign_keys": [
-      {
-        "column": "user_id",
-        "ref_table": "users",
-        "ref_column": "id",
-        "constraint_name": "instagram_webhook_events_ibfk_1"
-      }
-    ]
+    "indexes": {
+      "idx_ig_webhook_tenant": [
+        "tenant_id"
+      ],
+      "idx_ig_webhook_page": [
+        "page_id"
+      ],
+      "idx_ig_webhook_processed": [
+        "processed",
+        "received_at"
+      ]
+    },
+    "foreign_keys": []
   },
   "knowledge_base": {
     "columns": {

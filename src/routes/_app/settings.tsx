@@ -8521,12 +8521,12 @@ function InstagramSettingsTab({
   const disconnectIg = useServerFn(disconnectInstagramAccount);
   const qc = useQueryClient();
 
+  const [pageId, setPageId] = useState("");
   const [igUserId, setIgUserId] = useState("");
+  const [pageName, setPageName] = useState("");
   const [username, setUsername] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [showAccessToken, setShowAccessToken] = useState(false);
-  const [appId, setAppId] = useState("");
-  const [appSecret, setAppSecret] = useState("");
   const [tokenExpiresAt, setTokenExpiresAt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -8537,28 +8537,28 @@ function InstagramSettingsTab({
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!igUserId.trim() || !username.trim() || !accessToken.trim()) {
-      toast.error("Preencha todos os campos obrigatórios (ID, Usuário e Token).");
+    if (!pageId.trim() || !igUserId.trim() || !accessToken.trim()) {
+      toast.error("Preencha todos os campos obrigatórios (Page ID, IGSID e Token).");
       return;
     }
     setIsSubmitting(true);
     try {
       await connectIg({
         data: {
-          ig_user_id: igUserId.trim(),
-          username: username.trim().replace(/^@/, ""),
+          page_id: pageId.trim(),
+          instagram_business_account_id: igUserId.trim(),
+          page_name: pageName.trim() || undefined,
+          instagram_username: username.trim().replace(/^@/, "") || undefined,
           access_token: accessToken.trim(),
-          app_id: appId.trim() || undefined,
-          app_secret: appSecret.trim() || undefined,
           token_expires_at: tokenExpiresAt || undefined,
         },
       });
       toast.success("Conta do Instagram conectada com sucesso!");
+      setPageId("");
       setIgUserId("");
+      setPageName("");
       setUsername("");
       setAccessToken("");
-      setAppId("");
-      setAppSecret("");
       setTokenExpiresAt("");
       qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
     } catch (err: any) {
@@ -8614,8 +8614,23 @@ function InstagramSettingsTab({
                   <form onSubmit={handleConnect} className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
+                        <Label htmlFor="page_id">
+                          Page ID <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="page_id"
+                          placeholder="Ex: 10489392..."
+                          value={pageId}
+                          onChange={(e) => setPageId(e.target.value)}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          O ID da Página do Facebook vinculada ao Instagram.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
                         <Label htmlFor="ig_user_id">
-                          ID da Conta Profissional (Instagram Business Account ID) <span className="text-destructive">*</span>
+                          Instagram Business Account ID <span className="text-destructive">*</span>
                         </Label>
                         <Input
                           id="ig_user_id"
@@ -8624,23 +8639,32 @@ function InstagramSettingsTab({
                           onChange={(e) => setIgUserId(e.target.value)}
                         />
                         <p className="text-[11px] text-muted-foreground">
-                          Obtido no Meta for Developers &gt; App &gt; Instagram &gt; API Setup.
+                          Obtido no Meta for Developers &gt; API Setup.
                         </p>
                       </div>
 
                       <div className="space-y-1.5">
+                        <Label htmlFor="page_name">
+                          Page Name (opcional)
+                        </Label>
+                        <Input
+                          id="page_name"
+                          placeholder="Ex: Minha Empresa"
+                          value={pageName}
+                          onChange={(e) => setPageName(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
                         <Label htmlFor="username">
-                          Nome de Usuário (@handle) <span className="text-destructive">*</span>
+                          Instagram Username (opcional)
                         </Label>
                         <Input
                           id="username"
-                          placeholder="Ex: suaempresa"
+                          placeholder="Ex: @minhaempresa"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
                         />
-                        <p className="text-[11px] text-muted-foreground">
-                          O identificador da sua conta no Instagram (sem o @).
-                        </p>
                       </div>
                     </div>
 
@@ -8671,7 +8695,7 @@ function InstagramSettingsTab({
                         placeholder="EAA..."
                         value={accessToken}
                         onChange={(e) => setAccessToken(e.target.value)}
-                        className={cn("font-mono text-xs", !showAccessToken && "password-mask")}
+                        className={cn("font-mono text-xs break-all", !showAccessToken && "password-mask")}
                       />
                       <p className="text-[11px] text-muted-foreground">
                         Token com permissões <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">instagram_basic</code>, <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code> e <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">pages_manage_metadata</code>.
@@ -8680,23 +8704,16 @@ function InstagramSettingsTab({
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor="app_id">App ID da Meta</Label>
+                        <Label htmlFor="token_expires">Data de Expiração do Token (opcional)</Label>
                         <Input
-                          id="app_id"
-                          placeholder="Ex: 123456789012345"
-                          value={appId}
-                          onChange={(e) => setAppId(e.target.value)}
+                          id="token_expires"
+                          type="date"
+                          value={tokenExpiresAt}
+                          onChange={(e) => setTokenExpiresAt(e.target.value)}
                         />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="app_secret">App Secret da Meta</Label>
-                        <Input
-                          id="app_secret"
-                          type="password"
-                          placeholder="Chave secreta do aplicativo Meta"
-                          value={appSecret}
-                          onChange={(e) => setAppSecret(e.target.value)}
-                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Os tokens de longa duração da Meta normalmente expiram em 60 dias.
+                        </p>
                       </div>
                     </div>
 

@@ -2222,11 +2222,11 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
   .validator((d: any) =>
     z
       .object({
-        ig_user_id: z.string().trim().min(5),
-        username: z.string().trim().min(1),
+        page_id: z.string().trim().min(5),
+        instagram_business_account_id: z.string().trim().min(5),
+        page_name: z.string().optional(),
+        instagram_username: z.string().optional(),
         access_token: z.string().trim().min(20),
-        app_id: z.string().optional(),
-        app_secret: z.string().optional(),
         token_expires_at: z.string().optional(),
       })
       .parse(d),
@@ -2235,17 +2235,18 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const id = crypto.randomUUID();
     await db.query(
-      `INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, access_token, app_id, app_secret, token_expires_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
-       ON DUPLICATE KEY UPDATE username = VALUES(username), access_token = VALUES(access_token), app_id = VALUES(app_id), app_secret = VALUES(app_secret), token_expires_at = VALUES(token_expires_at), status = 'active'`,
+      `INSERT INTO instagram_accounts (id, tenant_id, user_id, page_id, instagram_business_account_id, page_name, instagram_username, access_token, token_expires_at, is_active, webhook_subscribed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
+       ON DUPLICATE KEY UPDATE page_name = VALUES(page_name), instagram_username = VALUES(instagram_username), access_token = VALUES(access_token), token_expires_at = VALUES(token_expires_at), is_active = 1`,
       [
         id,
         context.userId,
-        data.ig_user_id,
-        data.username,
+        context.userId,
+        data.page_id,
+        data.instagram_business_account_id,
+        data.page_name || null,
+        data.instagram_username || null,
         data.access_token,
-        data.app_id || null,
-        data.app_secret || null,
         data.token_expires_at || null,
       ],
     );

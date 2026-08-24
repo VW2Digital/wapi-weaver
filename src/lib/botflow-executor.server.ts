@@ -1075,7 +1075,7 @@ export async function processBotFlow(
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
         .select("access_token")
-        .eq("ig_user_id", phoneNumberId)
+        .eq("instagram_business_account_id", phoneNumberId)
         .maybeSingle();
 
       if (!igAcc || !igAcc.access_token) {
@@ -1389,7 +1389,7 @@ export async function executeInactivityStep(
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
         .select("access_token")
-        .eq("ig_user_id", phoneNumberId)
+        .eq("instagram_business_account_id", phoneNumberId)
         .maybeSingle();
 
       if (!igAcc || !igAcc.access_token) {

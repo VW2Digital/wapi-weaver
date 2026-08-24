@@ -1,6 +1,6 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
 -- Generated dynamically from local MySQL
--- Date: 2026-08-24T12:15:15.912Z
+-- Date: 2026-08-24T14:16:03.367Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -423,7 +423,7 @@ CREATE TABLE IF NOT EXISTS `chat_message_outbox` (
   `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `message_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `channel` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'whatsapp',
   `recipient` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `provider_recipient_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `provider_account_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1036,29 +1036,47 @@ CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
 
 CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `username` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `page_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `instagram_business_account_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `page_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `instagram_username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `access_token` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `token_expires_at` datetime DEFAULT NULL,
-  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `webhook_subscribed` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ig_user_id` (`ig_user_id`),
+  UNIQUE KEY `uq_instagram_page` (`tenant_id`,`page_id`),
+  UNIQUE KEY `uq_instagram_ig_account` (`tenant_id`,`instagram_business_account_id`),
+  KEY `idx_instagram_accounts_tenant` (`tenant_id`),
   KEY `idx_instagram_accounts_user` (`user_id`),
-  CONSTRAINT `instagram_accounts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_instagram_accounts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_instagram_accounts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `instagram_webhook_events` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `raw` json NOT NULL,
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `page_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `instagram_business_account_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message_mid` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sender_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `recipient_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payload` json NOT NULL,
   `processed` tinyint(1) NOT NULL DEFAULT '0',
+  `processed_at` datetime DEFAULT NULL,
+  `error_message` text COLLATE utf8mb4_unicode_ci,
   `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
-  CONSTRAINT `instagram_webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  UNIQUE KEY `uq_instagram_mid` (`message_mid`),
+  KEY `idx_ig_webhook_tenant` (`tenant_id`),
+  KEY `idx_ig_webhook_page` (`page_id`),
+  KEY `idx_ig_webhook_processed` (`processed`,`received_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `knowledge_base` (

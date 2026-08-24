@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import db from "./db";
 import { normalizeWaMessageId } from "./wa-message-id";
-import { sendInstagramMessage } from "./instagram-messenger";
+import { sendInstagramMessage } from "./instagram.functions";
 import { publishChatRealtimeEvent } from "./chat-realtime.server";
 
 type ChatChannel = "whatsapp" | "instagram" | "messenger";
@@ -294,8 +294,8 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
 
 async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
   const accounts = (await db.query(
-    `SELECT ig_user_id, access_token
-     FROM instagram_accounts WHERE user_id = ? AND status = 'active' LIMIT 1`,
+    `SELECT instagram_business_account_id as ig_user_id, access_token
+     FROM instagram_accounts WHERE user_id = ? AND is_active = 1 LIMIT 1`,
     [job.user_id],
   )) as Array<{ ig_user_id: string; access_token: string }>;
   const account = accounts[0];
@@ -310,6 +310,7 @@ async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
     recipientId: job.provider_recipient_id,
     data,
     replyToMessageId: data.reply_to_message_id,
+    useHumanAgentTag: true,
   });
   if (!result.ok) {
     throw new DispatchError(result.error || "Falha ao enviar DM no Instagram.", true, result.body);
