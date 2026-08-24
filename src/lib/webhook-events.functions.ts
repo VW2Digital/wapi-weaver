@@ -65,11 +65,17 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
       { table: "facebook_webhook_events", label: "messenger" },
     ]) {
       try {
+        const cols = (await db.query(`SHOW COLUMNS FROM ${source.table}`)) as any[];
+        const colNames = new Set((cols || []).map((c: any) => c.Field));
+        const rawCol = colNames.has("payload") ? "payload" : colNames.has("raw") ? "raw" : "JSON_OBJECT()";
+        const ownerCol = colNames.has("tenant_id") ? "tenant_id" : "user_id";
+        
         const rows = (await db.query(
-          `SELECT id, ? AS source, processed, received_at, raw
+          `SELECT id, ? AS source, processed, received_at, ${rawCol} AS raw
            FROM ${source.table}
-           WHERE user_id = ? ORDER BY received_at DESC LIMIT ?`,
-          [source.label, effectiveUserId, data.limit],
+           WHERE ${ownerCol} = ? OR ${ownerCol} IN (SELECT tenant_id FROM users WHERE id = ?)
+           ORDER BY received_at DESC LIMIT ?`,
+          [source.label, effectiveUserId, effectiveUserId, data.limit],
         )) as any[];
         eventSources.push(...(rows || []));
       } catch (error) {

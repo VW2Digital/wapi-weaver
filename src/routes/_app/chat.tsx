@@ -386,7 +386,7 @@ interface ContactCustomFields {
   [key: string]: unknown;
 }
 
-type ContactFlagValue = boolean | number | null | undefined;
+type ContactFlagValue = boolean | number | string | null | undefined;
 
 interface ChatContactRecord {
   id: string;
@@ -761,7 +761,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function isFlagEnabled(value: ContactFlagValue): boolean {
-  return value === true || value === 1;
+  return value === true || value === 1 || value === "1" || value === "true";
 }
 
 function normalizeOptionalString(value: unknown): string | null | undefined {
@@ -807,23 +807,26 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
     active_team_name: normalizeOptionalString(record.active_team_name),
     active_agent_id: normalizeOptionalString(record.active_agent_id),
     active_agent_name: normalizeOptionalString(record.active_agent_name),
-    unread_count: typeof record.unread_count === "number" ? record.unread_count : null,
+    unread_count:
+      record.unread_count != null && !isNaN(Number(record.unread_count))
+        ? Number(record.unread_count)
+        : null,
     is_pinned:
-      typeof record.is_pinned === "boolean" || typeof record.is_pinned === "number"
-        ? record.is_pinned
+      typeof record.is_pinned === "boolean" || typeof record.is_pinned === "number" || typeof record.is_pinned === "string"
+        ? isFlagEnabled(record.is_pinned as ContactFlagValue)
         : null,
     is_archived:
-      typeof record.is_archived === "boolean" || typeof record.is_archived === "number"
-        ? record.is_archived
+      typeof record.is_archived === "boolean" || typeof record.is_archived === "number" || typeof record.is_archived === "string"
+        ? isFlagEnabled(record.is_archived as ContactFlagValue)
         : null,
     is_unread:
-      typeof record.is_unread === "boolean" || typeof record.is_unread === "number"
-        ? record.is_unread
+      typeof record.is_unread === "boolean" || typeof record.is_unread === "number" || typeof record.is_unread === "string"
+        ? isFlagEnabled(record.is_unread as ContactFlagValue)
         : null,
     opted_out: typeof record.opted_out === "boolean" ? record.opted_out : false,
     bot_active:
-      typeof record.bot_active === "boolean" || typeof record.bot_active === "number"
-        ? record.bot_active
+      typeof record.bot_active === "boolean" || typeof record.bot_active === "number" || typeof record.bot_active === "string"
+        ? isFlagEnabled(record.bot_active as ContactFlagValue)
         : null,
     last_message_body: normalizeOptionalString(record.last_message_body),
     last_message_type: normalizeOptionalString(record.last_message_type),
@@ -2887,7 +2890,11 @@ function ChatPage() {
         found = contactsQuery.data.find((c) => c.id === targetContactId);
       }
       if (!found && targetPhone) {
-        const cleanedSearchPhone = targetPhone.replace(/\D/g, "");
+        const isPrefixed =
+          targetPhone.startsWith("ig_") ||
+          targetPhone.startsWith("fb_") ||
+          targetPhone.endsWith("@g.us");
+        const cleanedSearchPhone = isPrefixed ? targetPhone : targetPhone.replace(/\D/g, "");
         found = contactsQuery.data.find(
           (c) =>
             c.phone_e164 === targetPhone ||
@@ -2913,7 +2920,12 @@ function ChatPage() {
       (targetPhone || targetContactId)
     ) {
       hasAttemptedRestoreRef.current = true;
-      const clean = targetPhone ? targetPhone.replace(/\D/g, "") : "";
+      const isPrefixed =
+        targetPhone &&
+        (targetPhone.startsWith("ig_") ||
+          targetPhone.startsWith("fb_") ||
+          targetPhone.endsWith("@g.us"));
+      const clean = targetPhone ? (isPrefixed ? targetPhone : targetPhone.replace(/\D/g, "")) : "";
       fetchContactDetails({
         data: { phone: clean, contactId: targetContactId || undefined },
       })
