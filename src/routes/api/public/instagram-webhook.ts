@@ -113,11 +113,11 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           return new Response("Account not integrated", { status: 404 });
         }
 
-        const appSecret = process.env.META_APP_SECRET;
-        if (appSecret) {
-          const verified = await verifySignature(rawBody, sig, appSecret);
+        const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
+        if (sig && envSecret) {
+          const verified = await verifySignature(rawBody, sig, envSecret);
           if (!verified) {
-            logError("Signature validation failed");
+            logError("Signature validation failed for provided x-hub-signature-256");
             return new Response("Forbidden (Invalid Signature)", { status: 403 });
           }
         }
