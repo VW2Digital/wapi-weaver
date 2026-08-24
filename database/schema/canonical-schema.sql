@@ -1,6 +1,6 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
 -- Generated dynamically from local MySQL
--- Date: 2026-08-24T14:16:03.367Z
+-- Date: 2026-08-24T15:12:17.570Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -1036,24 +1036,19 @@ CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
 
 CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `page_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `instagram_business_account_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `page_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `instagram_username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ig_user_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `username` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `access_token` text COLLATE utf8mb4_unicode_ci NOT NULL,
-  `token_expires_at` datetime DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `webhook_subscribed` tinyint(1) NOT NULL DEFAULT '0',
+  `app_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `app_secret` text COLLATE utf8mb4_unicode_ci,
+  `token_expires_at` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_instagram_page` (`tenant_id`,`page_id`),
-  UNIQUE KEY `uq_instagram_ig_account` (`tenant_id`,`instagram_business_account_id`),
-  KEY `idx_instagram_accounts_tenant` (`tenant_id`),
-  KEY `idx_instagram_accounts_user` (`user_id`),
-  CONSTRAINT `fk_instagram_accounts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  UNIQUE KEY `uq_instagram_accounts_user` (`user_id`),
+  UNIQUE KEY `uq_instagram_accounts_ig_user` (`ig_user_id`),
   CONSTRAINT `fk_instagram_accounts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
