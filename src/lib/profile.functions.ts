@@ -2222,7 +2222,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
   .validator((d: any) =>
     z
       .object({
-        page_id: z.string().trim().min(5),
+        page_id: z.string().trim().optional(),
         instagram_business_account_id: z.string().trim().min(5),
         page_name: z.string().optional(),
         instagram_username: z.string().optional(),
@@ -2234,6 +2234,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
     const id = crypto.randomUUID();
+    const finalPageId = data.page_id || data.instagram_business_account_id;
     await db.query(
       `INSERT INTO instagram_accounts (id, tenant_id, user_id, page_id, instagram_business_account_id, page_name, instagram_username, access_token, token_expires_at, is_active, webhook_subscribed)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
@@ -2242,7 +2243,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
         id,
         context.userId,
         context.userId,
-        data.page_id,
+        finalPageId,
         data.instagram_business_account_id,
         data.page_name || null,
         data.instagram_username || null,
@@ -2255,7 +2256,7 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
 
 export const disconnectInstagramAccount = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: any) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
     await db.query("DELETE FROM instagram_accounts WHERE id = ? AND user_id = ?", [
