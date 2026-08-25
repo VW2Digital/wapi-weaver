@@ -1172,7 +1172,13 @@ function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   const cf = contact?.custom_fields;
   if (!cf || typeof cf !== "object") return "";
   const rawUrl = cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
-  if (typeof rawUrl === "string" && (rawUrl.includes("pps.whatsapp.net") || rawUrl.includes("pps.whatsapp.com"))) {
+  if (
+    typeof rawUrl === "string" &&
+    (rawUrl.includes("whatsapp.net") ||
+      rawUrl.includes("whatsapp.com") ||
+      rawUrl.includes("fbcdn.net") ||
+      rawUrl.includes("fbsbx.com"))
+  ) {
     return "";
   }
   return typeof rawUrl === "string" ? rawUrl : "";

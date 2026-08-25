@@ -319,19 +319,19 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN bot_conversation_state bcs 
           ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164 AND bcs.channel = c.channel
         LEFT JOIN (
-          SELECT tenant_id, contact_phone, body, type, direction, created_at
+          SELECT tenant_id, user_id, contact_phone, body, type, direction, created_at
           FROM (
-            SELECT tenant_id, contact_phone, body, type, direction, created_at,
-                   ROW_NUMBER() OVER(PARTITION BY tenant_id, contact_phone ORDER BY created_at DESC) as rn
+            SELECT tenant_id, user_id, contact_phone, body, type, direction, created_at,
+                   ROW_NUMBER() OVER(PARTITION BY COALESCE(tenant_id, user_id), contact_phone ORDER BY created_at DESC) as rn
             FROM direct_messages
           ) tmp WHERE rn = 1
-        ) last_dm ON last_dm.tenant_id = c.tenant_id AND last_dm.contact_phone = c.phone_e164
+        ) last_dm ON (last_dm.tenant_id = c.tenant_id OR last_dm.user_id = c.user_id) AND last_dm.contact_phone = c.phone_e164
         LEFT JOIN (
-          SELECT tenant_id, contact_phone, COUNT(*) as cnt
+          SELECT COALESCE(tenant_id, user_id) as owner_id, contact_phone, COUNT(*) as cnt
           FROM direct_messages
           WHERE direction = 'incoming' AND (status IS NULL OR status != 'read')
-          GROUP BY tenant_id, contact_phone
-        ) unread ON unread.tenant_id = c.tenant_id AND unread.contact_phone = c.phone_e164
+          GROUP BY COALESCE(tenant_id, user_id), contact_phone
+        ) unread ON (unread.owner_id = c.tenant_id OR unread.owner_id = c.user_id) AND unread.contact_phone = c.phone_e164
         LEFT JOIN (
           SELECT user_id, to_phone, MAX(sent_at) as sent_at
           FROM campaign_messages
