@@ -1120,6 +1120,10 @@
     "size_bytes",
     "created_at"
   ],
+  "schema_migrations": [
+    "version",
+    "applied_at"
+  ],
   "subscription_events": [
     "id",
     "tenant_id",
