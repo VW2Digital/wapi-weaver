@@ -1411,6 +1411,11 @@ function ChatPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [chatRealtimeConnected, setChatRealtimeConnected] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2883,7 +2888,7 @@ function ChatPage() {
   // Auto-seleciona o contato ativo com base nos parâmetros da URL ou no localStorage persistido
   const hasAttemptedRestoreRef = useRef(false);
   useEffect(() => {
-    if (selectedContact) return;
+    if (!hasMounted || selectedContact) return;
 
     const targetContactId =
       search.contactId ||
