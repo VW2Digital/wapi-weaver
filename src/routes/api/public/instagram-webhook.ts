@@ -5,6 +5,7 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { markInstagramMessageSeen } from "@/lib/instagram.functions";
+import { resolveInstagramChatOwnerId } from "@/lib/instagram-webhook-owner";
 
 function logInfo(message: string, data?: any) {
   console.log(`[instagram-webhook] ${message}`, data ? JSON.stringify(data) : "");
@@ -120,6 +121,11 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           return new Response("Account not integrated", { status: 404 });
         }
 
+        // O chat é isolado pelo proprietário efetivo do tenant. A conta pode
+        // ter sido conectada por um membro (account.user_id), mas contatos e
+        // mensagens precisam usar o mesmo identificador consultado pelo chat.
+        const ownerUserId = resolveInstagramChatOwnerId(account);
+
         const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
         if (sig && envSecret) {
           const verified = await verifySignature(rawBody, sig, envSecret);
@@ -137,7 +143,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           const { data: existingDm } = await dbAdmin
             .from("direct_messages")
             .select("id")
-            .eq("user_id", account.user_id)
+            .eq("user_id", ownerUserId)
             .eq("channel", "instagram")
             .eq("provider_message_id", mid)
             .maybeSingle();
@@ -188,12 +194,12 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 const clientContactId = itemRecipientId;
                 const phonePlaceholder = `ig_${clientContactId}`;
 
-                await dbAdmin
+                const { error: echoContactError } = await dbAdmin
                   .from("contacts")
                   .upsert(
                     {
-                      tenant_id: account.tenant_id || account.user_id,
-                      user_id: account.user_id,
+                      tenant_id: ownerUserId,
+                      user_id: ownerUserId,
                       phone_e164: phonePlaceholder,
                       name: `Instagram (${clientContactId})`,
                       channel: "instagram",
@@ -202,11 +208,14 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                     },
                     { onConflict: "user_id,channel,external_contact_id" },
                   );
+                if (echoContactError) {
+                  throw new Error(`Falha ao persistir contato do echo: ${echoContactError.message}`);
+                }
 
-                const { data: storedEcho } = await dbAdmin.from("direct_messages").upsert(
+                const { data: storedEcho, error: storedEchoError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: account.tenant_id || account.user_id,
-                    user_id: account.user_id,
+                    tenant_id: ownerUserId,
+                    user_id: ownerUserId,
                     contact_phone: phonePlaceholder,
                     direction: "outgoing",
                     type: "text",
@@ -220,10 +229,15 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   },
                   { onConflict: "user_id,channel,provider_message_id" },
                 ).select("id").single();
+                if (storedEchoError || !storedEcho?.id) {
+                  throw new Error(
+                    `Falha ao persistir echo do Instagram: ${storedEchoError?.message || "ID não retornado"}`,
+                  );
+                }
 
                 await publishChatRealtimeEvent({
                   type: "message.sent",
-                  tenant_id: account.user_id,
+                  tenant_id: ownerUserId,
                   contact_phone: phonePlaceholder,
                   message_id: storedEcho?.id || null,
                   provider_message_id: item.message.mid || null,
@@ -236,12 +250,12 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
               const name = `Instagram (${item.sender?.name || itemSenderId})`;
 
               // Contato Upsert
-              await dbAdmin
+              const { error: contactUpsertError } = await dbAdmin
                 .from("contacts")
                 .upsert(
                   {
-                    tenant_id: account.tenant_id || account.user_id,
-                    user_id: account.user_id,
+                    tenant_id: ownerUserId,
+                    user_id: ownerUserId,
                     phone_e164: phonePlaceholder,
                     name: name,
                     channel: "instagram",
@@ -251,6 +265,9 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   },
                   { onConflict: "user_id,channel,external_contact_id" },
                 );
+              if (contactUpsertError) {
+                throw new Error(`Falha ao persistir contato do Instagram: ${contactUpsertError.message}`);
+              }
 
               if (item.message) {
                 const message = item.message;
@@ -289,10 +306,10 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   bodyLength: messageBody?.length 
                 });
 
-                const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
+                const { data: storedMessage, error: storedMessageError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: account.tenant_id || account.user_id,
-                    user_id: account.user_id,
+                    tenant_id: ownerUserId,
+                    user_id: ownerUserId,
                     contact_phone: phonePlaceholder,
                     direction: "incoming",
                     type: messageType,
@@ -309,6 +326,11 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   },
                   { onConflict: "user_id,channel,provider_message_id" },
                 ).select("id").single();
+                if (storedMessageError || !storedMessage?.id) {
+                  throw new Error(
+                    `Falha ao persistir mensagem do Instagram: ${storedMessageError?.message || "ID não retornado"}`,
+                  );
+                }
 
                 logInfo("[INSTAGRAM] Mensagem inserida com sucesso", { 
                   messageId: storedMessage?.id, 
@@ -317,7 +339,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                 await publishChatRealtimeEvent({
                   type: "message.received",
-                  tenant_id: account.user_id,
+                  tenant_id: ownerUserId,
                   contact_phone: phonePlaceholder,
                   message_id: storedMessage?.id || null,
                   provider_message_id: message.mid || null,
@@ -335,7 +357,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   messageBody,
                   phonePlaceholder,
                   itemRecipientId,
-                  account.user_id,
+                  ownerUserId,
                   undefined,
                   "instagram",
                 );
@@ -345,10 +367,10 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 
                 logInfo("[INSTAGRAM] Processando postback", { payload: postback.payload });
                 
-                const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
+                const { data: storedMessage, error: storedMessageError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: account.tenant_id || account.user_id,
-                    user_id: account.user_id,
+                    tenant_id: ownerUserId,
+                    user_id: ownerUserId,
                     contact_phone: phonePlaceholder,
                     direction: "incoming",
                     type: "text",
@@ -362,10 +384,15 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   },
                   { onConflict: "user_id,channel,provider_message_id" },
                 ).select("id").single();
+                if (storedMessageError || !storedMessage?.id) {
+                  throw new Error(
+                    `Falha ao persistir postback do Instagram: ${storedMessageError?.message || "ID não retornado"}`,
+                  );
+                }
 
                 await publishChatRealtimeEvent({
                   type: "message.received",
-                  tenant_id: account.user_id,
+                  tenant_id: ownerUserId,
                   contact_phone: phonePlaceholder,
                   message_id: storedMessage?.id || null,
                   provider_message_id: postback.mid || null,
@@ -375,10 +402,10 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 const reaction = item.reaction;
                 logInfo("[INSTAGRAM] Processando reação", { emoji: reaction.emoji });
                 
-                const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
+                const { data: storedMessage, error: storedMessageError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: account.tenant_id || account.user_id,
-                    user_id: account.user_id,
+                    tenant_id: ownerUserId,
+                    user_id: ownerUserId,
                     contact_phone: phonePlaceholder,
                     direction: "incoming",
                     type: "reaction",
@@ -392,10 +419,15 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   },
                   { onConflict: "user_id,channel,provider_message_id" },
                 ).select("id").single();
+                if (storedMessageError || !storedMessage?.id) {
+                  throw new Error(
+                    `Falha ao persistir reação do Instagram: ${storedMessageError?.message || "ID não retornado"}`,
+                  );
+                }
                 
                 await publishChatRealtimeEvent({
                   type: "message.received",
-                  tenant_id: account.user_id,
+                  tenant_id: ownerUserId,
                   contact_phone: phonePlaceholder,
                   message_id: storedMessage?.id || null,
                   provider_message_id: reaction.mid || null,
@@ -415,6 +447,15 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           logInfo("Webhook processado com sucesso");
         } catch (err: any) {
           logError("Falha ao processar webhook", err.message);
+          if (eventRow?.id) {
+            await dbAdmin
+              .from("instagram_webhook_events")
+              .update({ error_message: err.message || "Falha desconhecida" })
+              .eq("id", eventRow.id);
+          }
+          // Solicita reentrega à Meta. Os upserts por provider_message_id
+          // tornam o reprocessamento idempotente.
+          return new Response("Instagram webhook processing failed", { status: 500 });
         }
 
         return new Response("EVENT_RECEIVED", { status: 200 });

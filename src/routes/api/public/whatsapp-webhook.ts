@@ -703,10 +703,9 @@ async function resolveWebhookUser(
       }
     }
 
-    // Uma configuração central é a fonte de verdade para o App Meta.
-    // Não aceite o identificador do telefone como autenticação quando a
-    // assinatura não conferir: ele faz parte do corpo controlado pelo remetente.
-    return { userId: null, reason: "invalid_signature" as const };
+    // Uma instalação pode manter mais de um App Meta. Se o segredo central
+    // estiver desatualizado, ainda tentamos os segredos dos perfis abaixo.
+    // Todos os caminhos continuam exigindo uma assinatura HMAC válida.
   }
 
   // Compatibilidade para instalações antigas sem segredo central: ainda

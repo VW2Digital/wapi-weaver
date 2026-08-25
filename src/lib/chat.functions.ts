@@ -343,7 +343,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN users u ON u.id = ca.agent_id
         LEFT JOIN profiles p ON p.id = u.id
         LEFT JOIN sales_stages s ON s.id = c.kanban_stage_id
-        WHERE c.user_id = ?
+        WHERE (c.user_id = ? OR c.tenant_id = ?)
           AND (
             last_dm.created_at IS NOT NULL
             OR last_cm.sent_at IS NOT NULL
@@ -360,7 +360,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
           c.is_pinned DESC,
           COALESCE(last_dm.created_at, last_cm.sent_at, c.created_at) DESC
       `,
-        [effectiveUserId],
+        [effectiveUserId, effectiveUserId],
       )) as ChatContactRow[];
 
       const normalizedContacts: ChatContactListItem[] = (contacts ?? []).map((c) => ({
@@ -386,11 +386,11 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
     const latestIncoming = (await db.query(
       `SELECT wa_message_id, provider_account_id, channel
        FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming'
+       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ? AND direction = 'incoming'
          AND wa_message_id IS NOT NULL
        ORDER BY created_at DESC
        LIMIT 1`,
-      [effectiveUserId, phone],
+      [effectiveUserId, effectiveUserId, phone],
     )) as Array<{
       wa_message_id?: string | null;
       provider_account_id?: string | null;
@@ -399,14 +399,15 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
 
     await db.query(
       `UPDATE direct_messages SET status = 'read'
-       WHERE user_id = ? AND contact_phone = ? AND direction = 'incoming' AND (status IS NULL OR status != 'read')`,
-      [effectiveUserId, phone],
+       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ? AND direction = 'incoming' AND (status IS NULL OR status != 'read')`,
+      [effectiveUserId, effectiveUserId, phone],
     );
 
-    await db.query(`UPDATE contacts SET is_unread = false WHERE user_id = ? AND phone_e164 = ?`, [
-      effectiveUserId,
-      phone,
-    ]);
+    await db.query(
+      `UPDATE contacts SET is_unread = false
+       WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ?`,
+      [effectiveUserId, effectiveUserId, phone],
+    );
 
     const incomingMessage = latestIncoming[0];
     await publishChatRealtimeEvent({
@@ -524,7 +525,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
     const baseMessagesQuery = `SELECT * FROM (
        SELECT id, direction, created_at, body, status
        FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ?
+       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
        LIMIT 500
      ) AS recent_messages
@@ -533,7 +534,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
        SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
               reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
        FROM direct_messages
-       WHERE user_id = ? AND contact_phone = ?
+       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
        LIMIT 500
      ) AS recent_messages
@@ -541,14 +542,14 @@ export const getChatMessages = createServerFn({ method: "POST" })
 
     let messages: unknown[];
     try {
-      messages = (await db.query(richMessagesQuery, [effectiveUserId, phone])) as unknown[];
+      messages = (await db.query(richMessagesQuery, [effectiveUserId, effectiveUserId, phone])) as unknown[];
       console.log("[MESSAGES] Query rich executada com sucesso:", { messageCount: messages?.length });
     } catch (error) {
       console.warn(
         "Schema legado em direct_messages; carregando a conversa com as colunas-base.",
         error,
       );
-      messages = (await db.query(baseMessagesQuery, [effectiveUserId, phone])) as unknown[];
+      messages = (await db.query(baseMessagesQuery, [effectiveUserId, effectiveUserId, phone])) as unknown[];
       console.log("[MESSAGES] Query base executada com sucesso:", { messageCount: messages?.length });
     }
 

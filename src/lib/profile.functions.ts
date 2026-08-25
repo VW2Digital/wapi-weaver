@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
+import { resolvePublicWebhookBaseUrl } from "@/lib/meta-webhook-url";
 import crypto from "crypto";
 
 export const PROFILE_MASKED_SECRET = "********";
@@ -230,7 +231,7 @@ export const updateProfile = createServerFn({ method: "POST" })
       profile?.whatsapp_app_secret &&
       profile?.whatsapp_verify_token
     ) {
-      const publicAppUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
+      const publicAppUrl = resolvePublicWebhookBaseUrl(process.env);
       if (publicAppUrl) {
         const apiVersion = profile.meta_graph_version || "v26.0";
         const callbackUrl = new URL("/api/public/whatsapp-webhook", publicAppUrl).toString();
@@ -257,6 +258,12 @@ export const updateProfile = createServerFn({ method: "POST" })
               "Credenciais salvas, mas a Meta recusou a configuração do campo messages.",
           };
         }
+      } else {
+        return {
+          ok: true,
+          warning:
+            "Credenciais salvas, mas o webhook não foi alterado: configure PUBLIC_APP_URL com o domínio HTTPS público.",
+        };
       }
     }
 
