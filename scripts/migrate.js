@@ -76,6 +76,30 @@ async function ensureRuntimeSchemaAlignment(connection) {
 
   await ensureColumnExists(connection, "instagram_webhook_events", "tenant_id", "VARCHAR(36) NULL");
 
+  // Migration 034: novas colunas
+  await ensureColumnExists(connection, "direct_messages", "raw_payload", "JSON NULL");
+  await ensureColumnExists(connection, "contacts", "normalized_phone", "VARCHAR(50) NULL");
+  await ensureColumnExists(connection, "profiles", "whatsapp_app_id", "VARCHAR(100) NULL");
+  await ensureColumnExists(connection, "notifications", "read_at", "DATETIME NULL");
+  await ensureColumnExists(connection, "billing_invoices", "due_date", "DATETIME NULL");
+  await ensureColumnExists(connection, "audit_logs", "ip_address", "VARCHAR(45) NULL");
+  await ensureColumnExists(connection, "ds_agents", "instructions_basic", "TEXT NULL");
+  await ensureColumnExists(connection, "ds_agents", "instructions_advanced", "TEXT NULL");
+  await ensureColumnExists(connection, "ds_agents", "reply_with_assigned_agent", "TINYINT(1) NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "ds_agents", "split_replies_in_blocks", "TINYINT(1) NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "ds_agents", "disabled_outside_platform", "TINYINT(1) NOT NULL DEFAULT 0");
+  await ensureColumnExists(connection, "ds_agents", "prompt", "TEXT NULL");
+  await ensureColumnExists(connection, "ds_agents", "is_active", "TINYINT(1) NOT NULL DEFAULT 1");
+  await ensureColumnExists(connection, "ds_agents", "mode", "VARCHAR(20) NOT NULL DEFAULT 'basico'");
+  await ensureColumnExists(connection, "templates", "parameter_format", "VARCHAR(50) NULL");
+  await ensureColumnExists(connection, "templates", "allow_category_change", "TINYINT(1) NULL");
+  await ensureColumnExists(connection, "templates", "cta_url_link_tracking_opted_out", "TINYINT(1) NULL");
+  await ensureColumnExists(connection, "templates", "message_send_ttl_seconds", "INT NULL");
+  await ensureColumnExists(connection, "templates", "sub_category", "VARCHAR(100) NULL");
+  await ensureColumnExists(connection, "templates", "is_primary_device_delivery_only", "TINYINT(1) NULL");
+  await ensureColumnExists(connection, "templates", "display_format", "VARCHAR(20) NULL");
+  await ensureColumnExists(connection, "chat_message_outbox", "sent_at", "DATETIME NULL");
+
   try {
     await connection.query("ALTER TABLE instagram_accounts MODIFY COLUMN username VARCHAR(255) NULL");
     await connection.query("ALTER TABLE instagram_accounts MODIFY COLUMN ig_user_id VARCHAR(100) NULL");

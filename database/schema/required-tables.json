@@ -75,6 +75,7 @@
   "sales_stages",
   "salvy_numbers",
   "schema_backups",
+  "schema_migrations",
   "subscription_events",
   "subscription_plan_changes",
   "subscription_plans",

@@ -1,6 +1,6 @@
--- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
--- Generated dynamically from local MySQL
--- Date: 2026-08-24T20:03:12.250Z
+﻿-- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
+-- Generated from local MySQL dump
+-- Date: 2026-08-24T23:06:44Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -485,7 +485,7 @@ CREATE TABLE IF NOT EXISTS `contact_activities` (
   KEY `idx_contact_act_tenant` (`tenant_id`),
   CONSTRAINT `contact_activities_ibfk_1` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_contact_act_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `contact_custom_field_values` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -505,7 +505,7 @@ CREATE TABLE IF NOT EXISTS `contact_custom_field_values` (
   CONSTRAINT `contact_custom_field_values_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `contact_custom_field_values_ibfk_2` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `contact_custom_field_values_ibfk_3` FOREIGN KEY (`custom_field_id`) REFERENCES `contact_custom_fields` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `contact_custom_fields` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1010,7 +1010,7 @@ CREATE TABLE IF NOT EXISTS `incoming_webhook_events` (
   KEY `idx_iwe_status` (`user_id`,`status`),
   KEY `idx_iwe_received` (`user_id`,`received_at`),
   CONSTRAINT `incoming_webhook_events_ibfk_1` FOREIGN KEY (`incoming_webhook_id`) REFERENCES `incoming_webhooks` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1185,7 +1185,7 @@ CREATE TABLE IF NOT EXISTS `licenses` (
   KEY `idx_licenses_status` (`status`),
   KEY `idx_licenses_app_id` (`app_id`),
   KEY `idx_licenses_tenant_id` (`tenant_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `list_contacts` (
   `list_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1680,6 +1680,12 @@ CREATE TABLE IF NOT EXISTS `schema_backups` (
   CONSTRAINT `schema_backups_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `schema_migrations` (
+  `version` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `applied_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`version`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `subscription_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1866,7 +1872,7 @@ CREATE TABLE IF NOT EXISTS `webhook_bot_logs` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_wbl_tenant_contact` (`tenant_id`,`contact_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -2026,3 +2032,5 @@ CREATE TABLE IF NOT EXISTS `whatsapp_groups` (
   CONSTRAINT `whatsapp_groups_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+SET FOREIGN_KEY_CHECKS = 1;

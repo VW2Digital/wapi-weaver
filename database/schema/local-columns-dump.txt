@@ -1,0 +1,1175 @@
+﻿TABLE_NAME	COLUMN_NAME	COLUMN_TYPE	IS_NULLABLE	COLUMN_DEFAULT	EXTRA
+ai_agent_settings	id	varchar(36)	NO	NULL	
+ai_agent_settings	user_id	varchar(36)	NO	NULL	
+ai_agent_settings	instance_id	varchar(50)	NO	NULL	
+ai_agent_settings	is_active	tinyint(1)	NO	0	
+ai_agent_settings	api_key	varchar(255)	YES	NULL	
+ai_agent_settings	model	varchar(50)	NO	gemini-2.5-flash	
+ai_agent_settings	system_prompt	text	YES	NULL	
+ai_agent_settings	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ai_agent_settings	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ai_usage_logs	id	bigint	NO	NULL	auto_increment
+ai_usage_logs	tenant_id	varchar(36)	NO	NULL	
+ai_usage_logs	contact_phone	varchar(50)	YES	NULL	
+ai_usage_logs	model	varchar(100)	NO	NULL	
+ai_usage_logs	prompt_tokens	int	NO	0	
+ai_usage_logs	completion_tokens	int	NO	0	
+ai_usage_logs	total_tokens	int	NO	0	
+ai_usage_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+audit_logs	id	varchar(36)	NO	NULL	
+audit_logs	user_id	varchar(36)	YES	NULL	
+audit_logs	tenant_id	varchar(36)	YES	NULL	
+audit_logs	action	varchar(255)	NO	NULL	
+audit_logs	entity_type	varchar(100)	YES	NULL	
+audit_logs	entity_id	varchar(100)	YES	NULL	
+audit_logs	actor_email	varchar(255)	YES	NULL	
+audit_logs	ip	varchar(50)	YES	NULL	
+audit_logs	user_agent	text	YES	NULL	
+audit_logs	metadata	json	YES	NULL	
+audit_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+audit_logs	details_json	json	YES	NULL	
+audit_logs	ip_address	varchar(45)	YES	NULL	
+billing_invoices	id	varchar(36)	NO	NULL	
+billing_invoices	tenant_id	varchar(36)	NO	NULL	
+billing_invoices	customer_id	varchar(36)	NO	NULL	
+billing_invoices	subscription_id	varchar(36)	NO	NULL	
+billing_invoices	plan_id	varchar(36)	YES	NULL	
+billing_invoices	invoice_number	varchar(50)	NO	NULL	
+billing_invoices	description	text	YES	NULL	
+billing_invoices	amount	decimal(10,2)	NO	NULL	
+billing_invoices	currency	varchar(10)	NO	BRL	
+billing_invoices	status	enum('draft','pending','paid','failed','expired','cancelled','refunded')	NO	pending	
+billing_invoices	due_at	datetime	NO	NULL	
+billing_invoices	paid_at	datetime	YES	NULL	
+billing_invoices	cancelled_at	datetime	YES	NULL	
+billing_invoices	external_reference	varchar(255)	NO	NULL	
+billing_invoices	metadata	json	YES	NULL	
+billing_invoices	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+billing_invoices	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+billing_invoices	due_date	datetime	YES	NULL	
+billing_payments	id	varchar(36)	NO	NULL	
+billing_payments	tenant_id	varchar(36)	NO	NULL	
+billing_payments	customer_id	varchar(36)	NO	NULL	
+billing_payments	subscription_id	varchar(36)	NO	NULL	
+billing_payments	invoice_id	varchar(36)	NO	NULL	
+billing_payments	provider	varchar(50)	NO	mercadopago	
+billing_payments	provider_payment_id	varchar(255)	YES	NULL	
+billing_payments	provider_order_id	varchar(255)	YES	NULL	
+billing_payments	provider_preference_id	varchar(255)	YES	NULL	
+billing_payments	external_reference	varchar(255)	YES	NULL	
+billing_payments	payment_method	varchar(50)	YES	NULL	
+billing_payments	payment_type	varchar(50)	YES	NULL	
+billing_payments	status	varchar(50)	NO	NULL	
+billing_payments	status_detail	varchar(255)	YES	NULL	
+billing_payments	amount	decimal(10,2)	NO	NULL	
+billing_payments	currency	varchar(10)	NO	BRL	
+billing_payments	installments	int	NO	1	
+billing_payments	payer_email	varchar(255)	YES	NULL	
+billing_payments	approved_at	datetime	YES	NULL	
+billing_payments	expires_at	datetime	YES	NULL	
+billing_payments	raw_response	json	YES	NULL	
+billing_payments	environment	enum('sandbox','production')	NO	sandbox	
+billing_payments	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+billing_payments	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+billing_payments	qr_code	text	YES	NULL	
+billing_payments	qr_code_base64	longtext	YES	NULL	
+billing_payments	ticket_url	text	YES	NULL	
+billing_payments	payload_json	json	YES	NULL	
+billing_plans	id	varchar(36)	NO	NULL	
+billing_plans	name	varchar(255)	NO	NULL	
+billing_plans	description	text	YES	NULL	
+billing_plans	price	decimal(10,2)	NO	NULL	
+billing_plans	currency	varchar(10)	NO	BRL	
+billing_plans	billing_interval	enum('day','week','month','year')	NO	month	
+billing_plans	billing_interval_count	int	NO	1	
+billing_plans	duration_days	int	NO	NULL	
+billing_plans	features	json	YES	NULL	
+billing_plans	is_active	tinyint(1)	NO	1	
+billing_plans	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+billing_plans	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+billing_plans	subscription_plan_id	varchar(36)	YES	NULL	
+billing_plans	billing_cycle	varchar(20)	NO	monthly	
+billing_plans	price_cents	int	NO	0	
+billing_plans	trial_days	int	NO	0	
+billing_plans	sort_order	int	NO	0	
+billing_plans	features_json	json	YES	NULL	
+billing_webhook_events	id	varchar(36)	NO	NULL	
+billing_webhook_events	provider	varchar(50)	NO	NULL	
+billing_webhook_events	environment	enum('sandbox','production')	NO	NULL	
+billing_webhook_events	event_id	varchar(255)	NO	NULL	
+billing_webhook_events	event_type	varchar(100)	NO	NULL	
+billing_webhook_events	resource_id	varchar(255)	YES	NULL	
+billing_webhook_events	request_id	varchar(255)	YES	NULL	
+billing_webhook_events	tenant_id	varchar(36)	YES	NULL	
+billing_webhook_events	invoice_id	varchar(36)	YES	NULL	
+billing_webhook_events	payment_id	varchar(36)	YES	NULL	
+billing_webhook_events	payload_hash	varchar(64)	YES	NULL	
+billing_webhook_events	payload	json	YES	NULL	
+billing_webhook_events	status	enum('received','processing','processed','ignored','failed')	NO	received	
+billing_webhook_events	attempts	int	NO	0	
+billing_webhook_events	error_code	varchar(100)	YES	NULL	
+billing_webhook_events	error_message	text	YES	NULL	
+billing_webhook_events	provider_created_at	datetime	YES	NULL	
+billing_webhook_events	received_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+billing_webhook_events	processing_started_at	datetime	YES	NULL	
+billing_webhook_events	processed_at	datetime	YES	NULL	
+billing_webhook_events	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+billing_webhook_events	payload_json	json	NO	NULL	
+bot_conversation_state	id	varchar(36)	NO	NULL	
+bot_conversation_state	tenant_id	varchar(36)	NO	NULL	
+bot_conversation_state	user_id	varchar(36)	NO	NULL	
+bot_conversation_state	contact_number	varchar(50)	NO	NULL	
+bot_conversation_state	instance_id	varchar(50)	YES	NULL	
+bot_conversation_state	current_step_id	varchar(36)	YES	NULL	
+bot_conversation_state	last_interaction	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+bot_conversation_state	is_paused	tinyint(1)	NO	0	
+bot_conversation_state	paused_until	datetime	YES	NULL	
+bot_conversation_state	bot_active	tinyint(1)	NO	1	
+bot_conversation_state	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+bot_conversation_state	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+bot_conversation_state	channel	varchar(50)	NO	whatsapp	
+bot_conversation_state	provider_account_id	varchar(255)	YES	NULL	
+bot_flows	id	varchar(36)	NO	NULL	
+bot_flows	user_id	varchar(36)	NO	NULL	
+bot_flows	tenant_id	varchar(36)	NO	NULL	
+bot_flows	name	varchar(255)	NO	NULL	
+bot_flows	channel	varchar(50)	NO	whatsapp	
+bot_flows	is_active	tinyint(1)	NO	0	
+bot_flows	triggers_count	int	NO	1	
+bot_flows	actions_count	int	NO	1	
+bot_flows	last_executed_at	datetime	YES	NULL	
+bot_flows	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+bot_flows	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+bot_settings	id	varchar(36)	NO	NULL	
+bot_settings	tenant_id	varchar(36)	NO	NULL	
+bot_settings	user_id	varchar(36)	NO	NULL	
+bot_settings	instance_id	varchar(50)	YES	NULL	
+bot_settings	is_active	tinyint(1)	NO	0	
+bot_settings	pause_timeout_minutes	int	NO	60	
+bot_settings	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+bot_settings	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+bot_settings	name	varchar(150)	YES	NULL	
+bot_settings	channel	enum('whatsapp','instagram','messenger')	NO	whatsapp	
+bot_settings	priority	int	NO	0	
+bot_settings	trigger_type	varchar(50)	NO	start	
+bot_settings	trigger_value	varchar(255)	YES	NULL	
+bot_settings	is_default	tinyint(1)	NO	0	
+bot_step_options	id	varchar(36)	NO	NULL	
+bot_step_options	tenant_id	varchar(36)	NO	NULL	
+bot_step_options	user_id	varchar(36)	NO	NULL	
+bot_step_options	step_id	varchar(36)	NO	NULL	
+bot_step_options	option_number	int	NO	NULL	
+bot_step_options	label	varchar(50)	NO	NULL	
+bot_step_options	description	varchar(255)	YES	NULL	
+bot_step_options	next_step_id	varchar(36)	YES	NULL	
+bot_step_options	assign_team_id	varchar(36)	YES	NULL	
+bot_step_options	assign_user_id	varchar(36)	YES	NULL	
+bot_step_options	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+bot_steps	id	varchar(36)	NO	NULL	
+bot_steps	tenant_id	varchar(36)	NO	NULL	
+bot_steps	user_id	varchar(36)	NO	NULL	
+bot_steps	bot_settings_id	varchar(36)	NO	NULL	
+bot_steps	step_order	int	NO	1	
+bot_steps	trigger_type	varchar(50)	NO	keyword	
+bot_steps	trigger_value	text	YES	NULL	
+bot_steps	message_type	varchar(50)	NO	text	
+bot_steps	message_content	text	YES	NULL	
+bot_steps	media_caption	text	YES	NULL	
+bot_steps	footer_text	varchar(255)	YES	NULL	
+bot_steps	buttons_config	json	YES	NULL	
+bot_steps	next_step_id	varchar(36)	YES	NULL	
+bot_steps	delay_seconds	int	NO	0	
+bot_steps	assign_team_id	varchar(36)	YES	NULL	
+bot_steps	assign_user_id	varchar(36)	YES	NULL	
+bot_steps	handoff_message	text	YES	NULL	
+bot_steps	card_color	varchar(50)	YES	NULL	
+bot_steps	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+bot_steps	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+bot_steps	media_url	longtext	YES	NULL	
+bot_steps	position_x	float	NO	0	
+bot_steps	position_y	float	NO	0	
+bot_steps	flow_id	varchar(36)	YES	NULL	
+calendar_events	id	varchar(36)	NO	NULL	
+calendar_events	tenant_id	varchar(36)	NO	NULL	
+calendar_events	user_id	varchar(36)	NO	NULL	
+calendar_events	title	varchar(255)	NO	NULL	
+calendar_events	description	text	YES	NULL	
+calendar_events	event_type	varchar(50)	NO	reuniao	
+calendar_events	status	varchar(50)	NO	agendado	
+calendar_events	start_at	datetime	NO	NULL	
+calendar_events	end_at	datetime	NO	NULL	
+calendar_events	all_day	tinyint(1)	NO	0	
+calendar_events	timezone	varchar(100)	NO	America/Sao_Paulo	
+calendar_events	contact_id	varchar(36)	YES	NULL	
+calendar_events	responsible_user_id	varchar(36)	YES	NULL	
+calendar_events	team_id	varchar(36)	YES	NULL	
+calendar_events	ds_agent_id	varchar(36)	YES	NULL	
+calendar_events	location	varchar(500)	YES	NULL	
+calendar_events	meeting_url	varchar(1000)	YES	NULL	
+calendar_events	color	varchar(30)	YES	#7C3AED	
+calendar_events	recurrence_type	varchar(50)	YES	none	
+calendar_events	recurrence_rule	text	YES	NULL	
+calendar_events	reminder_minutes	int	YES	NULL	
+calendar_events	created_by_type	enum('user','ds_agent','system')	NO	user	
+calendar_events	created_by_user_id	varchar(36)	YES	NULL	
+calendar_events	created_by_agent_id	varchar(36)	YES	NULL	
+calendar_events	metadata	json	YES	NULL	
+calendar_events	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+calendar_events	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+calendar_events	deleted_at	datetime	YES	NULL	
+campaign_logs	id	varchar(36)	NO	NULL	
+campaign_logs	campaign_id	varchar(36)	NO	NULL	
+campaign_logs	contact_number	varchar(50)	NO	NULL	
+campaign_logs	status	enum('sent','delivered','read','failed')	NO	sent	
+campaign_logs	error_message	text	YES	NULL	
+campaign_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+campaign_messages	id	varchar(36)	NO	NULL	
+campaign_messages	tenant_id	varchar(36)	NO	NULL	
+campaign_messages	user_id	varchar(36)	NO	NULL	
+campaign_messages	campaign_id	varchar(36)	NO	NULL	
+campaign_messages	contact_id	varchar(36)	YES	NULL	
+campaign_messages	to_phone	varchar(50)	NO	NULL	
+campaign_messages	status	enum('pending','sending','sent','delivered','read','failed')	NO	pending	
+campaign_messages	wa_message_id	varchar(255)	YES	NULL	
+campaign_messages	conversation_id	varchar(255)	YES	NULL	
+campaign_messages	conversation_origin	varchar(255)	YES	NULL	
+campaign_messages	pricing_billable	tinyint(1)	YES	NULL	
+campaign_messages	pricing_category	varchar(50)	YES	NULL	
+campaign_messages	pricing_model	varchar(50)	YES	NULL	
+campaign_messages	sent_at	datetime	YES	NULL	
+campaign_messages	delivered_at	datetime	YES	NULL	
+campaign_messages	read_at	datetime	YES	NULL	
+campaign_messages	failed_at	datetime	YES	NULL	
+campaign_messages	error	json	YES	NULL	
+campaign_messages	attempts	int	NO	0	
+campaign_messages	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+campaigns	id	varchar(36)	NO	NULL	
+campaigns	tenant_id	varchar(36)	NO	NULL	
+campaigns	user_id	varchar(36)	NO	NULL	
+campaigns	name	varchar(255)	NO	NULL	
+campaigns	list_id	varchar(36)	YES	NULL	
+campaigns	template_id	varchar(36)	YES	NULL	
+campaigns	message_type	enum('template','text','media','interactive')	NO	NULL	
+campaigns	status	enum('draft','queued','running','done','failed','cancelled')	NO	draft	
+campaigns	payload	json	YES	NULL	
+campaigns	totals	json	YES	NULL	
+campaigns	scheduled_at	datetime	YES	NULL	
+campaigns	started_at	datetime	YES	NULL	
+campaigns	finished_at	datetime	YES	NULL	
+campaigns	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+campaigns	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+chat_message_outbox	id	varchar(36)	NO	NULL	
+chat_message_outbox	tenant_id	varchar(36)	NO	NULL	
+chat_message_outbox	user_id	varchar(36)	NO	NULL	
+chat_message_outbox	message_id	varchar(36)	NO	NULL	
+chat_message_outbox	channel	varchar(50)	NO	whatsapp	
+chat_message_outbox	recipient	varchar(100)	NO	NULL	
+chat_message_outbox	provider_recipient_id	varchar(255)	YES	NULL	
+chat_message_outbox	provider_account_id	varchar(255)	YES	NULL	
+chat_message_outbox	payload	json	NO	NULL	
+chat_message_outbox	status	enum('pending','processing','retry','sent','failed')	NO	pending	
+chat_message_outbox	attempts	int	NO	0	
+chat_message_outbox	max_attempts	int	NO	5	
+chat_message_outbox	next_attempt_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+chat_message_outbox	locked_at	datetime	YES	NULL	
+chat_message_outbox	locked_by	varchar(100)	YES	NULL	
+chat_message_outbox	provider_message_id	varchar(255)	YES	NULL	
+chat_message_outbox	last_error	text	YES	NULL	
+chat_message_outbox	response_payload	json	YES	NULL	
+chat_message_outbox	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+chat_message_outbox	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+chat_message_outbox	sent_at	datetime	YES	NULL	
+chat_sessions	id	varchar(36)	NO	NULL	
+chat_sessions	tenant_id	varchar(36)	NO	NULL	
+chat_sessions	user_id	varchar(36)	NO	NULL	
+chat_sessions	contact_id	varchar(36)	NO	NULL	
+chat_sessions	status	varchar(50)	NO	aguardando	
+chat_sessions	started_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+chat_sessions	answered_at	datetime	YES	NULL	
+chat_sessions	closed_at	datetime	YES	NULL	
+contact_activities	id	bigint unsigned	NO	NULL	auto_increment
+contact_activities	contact_id	varchar(36)	NO	NULL	
+contact_activities	tenant_id	varchar(36)	YES	NULL	
+contact_activities	type	varchar(50)	NO	NULL	
+contact_activities	title	varchar(255)	NO	NULL	
+contact_activities	description	text	YES	NULL	
+contact_activities	source_type	varchar(50)	YES	NULL	
+contact_activities	source_id	varchar(36)	YES	NULL	
+contact_activities	payload	json	YES	NULL	
+contact_activities	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+contact_activities	user_id	varchar(36)	YES	NULL	
+contact_custom_field_values	id	bigint unsigned	NO	NULL	auto_increment
+contact_custom_field_values	user_id	varchar(36)	NO	NULL	
+contact_custom_field_values	contact_id	varchar(36)	NO	NULL	
+contact_custom_field_values	custom_field_id	varchar(36)	NO	NULL	
+contact_custom_field_values	value	text	YES	NULL	
+contact_custom_field_values	value_json	json	YES	NULL	
+contact_custom_field_values	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+contact_custom_field_values	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+contact_custom_fields	id	varchar(36)	NO	NULL	
+contact_custom_fields	tenant_id	varchar(36)	NO	NULL	
+contact_custom_fields	user_id	varchar(36)	NO	NULL	
+contact_custom_fields	label	varchar(255)	NO	NULL	
+contact_custom_fields	key	varchar(100)	NO	NULL	
+contact_custom_fields	type	enum('text','textarea','number','currency','date','datetime','select','multi_select','boolean','email','phone','url')	NO	text	
+contact_custom_fields	placeholder	text	YES	NULL	
+contact_custom_fields	options	json	YES	NULL	
+contact_custom_fields	default_value	text	YES	NULL	
+contact_custom_fields	required	tinyint(1)	NO	0	
+contact_custom_fields	show_on_form	tinyint(1)	NO	1	
+contact_custom_fields	show_on_table	tinyint(1)	NO	0	
+contact_custom_fields	show_on_details	tinyint(1)	NO	1	
+contact_custom_fields	is_active	tinyint(1)	NO	1	
+contact_custom_fields	sort_order	int	NO	0	
+contact_custom_fields	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+contact_custom_fields	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+contact_groups	contact_id	varchar(36)	NO	NULL	
+contact_groups	group_id	varchar(36)	NO	NULL	
+contact_tags	contact_id	varchar(36)	NO	NULL	
+contact_tags	tag_id	varchar(36)	NO	NULL	
+contact_tags	user_id	varchar(36)	NO	NULL	
+contact_tags	tenant_id	varchar(36)	NO	NULL	
+contacts	id	varchar(36)	NO	NULL	
+contacts	tenant_id	varchar(36)	NO	NULL	
+contacts	user_id	varchar(36)	NO	NULL	
+contacts	phone_e164	varchar(50)	NO	NULL	
+contacts	name	varchar(255)	YES	NULL	
+contacts	email	varchar(255)	YES	NULL	
+contacts	source	varchar(255)	YES	NULL	
+contacts	opted_out	tinyint(1)	NO	0	
+contacts	custom_fields	json	YES	NULL	
+contacts	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+contacts	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+contacts	is_pinned	tinyint(1)	NO	0	
+contacts	is_archived	tinyint(1)	NO	0	
+contacts	chat_status	varchar(50)	NO	aberto	
+contacts	is_unread	tinyint(1)	NO	0	
+contacts	kanban_stage_id	varchar(36)	YES	NULL	
+contacts	channel	varchar(50)	NO	whatsapp	
+contacts	external_contact_id	varchar(255)	YES	NULL	
+contacts	source_type	varchar(50)	YES	NULL	
+contacts	source_name	varchar(255)	YES	NULL	
+contacts	source_id	varchar(36)	YES	NULL	
+contacts	external_id	varchar(255)	YES	NULL	
+contacts	metadata	json	YES	NULL	
+contacts	last_interaction_at	datetime	YES	NULL	
+contacts	company	varchar(255)	YES	NULL	
+contacts	position	varchar(255)	YES	NULL	
+contacts	notes	text	YES	NULL	
+contacts	status	varchar(50)	YES	NULL	
+contacts	responsible_user_id	varchar(36)	YES	NULL	
+contacts	normalized_phone	varchar(50)	YES	NULL	
+conversation_assignments	id	varchar(36)	NO	NULL	
+conversation_assignments	tenant_id	varchar(36)	NO	NULL	
+conversation_assignments	user_id	varchar(36)	NO	NULL	
+conversation_assignments	contact_phone	varchar(50)	NO	NULL	
+conversation_assignments	team_id	varchar(36)	YES	NULL	
+conversation_assignments	agent_id	varchar(36)	YES	NULL	
+conversation_assignments	assigned_by	varchar(36)	YES	NULL	
+conversation_assignments	assigned_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+conversation_assignments	unassigned_at	datetime	YES	NULL	
+conversation_assignments	is_active	tinyint(1)	NO	1	
+conversation_tags	contact_number	varchar(50)	NO	NULL	
+conversation_tags	tag_id	varchar(36)	NO	NULL	
+conversation_tags	user_id	varchar(36)	NO	NULL	
+custom_fields	id	varchar(36)	NO	NULL	
+custom_fields	user_id	varchar(36)	NO	NULL	
+custom_fields	field_key	varchar(100)	NO	NULL	
+custom_fields	field_label	varchar(255)	NO	NULL	
+custom_fields	field_type	enum('text','number','date','select','boolean')	NO	text	
+custom_fields	options_json	json	YES	NULL	
+custom_fields	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+direct_messages	id	varchar(36)	NO	NULL	
+direct_messages	client_message_id	varchar(36)	YES	NULL	
+direct_messages	tenant_id	varchar(36)	NO	NULL	
+direct_messages	user_id	varchar(36)	NO	NULL	
+direct_messages	contact_phone	varchar(50)	NO	NULL	
+direct_messages	direction	enum('incoming','outgoing')	NO	NULL	
+direct_messages	type	enum('text','reaction','image','audio','video','document','sticker','location','contacts')	NO	text	
+direct_messages	body	text	NO	NULL	
+direct_messages	wa_message_id	varchar(255)	YES	NULL	
+direct_messages	status	enum('queued','sent','delivered','read','failed')	YES	sent	
+direct_messages	reply_to_message_id	varchar(255)	YES	NULL	
+direct_messages	metadata	json	YES	NULL	
+direct_messages	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+direct_messages	channel	varchar(50)	NO	whatsapp	
+direct_messages	provider_message_id	varchar(255)	YES	NULL	
+direct_messages	provider_account_id	varchar(255)	YES	NULL	
+direct_messages	sender_wa_id	varchar(50)	YES	NULL	
+direct_messages	sender_name	varchar(255)	YES	NULL	
+direct_messages	recipient_type	varchar(50)	YES	NULL	
+direct_messages	external_group_id	varchar(100)	YES	NULL	
+direct_messages	raw_payload	json	YES	NULL	
+ds_agent_assignments	id	varchar(36)	NO	NULL	
+ds_agent_assignments	tenant_id	varchar(36)	NO	NULL	
+ds_agent_assignments	agent_id	varchar(36)	NO	NULL	
+ds_agent_assignments	whatsapp_session_id	varchar(36)	YES	NULL	
+ds_agent_assignments	funnel_stage_id	varchar(36)	YES	NULL	
+ds_agent_assignments	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_assignments	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agent_calendar_availability	id	varchar(36)	NO	NULL	
+ds_agent_calendar_availability	agent_id	varchar(36)	NO	NULL	
+ds_agent_calendar_availability	tenant_id	varchar(36)	NO	NULL	
+ds_agent_calendar_availability	weekday	tinyint	NO	NULL	
+ds_agent_calendar_availability	start_time	time	NO	08:00:00	
+ds_agent_calendar_availability	end_time	time	NO	18:00:00	
+ds_agent_calendar_availability	active	tinyint(1)	NO	1	
+ds_agent_folders	id	varchar(36)	NO	NULL	
+ds_agent_folders	tenant_id	varchar(36)	NO	NULL	
+ds_agent_folders	name	varchar(255)	NO	NULL	
+ds_agent_folders	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_folders	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agent_followups	id	varchar(36)	NO	NULL	
+ds_agent_followups	agent_id	varchar(36)	NO	NULL	
+ds_agent_followups	tenant_id	varchar(36)	NO	NULL	
+ds_agent_followups	name	varchar(255)	NO	NULL	
+ds_agent_followups	message	text	NO	NULL	
+ds_agent_followups	type	enum('manual','generativo')	NO	manual	
+ds_agent_followups	recurrence	enum('unico','recorrente','diario')	NO	unico	
+ds_agent_followups	wait_amount	int	NO	10	
+ds_agent_followups	wait_unit	enum('minutos','horas','dias')	NO	minutos	
+ds_agent_followups	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_knowledge	id	varchar(36)	NO	NULL	
+ds_agent_knowledge	tenant_id	varchar(36)	NO	NULL	
+ds_agent_knowledge	agent_id	varchar(36)	NO	NULL	
+ds_agent_knowledge	title	varchar(255)	NO	NULL	
+ds_agent_knowledge	type	enum('text','faq','url','pdf')	YES	text	
+ds_agent_knowledge	content	longtext	YES	NULL	
+ds_agent_knowledge	status	enum('pending','indexed','error')	YES	pending	
+ds_agent_knowledge	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_knowledge	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agent_knowledge_files	id	varchar(36)	NO	NULL	
+ds_agent_knowledge_files	agent_id	varchar(36)	NO	NULL	
+ds_agent_knowledge_files	tenant_id	varchar(36)	NO	NULL	
+ds_agent_knowledge_files	file_name	varchar(255)	NO	NULL	
+ds_agent_knowledge_files	file_size_kb	int	NO	0	
+ds_agent_knowledge_files	page_count	int	NO	1	
+ds_agent_knowledge_files	status	enum('ativo','inativo')	NO	ativo	
+ds_agent_knowledge_files	storage_path	text	NO	NULL	
+ds_agent_knowledge_files	uploaded_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_knowledge_links	id	varchar(36)	NO	NULL	
+ds_agent_knowledge_links	agent_id	varchar(36)	NO	NULL	
+ds_agent_knowledge_links	tenant_id	varchar(36)	NO	NULL	
+ds_agent_knowledge_links	url	text	NO	NULL	
+ds_agent_knowledge_links	status	enum('pendente','indexado','erro')	NO	pendente	
+ds_agent_knowledge_links	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_logs	id	varchar(36)	NO	NULL	
+ds_agent_logs	tenant_id	varchar(36)	NO	NULL	
+ds_agent_logs	agent_id	varchar(36)	NO	NULL	
+ds_agent_logs	level	enum('info','warn','error')	YES	info	
+ds_agent_logs	message	text	NO	NULL	
+ds_agent_logs	details	json	YES	NULL	
+ds_agent_logs	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_sessions	id	varchar(36)	NO	NULL	
+ds_agent_sessions	tenant_id	varchar(36)	NO	NULL	
+ds_agent_sessions	agent_id	varchar(36)	NO	NULL	
+ds_agent_sessions	contact_id	varchar(36)	YES	NULL	
+ds_agent_sessions	status	enum('active','paused','completed')	YES	active	
+ds_agent_sessions	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_sessions	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agent_subagents	id	varchar(36)	NO	NULL	
+ds_agent_subagents	tenant_id	varchar(36)	NO	NULL	
+ds_agent_subagents	agent_id	varchar(36)	NO	NULL	
+ds_agent_subagents	name	varchar(255)	NO	NULL	
+ds_agent_subagents	role	varchar(255)	NO		
+ds_agent_subagents	instructions	text	YES	NULL	
+ds_agent_subagents	exec_order	int	YES	0	
+ds_agent_subagents	model	varchar(100)	YES	gpt-4o-mini	
+ds_agent_subagents	status	enum('active','inactive')	YES	active	
+ds_agent_subagents	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_subagents	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agent_tools	id	varchar(36)	NO	NULL	
+ds_agent_tools	tenant_id	varchar(36)	NO	NULL	
+ds_agent_tools	agent_id	varchar(36)	NO	NULL	
+ds_agent_tools	name	varchar(255)	NO	NULL	
+ds_agent_tools	description	text	YES	NULL	
+ds_agent_tools	permissions	json	YES	NULL	
+ds_agent_tools	require_confirmation	tinyint(1)	YES	1	
+ds_agent_tools	is_active	tinyint(1)	YES	1	
+ds_agent_tools	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_tools	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agent_tools	tool_key	varchar(100)	NO	tool	
+ds_agent_tools	enabled	tinyint(1)	NO	1	
+ds_agent_tools	config	json	YES	NULL	
+ds_agent_usage	id	varchar(36)	NO	NULL	
+ds_agent_usage	tenant_id	varchar(36)	NO	NULL	
+ds_agent_usage	agent_id	varchar(36)	NO	NULL	
+ds_agent_usage	session_id	varchar(36)	YES	NULL	
+ds_agent_usage	prompt_tokens	int	YES	0	
+ds_agent_usage	completion_tokens	int	YES	0	
+ds_agent_usage	total_tokens	int	YES	0	
+ds_agent_usage	tools_called	json	YES	NULL	
+ds_agent_usage	response_time_ms	int	YES	0	
+ds_agent_usage	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agent_usage_logs	id	varchar(36)	NO	NULL	
+ds_agent_usage_logs	agent_id	varchar(36)	NO	NULL	
+ds_agent_usage_logs	tenant_id	varchar(36)	NO	NULL	
+ds_agent_usage_logs	model	varchar(100)	NO	NULL	
+ds_agent_usage_logs	provider	varchar(100)	NO	NULL	
+ds_agent_usage_logs	category	enum('action_analysis','completion','embedding','query_rewriting','transcription')	NO	NULL	
+ds_agent_usage_logs	tokens	int	NO	0	
+ds_agent_usage_logs	cost_usd	decimal(10,4)	NO	0.0000	
+ds_agent_usage_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agents	id	varchar(36)	NO	NULL	
+ds_agents	tenant_id	varchar(36)	NO	NULL	
+ds_agents	folder_id	varchar(36)	YES	NULL	
+ds_agents	name	varchar(255)	NO	NULL	
+ds_agents	provider	varchar(50)	NO	openai	
+ds_agents	api_key_encrypted	text	YES	NULL	
+ds_agents	model	varchar(100)	NO	gpt-4o-mini	
+ds_agents	status	enum('active','inactive')	YES	inactive	
+ds_agents	system_prompt	longtext	YES	NULL	
+ds_agents	answer_only_assigned	tinyint(1)	YES	0	
+ds_agents	chunk_responses	tinyint(1)	YES	0	
+ds_agents	process_images	tinyint(1)	YES	0	
+ds_agents	process_audio	tinyint(1)	YES	0	
+ds_agents	disable_outside_hours	tinyint(1)	YES	0	
+ds_agents	pause_on_human	tinyint(1)	YES	1	
+ds_agents	wait_time_seconds	int	YES	0	
+ds_agents	max_messages_per_interaction	int	YES	5	
+ds_agents	temperature	decimal(3,2)	YES	0.70	
+ds_agents	max_tokens	int	YES	1000	
+ds_agents	created_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+ds_agents	updated_at	datetime	YES	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+ds_agents	instructions_basic	text	YES	NULL	
+ds_agents	instructions_advanced	text	YES	NULL	
+ds_agents	mode	enum('basico','avancado')	NO	basico	
+ds_agents	reply_with_assigned_agent	tinyint(1)	NO	0	
+ds_agents	split_replies_in_blocks	tinyint(1)	NO	0	
+ds_agents	disabled_outside_platform	tinyint(1)	NO	0	
+ds_agents	prompt	text	YES	NULL	
+ds_agents	is_active	tinyint(1)	NO	1	
+facebook_pages	id	varchar(36)	NO	NULL	
+facebook_pages	workspace_id	varchar(36)	YES	NULL	
+facebook_pages	user_id	varchar(36)	NO	NULL	
+facebook_pages	page_id	varchar(64)	NO	NULL	
+facebook_pages	page_name	varchar(255)	YES	NULL	
+facebook_pages	page_access_token	text	NO	NULL	
+facebook_pages	status	varchar(32)	NO	active	
+facebook_pages	permissions_json	text	YES	NULL	
+facebook_pages	token_expires_at	varchar(64)	YES	NULL	
+facebook_pages	webhook_subscribed	tinyint(1)	NO	0	
+facebook_pages	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+facebook_pages	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+facebook_webhook_events	id	varchar(36)	NO	NULL	
+facebook_webhook_events	user_id	varchar(36)	YES	NULL	
+facebook_webhook_events	raw	json	NO	NULL	
+facebook_webhook_events	processed	tinyint(1)	NO	0	
+facebook_webhook_events	received_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+groups	id	varchar(36)	NO	NULL	
+groups	user_id	varchar(36)	NO	NULL	
+groups	name	varchar(255)	NO	NULL	
+groups	description	text	YES	NULL	
+groups	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+groups	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+incoming_webhook_events	id	bigint unsigned	NO	NULL	auto_increment
+incoming_webhook_events	incoming_webhook_id	varchar(36)	NO	NULL	
+incoming_webhook_events	payload	json	NO	NULL	
+incoming_webhook_events	status	enum('received','processed','parse_error','error')	NO	received	
+incoming_webhook_events	error_message	text	YES	NULL	
+incoming_webhook_events	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+incoming_webhook_events	user_id	varchar(36)	NO	NULL	
+incoming_webhook_events	webhook_id	varchar(36)	NO	NULL	
+incoming_webhook_events	contact_id	varchar(36)	YES	NULL	
+incoming_webhook_events	idempotency_key	varchar(64)	YES	NULL	
+incoming_webhook_events	action	varchar(50)	YES	NULL	
+incoming_webhook_events	raw_payload	json	NO	NULL	
+incoming_webhook_events	mapped_standard_fields	json	YES	NULL	
+incoming_webhook_events	mapped_custom_fields	json	YES	NULL	
+incoming_webhook_events	unmapped_fields	json	YES	NULL	
+incoming_webhook_events	headers	json	YES	NULL	
+incoming_webhook_events	ip_address	varchar(45)	YES	NULL	
+incoming_webhook_events	user_agent	text	YES	NULL	
+incoming_webhook_events	error_code	varchar(50)	YES	NULL	
+incoming_webhook_events	received_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+incoming_webhook_events	processed_at	datetime	YES	NULL	
+incoming_webhook_events	processing_duration_ms	int unsigned	YES	NULL	
+incoming_webhook_events	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+incoming_webhooks	id	varchar(36)	NO	NULL	
+incoming_webhooks	tenant_id	varchar(36)	NO	NULL	
+incoming_webhooks	name	varchar(255)	NO	NULL	
+incoming_webhooks	token	varchar(64)	NO	NULL	
+incoming_webhooks	status	enum('listening','paused')	NO	listening	
+incoming_webhooks	events_count	int	NO	0	
+incoming_webhooks	leads_count	int	NO	0	
+incoming_webhooks	last_event_at	datetime	YES	NULL	
+incoming_webhooks	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+incoming_webhooks	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+incoming_webhooks	field_labels	json	YES	NULL	
+incoming_webhooks	last_contact_id	varchar(36)	YES	NULL	
+incoming_webhooks	target_funnel_id	varchar(36)	YES	NULL	
+incoming_webhooks	target_stage_id	varchar(36)	YES	NULL	
+instagram_accounts	id	varchar(36)	NO	NULL	
+instagram_accounts	user_id	varchar(36)	NO	NULL	
+instagram_accounts	ig_user_id	varchar(100)	YES	NULL	
+instagram_accounts	username	varchar(255)	YES	NULL	
+instagram_accounts	access_token	text	NO	NULL	
+instagram_accounts	app_id	varchar(255)	YES	NULL	
+instagram_accounts	app_secret	text	YES	NULL	
+instagram_accounts	token_expires_at	varchar(100)	YES	NULL	
+instagram_accounts	status	varchar(50)	NO	active	
+instagram_accounts	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+instagram_accounts	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+instagram_accounts	tenant_id	varchar(36)	NO		
+instagram_accounts	page_id	varchar(100)	YES	NULL	
+instagram_accounts	instagram_business_account_id	varchar(100)	YES	NULL	
+instagram_accounts	page_name	varchar(255)	YES	NULL	
+instagram_accounts	instagram_username	varchar(255)	YES	NULL	
+instagram_accounts	is_active	tinyint(1)	NO	1	
+instagram_accounts	webhook_subscribed	tinyint(1)	NO	0	
+instagram_webhook_events	id	bigint unsigned	NO	NULL	auto_increment
+instagram_webhook_events	tenant_id	varchar(36)	YES	NULL	
+instagram_webhook_events	page_id	varchar(100)	YES	NULL	
+instagram_webhook_events	instagram_business_account_id	varchar(100)	YES	NULL	
+instagram_webhook_events	event_type	varchar(100)	NO	NULL	
+instagram_webhook_events	message_mid	varchar(255)	YES	NULL	
+instagram_webhook_events	sender_id	varchar(100)	YES	NULL	
+instagram_webhook_events	recipient_id	varchar(100)	YES	NULL	
+instagram_webhook_events	payload	json	NO	NULL	
+instagram_webhook_events	processed	tinyint(1)	NO	0	
+instagram_webhook_events	processed_at	datetime	YES	NULL	
+instagram_webhook_events	error_message	text	YES	NULL	
+instagram_webhook_events	received_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+instagram_webhook_events	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+knowledge_base	id	varchar(36)	NO	NULL	
+knowledge_base	user_id	varchar(36)	NO	NULL	
+knowledge_base	ai_agent_settings_id	varchar(36)	NO	NULL	
+knowledge_base	title	varchar(255)	NO	NULL	
+knowledge_base	content	text	NO	NULL	
+knowledge_base	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+knowledge_base	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+license_activations	id	bigint unsigned	NO	NULL	auto_increment
+license_activations	license_id	bigint unsigned	NO	NULL	
+license_activations	domain	varchar(255)	YES	NULL	
+license_activations	app_url	varchar(255)	YES	NULL	
+license_activations	installation_id	varchar(255)	YES	NULL	
+license_activations	ip_address	varchar(80)	YES	NULL	
+license_activations	user_agent	text	YES	NULL	
+license_activations	status	varchar(30)	NO	active	
+license_activations	activated_at	datetime	NO	NULL	
+license_activations	last_check_at	datetime	YES	NULL	
+license_activations	created_at	timestamp	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+license_activations	updated_at	timestamp	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+license_settings	id	int	NO	1	
+license_settings	license_key_encrypted	text	YES	NULL	
+license_settings	license_status	varchar(50)	YES	NULL	
+license_settings	plan	varchar(100)	YES	NULL	
+license_settings	features_json	json	YES	NULL	
+license_settings	domain	varchar(255)	YES	NULL	
+license_settings	installation_id	varchar(255)	YES	NULL	
+license_settings	activated_at	datetime	YES	NULL	
+license_settings	last_validated_at	datetime	YES	NULL	
+license_settings	expires_at	datetime	YES	NULL	
+license_settings	cache_valid_until	datetime	YES	NULL	
+license_settings	grace_until	datetime	YES	NULL	
+license_settings	last_error	text	YES	NULL	
+license_settings	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+license_settings	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+license_settings	license_server_url	varchar(500)	YES	NULL	
+license_settings	app_id	varchar(100)	YES	NULL	
+license_settings	app_version	varchar(50)	YES	NULL	
+license_validation_logs	id	bigint unsigned	NO	NULL	auto_increment
+license_validation_logs	license_id	bigint unsigned	YES	NULL	
+license_validation_logs	domain	varchar(190)	YES	NULL	
+license_validation_logs	app_url	varchar(255)	YES	NULL	
+license_validation_logs	installation_id	varchar(120)	YES	NULL	
+license_validation_logs	ip_address	varchar(80)	YES	NULL	
+license_validation_logs	app_id	varchar(100)	YES	NULL	
+license_validation_logs	result	varchar(50)	YES	NULL	
+license_validation_logs	reason	text	YES	NULL	
+license_validation_logs	payload_json	json	YES	NULL	
+license_validation_logs	created_at	timestamp	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+license_validation_logs	status	varchar(50)	NO	NULL	
+license_validation_logs	message	text	YES	NULL	
+licenses	id	bigint unsigned	NO	NULL	auto_increment
+licenses	license_key_hash	char(64)	NO	NULL	
+licenses	license_key_preview	varchar(60)	NO	NULL	
+licenses	client_name	varchar(255)	NO	NULL	
+licenses	client_email	varchar(255)	NO	NULL	
+licenses	product_name	varchar(120)	YES	SaaS	
+licenses	app_id	varchar(100)	YES	NULL	
+licenses	plan	varchar(80)	NO	basic	
+licenses	status	varchar(30)	NO	active	
+licenses	expires_at	datetime	YES	NULL	
+licenses	max_activations	int	NO	1	
+licenses	max_users	int	YES	NULL	
+licenses	features_json	json	YES	NULL	
+licenses	notes	text	YES	NULL	
+licenses	created_at	timestamp	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+licenses	updated_at	timestamp	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+licenses	tenant_id	varchar(36)	YES	NULL	
+licenses	stripe_customer_id	varchar(255)	YES	NULL	
+licenses	stripe_subscription_id	varchar(255)	YES	NULL	
+licenses	ai_tokens_used	int	NO	0	
+list_contacts	list_id	varchar(36)	NO	NULL	
+list_contacts	contact_id	varchar(36)	NO	NULL	
+list_contacts	user_id	varchar(36)	NO	NULL	
+list_contacts	added_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+list_contacts	tenant_id	varchar(36)	NO	NULL	
+lists	id	varchar(36)	NO	NULL	
+lists	tenant_id	varchar(36)	NO	NULL	
+lists	user_id	varchar(36)	NO	NULL	
+lists	name	varchar(255)	NO	NULL	
+lists	description	text	YES	NULL	
+lists	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+lists	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+message_tags	message_id	varchar(36)	NO	NULL	
+message_tags	tag_id	varchar(36)	NO	NULL	
+message_tags	user_id	varchar(36)	NO	NULL	
+notifications	id	varchar(36)	NO	NULL	
+notifications	tenant_id	varchar(36)	NO	NULL	
+notifications	user_id	varchar(36)	NO	NULL	
+notifications	type	varchar(50)	NO	NULL	
+notifications	title	varchar(255)	NO	NULL	
+notifications	message	text	NO	NULL	
+notifications	action_url	varchar(255)	YES	NULL	
+notifications	is_read	tinyint(1)	NO	0	
+notifications	unique_key	varchar(255)	YES	NULL	
+notifications	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+notifications	read_at	datetime	YES	NULL	
+opportunities	id	varchar(36)	NO	NULL	
+opportunities	tenant_id	varchar(36)	NO	NULL	
+opportunities	user_id	varchar(36)	NO	NULL	
+opportunities	funnel_id	varchar(36)	NO	NULL	
+opportunities	stage_id	varchar(36)	NO	NULL	
+opportunities	title	varchar(200)	NO	NULL	
+opportunities	description	text	YES	NULL	
+opportunities	primary_contact_id	varchar(36)	YES	NULL	
+opportunities	company_name	varchar(255)	YES	NULL	
+opportunities	owner_user_id	varchar(36)	YES	NULL	
+opportunities	created_by_user_id	varchar(36)	YES	NULL	
+opportunities	updated_by_user_id	varchar(36)	YES	NULL	
+opportunities	value	decimal(15,2)	NO	0.00	
+opportunities	currency	char(3)	NO	BRL	
+opportunities	probability_percent	decimal(5,2)	YES	NULL	
+opportunities	expected_close_date	date	YES	NULL	
+opportunities	closed_at	datetime	YES	NULL	
+opportunities	status	enum('open','won','lost','paused','archived')	NO	open	
+opportunities	source	varchar(100)	YES	NULL	
+opportunities	temperature	enum('cold','warm','hot')	YES	NULL	
+opportunities	priority	enum('low','medium','high','urgent')	NO	medium	
+opportunities	lost_reason_id	varchar(36)	YES	NULL	
+opportunities	lost_reason_text	text	YES	NULL	
+opportunities	kanban_order	decimal(20,10)	NO	0.0000000000	
+opportunities	last_activity_at	datetime	YES	NULL	
+opportunities	next_activity_at	datetime	YES	NULL	
+opportunities	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunities	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+opportunities	deleted_at	datetime	YES	NULL	
+opportunity_activities	id	varchar(36)	NO	NULL	
+opportunity_activities	user_id	varchar(36)	NO	NULL	
+opportunity_activities	opportunity_id	varchar(36)	NO	NULL	
+opportunity_activities	contact_id	varchar(36)	YES	NULL	
+opportunity_activities	assigned_to_user_id	varchar(36)	YES	NULL	
+opportunity_activities	created_by_user_id	varchar(36)	YES	NULL	
+opportunity_activities	type	enum('call','email','meeting','task','note','whatsapp','proposal','follow_up','other')	NO	task	
+opportunity_activities	title	varchar(200)	NO	NULL	
+opportunity_activities	description	text	YES	NULL	
+opportunity_activities	status	enum('pending','done','canceled')	NO	pending	
+opportunity_activities	due_at	datetime	YES	NULL	
+opportunity_activities	completed_at	datetime	YES	NULL	
+opportunity_activities	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunity_activities	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+opportunity_activities	deleted_at	datetime	YES	NULL	
+opportunity_audit_logs	id	varchar(36)	NO	NULL	
+opportunity_audit_logs	tenant_id	varchar(36)	NO	NULL	
+opportunity_audit_logs	user_id	varchar(36)	NO	NULL	
+opportunity_audit_logs	opportunity_id	varchar(36)	YES	NULL	
+opportunity_audit_logs	user_id_actor	varchar(36)	YES	NULL	
+opportunity_audit_logs	action	varchar(100)	NO	NULL	
+opportunity_audit_logs	old_values	json	YES	NULL	
+opportunity_audit_logs	new_values	json	YES	NULL	
+opportunity_audit_logs	ip_address	varchar(45)	YES	NULL	
+opportunity_audit_logs	user_agent	text	YES	NULL	
+opportunity_audit_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunity_contacts	id	varchar(36)	NO	NULL	
+opportunity_contacts	tenant_id	varchar(36)	NO	NULL	
+opportunity_contacts	user_id	varchar(36)	NO	NULL	
+opportunity_contacts	opportunity_id	varchar(36)	NO	NULL	
+opportunity_contacts	contact_id	varchar(36)	NO	NULL	
+opportunity_contacts	role	varchar(100)	YES	NULL	
+opportunity_contacts	is_primary	tinyint(1)	NO	0	
+opportunity_contacts	notes	text	YES	NULL	
+opportunity_contacts	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunity_contacts	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+opportunity_lost_reasons	id	varchar(36)	NO	NULL	
+opportunity_lost_reasons	tenant_id	varchar(36)	NO	NULL	
+opportunity_lost_reasons	user_id	varchar(36)	NO	NULL	
+opportunity_lost_reasons	name	varchar(150)	NO	NULL	
+opportunity_lost_reasons	description	text	YES	NULL	
+opportunity_lost_reasons	is_active	tinyint(1)	NO	1	
+opportunity_lost_reasons	sort_order	int	NO	0	
+opportunity_lost_reasons	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunity_lost_reasons	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+opportunity_notes	id	varchar(36)	NO	NULL	
+opportunity_notes	user_id	varchar(36)	NO	NULL	
+opportunity_notes	opportunity_id	varchar(36)	NO	NULL	
+opportunity_notes	user_id_creator	varchar(36)	YES	NULL	
+opportunity_notes	body	text	NO	NULL	
+opportunity_notes	is_pinned	tinyint(1)	NO	0	
+opportunity_notes	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunity_notes	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+opportunity_notes	deleted_at	datetime	YES	NULL	
+opportunity_stage_history	id	varchar(36)	NO	NULL	
+opportunity_stage_history	tenant_id	varchar(36)	NO	NULL	
+opportunity_stage_history	user_id	varchar(36)	NO	NULL	
+opportunity_stage_history	opportunity_id	varchar(36)	NO	NULL	
+opportunity_stage_history	funnel_id	varchar(36)	NO	NULL	
+opportunity_stage_history	from_stage_id	varchar(36)	YES	NULL	
+opportunity_stage_history	to_stage_id	varchar(36)	NO	NULL	
+opportunity_stage_history	moved_by_user_id	varchar(36)	YES	NULL	
+opportunity_stage_history	moved_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+opportunity_stage_history	reason	text	YES	NULL	
+opportunity_stage_history	old_status	varchar(50)	YES	NULL	
+opportunity_stage_history	new_status	varchar(50)	YES	NULL	
+opportunity_tags	opportunity_id	varchar(36)	NO	NULL	
+opportunity_tags	tag_id	varchar(36)	NO	NULL	
+opportunity_tags	user_id	varchar(36)	NO	NULL	
+outgoing_webhook_logs	id	bigint unsigned	NO	NULL	auto_increment
+outgoing_webhook_logs	outgoing_webhook_id	varchar(36)	NO	NULL	
+outgoing_webhook_logs	event_type	varchar(100)	NO	NULL	
+outgoing_webhook_logs	payload_sent	json	NO	NULL	
+outgoing_webhook_logs	response_status	int	YES	NULL	
+outgoing_webhook_logs	response_body	text	YES	NULL	
+outgoing_webhook_logs	attempt_number	int	NO	1	
+outgoing_webhook_logs	success	tinyint(1)	NO	0	
+outgoing_webhook_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+outgoing_webhooks	id	varchar(36)	NO	NULL	
+outgoing_webhooks	tenant_id	varchar(36)	NO	NULL	
+outgoing_webhooks	url	varchar(500)	NO	NULL	
+outgoing_webhooks	event_type	varchar(100)	NO	NULL	
+outgoing_webhooks	status	enum('active','paused')	NO	active	
+outgoing_webhooks	retry_count	int	NO	3	
+outgoing_webhooks	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+outgoing_webhooks	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+payment_gateway_settings	tenant_id	varchar(36)	NO	NULL	
+payment_gateway_settings	environment	enum('sandbox','production')	NO	sandbox	
+payment_gateway_settings	checkout_mode	enum('transparent','redirect')	NO	redirect	
+payment_gateway_settings	sandbox_access_token	text	YES	NULL	
+payment_gateway_settings	sandbox_public_key	text	YES	NULL	
+payment_gateway_settings	sandbox_client_id	varchar(255)	YES	NULL	
+payment_gateway_settings	sandbox_client_secret	text	YES	NULL	
+payment_gateway_settings	production_access_token	text	YES	NULL	
+payment_gateway_settings	production_public_key	text	YES	NULL	
+payment_gateway_settings	production_client_id	varchar(255)	YES	NULL	
+payment_gateway_settings	production_client_secret	text	YES	NULL	
+payment_gateway_settings	webhook_secret	text	YES	NULL	
+payment_gateway_settings	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+payment_gateway_settings	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+payment_gateway_settings	provider	varchar(40)	NO	mercadopago	
+payment_gateway_settings	id	char(36)	YES	NULL	
+platform_banners	id	varchar(36)	NO	NULL	
+platform_banners	title	varchar(255)	NO	NULL	
+platform_banners	subtitle	text	YES	NULL	
+platform_banners	cta_label	varchar(100)	YES	NULL	
+platform_banners	cta_url	varchar(500)	YES	NULL	
+platform_banners	image_path	varchar(500)	YES	NULL	
+platform_banners	is_active	tinyint(1)	NO	1	
+platform_banners	display_order	int	NO	0	
+platform_banners	created_by	varchar(36)	NO	NULL	
+platform_banners	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+platform_banners	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+platform_settings	id	int	NO	1	
+platform_settings	meta_app_id	varchar(255)	YES	NULL	
+platform_settings	meta_app_secret	text	YES	NULL	
+platform_settings	meta_config_id	varchar(255)	YES	NULL	
+platform_settings	meta_graph_version	varchar(50)	NO	v20.0	
+platform_settings	cron_secret	text	YES	NULL	
+platform_settings	head_tags	text	YES	NULL	
+platform_settings	body_tags	text	YES	NULL	
+platform_settings	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+platform_settings	updated_by	varchar(36)	YES	NULL	
+platform_settings	sidebar_order	text	YES	NULL	
+platform_settings	seo_title	varchar(128)	YES	NULL	
+platform_settings	seo_description	varchar(320)	YES	NULL	
+platform_settings	license_key	varchar(255)	YES	NULL	
+platform_settings	license_token	text	YES	NULL	
+platform_settings	installation_id	varchar(255)	YES	NULL	
+platform_settings	license_grace_period_start	datetime	YES	NULL	
+platform_settings	app_id	varchar(100)	YES	NULL	
+platform_settings	app_secret	text	YES	NULL	
+platform_settings	business_account_id	varchar(100)	YES	NULL	
+platform_settings	webhook_verify_token	text	YES	NULL	
+platform_settings	system_user_token	text	YES	NULL	
+platform_settings	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+profiles	id	varchar(36)	NO	NULL	
+profiles	email	varchar(255)	YES	NULL	
+profiles	full_name	varchar(255)	YES	NULL	
+profiles	avatar_url	text	YES	NULL	
+profiles	display_name	varchar(255)	YES	NULL	
+profiles	phone	varchar(50)	YES	NULL	
+profiles	company_name	varchar(255)	YES	NULL	
+profiles	company_document	varchar(100)	YES	NULL	
+profiles	company_address	text	YES	NULL	
+profiles	company_website	varchar(255)	YES	NULL	
+profiles	rate_limit_per_second	int	NO	10	
+profiles	whatsapp_verify_token	varchar(255)	YES	NULL	
+profiles	whatsapp_access_token	text	YES	NULL	
+profiles	whatsapp_phone_number_id	varchar(100)	YES	NULL	
+profiles	whatsapp_waba_id	varchar(100)	YES	NULL	
+profiles	whatsapp_business_id	varchar(100)	YES	NULL	
+profiles	whatsapp_business_phone	varchar(50)	YES	NULL	
+profiles	whatsapp_app_secret	text	YES	NULL	
+profiles	meta_graph_version	varchar(50)	NO	v20.0	
+profiles	salvy_api_key	text	YES	NULL	
+profiles	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+profiles	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+profiles	api_key	varchar(255)	YES	NULL	
+profiles	whatsapp_app_id	varchar(100)	YES	NULL	
+sales_funnels	id	varchar(36)	NO	NULL	
+sales_funnels	tenant_id	varchar(36)	NO	NULL	
+sales_funnels	user_id	varchar(36)	NO	NULL	
+sales_funnels	name	varchar(150)	NO	NULL	
+sales_funnels	slug	varchar(180)	NO	NULL	
+sales_funnels	description	text	YES	NULL	
+sales_funnels	is_default	tinyint(1)	NO	0	
+sales_funnels	is_active	tinyint(1)	NO	1	
+sales_funnels	sort_order	int	NO	0	
+sales_funnels	created_by_user_id	varchar(36)	YES	NULL	
+sales_funnels	updated_by_user_id	varchar(36)	YES	NULL	
+sales_funnels	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+sales_funnels	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+sales_funnels	deleted_at	datetime	YES	NULL	
+sales_stages	id	varchar(36)	NO	NULL	
+sales_stages	tenant_id	varchar(36)	NO	NULL	
+sales_stages	user_id	varchar(36)	NO	NULL	
+sales_stages	funnel_id	varchar(36)	NO	NULL	
+sales_stages	name	varchar(150)	NO	NULL	
+sales_stages	slug	varchar(180)	NO	NULL	
+sales_stages	description	text	YES	NULL	
+sales_stages	color	varchar(30)	YES	NULL	
+sales_stages	probability_percent	decimal(5,2)	NO	0.00	
+sales_stages	sort_order	int	NO	0	
+sales_stages	is_won_stage	tinyint(1)	NO	0	
+sales_stages	is_lost_stage	tinyint(1)	NO	0	
+sales_stages	is_active	tinyint(1)	NO	1	
+sales_stages	created_by_user_id	varchar(36)	YES	NULL	
+sales_stages	updated_by_user_id	varchar(36)	YES	NULL	
+sales_stages	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+sales_stages	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+sales_stages	deleted_at	datetime	YES	NULL	
+salvy_numbers	id	varchar(36)	NO	NULL	
+salvy_numbers	user_id	varchar(36)	NO	NULL	
+salvy_numbers	salvy_id	varchar(100)	NO	NULL	
+salvy_numbers	phone_number	varchar(50)	NO	NULL	
+salvy_numbers	area_code	int	YES	NULL	
+salvy_numbers	name	varchar(255)	YES	NULL	
+salvy_numbers	status	varchar(50)	NO	pending	
+salvy_numbers	cost_center	varchar(255)	YES	NULL	
+salvy_numbers	cancel_reason	text	YES	NULL	
+salvy_numbers	created_at_remote	datetime	YES	NULL	
+salvy_numbers	canceled_at	datetime	YES	NULL	
+salvy_numbers	raw	json	YES	NULL	
+salvy_numbers	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+salvy_numbers	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+schema_backups	id	varchar(36)	NO	NULL	
+schema_backups	created_by	varchar(36)	YES	NULL	
+schema_backups	source	varchar(255)	NO	NULL	
+schema_backups	sql	longtext	NO	NULL	
+schema_backups	size_bytes	int	NO	0	
+schema_backups	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+schema_migrations	version	varchar(255)	NO	NULL	
+schema_migrations	applied_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+subscription_events	id	varchar(36)	NO	NULL	
+subscription_events	tenant_id	varchar(255)	YES	NULL	
+subscription_events	subscription_id	varchar(36)	NO	NULL	
+subscription_events	event_type	varchar(100)	NO	NULL	
+subscription_events	previous_status	varchar(50)	YES	NULL	
+subscription_events	new_status	varchar(32)	YES	NULL	
+subscription_events	invoice_id	varchar(36)	YES	NULL	
+subscription_events	payment_id	varchar(36)	YES	NULL	
+subscription_events	metadata	json	YES	NULL	
+subscription_events	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+subscription_events	created_by	varchar(36)	YES	NULL	
+subscription_events	source	varchar(64)	NO	system	
+subscription_events	gateway_event_id	varchar(255)	YES	NULL	
+subscription_events	payload_json	json	YES	NULL	
+subscription_events	raw_payload	text	YES	NULL	
+subscription_plan_changes	id	varchar(36)	NO	NULL	
+subscription_plan_changes	tenant_id	varchar(255)	NO	NULL	
+subscription_plan_changes	subscription_id	varchar(36)	NO	NULL	
+subscription_plan_changes	old_plan	varchar(64)	NO	NULL	
+subscription_plan_changes	new_plan	varchar(64)	NO	NULL	
+subscription_plan_changes	effective_date	datetime	NO	NULL	
+subscription_plan_changes	applied_at	datetime	YES	NULL	
+subscription_plan_changes	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+subscription_plans	id	varchar(36)	NO	NULL	
+subscription_plans	name	varchar(100)	NO	NULL	
+subscription_plans	slug	varchar(80)	NO	NULL	
+subscription_plans	description	text	YES	NULL	
+subscription_plans	max_agents	int	YES	1	
+subscription_plans	max_funnels	int	YES	1	
+subscription_plans	max_users	int	YES	1	
+subscription_plans	features_json	json	YES	NULL	
+subscription_plans	is_active	tinyint(1)	YES	1	
+subscription_plans	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+subscription_plans	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+subscription_plans	stripe_product_id	varchar(255)	YES	NULL	
+subscription_plans	stripe_price_id	varchar(255)	YES	NULL	
+subscription_plans	max_ai_tokens	int	NO	500000	
+subscription_plans	max_contacts	int	NO	1000	
+subscription_plans	max_campaigns	int	NO	10	
+subscriptions	id	varchar(36)	NO	NULL	
+subscriptions	tenant_id	varchar(36)	NO	NULL	
+subscriptions	customer_id	varchar(255)	YES	NULL	
+subscriptions	plan_id	varchar(36)	NO	NULL	
+subscriptions	status	enum('trial','active','expiring','pending_payment','past_due','suspended','cancelled')	NO	trial	
+subscriptions	starts_at	datetime	YES	NULL	
+subscriptions	expires_at	datetime	YES	NULL	
+subscriptions	grace_period_ends_at	datetime	YES	NULL	
+subscriptions	cancelled_at	datetime	YES	NULL	
+subscriptions	last_payment_at	datetime	YES	NULL	
+subscriptions	next_billing_at	datetime	YES	NULL	
+subscriptions	auto_renew	tinyint(1)	NO	0	
+subscriptions	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+subscriptions	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+subscriptions	current_period_start	datetime	YES	NULL	
+subscriptions	current_period_end	datetime	YES	NULL	
+subscriptions	trial_started_at	datetime	YES	NULL	
+subscriptions	trial_ends_at	datetime	YES	NULL	
+subscriptions	trial_consumed_at	datetime	YES	NULL	
+subscriptions	activated_at	datetime	YES	NULL	
+tags	id	varchar(36)	NO	NULL	
+tags	tenant_id	varchar(36)	NO	NULL	
+tags	user_id	varchar(36)	NO	NULL	
+tags	name	varchar(255)	NO	NULL	
+tags	color	varchar(50)	NO	#8B5CF6	
+tags	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+tags	icon	varchar(50)	YES	NULL	
+team_members	id	varchar(36)	NO	NULL	
+team_members	team_id	varchar(36)	NO	NULL	
+team_members	user_id	varchar(36)	NO	NULL	
+team_members	role	enum('agent','supervisor')	NO	agent	
+team_members	joined_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+teams	id	varchar(36)	NO	NULL	
+teams	tenant_id	varchar(36)	NO	NULL	
+teams	user_id	varchar(36)	NO	NULL	
+teams	name	varchar(255)	NO	NULL	
+teams	description	text	YES	NULL	
+teams	auto_assign_mode	enum('manual','round_robin','least_busy')	NO	manual	
+teams	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+templates	id	varchar(36)	NO	NULL	
+templates	tenant_id	varchar(36)	NO	NULL	
+templates	user_id	varchar(36)	NO	NULL	
+templates	name	varchar(255)	NO	NULL	
+templates	language	varchar(50)	NO	NULL	
+templates	category	varchar(50)	YES	NULL	
+templates	status	enum('APPROVED','PENDING','REJECTED','PAUSED','DISABLED')	NO	PENDING	
+templates	components	json	YES	NULL	
+templates	meta_template_id	varchar(255)	YES	NULL	
+templates	synced_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+templates	parameter_format	varchar(50)	YES	NULL	
+templates	allow_category_change	tinyint(1)	YES	NULL	
+templates	cta_url_link_tracking_opted_out	tinyint(1)	YES	NULL	
+templates	message_send_ttl_seconds	int	YES	NULL	
+templates	sub_category	varchar(100)	YES	NULL	
+templates	is_primary_device_delivery_only	tinyint(1)	YES	NULL	
+templates	display_format	varchar(20)	YES	NULL	
+user_roles	id	varchar(36)	NO	NULL	
+user_roles	user_id	varchar(36)	NO	NULL	
+user_roles	role	enum('admin_master','admin','user')	NO	user	
+user_roles	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+users	id	varchar(36)	NO	NULL	
+users	email	varchar(255)	NO	NULL	
+users	password_hash	varchar(255)	NO	NULL	
+users	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+users	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+webhook_bot_logs	id	int	NO	NULL	auto_increment
+webhook_bot_logs	tenant_id	varchar(36)	NO	NULL	
+webhook_bot_logs	flow_id	varchar(36)	NO	NULL	
+webhook_bot_logs	flow_name	varchar(255)	NO	NULL	
+webhook_bot_logs	contact_id	varchar(36)	NO	NULL	
+webhook_bot_logs	is_match	tinyint(1)	NO	0	
+webhook_bot_logs	raw_conditions	json	NO	NULL	
+webhook_bot_logs	raw_payload	json	NO	NULL	
+webhook_bot_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+webhook_events	id	varchar(36)	NO	NULL	
+webhook_events	user_id	varchar(36)	YES	NULL	
+webhook_events	source	varchar(100)	NO	NULL	
+webhook_events	raw	json	NO	NULL	
+webhook_events	processed	tinyint(1)	NO	0	
+webhook_events	received_at	datetime	YES	NULL	
+webhook_events	tenant_id	varchar(36)	YES	NULL	
+webhook_events	event_type	varchar(100)	NO	generic	
+webhook_events	payload_json	json	NO	NULL	
+webhook_events	status	varchar(50)	NO	pending	
+webhook_events	error_message	text	YES	NULL	
+webhook_events	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+webhook_field_mappings	id	varchar(36)	NO	NULL	
+webhook_field_mappings	user_id	varchar(36)	NO	NULL	
+webhook_field_mappings	webhook_id	varchar(36)	NO	NULL	
+webhook_field_mappings	external_field	varchar(255)	NO	NULL	
+webhook_field_mappings	target_type	enum('standard','custom','ignore')	NO	NULL	
+webhook_field_mappings	target_key	varchar(100)	YES	NULL	
+webhook_field_mappings	custom_field_id	varchar(36)	YES	NULL	
+webhook_field_mappings	transformation	varchar(50)	YES	NULL	
+webhook_field_mappings	default_value	text	YES	NULL	
+webhook_field_mappings	is_required	tinyint(1)	NO	0	
+webhook_field_mappings	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+webhook_field_mappings	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+whatsapp_business_profile_logs	id	varchar(36)	NO	NULL	
+whatsapp_business_profile_logs	user_id	varchar(36)	YES	NULL	
+whatsapp_business_profile_logs	tenant_id	varchar(36)	YES	NULL	
+whatsapp_business_profile_logs	phone_number_id	varchar(100)	YES	NULL	
+whatsapp_business_profile_logs	action	enum('fetch_profile','update_profile','upload_profile_picture','update_profile_picture')	NO	NULL	
+whatsapp_business_profile_logs	old_data_json	json	YES	NULL	
+whatsapp_business_profile_logs	new_data_json	json	YES	NULL	
+whatsapp_business_profile_logs	meta_response_json	json	YES	NULL	
+whatsapp_business_profile_logs	success	tinyint(1)	NO	0	
+whatsapp_business_profile_logs	error_code	varchar(100)	YES	NULL	
+whatsapp_business_profile_logs	error_message	text	YES	NULL	
+whatsapp_business_profile_logs	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+whatsapp_business_profile_logs	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+whatsapp_calls	id	varchar(36)	NO	NULL	
+whatsapp_calls	tenant_id	varchar(36)	NO	NULL	
+whatsapp_calls	chat_session_id	varchar(36)	YES	NULL	
+whatsapp_calls	contact_id	varchar(36)	YES	NULL	
+whatsapp_calls	phone_number_id	varchar(50)	NO	NULL	
+whatsapp_calls	whatsapp_call_id	varchar(100)	NO	NULL	
+whatsapp_calls	direction	enum('inbound','outbound')	NO	NULL	
+whatsapp_calls	status	enum('incoming','connecting','ringing','active','rejected','ended','failed')	NO	incoming	
+whatsapp_calls	started_at	datetime	YES	NULL	
+whatsapp_calls	answered_at	datetime	YES	NULL	
+whatsapp_calls	ended_at	datetime	YES	NULL	
+whatsapp_calls	duration_seconds	int	YES	NULL	
+whatsapp_calls	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+whatsapp_calls	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+whatsapp_flow_submissions	id	varchar(36)	NO	NULL	
+whatsapp_flow_submissions	user_id	varchar(36)	NO	NULL	
+whatsapp_flow_submissions	contact_phone	varchar(50)	NO	NULL	
+whatsapp_flow_submissions	flow_id	varchar(100)	NO	NULL	
+whatsapp_flow_submissions	flow_token	varchar(255)	YES	NULL	
+whatsapp_flow_submissions	response_json	json	NO	NULL	
+whatsapp_flow_submissions	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+whatsapp_flows	id	varchar(36)	NO	NULL	
+whatsapp_flows	user_id	varchar(36)	NO	NULL	
+whatsapp_flows	flow_id	varchar(100)	NO	NULL	
+whatsapp_flows	flow_name	varchar(255)	NO	NULL	
+whatsapp_flows	waba_id	varchar(100)	YES	NULL	
+whatsapp_flows	phone_number_id	varchar(100)	YES	NULL	
+whatsapp_flows	status	varchar(50)	NO	draft	
+whatsapp_flows	flow_json	json	YES	NULL	
+whatsapp_flows	endpoint_url	varchar(500)	YES	NULL	
+whatsapp_flows	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+whatsapp_flows	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+whatsapp_group_participants	id	varchar(36)	NO	NULL	
+whatsapp_group_participants	user_id	varchar(36)	NO	NULL	
+whatsapp_group_participants	group_id	varchar(100)	NO	NULL	
+whatsapp_group_participants	wa_id	varchar(50)	NO	NULL	
+whatsapp_group_participants	name	varchar(255)	YES	NULL	
+whatsapp_group_participants	status	varchar(50)	NO	active	
+whatsapp_group_participants	joined_at	datetime	YES	NULL	
+whatsapp_group_participants	left_at	datetime	YES	NULL	
+whatsapp_group_participants	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+whatsapp_group_participants	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+whatsapp_groups	id	varchar(36)	NO	NULL	
+whatsapp_groups	user_id	varchar(36)	NO	NULL	
+whatsapp_groups	instance_id	varchar(100)	YES	NULL	
+whatsapp_groups	group_id	varchar(100)	NO	NULL	
+whatsapp_groups	name	varchar(255)	NO	NULL	
+whatsapp_groups	description	text	YES	NULL	
+whatsapp_groups	invite_link	text	YES	NULL	
+whatsapp_groups	status	varchar(50)	NO	active	
+whatsapp_groups	error_message	text	YES	NULL	
+whatsapp_groups	created_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED
+whatsapp_groups	updated_at	datetime	NO	CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
