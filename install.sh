@@ -569,6 +569,16 @@ else
   git clean -fd
 fi
 
+# O .env é específico da instalação e não pertence ao Git. A cópia persistente
+# é criada antes da sincronização justamente para sobreviver ao reset/clone.
+# Restaurá-la aqui garante que updates não troquem credenciais da VPS pelas do
+# repositório nem gerem novos segredos por engano.
+if [ -f "${PERSISTENT_ENV_FILE}" ]; then
+  cp "${PERSISTENT_ENV_FILE}" "${APP_DIR}/.env"
+  chmod 600 "${APP_DIR}/.env"
+  print_ok "Configuração persistente restaurada após a sincronização do Git."
+fi
+
 # Validação estrita do Commit SHA
 EXPECTED_SHA=$(git rev-parse origin/main)
 LOCAL_SHA=$(git rev-parse HEAD)
