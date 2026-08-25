@@ -106,6 +106,7 @@ function hasTenantIdColumn(table: string): boolean {
     "ai_agent_settings",
     "knowledge_base",
     "licenses",
+    "instagram_webhook_events",
   ].includes(table);
 }
 
@@ -151,7 +152,6 @@ function hasUserIdColumn(table: string): boolean {
     "whatsapp_group_participants",
     "chat_sessions",
     "instagram_accounts",
-    "instagram_webhook_events",
     "facebook_pages",
     "facebook_webhook_events",
   ].includes(table);
