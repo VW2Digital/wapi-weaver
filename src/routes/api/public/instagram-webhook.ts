@@ -247,9 +247,28 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
               }
 
               const phonePlaceholder = `ig_${itemSenderId}`;
-              const name = `Instagram (${item.sender?.name || itemSenderId})`;
+
+              // Tenta enriquecer contato com dados reais do perfil do Instagram via Graph API
+              let contactName = item.sender?.name || `Instagram (${itemSenderId})`;
+              let contactAvatarUrl: string | undefined = undefined;
+
+              if (account.access_token) {
+                try {
+                  const { fetchInstagramUserProfile } = await import("@/lib/instagram.functions");
+                  const userProfile = await fetchInstagramUserProfile(itemSenderId, account.access_token);
+                  if (userProfile?.name) contactName = userProfile.name;
+                  if (userProfile?.profilePic) contactAvatarUrl = userProfile.profilePic;
+                } catch {
+                  // Fallback silencioso mantendo nome padrão
+                }
+              }
 
               // Contato Upsert
+              const contactCustomFields: Record<string, any> = {};
+              if (contactAvatarUrl) {
+                contactCustomFields.avatar_url = contactAvatarUrl;
+              }
+
               const { error: contactUpsertError } = await dbAdmin
                 .from("contacts")
                 .upsert(
@@ -257,11 +276,12 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                     tenant_id: tenantId,
                     user_id: accountUserId,
                     phone_e164: phonePlaceholder,
-                    name: name,
+                    name: contactName,
                     channel: "instagram",
                     external_contact_id: itemSenderId,
                     source: "instagram",
                     is_unread: true,
+                    custom_fields: Object.keys(contactCustomFields).length > 0 ? contactCustomFields : undefined,
                   },
                   { onConflict: "user_id,channel,external_contact_id" },
                 );
@@ -274,21 +294,35 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 logInfo("[INSTAGRAM] Processando mensagem recebida", { 
                   mid: message.mid, 
                   senderId: itemSenderId,
-                  type: message.attachments?.[0]?.type || 'text'
+                  type: message.attachments?.[0]?.type || (message.sticker ? 'sticker' : 'text')
                 });
 
                 let messageType = "text";
                 let messageBody = message.text || "";
+                let remoteMediaUrl = "";
                 let attachmentMetadata: any = null;
 
                 if (message.attachments && message.attachments.length > 0) {
                   const attachment = message.attachments[0];
                   messageType = attachment.type;
+                  remoteMediaUrl = attachment.payload?.url || "";
                   attachmentMetadata = {
-                    url: attachment.payload?.url,
+                    url: remoteMediaUrl,
                     id: attachment.payload?.sticker_id || attachment.payload?.attachment_id,
                   };
                   if (messageType === 'fallback') messageType = 'document';
+                  if (messageType === 'animated_image_share' || messageType === 'share' || messageType === 'ig_reel') {
+                    if (remoteMediaUrl) {
+                      messageType = 'video';
+                    }
+                  }
+                } else if (message.sticker) {
+                  messageType = "sticker";
+                  remoteMediaUrl = message.sticker.url || "";
+                  attachmentMetadata = {
+                    url: remoteMediaUrl,
+                    id: message.sticker.id,
+                  };
                 }
 
                 if (message.reply_to?.story) {
@@ -321,7 +355,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                     status: "delivered",
                     metadata: { 
                        raw: item, 
-                       [messageType]: attachmentMetadata
+                       [messageType]: attachmentMetadata,
+                       media_url: remoteMediaUrl || undefined,
                     },
                   },
                   { onConflict: "user_id,channel,provider_message_id" },
@@ -329,6 +364,17 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 if (storedMessageError || !storedMessage?.id) {
                   throw new Error(
                     `Falha ao persistir mensagem do Instagram: ${storedMessageError?.message || "ID não retornado"}`,
+                  );
+                }
+
+                // Download da mídia para o storage próprio para garantir que não expire
+                if (remoteMediaUrl && ["image", "audio", "video", "document", "sticker"].includes(messageType)) {
+                  const { downloadAndPersistInstagramMedia } = await import("@/lib/instagram-media-downloader");
+                  await downloadAndPersistInstagramMedia(
+                    tenantId,
+                    storedMessage.id,
+                    messageType as any,
+                    remoteMediaUrl,
                   );
                 }
 

@@ -201,3 +201,33 @@ export async function markInstagramMessageSeen(
     return false;
   }
 }
+
+export async function fetchInstagramUserProfile(
+  senderId: string,
+  accessToken: string,
+): Promise<{ name?: string; profilePic?: string } | null> {
+  if (!senderId || !accessToken) return null;
+  const configuredVersion = process.env.META_GRAPH_VERSION || "v26.0";
+  const apiVersion = configuredVersion.startsWith("v") ? configuredVersion : `v${configuredVersion}`;
+  const url = `https://graph.instagram.com/${apiVersion}/${senderId}?fields=name,username,profile_pic`;
+
+  try {
+    const r = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!r.ok) {
+      return null;
+    }
+
+    const data = await r.json();
+    return {
+      name: data.name || data.username || undefined,
+      profilePic: data.profile_pic || undefined,
+    };
+  } catch (e) {
+    return null;
+  }
+}

@@ -3024,17 +3024,27 @@ function ChatPage() {
   });
 
   const contactsForUi = useMemo<ChatContactRecord[]>(() => {
-    const baseContacts = [...(contactsQuery.data ?? [])];
+    const rawContacts = [...(contactsQuery.data ?? [])];
 
     for (const draft of draftChatContacts) {
-      if (!baseContacts.some((contact) => contact.id === draft.id)) {
-        baseContacts.unshift(draft);
+      if (!rawContacts.some((contact) => contact.id === draft.id)) {
+        rawContacts.unshift(draft);
       }
     }
 
-    if (!selectedContact?.id) return baseContacts;
+    // Deduplica contatos pela chave única composta (channel, phone_e164)
+    const seenMap = new Map<string, ChatContactRecord>();
+    for (const c of rawContacts) {
+      const channelKey = `${c.channel || "whatsapp"}:${c.phone_e164 || c.id}`;
+      if (!seenMap.has(channelKey)) {
+        seenMap.set(channelKey, c);
+      }
+    }
+    const deduplicated = Array.from(seenMap.values());
 
-    return baseContacts.map((contact) =>
+    if (!selectedContact?.id) return deduplicated;
+
+    return deduplicated.map((contact) =>
       contact.id === selectedContact.id
         ? mergeChatContactRecord(contact, selectedContact)
         : contact,
@@ -4079,6 +4089,17 @@ function ChatPage() {
   });
 
   const displayMessages = Array.from(messageMap.values());
+
+  // Calcula a janela de 24h para contatos do Instagram
+  const isInstagramChat = selectedContact?.channel === "instagram" || selectedPhone?.startsWith("ig_");
+  const lastInboundMessage = displayMessages
+    .filter((m) => m.direction === "incoming")
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+  const isInstagram24hExpired = Boolean(
+    isInstagramChat &&
+      lastInboundMessage &&
+      Date.now() - new Date(lastInboundMessage.timestamp).getTime() > 24 * 60 * 60 * 1000,
+  );
 
   const visibleMessageIds = displayMessages.map((message) => message.id);
   const messageTagsQuery = useQuery({
@@ -6051,10 +6072,10 @@ function ChatPage() {
                                         );
                                       };
 
-                                      // Helper to get media source URL
+                                      // Helper to get media source URL (agnóstico para WhatsApp e Instagram)
                                       const getMediaUrl = (urlOrId: string) => {
                                         if (!urlOrId) return "";
-                                        if (isUrl(urlOrId)) return urlOrId;
+                                        if (urlOrId.startsWith("/") || isUrl(urlOrId)) return urlOrId;
                                         return `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
                                       };
 
@@ -6795,19 +6816,30 @@ function ChatPage() {
                       </div>
                     ) : (
                       <>
+                        {/* Aviso de Janela de 24h do Instagram Expirada */}
+                        {isInstagram24hExpired && (
+                          <div className="bg-amber-500/10 border-b border-amber-500/20 px-3.5 py-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                            <Clock className="h-4 w-4 shrink-0" />
+                            <span>
+                              A janela regulamentar de 24h da Meta para resposta direta expirou. Aguarde uma nova mensagem do contato no Instagram.
+                            </span>
+                          </div>
+                        )}
+
                         {/* Linha Superior: Campo de Texto */}
                         <div className="px-3.5 pt-3 pb-2 md:px-4 md:pt-3.5 md:pb-2.5">
                           <Label className="sr-only">Mensagem</Label>
                           <Textarea
-                            placeholder="Escreva sua mensagem aqui"
-                            className="min-h-[44px] max-h-[140px] w-full p-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm md:text-sm shadow-none font-sans leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                            placeholder={isInstagram24hExpired ? "Janela de 24h expirada no Instagram..." : "Escreva sua mensagem aqui"}
+                            disabled={isInstagram24hExpired}
+                            className="min-h-[44px] max-h-[140px] w-full p-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm md:text-sm shadow-none font-sans leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                             rows={1}
                             value={typedMessage}
                             onChange={(e) => setTypedMessage(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
-                                handleSendText();
+                                if (!isInstagram24hExpired) handleSendText();
                               }
                             }}
                           />
@@ -6941,9 +6973,10 @@ function ChatPage() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              title="Gravar áudio"
+                              title={isInstagram24hExpired ? "Janela de 24h expirada" : "Gravar áudio"}
+                              disabled={isInstagram24hExpired}
                               onClick={handleStartRecording}
-                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Mic className="h-4 w-4" />
                             </Button>
@@ -6951,7 +6984,7 @@ function ChatPage() {
 
                           {/* Botão Enviar */}
                           <Button
-                            disabled={!typedMessage.trim() || sendMutation.isPending}
+                            disabled={!typedMessage.trim() || sendMutation.isPending || isInstagram24hExpired}
                             onClick={handleSendText}
                             className="h-8 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-1.5 shadow-sm text-xs md:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
