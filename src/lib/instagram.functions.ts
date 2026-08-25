@@ -33,6 +33,18 @@ export interface InstagramSendResult {
 const MAX_RETRIES = 3;
 const BASE_DELAY = 1000;
 
+export function buildInstagramGraphUrl(
+  nodeId: string,
+  path = "",
+  configuredVersion = process.env.META_GRAPH_VERSION || "v26.0",
+) {
+  const apiVersion = configuredVersion.startsWith("v")
+    ? configuredVersion
+    : `v${configuredVersion}`;
+  const suffix = path ? `/${path.replace(/^\/+/, "")}` : "";
+  return `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(nodeId)}${suffix}`;
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -48,9 +60,6 @@ function logError(message: string, error?: any) {
 export async function sendInstagramMessage(
   params: InstagramSendParams,
 ): Promise<InstagramSendResult> {
-  const configuredVersion = process.env.META_GRAPH_VERSION || "v26.0";
-  const apiVersion = configuredVersion.startsWith("v") ? configuredVersion : `v${configuredVersion}`;
-
   const payload: any = {
     recipient: { id: params.recipientId },
   };
@@ -94,7 +103,9 @@ export async function sendInstagramMessage(
     };
   }
 
-  const url = `https://graph.instagram.com/${apiVersion}/${params.igUserId}/messages`;
+  // Esta integração usa Instagram API with Facebook Login e Page Access
+  // Token. O mesmo token é validado em graph.facebook.com nas configurações.
+  const url = buildInstagramGraphUrl(params.igUserId, "messages");
   
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -171,9 +182,7 @@ export async function markInstagramMessageSeen(
   recipientId: string,
   messageId: string
 ): Promise<boolean> {
-  const configuredVersion = process.env.META_GRAPH_VERSION || "v26.0";
-  const apiVersion = configuredVersion.startsWith("v") ? configuredVersion : `v${configuredVersion}`;
-  const url = `https://graph.instagram.com/${apiVersion}/${igUserId}/messages`;
+  const url = buildInstagramGraphUrl(igUserId, "messages");
 
   const payload = {
     recipient: { id: recipientId },
@@ -207,9 +216,7 @@ export async function fetchInstagramUserProfile(
   accessToken: string,
 ): Promise<{ name?: string; profilePic?: string } | null> {
   if (!senderId || !accessToken) return null;
-  const configuredVersion = process.env.META_GRAPH_VERSION || "v26.0";
-  const apiVersion = configuredVersion.startsWith("v") ? configuredVersion : `v${configuredVersion}`;
-  const url = `https://graph.instagram.com/${apiVersion}/${senderId}?fields=name,username,profile_pic`;
+  const url = `${buildInstagramGraphUrl(senderId)}?fields=name,username,profile_pic`;
 
   try {
     const r = await fetch(url, {

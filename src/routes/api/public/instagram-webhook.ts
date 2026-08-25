@@ -135,23 +135,11 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           }
         }
 
-        // Idempotency: verify by message ID (mid)
+        // Identifica o evento para auditoria. A deduplicação da mensagem é
+        // feita somente depois do upsert do contato, para que uma reentrega da
+        // Meta também repare contatos ausentes na lista.
         const firstMsg = payload?.entry?.[0]?.messaging?.[0]?.message;
         const mid = firstMsg?.mid || payload?.entry?.[0]?.messaging?.[0]?.reaction?.mid || payload?.entry?.[0]?.messaging?.[0]?.message_edit?.mid;
-        
-        if (mid) {
-          const { data: existingDm } = await dbAdmin
-            .from("direct_messages")
-            .select("id")
-            .eq("user_id", accountUserId)
-            .eq("channel", "instagram")
-            .eq("provider_message_id", mid)
-            .maybeSingle();
-          if (existingDm && !payload?.entry?.[0]?.messaging?.[0]?.message_edit) {
-            logInfo("Evento duplicado ignorado (mid já processado)", { mid });
-            return new Response("EVENT_RECEIVED", { status: 200 });
-          }
-        }
 
         let eventType = "unknown";
         if (firstMsg) eventType = "message";
@@ -281,12 +269,36 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                     external_contact_id: itemSenderId,
                     source: "instagram",
                     is_unread: true,
+                    is_archived: false,
+                    chat_status: "aberto",
+                    last_interaction_at: new Date(
+                      Number(item.timestamp || entry.time || Date.now()),
+                    ).toISOString(),
                     custom_fields: Object.keys(contactCustomFields).length > 0 ? contactCustomFields : undefined,
                   },
                   { onConflict: "user_id,channel,external_contact_id" },
                 );
               if (contactUpsertError) {
                 throw new Error(`Falha ao persistir contato do Instagram: ${contactUpsertError.message}`);
+              }
+
+              if (item.message?.mid && !item.message?.is_echo) {
+                const existingMessages = (await db.query(
+                  `SELECT id FROM direct_messages
+                   WHERE channel = 'instagram'
+                     AND provider_message_id = ?
+                     AND (tenant_id = ? OR user_id = ?)
+                   LIMIT 1`,
+                  [item.message.mid, tenantId, accountUserId],
+                )) as Array<{ id: string }>;
+
+                if (existingMessages[0]) {
+                  logInfo("Mensagem duplicada ignorada após garantir o contato", {
+                    mid: item.message.mid,
+                    contact: phonePlaceholder,
+                  });
+                  continue;
+                }
               }
 
               if (item.message) {
