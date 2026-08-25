@@ -4836,6 +4836,28 @@
         "extra": "",
         "charset": "utf8mb4",
         "collation": "utf8mb4_unicode_ci"
+      },
+      "instagram_id": {
+        "ordinal_position": 31,
+        "data_type": "varchar",
+        "column_type": "varchar(255)",
+        "nullable": true,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "whatsapp_number": {
+        "ordinal_position": 32,
+        "data_type": "varchar",
+        "column_type": "varchar(50)",
+        "nullable": true,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
       }
     },
     "primary_key": [
@@ -4883,6 +4905,12 @@
       ],
       "idx_contacts_tenant": [
         "tenant_id"
+      ],
+      "idx_contacts_instagram_id": [
+        "instagram_id"
+      ],
+      "idx_contacts_whatsapp_number": [
+        "whatsapp_number"
       ]
     },
     "foreign_keys": [

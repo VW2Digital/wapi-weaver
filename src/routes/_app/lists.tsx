@@ -417,7 +417,7 @@ function ListsPage() {
                               setPicked(n);
                             }}
                           />
-                          <span className="font-mono">+{c.phone_e164}</span>
+                          <span className="font-mono">{c.phone_e164?.startsWith("ig_") || c.phone_e164?.startsWith("fb_") ? c.phone_e164 : `+${c.phone_e164}`}</span>
                           <span className="text-muted-foreground">{c.name ?? ""}</span>
                           {isMember && (
                             <span className="text-[10px] bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded ml-auto">
@@ -462,7 +462,7 @@ function ListsPage() {
                         key={m.contact_id}
                         className="flex items-center justify-between border-b px-2 py-1.5 text-sm last:border-0"
                       >
-                        <span className="font-mono">+{m.contacts?.phone_e164}</span>
+                        <span className="font-mono">{m.contacts?.phone_e164?.startsWith("ig_") || m.contacts?.phone_e164?.startsWith("fb_") ? m.contacts?.phone_e164 : `+${m.contacts?.phone_e164}`}</span>
                         <button
                           onClick={async () => {
                             await rmMember({

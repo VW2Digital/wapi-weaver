@@ -131,8 +131,11 @@ function ContactDetailPage() {
 
   const contact = data?.contact;
 
+  const isNonPhoneId = contact?.phone_e164?.startsWith("ig_") || contact?.phone_e164?.startsWith("fb_");
+  const displayPhone = isNonPhoneId ? contact?.phone_e164 : `+${contact?.phone_e164}`;
+
   usePageHeader({
-    title: contact ? (contact.name || `+${contact.phone_e164}`) : "Carregando...",
+    title: contact ? (contact.name || displayPhone) : "Carregando...",
     subtitle: "Detalhes do contato",
     action: contact ? (
       <Button variant="outline" size="sm" asChild>
@@ -244,7 +247,7 @@ function ContactDetailPage() {
               <h2 className="text-lg font-semibold truncate max-w-[220px] text-foreground">
                 {contact.name || "Sem nome"}
               </h2>
-              <p className="text-xs text-muted-foreground font-mono">+{contact.phone_e164}</p>
+              <p className="text-xs text-muted-foreground font-mono">{isNonPhoneId ? contact.phone_e164 : `+${contact.phone_e164}`}</p>
             </div>
           </div>
 
@@ -265,7 +268,7 @@ function ContactDetailPage() {
               )}
               <span>Mensagem</span>
             </Button>
-            {contact.phone_e164 && (
+            {contact.phone_e164 && !isNonPhoneId && (
               <Button 
                 variant="outline" 
                 size="sm" 

@@ -866,9 +866,10 @@ function ContactsPage() {
                           );
                         }
                         if (col.id === "phone") {
+                          const isNonPhoneId = c.phone_e164?.startsWith("ig_") || c.phone_e164?.startsWith("fb_");
                           return (
                             <td key={col.id} className="p-3 font-mono">
-                              +{c.phone_e164}
+                              {isNonPhoneId ? c.phone_e164 : `+${c.phone_e164}`}
                               {(c.opted_out === 1 || c.opted_out === true) && (
                                 <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">opt-out</span>
                               )}
@@ -1009,7 +1010,13 @@ function ContactsPage() {
                               className="text-destructive focus:text-destructive"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteOne(c.id, c.name ?? `+${c.phone_e164}`);
+                                handleDeleteOne(
+                                  c.id,
+                                  c.name ??
+                                    (c.phone_e164?.startsWith("ig_") || c.phone_e164?.startsWith("fb_")
+                                      ? c.phone_e164
+                                      : `+${c.phone_e164}`),
+                                );
                               }}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />

@@ -21,6 +21,8 @@ interface ChatContactRow extends JsonRecord {
   phone_e164: string;
   custom_fields?: string | JsonRecord | null;
   channel?: string | null;
+  instagram_id?: string | null;
+  whatsapp_number?: string | null;
 }
 
 interface ChatContactListItem extends JsonRecord {
@@ -29,6 +31,8 @@ interface ChatContactListItem extends JsonRecord {
   phone_e164: string;
   custom_fields: JsonValue;
   channel?: string | null;
+  instagram_id?: string | null;
+  whatsapp_number?: string | null;
 }
 
 interface ChatContactDetailsRow extends JsonRecord {

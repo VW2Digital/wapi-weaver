@@ -1,6 +1,6 @@
-﻿-- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
+-- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
 -- Generated from local MySQL dump
--- Date: 2026-08-24T23:06:44Z
+-- Date: 2026-08-25T13:32:56.280Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -590,6 +590,8 @@ CREATE TABLE IF NOT EXISTS `contacts` (
   `status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `responsible_user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `normalized_phone` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `instagram_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Instagram user ID for Instagram contacts',
+  `whatsapp_number` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'WhatsApp phone number for WhatsApp contacts',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_user_contact` (`user_id`,`phone_e164`),
   UNIQUE KEY `uq_contact_channel_external` (`user_id`,`channel`,`external_contact_id`),
@@ -601,6 +603,8 @@ CREATE TABLE IF NOT EXISTS `contacts` (
   KEY `idx_contacts_external_id` (`user_id`,`external_id`),
   KEY `idx_contacts_normalized_phone` (`user_id`,`normalized_phone`),
   KEY `idx_contacts_tenant` (`tenant_id`),
+  KEY `idx_contacts_instagram_id` (`instagram_id`),
+  KEY `idx_contacts_whatsapp_number` (`whatsapp_number`),
   CONSTRAINT `contacts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_contacts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1833,9 +1837,13 @@ CREATE TABLE IF NOT EXISTS `templates` (
   `sub_category` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_primary_device_delivery_only` tinyint(1) DEFAULT NULL,
   `display_format` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_user_template` (`user_id`,`name`,`language`),
   KEY `idx_templates_tenant` (`tenant_id`),
+  KEY `idx_templates_created_at` (`created_at`),
+  KEY `idx_templates_updated_at` (`updated_at`),
   CONSTRAINT `fk_templates_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `templates_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2031,6 +2039,5 @@ CREATE TABLE IF NOT EXISTS `whatsapp_groups` (
   KEY `user_id` (`user_id`),
   CONSTRAINT `whatsapp_groups_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 SET FOREIGN_KEY_CHECKS = 1;

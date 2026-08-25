@@ -496,6 +496,7 @@ async function ensureWhatsAppContact(
     is_unread: markUnread ? true : undefined,
     chat_status: nextChatStatus ?? undefined,
     custom_fields: Object.keys(nextCustomFields).length > 0 ? nextCustomFields : undefined,
+    whatsapp_number: phoneDigits,
   };
 
   if (existingContact?.id) {

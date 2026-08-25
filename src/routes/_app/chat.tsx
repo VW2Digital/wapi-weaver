@@ -7161,10 +7161,16 @@ function ChatPage() {
                           <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                           <div className="min-w-0">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-                              Telefone
+                              {selectedContact.phone_e164?.startsWith("ig_")
+                                ? "Instagram"
+                                : selectedContact.phone_e164?.startsWith("fb_")
+                                  ? "Messenger"
+                                  : "Telefone"}
                             </p>
                             <p className="text-sm font-mono break-all">
-                              +{selectedContact.phone_e164}
+                              {selectedContact.phone_e164?.startsWith("ig_") || selectedContact.phone_e164?.startsWith("fb_")
+                                ? selectedContact.phone_e164
+                                : `+${selectedContact.phone_e164}`}
                             </p>
                           </div>
                         </div>

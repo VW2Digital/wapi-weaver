@@ -193,6 +193,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                       channel: "instagram",
                       external_contact_id: clientContactId,
                       source: "instagram",
+                      instagram_id: clientContactId,
                     },
                     { onConflict: "user_id,channel,external_contact_id" },
                   );
@@ -275,6 +276,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                       Number(item.timestamp || entry.time || Date.now()),
                     ).toISOString(),
                     custom_fields: Object.keys(contactCustomFields).length > 0 ? contactCustomFields : undefined,
+                    instagram_id: itemSenderId,
                   },
                   { onConflict: "user_id,channel,external_contact_id" },
                 );

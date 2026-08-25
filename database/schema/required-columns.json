@@ -405,7 +405,9 @@
     "notes",
     "status",
     "responsible_user_id",
-    "normalized_phone"
+    "normalized_phone",
+    "instagram_id",
+    "whatsapp_number"
   ],
   "conversation_assignments": [
     "id",
@@ -1119,10 +1121,6 @@
     "sql",
     "size_bytes",
     "created_at"
-  ],
-  "schema_migrations": [
-    "version",
-    "applied_at"
   ],
   "subscription_events": [
     "id",
