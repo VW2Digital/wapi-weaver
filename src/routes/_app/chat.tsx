@@ -2987,6 +2987,8 @@ function ChatPage() {
   const photoFetchingRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedPhone || !selectedContact?.id) return;
+    // Não busca fotos via WhatsApp scraper para canais como Instagram ou Facebook
+    if (selectedContact.channel === "instagram" || selectedContact.channel === "messenger" || selectedPhone.startsWith("ig_") || selectedPhone.startsWith("fb_") || selectedPhone.endsWith("@g.us")) return;
     if (getContactAvatarUrl(selectedContact)) return;
     if (photoFetchingRef.current === selectedPhone) return;
     photoFetchingRef.current = selectedPhone;
@@ -3004,7 +3006,7 @@ function ChatPage() {
         }
       })
       .catch(() => {});
-  }, [selectedPhone, selectedContact?.id]);
+  }, [selectedPhone, selectedContact?.id, selectedContact?.channel]);
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", selectedPhone],
@@ -6319,6 +6321,7 @@ function ChatPage() {
                                                     msg.image?.link ||
                                                       msg.image?.id ||
                                                       (msg.metadata as any)?.image?.link ||
+                                                      (msg.metadata as any)?.image?.url ||
                                                       (msg.metadata as any)?.image?.id ||
                                                       (msg.metadata as any)?.media_url ||
                                                       (msg.metadata as any)?.mediaUrl ||
@@ -6361,6 +6364,7 @@ function ChatPage() {
                                                     msg.audio?.link ||
                                                       msg.audio?.id ||
                                                       (msg.metadata as any)?.audio?.link ||
+                                                      (msg.metadata as any)?.audio?.url ||
                                                       (msg.metadata as any)?.audio?.id ||
                                                       (msg.metadata as any)?.media_url ||
                                                       (msg.metadata as any)?.mediaUrl ||
@@ -6392,6 +6396,7 @@ function ChatPage() {
                                                     msg.video?.link ||
                                                       msg.video?.id ||
                                                       (msg.metadata as any)?.video?.link ||
+                                                      (msg.metadata as any)?.video?.url ||
                                                       (msg.metadata as any)?.video?.id ||
                                                       (msg.metadata as any)?.media_url ||
                                                       (msg.metadata as any)?.mediaUrl ||
@@ -6440,6 +6445,7 @@ function ChatPage() {
                                                   msg.document?.link ||
                                                     msg.document?.id ||
                                                     (msg.metadata as any)?.document?.link ||
+                                                    (msg.metadata as any)?.document?.url ||
                                                     (msg.metadata as any)?.document?.id ||
                                                     (msg.metadata as any)?.media_url ||
                                                     (msg.metadata as any)?.mediaUrl ||
