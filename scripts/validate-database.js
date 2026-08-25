@@ -72,18 +72,20 @@ async function main() {
       .sort();
 
     const [migrations] = await connection.query("SELECT version FROM schema_migrations");
-    const appliedVersions = new Set(migrations.map((m) => m.version));
+    // Normaliza versões para ignorar a extensão .sql e diferenças históricas
+    const normalize = (v) => (v ? v.replace(/\.sql$/i, "").toLowerCase() : "");
+    const appliedVersions = new Set(migrations.map((m) => normalize(m.version)));
 
     // Check all physical files are recorded in database
     for (const mig of expectedMigrations) {
-      if (!appliedVersions.has(mig)) {
+      if (!appliedVersions.has(normalize(mig))) {
         console.error(`[DB Validation] ❌ FAIL: Migration file '${mig}' exists on disk but is missing in schema_migrations table!`);
         process.exit(1);
       }
     }
 
     // Check orphan migrations in database without physical file
-    const expectedSet = new Set(expectedMigrations);
+    const expectedSet = new Set(expectedMigrations.map((f) => normalize(f)));
     for (const applied of appliedVersions) {
       if (!expectedSet.has(applied)) {
         console.error(`[DB Validation] ❌ FAIL: Orphan migration '${applied}' found in schema_migrations table but missing on disk!`);

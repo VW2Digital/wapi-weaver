@@ -86,9 +86,9 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
                   ${recCol} AS received_at, ${rawCol} AS raw,
                   ${errorCol} AS error_message, ${eventTypeCol} AS event_type
            FROM ${source.table}
-           WHERE ${ownerCol} = ? OR ${ownerCol} IN (SELECT tenant_id FROM users WHERE id = ?)
+           WHERE ${ownerCol} = ?
            ORDER BY received_at DESC LIMIT ?`,
-          [source.label, effectiveUserId, effectiveUserId, data.limit],
+          [source.label, effectiveUserId, data.limit],
         )) as any[];
         eventSources.push(...(rows || []));
       } catch (error) {

@@ -56,6 +56,4 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
-INSERT IGNORE INTO `schema_migrations` (`version`) VALUES ('035_add_templates_timestamps');
-
 SET FOREIGN_KEY_CHECKS = 1;
