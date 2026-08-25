@@ -319,19 +319,19 @@ export const listChatContacts = createServerFn({ method: "GET" })
         LEFT JOIN bot_conversation_state bcs 
           ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164 AND bcs.channel = c.channel
         LEFT JOIN (
-          SELECT user_id, contact_phone, body, type, direction, created_at
+          SELECT tenant_id, contact_phone, body, type, direction, created_at
           FROM (
-            SELECT user_id, contact_phone, body, type, direction, created_at,
-                   ROW_NUMBER() OVER(PARTITION BY user_id, contact_phone ORDER BY created_at DESC) as rn
+            SELECT tenant_id, contact_phone, body, type, direction, created_at,
+                   ROW_NUMBER() OVER(PARTITION BY tenant_id, contact_phone ORDER BY created_at DESC) as rn
             FROM direct_messages
           ) tmp WHERE rn = 1
-        ) last_dm ON last_dm.user_id = c.user_id AND last_dm.contact_phone = c.phone_e164
+        ) last_dm ON last_dm.tenant_id = c.tenant_id AND last_dm.contact_phone = c.phone_e164
         LEFT JOIN (
-          SELECT user_id, contact_phone, COUNT(*) as cnt
+          SELECT tenant_id, contact_phone, COUNT(*) as cnt
           FROM direct_messages
           WHERE direction = 'incoming' AND (status IS NULL OR status != 'read')
-          GROUP BY user_id, contact_phone
-        ) unread ON unread.user_id = c.user_id AND unread.contact_phone = c.phone_e164
+          GROUP BY tenant_id, contact_phone
+        ) unread ON unread.tenant_id = c.tenant_id AND unread.contact_phone = c.phone_e164
         LEFT JOIN (
           SELECT user_id, to_phone, MAX(sent_at) as sent_at
           FROM campaign_messages
@@ -483,7 +483,7 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
     const contacts = (await db.query(
       `SELECT *
        FROM contacts
-       WHERE user_id = ?
+       WHERE (user_id = ? OR tenant_id = ?)
          AND (
            (? IS NOT NULL AND id = ?)
            OR (? IS NOT NULL AND (
@@ -492,7 +492,15 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
            ))
          )
        LIMIT 1`,
-      [effectiveUserId, data.contactId ?? null, data.contactId ?? null, phone, phone, phone],
+      [
+        effectiveUserId,
+        effectiveUserId,
+        data.contactId ?? null,
+        data.contactId ?? null,
+        phone,
+        phone,
+        phone,
+      ],
     )) as ChatContactDetailsRow[];
     const contact = contacts?.[0] ?? null;
 
@@ -501,7 +509,7 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
         `SELECT bot_active FROM bot_conversation_state
          WHERE user_id = ? AND contact_number = ? AND channel = ?
          ORDER BY updated_at DESC LIMIT 1`,
-        [effectiveUserId, phone ?? normalizeChatContactId(contact.phone_e164 ?? ""), contact.channel],
+        [contact.user_id, phone ?? normalizeChatContactId(contact.phone_e164 ?? ""), contact.channel],
       )) as BotStateFlagRow[];
       contact.bot_active = botStates?.[0] ? !!botStates[0].bot_active : true;
     }
@@ -873,11 +881,11 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       const referencedMessages = (await db.query(
         `SELECT id
          FROM direct_messages
-         WHERE user_id = ?
+         WHERE (user_id = ? OR tenant_id = ?)
            AND contact_phone = ?
            AND (wa_message_id = ? OR provider_message_id = ?)
          LIMIT 1`,
-        [effectiveUserId, digits, referencedMessageId, referencedMessageId],
+        [effectiveUserId, effectiveUserId, digits, referencedMessageId, referencedMessageId],
       )) as Array<{ id: string }>;
       if (!referencedMessages[0]) {
         return {
@@ -893,8 +901,12 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     if (isInstagram) {
       const igAccounts = (await db.query(
-        `SELECT instagram_business_account_id as ig_user_id, access_token FROM instagram_accounts WHERE user_id = ? AND is_active = 1 LIMIT 1`,
-        [effectiveUserId],
+        `SELECT instagram_business_account_id as ig_user_id, access_token
+         FROM instagram_accounts
+         WHERE (user_id = ? OR tenant_id = ?) AND is_active = 1
+         ORDER BY (user_id = ?) DESC
+         LIMIT 1`,
+        [effectiveUserId, effectiveUserId, effectiveUserId],
       )) as InstagramAccountRow[];
       const account = igAccounts?.[0];
 
@@ -903,8 +915,9 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       const contacts = (await db.query(
-        `SELECT external_contact_id FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
-        [effectiveUserId, digits],
+        `SELECT external_contact_id FROM contacts
+         WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ? LIMIT 1`,
+        [effectiveUserId, effectiveUserId, digits],
       )) as ExternalContactRow[];
       const externalId = contacts?.[0]?.external_contact_id;
       if (!externalId) {
@@ -927,8 +940,9 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
       // 2. Busca o external_contact_id
       const contacts = (await db.query(
-        `SELECT external_contact_id FROM contacts WHERE user_id = ? AND phone_e164 = ? LIMIT 1`,
-        [effectiveUserId, digits],
+        `SELECT external_contact_id FROM contacts
+         WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ? LIMIT 1`,
+        [effectiveUserId, effectiveUserId, digits],
       )) as ExternalContactRow[];
       const externalId = contacts?.[0]?.external_contact_id;
       if (!externalId) {
@@ -1016,8 +1030,10 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
     if (targetReplyToId && data.type !== "reaction") {
       try {
         const rows = (await db.query(
-          `SELECT id, wa_message_id FROM direct_messages WHERE user_id = ? AND contact_phone = ? AND (id = ? OR wa_message_id = ?) LIMIT 1`,
-          [effectiveUserId, digits, targetReplyToId, targetReplyToId],
+          `SELECT id, wa_message_id FROM direct_messages
+           WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
+             AND (id = ? OR wa_message_id = ?) LIMIT 1`,
+          [effectiveUserId, effectiveUserId, digits, targetReplyToId, targetReplyToId],
         )) as Array<{ id: string; wa_message_id?: string | null }>;
         const originalMsg = rows?.[0];
         if (originalMsg) {

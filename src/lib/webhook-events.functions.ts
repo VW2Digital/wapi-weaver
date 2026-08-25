@@ -46,10 +46,13 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
             : "COALESCE(created_at, NOW())";
       const sourceExpression = names.has("source") ? "source" : "'whatsapp'";
       const processedExpression = names.has("processed") ? "processed" : "1";
+      const errorExpression = names.has("error_message") ? "error_message" : "NULL";
+      const eventTypeExpression = names.has("event_type") ? "event_type" : "NULL";
 
       const whatsappEvents = (await db.query(
         `SELECT id, ${sourceExpression} AS source, ${processedExpression} AS processed,
-                ${receivedExpression} AS received_at, ${rawExpression} AS raw
+                ${receivedExpression} AS received_at, ${rawExpression} AS raw,
+                ${errorExpression} AS error_message, ${eventTypeExpression} AS event_type
          FROM webhook_events
          WHERE (${ownerConditions.join(" OR ")})
          ORDER BY ${receivedExpression} DESC LIMIT ?`,
@@ -69,6 +72,9 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
         const colNames = new Set((cols || []).map((c: any) => c.Field));
         const rawCol = colNames.has("payload") ? "payload" : colNames.has("raw") ? "raw" : "JSON_OBJECT()";
         const ownerCol = colNames.has("tenant_id") ? "tenant_id" : "user_id";
+        const processedCol = colNames.has("processed") ? "processed" : "1";
+        const errorCol = colNames.has("error_message") ? "error_message" : "NULL";
+        const eventTypeCol = colNames.has("event_type") ? "event_type" : "NULL";
         const recCol = colNames.has("received_at") && colNames.has("created_at")
           ? "COALESCE(received_at, created_at, NOW())"
           : colNames.has("received_at")
@@ -76,7 +82,9 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
             : "COALESCE(created_at, NOW())";
         
         const rows = (await db.query(
-          `SELECT id, ? AS source, processed, ${recCol} AS received_at, ${rawCol} AS raw
+          `SELECT id, ? AS source, ${processedCol} AS processed,
+                  ${recCol} AS received_at, ${rawCol} AS raw,
+                  ${errorCol} AS error_message, ${eventTypeCol} AS event_type
            FROM ${source.table}
            WHERE ${ownerCol} = ? OR ${ownerCol} IN (SELECT tenant_id FROM users WHERE id = ?)
            ORDER BY received_at DESC LIMIT ?`,

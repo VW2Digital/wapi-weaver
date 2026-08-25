@@ -5,7 +5,7 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { processBotFlow } from "@/lib/botflow-executor.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { markInstagramMessageSeen } from "@/lib/instagram.functions";
-import { resolveInstagramChatOwnerId } from "@/lib/instagram-webhook-owner";
+import { resolveInstagramRecordOwnership } from "@/lib/instagram-webhook-owner";
 
 function logInfo(message: string, data?: any) {
   console.log(`[instagram-webhook] ${message}`, data ? JSON.stringify(data) : "");
@@ -121,10 +121,10 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           return new Response("Account not integrated", { status: 404 });
         }
 
-        // O chat é isolado pelo proprietário efetivo do tenant. A conta pode
-        // ter sido conectada por um membro (account.user_id), mas contatos e
-        // mensagens precisam usar o mesmo identificador consultado pelo chat.
-        const ownerUserId = resolveInstagramChatOwnerId(account);
+        // tenant_id controla o isolamento da empresa; user_id mantém a autoria
+        // da conta conectada. O chat consulta pelo tenant e relaciona contato e
+        // mensagens pelo mesmo user_id, portanto os campos não são intercambiáveis.
+        const { tenantId, userId: accountUserId } = resolveInstagramRecordOwnership(account);
 
         const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
         if (sig && envSecret) {
@@ -143,7 +143,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
           const { data: existingDm } = await dbAdmin
             .from("direct_messages")
             .select("id")
-            .eq("user_id", ownerUserId)
+            .eq("user_id", accountUserId)
             .eq("channel", "instagram")
             .eq("provider_message_id", mid)
             .maybeSingle();
@@ -198,8 +198,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   .from("contacts")
                   .upsert(
                     {
-                      tenant_id: ownerUserId,
-                      user_id: ownerUserId,
+                      tenant_id: tenantId,
+                      user_id: accountUserId,
                       phone_e164: phonePlaceholder,
                       name: `Instagram (${clientContactId})`,
                       channel: "instagram",
@@ -214,8 +214,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                 const { data: storedEcho, error: storedEchoError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: ownerUserId,
-                    user_id: ownerUserId,
+                    tenant_id: tenantId,
+                    user_id: accountUserId,
                     contact_phone: phonePlaceholder,
                     direction: "outgoing",
                     type: "text",
@@ -237,7 +237,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                 await publishChatRealtimeEvent({
                   type: "message.sent",
-                  tenant_id: ownerUserId,
+                  tenant_id: tenantId,
                   contact_phone: phonePlaceholder,
                   message_id: storedEcho?.id || null,
                   provider_message_id: item.message.mid || null,
@@ -254,8 +254,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 .from("contacts")
                 .upsert(
                   {
-                    tenant_id: ownerUserId,
-                    user_id: ownerUserId,
+                    tenant_id: tenantId,
+                    user_id: accountUserId,
                     phone_e164: phonePlaceholder,
                     name: name,
                     channel: "instagram",
@@ -308,8 +308,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                 const { data: storedMessage, error: storedMessageError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: ownerUserId,
-                    user_id: ownerUserId,
+                    tenant_id: tenantId,
+                    user_id: accountUserId,
                     contact_phone: phonePlaceholder,
                     direction: "incoming",
                     type: messageType,
@@ -339,7 +339,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                 await publishChatRealtimeEvent({
                   type: "message.received",
-                  tenant_id: ownerUserId,
+                  tenant_id: tenantId,
                   contact_phone: phonePlaceholder,
                   message_id: storedMessage?.id || null,
                   provider_message_id: message.mid || null,
@@ -357,7 +357,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                   messageBody,
                   phonePlaceholder,
                   itemRecipientId,
-                  ownerUserId,
+                  tenantId,
                   undefined,
                   "instagram",
                 );
@@ -369,8 +369,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 
                 const { data: storedMessage, error: storedMessageError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: ownerUserId,
-                    user_id: ownerUserId,
+                    tenant_id: tenantId,
+                    user_id: accountUserId,
                     contact_phone: phonePlaceholder,
                     direction: "incoming",
                     type: "text",
@@ -392,7 +392,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
 
                 await publishChatRealtimeEvent({
                   type: "message.received",
-                  tenant_id: ownerUserId,
+                  tenant_id: tenantId,
                   contact_phone: phonePlaceholder,
                   message_id: storedMessage?.id || null,
                   provider_message_id: postback.mid || null,
@@ -404,8 +404,8 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 
                 const { data: storedMessage, error: storedMessageError } = await dbAdmin.from("direct_messages").upsert(
                   {
-                    tenant_id: ownerUserId,
-                    user_id: ownerUserId,
+                    tenant_id: tenantId,
+                    user_id: accountUserId,
                     contact_phone: phonePlaceholder,
                     direction: "incoming",
                     type: "reaction",
@@ -427,7 +427,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
                 
                 await publishChatRealtimeEvent({
                   type: "message.received",
-                  tenant_id: ownerUserId,
+                  tenant_id: tenantId,
                   contact_phone: phonePlaceholder,
                   message_id: storedMessage?.id || null,
                   provider_message_id: reaction.mid || null,

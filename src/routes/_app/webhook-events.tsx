@@ -34,6 +34,8 @@ type EventRow = {
   id: string;
   source: string;
   processed: boolean;
+  error_message?: string | null;
+  event_type?: string | null;
   received_at: string;
   raw: any;
 };
@@ -298,7 +300,18 @@ function WebhookEventsPage() {
     () =>
       events.map((e) => ({
         ...e,
-        summaries: summarize(e.raw),
+        summaries: e.error_message
+          ? [
+              {
+                kind: "other" as const,
+                title: "Falha ao processar evento",
+                description: e.error_message,
+                status: "failed" as const,
+                icon: AlertTriangle,
+              },
+              ...summarize(e.raw),
+            ]
+          : summarize(e.raw),
       })),
     [events],
   );
@@ -539,6 +552,15 @@ function WebhookEventsPage() {
           </DialogHeader>
           {selected && (
             <div className="space-y-4 overflow-y-auto">
+              {selected.error_message && (
+                <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-red-600">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Falha no processamento</p>
+                    <p className="mt-0.5 text-sm">{selected.error_message}</p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 {summarize(selected.raw).map((s, i) => (
                   <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
