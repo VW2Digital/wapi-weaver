@@ -530,39 +530,13 @@ export const autoFetchContactPhoto = createServerFn({ method: "POST" })
     z
       .object({
         contactId: z.string().uuid(),
-        phone: z.string().trim().min(8).max(20),
+        phone: z.string().trim().min(8).max(40),
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
-    const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
-
-    const { capturarFotoPerfilLead } = await import("@/lib/profile-photo-scraper");
-    const photoUrl = await capturarFotoPerfilLead(data.phone.replace(/\D/g, ""));
-    if (!photoUrl) return { photo_url: null };
-
-    const contacts = (await db.query(
-      "SELECT id, custom_fields FROM contacts WHERE id = ? AND user_id = ?",
-      [data.contactId, effectiveUserId],
-    )) as any[];
-    const contact = contacts?.[0];
-    if (!contact) return { photo_url: null };
-
-    const currentCustomFields =
-      contact.custom_fields && typeof contact.custom_fields === "object"
-        ? { ...(contact.custom_fields as Record<string, unknown>) }
-        : {};
-
-    currentCustomFields.avatar_url = photoUrl;
-
-    await db.query("UPDATE contacts SET custom_fields = ? WHERE id = ?", [
-      JSON.stringify(currentCustomFields),
-      data.contactId,
-    ]);
-
-    return { photo_url: photoUrl };
+  .handler(async () => {
+    // Links de pps.whatsapp.net expiram rapidamente gerando 403 no navegador
+    return { photo_url: null };
   });
 
 export const removeTagFromContact = createServerFn({ method: "POST" })

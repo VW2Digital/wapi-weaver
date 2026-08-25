@@ -1167,11 +1167,15 @@ function isInventoryProduct(value: unknown): value is InventoryProduct {
   );
 }
 
-/** Extrai a URL de foto de perfil dos custom_fields do contato, seguindo o mesmo padrão do CRM */
+/** Extrai a URL de foto de perfil dos custom_fields do contato, ignorando links expirados do CDN temporário do WhatsApp */
 function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   const cf = contact?.custom_fields;
   if (!cf || typeof cf !== "object") return "";
-  return cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
+  const rawUrl = cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
+  if (typeof rawUrl === "string" && (rawUrl.includes("pps.whatsapp.net") || rawUrl.includes("pps.whatsapp.com"))) {
+    return "";
+  }
+  return typeof rawUrl === "string" ? rawUrl : "";
 }
 
 /** Gera uma cor HSL consistente baseada no nome do contato */
@@ -2995,10 +2999,11 @@ function ChatPage() {
     fetchContactPhoto({ data: { contactId: selectedContact.id, phone: selectedPhone } })
       .then((result) => {
         if (result?.photo_url) {
+          const photoUrl = result.photo_url;
           setSelectedContact((prev) =>
             prev
               ? mergeChatContactRecord(prev, {
-                  custom_fields: { ...(prev.custom_fields ?? {}), avatar_url: result.photo_url },
+                  custom_fields: { ...(prev.custom_fields ?? {}), avatar_url: photoUrl },
                 })
               : prev,
           );
