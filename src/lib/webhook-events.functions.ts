@@ -114,6 +114,29 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
       }
     }
 
+    // Canonical delivery logs (rejected, queued and persistence failures)
+    try {
+      const deliveryCols = (await db.query("SHOW COLUMNS FROM webhook_delivery_logs")) as any[];
+      if (deliveryCols?.length > 0) {
+        const deliveryWhere = isMaster ? "" : "WHERE tenant_id = ?";
+        const deliveryParams = isMaster ? [data.limit] : [effectiveUserId, data.limit];
+        const deliveryRows = (await db.query(
+          `SELECT id, provider AS source,
+             IF(outcome IN ('queued','persisted'), 1, 0) AS processed,
+             received_at, raw_body AS raw, error_message,
+             outcome AS event_type
+           FROM webhook_delivery_logs
+           ${deliveryWhere}
+           ORDER BY received_at DESC
+           LIMIT ?`,
+          deliveryParams,
+        )) as any[];
+        eventSources.push(...(deliveryRows || []));
+      }
+    } catch (error) {
+      console.warn("[WebhookEvents] Não foi possível consultar webhook_delivery_logs", error);
+    }
+
     const events = eventSources
       .map((event: any) => ({
         ...event,
