@@ -4283,16 +4283,16 @@ function ChatPage() {
           </div>
 
           {/* Filtro de canais acima das abas */}
-          <div className="flex items-center justify-between p-2 border-b bg-card shrink-0">
-            <div className="flex items-center gap-1.5 flex-1">
+          <div className="flex items-center justify-between p-3 border-b bg-card shrink-0">
+            <div className="flex items-center gap-3 flex-1">
               <button
                 type="button"
                 onClick={() => setFilterView("all")}
                 className={cn(
                   "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "all"
-                    ? "gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground shadow-sm"
-                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-2 px-4 py-2 bg-primary text-primary-foreground shadow-sm"
+                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <MessageCircle className="h-4 w-4" />
@@ -4304,8 +4304,8 @@ function ChatPage() {
                 className={cn(
                   "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "whatsapp"
-                    ? "gap-1.5 px-3 py-1.5 bg-[#25D366] text-white shadow-sm"
-                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-2 px-4 py-2 bg-[#25D366] text-white shadow-sm"
+                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <WhatsAppIcon className="h-4 w-4" />
@@ -4317,8 +4317,8 @@ function ChatPage() {
                 className={cn(
                   "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "instagram"
-                    ? "gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
-                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-2 px-4 py-2 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
+                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <Instagram className="h-4 w-4" />
@@ -4330,8 +4330,8 @@ function ChatPage() {
                 className={cn(
                   "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "messenger"
-                    ? "gap-1.5 px-3 py-1.5 bg-[#0078FF] text-white shadow-sm"
-                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-2 px-4 py-2 bg-[#0078FF] text-white shadow-sm"
+                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <Facebook className="h-4 w-4" />
