@@ -51,8 +51,20 @@ export async function ensureContact(
   };
 
   return transaction(async (conn) => {
-    // 1. Upsert contact by (user_id, phone_e164)
-    const contactId = randomUUID();
+    // 1. Try to resolve the contact by its external identity first.
+    // This makes the system robust when a contact has the same Instagram/Facebook
+    // account linked to different phone numbers, or when a phone number changes.
+    const [identityRows] = await conn.execute(
+      `SELECT contact_id FROM contact_identities
+       WHERE user_id = ? AND provider = ? AND external_id = ?
+       LIMIT 1`,
+      [userId, provider, identity.externalId],
+    );
+
+    const existingContactByIdentity = (identityRows as Array<{ contact_id: string }>)?.[0]?.contact_id;
+
+    // 2. Upsert contact by (user_id, phone_e164)
+    const contactId = existingContactByIdentity ?? randomUUID();
     await conn.execute(
       `INSERT INTO contacts (
          id, tenant_id, user_id, phone_e164, name,
@@ -79,20 +91,22 @@ export async function ensureContact(
 
     // Always fetch the resolved contact id from the unique key.
     const [contactRows] = await conn.execute(
-      `SELECT id FROM contacts
+      `SELECT id, phone_e164 FROM contacts
        WHERE user_id = ? AND phone_e164 = ?
        LIMIT 1`,
       [userId, phoneE164],
     );
 
-    const resolvedContactId = (contactRows as Array<{ id: string }>)?.[0]?.id;
-    if (!resolvedContactId) {
+    const resolvedContact = (contactRows as Array<{ id: string; phone_e164: string }>)?.[0];
+    if (!resolvedContact?.id) {
       throw new Error(`Failed to resolve contact for ${phoneE164}`);
     }
 
-    // If the contact id we generated matches the resolved one, it was a new insert.
-    // If not, the upsert hit the unique key and returned the existing id.
-    const isNewContact = resolvedContactId === contactId;
+    // If the resolved contact has changed its phone, keep the original identity contact id.
+    const resolvedContactId = resolvedContact.id;
+
+    // If we did not find the contact by identity, it is new if the generated id matches.
+    const isNewContact = !existingContactByIdentity && resolvedContactId === contactId;
 
     // 2. Upsert contact identity (external id per provider)
     const identityMetadata = {

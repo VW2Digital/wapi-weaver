@@ -14,7 +14,7 @@ export interface SaveMessageOptions {
   channelResourceId: string;
   message: CanonicalMessage;
   rawPayload?: unknown;
-  status?: "sent" | "delivered";
+  status?: "sent" | "delivered" | null;
 }
 
 export interface SaveMessageResult {
@@ -45,7 +45,7 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
     channelResourceId,
     message,
     rawPayload = null,
-    status = message.direction === "outgoing" ? "sent" : "delivered",
+    status = message.direction === "outgoing" ? "sent" : null,
   } = options;
 
   const messageId = randomUUID();

@@ -74,6 +74,76 @@ describe("Messaging Adapters", () => {
       expect(events).toHaveLength(0);
       expect(diagnostics?.reasons?.length).toBeGreaterThan(0);
     });
+
+    it("normalizes a status update (delivered)", () => {
+      const payload = {
+        object: "whatsapp_business_account",
+        entry: [
+          {
+            id: "WABA_ID",
+            changes: [
+              {
+                value: {
+                  messaging_product: "whatsapp",
+                  metadata: { phone_number_id: "PHONE_ID" },
+                  statuses: [
+                    {
+                      id: "wamid.123",
+                      status: "delivered",
+                      timestamp: "1699999999",
+                    },
+                  ],
+                },
+                field: "messages",
+              },
+            ],
+          },
+        ],
+      };
+
+      const { events } = whatsappAdapter.normalize(payload);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].eventType).toBe("message.status");
+      const statusPayload = events[0].payload as { status: string };
+      expect(statusPayload.status).toBe("delivered");
+    });
+
+    it("normalizes an outgoing message echo (sent)", () => {
+      const payload = {
+        object: "whatsapp_business_account",
+        entry: [
+          {
+            id: "WABA_ID",
+            changes: [
+              {
+                value: {
+                  messaging_product: "whatsapp",
+                  metadata: { phone_number_id: "PHONE_ID" },
+                  message_echoes: [
+                    {
+                      id: "wamid.echo",
+                      to: "5511888888888",
+                      timestamp: "1699999999",
+                      type: "text",
+                      text: { body: "Echo" },
+                    },
+                  ],
+                },
+                field: "messages",
+              },
+            ],
+          },
+        ],
+      };
+
+      const { events } = whatsappAdapter.normalize(payload);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].eventType).toBe("message.echo");
+      const echoPayload = events[0].payload as { direction: string };
+      expect(echoPayload.direction).toBe("outgoing");
+    });
   });
 
   describe("instagramAdapter", () => {

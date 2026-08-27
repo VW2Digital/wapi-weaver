@@ -79,7 +79,7 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
         channelResourceId: event.channelResourceId,
         message,
         rawPayload: event.rawPayload,
-        status: event.eventType === "message.echo" ? "sent" : "delivered",
+        status: event.eventType === "message.echo" ? "sent" : null,
       });
 
       if (saved.isNew) {
@@ -97,7 +97,6 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
             messageId: saved.messageId,
             providerMessageId: message.providerMessageId,
             provider: event.provider,
-            status: "delivered",
           });
         }
 

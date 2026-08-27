@@ -9,7 +9,7 @@ export interface PublishMessageReceivedOptions {
   messageId: string;
   providerMessageId: string;
   provider: MessagingProvider;
-  status?: "delivered" | "sent";
+  status?: "delivered" | "sent" | null;
 }
 
 export async function publishMessageReceived(
@@ -21,7 +21,7 @@ export async function publishMessageReceived(
     contact_phone: options.contactPhone,
     message_id: options.messageId,
     provider_message_id: options.providerMessageId,
-    status: options.status ?? "delivered",
+    status: options.status ?? null,
   });
 }
 
