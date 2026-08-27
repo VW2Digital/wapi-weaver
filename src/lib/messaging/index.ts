@@ -13,3 +13,5 @@ export * from "./services/conversation.service";
 export * from "./services/message.service";
 export * from "./services/status.service";
 export * from "./services/realtime.service";
+export * from "./services/media-download.service";
+export * from "./services/bot-trigger.service";

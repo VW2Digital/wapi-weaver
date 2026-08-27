@@ -1,26 +1,18 @@
 "use server";
 
 import type { CanonicalEvent, CanonicalMessage, CanonicalStatusUpdate } from "./types";
-import {
-  getChannelConfig,
-} from "./services/channel.service";
-import {
-  ensureContact,
-} from "./services/contact-identity.service";
-import {
-  ensureConversation,
-} from "./services/conversation.service";
-import {
-  saveMessage,
-} from "./services/message.service";
-import {
-  updateMessageStatus,
-} from "./services/status.service";
+import { getChannelConfig } from "./services/channel.service";
+import { ensureContact } from "./services/contact-identity.service";
+import { ensureConversation } from "./services/conversation.service";
+import { saveMessage } from "./services/message.service";
+import { updateMessageStatus } from "./services/status.service";
 import {
   publishMessageReceived,
   publishMessageSent,
   publishMessageStatus,
 } from "./services/realtime.service";
+import { downloadMessageMedia } from "./services/media-download.service";
+import { triggerBotForMessage } from "./services/bot-trigger.service";
 import { normalizePhoneDigits } from "./adapters/base.adapter";
 
 function getContactPhoneForIdentity(
@@ -106,6 +98,31 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
             providerMessageId: message.providerMessageId,
             provider: event.provider,
             status: "delivered",
+          });
+        }
+
+        // Download media asynchronously; do not block the processor on failure.
+        downloadMessageMedia({
+          tenantId: event.tenantId,
+          messageId: saved.messageId,
+          provider: event.provider,
+          message,
+          channelResourceId: event.channelResourceId,
+        }).catch((error) => {
+          console.error(`[messaging:processor] Media download failed for ${saved.messageId}`, error);
+        });
+
+        // Trigger bot flow for inbound messages.
+        if (event.eventType === "message.received") {
+          triggerBotForMessage({
+            userId,
+            phoneNumberId: event.channelResourceId,
+            contactPhone,
+            message,
+            provider: event.provider,
+            messageId: saved.messageId,
+          }).catch((error) => {
+            console.error(`[messaging:processor] Bot flow failed for ${saved.messageId}`, error);
           });
         }
       }
