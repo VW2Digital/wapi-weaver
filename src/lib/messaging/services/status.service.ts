@@ -104,9 +104,41 @@ export async function updateMessageStatus(
     [userId, providerMessageId, providerMessageId],
   )) as Array<{ id: string; contact_phone: string }>[];
 
+  // Campaign messages may also receive status updates for the same wa_message_id
+  await updateCampaignMessageStatus(userId, providerMessageId, status, timestamp ?? null, errors);
+
   return {
     messageId: rows?.[0]?.id ?? null,
     contactPhone: rows?.[0]?.contact_phone ?? null,
     updated,
   };
+}
+
+async function updateCampaignMessageStatus(
+  userId: string,
+  waMessageId: string,
+  status: MessageStatus,
+  timestamp: string | null,
+  errors: unknown,
+): Promise<void> {
+  const allowedCampaignStatuses = ["pending", "sending", "sent", "delivered", "read", "failed"];
+  if (!allowedCampaignStatuses.includes(status)) return;
+
+  const update: Record<string, string | null> = { status };
+  if (status === "delivered" && timestamp) update.delivered_at = timestamp;
+  if (status === "read" && timestamp) update.read_at = timestamp;
+  if (status === "failed" && timestamp) update.failed_at = timestamp;
+  if (errors) update.error = JSON.stringify(errors);
+
+  const setFields = Object.keys(update).map((key) => `${key} = ?`);
+  const params = [...Object.values(update), userId, waMessageId];
+
+  if (setFields.length === 0) return;
+
+  await db.query(
+    `UPDATE campaign_messages
+     SET ${setFields.join(", ")}
+     WHERE user_id = ? AND wa_message_id = ?`,
+    params,
+  );
 }

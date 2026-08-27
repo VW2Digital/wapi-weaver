@@ -46,22 +46,19 @@ export async function ensureContact(
 
   const name = buildContactName(identity, provider);
   const customFields = {
-    ...(identity.metadata ?? {}),
     ...(metadata ?? {}),
     avatar_url: identity.avatarUrl ?? undefined,
-    provider_external_id: identity.externalId,
   };
 
   return transaction(async (conn) => {
-    // Try atomic insert first. If the contact already exists by unique keys,
-    // the ON DUPLICATE KEY UPDATE will update name, custom_fields and last interaction.
+    // 1. Upsert contact by (user_id, phone_e164)
     const contactId = randomUUID();
-    const [insertResult] = await conn.execute(
+    const [contactResult] = await conn.execute(
       `INSERT INTO contacts (
-         id, tenant_id, user_id, phone_e164, name, channel,
-         external_contact_id, source, custom_fields, is_unread,
+         id, tenant_id, user_id, phone_e164, name,
+         source, custom_fields, is_unread,
          last_interaction_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
        ON DUPLICATE KEY UPDATE
          name = COALESCE(VALUES(name), name),
          custom_fields = VALUES(custom_fields),
@@ -74,46 +71,80 @@ export async function ensureContact(
         userId,
         phoneE164,
         name,
-        provider,
-        identity.externalId,
         source,
         JSON.stringify(customFields),
         markUnread ? 1 : 0,
       ],
     );
 
-    const result = insertResult as unknown as ResultSetHeader;
+    const contactHeader = contactResult as unknown as ResultSetHeader;
+    let resolvedContactId: string;
+    let isNewContact = false;
 
-    // If inserted, the generated id was used. Otherwise we need to fetch the existing id.
-    if (result.affectedRows === 1) {
-      return { contactId, isNew: true };
-    }
-
-    // Find the existing contact by the unique key (user_id, channel, external_contact_id)
-    const [rows] = await conn.execute(
-      `SELECT id FROM contacts
-       WHERE user_id = ? AND channel = ? AND external_contact_id = ?
-       LIMIT 1`,
-      [userId, provider, identity.externalId],
-    );
-
-    const existing = (rows as Array<{ id: string }>)?.[0];
-    if (!existing?.id) {
-      // Fallback to phone_e164 unique key
-      const [phoneRows] = await conn.execute(
+    if (contactHeader.affectedRows === 1) {
+      resolvedContactId = contactId;
+      isNewContact = true;
+    } else {
+      const [rows] = await conn.execute(
         `SELECT id FROM contacts
          WHERE user_id = ? AND phone_e164 = ?
          LIMIT 1`,
         [userId, phoneE164],
       );
-      const phoneExisting = (phoneRows as Array<{ id: string }>)?.[0];
-      if (!phoneExisting?.id) {
-        throw new Error(`Failed to resolve contact after upsert for ${provider}:${identity.externalId}`);
-      }
-      return { contactId: phoneExisting.id, isNew: false };
+      resolvedContactId = (rows as Array<{ id: string }>)?.[0]?.id ?? contactId;
     }
 
-    return { contactId: existing.id, isNew: false };
+    // 2. Upsert contact identity (external id per provider)
+    const identityId = randomUUID();
+    const identityMetadata = {
+      ...(identity.metadata ?? {}),
+      source: `${provider}_inbound`,
+      raw_name: identity.name,
+    };
+
+    const [identityResult] = await conn.execute(
+      `INSERT INTO contact_identities (
+         id, tenant_id, user_id, contact_id, provider,
+         external_id, phone_e164, username, avatar_url,
+         metadata, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         contact_id = VALUES(contact_id),
+         phone_e164 = VALUES(phone_e164),
+         username = VALUES(username),
+         avatar_url = VALUES(avatar_url),
+         metadata = VALUES(metadata),
+         updated_at = NOW()`,
+      [
+        identityId,
+        tenantId,
+        userId,
+        resolvedContactId,
+        provider,
+        identity.externalId,
+        identity.phoneE164 ?? phoneE164,
+        identity.name ?? null,
+        identity.avatarUrl ?? null,
+        JSON.stringify(identityMetadata),
+      ],
+    );
+
+    const identityHeader = identityResult as unknown as ResultSetHeader;
+    if (identityHeader.affectedRows !== 1 && resolvedContactId === contactId) {
+      // Identity existed; keep the existing contact_id if it was already linked to another contact.
+      const [existingRows] = await conn.execute(
+        `SELECT contact_id FROM contact_identities
+         WHERE tenant_id = ? AND provider = ? AND external_id = ?
+         LIMIT 1`,
+        [tenantId, provider, identity.externalId],
+      );
+      const existingContactId = (existingRows as Array<{ contact_id: string }>)?.[0]?.contact_id;
+      if (existingContactId) {
+        resolvedContactId = existingContactId;
+      }
+    }
+
+    return { contactId: resolvedContactId, isNew: isNewContact };
   });
 }
 
@@ -123,8 +154,10 @@ export async function getContactByIdentity(
   externalId: string,
 ): Promise<{ id: string } | null> {
   const [rows] = await db.query(
-    `SELECT id FROM contacts
-     WHERE user_id = ? AND channel = ? AND external_contact_id = ?
+    `SELECT c.id
+     FROM contacts c
+     JOIN contact_identities ci ON ci.contact_id = c.id
+     WHERE c.user_id = ? AND ci.provider = ? AND ci.external_id = ?
      LIMIT 1`,
     [userId, provider, externalId],
   ) as Array<{ id: string }>[];
