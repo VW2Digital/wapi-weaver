@@ -65,16 +65,25 @@ export async function ensureContact(
 
     // 2. Upsert contact by (user_id, phone_e164)
     const contactId = existingContactByIdentity ?? randomUUID();
+    const channel = provider === "whatsapp" ? "whatsapp" : provider === "instagram" ? "instagram" : "messenger";
+    const instagramId = provider === "instagram" ? identity.externalId : null;
+    const whatsappNumber = provider === "whatsapp" ? (identity.phoneE164 || phoneE164) : null;
+
     await conn.execute(
       `INSERT INTO contacts (
          id, tenant_id, user_id, phone_e164, name,
-         source, custom_fields, is_unread,
+         source, custom_fields, is_unread, channel,
+         instagram_id, whatsapp_number, external_id,
          last_interaction_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
        ON DUPLICATE KEY UPDATE
          name = COALESCE(VALUES(name), name),
          custom_fields = VALUES(custom_fields),
          is_unread = IF(VALUES(is_unread) = 1, 1, is_unread),
+         channel = VALUES(channel),
+         instagram_id = COALESCE(VALUES(instagram_id), instagram_id),
+         whatsapp_number = COALESCE(VALUES(whatsapp_number), whatsapp_number),
+         external_id = COALESCE(VALUES(external_id), external_id),
          last_interaction_at = VALUES(last_interaction_at),
          updated_at = NOW()`,
       [
@@ -86,6 +95,10 @@ export async function ensureContact(
         source,
         JSON.stringify(customFields),
         markUnread ? 1 : 0,
+        channel,
+        instagramId,
+        whatsappNumber,
+        identity.externalId,
       ],
     );
 
