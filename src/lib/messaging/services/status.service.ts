@@ -114,21 +114,46 @@ async function updateCampaignMessageStatus(
   const allowedCampaignStatuses = ["pending", "sending", "sent", "delivered", "read", "failed"];
   if (!allowedCampaignStatuses.includes(status)) return;
 
-  const update: Record<string, string | null> = { status };
-  if (status === "delivered" && timestamp) update.delivered_at = timestamp;
-  if (status === "read" && timestamp) update.read_at = timestamp;
-  if (status === "failed" && timestamp) update.failed_at = timestamp;
-  if (errors) update.error = JSON.stringify(errors);
+  const nextTimestamp = timestamp
+    ? new Date(timestamp).toISOString().slice(0, 19).replace("T", " ")
+    : null;
 
-  const setFields = Object.keys(update).map((key) => `${key} = ?`);
-  const params = [...Object.values(update), userId, waMessageId];
+  const setFields: string[] = ["status = ?"];
+  const params: (string | null)[] = [status];
 
-  if (setFields.length === 0) return;
+  if (status === "sent" && nextTimestamp) {
+    setFields.push("sent_at = ?");
+    params.push(nextTimestamp);
+  } else if (status === "delivered" && nextTimestamp) {
+    setFields.push("delivered_at = ?");
+    params.push(nextTimestamp);
+  } else if (status === "read" && nextTimestamp) {
+    setFields.push("read_at = ?");
+    params.push(nextTimestamp);
+  } else if (status === "failed" && nextTimestamp) {
+    setFields.push("failed_at = ?");
+    params.push(nextTimestamp);
+    if (errors) {
+      setFields.push("error = ?");
+      params.push(JSON.stringify(errors));
+    }
+  }
+
+  // Never regress state. The FIELD comparison uses the canonical status order.
+  params.push(userId);
+  params.push(waMessageId);
+  params.push(status);
 
   await db.query(
     `UPDATE campaign_messages
      SET ${setFields.join(", ")}
-     WHERE user_id = ? AND wa_message_id = ?`,
+     WHERE user_id = ?
+       AND wa_message_id = ?
+       AND (
+         status IS NULL
+         OR status = 'failed'
+         OR FIELD(status, 'pending', 'sending', 'sent', 'delivered', 'read') < FIELD(?, 'pending', 'sending', 'sent', 'delivered', 'read')
+       )`,
     params,
   );
 }
