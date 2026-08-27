@@ -464,6 +464,7 @@ CREATE TABLE IF NOT EXISTS `chat_sessions` (
   KEY `contact_id` (`contact_id`),
   KEY `idx_chat_sessions_tenant` (`tenant_id`),
   KEY `idx_chat_sessions_tenant_contact` (`tenant_id`,`contact_id`),
+  UNIQUE KEY `uq_chat_sessions_contact_id` (`contact_id`),
   CONSTRAINT `chat_sessions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chat_sessions_ibfk_2` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_chat_sessions_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
