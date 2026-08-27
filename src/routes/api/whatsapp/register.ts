@@ -84,7 +84,7 @@ export const Route = createFileRoute("/api/whatsapp/register")({
             );
           }
 
-          const apiVersion = p.meta_graph_version || "v20.0";
+          const apiVersion = p.meta_graph_version || "v26.0";
 
           // 4. Executar requisição POST de registro para a Meta
           const registerUrl = `https://graph.facebook.com/${apiVersion}/${phoneId}/register`;

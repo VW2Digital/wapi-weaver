@@ -1084,7 +1084,7 @@ export async function processBotFlow(
       }
 
       const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
+      const apiVersion = process.env.META_GRAPH_VERSION || "v26.0";
 
       const payload = {
         recipient: { id: igRecipientId },
@@ -1121,7 +1121,7 @@ export async function processBotFlow(
       }
 
       const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
+      const apiVersion = process.env.META_GRAPH_API_VERSION || "v26.0";
 
       const payload = {
         recipient: { id: fbRecipientId },
@@ -1398,7 +1398,7 @@ export async function executeInactivityStep(
       }
 
       const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_VERSION || "v21.0";
+      const apiVersion = process.env.META_GRAPH_VERSION || "v26.0";
 
       const payload = {
         recipient: { id: igRecipientId },
@@ -1435,7 +1435,7 @@ export async function executeInactivityStep(
       }
 
       const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
+      const apiVersion = process.env.META_GRAPH_API_VERSION || "v26.0";
 
       const payload = {
         recipient: { id: fbRecipientId },

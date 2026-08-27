@@ -207,7 +207,7 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
 
     const APP_ID = process.env.VITE_META_APP_ID || process.env.META_APP_ID;
     const APP_SECRET = process.env.META_APP_SECRET;
-    const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || "v20.0";
+    const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || "v26.0";
 
     if (!APP_ID || !APP_SECRET) {
       throw new Error("META_APP_ID e META_APP_SECRET precisam estar configurados.");

@@ -196,7 +196,7 @@ export const createTemplate = createServerFn({ method: "POST" })
     let meta_template_id: string | null = null;
 
     if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
-      const apiVersion = p.meta_graph_version || "v20.0";
+      const apiVersion = p.meta_graph_version || "v26.0";
       const res = await fetch(
         `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
         {
@@ -306,7 +306,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
       !meta_template_id.startsWith("sample_");
 
     if (isRemote && p?.whatsapp_waba_id && p?.whatsapp_access_token) {
-      const apiVersion = p.meta_graph_version || "v20.0";
+      const apiVersion = p.meta_graph_version || "v26.0";
       const res = await fetch(`https://graph.facebook.com/${apiVersion}/${meta_template_id}`, {
         method: "POST",
         headers: {
@@ -390,7 +390,7 @@ export const deleteTemplate = createServerFn({ method: "POST" })
         .eq("id", context.userId)
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token && tpl?.name) {
-        const apiVersion = p.meta_graph_version || "v20.0";
+        const apiVersion = p.meta_graph_version || "v26.0";
         let url = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?name=${encodeURIComponent(tpl.name)}`;
         if (data.deleteMode === "single") {
           url += `&hsm_id=${encodeURIComponent(tpl.meta_template_id)}`;
@@ -444,7 +444,7 @@ export const deleteTemplatesBulk = createServerFn({ method: "POST" })
         .eq("id", context.userId)
         .maybeSingle();
       if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
-        const apiVersion = p.meta_graph_version || "v20.0";
+        const apiVersion = p.meta_graph_version || "v26.0";
         const remoteMetaIds = remote.map((t: any) => t.meta_template_id);
         const url = `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates?hsm_ids=${encodeURIComponent(JSON.stringify(remoteMetaIds))}`;
         const res = await fetch(url, {
@@ -506,7 +506,7 @@ export const syncTemplatesFromMeta = createServerFn({ method: "POST" })
     if (!p?.whatsapp_waba_id || !p?.whatsapp_access_token) {
       throw new Error("Configure WABA ID e Access Token em Configurações");
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const all: any[] = [];
     const fields = [
       "name",
@@ -985,7 +985,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     }
 
     // 3. Envia para a Meta API
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const res = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
       {
@@ -1085,7 +1085,7 @@ export const getMetaTemplateDetails = createServerFn({ method: "GET" })
       throw new Error("Configure seu Token de Acesso em Configurações.");
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields = [
       "id",
       "ad_account_id",
@@ -1152,7 +1152,7 @@ export const listMetaTemplatesDirect = createServerFn({ method: "GET" })
       throw new Error("Configure seu WABA ID e Token de Acesso em Configurações.");
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields = [
       "id",
       "name",

@@ -277,7 +277,7 @@ export const sendGroupMessage = createServerFn({ method: "POST" })
         },
       };
 
-      const apiVersion = p.meta_graph_version || "v20.0";
+      const apiVersion = p.meta_graph_version || "v26.0";
       const r = await fetch(
         `https://graph.facebook.com/${apiVersion}/${group.instance_id}/messages`,
         {

@@ -326,7 +326,7 @@ export async function processOnce() {
       .in("id", campIds)
       .eq("status", "queued");
 
-    const apiVersion = profile.meta_graph_version || "v20.0";
+    const apiVersion = profile.meta_graph_version || "v26.0";
     const url = `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_phone_number_id}/messages`;
     const delayMs = Math.max(20, Math.floor(1000 / (profile.rate_limit_per_second || 20)));
 

@@ -73,7 +73,7 @@ const credSchema = z.object({
   meta_graph_version: z
     .string()
     .trim()
-    .regex(/^v\d+\.\d+$/, "Formato v20.0")
+    .regex(/^v\d+\.\d+$/, "Formato v26.0")
     .max(10)
     .optional(),
   display_name: z.string().trim().max(100).nullable().optional(),
@@ -316,7 +316,7 @@ export const pingMeta = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type,is_on_biz_app";
     const r = await fetch(
@@ -383,7 +383,7 @@ export const getCoexistencePhoneStatus = createServerFn({ method: "POST" })
       return { ok: false, error: "Credenciais não configuradas" };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type,is_on_biz_app";
     const response = await fetch(
@@ -420,7 +420,7 @@ export const syncCoexistenceContacts = createServerFn({ method: "POST" })
 
     return requestSmbAppDataSync(
       p.whatsapp_access_token,
-      p.meta_graph_version || "v20.0",
+      p.meta_graph_version || "v26.0",
       data.phoneId,
       "smb_app_state_sync",
     );
@@ -442,7 +442,7 @@ export const syncCoexistenceHistory = createServerFn({ method: "POST" })
 
     return requestSmbAppDataSync(
       p.whatsapp_access_token,
-      p.meta_graph_version || "v20.0",
+      p.meta_graph_version || "v26.0",
       data.phoneId,
       "history",
     );
@@ -481,7 +481,7 @@ export const sendTestMessage = createServerFn({ method: "POST" })
       text: data.text ?? "Mensagem de teste ✅",
     });
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
       {
@@ -531,7 +531,7 @@ export const sendHelloWorldTemplate = createServerFn({ method: "POST" })
       language: "en_US",
     });
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/messages`,
       {
@@ -615,7 +615,7 @@ export const getQRCode = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=prefilled_message,deep_link_url,qr_image_url.format(PNG)&code=${encodeURIComponent(data.code)}`,
       {
@@ -638,7 +638,7 @@ export const listQRCodes = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=code,prefilled_message,qr_image_url.format(PNG)`,
       {
@@ -669,7 +669,7 @@ export const createQRCode = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls`,
       {
@@ -709,7 +709,7 @@ export const updateQRCode = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const bodyPayload: any = {
       prefilled_message: data.prefilled_message,
       code: data.code,
@@ -745,7 +745,7 @@ export const deleteQRCode = createServerFn({ method: "POST" })
     if (!p?.whatsapp_phone_number_id || !p?.whatsapp_access_token) {
       return { ok: false, error: "Credenciais não configuradas" };
     }
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls/${data.code}`,
       {
@@ -772,7 +772,7 @@ export const listOwnedWABAs = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
@@ -802,7 +802,7 @@ export const listClientWABAs = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
@@ -832,7 +832,7 @@ export const getWABAInfo = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
@@ -869,7 +869,7 @@ export const updateWABA = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const bodyPayload: any = {};
     if (data.name) bodyPayload.name = data.name;
     if (data.timezone_id) bodyPayload.timezone_id = data.timezone_id;
@@ -902,7 +902,7 @@ export const subscribeAppToWABA = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.wabaId}/subscribed_apps`,
       {
@@ -931,7 +931,7 @@ export const listWABAPhoneNumbers = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,display_phone_number,verified_name,status,quality_rating,country_code,country_dial_code,code_verification_status,name_status,messaging_limit_tier,account_mode,is_official_business_account,platform_type,is_on_biz_app";
     const r = await fetch(
@@ -968,7 +968,7 @@ export const registerPhoneNumber = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/register`, {
       method: "POST",
       headers: {
@@ -1033,7 +1033,7 @@ export const debugAccessToken = createServerFn({ method: "POST" })
     }
     if (!token) return { ok: false, error: "Access Token não configurado." };
 
-    const apiVersion = "v20.0";
+    const apiVersion = "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/debug_token?input_token=${encodeURIComponent(token)}`,
       {
@@ -1060,7 +1060,7 @@ export const listAssignedWABAs = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "id,name,timezone_id,message_template_namespace,account_review_status,business_verification_status,country,ownership_type,primary_business_location";
     const r = await fetch(
@@ -1090,7 +1090,7 @@ export const getWABABotDetails = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.botId}?fields=id,prompts,commands,enable_welcome_message`,
       {
@@ -1612,7 +1612,7 @@ export const sendAdvancedSandboxMessage = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const isMarketing = data.type === "marketing";
     const endpoint = isMarketing ? "marketing_messages" : "messages";
 
@@ -1658,7 +1658,7 @@ export const uploadMetaMedia = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
 
     const binaryStr = atob(data.fileBase64);
     const bytes = new Uint8Array(binaryStr.length);
@@ -1706,7 +1706,7 @@ export const requestVerificationCode = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/request_code`, {
       method: "POST",
       headers: {
@@ -1745,7 +1745,7 @@ export const verifyVerificationCode = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/verify_code`, {
       method: "POST",
       headers: {
@@ -1776,7 +1776,7 @@ export const deregisterPhoneNumber = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/deregister`, {
       method: "POST",
       headers: {
@@ -1803,7 +1803,7 @@ export const getPhoneSettings = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/settings`, {
       headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
     });
@@ -1838,7 +1838,7 @@ export const updatePhoneSettings = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/settings`, {
       method: "POST",
       headers: {
@@ -1871,7 +1871,7 @@ export const getOBAStatus = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.phoneId}/official_business_account?fields=oba_status,status_message`,
       {
@@ -1905,7 +1905,7 @@ export const applyForOBA = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.phoneId}/official_business_account`,
       {
@@ -1937,7 +1937,7 @@ export const getSinglePhoneInfo = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields =
       "display_phone_number,verified_name,quality_rating,name_status,code_verification_status";
     const r = await fetch(
@@ -1974,7 +1974,7 @@ export const updatePhoneConfig = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}`, {
       method: "POST",
       headers: {
@@ -2003,7 +2003,7 @@ export const getSolutionDetails = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields = "id,name,status,status_for_pending_request,owner_app,owner_permissions";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.solutionId}?fields=${fields}`,
@@ -2032,7 +2032,7 @@ export const acceptSolutionInvitation = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.solutionId}/accept`, {
       method: "POST",
       headers: {
@@ -2059,7 +2059,7 @@ export const rejectSolutionInvitation = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.solutionId}/reject`, {
       method: "POST",
       headers: {
@@ -2086,7 +2086,7 @@ export const sendSolutionDeactivation = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.solutionId}/send_deactivation_request`,
       {
@@ -2120,7 +2120,7 @@ export const acceptSolutionDeactivation = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields = "id,name,status,status_for_pending_request,owner_permissions";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.solutionId}/accept_deactivation_request?fields=${fields}`,
@@ -2151,7 +2151,7 @@ export const rejectSolutionDeactivation = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const fields = "id,name,status,status_for_pending_request,owner_permissions";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.solutionId}/reject_deactivation_request?fields=${fields}`,
@@ -2189,7 +2189,7 @@ export const getSolutionAccessToken = createServerFn({ method: "POST" })
       return { ok: false, error: "Access Token não configurado." };
     }
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
       `https://graph.facebook.com/${apiVersion}/${data.solutionId}/access_token?business_id=${encodeURIComponent(
         data.businessId,

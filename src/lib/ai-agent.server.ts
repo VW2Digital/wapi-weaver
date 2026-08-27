@@ -116,7 +116,7 @@ export async function processAiAgent(
       text: { body: replyText },
     };
 
-    const apiVersion = p.meta_graph_version || "v20.0";
+    const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
