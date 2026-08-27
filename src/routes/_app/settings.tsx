@@ -3458,7 +3458,7 @@ function AdminPlatformSection() {
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [configId, setConfigId] = useState("");
-  const [graphVersion, setGraphVersion] = useState("v20.0");
+  const [graphVersion, setGraphVersion] = useState("v26.0");
   const [headTags, setHeadTags] = useState("");
   const [bodyTags, setBodyTags] = useState("");
   const [cronSecret, setCronSecret] = useState("");
@@ -5323,6 +5323,9 @@ function EventsDialogButton() {
               <ul className="divide-y">
                 {events.map((ev: any) => {
                   const isOpen = expanded === ev.id;
+                  const status = ev.status ?? (ev.processed ? "completed" : "pending");
+                  const isRejected = typeof status === "string" && status.startsWith("rejected");
+                  const isFailed = status === "failed" || status === "persistence_failed";
                   return (
                     <li key={ev.id} className="py-3">
                       <button
@@ -5330,13 +5333,13 @@ function EventsDialogButton() {
                         className="flex w-full items-start gap-3 text-left hover:bg-muted/50 rounded-md p-2 -m-2"
                       >
                         <Badge
-                          variant={ev.processed ? "secondary" : "outline"}
+                          variant={isRejected || isFailed ? "destructive" : ev.processed ? "secondary" : "outline"}
                           className="mt-0.5 shrink-0"
                         >
-                          {ev.processed ? "processado" : "pendente"}
+                          {status}
                         </Badge>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">{summarize(ev.raw)}</div>
+                          <div className="truncate text-sm">{ev.error_message ? `⚠️ ${ev.error_message}` : summarize(ev.raw)}</div>
                           <div className="mt-0.5 text-xs text-muted-foreground">
                             {new Date(ev.received_at).toLocaleString()} • {ev.source}
                           </div>
@@ -8739,7 +8742,7 @@ function InstagramSettingsTab({
                       id="api_version"
                       value={form.meta_graph_version ?? ""}
                       onChange={(e) => setForm({ ...form, meta_graph_version: e.target.value })}
-                      placeholder="v25.0"
+                      placeholder="v26.0"
                       className="font-mono text-xs"
                     />
                   </div>

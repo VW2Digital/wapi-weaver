@@ -91,7 +91,19 @@ export const listWebhookEvents = createServerFn({ method: "GET" })
       processed: e.status !== "pending" && e.status !== "processing",
     }));
 
-    const allEvents = [...(legacyEvents ?? []), ...mappedCanonical]
+    const { data: deliveryLogs, error: deliveryError } = await dbAdmin
+      .from("webhook_delivery_logs")
+      .select("id, provider as source, outcome as status, received_at, raw_body as raw, error_message")
+      .order("received_at", { ascending: false })
+      .limit(data.limit);
+    if (deliveryError) throw new Error(deliveryError.message);
+
+    const mappedDelivery = (deliveryLogs ?? []).map((e: any) => ({
+      ...e,
+      processed: e.status === "queued" || e.status === "persisted" || e.status.startsWith("rejected"),
+    }));
+
+    const allEvents = [...(legacyEvents ?? []), ...mappedCanonical, ...mappedDelivery]
       .sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime())
       .slice(0, data.limit);
 

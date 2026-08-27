@@ -12,6 +12,7 @@ import { saveCall, type CallDirection, type CallStatus } from "@/lib/whatsapp-ca
 import { whatsappAdapter } from "@/lib/messaging/adapters/whatsapp.adapter";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
+import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -2043,7 +2044,15 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         try {
           payload = JSON.parse(rawBody);
         } catch (error: unknown) {
-          logError("POST inválido (JSON parse)", { error: getErrorMessage(error) });
+          const message = getErrorMessage(error);
+          logError("POST inválido (JSON parse)", { error: message });
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            httpStatus: 400,
+            outcome: "rejected_parse",
+            rawBody: rawBody,
+            errorMessage: message,
+          }).catch(() => {});
           return new Response("Bad Request", { status: 400 });
         }
 
@@ -2051,6 +2060,13 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const phoneNumberIds = extractPhoneNumberIds(payload as WebhookPayload);
         if (phoneNumberIds.length === 0) {
           logError("No phone_number_id found in payload");
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            httpStatus: 400,
+            outcome: "rejected_unconfigured",
+            rawBody: payload,
+            errorMessage: "No phone_number_id found in payload",
+          }).catch(() => {});
           return new Response("Phone number ID missing", { status: 400 });
         }
 
@@ -2061,6 +2077,13 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
             reason: resolved.reason,
             phone_number_ids: phoneNumberIds,
           });
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            httpStatus: 401,
+            outcome: "rejected_signature",
+            rawBody: payload,
+            errorMessage: `Webhook user could not be resolved: ${resolved.reason}`,
+          }).catch(() => {});
           return new Response("Webhook user could not be resolved", { status: 401 });
         }
 
@@ -2071,6 +2094,14 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         logInfo("Adapter normalized events", { count: events.length, diagnostics });
 
         if (events.length === 0) {
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            tenantId: matchedUserId,
+            channelResourceId: phoneNumberIds[0],
+            httpStatus: 200,
+            outcome: "rejected_no_events",
+            rawBody: payload,
+          }).catch(() => {});
           return new Response("ok", { status: 200 });
         }
 
@@ -2087,7 +2118,17 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         try {
           persisted = await persistCanonicalEvents(events);
         } catch (persistError) {
+          const message = getErrorMessage(persistError);
           logError("Falha ao persistir eventos canônicos", persistError);
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            tenantId: matchedUserId,
+            channelResourceId: phoneNumberId,
+            httpStatus: 500,
+            outcome: "persistence_failed",
+            rawBody: payload,
+            errorMessage: message,
+          }).catch(() => {});
           return new Response("Webhook event persistence failed", { status: 500 });
         }
 
@@ -2103,6 +2144,14 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           // Events are persisted; a retrier can pick them up.
         }
 
+        await logWebhookDelivery({
+          provider: "whatsapp",
+          tenantId: matchedUserId,
+          channelResourceId: phoneNumberId,
+          httpStatus: 200,
+          outcome: "queued",
+          rawBody: payload,
+        }).catch(() => {});
         return new Response("ok", { status: 200 });
       },
     },
