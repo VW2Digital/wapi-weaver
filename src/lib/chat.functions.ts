@@ -1145,3 +1145,33 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       status: queuedMessage.status,
     };
   });
+
+export const getConfiguredChannels = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const tenantId = context.userId;
+
+    const [whatsappRows, instagramRows, messengerRows] = await Promise.all([
+      db.query(
+        `SELECT 1 FROM profiles WHERE id = ? AND whatsapp_phone_number_id IS NOT NULL AND whatsapp_phone_number_id <> '' LIMIT 1`,
+        [tenantId],
+      ) as Promise<Array<{ 1: number }>>,
+      db.query(
+        `SELECT 1 FROM instagram_accounts WHERE tenant_id = ? AND access_token IS NOT NULL AND access_token <> '' AND instagram_business_account_id IS NOT NULL AND instagram_business_account_id <> '' LIMIT 1`,
+        [tenantId],
+      ) as Promise<Array<{ 1: number }>>,
+      db.query(
+        `SELECT 1 FROM facebook_pages WHERE user_id = ? AND page_access_token IS NOT NULL AND page_access_token <> '' AND page_id IS NOT NULL AND page_id <> '' LIMIT 1`,
+        [tenantId],
+      ) as Promise<Array<{ 1: number }>>,
+    ]);
+
+    return {
+      channels: [
+        "all",
+        ...(whatsappRows.length > 0 ? ["whatsapp"] : []),
+        ...(instagramRows.length > 0 ? ["instagram"] : []),
+        ...(messengerRows.length > 0 ? ["messenger"] : []),
+      ] as Array<"all" | "whatsapp" | "instagram" | "messenger">,
+    };
+  });

@@ -7,6 +7,7 @@ import {
   getChatMessages,
   sendDirectMessage,
   markMessagesAsRead,
+  getConfiguredChannels,
 } from "@/lib/chat.functions";
 import { sendGroupMessage } from "@/lib/groups.functions";
 import {
@@ -2448,6 +2449,14 @@ function ChatPage() {
   });
   const profile = profileQuery.data;
 
+  const fetchConfiguredChannels = useServerFn(getConfiguredChannels);
+  const configuredChannelsQuery = useQuery({
+    queryKey: ["configured-channels"],
+    queryFn: () => fetchConfiguredChannels(),
+  });
+  const configuredChannels =
+    configuredChannelsQuery.data?.channels ?? (["all", "whatsapp", "instagram", "messenger"] as const);
+
   // Novos estados para organização da barra lateral conforme o mockup
   const fetchMarkAsRead = useServerFn(markMessagesAsRead);
   const [mainTab, setMainTab] = useState<"conversas" | "grupos">("conversas");
@@ -2527,6 +2536,13 @@ function ChatPage() {
     | "messenger"
     | "whatsapp_group"
   >("all");
+
+  useEffect(() => {
+    if (!configuredChannels.includes(filterView as "whatsapp" | "instagram" | "messenger" | "all")) {
+      setFilterView("all");
+    }
+  }, [configuredChannels, filterView]);
+
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
   const [newChatPhoneDialog, setNewChatPhoneDialog] = useState("");
@@ -4284,59 +4300,70 @@ function ChatPage() {
 
           {/* Filtro de canais acima das abas */}
           <div className="p-3 border-b bg-card shrink-0">
-            <div className="grid grid-cols-4 gap-3 place-items-center">
-              <button
-                type="button"
-                onClick={() => setFilterView("all")}
-                className={cn(
-                  "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
-                  filterView === "all"
-                    ? "h-10 px-4 gap-2 bg-primary text-primary-foreground shadow-sm"
-                    : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
-                )}
-              >
-                <MessageCircle className="h-4 w-4" />
-                {filterView === "all" && "Todos"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterView("whatsapp")}
-                className={cn(
-                  "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
-                  filterView === "whatsapp"
-                    ? "h-10 px-4 gap-2 bg-[#25D366] text-white shadow-sm"
-                    : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
-                )}
-              >
-                <WhatsAppIcon className="h-4 w-4" />
-                {filterView === "whatsapp" && "WhatsApp"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterView("instagram")}
-                className={cn(
-                  "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
-                  filterView === "instagram"
-                    ? "h-10 px-4 gap-2 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
-                    : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
-                )}
-              >
-                <Instagram className="h-4 w-4" />
-                {filterView === "instagram" && "Instagram"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterView("messenger")}
-                className={cn(
-                  "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
-                  filterView === "messenger"
-                    ? "h-10 px-4 gap-2 bg-[#0078FF] text-white shadow-sm"
-                    : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
-                )}
-              >
-                <Globe className="h-4 w-4" />
-                {filterView === "messenger" && "Site"}
-              </button>
+            <div
+              className="grid gap-3 place-items-center"
+              style={{ gridTemplateColumns: `repeat(${configuredChannels.length}, minmax(0, 1fr))` }}
+            >
+              {configuredChannels.includes("all") && (
+                <button
+                  type="button"
+                  onClick={() => setFilterView("all")}
+                  className={cn(
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    filterView === "all"
+                      ? "h-10 px-4 gap-2 bg-primary text-primary-foreground shadow-sm"
+                      : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  {filterView === "all" && "Todos"}
+                </button>
+              )}
+              {configuredChannels.includes("whatsapp") && (
+                <button
+                  type="button"
+                  onClick={() => setFilterView("whatsapp")}
+                  className={cn(
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    filterView === "whatsapp"
+                      ? "h-10 px-4 gap-2 bg-[#25D366] text-white shadow-sm"
+                      : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  <WhatsAppIcon className="h-4 w-4" />
+                  {filterView === "whatsapp" && "WhatsApp"}
+                </button>
+              )}
+              {configuredChannels.includes("instagram") && (
+                <button
+                  type="button"
+                  onClick={() => setFilterView("instagram")}
+                  className={cn(
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    filterView === "instagram"
+                      ? "h-10 px-4 gap-2 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
+                      : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  <Instagram className="h-4 w-4" />
+                  {filterView === "instagram" && "Instagram"}
+                </button>
+              )}
+              {configuredChannels.includes("messenger") && (
+                <button
+                  type="button"
+                  onClick={() => setFilterView("messenger")}
+                  className={cn(
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    filterView === "messenger"
+                      ? "h-10 px-4 gap-2 bg-[#0078FF] text-white shadow-sm"
+                      : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  <Globe className="h-4 w-4" />
+                  {filterView === "messenger" && "Site"}
+                </button>
+              )}
             </div>
           </div>
 
