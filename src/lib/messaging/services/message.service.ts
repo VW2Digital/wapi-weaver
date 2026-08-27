@@ -51,10 +51,22 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
   const messageId = randomUUID();
   const body = buildMessageBody(message);
 
-  // Select the most representative attachment for the metadata field
   const primaryAttachment = message.attachments?.[0];
 
   return transaction(async (conn) => {
+    // Check for existing message first to avoid reliance on the unique key being present.
+    const [existingRows] = await conn.execute(
+      `SELECT id FROM direct_messages
+       WHERE user_id = ? AND (wa_message_id = ? OR provider_message_id = ?)
+       LIMIT 1`,
+      [userId, message.providerMessageId, message.providerMessageId],
+    );
+
+    const existing = (existingRows as Array<{ id: string }>)?.[0];
+    if (existing?.id) {
+      return { messageId: existing.id, isNew: false };
+    }
+
     const [insertResult] = await conn.execute(
       `INSERT INTO direct_messages (
          id, tenant_id, user_id, contact_phone, direction, type,
@@ -62,9 +74,7 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
          channel, provider_message_id, provider_account_id,
          sender_wa_id, sender_name, external_group_id,
          metadata, raw_payload, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-       ON DUPLICATE KEY UPDATE
-         id = id`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         messageId,
         tenantId,
@@ -93,21 +103,7 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
     );
 
     const result = insertResult as unknown as ResultSetHeader;
-
-    if (result.affectedRows === 1) {
-      return { messageId, isNew: true };
-    }
-
-    // Message already existed; fetch its id.
-    const [rows] = await conn.execute(
-      `SELECT id FROM direct_messages
-       WHERE user_id = ? AND wa_message_id = ?
-       LIMIT 1`,
-      [userId, message.providerMessageId],
-    );
-
-    const existing = (rows as Array<{ id: string }>)?.[0];
-    return { messageId: existing?.id ?? messageId, isNew: false };
+    return { messageId: result.affectedRows === 1 ? messageId : existing?.id ?? messageId, isNew: result.affectedRows === 1 };
   });
 }
 

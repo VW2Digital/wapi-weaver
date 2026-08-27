@@ -53,7 +53,7 @@ export async function ensureContact(
   return transaction(async (conn) => {
     // 1. Upsert contact by (user_id, phone_e164)
     const contactId = randomUUID();
-    const [contactResult] = await conn.execute(
+    await conn.execute(
       `INSERT INTO contacts (
          id, tenant_id, user_id, phone_e164, name,
          source, custom_fields, is_unread,
@@ -77,32 +77,31 @@ export async function ensureContact(
       ],
     );
 
-    const contactHeader = contactResult as unknown as ResultSetHeader;
-    let resolvedContactId: string;
-    let isNewContact = false;
+    // Always fetch the resolved contact id from the unique key.
+    const [contactRows] = await conn.execute(
+      `SELECT id FROM contacts
+       WHERE user_id = ? AND phone_e164 = ?
+       LIMIT 1`,
+      [userId, phoneE164],
+    );
 
-    if (contactHeader.affectedRows === 1) {
-      resolvedContactId = contactId;
-      isNewContact = true;
-    } else {
-      const [rows] = await conn.execute(
-        `SELECT id FROM contacts
-         WHERE user_id = ? AND phone_e164 = ?
-         LIMIT 1`,
-        [userId, phoneE164],
-      );
-      resolvedContactId = (rows as Array<{ id: string }>)?.[0]?.id ?? contactId;
+    const resolvedContactId = (contactRows as Array<{ id: string }>)?.[0]?.id;
+    if (!resolvedContactId) {
+      throw new Error(`Failed to resolve contact for ${phoneE164}`);
     }
 
+    // If the contact id we generated matches the resolved one, it was a new insert.
+    // If not, the upsert hit the unique key and returned the existing id.
+    const isNewContact = resolvedContactId === contactId;
+
     // 2. Upsert contact identity (external id per provider)
-    const identityId = randomUUID();
     const identityMetadata = {
       ...(identity.metadata ?? {}),
       source: `${provider}_inbound`,
       raw_name: identity.name,
     };
 
-    const [identityResult] = await conn.execute(
+    await conn.execute(
       `INSERT INTO contact_identities (
          id, tenant_id, user_id, contact_id, provider,
          external_id, phone_e164, username, avatar_url,
@@ -116,7 +115,7 @@ export async function ensureContact(
          metadata = VALUES(metadata),
          updated_at = NOW()`,
       [
-        identityId,
+        randomUUID(),
         tenantId,
         userId,
         resolvedContactId,
@@ -128,21 +127,6 @@ export async function ensureContact(
         JSON.stringify(identityMetadata),
       ],
     );
-
-    const identityHeader = identityResult as unknown as ResultSetHeader;
-    if (identityHeader.affectedRows !== 1 && resolvedContactId === contactId) {
-      // Identity existed; keep the existing contact_id if it was already linked to another contact.
-      const [existingRows] = await conn.execute(
-        `SELECT contact_id FROM contact_identities
-         WHERE tenant_id = ? AND provider = ? AND external_id = ?
-         LIMIT 1`,
-        [tenantId, provider, identity.externalId],
-      );
-      const existingContactId = (existingRows as Array<{ contact_id: string }>)?.[0]?.contact_id;
-      if (existingContactId) {
-        resolvedContactId = existingContactId;
-      }
-    }
 
     return { contactId: resolvedContactId, isNew: isNewContact };
   });

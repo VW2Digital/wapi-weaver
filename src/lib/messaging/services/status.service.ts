@@ -3,13 +3,7 @@
 import db from "@/lib/db";
 import type { MessageStatus } from "../types";
 
-const STATUS_RANK: Record<MessageStatus, number> = {
-  queued: 0,
-  sent: 1,
-  delivered: 2,
-  read: 3,
-  failed: 4,
-};
+const STATUS_ORDER = ["queued", "sent", "delivered", "read"];
 
 export interface UpdateStatusOptions {
   tenantId: string;
@@ -43,9 +37,8 @@ export async function updateMessageStatus(
 
   const nextTimestamp = timestamp ?? new Date().toISOString();
 
-  // Build dynamic SET clause based on status.
   const setFields: string[] = ["status = ?"];
-  const params: (string | null)[] = [status];
+  const params: (string | null | unknown)[] = [status];
 
   if (status === "delivered") {
     setFields.push("delivered_at = ?");
@@ -73,17 +66,8 @@ export async function updateMessageStatus(
     params.push(JSON.stringify(errors));
   }
 
-  // Status transition guard: never regress state. Failed is allowed to override
-  // anything except delivered/read. Other statuses only advance.
-  const transitionGuard =
-    status === "failed"
-      ? "(status IS NULL OR status NOT IN ('delivered', 'read'))"
-      : "(status IS NULL OR (status != 'failed' AND FIELD(status, 'queued', 'sent', 'delivered', 'read') < ?))";
-
-  if (status !== "failed") {
-    params.push(String(STATUS_RANK[status]));
-  }
-
+  // Never regress state. The FIELD comparison uses the canonical status order.
+  params.push(status);
   params.push(userId, providerMessageId, providerMessageId);
 
   const result = await db.query<{ affectedRows: number }>(
@@ -91,7 +75,11 @@ export async function updateMessageStatus(
      SET ${setFields.join(", ")}
      WHERE user_id = ?
        AND (wa_message_id = ? OR provider_message_id = ?)
-       AND ${transitionGuard}`,
+       AND (
+         status IS NULL
+         OR status = 'failed'
+         OR FIELD(status, 'queued', 'sent', 'delivered', 'read') < FIELD(?, 'queued', 'sent', 'delivered', 'read')
+       )`,
     params,
   );
 
