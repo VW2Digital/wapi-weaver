@@ -643,6 +643,13 @@ if [ -z "${MP_ENC_KEY_VAL}" ]; then
   fi
 fi
 
+TOKEN_ENC_KEY_VAL=$(grep '^TOKEN_ENCRYPTION_KEY=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${TOKEN_ENC_KEY_VAL}" ] || TOKEN_ENC_KEY_VAL=$(openssl rand -hex 32)
+
+META_APP_ID_VAL=$(grep '^VITE_META_APP_ID=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+META_CONFIG_ID_VAL=$(grep '^VITE_META_CONFIG_ID=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+META_APP_SECRET_VAL=$(grep '^META_APP_SECRET=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+
 # Preservar DOMAIN, ADMIN_EMAIL e ADMIN_PASSWORD no modo UPDATE (ou se não informados interativamente)
 if [ -z "${DOMAIN}" ]; then
   DOMAIN=$(domain_from_env_file "${ENV_FILE}")
@@ -703,6 +710,12 @@ JWT_SECRET="${JWT_SECRET_VAL}"
 NODE_ENV="production"
 PORT=3000
 MERCADOPAGO_ENCRYPTION_KEY="${MP_ENC_KEY_VAL}"
+TOKEN_ENCRYPTION_KEY="${TOKEN_ENC_KEY_VAL}"
+
+# Meta / WhatsApp / Instagram / Messenger (preencher via Configurações > Integrações Meta)
+VITE_META_APP_ID="${META_APP_ID_VAL}"
+VITE_META_CONFIG_ID="${META_CONFIG_ID_VAL}"
+META_APP_SECRET="${META_APP_SECRET_VAL}"
 
 # Domínio e CORS
 APP_URL="https://${DOMAIN}"
