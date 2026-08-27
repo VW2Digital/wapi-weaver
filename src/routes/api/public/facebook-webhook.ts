@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
-import { dbAdmin } from "@/integrations/mysql/client.server";
-import { processBotFlow } from "@/lib/botflow-executor.server";
-import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
+import { messengerAdapter } from "@/lib/messaging/adapters/messenger.adapter";
+import { resolveMessengerTenant } from "@/lib/messaging/services/tenant-resolution.service";
+import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
+import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 
-function logInfo(message: string, data?: any) {
+function logInfo(message: string, data?: unknown) {
   console.log(`[facebook-webhook] ${message}`, data ? JSON.stringify(data) : "");
 }
 
-function logError(message: string, data?: any) {
+function logError(message: string, data?: unknown) {
   console.error(`[facebook-webhook] ${message}`, data ? JSON.stringify(data) : "");
 }
 
@@ -32,24 +33,25 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
 
-        logInfo("GET recebido", { mode, token });
+        logInfo("GET received", { mode, token });
 
         const verifyToken =
           process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;
 
         if (mode === "subscribe" && token === verifyToken) {
-          logInfo("GET validado com sucesso");
+          logInfo("GET validated");
           return new Response(challenge ?? "", { status: 200 });
         }
 
-        logError("GET falhou na validação de token");
+        logError("GET validation failed");
         return new Response("Forbidden", { status: 403 });
       },
+
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
 
-        let payload: any = null;
+        let payload: unknown = null;
         try {
           payload = JSON.parse(rawBody);
         } catch (e: any) {
@@ -57,25 +59,18 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
           return new Response("Bad Request", { status: 400 });
         }
 
-        // Resolvendo o ID da Página
-        const pageId = payload?.entry?.[0]?.id;
+        const pageId = (payload as any)?.entry?.[0]?.id;
         if (!pageId) {
           logError("Meta page ID not found in payload");
           return new Response("Page ID missing", { status: 400 });
         }
 
-        const { data: page } = await dbAdmin
-          .from("facebook_pages")
-          .select("user_id, status")
-          .eq("page_id", pageId)
-          .maybeSingle();
-
-        if (!page) {
-          logError(`Nenhuma página conectada localizada para page_id: ${pageId}`);
+        const resolution = await resolveMessengerTenant(pageId);
+        if (!resolution.resolved) {
+          logError("Tenant not found for Facebook page", { pageId, reason: resolution.reason });
           return new Response("Page not integrated", { status: 404 });
         }
 
-        // Validando assinatura Meta se META_APP_SECRET existir
         const appSecret = process.env.META_APP_SECRET;
         if (appSecret) {
           const verified = await verifySignature(rawBody, sig, appSecret);
@@ -85,120 +80,26 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
           }
         }
 
-        // Idempotência: verificar duplicata pelo campo message.mid
-        const firstMsg = payload?.entry?.[0]?.messaging?.[0]?.message;
-        if (firstMsg?.mid) {
-          const { data: existingDm } = await dbAdmin
-            .from("direct_messages")
-            .select("id")
-            .eq("user_id", page.user_id)
-            .eq("channel", "messenger")
-            .eq("provider_message_id", firstMsg.mid)
-            .maybeSingle();
-          if (existingDm) {
-            logInfo("Evento duplicado ignorado (mid já processado)", { mid: firstMsg.mid });
-            return new Response("EVENT_RECEIVED", { status: 200 });
+        const { events, diagnostics } = messengerAdapter.normalize(payload);
+        logInfo("Adapter normalized events", { count: events.length, diagnostics });
+
+        if (events.length === 0) {
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        for (const event of events) {
+          event.tenantId = resolution.resolved!.tenantId;
+          event.userId = resolution.resolved!.userId;
+        }
+
+        const persisted = await persistCanonicalEvents(events);
+        logInfo("Events persisted", { count: persisted.length });
+
+        for (const result of persisted) {
+          if (!result.skipped) {
+            await enqueueMessagingEvent(result.eventId);
           }
         }
-
-        // Salvar evento no banco para auditoria
-        const { data: eventRow, error: eventInsertError } = await dbAdmin
-          .from("facebook_webhook_events")
-          .insert({
-            id: crypto.randomUUID(),
-            user_id: page.user_id,
-            raw: payload,
-            processed: false,
-          })
-          .select("id")
-          .single();
-        if (eventInsertError) {
-          logError("Falha ao registrar evento do Messenger", eventInsertError);
-        }
-
-        // Processamento assíncrono para responder rapidamente à Meta
-        setTimeout(() => {
-          (async () => {
-            try {
-              for (const entry of payload.entry ?? []) {
-                for (const item of entry.messaging ?? []) {
-                  const senderId = item.sender?.id;
-                  const recipientId = item.recipient?.id;
-                  const message = item.message;
-
-                  if (senderId && message && message.text) {
-                    const phonePlaceholder = `fb_${senderId}`;
-                    const name = `Facebook User (${senderId})`;
-
-                    // 1. Criar ou atualizar contato
-                    const { data: contact } = await dbAdmin
-                      .from("contacts")
-                      .upsert(
-                        {
-                          user_id: page.user_id,
-                          phone_e164: phonePlaceholder,
-                          name: name,
-                          channel: "messenger",
-                          external_contact_id: senderId,
-                          source: "messenger",
-                        },
-                        { onConflict: "user_id,channel,external_contact_id" },
-                      )
-                      .select("id")
-                      .single();
-
-                    // 2. Salvar mensagem recebida (com dedup via unique key)
-                    const { data: storedMessage } = await dbAdmin.from("direct_messages").upsert(
-                      {
-                        tenant_id: page.user_id,
-                        user_id: page.user_id,
-                        contact_phone: phonePlaceholder,
-                        direction: "incoming",
-                        type: "text",
-                        body: message.text,
-                        channel: "messenger",
-                        provider_message_id: message.mid,
-                        provider_account_id: recipientId,
-                        status: "delivered",
-                        metadata: { raw: item },
-                      },
-                      { onConflict: "user_id,channel,provider_message_id" },
-                    ).select("id").single();
-
-                    await publishChatRealtimeEvent({
-                      type: "message.received",
-                      tenant_id: page.user_id,
-                      contact_phone: phonePlaceholder,
-                      message_id: storedMessage?.id || null,
-                      provider_message_id: message.mid || null,
-                      status: "delivered",
-                    });
-
-                    // 3. Chamar executor do Bot
-                    await processBotFlow(
-                      message.text,
-                      phonePlaceholder,
-                      recipientId,
-                      page.user_id,
-                      undefined,
-                      "messenger",
-                    );
-                  }
-                }
-              }
-
-              if (eventRow?.id) {
-                await dbAdmin
-                  .from("facebook_webhook_events")
-                  .update({ processed: true })
-                  .eq("id", eventRow.id);
-              }
-              logInfo("Webhook processado com sucesso");
-            } catch (err: any) {
-              logError("Falha ao processar webhook", err.message);
-            }
-          })();
-        }, 0);
 
         return new Response("EVENT_RECEIVED", { status: 200 });
       },

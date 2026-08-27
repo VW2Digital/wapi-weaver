@@ -9,6 +9,9 @@ import { downloadAndPersistInboundMedia } from "@/lib/whatsapp-media-downloader"
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { insertWebhookEvent } from "@/lib/webhook-event-store.server";
 import { saveCall, type CallDirection, type CallStatus } from "@/lib/whatsapp-calls.functions";
+import { whatsappAdapter } from "@/lib/messaging/adapters/whatsapp.adapter";
+import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
+import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -2036,106 +2039,68 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const sig = request.headers.get("x-hub-signature-256");
         logInfo("POST recebido", { hasSignature: !!sig, bytes: rawBody.length });
 
-        let payload: WebhookPayload | null = null;
+        let payload: unknown = null;
         try {
-          payload = JSON.parse(rawBody) as WebhookPayload;
+          payload = JSON.parse(rawBody);
         } catch (error: unknown) {
           logError("POST inválido (JSON parse)", { error: getErrorMessage(error) });
           return new Response("Bad Request", { status: 400 });
         }
 
-        const resolved = await resolveWebhookUser(rawBody, sig, payload);
-        const matchedUserId = resolved.userId;
+        // Resolve the phone number ids from the payload for tenant resolution
+        const phoneNumberIds = extractPhoneNumberIds(payload as WebhookPayload);
+        if (phoneNumberIds.length === 0) {
+          logError("No phone_number_id found in payload");
+          return new Response("Phone number ID missing", { status: 400 });
+        }
 
-        if (!matchedUserId) {
-          // Não usamos o Phone Number ID para aceitar o POST — ele não prova
-          // que a chamada veio da Meta. Usamo-lo apenas para anexar a falha ao
-          // proprietário correto e tornar erros de segredo/assinatura visíveis
-          // na tela "Eventos do Webhook".
-          const diagnosticOwnerId = await findWebhookOwnerForDiagnostics(payload);
-          try {
-            await insertWebhookEvent({
-              userId: diagnosticOwnerId,
-              source: "whatsapp",
-              eventType: "webhook_rejected",
-              status: "rejected",
-              processed: true,
-              errorMessage: `Webhook recusado: ${resolved.reason}`,
-              raw: {
-                rejected: true,
-                reason: resolved.reason,
-                phone_number_ids: extractPhoneNumberIds(payload),
-                body: rawBody.slice(0, 4000),
-              },
-            });
-          } catch (rejectedEventError) {
-            logError("Falha ao registrar webhook rejeitado", rejectedEventError);
-          }
+        // Verify signature against configured secrets before resolving tenant
+        const resolved = await resolveWebhookUser(rawBody, sig, payload as WebhookPayload);
+        if (!resolved.userId) {
           logError("POST recusado (não foi possível resolver user)", {
             reason: resolved.reason,
-            phone_number_ids: extractPhoneNumberIds(payload),
+            phone_number_ids: phoneNumberIds,
           });
           return new Response("Webhook user could not be resolved", { status: 401 });
         }
 
-        // Salva o payload bruto para debug e processa em seguida
-        let webhookEventId: string | null = null;
+        const matchedUserId = resolved.userId;
+
+        // Normalize to canonical events
+        const { events, diagnostics } = whatsappAdapter.normalize(payload);
+        logInfo("Adapter normalized events", { count: events.length, diagnostics });
+
+        if (events.length === 0) {
+          return new Response("ok", { status: 200 });
+        }
+
+        // Resolve channel resource id and assign tenant to each event
+        const phoneNumberId = phoneNumberIds[0];
+        for (const event of events) {
+          event.tenantId = matchedUserId;
+          event.userId = matchedUserId;
+          event.channelResourceId = event.channelResourceId || phoneNumberId;
+        }
+
+        // Persist canonical events idempotently
+        let persisted: Array<{ eventId: string; skipped: boolean }> = [];
         try {
-          webhookEventId = await insertWebhookEvent({
-            userId: matchedUserId,
-            source: "whatsapp",
-            raw: payload,
-          });
-        } catch (eventInsertError) {
-          logError("Falha ao registrar evento do webhook", eventInsertError);
-          // Não processe silenciosamente uma mensagem sem trilha de auditoria.
-          // O 500 faz a Meta reenviar o mesmo callback; a persistência de
-          // mensagens é idempotente pelo wa_message_id.
+          persisted = await persistCanonicalEvents(events);
+        } catch (persistError) {
+          logError("Falha ao persistir eventos canônicos", persistError);
           return new Response("Webhook event persistence failed", { status: 500 });
         }
 
-        // Processamos imediatamente para que a persistência no chat e o bot não
-        // dependam da disponibilidade do worker/Redis na VPS. A fila fica como
-        // contingência e repete apenas o que ainda não foi concluído, graças à
-        // idempotência por wa_message_id e ao marcador bot_processed_at.
+        // Enqueue new events for async processing
         try {
-          await processMetaWebhookEvent(payload.entry ?? [], matchedUserId);
-          if (webhookEventId) {
-            const { error: processedUpdateError } = await dbAdmin
-              .from("webhook_events")
-              .update({ processed: true })
-              .eq("id", webhookEventId);
-            if (processedUpdateError) {
-              logError("Falha ao marcar evento do webhook como processado", processedUpdateError);
+          for (const result of persisted) {
+            if (!result.skipped) {
+              await enqueueMessagingEvent(result.eventId);
             }
           }
-        } catch (processingError) {
-          logError(
-            "Processamento imediato do webhook falhou; enfileirando contingência",
-            processingError,
-          );
-          try {
-            await webhookQueue.add(
-              "meta-event",
-              {
-                entry: payload.entry,
-                matchedUserId,
-                evRowId: webhookEventId,
-              },
-              {
-                attempts: 5,
-                backoff: { type: "exponential", delay: 1000 },
-                removeOnComplete: 1000,
-                removeOnFail: 5000,
-              },
-            );
-          } catch (queueError) {
-            logError("Falha no processamento imediato e na fila do webhook", {
-              processingError: getErrorMessage(processingError),
-              queueError: getErrorMessage(queueError),
-            });
-            return new Response("Webhook processing failed", { status: 500 });
-          }
+        } catch (queueError) {
+          logError("Falha ao enfileirar eventos", queueError);
+          // Events are persisted; a retrier can pick them up.
         }
 
         return new Response("ok", { status: 200 });
