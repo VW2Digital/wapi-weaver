@@ -35,7 +35,10 @@ export async function updateMessageStatus(
     errors,
   } = options;
 
-  const nextTimestamp = timestamp ?? new Date().toISOString();
+  const nextTimestamp = (timestamp
+    ? new Date(timestamp)
+    : new Date()
+  ).toISOString().slice(0, 19).replace("T", " ");
 
   const setFields: string[] = ["status = ?"];
   const params: (string | null | unknown)[] = [status];
@@ -67,11 +70,11 @@ export async function updateMessageStatus(
   }
 
   // Never regress state. The FIELD comparison uses the canonical status order.
+  params.push(userId);
+  params.push(providerMessageId, providerMessageId);
   params.push(status);
-  params.push(userId, providerMessageId, providerMessageId);
 
-  const result = await db.query<{ affectedRows: number }>(
-    `UPDATE direct_messages
+  const sql = `UPDATE direct_messages
      SET ${setFields.join(", ")}
      WHERE user_id = ?
        AND (wa_message_id = ? OR provider_message_id = ?)
@@ -79,9 +82,8 @@ export async function updateMessageStatus(
          status IS NULL
          OR status = 'failed'
          OR FIELD(status, 'queued', 'sent', 'delivered', 'read') < FIELD(?, 'queued', 'sent', 'delivered', 'read')
-       )`,
-    params,
-  );
+       )`;
+  const result = await db.query<{ affectedRows: number }>(sql, params);
 
   const updated = (result?.affectedRows ?? 0) > 0;
 
