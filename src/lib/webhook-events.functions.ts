@@ -10,7 +10,7 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const { default: db } = await import("./db");
 
-    const [roleRows] = (await db.query(
+    const roleRows = (await db.query(
       "SELECT role FROM user_roles WHERE user_id = ?",
       [context.userId],
     )) as any[];
