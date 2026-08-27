@@ -1,0 +1,20 @@
+{
+  "object": "page",
+  "entry": [
+    {
+      "id": "PAGE_ID",
+      "time": 1699999999,
+      "messaging": [
+        {
+          "sender": { "id": "SENDER_PSID" },
+          "recipient": { "id": "PAGE_ID" },
+          "timestamp": 1699999999,
+          "message": {
+            "mid": "mid.messenger.test",
+            "text": "Oi pelo Messenger"
+          }
+        }
+      ]
+    }
+  ]
+}
