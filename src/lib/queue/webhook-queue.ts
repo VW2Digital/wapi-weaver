@@ -1,7 +1,17 @@
 import { Queue, Worker } from "bullmq";
-import { redis } from "../cache";
+import Redis from "ioredis";
+
+// Dedicated Redis connection for BullMQ to avoid sharing the cache client.
+const queueRedis = new Redis({
+  host: process.env.REDIS_HOST || "localhost",
+  port: parseInt(process.env.REDIS_PORT || "6379", 10),
+  password: process.env.REDIS_PASSWORD,
+  maxRetriesPerRequest: null,
+  enableOfflineQueue: true,
+});
+
 import {
-  getPendingEvents,
+  getMessagingEventById,
   markEventCompleted,
   markEventFailed,
   markEventProcessing,
@@ -9,7 +19,7 @@ import {
 } from "@/lib/messaging/event-store.server";
 import { processCanonicalEvent } from "@/lib/messaging/processor.server";
 
-export const webhookQueue = new Queue("webhook-events", { connection: redis as any });
+export const webhookQueue = new Queue("webhook-events", { connection: queueRedis as any });
 
 export const webhookWorker = new Worker(
   "webhook-events",
@@ -22,8 +32,8 @@ export const webhookWorker = new Worker(
     await markEventProcessing(eventId);
 
     try {
-      const [row] = await getPendingEvents(1);
-      if (!row || row.id !== eventId) {
+      const row = await getMessagingEventById(eventId);
+      if (!row || row.status !== "processing") {
         // The event is no longer pending (already processed or not found)
         return;
       }
@@ -38,7 +48,7 @@ export const webhookWorker = new Worker(
       throw error;
     }
   },
-  { connection: redis as any, autorun: true, concurrency: 5 },
+  { connection: queueRedis as any, autorun: true, concurrency: 5 },
 );
 
 webhookWorker.on("failed", (job, err) => {

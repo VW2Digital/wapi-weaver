@@ -4,6 +4,11 @@ import { randomUUID } from "crypto";
 import db from "@/lib/db";
 import type { CanonicalEvent } from "./types";
 
+function toMySQLDateTime(value: string | number | Date | undefined): string {
+  const d = typeof value === "string" ? new Date(value) : value instanceof Date ? value : new Date(value ?? Date.now());
+  return d.toISOString().slice(0, 19).replace("T", " ");
+}
+
 export interface PersistResult {
   eventId: string;
   inserted: boolean;
@@ -40,7 +45,7 @@ export interface MessagingEventRow {
  */
 export async function persistCanonicalEvent(event: CanonicalEvent): Promise<PersistResult> {
   const eventId = event.id ?? randomUUID();
-  const receivedAt = event.receivedAt ?? new Date().toISOString();
+  const receivedAt = toMySQLDateTime(event.receivedAt);
 
   const result = await db.query<{ affectedRows: number; insertId: number }>(
     `INSERT INTO messaging_events (
@@ -89,7 +94,7 @@ export async function persistCanonicalEvents(events: CanonicalEvent[]): Promise<
     const results: PersistResult[] = [];
     for (const event of events) {
       const eventId = event.id ?? randomUUID();
-      const receivedAt = event.receivedAt ?? new Date().toISOString();
+      const receivedAt = toMySQLDateTime(event.receivedAt);
 
       const [insertResult] = await conn.execute(
         `INSERT INTO messaging_events (
@@ -148,6 +153,21 @@ export async function getPendingEvents(
 }
 
 /**
+ * Retorna um evento canônico pelo id.
+ */
+export async function getMessagingEventById(
+  eventId: string,
+): Promise<MessagingEventRow | null> {
+  const rows = await db.query<MessagingEventRow[]>(
+    `SELECT * FROM messaging_events
+     WHERE id = ?
+     LIMIT 1`,
+    [eventId],
+  );
+  return rows?.[0] ?? null;
+}
+
+/**
  * Marca um evento como em processamento.
  */
 export async function markEventProcessing(eventId: string): Promise<void> {
@@ -186,6 +206,11 @@ export async function markEventFailed(eventId: string, errorMessage: string): Pr
 /**
  * Reidrata um evento canônico a partir de uma linha do banco.
  */
+function safeParseJson<T = unknown>(value: string | T): T {
+  if (typeof value === "string") return JSON.parse(value) as T;
+  return value as T;
+}
+
 export function hydrateCanonicalEvent(row: MessagingEventRow): CanonicalEvent {
   return {
     id: row.id,
@@ -195,9 +220,9 @@ export function hydrateCanonicalEvent(row: MessagingEventRow): CanonicalEvent {
     eventType: row.event_type as CanonicalEvent["eventType"],
     externalEventId: row.external_event_id,
     channelResourceId: row.channel_resource_id,
-    receivedAt: row.received_at.toISOString(),
-    payload: JSON.parse(row.payload_json),
-    rawPayload: JSON.parse(row.raw_payload_json),
+    receivedAt: new Date(row.received_at).toISOString(),
+    payload: safeParseJson(row.payload_json),
+    rawPayload: safeParseJson(row.raw_payload_json),
     status: row.status,
     attemptCount: row.attempt_count,
     lastError: row.last_error,
