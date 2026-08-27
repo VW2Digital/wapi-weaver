@@ -409,6 +409,20 @@
     "instagram_id",
     "whatsapp_number"
   ],
+  "contact_identities": [
+    "id",
+    "tenant_id",
+    "user_id",
+    "contact_id",
+    "provider",
+    "external_id",
+    "phone_e164",
+    "username",
+    "avatar_url",
+    "metadata",
+    "created_at",
+    "updated_at"
+  ],
   "conversation_assignments": [
     "id",
     "tenant_id",
@@ -831,6 +845,23 @@
     "message_id",
     "tag_id",
     "user_id"
+  ],
+  "messaging_events": [
+    "id",
+    "tenant_id",
+    "user_id",
+    "provider",
+    "channel_resource_id",
+    "external_event_id",
+    "event_type",
+    "payload_json",
+    "raw_payload_json",
+    "status",
+    "attempt_count",
+    "last_error",
+    "received_at",
+    "processed_at",
+    "created_at"
   ],
   "notifications": [
     "id",
@@ -1269,6 +1300,19 @@
     "payload_json",
     "status",
     "error_message",
+    "created_at"
+  ],
+  "webhook_delivery_logs": [
+    "id",
+    "provider",
+    "tenant_id",
+    "channel_resource_id",
+    "http_status",
+    "outcome",
+    "raw_body",
+    "error_message",
+    "ip_address",
+    "received_at",
     "created_at"
   ],
   "webhook_field_mappings": [
