@@ -284,7 +284,7 @@ function timeAgo(iso: string) {
 function WebhookEventsPage() {
   const fetchEvents = useServerFn(listMyWebhookEvents);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "template" | "message" | "inbound">("all");
+  const [filter, setFilter] = useState<"all" | "whatsapp" | "instagram" | "messenger" | "meta">("all");
   const [selected, setSelected] = useState<EventRow | null>(null);
   const [page, setPage] = useState(1);
 
@@ -318,16 +318,7 @@ function WebhookEventsPage() {
 
   const filtered = useMemo(() => {
     return enriched.filter((e) => {
-      if (filter !== "all") {
-        const has = e.summaries.some((s) =>
-          filter === "template"
-            ? s.kind.startsWith("template")
-            : filter === "message"
-              ? s.kind === "message_status"
-              : s.kind === "inbound",
-        );
-        if (!has) return false;
-      }
+      if (filter !== "all" && e.source !== filter) return false;
       if (!search) return true;
       const s = search.toLowerCase();
       return (
@@ -426,9 +417,9 @@ function WebhookEventsPage() {
           <div className="flex flex-wrap gap-2">
             {[
               { k: "all", label: "Todos" },
-              { k: "template", label: "Templates" },
-              { k: "message", label: "Mensagens" },
-              { k: "inbound", label: "Recebidas" },
+              { k: "whatsapp", label: "WhatsApp" },
+              { k: "instagram", label: "Instagram" },
+              { k: "messenger", label: "Messenger" },
             ].map((f) => (
               <Button
                 key={f.k}
