@@ -2059,15 +2059,19 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         // Resolve the phone number ids from the payload for tenant resolution
         const phoneNumberIds = extractPhoneNumberIds(payload as WebhookPayload);
         if (phoneNumberIds.length === 0) {
-          logError("No phone_number_id found in payload");
+          const isInstagram = (payload as any)?.object === "instagram" || Array.isArray((payload as any)?.entry?.[0]?.messaging);
+          const errorMessage = isInstagram
+            ? "Instagram payload received on WhatsApp endpoint. Use /api/public/instagram-webhook"
+            : "No phone_number_id found in payload";
+          logError(errorMessage);
           await logWebhookDelivery({
-            provider: "whatsapp",
+            provider: isInstagram ? "instagram" : "whatsapp",
             httpStatus: 400,
             outcome: "rejected_unconfigured",
             rawBody: payload,
-            errorMessage: "No phone_number_id found in payload",
+            errorMessage,
           }).catch(() => {});
-          return new Response("Phone number ID missing", { status: 400 });
+          return new Response(errorMessage, { status: 400 });
         }
 
         // Verify signature against configured secrets before resolving tenant
