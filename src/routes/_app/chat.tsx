@@ -4289,53 +4289,53 @@ function ChatPage() {
                 type="button"
                 onClick={() => setFilterView("all")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "all"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground shadow-sm"
+                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
-                <MessageCircle className="h-3.5 w-3.5" />
-                Todos
+                <MessageCircle className="h-4 w-4" />
+                {filterView === "all" && "Todos"}
               </button>
               <button
                 type="button"
                 onClick={() => setFilterView("whatsapp")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "whatsapp"
-                    ? "bg-[#25D366] text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-1.5 px-3 py-1.5 bg-[#25D366] text-white shadow-sm"
+                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
-                <WhatsAppIcon className="h-3.5 w-3.5" />
-                WhatsApp
+                <WhatsAppIcon className="h-4 w-4" />
+                {filterView === "whatsapp" && "WhatsApp"}
               </button>
               <button
                 type="button"
                 onClick={() => setFilterView("instagram")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "instagram"
-                    ? "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
+                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
-                <Instagram className="h-3.5 w-3.5" />
-                Instagram
+                <Instagram className="h-4 w-4" />
+                {filterView === "instagram" && "Instagram"}
               </button>
               <button
                 type="button"
                 onClick={() => setFilterView("messenger")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex items-center rounded-full text-xs font-semibold transition-all",
                   filterView === "messenger"
-                    ? "bg-[#0078FF] text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "gap-1.5 px-3 py-1.5 bg-[#0078FF] text-white shadow-sm"
+                    : "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
-                <Facebook className="h-3.5 w-3.5" />
-                Messenger
+                <Facebook className="h-4 w-4" />
+                {filterView === "messenger" && "Messenger"}
               </button>
             </div>
           </div>
