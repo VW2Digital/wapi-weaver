@@ -68,6 +68,7 @@ export const listWebhookEvents = createServerFn({ method: "GET" })
 
     const { dbAdmin } = await import("@/integrations/mysql/client.server");
 
+    // Legacy webhook events + new canonical messaging events
     let q = dbAdmin
       .from("webhook_events")
       .select("id, source, processed, received_at, raw")
@@ -75,7 +76,24 @@ export const listWebhookEvents = createServerFn({ method: "GET" })
       .limit(data.limit);
     if (data.onlyUnprocessed) q = q.eq("processed", false);
 
-    const { data: events, error } = await q;
-    if (error) throw new Error(error.message);
-    return { events: events ?? [] };
+    const { data: legacyEvents, error: legacyError } = await q;
+    if (legacyError) throw new Error(legacyError.message);
+
+    const { data: canonicalEvents, error: canonicalError } = await dbAdmin
+      .from("messaging_events")
+      .select("id, provider as source, status, received_at, raw_payload_json as raw")
+      .order("received_at", { ascending: false })
+      .limit(data.limit);
+    if (canonicalError) throw new Error(canonicalError.message);
+
+    const mappedCanonical = (canonicalEvents ?? []).map((e: any) => ({
+      ...e,
+      processed: e.status !== "pending" && e.status !== "processing",
+    }));
+
+    const allEvents = [...(legacyEvents ?? []), ...mappedCanonical]
+      .sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime())
+      .slice(0, data.limit);
+
+    return { events: allEvents };
   });
