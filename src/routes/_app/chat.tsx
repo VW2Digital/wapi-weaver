@@ -4284,58 +4284,58 @@ function ChatPage() {
 
           {/* Filtro de canais acima das abas */}
           <div className="p-3 border-b bg-card shrink-0">
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setFilterView("all")}
                 className={cn(
-                  "flex items-center justify-center w-full rounded-full text-xs font-semibold transition-all",
+                  "flex items-center justify-center w-full rounded-full font-semibold transition-all gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-[10px] sm:text-xs",
                   filterView === "all"
-                    ? "gap-2 px-4 py-2 bg-primary text-primary-foreground shadow-sm"
-                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <MessageCircle className="h-4 w-4" />
-                {filterView === "all" && "Todos"}
+                <span className="hidden sm:inline">Todos</span>
               </button>
               <button
                 type="button"
                 onClick={() => setFilterView("whatsapp")}
                 className={cn(
-                  "flex items-center justify-center w-full rounded-full text-xs font-semibold transition-all",
+                  "flex items-center justify-center w-full rounded-full font-semibold transition-all gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-[10px] sm:text-xs",
                   filterView === "whatsapp"
-                    ? "gap-2 px-4 py-2 bg-[#25D366] text-white shadow-sm"
-                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "bg-[#25D366] text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <WhatsAppIcon className="h-4 w-4" />
-                {filterView === "whatsapp" && "WhatsApp"}
+                <span className="hidden sm:inline">WhatsApp</span>
               </button>
               <button
                 type="button"
                 onClick={() => setFilterView("instagram")}
                 className={cn(
-                  "flex items-center justify-center w-full rounded-full text-xs font-semibold transition-all",
+                  "flex items-center justify-center w-full rounded-full font-semibold transition-all gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-[10px] sm:text-xs",
                   filterView === "instagram"
-                    ? "gap-2 px-4 py-2 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
-                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <Instagram className="h-4 w-4" />
-                {filterView === "instagram" && "Instagram"}
+                <span className="hidden sm:inline">Instagram</span>
               </button>
               <button
                 type="button"
                 onClick={() => setFilterView("messenger")}
                 className={cn(
-                  "flex items-center justify-center w-full rounded-full text-xs font-semibold transition-all",
+                  "flex items-center justify-center w-full rounded-full font-semibold transition-all gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-[10px] sm:text-xs",
                   filterView === "messenger"
-                    ? "gap-2 px-4 py-2 bg-[#0078FF] text-white shadow-sm"
-                    : "p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    ? "bg-[#0078FF] text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 <Facebook className="h-4 w-4" />
-                {filterView === "messenger" && "Messenger"}
+                <span className="hidden sm:inline">Messenger</span>
               </button>
             </div>
           </div>
