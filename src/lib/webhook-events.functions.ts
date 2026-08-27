@@ -137,6 +137,29 @@ export const listMyWebhookEvents = createServerFn({ method: "GET" })
       console.warn("[WebhookEvents] Não foi possível consultar webhook_delivery_logs", error);
     }
 
+    // Canonical messaging events (processed canonical events)
+    try {
+      const messagingCols = (await db.query("SHOW COLUMNS FROM messaging_events")) as any[];
+      if (messagingCols?.length > 0) {
+        const messagingWhere = isMaster ? "" : "WHERE tenant_id = ?";
+        const messagingParams = isMaster ? [data.limit] : [effectiveUserId, data.limit];
+        const messagingRows = (await db.query(
+          `SELECT id, provider AS source,
+             IF(status IN ('completed','failed'), 1, 0) AS processed,
+             received_at, raw_payload_json AS raw, last_error AS error_message,
+             event_type
+           FROM messaging_events
+           ${messagingWhere}
+           ORDER BY received_at DESC
+           LIMIT ?`,
+          messagingParams,
+        )) as any[];
+        eventSources.push(...(messagingRows || []));
+      }
+    } catch (error) {
+      console.warn("[WebhookEvents] Não foi possível consultar messaging_events", error);
+    }
+
     const events = eventSources
       .map((event: any) => ({
         ...event,
