@@ -2444,7 +2444,33 @@ export const testInstagramConnection = createServerFn({ method: "POST" })
         }
       }
 
+      // Diagnostic: list pages the token can access to help user identify token mismatch
       if (!res.ok) {
+        try {
+          const meRes = await fetch(
+            `https://graph.facebook.com/${version}/me/accounts?fields=id,name,instagram_business_account&access_token=${accessToken}`,
+          );
+          const meBody = await meRes.json();
+          const pages = (meBody?.data || [])
+            .filter((p: any) => p?.instagram_business_account?.id)
+            .map((p: any) => ({
+              page_id: p.id,
+              page_name: p.name,
+              instagram_business_account_id: p.instagram_business_account.id,
+            }));
+          if (pages.length > 0) {
+            const requested = decodeURIComponent(targetId);
+            const found = pages.find((p: any) => p.instagram_business_account_id === requested);
+            if (!found) {
+              return {
+                ok: false,
+                error: `O token não tem acesso ao Instagram ID ${requested}. Contas disponíveis: ${pages
+                  .map((p: any) => `${p.instagram_business_account_id} (${p.page_name})`)
+                  .join(", ")}`,
+              };
+            }
+          }
+        } catch {}
         return {
           ok: false,
           error: body?.error?.message || "Token de acesso ou ID do Instagram inválido na Meta API.",
