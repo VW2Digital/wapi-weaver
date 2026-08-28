@@ -1995,20 +1995,6 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const sig = request.headers.get("x-hub-signature-256");
         logInfo("POST recebido", { hasSignature: !!sig, bytes: rawBody.length });
 
-        // 1. Authenticate Meta Signature on raw body
-        const sigResult = await verifyMetaWebhookSignature(rawBody, sig, "whatsapp");
-        if (!sigResult.valid) {
-          logError("POST recusado (assinatura inválida)", { reason: sigResult.reason });
-          await logWebhookDelivery({
-            provider: "whatsapp",
-            httpStatus: 403,
-            outcome: "rejected_signature",
-            rawBody: rawBody,
-            errorMessage: `Signature validation failed: ${sigResult.reason}`,
-          }).catch(() => {});
-          return new Response("Forbidden (Invalid Signature)", { status: 403 });
-        }
-
         let payload: unknown = null;
         try {
           payload = JSON.parse(rawBody);
@@ -2042,6 +2028,20 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
             errorMessage: "No phone_number_id found in payload",
           }).catch(() => {});
           return new Response("Phone number ID missing", { status: 400 });
+        }
+
+        // 1. Authenticate Meta Signature on raw body (usando o phone_number_id para consultar o tenant/perfil caso platform_settings não tenha secret)
+        const sigResult = await verifyMetaWebhookSignature(rawBody, sig, "whatsapp", phoneNumberIds[0]);
+        if (!sigResult.valid) {
+          logError("POST recusado (assinatura inválida)", { reason: sigResult.reason });
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            httpStatus: 403,
+            outcome: "rejected_signature",
+            rawBody: rawBody,
+            errorMessage: `Signature validation failed: ${sigResult.reason}`,
+          }).catch(() => {});
+          return new Response("Forbidden (Invalid Signature)", { status: 403 });
         }
 
         // 2. Resolve tenant after signature authentication

@@ -49,20 +49,6 @@ export async function verifyInstagramWebhookSubscription(
 }
 
 export async function processInstagramWebhook(rawBody: string, signature: string | null): Promise<Response> {
-  // 1. Authenticate Meta Signature on original raw body
-  const sigResult = await verifyMetaWebhookSignature(rawBody, signature, "instagram");
-  if (!sigResult.valid) {
-    logError("Signature validation failed", { reason: sigResult.reason });
-    await logWebhookDelivery({
-      provider: "instagram",
-      httpStatus: 403,
-      outcome: "rejected_signature",
-      rawBody: rawBody,
-      errorMessage: `Signature validation failed: ${sigResult.reason}`,
-    }).catch(() => {});
-    return new Response("Forbidden (Invalid Signature)", { status: 403 });
-  }
-
   let payload: unknown = null;
   try {
     payload = JSON.parse(rawBody);
@@ -89,6 +75,21 @@ export async function processInstagramWebhook(rawBody: string, signature: string
       errorMessage: "Meta page ID not found in payload",
     }).catch(() => {});
     return new Response("Page ID missing", { status: 400 });
+  }
+
+  // 1. Authenticate Meta Signature on original raw body (usando o pageId/resourceId para buscar o secret em instagram_accounts caso não esteja em platform_settings)
+  const sigResult = await verifyMetaWebhookSignature(rawBody, signature, "instagram", pageId);
+  if (!sigResult.valid) {
+    logError("Signature validation failed", { reason: sigResult.reason });
+    await logWebhookDelivery({
+      provider: "instagram",
+      channelResourceId: pageId,
+      httpStatus: 403,
+      outcome: "rejected_signature",
+      rawBody: rawBody,
+      errorMessage: `Signature validation failed: ${sigResult.reason}`,
+    }).catch(() => {});
+    return new Response("Forbidden (Invalid Signature)", { status: 403 });
   }
 
   const resolution = await resolveInstagramTenant(pageId);

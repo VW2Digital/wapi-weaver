@@ -70,26 +70,78 @@ export async function resolveMetaAppSecret(): Promise<string | null> {
 }
 
 export interface WebhookSecretResolution {
-  source: "platform_settings" | "environment";
+  source: "platform_settings" | "environment" | "channel_account";
   secret: string;
   appId: string | null;
 }
 
 /**
- * Retorna a fonte autoritativa única do Meta App Secret para webhooks.
- * Regra: platform_settings (autoritativa) > process.env (fallback/bootstrap).
+ * Retorna a chave secreta (App Secret) para validação do Webhook.
+ *
+ * Busca na tabela correta:
+ * 1. `platform_settings` (se configurado centralmente pelo Master Admin)
+ * 2. Tabela específica do canal/integração:
+ *    - WhatsApp: `profiles.whatsapp_app_secret`
+ *    - Instagram: `instagram_accounts.app_secret`
+ *    - Messenger: `facebook_pages`
+ * 3. `process.env.META_APP_SECRET` (fallback/bootstrap de instalação)
  */
-export async function getMetaWebhookSecret(): Promise<WebhookSecretResolution> {
+export async function getMetaWebhookSecret(
+  provider: "whatsapp" | "instagram" | "messenger" = "whatsapp",
+  resourceId?: string,
+): Promise<WebhookSecretResolution> {
   const platform = await getPlatformSecrets();
-  const appId = platform?.meta_app_id || process.env.VITE_META_APP_ID || process.env.META_APP_ID || null;
-
   const dbSecret = String(platform?.meta_app_secret ?? "").trim();
-  if (dbSecret) {
+  const platformAppId = platform?.meta_app_id || process.env.VITE_META_APP_ID || process.env.META_APP_ID || null;
+
+  if (dbSecret && dbSecret.length >= 20) {
     return {
       source: "platform_settings",
       secret: dbSecret,
-      appId,
+      appId: platformAppId,
     };
+  }
+
+  // Busca na tabela específica de cada API/Canal
+  if (provider === "whatsapp") {
+    let query = "SELECT whatsapp_app_secret, whatsapp_app_id FROM profiles WHERE whatsapp_app_secret IS NOT NULL AND whatsapp_app_secret <> ''";
+    const params: any[] = [];
+    if (resourceId) {
+      query += " AND whatsapp_phone_number_id = ?";
+      params.push(resourceId);
+    }
+    query += " LIMIT 1";
+
+    const rows = (await db.query(query, params)) as Array<{
+      whatsapp_app_secret: string | null;
+      whatsapp_app_id: string | null;
+    }>;
+    const profSecret = String(rows[0]?.whatsapp_app_secret ?? "").trim();
+    if (profSecret) {
+      return {
+        source: "channel_account",
+        secret: profSecret,
+        appId: rows[0]?.whatsapp_app_id || platformAppId,
+      };
+    }
+  } else if (provider === "instagram") {
+    let query = "SELECT app_secret FROM instagram_accounts WHERE app_secret IS NOT NULL AND app_secret <> ''";
+    const params: any[] = [];
+    if (resourceId) {
+      query += " AND (page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?)";
+      params.push(resourceId, resourceId, resourceId);
+    }
+    query += " LIMIT 1";
+
+    const rows = (await db.query(query, params)) as Array<{ app_secret: string | null }>;
+    const igSecret = String(rows[0]?.app_secret ?? "").trim();
+    if (igSecret) {
+      return {
+        source: "channel_account",
+        secret: igSecret,
+        appId: platformAppId,
+      };
+    }
   }
 
   const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
@@ -97,7 +149,7 @@ export async function getMetaWebhookSecret(): Promise<WebhookSecretResolution> {
     return {
       source: "environment",
       secret: envSecret,
-      appId,
+      appId: platformAppId,
     };
   }
 
@@ -106,24 +158,24 @@ export async function getMetaWebhookSecret(): Promise<WebhookSecretResolution> {
 
 export interface SignatureValidationResult {
   valid: boolean;
-  matchedSource: "platform_settings" | "environment" | null;
+  matchedSource: "platform_settings" | "environment" | "channel_account" | null;
   appId?: string | null;
   reason?: string;
 }
 
 /**
- * Validação criptográfica rigorosa de X-Hub-Signature-256 usando HMAC SHA-256.
- *
- * Utiliza exclusivamente o secret central do Meta App configurado (platform_settings > env).
+ * Validação criptográfica rigorosa de X-Hub-Signature-256 usando HMAC SHA-256
+ * consultando as credenciais da tabela correta do canal.
  */
 export async function verifyMetaWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
   provider: "whatsapp" | "instagram" | "messenger" = "whatsapp",
+  resourceId?: string,
 ): Promise<SignatureValidationResult> {
   let secretConfig: WebhookSecretResolution;
   try {
-    secretConfig = await getMetaWebhookSecret();
+    secretConfig = await getMetaWebhookSecret(provider, resourceId);
   } catch (err: any) {
     console.error(`[META_WEBHOOK_SIGNATURE] provider=${provider} valid=false reason=META_APP_SECRET_NOT_CONFIGURED`);
     return { valid: false, matchedSource: null, reason: "META_APP_SECRET_NOT_CONFIGURED" };
