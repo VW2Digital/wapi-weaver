@@ -13,6 +13,7 @@ import { whatsappAdapter } from "@/lib/messaging/adapters/whatsapp.adapter";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
+import { processInstagramWebhook } from "@/lib/messaging/webhook-handlers/instagram.handler";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -2060,18 +2061,19 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         const phoneNumberIds = extractPhoneNumberIds(payload as WebhookPayload);
         if (phoneNumberIds.length === 0) {
           const isInstagram = (payload as any)?.object === "instagram" || Array.isArray((payload as any)?.entry?.[0]?.messaging);
-          const errorMessage = isInstagram
-            ? "Instagram payload received on WhatsApp endpoint. Use /api/public/instagram-webhook"
-            : "No phone_number_id found in payload";
-          logError(errorMessage);
+          if (isInstagram) {
+            logInfo("Instagram payload recebido no endpoint de WhatsApp; redirecionando para handler do Instagram");
+            return processInstagramWebhook(rawBody, sig);
+          }
+          logError("No phone_number_id found in payload");
           await logWebhookDelivery({
-            provider: isInstagram ? "instagram" : "whatsapp",
+            provider: "whatsapp",
             httpStatus: 400,
             outcome: "rejected_unconfigured",
             rawBody: payload,
-            errorMessage,
+            errorMessage: "No phone_number_id found in payload",
           }).catch(() => {});
-          return new Response(errorMessage, { status: 400 });
+          return new Response("Phone number ID missing", { status: 400 });
         }
 
         // Verify signature against configured secrets before resolving tenant
