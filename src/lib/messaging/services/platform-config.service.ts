@@ -2,22 +2,26 @@
 
 import db from "@/lib/db";
 
-let cachedWebhookVerifyToken: string | null | undefined = undefined;
-let cachedAt = 0;
-const CACHE_TTL_MS = 5_000;
+export async function validateWebhookVerifyToken(token: string): Promise<boolean> {
+  if (!token) return false;
 
-async function getPlatformSetting(key: string): Promise<string | null> {
-  const [rows] = (await db.query(`SELECT ${key} FROM platform_settings LIMIT 1`)) as Array<Record<string, string | null>>[];
-  return rows?.[0]?.[key] ?? null;
-}
+  // 1. Match against env variable (legacy/local fallback)
+  const envToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+  if (envToken && token === envToken) return true;
 
-export async function getWebhookVerifyToken(): Promise<string | null> {
-  if (cachedWebhookVerifyToken !== undefined && Date.now() - cachedAt < CACHE_TTL_MS) {
-    return cachedWebhookVerifyToken;
-  }
-  const fromDb = await getPlatformSetting("webhook_verify_token");
-  const fromEnv = process.env.META_WEBHOOK_VERIFY_TOKEN || null;
-  cachedWebhookVerifyToken = fromDb || fromEnv;
-  cachedAt = Date.now();
-  return cachedWebhookVerifyToken;
+  // 2. Match against global platform setting
+  const [platformRows] = (await db.query(
+    "SELECT webhook_verify_token FROM platform_settings WHERE webhook_verify_token = ? LIMIT 1",
+    [token],
+  )) as Array<{ webhook_verify_token: string | null }>[];
+  if (platformRows?.[0]?.webhook_verify_token) return true;
+
+  // 3. Match against tenant-specific WhatsApp verify token (same convention as /whatsapp-webhook)
+  const [profileRows] = (await db.query(
+    "SELECT id FROM profiles WHERE whatsapp_verify_token = ? LIMIT 1",
+    [token],
+  )) as Array<{ id: string }>[];
+  if (profileRows?.[0]?.id) return true;
+
+  return false;
 }

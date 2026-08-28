@@ -6,7 +6,7 @@ import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resoluti
 import { getInstagramChannelConfig } from "@/lib/messaging/services/channel.service";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
-import { getWebhookVerifyToken } from "@/lib/messaging/services/platform-config.service";
+import { validateWebhookVerifyToken } from "@/lib/messaging/services/platform-config.service";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
 
 function logInfo(message: string, data?: unknown) {
@@ -38,9 +38,9 @@ export async function verifyInstagramWebhookSubscription(
     logError("GET missing mode or token", { mode, token });
     return new Response("Forbidden", { status: 403 });
   }
-  const expectedToken = await getWebhookVerifyToken();
-  if (!expectedToken || token !== expectedToken) {
-    logError("GET validation failed", { token, expectedToken: expectedToken ? "[set]" : "[not set]" });
+  const valid = await validateWebhookVerifyToken(token);
+  if (!valid) {
+    logError("GET validation failed", { token });
     return new Response("Forbidden", { status: 403 });
   }
   logInfo("GET validated, returning challenge", { challenge });
