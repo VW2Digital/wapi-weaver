@@ -2404,6 +2404,7 @@ export const testInstagramConnection = createServerFn({ method: "POST" })
     z
       .object({
         instagram_business_account_id: z.string().trim().min(5),
+        page_id: z.string().trim().min(5).optional(),
         access_token: z.string().trim().min(20),
         meta_graph_version: z.string().optional(),
       })
@@ -2412,20 +2413,34 @@ export const testInstagramConnection = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiVersion = data.meta_graph_version || "v26.0";
     const version = apiVersion.startsWith("v") ? apiVersion : `v${apiVersion}`;
+    const accessToken = encodeURIComponent(data.access_token);
     const targetId = encodeURIComponent(data.instagram_business_account_id);
-    const url = `https://graph.facebook.com/${version}/${targetId}?fields=id,username,name&access_token=${encodeURIComponent(data.access_token)}`;
+
+    const buildUrl = (id: string, fields: string) =>
+      `https://graph.facebook.com/${version}/${id}?fields=${fields}&access_token=${accessToken}`;
 
     try {
-      let res = await fetch(url);
+      let res = await fetch(buildUrl(targetId, "id,username,name"));
       let body = await res.json();
 
       if (!res.ok && body?.error?.message?.includes("username")) {
-        // Fallback for Page/User nodes that only support id,name
-        const fallbackUrl = `https://graph.facebook.com/${version}/${targetId}?fields=id,name&access_token=${encodeURIComponent(data.access_token)}`;
-        const fallbackRes = await fetch(fallbackUrl);
+        const fallbackRes = await fetch(buildUrl(targetId, "id,name"));
         if (fallbackRes.ok) {
           res = fallbackRes;
           body = await fallbackRes.json();
+        }
+      }
+
+      // If the supplied ID is a Facebook Page, resolve the linked Instagram Business Account
+      if (!res.ok && data.page_id) {
+        const pageRes = await fetch(
+          `https://graph.facebook.com/${version}/${encodeURIComponent(data.page_id)}?fields=instagram_business_account&access_token=${accessToken}`,
+        );
+        const pageBody = await pageRes.json();
+        const linkedIg = pageBody?.instagram_business_account?.id;
+        if (linkedIg) {
+          res = await fetch(buildUrl(encodeURIComponent(linkedIg), "id,username,name"));
+          body = await res.json();
         }
       }
 

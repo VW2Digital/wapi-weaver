@@ -8576,6 +8576,7 @@ function InstagramSettingsTab({
       const res = await testIg({
         data: {
           instagram_business_account_id: igUserId.trim(),
+          page_id: primaryAccount?.page_id || undefined,
           access_token: tokenToTest,
           meta_graph_version: form.meta_graph_version,
         },
