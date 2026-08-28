@@ -33,14 +33,17 @@ export async function verifyInstagramWebhookSubscription(
   token: string | null,
   challenge: string | null,
 ): Promise<Response> {
+  logInfo("GET verify request", { mode, token, challenge });
   if (mode !== "subscribe" || !token) {
+    logError("GET missing mode or token", { mode, token });
     return new Response("Forbidden", { status: 403 });
   }
   const expectedToken = await getWebhookVerifyToken();
   if (!expectedToken || token !== expectedToken) {
-    logError("GET validation failed", { token });
+    logError("GET validation failed", { token, expectedToken: expectedToken ? "[set]" : "[not set]" });
     return new Response("Forbidden", { status: 403 });
   }
+  logInfo("GET validated, returning challenge", { challenge });
   return new Response(challenge ?? "", { status: 200 });
 }
 
