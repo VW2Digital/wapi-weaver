@@ -14,6 +14,10 @@ import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
 import { processInstagramWebhook } from "@/lib/messaging/webhook-handlers/instagram.handler";
+import {
+  verifyMetaWebhookSignature,
+  validateWebhookVerifyToken,
+} from "@/lib/messaging/services/platform-config.service";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -691,96 +695,37 @@ async function resolveWebhookUser(
   signatureHeader: string | null,
   payload: WebhookPayload | null,
 ) {
-  // Caminho principal e único da plataforma: uma App Secret do App Meta
-  // valida todos os callbacks e o phone_number_id escolhe o tenant. Não há
-  // dependência do fluxo, da conversa ou do perfil do contato para receber.
-  const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
-  const { data: platformSettings } = await dbAdmin
-    .from("platform_settings")
-    .select("meta_app_secret")
-    .eq("id", 1)
-    .maybeSingle();
-  const platformSecret = String(platformSettings?.meta_app_secret ?? "").trim();
-  // platform_settings é a fonte autoritativa; o .env serve como bootstrap da
-  // instalação (install.sh sincroniza um no outro).
-  const sharedSecrets = Array.from(new Set([platformSecret, envSecret].filter(Boolean)));
-
-  if (sharedSecrets.length > 0) {
-    for (const secret of sharedSecrets) {
-      if (await verifySignature(rawBody, signatureHeader, secret)) {
-        return resolveUserForVerifiedSharedAppSecret(
-          payload,
-          secret === platformSecret ? "platform_secret" : "env_secret",
-        );
-      }
+  // A assinatura HMAC SHA-256 já foi rigorosamente autenticada na borda HTTP
+  // por `verifyMetaWebhookSignature`.
+  // Aqui, resolvemos o tenant estritamente pelo phone_number_id (ou fallback de tenant único).
+  const phoneIds = extractPhoneNumberIds(payload);
+  if (phoneIds.length > 0) {
+    const { data: byPhone } = await dbAdmin
+      .from("profiles")
+      .select("id")
+      .in("whatsapp_phone_number_id", phoneIds)
+      .limit(2);
+    const typedByPhone = (byPhone ?? []) as ProfileIdRow[];
+    if (typedByPhone.length === 1) {
+      return { userId: typedByPhone[0].id, reason: "phone_number_id" as const };
     }
-
-    // Uma instalação pode manter mais de um App Meta. Se o segredo central
-    // estiver desatualizado, ainda tentamos os segredos dos perfis abaixo.
-    // Todos os caminhos continuam exigindo uma assinatura HMAC válida.
-  }
-
-  // Compatibilidade para instalações antigas sem segredo central: ainda
-  // assim, somente um segredo de perfil que valide a assinatura pode autorizar.
-  const { data: profiles } = await dbAdmin
-    .from("profiles")
-    .select("id, whatsapp_app_secret, whatsapp_phone_number_id")
-    .not("whatsapp_app_secret", "is", null);
-
-  const verifiedProfiles: Array<{
-    id: string;
-    whatsapp_app_secret?: string | null;
-    whatsapp_phone_number_id?: string | null;
-  }> = [];
-
-  for (const profile of (profiles ?? []) as ProfileWebhookRow[]) {
-    if (
-      profile.whatsapp_app_secret &&
-      (await verifySignature(rawBody, signatureHeader, profile.whatsapp_app_secret))
-    ) {
-      verifiedProfiles.push(profile);
-    }
-  }
-
-  if (verifiedProfiles.length === 0) {
-    logError("No secret validated signature", {
-      signaturePresent: !!signatureHeader,
-      secretsTried: [
-        envSecret && "env",
-        platformSecret && "platform",
-        ...((profiles ?? []) as ProfileWebhookRow[]).map((p) => `profile:${p.id}`),
-      ].filter(Boolean),
-      envConfigured: !!envSecret,
-      platformConfigured: !!platformSecret,
-    });
-    return { userId: null, reason: "invalid_signature" as const };
-  }
-
-  logWarn(
-    "Assinatura validada por whatsapp_app_secret de profiles (legado). Configure platform_settings.meta_app_secret.",
-    { verifiedProfiles: verifiedProfiles.length },
-  );
-
-  const payloadPhoneIds = extractPhoneNumberIds(payload);
-  if (payloadPhoneIds.length > 0) {
-    const byPhoneId = verifiedProfiles.filter(
-      (profile) =>
-        profile.whatsapp_phone_number_id &&
-        payloadPhoneIds.includes(String(profile.whatsapp_phone_number_id)),
-    );
-    if (byPhoneId.length === 1) {
-      return { userId: byPhoneId[0].id, reason: "phone_number_id" as const };
-    }
-    if (byPhoneId.length > 1) {
+    if (typedByPhone.length > 1) {
       return { userId: null, reason: "ambiguous_phone_number_id" as const };
     }
   }
 
-  if (verifiedProfiles.length === 1) {
-    return { userId: verifiedProfiles[0].id, reason: "signature_only" as const };
+  // O fallback de instância única só é permitido para webhooks com assinatura autêntica.
+  const { data: onlyOne } = await dbAdmin
+    .from("profiles")
+    .select("id")
+    .not("whatsapp_phone_number_id", "is", null)
+    .limit(2);
+  const typedOnlyOne = (onlyOne ?? []) as ProfileIdRow[];
+  if (typedOnlyOne.length === 1) {
+    return { userId: typedOnlyOne[0].id, reason: "single_profile" as const };
   }
 
-  return { userId: null, reason: "ambiguous_signature" as const };
+  return { userId: null, reason: "phone_number_not_configured" as const };
 }
 
 const OPT_OUT_KEYWORDS = [
@@ -2037,30 +1982,32 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         logInfo("GET recebido", { mode, hasToken: !!token });
         if (mode !== "subscribe" || !token) return new Response("Bad Request", { status: 400 });
 
-        const envToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
-        if (envToken && token === envToken) {
-          logInfo("GET validado (env token)");
+        if (await validateWebhookVerifyToken(token)) {
+          logInfo("GET validado");
           return new Response(challenge ?? "", { status: 200 });
         }
 
-        // Fallback (multi-tenant): aceita tokens salvos no profile, para compatibilidade
-        const { data: profiles } = await dbAdmin
-          .from("profiles")
-          .select("id")
-          .eq("whatsapp_verify_token", token)
-          .limit(1);
-        if (!profiles || profiles.length === 0) {
-          logInfo("GET recusado (token inválido)");
-          return new Response("Forbidden", { status: 403 });
-        }
-
-        logInfo("GET validado (profile token)");
-        return new Response(challenge ?? "", { status: 200 });
+        logInfo("GET recusado (token inválido)");
+        return new Response("Forbidden", { status: 403 });
       },
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
         logInfo("POST recebido", { hasSignature: !!sig, bytes: rawBody.length });
+
+        // 1. Authenticate Meta Signature on raw body
+        const sigResult = await verifyMetaWebhookSignature(rawBody, sig, "whatsapp");
+        if (!sigResult.valid) {
+          logError("POST recusado (assinatura inválida)", { reason: sigResult.reason });
+          await logWebhookDelivery({
+            provider: "whatsapp",
+            httpStatus: 403,
+            outcome: "rejected_signature",
+            rawBody: rawBody,
+            errorMessage: `Signature validation failed: ${sigResult.reason}`,
+          }).catch(() => {});
+          return new Response("Forbidden (Invalid Signature)", { status: 403 });
+        }
 
         let payload: unknown = null;
         try {
@@ -2078,7 +2025,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           return new Response("Bad Request", { status: 400 });
         }
 
-        // Resolve the phone number ids from the payload for tenant resolution
+        // Cross-provider check: se for payload do Instagram enviado ao endpoint de WhatsApp
         const phoneNumberIds = extractPhoneNumberIds(payload as WebhookPayload);
         if (phoneNumberIds.length === 0) {
           const isInstagram = (payload as any)?.object === "instagram" || Array.isArray((payload as any)?.entry?.[0]?.messaging);
@@ -2097,21 +2044,21 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           return new Response("Phone number ID missing", { status: 400 });
         }
 
-        // Verify signature against configured secrets before resolving tenant
+        // 2. Resolve tenant after signature authentication
         const resolved = await resolveWebhookUser(rawBody, sig, payload as WebhookPayload);
         if (!resolved.userId) {
-          logError("POST recusado (não foi possível resolver user)", {
+          logError("POST recusado (não foi possível resolver user/tenant)", {
             reason: resolved.reason,
             phone_number_ids: phoneNumberIds,
           });
           await logWebhookDelivery({
             provider: "whatsapp",
-            httpStatus: 401,
-            outcome: "rejected_signature",
+            httpStatus: 404,
+            outcome: "rejected_unconfigured",
             rawBody: payload,
             errorMessage: `Webhook user could not be resolved: ${resolved.reason}`,
           }).catch(() => {});
-          return new Response("Webhook user could not be resolved", { status: 401 });
+          return new Response("Webhook user could not be resolved", { status: 404 });
         }
 
         const matchedUserId = resolved.userId;

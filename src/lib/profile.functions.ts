@@ -2265,31 +2265,108 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { default: db } = await import("./db");
+    const { default: db, transaction } = await import("./db");
     const id = crypto.randomUUID();
-    const finalPageId = data.page_id || data.instagram_business_account_id;
-    const finalIgUserId = data.instagram_business_account_id;
-    const finalUsername = data.instagram_username || data.page_name || null;
+    let finalPageId = data.page_id?.trim() || null;
+    let finalIgUserId = data.instagram_business_account_id.trim();
+    let finalUsername = data.instagram_username?.trim() || data.page_name?.trim() || null;
 
     let finalAccessToken = data.access_token;
     if (isMaskedProfileSecret(finalAccessToken)) {
       const existing = (await db.query(
-        "SELECT access_token FROM instagram_accounts WHERE user_id = ? AND (instagram_business_account_id = ? OR ig_user_id = ?) LIMIT 1",
-        [context.userId, finalIgUserId, finalIgUserId],
+        "SELECT access_token FROM instagram_accounts WHERE user_id = ? AND (instagram_business_account_id = ? OR ig_user_id = ? OR page_id = ?) LIMIT 1",
+        [context.userId, finalIgUserId, finalIgUserId, finalPageId || ""],
       )) as any[];
       if (existing?.[0]?.access_token) {
         finalAccessToken = existing[0].access_token;
       }
     }
 
+    // Graph API Asset Discovery to guarantee page_id and business_account_id resolution
     try {
-      await db.query(
+      const apiVersion = "v26.0";
+      const tokenParam = encodeURIComponent(finalAccessToken);
+      
+      // 1. If page_id is missing, inspect the supplied ID or query /me/accounts
+      if (!finalPageId) {
+        const testRes = await fetch(
+          `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(finalIgUserId)}?fields=id,username,name&access_token=${tokenParam}`,
+        );
+        const testBody = await testRes.json();
+        if (testBody?.username && !finalUsername) {
+          finalUsername = testBody.username;
+        }
+
+        // Search in /me/accounts for matching instagram_business_account
+        const meRes = await fetch(
+          `https://graph.facebook.com/${apiVersion}/me/accounts?fields=id,name,instagram_business_account&access_token=${tokenParam}`,
+        );
+        const meBody = await meRes.json();
+        if (Array.isArray(meBody?.data)) {
+          const matchedPage = meBody.data.find(
+            (p: any) => p?.instagram_business_account?.id === finalIgUserId || p?.id === finalIgUserId,
+          );
+          if (matchedPage) {
+            finalPageId = matchedPage.id;
+            if (matchedPage.instagram_business_account?.id) {
+              finalIgUserId = matchedPage.instagram_business_account.id;
+            }
+            if (!finalUsername && matchedPage.name) {
+              finalUsername = matchedPage.name;
+            }
+          }
+        }
+      } else {
+        // If page_id was provided, verify and discover linked instagram_business_account
+        const pageRes = await fetch(
+          `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(finalPageId)}?fields=id,name,instagram_business_account&access_token=${tokenParam}`,
+        );
+        const pageBody = await pageRes.json();
+        if (pageBody?.instagram_business_account?.id) {
+          finalIgUserId = pageBody.instagram_business_account.id;
+        }
+        if (!finalUsername && pageBody?.name) {
+          finalUsername = pageBody.name;
+        }
+      }
+    } catch (discoveryErr) {
+      console.warn("[Instagram Onboarding] Graph discovery warning:", discoveryErr);
+    }
+
+    // Fallback if page_id still empty: use ig_user_id to prevent empty string
+    if (!finalPageId) {
+      finalPageId = finalIgUserId;
+    }
+
+    return transaction(async (conn) => {
+      // Multi-tenant conflict verification
+      const [existingConflicts] = await conn.execute(
+        `SELECT id, tenant_id, user_id, page_id, instagram_business_account_id, ig_user_id
+         FROM instagram_accounts
+         WHERE (page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?)
+           AND user_id != ?
+         LIMIT 1`,
+        [finalPageId, finalIgUserId, finalIgUserId, context.userId],
+      );
+
+      const conflict = (existingConflicts as any[])?.[0];
+      if (conflict) {
+        throw new Error(
+          "Esta conta ou página do Instagram já está vinculada a outro usuário/tenant.",
+        );
+      }
+
+      await conn.execute(
         `INSERT INTO instagram_accounts (
           id, tenant_id, user_id, page_id, instagram_business_account_id, ig_user_id,
           page_name, instagram_username, username, access_token, token_expires_at, is_active, status, webhook_subscribed
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', 0)
         ON DUPLICATE KEY UPDATE 
+          tenant_id = VALUES(tenant_id),
+          page_id = VALUES(page_id),
+          instagram_business_account_id = VALUES(instagram_business_account_id),
+          ig_user_id = VALUES(ig_user_id),
           page_name = VALUES(page_name), 
           instagram_username = VALUES(instagram_username), 
           username = VALUES(username),
@@ -2304,40 +2381,16 @@ export const connectInstagramAccount = createServerFn({ method: "POST" })
           finalPageId,
           finalIgUserId,
           finalIgUserId,
-          data.page_name || null,
+          data.page_name || finalUsername || null,
           finalUsername,
           finalUsername,
           finalAccessToken,
           data.token_expires_at || null,
         ],
       );
-    } catch (err: any) {
-      // Fallback for minimal legacy schemas
-      try {
-        await db.query(
-          `INSERT INTO instagram_accounts (
-            id, user_id, ig_user_id, username, access_token, token_expires_at, status
-          )
-          VALUES (?, ?, ?, ?, ?, ?, 'active')
-          ON DUPLICATE KEY UPDATE 
-            username = VALUES(username),
-            access_token = VALUES(access_token), 
-            token_expires_at = VALUES(token_expires_at), 
-            status = 'active'`,
-          [
-            id,
-            context.userId,
-            finalIgUserId,
-            finalUsername,
-            finalAccessToken,
-            data.token_expires_at || null,
-          ],
-        );
-      } catch (innerErr) {
-        throw err;
-      }
-    }
-    return { ok: true };
+
+      return { ok: true, pageId: finalPageId, igUserId: finalIgUserId };
+    });
   });
 
 export const disconnectInstagramAccount = createServerFn({ method: "POST" })

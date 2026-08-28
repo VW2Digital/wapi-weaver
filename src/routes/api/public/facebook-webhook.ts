@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
 import { messengerAdapter } from "@/lib/messaging/adapters/messenger.adapter";
 import { resolveMessengerTenant } from "@/lib/messaging/services/tenant-resolution.service";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
+import {
+  verifyMetaWebhookSignature,
+  validateWebhookVerifyToken,
+} from "@/lib/messaging/services/platform-config.service";
 
 function logInfo(message: string, data?: unknown) {
   console.log(`[facebook-webhook] ${message}`, data ? JSON.stringify(data) : "");
@@ -12,17 +15,6 @@ function logInfo(message: string, data?: unknown) {
 
 function logError(message: string, data?: unknown) {
   console.error(`[facebook-webhook] ${message}`, data ? JSON.stringify(data) : "");
-}
-
-async function verifySignature(rawBody: string, signatureHeader: string | null, appSecret: string) {
-  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
-  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  const provided = signatureHeader.slice(7);
-  try {
-    return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(provided, "hex"));
-  } catch {
-    return false;
-  }
 }
 
 export const Route = createFileRoute("/api/public/facebook-webhook")({
@@ -34,12 +26,9 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
 
-        logInfo("GET received", { mode, token });
+        logInfo("GET received", { mode, hasToken: Boolean(token) });
 
-        const verifyToken =
-          process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;
-
-        if (mode === "subscribe" && token === verifyToken) {
+        if (mode === "subscribe" && token && (await validateWebhookVerifyToken(token))) {
           logInfo("GET validated");
           return new Response(challenge ?? "", { status: 200 });
         }
@@ -51,6 +40,20 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
+
+        // 1. Authenticate Meta Signature on original raw body
+        const sigResult = await verifyMetaWebhookSignature(rawBody, sig, "messenger");
+        if (!sigResult.valid) {
+          logError("Signature validation failed", { reason: sigResult.reason });
+          await logWebhookDelivery({
+            provider: "messenger",
+            httpStatus: 403,
+            outcome: "rejected_signature",
+            rawBody: rawBody,
+            errorMessage: `Signature validation failed: ${sigResult.reason}`,
+          }).catch(() => {});
+          return new Response("Forbidden (Invalid Signature)", { status: 403 });
+        }
 
         let payload: unknown = null;
         try {
@@ -92,23 +95,6 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
             errorMessage: `Tenant not found for Facebook page: ${resolution.reason}`,
           }).catch(() => {});
           return new Response("Page not integrated", { status: 404 });
-        }
-
-        const appSecret = process.env.META_APP_SECRET;
-        if (appSecret) {
-          const verified = await verifySignature(rawBody, sig, appSecret);
-          if (!verified) {
-            logError("Signature validation failed");
-            await logWebhookDelivery({
-              provider: "messenger",
-              channelResourceId: pageId,
-              httpStatus: 403,
-              outcome: "rejected_signature",
-              rawBody: payload,
-              errorMessage: "Signature validation failed",
-            }).catch(() => {});
-            return new Response("Forbidden (Invalid Signature)", { status: 403 });
-          }
         }
 
         const { events, diagnostics } = messengerAdapter.normalize(payload);

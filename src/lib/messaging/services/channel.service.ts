@@ -161,6 +161,101 @@ export async function getMessengerChannelConfig(
   };
 }
 
+export interface ChannelHealthStatus {
+  provider: "whatsapp" | "instagram" | "messenger";
+  status: "CONNECTED" | "DEGRADED" | "REAUTH_REQUIRED" | "ERROR" | "DISCONNECTED";
+  credentialsConfigured: boolean;
+  assetResolved: boolean;
+  tenantResolved: boolean;
+  webhookHealthy: boolean;
+  lastWebhookAt?: string | null;
+  lastSuccessfulMessageAt?: string | null;
+  lastError?: string | null;
+}
+
+export async function getChannelHealthDiagnostic(
+  tenantId: string,
+  provider: "whatsapp" | "instagram" | "messenger",
+): Promise<ChannelHealthStatus> {
+  let credentialsConfigured = false;
+  let assetResolved = false;
+  let tenantResolved = Boolean(tenantId);
+  let webhookHealthy = true;
+  let lastWebhookAt: string | null = null;
+  let lastSuccessfulMessageAt: string | null = null;
+  let lastError: string | null = null;
+
+  if (provider === "whatsapp") {
+    const rows = (await db.query(
+      "SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles WHERE id = ? LIMIT 1",
+      [tenantId],
+    )) as Array<{ id: string; whatsapp_phone_number_id: string | null; whatsapp_access_token: string | null }>;
+    const profile = rows[0];
+    credentialsConfigured = Boolean(profile?.whatsapp_access_token);
+    assetResolved = Boolean(profile?.whatsapp_phone_number_id);
+  } else if (provider === "instagram") {
+    const rows = (await db.query(
+      "SELECT id, page_id, instagram_business_account_id, access_token, status FROM instagram_accounts WHERE tenant_id = ? LIMIT 1",
+      [tenantId],
+    )) as Array<{ id: string; page_id: string | null; instagram_business_account_id: string | null; access_token: string | null; status: string }>;
+    const acc = rows[0];
+    credentialsConfigured = Boolean(acc?.access_token);
+    assetResolved = Boolean(acc?.page_id && acc?.instagram_business_account_id);
+  } else if (provider === "messenger") {
+    const rows = (await db.query(
+      "SELECT page_id, page_access_token FROM facebook_pages WHERE user_id = ? LIMIT 1",
+      [tenantId],
+    )) as Array<{ page_id: string; page_access_token: string | null }>;
+    const page = rows[0];
+    credentialsConfigured = Boolean(page?.page_access_token);
+    assetResolved = Boolean(page?.page_id);
+  }
+
+  // Buscar última mensagem com sucesso
+  const msgRows = (await db.query(
+    "SELECT created_at FROM direct_messages WHERE tenant_id = ? AND channel = ? ORDER BY created_at DESC LIMIT 1",
+    [tenantId, provider],
+  )) as Array<{ created_at: Date }>;
+  if (msgRows[0]?.created_at) {
+    lastSuccessfulMessageAt = msgRows[0].created_at.toISOString();
+  }
+
+  // Buscar último webhook
+  const logRows = (await db.query(
+    "SELECT created_at, http_status, error_message FROM webhook_delivery_logs WHERE tenant_id = ? AND provider = ? ORDER BY created_at DESC LIMIT 1",
+    [tenantId, provider],
+  )) as Array<{ created_at: Date; http_status: number; error_message: string | null }>;
+  if (logRows[0]) {
+    lastWebhookAt = logRows[0].created_at ? new Date(logRows[0].created_at).toISOString() : null;
+    if (logRows[0].http_status >= 400) {
+      webhookHealthy = false;
+      lastError = logRows[0].error_message;
+    }
+  }
+
+  const isConnected = credentialsConfigured && assetResolved && tenantResolved;
+  const status: ChannelHealthStatus["status"] = !credentialsConfigured
+    ? "DISCONNECTED"
+    : isConnected
+      ? webhookHealthy
+        ? "CONNECTED"
+        : "DEGRADED"
+      : "ERROR";
+
+  return {
+    provider,
+    status,
+    credentialsConfigured,
+    assetResolved,
+    tenantResolved,
+    webhookHealthy,
+    lastWebhookAt,
+    lastSuccessfulMessageAt,
+    lastError,
+  };
+}
+
+
 export async function getChannelConfig(
   provider: MessagingProvider,
   tenantId: string,

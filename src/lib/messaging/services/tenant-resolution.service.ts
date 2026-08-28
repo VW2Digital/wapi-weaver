@@ -54,6 +54,7 @@ export async function resolveInstagramTenant(
   resourceId: string,
 ): Promise<TenantResolutionResult> {
   if (!resourceId) {
+    console.log("[tenant-resolution] provider=instagram lookupByResourceId=false reason=missing_resource_id tenantFound=false");
     return { resolved: null, reason: "missing_resource_id" };
   }
 
@@ -72,14 +73,17 @@ export async function resolveInstagramTenant(
   }>;
 
   if (rows.length === 0) {
+    console.log(`[tenant-resolution] provider=instagram entryId=${resourceId} tenantFound=false reason=instagram_account_not_found`);
     return { resolved: null, reason: "instagram_account_not_found" };
   }
 
   if (rows.length > 1) {
+    console.warn(`[tenant-resolution] provider=instagram entryId=${resourceId} tenantFound=false reason=ambiguous_instagram_account`);
     return { resolved: null, reason: "ambiguous_instagram_account" };
   }
 
   const account = rows[0];
+  console.log(`[tenant-resolution] provider=instagram entryId=${resourceId} tenantFound=true tenantId=${account.tenant_id}`);
   return {
     resolved: {
       tenantId: account.tenant_id,

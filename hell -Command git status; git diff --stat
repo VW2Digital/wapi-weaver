@@ -1,0 +1,12 @@
+warning: in the working copy of 'src/lib/messaging/services/channel.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messaging/services/platform-config.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messaging/services/tenant-resolution.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/messaging/webhook-handlers/instagram.handler.ts', LF will be replaced by CRLF the next time Git touches it
+ src/lib/messaging/services/channel.service.ts      |  95 [32m+++++++++++++[m
+ .../messaging/services/platform-config.service.ts  | 124 [32m+++++++++++++++[m[31m-[m
+ .../services/tenant-resolution.service.ts          |   4 [32m+[m
+ .../webhook-handlers/instagram.handler.ts          |  50 [32m+++[m[31m----[m
+ src/lib/profile.functions.ts                       | 123 [32m+++++++++++[m[31m-----[m
+ src/routes/api/public/facebook-webhook.ts          |  54 [32m+++[m[31m----[m
+ src/routes/api/public/whatsapp-webhook.ts          | 157 [32m+++++++[m[31m--------------[m
+ 7 files changed, 406 insertions(+), 201 deletions(-)
