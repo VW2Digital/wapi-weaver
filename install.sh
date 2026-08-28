@@ -984,6 +984,22 @@ if [ $? -ne 0 ]; then
   dump_diagnostics_and_exit "Provisionamento do Administrador Master falhou."
 fi
 
+# Garantir que platform_settings.webhook_verify_token esteja configurado
+echo "  Configurando webhook_verify_token em platform_settings..."
+docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver -e "
+  INSERT INTO platform_settings (id, webhook_verify_token, updated_at)
+  SELECT 1, '${META_VERIFY_TOKEN_VAL}', NOW()
+  FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM platform_settings LIMIT 1);
+" 2>/dev/null || true
+
+docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver -e "
+  UPDATE platform_settings
+  SET webhook_verify_token = '${META_VERIFY_TOKEN_VAL}'
+  WHERE webhook_verify_token IS NULL OR webhook_verify_token = '';
+" 2>/dev/null || true
+print_ok "webhook_verify_token sincronizado no banco."
+
 # Validar Banco de Dados offline
 echo "  Validando estrutura essencial do Banco de Dados (validate-database.js)..."
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/validate-database.js
