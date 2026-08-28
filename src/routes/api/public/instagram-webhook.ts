@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { processInstagramWebhook } from "@/lib/messaging/webhook-handlers/instagram.handler";
+import {
+  processInstagramWebhook,
+  verifyInstagramWebhookSubscription,
+} from "@/lib/messaging/webhook-handlers/instagram.handler";
 
 export const Route = createFileRoute("/api/public/instagram-webhook")({
   server: {
@@ -9,14 +12,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
-
-        if (mode === "subscribe" && token) {
-          if (token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
-            return new Response(challenge ?? "", { status: 200 });
-          }
-        }
-
-        return new Response("Forbidden", { status: 403 });
+        return verifyInstagramWebhookSubscription(mode, token, challenge);
       },
 
       POST: async ({ request }) => {

@@ -3,8 +3,10 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { instagramAdapter } from "@/lib/messaging/adapters/instagram.adapter";
 import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resolution.service";
+import { getInstagramChannelConfig } from "@/lib/messaging/services/channel.service";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
+import { getWebhookVerifyToken } from "@/lib/messaging/services/platform-config.service";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
 
 function logInfo(message: string, data?: unknown) {
@@ -24,6 +26,22 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
   } catch {
     return false;
   }
+}
+
+export async function verifyInstagramWebhookSubscription(
+  mode: string | null,
+  token: string | null,
+  challenge: string | null,
+): Promise<Response> {
+  if (mode !== "subscribe" || !token) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const expectedToken = await getWebhookVerifyToken();
+  if (!expectedToken || token !== expectedToken) {
+    logError("GET validation failed", { token });
+    return new Response("Forbidden", { status: 403 });
+  }
+  return new Response(challenge ?? "", { status: 200 });
 }
 
 export async function processInstagramWebhook(rawBody: string, signature: string | null): Promise<Response> {
@@ -69,7 +87,8 @@ export async function processInstagramWebhook(rawBody: string, signature: string
     return new Response("Account not integrated", { status: 404 });
   }
 
-  const appSecret = process.env.META_APP_SECRET;
+  const config = await getInstagramChannelConfig(resolution.resolved!.tenantId, pageId);
+  const appSecret = config?.appSecret || process.env.META_APP_SECRET;
   if (appSecret) {
     const verified = await verifySignature(rawBody, signature, appSecret);
     if (!verified) {
