@@ -737,6 +737,16 @@ async function resolveWebhookUser(
   }
 
   if (verifiedProfiles.length === 0) {
+    logError("No secret validated signature", {
+      signaturePresent: !!signatureHeader,
+      secretsTried: [
+        envSecret && "env",
+        platformSecret && "platform",
+        ...((profiles ?? []) as ProfileWebhookRow[]).map((p) => `profile:${p.id}`),
+      ].filter(Boolean),
+      envConfigured: !!envSecret,
+      platformConfigured: !!platformSecret,
+    });
     return { userId: null, reason: "invalid_signature" as const };
   }
 
