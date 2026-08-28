@@ -984,21 +984,92 @@ if [ $? -ne 0 ]; then
   dump_diagnostics_and_exit "Provisionamento do Administrador Master falhou."
 fi
 
-# Garantir que platform_settings.webhook_verify_token esteja configurado
-echo "  Configurando webhook_verify_token em platform_settings..."
-docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver -e "
-  INSERT INTO platform_settings (id, webhook_verify_token, updated_at)
-  SELECT 1, '${META_VERIFY_TOKEN_VAL}', NOW()
-  FROM DUAL
-  WHERE NOT EXISTS (SELECT 1 FROM platform_settings LIMIT 1);
-" 2>/dev/null || true
+# ==============================================================================
+# Sincronizar segredos da plataforma Meta em platform_settings
+#
+# platform_settings é a FONTE AUTORITATIVA do App Secret e do verify token
+# (o SaaS opera com um único App Meta central). O .env serve como bootstrap:
+# valores só são gravados quando a coluna está NULL/vazia, para nunca sobrescrever
+# o que o admin master configurou pela UI.
+#
+# profiles.whatsapp_app_secret / whatsapp_verify_token são legado e não são
+# tocados aqui.
+# ==============================================================================
+print_step "Sincronizando segredos da plataforma Meta em platform_settings..."
 
-docker compose -f "${COMPOSE_FILE}" exec -T mysql mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver -e "
-  UPDATE platform_settings
-  SET webhook_verify_token = '${META_VERIFY_TOKEN_VAL}'
-  WHERE webhook_verify_token IS NULL OR webhook_verify_token = '';
-" 2>/dev/null || true
-print_ok "webhook_verify_token sincronizado no banco."
+# Escapa aspas simples e barras invertidas para uso seguro em literais SQL.
+sql_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g"
+}
+
+run_platform_sql() {
+  docker compose -f "${COMPOSE_FILE}" exec -T mysql \
+    mysql -u wapi_user -p"${DB_PASS_VAL}" wapi_weaver -e "$1"
+}
+
+META_VERIFY_TOKEN_SQL=$(sql_escape "${META_VERIFY_TOKEN_VAL}")
+META_APP_SECRET_SQL=$(sql_escape "${META_APP_SECRET_VAL}")
+META_APP_ID_SQL=$(sql_escape "${META_APP_ID_VAL}")
+META_CONFIG_ID_SQL=$(sql_escape "${META_CONFIG_ID_VAL}")
+
+# Garantir que a linha singleton (id=1) exista antes de qualquer UPDATE.
+if ! run_platform_sql "
+  INSERT INTO platform_settings (id, updated_at)
+  SELECT 1, NOW() FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM platform_settings WHERE id = 1);
+"; then
+  dump_diagnostics_and_exit "Falha ao garantir a linha singleton em platform_settings."
+fi
+
+# Preencher somente colunas ainda não configuradas.
+sync_platform_setting() {
+  local column="$1"
+  local value="$2"
+  local label="$3"
+
+  if [ -z "${value}" ]; then
+    echo "    ${label}: não informado no .env (mantido como está)"
+    return 0
+  fi
+
+  if ! run_platform_sql "
+    UPDATE platform_settings
+    SET ${column} = '${value}', updated_at = NOW()
+    WHERE id = 1 AND (${column} IS NULL OR TRIM(${column}) = '');
+  "; then
+    dump_diagnostics_and_exit "Falha ao sincronizar platform_settings.${column}."
+  fi
+
+  echo "    ${label}: sincronizado"
+}
+
+sync_platform_setting "webhook_verify_token" "${META_VERIFY_TOKEN_SQL}" "webhook_verify_token"
+sync_platform_setting "meta_app_secret" "${META_APP_SECRET_SQL}" "meta_app_secret"
+sync_platform_setting "meta_app_id" "${META_APP_ID_SQL}" "meta_app_id"
+sync_platform_setting "meta_config_id" "${META_CONFIG_ID_SQL}" "meta_config_id"
+
+# Reportar o que ficou pendente, sem expor nenhum segredo.
+echo "  Estado final dos segredos Meta em platform_settings:"
+run_platform_sql "
+  SELECT
+    CASE WHEN meta_app_id IS NULL OR TRIM(meta_app_id) = ''
+         THEN 'AUSENTE' ELSE 'CONFIGURADO' END AS meta_app_id,
+    CASE WHEN meta_app_secret IS NULL OR TRIM(meta_app_secret) = ''
+         THEN 'AUSENTE' ELSE 'CONFIGURADO' END AS meta_app_secret,
+    CASE WHEN webhook_verify_token IS NULL OR TRIM(webhook_verify_token) = ''
+         THEN 'AUSENTE' ELSE 'CONFIGURADO' END AS webhook_verify_token,
+    CASE WHEN meta_config_id IS NULL OR TRIM(meta_config_id) = ''
+         THEN 'AUSENTE' ELSE 'CONFIGURADO' END AS meta_config_id,
+    meta_graph_version
+  FROM platform_settings WHERE id = 1;
+" || true
+
+if [ -z "${META_APP_SECRET_VAL}" ]; then
+  print_warn "META_APP_SECRET não foi informado. Os webhooks da Meta serão rejeitados com invalid_signature até que"
+  print_warn "o App Secret real seja configurado em Configurações > Integrações Meta (ou no .env)."
+fi
+
+print_ok "Segredos da plataforma Meta sincronizados no banco."
 
 # Validar Banco de Dados offline
 echo "  Validando estrutura essencial do Banco de Dados (validate-database.js)..."

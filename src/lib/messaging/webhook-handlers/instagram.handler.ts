@@ -6,7 +6,7 @@ import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resoluti
 import { getInstagramChannelConfig } from "@/lib/messaging/services/channel.service";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
-import { validateWebhookVerifyToken } from "@/lib/messaging/services/platform-config.service";
+import { resolveMetaAppSecret } from "@/lib/messaging/services/platform-config.service";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
 
 function logInfo(message: string, data?: unknown) {
@@ -86,7 +86,7 @@ export async function processInstagramWebhook(rawBody: string, signature: string
   }
 
   const config = await getInstagramChannelConfig(resolution.resolved!.tenantId, pageId);
-  const appSecret = config?.appSecret || process.env.META_APP_SECRET;
+  const appSecret = config?.appSecret || (await resolveMetaAppSecret());
   if (appSecret) {
     const verified = await verifySignature(rawBody, signature, appSecret);
     if (!verified) {

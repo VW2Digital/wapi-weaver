@@ -604,6 +604,10 @@ function logError(message: string, data?: unknown) {
   console.error(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
 }
 
+function logWarn(message: string, data?: unknown) {
+  console.warn(`[whatsapp-webhook] ${message}`, data ? JSON.stringify(data) : "");
+}
+
 async function verifySignature(rawBody: string, signatureHeader: string | null, appSecret: string) {
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
   const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
@@ -697,14 +701,16 @@ async function resolveWebhookUser(
     .eq("id", 1)
     .maybeSingle();
   const platformSecret = String(platformSettings?.meta_app_secret ?? "").trim();
-  const sharedSecrets = Array.from(new Set([envSecret, platformSecret].filter(Boolean)));
+  // platform_settings é a fonte autoritativa; o .env serve como bootstrap da
+  // instalação (install.sh sincroniza um no outro).
+  const sharedSecrets = Array.from(new Set([platformSecret, envSecret].filter(Boolean)));
 
   if (sharedSecrets.length > 0) {
     for (const secret of sharedSecrets) {
       if (await verifySignature(rawBody, signatureHeader, secret)) {
         return resolveUserForVerifiedSharedAppSecret(
           payload,
-          secret === envSecret ? "env_secret" : "platform_secret",
+          secret === platformSecret ? "platform_secret" : "env_secret",
         );
       }
     }
@@ -749,6 +755,11 @@ async function resolveWebhookUser(
     });
     return { userId: null, reason: "invalid_signature" as const };
   }
+
+  logWarn(
+    "Assinatura validada por whatsapp_app_secret de profiles (legado). Configure platform_settings.meta_app_secret.",
+    { verifiedProfiles: verifiedProfiles.length },
+  );
 
   const payloadPhoneIds = extractPhoneNumberIds(payload);
   if (payloadPhoneIds.length > 0) {
