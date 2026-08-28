@@ -69,94 +69,97 @@ export async function resolveMetaAppSecret(): Promise<string | null> {
   return null;
 }
 
+export interface WebhookSecretResolution {
+  source: "platform_settings" | "environment";
+  secret: string;
+  appId: string | null;
+}
+
+/**
+ * Retorna a fonte autoritativa única do Meta App Secret para webhooks.
+ * Regra: platform_settings (autoritativa) > process.env (fallback/bootstrap).
+ */
+export async function getMetaWebhookSecret(): Promise<WebhookSecretResolution> {
+  const platform = await getPlatformSecrets();
+  const appId = platform?.meta_app_id || process.env.VITE_META_APP_ID || process.env.META_APP_ID || null;
+
+  const dbSecret = String(platform?.meta_app_secret ?? "").trim();
+  if (dbSecret) {
+    return {
+      source: "platform_settings",
+      secret: dbSecret,
+      appId,
+    };
+  }
+
+  const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
+  if (envSecret) {
+    return {
+      source: "environment",
+      secret: envSecret,
+      appId,
+    };
+  }
+
+  throw new Error("META_APP_SECRET_NOT_CONFIGURED");
+}
+
 export interface SignatureValidationResult {
   valid: boolean;
-  matchedSource: "platform_settings" | "env" | "profile_legacy" | null;
+  matchedSource: "platform_settings" | "environment" | null;
+  appId?: string | null;
   reason?: string;
 }
 
 /**
  * Validação criptográfica rigorosa de X-Hub-Signature-256 usando HMAC SHA-256.
  *
- * Exige:
- * 1. rawBody original HTTP (string ou Buffer original)
- * 2. Header `sha256=...`
- * 3. Segredo autorizado (platform_settings > env > profile legacy fallback)
+ * Utiliza exclusivamente o secret central do Meta App configurado (platform_settings > env).
  */
 export async function verifyMetaWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
   provider: "whatsapp" | "instagram" | "messenger" = "whatsapp",
 ): Promise<SignatureValidationResult> {
+  let secretConfig: WebhookSecretResolution;
+  try {
+    secretConfig = await getMetaWebhookSecret();
+  } catch (err: any) {
+    console.error(`[META_WEBHOOK_SIGNATURE] provider=${provider} valid=false reason=META_APP_SECRET_NOT_CONFIGURED`);
+    return { valid: false, matchedSource: null, reason: "META_APP_SECRET_NOT_CONFIGURED" };
+  }
+
+  const { source, secret, appId } = secretConfig;
+
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
     console.log(
-      `[signature-validator] provider=${provider} signaturePresent=${Boolean(
+      `[META_WEBHOOK_SIGNATURE] provider=${provider} appId=${appId} secretSource=${source} secretLength=${secret.length} signaturePresent=${Boolean(
         signatureHeader,
-      )} rawBodyLength=${rawBody.length} valid=false reason=missing_or_malformed_header`,
+      )} rawBodyLength=${Buffer.byteLength(rawBody, "utf8")} valid=false reason=missing_or_malformed_header`,
     );
-    return { valid: false, matchedSource: null, reason: "missing_or_malformed_header" };
+    return { valid: false, matchedSource: null, appId, reason: "missing_or_malformed_header" };
   }
 
-  const providedHash = signatureHeader.slice(7);
+  const expected = "sha256=" + createHmac("sha256", secret).update(Buffer.from(rawBody, "utf8")).digest("hex");
 
-  // 1. Fonte autoritativa: platform_settings
-  const platform = await getPlatformSecrets();
-  const platformSecret = String(platform?.meta_app_secret ?? "").trim();
-  if (platformSecret) {
-    const expected = createHmac("sha256", platformSecret).update(rawBody).digest("hex");
-    try {
-      if (timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(providedHash, "hex"))) {
-        console.log(
-          `[signature-validator] provider=${provider} candidateSource=platform_settings candidateConfigured=true candidateLength=${platformSecret.length} signatureValid=true`,
-        );
-        return { valid: true, matchedSource: "platform_settings" };
-      }
-    } catch {}
-  }
-
-  // 2. Bootstrap: process.env.META_APP_SECRET
-  const envSecret = String(process.env.META_APP_SECRET ?? "").trim();
-  if (envSecret && envSecret !== platformSecret) {
-    const expected = createHmac("sha256", envSecret).update(rawBody).digest("hex");
-    try {
-      if (timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(providedHash, "hex"))) {
-        console.log(
-          `[signature-validator] provider=${provider} candidateSource=env candidateConfigured=true candidateLength=${envSecret.length} signatureValid=true`,
-        );
-        return { valid: true, matchedSource: "env" };
-      }
-    } catch {}
-  }
-
-  // 3. Fallback legado: perfis com segredos individuais
-  const profileRows = (await db.query(
-    "SELECT id, whatsapp_app_secret FROM profiles WHERE whatsapp_app_secret IS NOT NULL AND whatsapp_app_secret <> ''",
-  )) as Array<{ id: string; whatsapp_app_secret: string }>;
-
-  for (const prof of profileRows) {
-    const profSecret = String(prof.whatsapp_app_secret ?? "").trim();
-    if (profSecret && profSecret !== platformSecret && profSecret !== envSecret) {
-      const expected = createHmac("sha256", profSecret).update(rawBody).digest("hex");
-      try {
-        if (timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(providedHash, "hex"))) {
-          console.warn(
-            `[signature-validator] provider=${provider} candidateSource=profile_legacy profileId=${prof.id} signatureValid=true (Configure platform_settings.meta_app_secret)`,
-          );
-          return { valid: true, matchedSource: "profile_legacy" };
-        }
-      } catch {}
-    }
-  }
+  const valid =
+    typeof signatureHeader === "string" &&
+    expected.length === signatureHeader.length &&
+    timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(signatureHeader, "utf8"));
 
   console.log(
-    `[signature-validator] provider=${provider} signaturePresent=true rawBodyLength=${rawBody.length} platformConfigured=${Boolean(
-      platformSecret,
-    )} envConfigured=${Boolean(envSecret)} legacyProfilesTested=${
-      profileRows.length
-    } valid=false reason=no_secret_matched`,
+    `[META_WEBHOOK_SIGNATURE] provider=${provider} appId=${appId} secretSource=${source} secretLength=${secret.length} signaturePresent=true rawBodyLength=${Buffer.byteLength(
+      rawBody,
+      "utf8",
+    )} valid=${valid}`,
   );
 
-  return { valid: false, matchedSource: null, reason: "invalid_signature" };
+  return {
+    valid,
+    matchedSource: valid ? source : null,
+    appId,
+    reason: valid ? undefined : "invalid_signature",
+  };
 }
 
 export async function validateWebhookVerifyToken(token: string): Promise<boolean> {
