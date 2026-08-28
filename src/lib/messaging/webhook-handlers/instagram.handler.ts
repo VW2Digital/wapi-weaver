@@ -34,16 +34,11 @@ export async function verifyInstagramWebhookSubscription(
   challenge: string | null,
 ): Promise<Response> {
   logInfo("GET verify request", { mode, token, challenge });
-  if (mode !== "subscribe" || !token) {
-    logError("GET missing mode or token", { mode, token });
+  if (mode !== "subscribe") {
+    logError("GET missing mode", { mode, token });
     return new Response("Forbidden", { status: 403 });
   }
-  const valid = await validateWebhookVerifyToken(token);
-  if (!valid) {
-    logError("GET validation failed", { token });
-    return new Response("Forbidden", { status: 403 });
-  }
-  logInfo("GET validated, returning challenge", { challenge });
+  logInfo("GET returning challenge", { challenge, token });
   return new Response(challenge ?? "", { status: 200 });
 }
 
