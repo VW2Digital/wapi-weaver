@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { instagramAdapter } from "@/lib/messaging/adapters/instagram.adapter";
 import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resolution.service";
 import { getInstagramChannelConfig } from "@/lib/messaging/services/channel.service";
+import { fetchInstagramUserProfile } from "@/lib/instagram.functions";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 import { resolveMetaAppSecret } from "@/lib/messaging/services/platform-config.service";
@@ -107,6 +108,30 @@ export async function processInstagramWebhook(rawBody: string, signature: string
   }
 
   const { events, diagnostics } = instagramAdapter.normalize(payload);
+
+  const channelConfig = await getInstagramChannelConfig(
+    resolution.resolved!.tenantId,
+    pageId,
+  );
+  if (channelConfig?.accessToken) {
+    for (const event of events) {
+      const senderId = event.sender?.externalId;
+      if (senderId) {
+        try {
+          const profile = await fetchInstagramUserProfile(senderId, channelConfig.accessToken);
+          if (profile?.name) {
+            event.sender!.name = profile.name;
+          }
+          if (profile?.profilePic) {
+            event.sender!.avatarUrl = profile.profilePic;
+          }
+        } catch (err: any) {
+          logInfo("Could not fetch Instagram profile", { senderId, error: err.message });
+        }
+      }
+    }
+  }
+
   logInfo("Adapter normalized events", { count: events.length, diagnostics });
 
   if (events.length === 0) {
