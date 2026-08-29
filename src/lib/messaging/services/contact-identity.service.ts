@@ -69,13 +69,16 @@ export async function ensureContact(
     const instagramId = provider === "instagram" ? identity.externalId : null;
     const whatsappNumber = provider === "whatsapp" ? (identity.phoneE164 || phoneE164) : null;
 
+    const externalContactId = provider !== "whatsapp" ? identity.externalId : null;
+
     await conn.execute(
       `INSERT INTO contacts (
          id, tenant_id, user_id, phone_e164, name,
          source, custom_fields, is_unread, channel,
          instagram_id, whatsapp_number, external_id,
+         external_contact_id,
          last_interaction_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
        ON DUPLICATE KEY UPDATE
          name = COALESCE(VALUES(name), name),
          custom_fields = VALUES(custom_fields),
@@ -84,6 +87,7 @@ export async function ensureContact(
          instagram_id = COALESCE(VALUES(instagram_id), instagram_id),
          whatsapp_number = COALESCE(VALUES(whatsapp_number), whatsapp_number),
          external_id = COALESCE(VALUES(external_id), external_id),
+         external_contact_id = COALESCE(VALUES(external_contact_id), external_contact_id),
          last_interaction_at = VALUES(last_interaction_at),
          updated_at = NOW()`,
       [
@@ -99,6 +103,7 @@ export async function ensureContact(
         instagramId,
         whatsappNumber,
         identity.externalId,
+        externalContactId,
       ],
     );
 
