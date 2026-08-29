@@ -294,7 +294,7 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
 
 async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
   const accounts = (await db.query(
-    `SELECT instagram_business_account_id as ig_user_id, access_token
+    `SELECT ig_user_id, access_token
      FROM instagram_accounts WHERE user_id = ? AND is_active = 1 LIMIT 1`,
     [job.user_id],
   )) as Array<{ ig_user_id: string; access_token: string }>;
